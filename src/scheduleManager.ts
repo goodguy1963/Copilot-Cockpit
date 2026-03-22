@@ -1,0 +1,1667 @@
+/**
+ * Copilot Scheduler - Schedule Manager
+ * Handles task CRUD operations, cron scheduling, and persistence
+ */
+
+import * as vscode from "vscode";
+import * as fs from "fs";
+import * as path from "path";
+import { parseExpression } from "cron-parser";
+import type { ScheduledTask, CreateTaskInput, TaskScope } from "./types";
+import { messages } from "./i18n";
+import { logDebug, logError } from "./logger";
+import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
+import {
+  findWorkspaceRoot,
+  getResolvedWorkspaceRoots,
+  readSchedulerConfig,
+  writeSchedulerConfig,
+} from "./schedulerJsonSanitizer";
+import { selectTaskStore } from "./taskStoreSelection";
+import {
+  normalizeForCompare,
+  resolveGlobalPromptPath,
+  resolveGlobalPromptsRoot,
+  resolveLocalPromptPath,
+} from "./promptResolver";
+import {
+  getDefaultPromptBackupRelativePath,
+  isRecurringPromptBackupCandidate,
+  renderPromptBackupContent,
+  resolvePromptBackupPath,
+  toWorkspaceRelativePromptBackupPath,
+} from "./promptBackup";
+
+// Node.js globals
+declare const setTimeout: (callback: () => void, ms: number) => NodeJS.Timeout;
+declare const clearTimeout: (timeoutId: NodeJS.Timeout) => void;
+declare const setInterval: (callback: () => void, ms: number) => NodeJS.Timeout;
+declare const clearInterval: (intervalId: NodeJS.Timeout) => void;
+declare const console: {
+  error: (...args: unknown[]) => void;
+  log: (...args: unknown[]) => void;
+};
+
+const STORAGE_KEY = "scheduledTasks";
+const STORAGE_FILE_NAME = "scheduledTasks.json";
+const STORAGE_META_FILE_NAME = "scheduledTasks.meta.json";
+const STORAGE_REVISION_KEY = "scheduledTasksRevision";
+const STORAGE_SAVED_AT_KEY = "scheduledTasksSavedAt";
+const DAILY_EXEC_COUNT_KEY = "dailyExecCount";
+const DAILY_EXEC_DATE_KEY = "dailyExecDate";
+const DAILY_LIMIT_NOTIFIED_DATE_KEY = "dailyLimitNotifiedDate";
+const DISCLAIMER_ACCEPTED_KEY = "disclaimerAccepted";
+
+type TaskStorageMeta = {
+  revision: number;
+  savedAt: string; // ISO string
+};
+
+function getLocalDateKey(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function toSafeErrorDetails(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  return sanitizeAbsolutePathDetails(raw) || raw;
+}
+
+/**
+ * Manages scheduled tasks including CRUD operations, cron parsing, and persistence
+ */
+export class ScheduleManager {
+  private tasks: Map<string, ScheduledTask> = new Map();
+  private schedulerInterval: ReturnType<typeof setInterval> | undefined;
+  private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
+  private schedulerTickInProgress = false;
+  private schedulerTickPending = false;
+  private context: vscode.ExtensionContext;
+  private storageFilePath: string;
+  private storageMetaFilePath: string;
+  private onTasksChangedCallback: (() => void) | undefined;
+  private onExecuteCallback:
+    | ((task: ScheduledTask) => Promise<void>)
+    | undefined;
+  private dailyExecCount = 0;
+  private dailyExecDate = "";
+  private dailyLimitNotifiedDate = "";
+
+  private storageRevision = 0;
+  private saveQueue: Promise<void> = Promise.resolve();
+
+  private static readonly FIRST_RUN_DELAY_MINUTES = 3;
+
+  private getOpenWorkspaceFolderPaths(): string[] {
+    return (vscode.workspace.workspaceFolders ?? [])
+      .map((folder) => folder.uri.fsPath)
+      .filter((folderPath): folderPath is string =>
+        typeof folderPath === "string" && folderPath.trim().length > 0,
+      );
+  }
+
+  private getResolvedWorkspaceRoots(): string[] {
+    return getResolvedWorkspaceRoots(this.getOpenWorkspaceFolderPaths());
+  }
+
+  private getPrimaryWorkspaceRoot(): string | undefined {
+    return this.getResolvedWorkspaceRoots()[0];
+  }
+
+  constructor(context: vscode.ExtensionContext) {
+    this.context = context;
+    this.storageFilePath = path.join(
+      this.context.globalStorageUri.fsPath,
+      STORAGE_FILE_NAME,
+    );
+    this.storageMetaFilePath = path.join(
+      this.context.globalStorageUri.fsPath,
+      STORAGE_META_FILE_NAME,
+    );
+    this.loadDailyExecCount();
+    this.dailyLimitNotifiedDate = this.context.globalState.get<string>(
+      DAILY_LIMIT_NOTIFIED_DATE_KEY,
+      "",
+    );
+    this.loadTasks();
+  }
+
+  private loadMetaFromFile(): TaskStorageMeta | undefined {
+    try {
+      if (!this.storageMetaFilePath) return undefined;
+      if (!fs.existsSync(this.storageMetaFilePath)) return undefined;
+      const raw = fs.readFileSync(this.storageMetaFilePath, "utf8");
+      if (!raw.trim()) return undefined;
+      const parsed = JSON.parse(raw) as Partial<TaskStorageMeta>;
+      const revision =
+        typeof parsed.revision === "number" ? parsed.revision : 0;
+      const savedAt = typeof parsed.savedAt === "string" ? parsed.savedAt : "";
+      return { revision, savedAt };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private loadMetaFromGlobalState(): TaskStorageMeta {
+    const revision = this.context.globalState.get<number>(
+      STORAGE_REVISION_KEY,
+      0,
+    );
+    const savedAt = this.context.globalState.get<string>(
+      STORAGE_SAVED_AT_KEY,
+      "",
+    );
+    return { revision: typeof revision === "number" ? revision : 0, savedAt };
+  }
+
+  private async saveMetaToFile(meta: TaskStorageMeta): Promise<void> {
+    const dir = path.dirname(this.storageMetaFilePath);
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(
+      this.storageMetaFilePath,
+      JSON.stringify(meta),
+      "utf8",
+    );
+  }
+
+  private async saveMetaToGlobalState(meta: TaskStorageMeta): Promise<void> {
+    await this.context.globalState.update(STORAGE_REVISION_KEY, meta.revision);
+    await this.context.globalState.update(STORAGE_SAVED_AT_KEY, meta.savedAt);
+  }
+
+  private loadTasksFromFile(): { tasks: ScheduledTask[]; ok: boolean } {
+    try {
+      if (!this.storageFilePath) return { tasks: [], ok: false };
+      if (!fs.existsSync(this.storageFilePath)) return { tasks: [], ok: false };
+      const raw = fs.readFileSync(this.storageFilePath, "utf8");
+      if (!raw.trim()) return { tasks: [], ok: true };
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { tasks: [], ok: false };
+      return { tasks: parsed as ScheduledTask[], ok: true };
+    } catch (error) {
+      logDebug(
+        "[CopilotScheduler] Failed to load tasks from file:",
+        toSafeErrorDetails(error),
+      );
+      return { tasks: [], ok: false };
+    }
+  }
+
+  private async saveTasksToFile(tasksArray: ScheduledTask[]): Promise<void> {
+    const dir = path.dirname(this.storageFilePath);
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(
+      this.storageFilePath,
+      JSON.stringify(tasksArray),
+      "utf8",
+    );
+  }
+
+  private async saveTasksToGlobalState(
+    tasksArray: ScheduledTask[],
+  ): Promise<void> {
+    const timeoutMs = 10000;
+
+    const updateThenable = this.context.globalState.update(
+      STORAGE_KEY,
+      tasksArray,
+    );
+    const updatePromise = Promise.resolve(updateThenable);
+
+    let timerId: NodeJS.Timeout | undefined;
+    const result = await Promise.race([
+      updatePromise.then(() => "ok" as const),
+      new Promise<"timeout">((resolve) => {
+        timerId = setTimeout(() => resolve("timeout"), timeoutMs);
+      }),
+    ]);
+
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
+    }
+
+    if (result === "timeout") {
+      void updatePromise.catch(() => undefined);
+      throw new Error(messages.storageWriteTimeout());
+    }
+  }
+
+  // ==================== Safety: Daily Execution Limit ====================
+
+  /**
+   * Load daily execution count from globalState
+   */
+  private loadDailyExecCount(): void {
+    const today = getLocalDateKey();
+    const savedDate = this.context.globalState.get<string>(
+      DAILY_EXEC_DATE_KEY,
+      "",
+    );
+    if (savedDate === today) {
+      this.dailyExecCount = this.context.globalState.get<number>(
+        DAILY_EXEC_COUNT_KEY,
+        0,
+      );
+    } else {
+      // New day, reset counter
+      this.dailyExecCount = 0;
+      void this.context.globalState
+        .update(DAILY_EXEC_COUNT_KEY, 0)
+        .then(undefined, (error: unknown) =>
+          logError(
+            "[CopilotScheduler] Failed to reset daily execution count:",
+            toSafeErrorDetails(error),
+          ),
+        );
+      void this.context.globalState
+        .update(DAILY_EXEC_DATE_KEY, today)
+        .then(undefined, (error: unknown) =>
+          logError(
+            "[CopilotScheduler] Failed to reset daily execution date:",
+            toSafeErrorDetails(error),
+          ),
+        );
+    }
+    this.dailyExecDate = today;
+  }
+
+  private incrementDailyExecCountInMemory(date = new Date()): void {
+    const today = getLocalDateKey(date);
+    if (this.dailyExecDate !== today) {
+      this.dailyExecCount = 0;
+      this.dailyExecDate = today;
+    }
+    this.dailyExecCount++;
+  }
+
+  private async persistDailyExecCount(): Promise<void> {
+    const today = this.dailyExecDate || getLocalDateKey();
+    await this.context.globalState.update(
+      DAILY_EXEC_COUNT_KEY,
+      this.dailyExecCount,
+    );
+    await this.context.globalState.update(DAILY_EXEC_DATE_KEY, today);
+  }
+
+  /**
+   * Bulk update task prompts (used by template sync) and save once.
+   */
+  async updateTaskPrompts(
+    updates: Array<{ id: string; prompt: string }>,
+  ): Promise<number> {
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return 0;
+    }
+
+    const now = new Date();
+    let changed = 0;
+
+    for (const item of updates) {
+      if (!item || typeof item.id !== "string") continue;
+      const nextPrompt = typeof item.prompt === "string" ? item.prompt : "";
+      if (!nextPrompt.trim()) continue;
+
+      const task = this.tasks.get(item.id);
+      if (!task) continue;
+      if (task.prompt === nextPrompt) continue;
+      task.prompt = nextPrompt;
+      task.updatedAt = now;
+      changed++;
+    }
+
+    if (changed > 0) {
+      await this.saveTasks();
+    }
+
+    return changed;
+  }
+
+  async ensureRecurringPromptBackups(): Promise<number> {
+    const changed = await this.syncRecurringPromptBackupsInPlace();
+
+    if (changed > 0) {
+      await this.saveTasks({ bumpRevision: false });
+    }
+
+    return changed;
+  }
+
+  private async syncRecurringPromptBackupsInPlace(): Promise<number> {
+    let changed = 0;
+
+    for (const task of this.tasks.values()) {
+      if (!isRecurringPromptBackupCandidate(task)) {
+        continue;
+      }
+
+      const workspaceRoot =
+        (task.scope === "workspace" && task.workspacePath) ||
+        this.getPrimaryWorkspaceRoot();
+      if (!workspaceRoot) {
+        continue;
+      }
+
+      const backupPathCandidate =
+        typeof task.promptBackupPath === "string" &&
+          task.promptBackupPath.trim().length > 0
+          ? task.promptBackupPath.trim()
+          : getDefaultPromptBackupRelativePath(task.id);
+
+      const resolvedBackupPath =
+        resolvePromptBackupPath(workspaceRoot, backupPathCandidate) ??
+        resolvePromptBackupPath(
+          workspaceRoot,
+          getDefaultPromptBackupRelativePath(task.id),
+        );
+
+      if (!resolvedBackupPath) {
+        continue;
+      }
+
+      const relativeBackupPath = toWorkspaceRelativePromptBackupPath(
+        workspaceRoot,
+        resolvedBackupPath,
+      );
+
+      const storedBackupUpdatedAt =
+        task.promptBackupUpdatedAt instanceof Date &&
+          !Number.isNaN(task.promptBackupUpdatedAt.getTime())
+          ? task.promptBackupUpdatedAt
+          : undefined;
+
+      const expectedContent = storedBackupUpdatedAt
+        ? renderPromptBackupContent(task, storedBackupUpdatedAt)
+        : undefined;
+
+      let needsWrite = !expectedContent;
+
+      if (expectedContent) {
+        try {
+          const existingContent = await fs.promises.readFile(
+            resolvedBackupPath,
+            "utf8",
+          );
+          needsWrite = existingContent !== expectedContent;
+        } catch {
+          needsWrite = true;
+        }
+      }
+
+      if (needsWrite) {
+        const syncedAt = new Date();
+        await fs.promises.mkdir(path.dirname(resolvedBackupPath), {
+          recursive: true,
+        });
+        await fs.promises.writeFile(
+          resolvedBackupPath,
+          renderPromptBackupContent(task, syncedAt),
+          "utf8",
+        );
+        task.promptBackupUpdatedAt = syncedAt;
+        changed++;
+      }
+
+      if (task.promptBackupPath !== relativeBackupPath) {
+        task.promptBackupPath = relativeBackupPath;
+        changed++;
+      }
+    }
+
+    return changed;
+  }
+
+  /**
+   * Check if daily execution limit has been reached.
+   * @param maxDailyLimit - Pre-computed limit (0 = unlimited). Pass from caller to avoid redundant config reads.
+   */
+  private isDailyLimitReached(maxDailyLimit: number): boolean {
+    // 0 = unlimited (no daily limit, use at your own risk)
+    if (maxDailyLimit === 0) {
+      return false;
+    }
+    const today = getLocalDateKey();
+    if (this.dailyExecDate !== today) {
+      this.dailyExecCount = 0;
+      this.dailyExecDate = today;
+    }
+    return this.dailyExecCount >= maxDailyLimit;
+  }
+
+  // ==================== Safety: Jitter (Random Delay) ====================
+
+  private clampJitterSeconds(value: unknown): number {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return 0;
+    const i = Math.floor(n);
+    return Math.min(Math.max(i, 0), 1800);
+  }
+
+  /**
+   * Apply random jitter delay to reduce machine-like patterns
+   */
+  private async applyJitter(maxJitterSeconds: number): Promise<void> {
+    const clamped = this.clampJitterSeconds(maxJitterSeconds);
+    if (clamped <= 0) return;
+
+    const jitterMs = Math.floor(Math.random() * clamped * 1000);
+    const jitterSec = Math.round(jitterMs / 1000);
+    if (jitterSec > 0) {
+      logDebug(`[CopilotScheduler] Jitter: waiting ${jitterSec}s`);
+      await new Promise<void>((resolve) => setTimeout(resolve, jitterMs));
+    }
+  }
+
+  // ==================== Safety: Minimum Interval Warning ====================
+
+  /**
+   * Check if a cron expression has a short interval and return warning if so
+   */
+  checkMinimumInterval(cronExpression: string): string | undefined {
+    const currentDate = new Date();
+    const tz = this.getTimeZone();
+
+    const check = (options: {
+      currentDate: Date;
+      tz?: string;
+    }): string | undefined => {
+      const interval = parseExpression(cronExpression, options);
+      const first = interval.next().toDate();
+      const second = interval.next().toDate();
+      const diffMinutes = (second.getTime() - first.getTime()) / (1000 * 60);
+
+      if (diffMinutes < 30) {
+        return messages.minimumIntervalWarning();
+      }
+      return undefined;
+    };
+
+    try {
+      return check(tz ? { currentDate, tz } : { currentDate });
+    } catch {
+      // If parsing fails with the configured timezone, fall back to local time (U9).
+      if (tz) {
+        try {
+          return check({ currentDate });
+        } catch {
+          // If parsing fails, skip interval check
+        }
+      }
+      return undefined;
+    }
+  }
+
+  // ==================== Safety: Disclaimer ====================
+
+  /**
+   * Check if the user has accepted the disclaimer
+   */
+  isDisclaimerAccepted(): boolean {
+    return this.context.globalState.get<boolean>(
+      DISCLAIMER_ACCEPTED_KEY,
+      false,
+    );
+  }
+
+  /**
+   * Set disclaimer accepted state
+   */
+  async setDisclaimerAccepted(accepted: boolean): Promise<void> {
+    await this.context.globalState.update(DISCLAIMER_ACCEPTED_KEY, accepted);
+  }
+
+  /**
+   * Set callback for when tasks change
+   */
+  setOnTasksChangedCallback(callback: () => void): void {
+    this.onTasksChangedCallback = callback;
+  }
+
+  /**
+   * Notify that tasks have changed
+   */
+  private notifyTasksChanged(): void {
+    if (this.onTasksChangedCallback) {
+      this.onTasksChangedCallback();
+    }
+  }
+
+  /**
+   * Public reload method for file watchers
+   */
+  public reloadTasks(): void {
+    this.loadTasks();
+    if (this.onTasksChangedCallback) {
+      this.onTasksChangedCallback();
+    }
+  }
+
+  /**
+   * Load tasks from globalState
+   */
+  private loadTasks(): void {
+    const savedTasks = this.context.globalState.get<ScheduledTask[]>(
+      STORAGE_KEY,
+      [],
+    );
+    const fileLoad = this.loadTasksFromFile();
+    const fileTasks = fileLoad.tasks;
+
+    const globalMeta = this.loadMetaFromGlobalState();
+    const fileMeta = this.loadMetaFromFile() || { revision: 0, savedAt: "" };
+
+    const globalStoreExists =
+      (Array.isArray(savedTasks) && savedTasks.length > 0) ||
+      (typeof globalMeta.revision === "number" && globalMeta.revision > 0);
+
+    const fileStoreExists =
+      fileLoad.ok ||
+      fs.existsSync(this.storageMetaFilePath) ||
+      (typeof fileMeta.revision === "number" && fileMeta.revision > 0);
+
+    const selection = selectTaskStore<ScheduledTask>(
+      {
+        kind: "globalState",
+        exists: globalStoreExists,
+        ok: true,
+        tasks: savedTasks,
+        revision: globalMeta.revision,
+      },
+      {
+        kind: "file",
+        exists: fileStoreExists,
+        ok: fileLoad.ok,
+        tasks: fileTasks,
+        revision: fileMeta.revision,
+      },
+    );
+
+    // Choose newer store by revision (handles deletes correctly).
+    // IMPORTANT: an empty task array can still be the newest state (e.g., deleting the last task).
+    const tasksToLoad = selection.chosenTasks;
+    this.storageRevision = selection.chosenRevision || 0;
+
+    /* --- HBG Custom: Load from .vscode/scheduler.json --- */
+    const workspaceTasks = this.loadTasksFromWorkspaceJson();
+    // Apply workspace JSON as authoritative for workspace-scoped tasks.
+    // This must also work when JSON contains zero tasks (clear/remove case).
+    const existingMap = new Map<string, ScheduledTask>();
+    tasksToLoad.forEach((t) => {
+      if (t.scope !== "workspace") {
+        existingMap.set(t.id, t);
+      }
+    });
+
+    workspaceTasks.forEach((jsonTask) => {
+      existingMap.set(jsonTask.id, jsonTask);
+    });
+
+    tasksToLoad.length = 0;
+    tasksToLoad.push(...Array.from(existingMap.values()));
+    /* ---------------------------------------------------- */
+
+    let needsSave = false;
+
+    // Rebuild in-memory cache from selected stores on each load.
+    // Without clearing first, removed tasks can linger until full window reload.
+    this.tasks.clear();
+
+    for (const task of tasksToLoad) {
+      // Restore Date objects from JSON serialization
+      task.createdAt = new Date(task.createdAt);
+      task.updatedAt = new Date(task.updatedAt);
+      if (task.lastRun !== undefined) {
+        task.lastRun = new Date(task.lastRun);
+      }
+      if (task.promptBackupUpdatedAt !== undefined) {
+        task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
+      }
+      if (task.nextRun !== undefined) {
+        task.nextRun = new Date(task.nextRun);
+      }
+
+      // Recovery: avoid keeping Invalid Date objects (would break JSON serialization).
+      // When dates are corrupted/missing, heal them and persist once.
+      const healedNow = new Date();
+      if (Number.isNaN(task.createdAt.getTime())) {
+        task.createdAt = healedNow;
+        needsSave = true;
+      }
+      if (Number.isNaN(task.updatedAt.getTime())) {
+        task.updatedAt = task.createdAt;
+        needsSave = true;
+      }
+      if (task.lastRun && Number.isNaN(task.lastRun.getTime())) {
+        task.lastRun = undefined;
+        needsSave = true;
+      }
+      if (
+        task.promptBackupUpdatedAt &&
+        Number.isNaN(task.promptBackupUpdatedAt.getTime())
+      ) {
+        task.promptBackupUpdatedAt = undefined;
+        needsSave = true;
+      }
+      if (task.nextRun && Number.isNaN(task.nextRun.getTime())) {
+        task.nextRun = undefined;
+        needsSave = true;
+      }
+
+      // Migration: add missing fields for older tasks
+      if (!task.scope) {
+        task.scope = "global";
+      }
+      {
+        const promptPath =
+          typeof task.promptPath === "string" ? task.promptPath.trim() : "";
+        const hasPromptPath = promptPath.length > 0;
+
+        const inferPromptSource = (): "inline" | "local" | "global" => {
+          if (!hasPromptPath) return "inline";
+
+          const workspaceFolderPaths = this.getResolvedWorkspaceRoots();
+
+          // Prefer global if it matches the configured (or default) global prompts root.
+          const cfg = vscode.workspace.getConfiguration("copilotScheduler");
+          const globalRoot = resolveGlobalPromptsRoot(
+            cfg.get<string>("globalPromptsPath", ""),
+          );
+          if (resolveGlobalPromptPath(globalRoot, promptPath)) {
+            return "global";
+          }
+
+          if (resolveLocalPromptPath(workspaceFolderPaths, promptPath)) {
+            return "local";
+          }
+
+          return "inline";
+        };
+
+        // Migration: promptSource was introduced later; infer it from promptPath.
+        // Also heal inconsistent data where promptSource is inline but promptPath exists.
+        const isKnownSource =
+          task.promptSource === "inline" ||
+          task.promptSource === "local" ||
+          task.promptSource === "global";
+
+        if (!task.promptSource || !isKnownSource) {
+          task.promptSource = inferPromptSource();
+          if (task.promptSource === "inline" && !hasPromptPath) {
+            task.promptPath = undefined;
+          }
+          needsSave = true;
+        } else if (task.promptSource === "inline" && hasPromptPath) {
+          const inferred = inferPromptSource();
+          if (inferred !== "inline") {
+            task.promptSource = inferred;
+            needsSave = true;
+          }
+        }
+      }
+
+      // Migration: add jitterSeconds if missing
+      if (task.jitterSeconds === undefined) {
+        task.jitterSeconds = 0;
+      }
+
+      // Safety: if a stored task has an invalid cron expression (e.g., manual edits or corruption),
+      // disable it to prevent runaway execution loops.
+      try {
+        this.validateCronExpression(task.cronExpression);
+      } catch {
+        if (task.enabled) {
+          task.enabled = false;
+          needsSave = true;
+        }
+        if (task.nextRun !== undefined) {
+          task.nextRun = undefined;
+          needsSave = true;
+        }
+        logError(
+          "[CopilotScheduler] Invalid cron expression found in stored task; disabling:",
+          {
+            taskId: task.id,
+            taskName: task.name,
+            cronExpression: task.cronExpression,
+          },
+        );
+      }
+
+      // Keep persisted nextRun to allow catch-up execution after reload.
+      // Only compute nextRun when it's missing or invalid.
+      if (task.enabled) {
+        const hasValidNextRun =
+          task.nextRun instanceof Date && !Number.isNaN(task.nextRun.getTime());
+        if (!hasValidNextRun) {
+          const now = new Date();
+          task.nextRun = this.getNextRunForTask(task.cronExpression, now);
+          needsSave = true;
+        }
+      } else if (task.nextRun !== undefined) {
+        task.nextRun = undefined;
+        needsSave = true;
+      }
+
+      this.tasks.set(task.id, task);
+    }
+
+    // Save if any changes were made
+    if (needsSave) {
+      void this.saveTasks().catch((error) =>
+        logError(
+          "[CopilotScheduler] Failed to save migrated tasks:",
+          toSafeErrorDetails(error),
+        ),
+      );
+    } else {
+      // Heal the other store if needed (best effort, do not bump revision)
+      if (selection.shouldHealFile || selection.shouldHealGlobalState) {
+        void this.saveTasks({ bumpRevision: false }).catch((error) =>
+          logDebug(
+            "[CopilotScheduler] Failed to sync task stores:",
+            toSafeErrorDetails(error),
+          ),
+        );
+      }
+    }
+  }
+
+  /**
+   * Save tasks to globalState
+   */
+  private async saveTasks(options?: { bumpRevision?: boolean }): Promise<void> {
+    // Serialize saves to avoid last-write-wins races across concurrent callers.
+    const op = this.saveQueue.then(() => this.saveTasksInternal(options));
+    // Recover the chain so that a failed save does not block all subsequent saves.
+    this.saveQueue = op.catch((error) => {
+      logError(
+        "[CopilotScheduler] Save failed (chain recovered):",
+        toSafeErrorDetails(error),
+      );
+    });
+    return op;
+  }
+
+  private async saveTasksInternal(options?: {
+    bumpRevision?: boolean;
+  }): Promise<void> {
+    const bumpRevision = options?.bumpRevision !== false;
+    await this.syncRecurringPromptBackupsInPlace();
+    const tasksArray: ScheduledTask[] = Array.from(this.tasks.values());
+
+    /* --- HBG CUSTOM: Write tasks to .vscode/scheduler.json --- */
+    try {
+      const workspaceRoot = this.getPrimaryWorkspaceRoot();
+      if (workspaceRoot) {
+
+        const fileTasks = tasksArray.filter(t => t.scope === 'workspace').map(t => ({
+          id: t.id,
+          name: t.name,
+          cron: t.cronExpression,
+          prompt: t.prompt,
+          enabled: t.enabled,
+          description: t.description,
+          agent: t.agent,
+          model: t.model,
+          promptSource: t.promptSource,
+          promptPath: t.promptPath,
+          promptBackupPath: t.promptBackupPath,
+          promptBackupUpdatedAt: t.promptBackupUpdatedAt
+            ? new Date(t.promptBackupUpdatedAt).toISOString()
+            : undefined,
+          jitterSeconds: t.jitterSeconds,
+          oneTime: t.oneTime,
+          workspacePath: t.workspacePath,
+          lastRun: t.lastRun ? new Date(t.lastRun).toISOString() : undefined,
+          lastError: t.lastError,
+          lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt).toISOString() : undefined,
+          nextRun: t.nextRun ? new Date(t.nextRun).toISOString() : undefined,
+          createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : undefined,
+          updatedAt: t.updatedAt ? new Date(t.updatedAt).toISOString() : undefined,
+        }));
+
+        const config = { tasks: fileTasks };
+        writeSchedulerConfig(workspaceRoot, config);
+      }
+    } catch (e) {
+      console.error('[Scheduler] Failed to save to .vscode/scheduler.json:', e);
+      vscode.window.showErrorMessage(`Failed to save scheduler configuration: ${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    }
+    /* -------------------------------------------------------- */
+
+    const nextRevision = bumpRevision
+      ? this.storageRevision + 1
+      : this.storageRevision;
+    const meta: TaskStorageMeta = {
+      revision: nextRevision,
+      savedAt: new Date().toISOString(),
+    };
+
+    // Prefer file persistence for responsiveness and reliability.
+    // If file save succeeds, return immediately and sync globalState in background.
+    try {
+      await this.saveTasksToFile(tasksArray);
+      await this.saveMetaToFile(meta);
+      this.storageRevision = meta.revision;
+
+      void Promise.all([
+        this.saveTasksToGlobalState(tasksArray),
+        this.saveMetaToGlobalState(meta),
+      ]).catch((error) =>
+        logDebug(
+          "[CopilotScheduler] Task save to globalState failed (file succeeded):",
+          toSafeErrorDetails(error),
+        ),
+      );
+
+      this.notifyTasksChanged();
+      return;
+    } catch (fileError) {
+      // If file persistence fails, fall back to globalState (await so at least one store succeeds).
+      try {
+        await this.saveTasksToGlobalState(tasksArray);
+        await this.saveMetaToGlobalState(meta);
+        this.storageRevision = meta.revision;
+      } catch (globalStateError) {
+        throw globalStateError instanceof Error
+          ? globalStateError
+          : new Error(String(globalStateError ?? ""));
+      }
+
+      // Best-effort background file sync for future reliability.
+      void Promise.all([
+        this.saveTasksToFile(tasksArray),
+        this.saveMetaToFile(meta),
+      ]).catch((error) =>
+        logDebug(
+          "[CopilotScheduler] Task save to file failed (globalState succeeded):",
+          {
+            fileError: toSafeErrorDetails(fileError),
+            syncError: toSafeErrorDetails(error),
+          },
+        ),
+      );
+    }
+
+    this.notifyTasksChanged();
+  }
+
+  /**
+   * Generate unique task ID
+   */
+  private generateId(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 8);
+    return `task_${timestamp}_${random}`;
+  }
+
+  /**
+   * Get timezone from configuration
+   */
+  private getTimeZone(): string | undefined {
+    const config = vscode.workspace.getConfiguration("copilotScheduler");
+    const tz = config.get<string>("timezone", "");
+    return tz || undefined;
+  }
+
+  /**
+   * Calculate next run time from cron expression
+   */
+  private getNextRun(
+    cronExpression: string,
+    baseTime?: Date,
+  ): Date | undefined {
+    const currentDate = baseTime || new Date();
+    const tz = this.getTimeZone();
+
+    try {
+      const options: { currentDate: Date; tz?: string } = { currentDate };
+      if (tz) {
+        options.tz = tz;
+      }
+
+      const interval = parseExpression(cronExpression, options);
+      return interval.next().toDate();
+    } catch {
+      // If the configured timezone is invalid, fall back to local time (U9).
+      if (tz) {
+        logDebug(
+          `[CopilotScheduler] Invalid timezone "${tz}", falling back to local time`,
+        );
+        try {
+          const interval = parseExpression(cronExpression, { currentDate });
+          return interval.next().toDate();
+        } catch {
+          return undefined;
+        }
+      }
+      return undefined;
+    }
+  }
+
+  private truncateToMinute(date: Date): Date {
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+    );
+  }
+
+  private getNextRunForTask(cronExpression: string, baseTime: Date): Date {
+    // Always use cron-parser to stay aligned with the cron grid.
+    // A previous "*/N" fixed-interval optimisation was removed because it
+    // drifted from the grid when jitter or execution time shifted baseTime
+    // away from a grid-aligned minute (e.g., */5 starting at :03 → :08
+    // instead of :05, compounding on every subsequent execution).
+    const parsed = this.getNextRun(cronExpression, baseTime);
+    if (parsed) {
+      return parsed;
+    }
+
+    // Fallback: if cron parsing fails unexpectedly, schedule 60 min in the
+    // future instead of "now" to prevent rapid-fire execution loops.
+    logError(
+      `[CopilotScheduler] Failed to parse cron "${cronExpression}"; falling back to +60 min`,
+    );
+    return this.truncateToMinute(new Date(baseTime.getTime() + 60 * 60 * 1000));
+  }
+
+  /**
+   * Validate cron expression
+   * @throws Error if invalid
+   */
+  validateCronExpression(expression: string): void {
+    if (!expression || !expression.trim()) {
+      throw new Error(messages.invalidCronExpression());
+    }
+
+    const currentDate = new Date();
+    const tz = this.getTimeZone();
+
+    // First, validate with timezone if configured.
+    try {
+      const options: { currentDate: Date; tz?: string } = { currentDate };
+      if (tz) {
+        options.tz = tz;
+      }
+      parseExpression(expression, options);
+      return;
+    } catch {
+      // If timezone is invalid, retry without tz.
+      if (tz) {
+        try {
+          parseExpression(expression, { currentDate });
+          return;
+        } catch {
+          // Fall through to throw
+        }
+      }
+      throw new Error(messages.invalidCronExpression());
+    }
+  }
+
+  /**
+   * Create a new task
+   */
+  async createTask(input: CreateTaskInput): Promise<ScheduledTask> {
+    if (!input.name || !input.name.trim()) {
+      throw new Error(messages.taskNameRequired());
+    }
+    if (!input.prompt || !input.prompt.trim()) {
+      throw new Error(messages.promptRequired());
+    }
+
+    // Validate cron expression
+    this.validateCronExpression(input.cronExpression);
+
+    const now = new Date();
+    const id = this.generateId();
+
+    // Get defaults from configuration
+    const config = vscode.workspace.getConfiguration("copilotScheduler");
+    const defaultScope = config.get<TaskScope>("defaultScope", "workspace");
+    const defaultJitter = this.clampJitterSeconds(
+      config.get<number>("jitterSeconds", 0),
+    );
+
+    const enabled = input.enabled !== false;
+    const effectiveScope = input.scope || defaultScope;
+
+    // Calculate next run (disabled tasks must not keep nextRun)
+    let nextRun: Date | undefined;
+    if (enabled) {
+      if (input.runFirstInOneMinute) {
+        nextRun = this.truncateToMinute(
+          new Date(
+            now.getTime() + ScheduleManager.FIRST_RUN_DELAY_MINUTES * 60 * 1000,
+          ),
+        );
+      } else {
+        nextRun = this.getNextRunForTask(input.cronExpression, now);
+      }
+    }
+
+    const task: ScheduledTask = {
+      id,
+      name: input.name,
+      cronExpression: input.cronExpression,
+      prompt: input.prompt,
+      enabled,
+      agent: input.agent,
+      model: input.model,
+      scope: effectiveScope,
+      workspacePath:
+        effectiveScope === "workspace"
+          ? this.getPrimaryWorkspaceRoot()
+          : undefined,
+      promptSource: input.promptSource || "inline",
+      promptPath: input.promptPath,
+      jitterSeconds:
+        input.jitterSeconds !== undefined
+          ? this.clampJitterSeconds(input.jitterSeconds)
+          : defaultJitter,
+      oneTime: input.oneTime ?? id.startsWith("exec-"),
+      nextRun,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.tasks.set(id, task);
+    await this.saveTasks();
+
+    return task;
+  }
+
+  /**
+   * Get a task by ID
+   */
+  getTask(id: string): ScheduledTask | undefined {
+    return this.tasks.get(id);
+  }
+
+  /**
+   * Get all tasks
+   */
+  getAllTasks(): ScheduledTask[] {
+    return Array.from(this.tasks.values());
+  }
+
+  /**
+   * Recalculate nextRun for all enabled tasks.
+   * Call when timezone configuration changes so that persisted nextRun values
+   * (computed under the old timezone) are recomputed under the new one.
+   */
+  async recalculateAllNextRuns(): Promise<void> {
+    const now = new Date();
+    let changed = false;
+    for (const task of this.tasks.values()) {
+      if (!task.enabled) continue;
+      const newNextRun = this.getNextRunForTask(task.cronExpression, now);
+      if (!task.nextRun || task.nextRun.getTime() !== newNextRun.getTime()) {
+        task.nextRun = newNextRun;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.saveTasks();
+    }
+  }
+
+  /**
+   * Get tasks by scope
+   */
+  getTasksByScope(scope: TaskScope): ScheduledTask[] {
+    return this.getAllTasks().filter((task) => task.scope === scope);
+  }
+
+  /**
+   * Update a task
+   */
+  async updateTask(
+    id: string,
+    updates: Partial<CreateTaskInput>,
+  ): Promise<ScheduledTask | undefined> {
+    const task = this.tasks.get(id);
+    if (!task) {
+      return undefined;
+    }
+
+    if (updates.name !== undefined && !updates.name.trim()) {
+      throw new Error(messages.taskNameRequired());
+    }
+    if (updates.prompt !== undefined && !updates.prompt.trim()) {
+      throw new Error(messages.promptRequired());
+    }
+
+    // Validate cron expression if being updated (including empty string)
+    if (updates.cronExpression !== undefined) {
+      this.validateCronExpression(updates.cronExpression);
+    }
+
+    const now = new Date();
+    const enabledBefore = task.enabled;
+    let cronChanged = false;
+
+    // Apply updates
+    if (updates.name !== undefined) {
+      task.name = updates.name;
+    }
+    if (updates.cronExpression !== undefined) {
+      task.cronExpression = updates.cronExpression;
+      cronChanged = true;
+    }
+    if (updates.prompt !== undefined) {
+      task.prompt = updates.prompt;
+    }
+    if (updates.enabled !== undefined) {
+      task.enabled = updates.enabled;
+    }
+    if (updates.agent !== undefined) {
+      task.agent = updates.agent;
+    }
+    if (updates.model !== undefined) {
+      task.model = updates.model;
+    }
+    if (updates.scope !== undefined) {
+      const nextScope = updates.scope;
+
+      // Only adjust workspacePath when scope actually changes (or workspacePath is missing).
+      // Webview submits scope on every save; we must not overwrite workspacePath on edits.
+      if (nextScope !== task.scope) {
+        task.scope = nextScope;
+        if (nextScope === "workspace") {
+          task.workspacePath = this.getPrimaryWorkspaceRoot();
+        } else {
+          task.workspacePath = undefined;
+        }
+      } else if (nextScope === "workspace" && !task.workspacePath) {
+        task.workspacePath = this.getPrimaryWorkspaceRoot();
+      }
+    }
+    if (updates.promptSource !== undefined) {
+      task.promptSource = updates.promptSource;
+    }
+    if (updates.promptPath !== undefined) {
+      task.promptPath = updates.promptPath;
+    }
+    if (updates.jitterSeconds !== undefined) {
+      task.jitterSeconds = this.clampJitterSeconds(updates.jitterSeconds);
+    }
+    if (updates.oneTime !== undefined) {
+      task.oneTime = updates.oneTime;
+    }
+
+    const enabledAfter = task.enabled;
+
+    // Keep nextRun consistent with enabled state
+    if (!enabledAfter) {
+      task.nextRun = undefined;
+    } else {
+      // One-time immediate scheduling on update (only for enabled tasks)
+      if (updates.runFirstInOneMinute) {
+        task.nextRun = this.truncateToMinute(
+          new Date(
+            now.getTime() + ScheduleManager.FIRST_RUN_DELAY_MINUTES * 60 * 1000,
+          ),
+        );
+      } else if (cronChanged || (!enabledBefore && enabledAfter)) {
+        task.nextRun = this.getNextRunForTask(task.cronExpression, now);
+      } else if (!task.nextRun) {
+        // Ensure nextRun exists for enabled tasks
+        task.nextRun = this.getNextRunForTask(task.cronExpression, now);
+      }
+    }
+
+    task.updatedAt = now;
+
+    await this.saveTasks();
+
+    return task;
+  }
+
+  /**
+   * Delete a task
+   */
+  async deleteTask(id: string): Promise<boolean> {
+    const deleted = this.tasks.delete(id);
+    if (deleted) {
+      await this.saveTasks();
+    }
+    return deleted;
+  }
+
+  /**
+   * Toggle task enabled/disabled
+   */
+  async toggleTask(id: string): Promise<ScheduledTask | undefined> {
+    const task = this.tasks.get(id);
+    if (!task) {
+      return undefined;
+    }
+
+    task.enabled = !task.enabled;
+    task.updatedAt = new Date();
+
+    // Keep nextRun consistent with enabled state
+    if (task.enabled) {
+      task.nextRun = this.getNextRunForTask(task.cronExpression, new Date());
+    } else {
+      task.nextRun = undefined;
+    }
+
+    await this.saveTasks();
+
+    return task;
+  }
+
+  /**
+   * Set task enabled state explicitly
+   */
+  async setTaskEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<ScheduledTask | undefined> {
+    const task = this.tasks.get(id);
+    if (!task) {
+      return undefined;
+    }
+
+    task.enabled = enabled;
+    task.updatedAt = new Date();
+
+    // Keep nextRun consistent with enabled state
+    if (task.enabled) {
+      task.nextRun = this.getNextRunForTask(task.cronExpression, new Date());
+    } else {
+      task.nextRun = undefined;
+    }
+
+    await this.saveTasks();
+
+    return task;
+  }
+
+  /**
+   * Duplicate a task
+   */
+  async duplicateTask(id: string): Promise<ScheduledTask | undefined> {
+    const original = this.tasks.get(id);
+    if (!original) {
+      return undefined;
+    }
+
+    const input: CreateTaskInput = {
+      name: `${original.name} ${messages.taskCopySuffix()}`,
+      cronExpression: original.cronExpression,
+      prompt: original.prompt,
+      enabled: false, // Start disabled
+      agent: original.agent,
+      model: original.model,
+      scope: original.scope,
+      oneTime: original.oneTime,
+      promptSource: original.promptSource,
+      promptPath: original.promptPath,
+      jitterSeconds: original.jitterSeconds,
+    };
+
+    return this.createTask(input);
+  }
+
+  /**
+   * Move a workspace-scoped task to the current workspace (updates workspacePath).
+   */
+  async moveTaskToCurrentWorkspace(
+    id: string,
+  ): Promise<ScheduledTask | undefined> {
+    const task = this.tasks.get(id);
+    if (!task) {
+      return undefined;
+    }
+
+    if (task.scope !== "workspace") {
+      throw new Error(messages.moveOnlyWorkspaceTasks());
+    }
+
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      throw new Error(messages.noWorkspaceOpen());
+    }
+
+    task.workspacePath = workspaceRoot;
+    task.updatedAt = new Date();
+    await this.saveTasks();
+    return task;
+  }
+
+  /**
+   * Check if task should run in current workspace
+   */
+  shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
+    // Global tasks run in all workspaces
+    if (task.scope === "global") {
+      return true;
+    }
+
+    // Workspace-specific tasks only run in their workspace
+    const workspacePaths = this.getResolvedWorkspaceRoots();
+    if (workspacePaths.length === 0) {
+      return false;
+    }
+
+    const a = task.workspacePath ? normalizeForCompare(task.workspacePath) : "";
+    if (a === "") return false;
+    return workspacePaths.some((p) => normalizeForCompare(p) === a);
+  }
+
+  /**
+   * Start the scheduler
+   */
+  startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
+    this.onExecuteCallback = onExecute;
+
+    // Stop existing scheduler if running
+    this.stopScheduler();
+
+    // Align to next minute boundary
+    const now = new Date();
+    const msToNextMinute =
+      (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+
+    // Start after alignment
+    this.schedulerTimeout = setTimeout(() => {
+      this.schedulerTimeout = undefined;
+      // Execute immediately on first aligned minute
+      void this.runSchedulerTick();
+
+      // Then run every minute
+      this.schedulerInterval = setInterval(() => {
+        void this.runSchedulerTick();
+      }, 60 * 1000);
+    }, msToNextMinute);
+  }
+
+  private async runSchedulerTick(): Promise<void> {
+    if (this.schedulerTickInProgress) {
+      this.schedulerTickPending = true;
+      return;
+    }
+
+    this.schedulerTickInProgress = true;
+    try {
+      do {
+        this.schedulerTickPending = false;
+        await this.checkAndExecuteTasks();
+      } while (this.schedulerTickPending);
+    } catch (error) {
+      logError(
+        "[CopilotScheduler] Scheduler tick failed:",
+        toSafeErrorDetails(error),
+      );
+    } finally {
+      this.schedulerTickInProgress = false;
+    }
+  }
+
+  /**
+   * Stop the scheduler
+   */
+  stopScheduler(): void {
+    if (this.schedulerTimeout) {
+      clearTimeout(this.schedulerTimeout);
+      this.schedulerTimeout = undefined;
+    }
+    if (this.schedulerInterval) {
+      clearInterval(this.schedulerInterval);
+      this.schedulerInterval = undefined;
+    }
+    this.schedulerTickPending = false;
+  }
+
+  /**
+   * Helper to identify one-time execution tasks.
+   * Prefer explicit `oneTime` flag; keep `exec-` id fallback for backward compatibility.
+   */
+  private isOneTimeExecutionTask(task: ScheduledTask): boolean {
+    return task.oneTime === true || task.id.startsWith("exec-");
+  }
+
+  /**
+   * Check and execute tasks that are due
+   */
+  private async checkAndExecuteTasks(): Promise<void> {
+    const config = vscode.workspace.getConfiguration("copilotScheduler");
+    const enabled = config.get<boolean>("enabled", true);
+
+    if (!enabled) {
+      return;
+    }
+
+    const now = new Date();
+    // Truncate to minute for comparison
+    const nowMinute = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+    );
+
+    // Read config values once per tick (avoid redundant reads inside the loop)
+    const rawMaxDaily = config.get<number>("maxDailyExecutions", 24);
+    const safeMaxDaily = Number.isFinite(rawMaxDaily) ? rawMaxDaily : 24;
+    const maxDailyLimit =
+      safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100);
+    const defaultJitterSeconds = config.get<number>("jitterSeconds", 0);
+
+    let needsSave = false;
+    let executedCount = 0;
+    const tasksToDelete: string[] = [];
+
+    for (const task of this.tasks.values()) {
+      if (!task.enabled || !task.nextRun) {
+        continue;
+      }
+
+      // Check if task should run in current workspace
+      if (!this.shouldTaskRunInCurrentWorkspace(task)) {
+        continue;
+      }
+
+      // Truncate nextRun to minute
+      const nextRunMinute = new Date(
+        task.nextRun.getFullYear(),
+        task.nextRun.getMonth(),
+        task.nextRun.getDate(),
+        task.nextRun.getHours(),
+        task.nextRun.getMinutes(),
+      );
+
+      // Check if due
+      if (nextRunMinute.getTime() <= nowMinute.getTime()) {
+        // Safety: Check daily execution limit
+        if (this.isDailyLimitReached(maxDailyLimit)) {
+          logDebug(
+            `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
+          );
+          const todayKey = getLocalDateKey();
+          if (this.dailyLimitNotifiedDate !== todayKey) {
+            this.dailyLimitNotifiedDate = todayKey;
+            void this.context.globalState
+              .update(DAILY_LIMIT_NOTIFIED_DATE_KEY, todayKey)
+              .then(undefined, (error: unknown) =>
+                logError(
+                  "[CopilotScheduler] Failed to persist daily limit notified date:",
+                  toSafeErrorDetails(error),
+                ),
+              );
+            void vscode.window.showInformationMessage(
+              messages.dailyLimitReached(maxDailyLimit),
+            );
+          }
+          // Still advance nextRun so it doesn't keep retrying
+          task.nextRun = this.getNextRunForTask(task.cronExpression, now);
+          needsSave = true;
+          continue;
+        }
+
+        // Safety: Apply jitter (random delay)
+        const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
+        await this.applyJitter(maxJitterSeconds);
+
+        // Execute
+        let executedSuccessfully = false;
+        if (this.onExecuteCallback) {
+          try {
+            await this.onExecuteCallback(task);
+            // Track daily execution count
+            this.incrementDailyExecCountInMemory(new Date());
+            executedCount++;
+            // Only record lastRun on successful execution
+            task.lastRun = new Date();
+            task.lastError = undefined;
+            task.lastErrorAt = undefined;
+            executedSuccessfully = true;
+          } catch (error) {
+            const details = toSafeErrorDetails(error);
+            logError("[CopilotScheduler] Task execution error:", {
+              taskId: task.id,
+              taskName: task.name,
+              error: details,
+            });
+            task.lastError = details;
+            task.lastErrorAt = new Date();
+          }
+        }
+
+        // Advance to cron-based next run only on success.
+        // On failure, retry in one minute so the run does not silently disappear.
+        if (executedSuccessfully) {
+          if (this.isOneTimeExecutionTask(task)) {
+            tasksToDelete.push(task.id);
+            needsSave = true;
+          } else {
+            task.nextRun = this.getNextRunForTask(task.cronExpression, new Date());
+            needsSave = true;
+          }
+        } else {
+          task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
+          needsSave = true;
+        }
+      }
+    }
+
+    // Process deletions for one-time tasks
+    for (const id of tasksToDelete) {
+      this.tasks.delete(id);
+    }
+
+    // Persist once per tick to reduce I/O overhead.
+    if (executedCount > 0) {
+      try {
+        await this.persistDailyExecCount();
+      } catch (error) {
+        logError(
+          "[CopilotScheduler] Failed to persist daily execution count:",
+          toSafeErrorDetails(error),
+        );
+      }
+    }
+
+    if (needsSave) {
+      await this.saveTasks();
+    }
+  }
+
+  /**
+   * Force run a task immediately
+   */
+  async runTaskNow(id: string): Promise<boolean> {
+    const task = this.tasks.get(id);
+    if (!task || !this.onExecuteCallback) {
+      return false;
+    }
+
+    try {
+      await this.onExecuteCallback(task);
+
+      // Update lastRun and nextRun after manual execution
+      const executedAt = new Date();
+      task.lastRun = executedAt;
+      task.lastError = undefined;
+      task.lastErrorAt = undefined;
+      if (this.isOneTimeExecutionTask(task)) {
+        this.tasks.delete(task.id);
+      } else if (task.enabled) {
+        task.nextRun = this.getNextRunForTask(task.cronExpression, executedAt);
+      }
+      await this.saveTasks();
+
+      return true;
+    } catch (error) {
+      logError(
+        "[CopilotScheduler] runTaskNow failed:",
+        toSafeErrorDetails(error),
+      );
+      task.lastError = toSafeErrorDetails(error);
+      task.lastErrorAt = new Date();
+      await this.saveTasks();
+      return false;
+    }
+  }
+
+  /* --- HBG CUSTOM: Read tasks from .vscode/scheduler.json --- */
+  private loadTasksFromWorkspaceJson(): ScheduledTask[] {
+    try {
+      const workspaceRoot = this.getPrimaryWorkspaceRoot();
+      if (!workspaceRoot) {
+        return [];
+      }
+      const config = readSchedulerConfig(workspaceRoot);
+
+      if (!config.tasks || !Array.isArray(config.tasks)) {
+        console.log(`[Scheduler] Invalid JSON format`);
+        return [];
+      }
+
+      return config.tasks.map((t: any) => {
+        const workspacePath =
+          typeof t.workspacePath === "string" && t.workspacePath.trim().length > 0
+            ? findWorkspaceRoot(t.workspacePath)
+            : workspaceRoot;
+        return {
+          id: t.id,
+          name: t.name || t.id,
+          description: t.description || 'Auto-generated from scheduler.json',
+          cronExpression: t.cron,
+          prompt: t.prompt,
+          enabled: t.enabled !== false,
+          agent: t.agent,
+          model: t.model,
+          createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+          updatedAt: t.updatedAt ? new Date(t.updatedAt) : new Date(),
+          lastRun: t.lastRun ? new Date(t.lastRun) : undefined,
+          lastError: t.lastError,
+          lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt) : undefined,
+          oneTime: t.oneTime === true,
+          nextRun: t.nextRun ? new Date(t.nextRun) : undefined,
+          promptSource: t.promptSource || "inline",
+          promptPath: t.promptPath,
+          promptBackupPath: t.promptBackupPath,
+          promptBackupUpdatedAt: t.promptBackupUpdatedAt
+            ? new Date(t.promptBackupUpdatedAt)
+            : undefined,
+          jitterSeconds: t.jitterSeconds,
+          scope: "workspace",
+          workspacePath,
+        };
+      });
+    } catch (e) {
+      console.error('Failed to load tasks from scheduler.json:', e);
+      return [];
+    }
+  }
+}

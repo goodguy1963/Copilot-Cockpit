@@ -1,0 +1,29 @@
+node_modules/
+out/
+dist/
+*.vsix
+.vscode-test/
+.DS_Store
+Thumbs.db
+*.log
+
+# Local output artifacts
+output_sessions/
+
+# Development files
+.github/temp/
+.github/agents/
+.github/skills/
+.github/prompts/
+session/
+AGENTS.md
+FULL_SPECIFICATION.md
+
+# Copilot Orchestrator temporary files
+.orchestrator/
+.worktrees/
+
+# Copilot agent artifacts (keep local in public repos)
+/research/
+/.github/skills/
+/output_sessions/
