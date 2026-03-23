@@ -14,6 +14,9 @@
     - Added a repo-scoped `copilotScheduler.autoShowOnStartup` setting to open the scheduler webview automatically for selected repos.
     - Overdue tasks are now reviewed at startup one by one instead of auto-running after downtime; recurring tasks can skip to the next cycle and one-time tasks can be rescheduled by minutes.
     - The webview task sections were compacted and the two-column layout now stays side by side at smaller widths.
+    - Workspace scheduler writes now keep the last 100 repo-local schedule snapshots under `.vscode/scheduler-history`, and the Task List toolbar can restore an older snapshot.
+    - The embedded MCP server now exposes task get/update/duplicate/history/restore/overdue tools in addition to the original list/add/remove/run/toggle surface.
+    - Added cross-platform Node scripts to package and install the VSIX on Windows, macOS, and Linux without relying on PowerShell commands.
 
 ## Changes made on 2026-03-22
 
@@ -43,6 +46,8 @@
 
 ## Installation Instructions
 
-1. Run `code --install-extension copilot-scheduler-local-99.0.11.vsix` after packaging the updated build.
-2. If you see the original marketplace extension in your extensions list, disable or uninstall it to avoid conflicts.
-3. Reload Window.
+1. Run `npm run package:vsix`.
+2. Install with `npm run install:vsix`, `npm run install:vsix:insiders`, or `npm run install:vsix:both`.
+3. If the VS Code shell command is unavailable, use `Extensions: Install from VSIX...` in the editor and pick the generated VSIX manually.
+4. If you see the original marketplace extension in your extensions list, disable or uninstall it to avoid conflicts.
+5. Reload Window.

@@ -176,6 +176,8 @@
   var scheduleHistory = Array.isArray(initialData.scheduleHistory)
     ? initialData.scheduleHistory
     : [];
+  var defaultChatSession =
+    initialData.defaultChatSession === "continue" ? "continue" : "new";
   var autoShowOnStartup = !!initialData.autoShowOnStartup;
   var workspacePaths = Array.isArray(initialData.workspacePaths)
     ? initialData.workspacePaths
@@ -218,6 +220,8 @@
   var cronExpression = document.getElementById("cron-expression");
   var agentSelect = document.getElementById("agent-select");
   var modelSelect = document.getElementById("model-select");
+  var chatSessionGroup = document.getElementById("chat-session-group");
+  var chatSessionSelect = document.getElementById("chat-session");
   var templateSelect = document.getElementById("template-select");
   var templateSelectGroup = document.getElementById("template-select-group");
   var templateRefreshBtn = document.getElementById("template-refresh-btn");
@@ -297,6 +301,23 @@
       autoShowStartupNote.textContent = autoShowOnStartup
         ? strings.autoShowOnStartupEnabled || "Auto-open on startup: On"
         : strings.autoShowOnStartupDisabled || "Auto-open on startup: Off";
+    }
+  }
+
+  function syncRecurringChatSessionUi() {
+    var oneTimeEl = document.getElementById("one-time");
+    var isOneTime = !!(oneTimeEl && oneTimeEl.checked);
+
+    if (chatSessionGroup) {
+      chatSessionGroup.style.display = isOneTime ? "none" : "block";
+    }
+
+    if (chatSessionSelect && !chatSessionSelect.value) {
+      chatSessionSelect.value = defaultChatSession;
+    }
+
+    if (isOneTime && chatSessionSelect) {
+      chatSessionSelect.value = defaultChatSession;
     }
   }
 
@@ -418,6 +439,13 @@
   if (templateSelect) {
     templateSelect.addEventListener("change", function () {
       pendingTemplatePath = templateSelect ? templateSelect.value : "";
+    });
+  }
+
+  var oneTimeToggle = document.getElementById("one-time");
+  if (oneTimeToggle) {
+    oneTimeToggle.addEventListener("change", function () {
+      syncRecurringChatSessionUi();
     });
   }
 
@@ -627,6 +655,13 @@
           : 0,
         enabled: editingTaskId ? editingTaskEnabled : true,
       };
+
+      if (!taskData.oneTime) {
+        taskData.chatSession =
+          chatSessionSelect && chatSessionSelect.value === "continue"
+            ? "continue"
+            : "new";
+      }
 
       var nameValue = (taskData.name || "").trim();
       if (!nameValue) {
@@ -1460,6 +1495,8 @@
     if (runFirstEl) runFirstEl.checked = false;
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = false;
+    if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
+    syncRecurringChatSessionUi();
     updateFriendlyVisibility();
     updateCronPreview();
   }
@@ -1604,6 +1641,10 @@
   if (initialPromptSource) {
     applyPromptSource(initialPromptSource.value);
   }
+  if (chatSessionSelect && !chatSessionSelect.value) {
+    chatSessionSelect.value = defaultChatSession;
+  }
+  syncRecurringChatSessionUi();
   updateFriendlyVisibility();
   updateCronPreview();
 
@@ -1708,6 +1749,14 @@
 
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+    if (chatSessionSelect) {
+      chatSessionSelect.value = task.chatSession === "continue"
+        ? "continue"
+        : task.chatSession === "new"
+          ? "new"
+          : defaultChatSession;
+    }
+    syncRecurringChatSessionUi();
 
     // Switch to edit tab (same form)
     switchTab("create");

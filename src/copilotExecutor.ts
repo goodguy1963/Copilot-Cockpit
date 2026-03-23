@@ -123,7 +123,9 @@ export class CopilotExecutor {
 
     // Get chat session behavior
     const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const chatSession = config.get<ChatSessionBehavior>("chatSession", "new");
+    const chatSession =
+      options?.chatSession ??
+      config.get<ChatSessionBehavior>("chatSession", "new");
 
     try {
       // Try to create new session if configured

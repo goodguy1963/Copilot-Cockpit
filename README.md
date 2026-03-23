@@ -18,10 +18,21 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 
 ### Installation
 
-1. Package this repo into a VSIX.
-2. Install `copilot-scheduler-local-99.0.11.vsix` into `code` and/or `code-insiders`.
-3. Reload VS Code.
-4. Disable or uninstall `yamapan.copilot-scheduler` if it is installed, so this fork remains the active implementation.
+This fork is packaged as a normal VSIX and is intended to install on Windows, macOS, and Linux.
+
+1. Build the VSIX with `npm run package:vsix`.
+2. Install it with one of these cross-platform scripts:
+  `npm run install:vsix`
+  `npm run install:vsix:insiders`
+  `npm run install:vsix:both`
+3. If the VS Code shell command is not available on the machine, use `Extensions: Install from VSIX...` inside VS Code or VS Code Insiders and select the generated VSIX manually.
+4. Reload VS Code.
+5. Disable or uninstall `yamapan.copilot-scheduler` if it is installed, so this fork remains the active implementation.
+
+Notes:
+
+- The `code` and `code-insiders` shell commands use the same names on Windows, macOS, and Linux, but they must be installed on the local machine first.
+- `npm run compile` now builds both the extension bundle and the embedded MCP server bundle.
 
 ### Basic Workflow
 
@@ -46,11 +57,14 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 
 ### Session Behavior
 
-The setting `copilotScheduler.chatSession` controls whether a scheduled run continues in the current Copilot chat or starts a brand-new one first.
+The global setting `copilotScheduler.chatSession` still provides the default scheduler behavior, and recurring tasks can now override it directly in the Create/Edit UI.
 
-- `continue` keeps using the current chat flow.
+- Recurring tasks can choose `continue` or `new` per task.
+- One-time tasks do not store a task-level chat session mode.
+- `continue` keeps using the currently active Copilot chat flow.
 - `new` tries to open a new Copilot chat session before sending the scheduled prompt.
 - Use `new` with absolute care. One scheduled AI run can intentionally open another AI session, which means an AI-driven chain can continue further than a single message.
+- VS Code does not currently expose a supported extension API to reopen a specific old Copilot conversation by saved session ID, so this fork can persist the recurring task mode but cannot force-restore an exact prior Copilot thread.
 - This setting is separate from MCP. New chat sessions are a scheduler execution behavior, while MCP tools still depend on workspace MCP launch configuration.
 
 Example:
@@ -89,9 +103,70 @@ Example:
 Yes, MCP is set up in the plugin itself.
 
 - The extension includes an embedded MCP server implemented in `src/server.ts` and packaged as `out/server.js`.
-- The embedded server exposes `scheduler_list_tasks`, `scheduler_add_task`, `scheduler_remove_task`, `scheduler_run_task`, and `scheduler_toggle_task`.
+- The embedded server now exposes these scheduler tools:
+  `scheduler_list_tasks`
+  `scheduler_get_task`
+  `scheduler_add_task`
+  `scheduler_update_task`
+  `scheduler_duplicate_task`
+  `scheduler_remove_task`
+  `scheduler_run_task`
+  `scheduler_toggle_task`
+  `scheduler_list_history`
+  `scheduler_restore_snapshot`
+  `scheduler_get_overdue_tasks`
 - Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as `.vscode/mcp.json` that starts the installed scheduler server.
 - In short: the server is bundled with the plugin, but the workspace still decides how to launch it.
+
+### MCP Setup
+
+Add a workspace launcher config if you want Copilot Chat to see the scheduler MCP tools.
+
+Development checkout example:
+
+```json
+{
+  "servers": {
+    "scheduler": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "F:/HBG Webserver/extensions/source-scheduler/out/server.js"
+      ]
+    }
+  }
+}
+```
+
+Installed VSIX example:
+
+```json
+{
+  "servers": {
+    "scheduler": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "<absolute path to your installed extension>/out/server.js"
+      ]
+    }
+  }
+}
+```
+
+Notes:
+
+- Save that file as `.vscode/mcp.json` in the repo where you want the scheduler MCP tools available.
+- On stable VS Code installs, the extension usually lives under `~/.vscode/extensions` on macOS/Linux or `%USERPROFILE%/.vscode/extensions` on Windows.
+- On VS Code Insiders, use the `.vscode-insiders/extensions` install root instead.
+- Replace the versioned extension folder name with the exact installed version of `local-dev.copilot-scheduler-local`.
+- Reload the window after adding or changing `.vscode/mcp.json`.
+
+### Cross-Platform Readiness
+
+- The packaged VSIX is platform-neutral and the extension/runtime code already resolves paths for Windows, macOS, and Linux where needed.
+- The new package/install scripts are platform-neutral Node scripts, so you do not need PowerShell-specific commands just to build or install the extension.
+- The remaining limitation is validation coverage: this repository is being edited from Windows, so Linux/macOS installation was made ready in code and docs here, but actual runtime still needs to be exercised on those operating systems to fully certify them.
 
 ### Key Differences From Upstream
 

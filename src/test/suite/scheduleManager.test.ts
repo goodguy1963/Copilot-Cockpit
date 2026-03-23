@@ -103,6 +103,129 @@ suite("ScheduleManager Minimum Interval Tests", () => {
   });
 });
 
+suite("ScheduleManager Recurring Chat Session Tests", () => {
+  function setWorkspaceFoldersForRecurringTest(root: string): () => void {
+    const wsAny = vscode.workspace as unknown as {
+      workspaceFolders?: Array<{ uri: vscode.Uri }>;
+    };
+    const original = wsAny.workspaceFolders;
+    try {
+      Object.defineProperty(vscode.workspace, "workspaceFolders", {
+        value: [{ uri: vscode.Uri.file(root) }],
+        configurable: true,
+      });
+    } catch {
+      // ignore
+    }
+    return () => {
+      try {
+        Object.defineProperty(vscode.workspace, "workspaceFolders", {
+          value: original,
+          configurable: true,
+        });
+      } catch {
+        // ignore
+      }
+    };
+  }
+
+  test("persists chatSession only for recurring tasks", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-chat-session-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-chat-session-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForRecurringTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const recurringTask = await manager.createTask({
+        name: "Recurring chat",
+        cronExpression: "0 * * * *",
+        prompt: "recurring prompt",
+        enabled: false,
+        scope: "workspace",
+        chatSession: "continue",
+      });
+      const oneTimeTask = await manager.createTask({
+        name: "One-time chat",
+        cronExpression: "0 * * * *",
+        prompt: "one-time prompt",
+        enabled: false,
+        scope: "workspace",
+        oneTime: true,
+        chatSession: "continue",
+      });
+
+      assert.strictEqual(manager.getTask(recurringTask.id)?.chatSession, "continue");
+      assert.strictEqual(manager.getTask(oneTimeTask.id)?.chatSession, undefined);
+
+      const liveSchedulerJson = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as {
+        tasks: Array<{ id: string; chatSession?: string }>;
+      };
+
+      const recurringJson = liveSchedulerJson.tasks.find((task) => task.id === recurringTask.id);
+      const oneTimeJson = liveSchedulerJson.tasks.find((task) => task.id === oneTimeTask.id);
+
+      assert.strictEqual(recurringJson?.chatSession, "continue");
+      assert.strictEqual(oneTimeJson?.chatSession, undefined);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("clears chatSession when a task becomes one-time", async () => {
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-chat-session-update-"),
+    );
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Recurring task",
+        cronExpression: "0 * * * *",
+        prompt: "prompt",
+        enabled: false,
+        scope: "global",
+        chatSession: "continue",
+      });
+
+      const updated = await manager.updateTask(task.id, {
+        oneTime: true,
+      });
+
+      assert.strictEqual(updated?.oneTime, true);
+      assert.strictEqual(updated?.chatSession, undefined);
+    } finally {
+      try {
+        fs.rmSync(storageRoot, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 50,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  });
+});
+
 suite("ScheduleManager Prompt Source Migration Tests", () => {
   function setWorkspaceFoldersForTest(root: string): () => void {
     const wsAny = vscode.workspace as unknown as {
