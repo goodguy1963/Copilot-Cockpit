@@ -12,8 +12,8 @@ import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
-  findWorkspaceRoot,
   getResolvedWorkspaceRoots,
+  getPrivateSchedulerConfigPath,
   readSchedulerConfig,
   writeSchedulerConfig,
 } from "./schedulerJsonSanitizer";
@@ -31,6 +31,12 @@ import {
   resolvePromptBackupPath,
   toWorkspaceRelativePromptBackupPath,
 } from "./promptBackup";
+import {
+  createScheduleHistorySnapshot,
+  listScheduleHistoryEntries,
+  readScheduleHistorySnapshot,
+} from "./scheduleHistory";
+import type { ScheduleHistoryEntry } from "./types";
 
 // Node.js globals
 declare const setTimeout: (callback: () => void, ms: number) => NodeJS.Timeout;
@@ -69,11 +75,30 @@ function toSafeErrorDetails(error: unknown): string {
   return sanitizeAbsolutePathDetails(raw) || raw;
 }
 
+function readSchedulerJsonFile(configPath: string): { tasks: any[] } | undefined {
+  if (!fs.existsSync(configPath)) {
+    return undefined;
+  }
+
+  try {
+    const raw = fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "");
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.tasks)) {
+      return parsed as { tasks: any[] };
+    }
+  } catch {
+    // ignore malformed files and let callers fall back
+  }
+
+  return undefined;
+}
+
 /**
  * Manages scheduled tasks including CRUD operations, cron parsing, and persistence
  */
 export class ScheduleManager {
   private tasks: Map<string, ScheduledTask> = new Map();
+  private suppressedOverdueTaskIds: Set<string> = new Set();
   private schedulerInterval: ReturnType<typeof setInterval> | undefined;
   private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
   private schedulerTickInProgress = false;
@@ -90,6 +115,7 @@ export class ScheduleManager {
   private dailyLimitNotifiedDate = "";
 
   private storageRevision = 0;
+
   private saveQueue: Promise<void> = Promise.resolve();
 
   private static readonly FIRST_RUN_DELAY_MINUTES = 3;
@@ -518,6 +544,10 @@ export class ScheduleManager {
     this.onTasksChangedCallback = callback;
   }
 
+  setOnExecuteCallback(callback: (task: ScheduledTask) => Promise<void>): void {
+    this.onExecuteCallback = callback;
+  }
+
   /**
    * Notify that tasks have changed
    */
@@ -606,6 +636,7 @@ export class ScheduleManager {
     // Rebuild in-memory cache from selected stores on each load.
     // Without clearing first, removed tasks can linger until full window reload.
     this.tasks.clear();
+    const loadedTaskIds = new Set<string>();
 
     for (const task of tasksToLoad) {
       // Restore Date objects from JSON serialization
@@ -744,7 +775,14 @@ export class ScheduleManager {
       }
 
       this.tasks.set(task.id, task);
+      loadedTaskIds.add(task.id);
     }
+
+    this.suppressedOverdueTaskIds = new Set(
+      Array.from(this.suppressedOverdueTaskIds).filter((id) =>
+        loadedTaskIds.has(id),
+      ),
+    );
 
     // Save if any changes were made
     if (needsSave) {
@@ -951,6 +989,16 @@ export class ScheduleManager {
     );
   }
 
+  private isTaskDueAt(task: ScheduledTask, referenceTime: Date): boolean {
+    if (!task.enabled || !task.nextRun) {
+      return false;
+    }
+
+    const nextRunMinute = this.truncateToMinute(task.nextRun);
+    const referenceMinute = this.truncateToMinute(referenceTime);
+    return nextRunMinute.getTime() <= referenceMinute.getTime();
+  }
+
   private getNextRunForTask(cronExpression: string, baseTime: Date): Date {
     // Always use cron-parser to stay aligned with the cron grid.
     // A previous "*/N" fixed-interval optimisation was removed because it
@@ -1083,11 +1131,137 @@ export class ScheduleManager {
     return this.tasks.get(id);
   }
 
+  getOverdueTasks(referenceTime = new Date()): ScheduledTask[] {
+    return Array.from(this.tasks.values()).filter((task) => {
+      if (this.suppressedOverdueTaskIds.has(task.id)) {
+        return false;
+      }
+
+      return (
+        this.shouldTaskRunInCurrentWorkspace(task) &&
+        this.isTaskDueAt(task, referenceTime)
+      );
+    });
+  }
+
+  isOneTimeTask(task: ScheduledTask): boolean {
+    return this.isOneTimeExecutionTask(task);
+  }
+
+  suppressOverdueTasks(taskIds: string[]): void {
+    for (const taskId of taskIds) {
+      if (typeof taskId === "string" && taskId.trim().length > 0) {
+        this.suppressedOverdueTaskIds.add(taskId);
+      }
+    }
+  }
+
+  async deferTaskToNextCycle(
+    id: string,
+    referenceTime = new Date(),
+  ): Promise<boolean> {
+    const task = this.tasks.get(id);
+    if (!task || !task.enabled || this.isOneTimeExecutionTask(task)) {
+      return false;
+    }
+
+    task.nextRun = this.getNextRunForTask(task.cronExpression, referenceTime);
+    task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(id);
+    await this.saveTasks();
+    return true;
+  }
+
+  async rescheduleTaskInMinutes(
+    id: string,
+    delayMinutes: number,
+    referenceTime = new Date(),
+  ): Promise<boolean> {
+    if (!Number.isInteger(delayMinutes) || delayMinutes < 1) {
+      throw new Error("delayMinutes must be an integer >= 1");
+    }
+
+    const task = this.tasks.get(id);
+    if (!task || !task.enabled) {
+      return false;
+    }
+
+    task.nextRun = this.truncateToMinute(
+      new Date(referenceTime.getTime() + delayMinutes * 60 * 1000),
+    );
+    task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(id);
+    await this.saveTasks();
+    return true;
+  }
+
   /**
    * Get all tasks
    */
   getAllTasks(): ScheduledTask[] {
     return Array.from(this.tasks.values());
+  }
+
+  getWorkspaceScheduleHistory(): ScheduleHistoryEntry[] {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      return [];
+    }
+
+    return listScheduleHistoryEntries(workspaceRoot);
+  }
+
+  async restoreWorkspaceScheduleHistory(snapshotId: string): Promise<boolean> {
+    const op = this.saveQueue.then(() =>
+      this.restoreWorkspaceScheduleHistoryInternal(snapshotId),
+    );
+    this.saveQueue = op
+      .then(() => undefined)
+      .catch((error) => {
+        logError(
+          "[CopilotScheduler] Restore history failed (chain recovered):",
+          toSafeErrorDetails(error),
+        );
+      });
+    return op;
+  }
+
+  private async restoreWorkspaceScheduleHistoryInternal(
+    snapshotId: string,
+  ): Promise<boolean> {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      return false;
+    }
+
+    const snapshot = readScheduleHistorySnapshot(workspaceRoot, snapshotId);
+    if (!snapshot) {
+      return false;
+    }
+
+    const schedulerConfigPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+    const privateConfigPath = getPrivateSchedulerConfigPath(schedulerConfigPath);
+
+    const currentPublicConfig =
+      readSchedulerJsonFile(schedulerConfigPath) ?? readSchedulerConfig(workspaceRoot);
+    const currentPrivateConfig =
+      readSchedulerJsonFile(privateConfigPath) ?? currentPublicConfig;
+
+    createScheduleHistorySnapshot(
+      workspaceRoot,
+      currentPublicConfig,
+      currentPrivateConfig,
+    );
+
+    const restoredConfig = snapshot.privateConfig ?? snapshot.publicConfig;
+    if (!restoredConfig) {
+      return false;
+    }
+
+    writeSchedulerConfig(workspaceRoot, restoredConfig);
+    this.loadTasks();
+    this.notifyTasksChanged();
+    return true;
   }
 
   /**
@@ -1217,6 +1391,7 @@ export class ScheduleManager {
     }
 
     task.updatedAt = now;
+  this.suppressedOverdueTaskIds.delete(id);
 
     await this.saveTasks();
 
@@ -1229,6 +1404,7 @@ export class ScheduleManager {
   async deleteTask(id: string): Promise<boolean> {
     const deleted = this.tasks.delete(id);
     if (deleted) {
+      this.suppressedOverdueTaskIds.delete(id);
       await this.saveTasks();
     }
     return deleted;
@@ -1245,6 +1421,7 @@ export class ScheduleManager {
 
     task.enabled = !task.enabled;
     task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(id);
 
     // Keep nextRun consistent with enabled state
     if (task.enabled) {
@@ -1272,6 +1449,7 @@ export class ScheduleManager {
 
     task.enabled = enabled;
     task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(id);
 
     // Keep nextRun consistent with enabled state
     if (task.enabled) {
@@ -1333,6 +1511,7 @@ export class ScheduleManager {
 
     task.workspacePath = workspaceRoot;
     task.updatedAt = new Date();
+  this.suppressedOverdueTaskIds.delete(id);
     await this.saveTasks();
     return task;
   }
@@ -1361,7 +1540,7 @@ export class ScheduleManager {
    * Start the scheduler
    */
   startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
-    this.onExecuteCallback = onExecute;
+    this.setOnExecuteCallback(onExecute);
 
     // Stop existing scheduler if running
     this.stopScheduler();
@@ -1471,17 +1650,12 @@ export class ScheduleManager {
         continue;
       }
 
-      // Truncate nextRun to minute
-      const nextRunMinute = new Date(
-        task.nextRun.getFullYear(),
-        task.nextRun.getMonth(),
-        task.nextRun.getDate(),
-        task.nextRun.getHours(),
-        task.nextRun.getMinutes(),
-      );
+      if (this.suppressedOverdueTaskIds.has(task.id)) {
+        continue;
+      }
 
       // Check if due
-      if (nextRunMinute.getTime() <= nowMinute.getTime()) {
+      if (this.isTaskDueAt(task, nowMinute)) {
         // Safety: Check daily execution limit
         if (this.isDailyLimitReached(maxDailyLimit)) {
           logDebug(
@@ -1595,8 +1769,10 @@ export class ScheduleManager {
       task.lastErrorAt = undefined;
       if (this.isOneTimeExecutionTask(task)) {
         this.tasks.delete(task.id);
+        this.suppressedOverdueTaskIds.delete(task.id);
       } else if (task.enabled) {
         task.nextRun = this.getNextRunForTask(task.cronExpression, executedAt);
+        this.suppressedOverdueTaskIds.delete(task.id);
       }
       await this.saveTasks();
 
@@ -1630,7 +1806,7 @@ export class ScheduleManager {
       return config.tasks.map((t: any) => {
         const workspacePath =
           typeof t.workspacePath === "string" && t.workspacePath.trim().length > 0
-            ? findWorkspaceRoot(t.workspacePath)
+            ? path.resolve(t.workspacePath)
             : workspaceRoot;
         return {
           id: t.id,

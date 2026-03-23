@@ -85,6 +85,53 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.pendingMessages = originalPending;
     }
   });
+
+  test("Queues schedule history updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateScheduleHistory?: (entries: unknown[]) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateScheduleHistory === "function");
+      wv.updateScheduleHistory!([{ id: "1", createdAt: "2026-03-23T00:00:00.000Z", hasPrivate: true }]);
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateScheduleHistory");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as { type?: unknown; entries?: unknown[] };
+      assert.strictEqual(message.type, "updateScheduleHistory");
+      assert.strictEqual(Array.isArray(message.entries), true);
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
 });
 
 suite("SchedulerWebview Error Detail Sanitization Tests", () => {

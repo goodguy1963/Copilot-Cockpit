@@ -15,6 +15,7 @@
   "command.openSettings": "設定を開く",
   "command.showVersion": "バージョン情報を表示",
   "config.enabled": "スケジュール実行の有効/無効",
+  "config.autoShowOnStartup": "このリポジトリで VS Code 起動時に Scheduler の Webview を自動で開きます。このリポジトリだけで有効にしたい場合はワークスペース設定に保存してください。",
   "config.showNotifications": "タスク実行時に通知を表示",
   "config.notificationMode": "通知のモード",
   "config.notificationMode.sound": "OSの通知を使う（音が鳴る場合あり）",

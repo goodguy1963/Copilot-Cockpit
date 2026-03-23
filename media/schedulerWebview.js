@@ -43,6 +43,36 @@
     return basenameAny(s);
   }
 
+  function formatCountdown(totalSec) {
+    var remaining = Math.max(0, Math.floor(totalSec));
+    var units = [
+      { label: "y", seconds: 365 * 24 * 60 * 60 },
+      { label: "mo", seconds: 30 * 24 * 60 * 60 },
+      { label: "w", seconds: 7 * 24 * 60 * 60 },
+      { label: "d", seconds: 24 * 60 * 60 },
+      { label: "h", seconds: 60 * 60 },
+      { label: "m", seconds: 60 },
+      { label: "s", seconds: 1 },
+    ];
+    var parts = [];
+
+    for (var i = 0; i < units.length; i += 1) {
+      var unit = units[i];
+      var value = Math.floor(remaining / unit.seconds);
+      if (value <= 0) {
+        continue;
+      }
+      parts.push(String(value) + unit.label);
+      remaining -= value * unit.seconds;
+    }
+
+    if (parts.length === 0) {
+      return "0s";
+    }
+
+    return parts.join(" ");
+  }
+
   function sanitizeAbsolutePaths(text) {
     if (!text) return "";
     var s = String(text);
@@ -143,6 +173,10 @@
   var promptTemplates = Array.isArray(initialData.promptTemplates)
     ? initialData.promptTemplates
     : [];
+  var scheduleHistory = Array.isArray(initialData.scheduleHistory)
+    ? initialData.scheduleHistory
+    : [];
+  var autoShowOnStartup = !!initialData.autoShowOnStartup;
   var workspacePaths = Array.isArray(initialData.workspacePaths)
     ? initialData.workspacePaths
     : [];
@@ -176,6 +210,10 @@
   var submitBtn = document.getElementById("submit-btn");
   var testBtn = document.getElementById("test-btn");
   var refreshBtn = document.getElementById("refresh-btn");
+  var autoShowStartupBtn = document.getElementById("auto-show-startup-btn");
+  var scheduleHistorySelect = document.getElementById("schedule-history-select");
+  var restoreHistoryBtn = document.getElementById("restore-history-btn");
+  var autoShowStartupNote = document.getElementById("auto-show-startup-note");
   var cronPreset = document.getElementById("cron-preset");
   var cronExpression = document.getElementById("cron-expression");
   var agentSelect = document.getElementById("agent-select");
@@ -249,7 +287,79 @@
     }
   }
 
+  function syncAutoShowOnStartupUi() {
+    if (autoShowStartupBtn) {
+      autoShowStartupBtn.textContent = autoShowOnStartup
+        ? strings.autoShowOnStartupToggleEnabled || "Disable Auto Open"
+        : strings.autoShowOnStartupToggleDisabled || "Enable Auto Open";
+    }
+    if (autoShowStartupNote) {
+      autoShowStartupNote.textContent = autoShowOnStartup
+        ? strings.autoShowOnStartupEnabled || "Auto-open on startup: On"
+        : strings.autoShowOnStartupDisabled || "Auto-open on startup: Off";
+    }
+  }
+
+  function formatHistoryLabel(entry) {
+    if (!entry || !entry.createdAt) {
+      return strings.scheduleHistoryPlaceholder || "Select a backup version";
+    }
+    var date = new Date(entry.createdAt);
+    if (isNaN(date.getTime())) {
+      return String(entry.createdAt);
+    }
+    return date.toLocaleString(locale);
+  }
+
+  function syncScheduleHistoryOptions() {
+    if (!scheduleHistorySelect) return;
+
+    var previousValue = scheduleHistorySelect.value || "";
+    var entries = Array.isArray(scheduleHistory) ? scheduleHistory : [];
+    entries = entries.slice().sort(function (a, b) {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    if (entries.length === 0) {
+      scheduleHistorySelect.innerHTML =
+        '<option value="">' +
+        escapeHtml(strings.scheduleHistoryEmpty || "No backup versions yet") +
+        "</option>";
+      scheduleHistorySelect.disabled = true;
+      if (restoreHistoryBtn) restoreHistoryBtn.disabled = true;
+      return;
+    }
+
+    scheduleHistorySelect.innerHTML =
+      '<option value="">' +
+      escapeHtml(strings.scheduleHistoryPlaceholder || "Select a backup version") +
+      "</option>" +
+      entries
+        .map(function (entry) {
+          return (
+            '<option value="' +
+            escapeAttr(entry.id || "") +
+            '">' +
+            escapeHtml(formatHistoryLabel(entry)) +
+            "</option>"
+          );
+        })
+        .join("");
+
+    scheduleHistorySelect.disabled = false;
+    if (restoreHistoryBtn) restoreHistoryBtn.disabled = false;
+
+    if (previousValue) {
+      scheduleHistorySelect.value = previousValue;
+    }
+    if (scheduleHistorySelect.value !== previousValue) {
+      scheduleHistorySelect.value = "";
+    }
+  }
+
   restoreTaskFilter();
+  syncAutoShowOnStartupUi();
+  syncScheduleHistoryOptions();
 
   function getCreateTabButton() {
     return document.querySelector('.tab-button[data-tab="create"]');
@@ -603,6 +713,46 @@
     });
   }
 
+  if (autoShowStartupBtn) {
+    autoShowStartupBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "toggleAutoShowOnStartup" });
+    });
+  }
+
+  if (restoreHistoryBtn) {
+    restoreHistoryBtn.addEventListener("click", function () {
+      var snapshotId = scheduleHistorySelect ? scheduleHistorySelect.value : "";
+      if (!snapshotId) {
+        window.alert(
+          strings.scheduleHistoryRestoreSelectRequired ||
+            "Select a backup version first",
+        );
+        return;
+      }
+
+      var selectedEntry = (Array.isArray(scheduleHistory) ? scheduleHistory : []).find(
+        function (entry) {
+          return entry && entry.id === snapshotId;
+        },
+      );
+      var selectedLabel = formatHistoryLabel(selectedEntry);
+      var confirmText =
+        (strings.scheduleHistoryRestoreConfirm ||
+          "Restore the repo schedule from {createdAt}? The current state will be backed up first.")
+          .replace("{createdAt}", selectedLabel)
+          .replace("{timestamp}", selectedLabel);
+
+      if (!window.confirm(confirmText)) {
+        return;
+      }
+
+      vscode.postMessage({
+        type: "restoreScheduleHistory",
+        snapshotId: snapshotId,
+      });
+    });
+  }
+
   // Template refresh button (Create tab)
   if (templateRefreshBtn) {
     templateRefreshBtn.addEventListener("click", function () {
@@ -731,16 +881,7 @@
         var diffMs = nextRunDate.getTime() - Date.now();
         if (diffMs > 0) {
           var totalSec = Math.floor(diffMs / 1000);
-          var hours = Math.floor(totalSec / 3600);
-          var minutes = Math.floor((totalSec % 3600) / 60);
-          var seconds = totalSec % 60;
-          if (hours > 0) {
-            nextRunCountdown = " (in " + hours + "h " + minutes + "m " + seconds + "s)";
-          } else if (minutes > 0) {
-            nextRunCountdown = " (in " + minutes + "m " + seconds + "s)";
-          } else {
-            nextRunCountdown = " (in " + seconds + "s)";
-          }
+          nextRunCountdown = " (in " + formatCountdown(totalSec) + ")";
         } else {
           nextRunCountdown = " (due now)";
         }
@@ -1686,6 +1827,16 @@
                 templateSelectGroup.style.display = "none";
             }
           }
+          break;
+        case "updateAutoShowOnStartup":
+          autoShowOnStartup = !!message.enabled;
+          syncAutoShowOnStartupUi();
+          break;
+        case "updateScheduleHistory":
+          scheduleHistory = Array.isArray(message.entries)
+            ? message.entries
+            : [];
+          syncScheduleHistoryOptions();
           break;
         case "promptTemplateLoaded":
           var promptTextEl = document.getElementById("prompt-text");

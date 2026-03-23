@@ -6,10 +6,9 @@ import {
     ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as fs from "fs";
-import * as path from "path";
 import { findWorkspaceRoot, readSchedulerConfig, writeSchedulerConfig } from "./schedulerJsonSanitizer.js";
 
-// Determine absolute workspace root efficiently instead of guessing
+// Keep scheduler storage scoped to the workspace that launched this server.
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
 
 // Interface for tasks in JSON file

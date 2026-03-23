@@ -24,6 +24,29 @@ suite("Extension Test Suite", () => {
     }
   });
 
+  test("Auto-show startup setting should be contributed", () => {
+    const extension = vscode.extensions.getExtension(
+      "local-dev.copilot-scheduler-local",
+    );
+    assert.ok(extension);
+
+    const packageJson = extension!.packageJSON as {
+      contributes?: {
+        configuration?: {
+          properties?: Record<string, unknown>;
+        };
+      };
+    };
+
+    const properties = packageJson.contributes?.configuration?.properties ?? {};
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotScheduler.autoShowOnStartup",
+      ),
+    );
+  });
+
   test("Commands should be registered", async () => {
     const commands = await vscode.commands.getCommands(true);
 

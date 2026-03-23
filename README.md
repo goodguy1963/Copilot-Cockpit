@@ -1,13 +1,109 @@
 # Copilot Scheduler (Local Fork)
 
-## What Changed In This Fork
+## Local Fork Guide
 
-- This fork is maintained as a private local variant and is no longer intended to track or publish back to the original upstream repository.
-- The extension identity is pinned to `local-dev.copilot-scheduler-local` and the version is kept on the `99.0.x` track to avoid Marketplace collisions and accidental upstream replacement.
-- Workspace task loading now resolves the authoritative scheduler root by walking up from the open folder until it finds `.vscode/scheduler.json` or `.vscode/scheduler.private.json`. This fixes the local HBG layout where the extension is opened from a child folder but the real scheduler config lives in the parent workspace.
-- Workspace task persistence, prompt backup sync, prompt template discovery, and workspace ownership checks now use that same resolved scheduler root so the UI, execution path, and JSON writes stay aligned.
-- The Windows test runner now creates a temporary no-space junction path before launching the VS Code test host, which avoids the local path-with-spaces startup failure on this machine.
-- The embedded MCP server and hybrid workspace JSON storage remain part of the fork.
+This repository is the maintained private fork used in the HBG workspace. It is intentionally separated from the upstream marketplace extension and is packaged as `local-dev.copilot-scheduler-local` on the `99.0.x` version line so it does not collide with upstream installs.
+
+### What This Fork Adds
+
+- Strict per-repo workspace scheduling. Each repo keeps its own schedule in its own `.vscode` folder.
+- Embedded MCP server support bundled with the extension.
+- Hybrid task storage, where workspace tasks live in repo files and global tasks remain in extension storage.
+- Repo-local schedule backup history with the last 100 changes stored under `.vscode/scheduler-history`.
+- Repo-scoped auto-open on startup.
+- Optional new-chat-session execution mode for scheduled runs.
+- Startup review for overdue tasks instead of silent catch-up execution.
+- A more compact task list and larger countdown units.
+- An in-app `How To Use` tab inside the scheduler UI.
+
+### Installation
+
+1. Package this repo into a VSIX.
+2. Install `copilot-scheduler-local-99.0.11.vsix` into `code` and/or `code-insiders`.
+3. Reload VS Code.
+4. Disable or uninstall `yamapan.copilot-scheduler` if it is installed, so this fork remains the active implementation.
+
+### Basic Workflow
+
+1. Open the scheduler from the activity bar, from `Copilot Scheduler: Create Scheduled Prompt (GUI)`, or from the activation notification's `Open Scheduler` button.
+2. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, and optional agent/model.
+3. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, or move tasks.
+4. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
+5. Use the `How To Use` tab inside the UI for the quick in-app reference.
+
+### Prompt Sources
+
+- Inline text stored directly in the task.
+- Local templates from `.github/prompts/*.md` in the current repo.
+- Global templates from the VS Code prompts folder or the configured global prompts path.
+
+### Repo Storage Model
+
+- Workspace tasks are stored in `.vscode/scheduler.json` and `.vscode/scheduler.private.json` inside the repo that is actually open in VS Code.
+- The last 100 workspace schedule changes are stored in `.vscode/scheduler-history` so you can restore an older repo-local version from the UI.
+- Nested repos no longer inherit tasks from a parent folder.
+- Global tasks still exist in extension storage, but repo schedules are authoritative in the repo's `.vscode` files.
+
+### Session Behavior
+
+The setting `copilotScheduler.chatSession` controls whether a scheduled run continues in the current Copilot chat or starts a brand-new one first.
+
+- `continue` keeps using the current chat flow.
+- `new` tries to open a new Copilot chat session before sending the scheduled prompt.
+- Use `new` with absolute care. One scheduled AI run can intentionally open another AI session, which means an AI-driven chain can continue further than a single message.
+- This setting is separate from MCP. New chat sessions are a scheduler execution behavior, while MCP tools still depend on workspace MCP launch configuration.
+
+Example:
+
+```json
+{
+  "copilotScheduler.chatSession": "new"
+}
+```
+
+### Overdue Tasks
+
+If VS Code was closed and tasks became overdue:
+
+- Recurring tasks are reviewed one by one on startup and can either run now or wait for the next cycle.
+- One-time tasks are reviewed one by one on startup and can either run now or be rescheduled by choosing how many minutes from now they should run.
+- Remaining overdue tasks are not silently auto-executed after you dismiss the review.
+
+### Auto-Open On Startup
+
+The setting `copilotScheduler.autoShowOnStartup` is repo-scoped.
+
+- Turn it on in `.vscode/settings.json` for repos where you want the scheduler to open automatically.
+- Or toggle it directly from the `Task List` toolbar inside the scheduler UI.
+
+Example:
+
+```json
+{
+  "copilotScheduler.autoShowOnStartup": true
+}
+```
+
+### MCP Status
+
+Yes, MCP is set up in the plugin itself.
+
+- The extension includes an embedded MCP server implemented in `src/server.ts` and packaged as `out/server.js`.
+- The embedded server exposes `scheduler_list_tasks`, `scheduler_add_task`, `scheduler_remove_task`, `scheduler_run_task`, and `scheduler_toggle_task`.
+- Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as `.vscode/mcp.json` that starts the installed scheduler server.
+- In short: the server is bundled with the plugin, but the workspace still decides how to launch it.
+
+### Key Differences From Upstream
+
+- Extension identity: `local-dev.copilot-scheduler-local`
+- Private repo and local VSIX packaging flow
+- Embedded MCP server
+- Repo-local `.vscode` schedule files
+- Strict per-repo workspace isolation
+- Repo-scoped startup auto-open
+- Startup overdue-task review and one-time rescheduling
+- Compact task list with larger countdown units
+- Windows test-host workaround for paths with spaces
 
 ## Original Upstream README
 

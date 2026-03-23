@@ -201,6 +201,20 @@ export interface PromptTemplate {
 }
 
 /**
+ * Repo-local scheduler history snapshot
+ */
+export interface ScheduleHistoryEntry {
+  /** Snapshot identifier */
+  id: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Whether a private snapshot file exists */
+  hasPrivate: boolean;
+}
+
+/**
  * Cron preset definition
  */
 export interface CronPreset {
@@ -230,6 +244,7 @@ export interface TaskAction {
   | "copy"
   | "duplicate"
   | "moveToCurrentWorkspace"
+  | "restoreHistory"
   | "refresh";
 
   /** Task ID */
@@ -237,6 +252,9 @@ export interface TaskAction {
 
   /** Additional data for the action */
   data?: Partial<CreateTaskInput>;
+
+  /** Selected history snapshot identifier for restore actions */
+  historyId?: string;
 }
 
 /**
@@ -259,6 +277,8 @@ export type WebviewToExtensionMessage =
   | { type: "testPrompt"; prompt: string; agent?: string; model?: string }
   | { type: "duplicateTask"; taskId: string }
   | { type: "refreshTasks" }
+  | { type: "restoreScheduleHistory"; snapshotId: string }
+  | { type: "toggleAutoShowOnStartup" }
   | { type: "refreshAgents" }
   | { type: "refreshPrompts" }
   | { type: "runTask"; taskId: string }

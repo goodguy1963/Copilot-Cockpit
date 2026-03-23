@@ -8,6 +8,7 @@ import * as path from "path";
 import { notifyError } from "./extension";
 import type {
   ScheduledTask,
+  ScheduleHistoryEntry,
   CreateTaskInput,
   TaskAction,
   AgentInfo,
@@ -42,6 +43,7 @@ export class SchedulerWebview {
     | undefined;
   private static extensionUri: vscode.Uri;
   private static currentTasks: ScheduledTask[] = [];
+  private static currentScheduleHistory: ScheduleHistoryEntry[] = [];
   private static webviewReady = false;
   private static pendingMessages: OutgoingWebviewMessage[] = [];
 
@@ -253,6 +255,14 @@ export class SchedulerWebview {
     });
   }
 
+  static updateScheduleHistory(entries: ScheduleHistoryEntry[]): void {
+    this.currentScheduleHistory = entries;
+    this.postMessage({
+      type: "updateScheduleHistory",
+      entries,
+    });
+  }
+
   /**
    * Show an error message inside the webview
    */
@@ -350,6 +360,13 @@ export class SchedulerWebview {
     this.postMessage({ type: "switchToList", successMessage });
   }
 
+  static updateAutoShowOnStartup(enabled: boolean): void {
+    this.postMessage({
+      type: "updateAutoShowOnStartup",
+      enabled,
+    });
+  }
+
   /**
    * Force the webview into "create new task" mode (clears edit state and form).
    */
@@ -414,6 +431,25 @@ export class SchedulerWebview {
             message.agent,
             message.model,
           );
+        }
+        break;
+
+      case "toggleAutoShowOnStartup":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "refresh",
+            taskId: "__toggleAutoShowOnStartup__",
+          });
+        }
+        break;
+
+      case "restoreScheduleHistory":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "restoreHistory",
+            taskId: "__restoreScheduleHistory__",
+            historyId: message.snapshotId,
+          });
         }
         break;
 
@@ -757,6 +793,37 @@ export class SchedulerWebview {
       tabCreate: messages.tabCreate(),
       tabEdit: messages.tabEdit(),
       tabList: messages.tabList(),
+      tabHowTo: messages.tabHowTo(),
+      helpIntroTitle: messages.helpIntroTitle(),
+      helpIntroBody: messages.helpIntroBody(),
+      helpCreateTitle: messages.helpCreateTitle(),
+      helpCreateItemName: messages.helpCreateItemName(),
+      helpCreateItemTemplates: messages.helpCreateItemTemplates(),
+      helpCreateItemRunFirst: messages.helpCreateItemRunFirst(),
+      helpListTitle: messages.helpListTitle(),
+      helpListItemSections: messages.helpListItemSections(),
+      helpListItemActions: messages.helpListItemActions(),
+      helpListItemStartup: messages.helpListItemStartup(),
+      helpStorageTitle: messages.helpStorageTitle(),
+      helpStorageItemRepo: messages.helpStorageItemRepo(),
+      helpStorageItemIsolation: messages.helpStorageItemIsolation(),
+      helpStorageItemGlobal: messages.helpStorageItemGlobal(),
+      helpOverdueTitle: messages.helpOverdueTitle(),
+      helpOverdueItemReview: messages.helpOverdueItemReview(),
+      helpOverdueItemRecurring: messages.helpOverdueItemRecurring(),
+      helpOverdueItemOneTime: messages.helpOverdueItemOneTime(),
+      helpSessionTitle: messages.helpSessionTitle(),
+      helpSessionItemNewChat: messages.helpSessionItemNewChat(),
+      helpSessionItemCareful: messages.helpSessionItemCareful(),
+      helpSessionItemSeparate: messages.helpSessionItemSeparate(),
+      helpMcpTitle: messages.helpMcpTitle(),
+      helpMcpItemEmbedded: messages.helpMcpItemEmbedded(),
+      helpMcpItemConfig: messages.helpMcpItemConfig(),
+      helpMcpItemTools: messages.helpMcpItemTools(),
+      helpTipsTitle: messages.helpTipsTitle(),
+      helpTipsItem1: messages.helpTipsItem1(),
+      helpTipsItem2: messages.helpTipsItem2(),
+      helpTipsItem3: messages.helpTipsItem3(),
       labelTaskName: messages.labelTaskName(),
       labelPromptType: messages.labelPromptType(),
       labelPromptInline: messages.labelPromptInline(),
@@ -867,6 +934,20 @@ export class SchedulerWebview {
 
       labelThisWorkspaceShort: messages.labelThisWorkspaceShort(),
       labelOtherWorkspaceShort: messages.labelOtherWorkspaceShort(),
+      autoShowOnStartupEnabled: messages.autoShowOnStartupEnabled(),
+      autoShowOnStartupDisabled: messages.autoShowOnStartupDisabled(),
+      autoShowOnStartupToggleEnabled: messages.autoShowOnStartupToggleEnabled(),
+      autoShowOnStartupToggleDisabled: messages.autoShowOnStartupToggleDisabled(),
+      scheduleHistoryLabel: messages.scheduleHistoryLabel(),
+      scheduleHistoryPlaceholder: messages.scheduleHistoryPlaceholder(),
+      scheduleHistoryEmpty: messages.scheduleHistoryEmpty(),
+      scheduleHistoryNote: messages.scheduleHistoryNote(),
+      scheduleHistoryRestoreConfirm: messages.scheduleHistoryRestoreConfirm(
+        "{createdAt}",
+      ),
+      scheduleHistoryRestoreSelectRequired:
+        messages.scheduleHistoryRestoreSelectRequired(),
+      actionRestoreBackup: messages.actionRestoreBackup(),
     };
 
     const allPresets = presets;
@@ -883,6 +964,13 @@ export class SchedulerWebview {
       workspacePaths: this.getResolvedWorkspaceRootPaths(),
       caseInsensitivePaths: process.platform === "win32",
       defaultJitterSeconds,
+      scheduleHistory: this.currentScheduleHistory,
+      autoShowOnStartup: vscode.workspace
+        .getConfiguration(
+          "copilotScheduler",
+          vscode.workspace.workspaceFolders?.[0]?.uri,
+        )
+        .get<boolean>("autoShowOnStartup", false),
       locale: isJa ? "ja-JP" : "en-US",
       strings,
     };
@@ -942,6 +1030,42 @@ export class SchedulerWebview {
     
     .tab-content.active {
       display: block;
+    }
+
+    .help-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .help-section {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 12px;
+      background-color: var(--vscode-editor-background);
+    }
+
+    .help-section h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+    }
+
+    .help-section p {
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .help-section ul {
+      margin: 8px 0 0 18px;
+      padding: 0;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .help-section li + li {
+      margin-top: 6px;
     }
     
     .form-group {
@@ -1062,7 +1186,7 @@ export class SchedulerWebview {
     .task-sections {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 8px;
       align-items: start;
     }
 
@@ -1073,14 +1197,15 @@ export class SchedulerWebview {
     .task-section {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 8px;
+      padding: 7px;
       background-color: var(--vscode-editor-background);
+      min-width: 0;
     }
 
     .task-section-title {
       font-size: 12px;
       font-weight: 600;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       color: var(--vscode-descriptionForeground);
       display: flex;
       justify-content: space-between;
@@ -1088,11 +1213,11 @@ export class SchedulerWebview {
     }
     
     .task-card {
-      padding: 10px;
+      padding: 8px;
       border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
       background-color: var(--vscode-editor-background);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .task-card.other-workspace {
@@ -1150,7 +1275,7 @@ export class SchedulerWebview {
     .task-info {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     
     .task-info span {
@@ -1173,9 +1298,9 @@ export class SchedulerWebview {
       border-radius: 4px;
       font-size: 11px;
       white-space: pre-wrap;
-      max-height: 38px;
+      max-height: 34px;
       overflow: hidden;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     
     .task-actions {
@@ -1191,7 +1316,7 @@ export class SchedulerWebview {
       font-size: 12px;
     }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 920px) {
       .task-sections {
         grid-template-columns: 1fr;
       }
@@ -1294,12 +1419,32 @@ export class SchedulerWebview {
       margin-top: 4px;
       margin-bottom: 0;
     }
+
+    .history-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .history-toolbar label {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .history-toolbar select {
+      min-width: 280px;
+      max-width: 100%;
+      flex: 1 1 280px;
+    }
   </style>
 </head>
 <body>
   <div class="tabs">
     <button type="button" class="tab-button active" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
     <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
+    <button type="button" class="tab-button" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
   </div>
   
   <div id="create-tab" class="tab-content active">
@@ -1471,7 +1616,15 @@ export class SchedulerWebview {
     <div id="success-toast" style="display:none; background:var(--vscode-notificationsInfoIcon-foreground); color:var(--vscode-button-foreground); padding:8px 14px; border-radius:4px; margin-bottom:12px; font-size:13px; opacity:1; transition:opacity 0.5s ease-out;"></div>
     <div class="button-group" style="margin-bottom: 16px;">
       <button class="btn-secondary" id="refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
+      <button class="btn-secondary" id="auto-show-startup-btn"></button>
     </div>
+    <p class="note" id="auto-show-startup-note" style="margin-top:-8px; margin-bottom:12px;"></p>
+    <div class="history-toolbar">
+      <label for="schedule-history-select">${escapeHtml(strings.scheduleHistoryLabel)}</label>
+      <select id="schedule-history-select"></select>
+      <button class="btn-secondary" id="restore-history-btn">${escapeHtml(strings.actionRestoreBackup)}</button>
+    </div>
+    <p class="note" id="schedule-history-note">${escapeHtml(strings.scheduleHistoryNote)}</p>
     <div id="task-filter-bar" class="task-filter-bar">
       <button type="button" class="btn-secondary task-filter-btn active" data-filter="all">${escapeHtml(strings.labelAllTasks)}</button>
       <button type="button" class="btn-secondary task-filter-btn" data-filter="recurring">${escapeHtml(strings.labelRecurringTasks)}</button>
@@ -1479,6 +1632,71 @@ export class SchedulerWebview {
     </div>
     <div id="task-list" class="task-list">
       <div class="empty-state">${escapeHtml(strings.noTasksFound)}</div>
+    </div>
+  </div>
+
+  <div id="help-tab" class="tab-content">
+    <div class="help-panel">
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpIntroTitle)}</h3>
+        <p>${escapeHtml(strings.helpIntroBody)}</p>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpCreateTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpCreateItemName)}</li>
+          <li>${escapeHtml(strings.helpCreateItemTemplates)}</li>
+          <li>${escapeHtml(strings.helpCreateItemRunFirst)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpListTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpListItemSections)}</li>
+          <li>${escapeHtml(strings.helpListItemActions)}</li>
+          <li>${escapeHtml(strings.helpListItemStartup)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
+          <li>${escapeHtml(strings.helpStorageItemIsolation)}</li>
+          <li>${escapeHtml(strings.helpStorageItemGlobal)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpOverdueTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpOverdueItemReview)}</li>
+          <li>${escapeHtml(strings.helpOverdueItemRecurring)}</li>
+          <li>${escapeHtml(strings.helpOverdueItemOneTime)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpSessionTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpSessionItemNewChat)}</li>
+          <li>${escapeHtml(strings.helpSessionItemCareful)}</li>
+          <li>${escapeHtml(strings.helpSessionItemSeparate)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
+          <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
+          <li>${escapeHtml(strings.helpMcpItemTools)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpTipsTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpTipsItem1)}</li>
+          <li>${escapeHtml(strings.helpTipsItem2)}</li>
+          <li>${escapeHtml(strings.helpTipsItem3)}</li>
+        </ul>
+      </section>
     </div>
   </div>
   

@@ -200,6 +200,227 @@ let copilotExecutor: CopilotExecutor;
 let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 
+function refreshSchedulerUiState(): void {
+  SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+  SchedulerWebview.updateScheduleHistory(
+    scheduleManager.getWorkspaceScheduleHistory(),
+  );
+}
+
+function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri;
+}
+
+function isAutoShowOnStartupEnabled(): boolean {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  return vscode.workspace
+    .getConfiguration("copilotScheduler", folderUri)
+    .get<boolean>("autoShowOnStartup", false);
+}
+
+async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  const target = folderUri
+    ? vscode.ConfigurationTarget.WorkspaceFolder
+    : vscode.ConfigurationTarget.Workspace;
+
+  await vscode.workspace
+    .getConfiguration("copilotScheduler", folderUri)
+    .update("autoShowOnStartup", enabled, target);
+}
+
+async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> {
+  await SchedulerWebview.show(
+    context.extensionUri,
+    scheduleManager.getAllTasks(),
+    handleTaskAction,
+  );
+  refreshSchedulerUiState();
+  SchedulerWebview.switchToList();
+}
+
+function shouldAutoShowSchedulerOnStartup(): boolean {
+  const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  if (workspaceFolders.length === 0) {
+    return false;
+  }
+
+  return workspaceFolders.some((folder) =>
+    vscode.workspace
+      .getConfiguration("copilotScheduler", folder.uri)
+      .get<boolean>("autoShowOnStartup", false),
+  );
+}
+
+function scheduleAutoShowSchedulerOnStartup(
+  context: vscode.ExtensionContext,
+): void {
+  if (!shouldAutoShowSchedulerOnStartup()) {
+    return;
+  }
+
+  setTimeout(() => {
+    void openSchedulerUi(context)
+      .then(() => {
+        SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
+      })
+      .catch((error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error ?? "");
+        logError(
+          "[CopilotScheduler] Failed to auto-show scheduler on startup:",
+          sanitizeErrorDetailsForLog(errorMessage),
+        );
+      });
+  }, 750);
+}
+
+async function promptForOverdueTaskDelayMinutes(
+  task: ScheduledTask,
+): Promise<number | undefined> {
+  const value = await vscode.window.showInputBox({
+    prompt: messages.overdueTaskReschedulePrompt(task.name),
+    placeHolder: messages.overdueTaskReschedulePlaceholder(),
+    value: "5",
+    ignoreFocusOut: true,
+    validateInput: (rawValue) => {
+      const minutes = Number(rawValue);
+      if (!Number.isInteger(minutes) || minutes < 1 || minutes > 10080) {
+        return messages.overdueTaskRescheduleValidation();
+      }
+      return undefined;
+    },
+  });
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return Number(value);
+}
+
+async function processOverdueTasksOnStartup(): Promise<void> {
+  const overdueTasks = scheduleManager.getOverdueTasks();
+  if (overdueTasks.length === 0) {
+    return;
+  }
+
+  for (let index = 0; index < overdueTasks.length; index += 1) {
+    const taskId = overdueTasks[index].id;
+    const task = scheduleManager.getTask(taskId);
+    if (!task) {
+      continue;
+    }
+
+    const stillOverdue = scheduleManager
+      .getOverdueTasks()
+      .some((candidate) => candidate.id === taskId);
+    if (!stillOverdue) {
+      continue;
+    }
+
+    const dueAt = task.nextRun
+      ? messages.formatDateTime(task.nextRun)
+      : messages.labelNever();
+
+    if (scheduleManager.isOneTimeTask(task)) {
+      const choice = await vscode.window.showWarningMessage(
+        messages.overdueTaskPromptOneTime(task.name, dueAt),
+        { modal: true },
+        messages.actionRun(),
+        messages.actionReschedule(),
+        messages.actionCancel(),
+      );
+
+      if (choice === messages.actionRun()) {
+        const ran = await scheduleManager.runTaskNow(task.id);
+        if (!ran) {
+          scheduleManager.suppressOverdueTasks([task.id]);
+          const failedTask = scheduleManager.getTask(task.id);
+          notifyError(
+            messages.taskExecutionFailed(
+              task.name,
+              failedTask?.lastError || messages.webviewUnknown(),
+            ),
+          );
+        }
+        continue;
+      }
+
+      if (choice === messages.actionReschedule()) {
+        const delayMinutes = await promptForOverdueTaskDelayMinutes(task);
+        if (delayMinutes === undefined) {
+          scheduleManager.suppressOverdueTasks(
+            overdueTasks.slice(index).map((item) => item.id),
+          );
+          break;
+        }
+
+        await scheduleManager.rescheduleTaskInMinutes(task.id, delayMinutes);
+        notifyInfo(messages.taskRescheduled(task.name, delayMinutes));
+        continue;
+      }
+
+      scheduleManager.suppressOverdueTasks(
+        overdueTasks.slice(index).map((item) => item.id),
+      );
+      break;
+    }
+
+    const choice = await vscode.window.showWarningMessage(
+      messages.overdueTaskPromptRecurring(task.name, dueAt),
+      { modal: true },
+      messages.actionRun(),
+      messages.actionWaitNextCycle(),
+      messages.actionCancel(),
+    );
+
+    if (choice === messages.actionRun()) {
+      const ran = await scheduleManager.runTaskNow(task.id);
+      if (!ran) {
+        scheduleManager.suppressOverdueTasks([task.id]);
+        const failedTask = scheduleManager.getTask(task.id);
+        notifyError(
+          messages.taskExecutionFailed(
+            task.name,
+            failedTask?.lastError || messages.webviewUnknown(),
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (choice === messages.actionWaitNextCycle()) {
+      await scheduleManager.deferTaskToNextCycle(task.id);
+      notifyInfo(messages.taskDeferredToNextCycle(task.name));
+      continue;
+    }
+
+    scheduleManager.suppressOverdueTasks(
+      overdueTasks.slice(index).map((item) => item.id),
+    );
+    break;
+  }
+}
+
+async function runStartupSequence(
+  context: vscode.ExtensionContext,
+  onExecute: (task: ScheduledTask) => Promise<void>,
+): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("copilotScheduler");
+  if (cfg.get<boolean>("enabled", true) !== false) {
+    await processOverdueTasksOnStartup();
+  }
+
+  scheduleAutoShowSchedulerOnStartup(context);
+
+  if (cfg.get<boolean>("enabled", true) !== false) {
+    scheduleManager.startScheduler(onExecute);
+  } else {
+    scheduleManager.stopScheduler();
+  }
+}
+
 /**
  * Extension activation
  */
@@ -282,7 +503,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Register callback to refresh tree when tasks change (e.g. from watcher or MCP)
   scheduleManager.setOnTasksChangedCallback(() => {
     treeProvider.refresh();
-    SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+    refreshSchedulerUiState();
   });
 
   // Register TreeView
@@ -309,18 +530,19 @@ export function activate(context: vscode.ExtensionContext): void {
     registerShowVersionCommand(context),
   ];
 
-  // Start scheduler
-  scheduleManager.startScheduler(async (task) => {
+  const executeScheduledTask = async (task: ScheduledTask): Promise<void> => {
     await executeTask(task);
-  });
+  };
 
-  // If disabled in settings, stop the timer immediately (callback stays set for manual runs)
-  {
-    const cfg = vscode.workspace.getConfiguration("copilotScheduler");
-    if (cfg.get<boolean>("enabled", true) === false) {
-      scheduleManager.stopScheduler();
-    }
-  }
+  scheduleManager.setOnExecuteCallback(executeScheduledTask);
+  void runStartupSequence(context, executeScheduledTask).catch((error) =>
+    logError(
+      "[CopilotScheduler] Startup sequence failed:",
+      sanitizeErrorDetailsForLog(
+        error instanceof Error ? error.message : String(error ?? ""),
+      ),
+    ),
+  );
 
   // Sync prompt templates to tasks (startup and daily)
   void syncPromptTemplatesIfNeeded(context, true).catch((error) =>
@@ -374,7 +596,23 @@ export function activate(context: vscode.ExtensionContext): void {
   const config = vscode.workspace.getConfiguration("copilotScheduler");
   const logLevel = config.get<string>("logLevel", "info");
   if (logLevel === "info" || logLevel === "debug") {
-    notifyInfo(messages.extensionActive());
+    void vscode.window
+      .showInformationMessage(
+        messages.extensionActive(),
+        messages.actionOpenScheduler(),
+      )
+      .then((choice) => {
+        if (choice === messages.actionOpenScheduler()) {
+          void openSchedulerUi(context).catch((error) =>
+            logError(
+              "[CopilotScheduler] Failed to open scheduler from activation notification:",
+              sanitizeErrorDetailsForLog(
+                error instanceof Error ? error.message : String(error ?? ""),
+              ),
+            ),
+          );
+        }
+      });
   }
 
   // React to language changes so the webview can be re-rendered in the selected locale
@@ -382,6 +620,9 @@ export function activate(context: vscode.ExtensionContext): void {
     if (e.affectsConfiguration("copilotScheduler.language")) {
       SchedulerWebview.refreshLanguage(scheduleManager.getAllTasks());
       treeProvider.refresh();
+    }
+    if (e.affectsConfiguration("copilotScheduler.autoShowOnStartup")) {
+      SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
     }
     if (
       e.affectsConfiguration("copilotScheduler.globalPromptsPath") ||
@@ -399,9 +640,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const cfg = vscode.workspace.getConfiguration("copilotScheduler");
       const enabled = cfg.get<boolean>("enabled", true);
       if (enabled) {
-        scheduleManager.startScheduler(async (task) => {
-          await executeTask(task);
-        });
+        scheduleManager.startScheduler(executeScheduledTask);
         needsRecalculate = true;
       } else {
         scheduleManager.stopScheduler();
@@ -606,6 +845,14 @@ async function confirmManualRunIfWorkspaceMismatch(
 
 async function handleTaskActionAsync(action: TaskAction): Promise<void> {
   try {
+    if (action.taskId === "__toggleAutoShowOnStartup__") {
+      const nextValue = !isAutoShowOnStartupEnabled();
+      await setAutoShowOnStartupEnabled(nextValue);
+      SchedulerWebview.updateAutoShowOnStartup(nextValue);
+      notifyInfo(messages.autoShowOnStartupUpdated(nextValue));
+      return;
+    }
+
     switch (action.action) {
       case "run": {
         const runTask = scheduleManager.getTask(action.taskId);
@@ -776,9 +1023,47 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "restoreHistory": {
+        if (!action.historyId) {
+          const msg = messages.scheduleHistorySnapshotNotFound();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+
+        const historyEntry = scheduleManager
+          .getWorkspaceScheduleHistory()
+          .find((entry) => entry.id === action.historyId);
+        if (!historyEntry) {
+          const msg = messages.scheduleHistorySnapshotNotFound();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+
+        const restored = await scheduleManager.restoreWorkspaceScheduleHistory(
+          action.historyId,
+        );
+        if (!restored) {
+          const msg = messages.scheduleHistorySnapshotNotFound();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+
+        const restoredLabel = messages.formatDateTime(
+          new Date(historyEntry.createdAt),
+        );
+        const restoreMsg = messages.scheduleHistoryRestored(restoredLabel);
+        notifyInfo(restoreMsg);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToList(restoreMsg);
+        break;
+      }
+
       case "refresh": {
         scheduleManager.reloadTasks();
-        SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+        refreshSchedulerUiState();
         break;
       }
     }
@@ -864,6 +1149,8 @@ function registerCreateTaskGuiCommand(
           },
         );
 
+        refreshSchedulerUiState();
+
         // Ensure the '+' command always opens the webview in "new task" mode.
         SchedulerWebview.startCreateTask();
       } catch (error) {
@@ -887,6 +1174,7 @@ function registerListTasksCommand(
           scheduleManager.getAllTasks(),
           handleTaskAction,
         );
+        refreshSchedulerUiState();
         SchedulerWebview.switchToList();
       } catch (error) {
         const errorMessage =
@@ -934,6 +1222,7 @@ function registerEditTaskCommand(
           scheduleManager.getAllTasks(),
           handleTaskAction,
         );
+        refreshSchedulerUiState();
         SchedulerWebview.editTask(taskId);
       } catch (error) {
         const errorMessage =
