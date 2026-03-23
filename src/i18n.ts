@@ -362,6 +362,11 @@ export const messages = {
       "一度きりの期限超過タスクは、今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
     ),
   helpSessionTitle: () => t("5. Session Behavior", "5. セッション動作"),
+  helpSessionItemPerTask: () =>
+    t(
+      "Recurring tasks can override the global chatSession setting directly in the Create/Edit form.",
+      "繰り返しタスクは Create/Edit フォームでグローバル chatSession 設定を上書きできます。",
+    ),
   helpSessionItemNewChat: () =>
     t(
       "Scheduled runs can be configured to start a brand-new Copilot chat session before sending the prompt.",
@@ -390,8 +395,8 @@ export const messages = {
     ),
   helpMcpItemTools: () =>
     t(
-      "The embedded server exposes scheduler_list_tasks, scheduler_add_task, scheduler_remove_task, scheduler_run_task, and scheduler_toggle_task.",
-      "組み込みサーバーは scheduler_list_tasks、scheduler_add_task、scheduler_remove_task、scheduler_run_task、scheduler_toggle_task を提供します。",
+      "The embedded server exposes task list/get/add/update/duplicate/remove/run/toggle tools plus history list/restore and overdue-task queries.",
+      "組み込みサーバーは、タスクの一覧・取得・追加・更新・複製・削除・実行・有効化切替に加え、履歴一覧・復元・期限超過タスク照会を提供します。",
     ),
   helpTipsTitle: () => t("7. Recommended Workflow", "7. 推奨ワークフロー"),
   helpTipsItem1: () =>
@@ -459,6 +464,21 @@ export const messages = {
   labelRunFirstInOneMinute: () =>
     t("Run first execution in 3 minutes", "3分後に初回実行する"),
   labelOneTime: () => t("Run once and delete", "一度だけ実行して削除"),
+  labelChatSession: () =>
+    t("Recurring chat session", "繰り返しタスクのチャットセッション"),
+  labelChatSessionNew: () =>
+    t("Start a new chat every run", "毎回新しいチャットを開始"),
+  labelChatSessionContinue: () =>
+    t("Continue the active chat", "現在のチャットを継続"),
+  labelChatSessionBadgeNew: () =>
+    t("Chat: New", "チャット: 新規"),
+  labelChatSessionBadgeContinue: () =>
+    t("Chat: Continue", "チャット: 継続"),
+  labelChatSessionRecurringOnly: () =>
+    t(
+      "Recurring tasks only. One-time tasks do not store a task-level chat session mode.",
+      "繰り返しタスク専用です。一度きりタスクにはタスク単位のチャットセッション設定は保存されません。",
+    ),
   labelAllTasks: () => t("All", "すべて"),
   labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク"),
   labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク"),

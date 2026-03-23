@@ -697,6 +697,7 @@ async function executeTask(task: ScheduledTask): Promise<void> {
     await copilotExecutor.executePrompt(promptText, {
       agent: task.agent,
       model: task.model,
+      chatSession: task.chatSession,
     });
   } catch (error) {
     // executePrompt already shows a warning with copy-to-clipboard option,

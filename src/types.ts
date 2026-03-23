@@ -79,6 +79,9 @@ export interface ScheduledTask {
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
 
+  /** Per-task chat session behavior for recurring tasks. */
+  chatSession?: ChatSessionBehavior;
+
   /** Last execution time */
   lastRun?: Date;
 
@@ -119,6 +122,9 @@ export interface CreateTaskInput {
 
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
+
+  /** Per-task chat session behavior for recurring tasks. */
+  chatSession?: ChatSessionBehavior;
 
   /** Agent to use */
   agent?: string;
@@ -266,6 +272,9 @@ export interface ExecuteOptions {
 
   /** Model to use */
   model?: string;
+
+  /** Task-level chat session override. */
+  chatSession?: ChatSessionBehavior;
 }
 
 /**

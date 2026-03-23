@@ -7,7 +7,12 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import { parseExpression } from "cron-parser";
-import type { ScheduledTask, CreateTaskInput, TaskScope } from "./types";
+import type {
+  ScheduledTask,
+  CreateTaskInput,
+  TaskScope,
+  ChatSessionBehavior,
+} from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
@@ -679,6 +684,15 @@ export class ScheduleManager {
         needsSave = true;
       }
 
+      const normalizedChatSession = this.normalizeTaskChatSession(
+        task.chatSession,
+        task.oneTime === true,
+      );
+      if (task.chatSession !== normalizedChatSession) {
+        task.chatSession = normalizedChatSession;
+        needsSave = true;
+      }
+
       // Migration: add missing fields for older tasks
       if (!task.scope) {
         task.scope = "global";
@@ -842,6 +856,7 @@ export class ScheduleManager {
           description: t.description,
           agent: t.agent,
           model: t.model,
+          chatSession: t.chatSession,
           promptSource: t.promptSource,
           promptPath: t.promptPath,
           promptBackupPath: t.promptBackupPath,
@@ -1052,6 +1067,19 @@ export class ScheduleManager {
     }
   }
 
+  private normalizeTaskChatSession(
+    chatSession: unknown,
+    oneTime: boolean,
+  ): ChatSessionBehavior | undefined {
+    if (oneTime) {
+      return undefined;
+    }
+
+    return chatSession === "new" || chatSession === "continue"
+      ? chatSession
+      : undefined;
+  }
+
   /**
    * Create a new task
    */
@@ -1078,6 +1106,7 @@ export class ScheduleManager {
 
     const enabled = input.enabled !== false;
     const effectiveScope = input.scope || defaultScope;
+    const oneTime = input.oneTime ?? id.startsWith("exec-");
 
     // Calculate next run (disabled tasks must not keep nextRun)
     let nextRun: Date | undefined;
@@ -1112,7 +1141,8 @@ export class ScheduleManager {
         input.jitterSeconds !== undefined
           ? this.clampJitterSeconds(input.jitterSeconds)
           : defaultJitter,
-      oneTime: input.oneTime ?? id.startsWith("exec-"),
+      oneTime,
+      chatSession: this.normalizeTaskChatSession(input.chatSession, oneTime),
       nextRun,
       createdAt: now,
       updatedAt: now,
@@ -1368,6 +1398,12 @@ export class ScheduleManager {
     if (updates.oneTime !== undefined) {
       task.oneTime = updates.oneTime;
     }
+    if (updates.chatSession !== undefined || updates.oneTime !== undefined) {
+      task.chatSession = this.normalizeTaskChatSession(
+        updates.chatSession !== undefined ? updates.chatSession : task.chatSession,
+        task.oneTime === true,
+      );
+    }
 
     const enabledAfter = task.enabled;
 
@@ -1481,6 +1517,7 @@ export class ScheduleManager {
       model: original.model,
       scope: original.scope,
       oneTime: original.oneTime,
+      chatSession: original.oneTime === true ? undefined : original.chatSession,
       promptSource: original.promptSource,
       promptPath: original.promptPath,
       jitterSeconds: original.jitterSeconds,
@@ -1831,6 +1868,10 @@ export class ScheduleManager {
             ? new Date(t.promptBackupUpdatedAt)
             : undefined,
           jitterSeconds: t.jitterSeconds,
+          chatSession: this.normalizeTaskChatSession(
+            t.chatSession,
+            t.oneTime === true,
+          ),
           scope: "workspace",
           workspacePath,
         };

@@ -14,6 +14,7 @@ import type {
   AgentInfo,
   ModelInfo,
   PromptTemplate,
+  ChatSessionBehavior,
   TaskScope,
   WebviewToExtensionMessage,
 } from "./types";
@@ -769,6 +770,10 @@ export class SchedulerWebview {
     const presets = getCronPresets();
     const config = vscode.workspace.getConfiguration("copilotScheduler");
     const defaultScope = config.get<TaskScope>("defaultScope", "workspace");
+    const defaultChatSession = config.get<ChatSessionBehavior>(
+      "chatSession",
+      "new",
+    );
     const defaultJitterSecondsRaw = config.get<number>("jitterSeconds", 600);
     // Keep the Webview resilient even if settings are corrupted/out-of-range.
     const defaultJitterSeconds = (() => {
@@ -813,6 +818,7 @@ export class SchedulerWebview {
       helpOverdueItemRecurring: messages.helpOverdueItemRecurring(),
       helpOverdueItemOneTime: messages.helpOverdueItemOneTime(),
       helpSessionTitle: messages.helpSessionTitle(),
+      helpSessionItemPerTask: messages.helpSessionItemPerTask(),
       helpSessionItemNewChat: messages.helpSessionItemNewChat(),
       helpSessionItemCareful: messages.helpSessionItemCareful(),
       helpSessionItemSeparate: messages.helpSessionItemSeparate(),
@@ -848,6 +854,10 @@ export class SchedulerWebview {
       labelNever: messages.labelNever(),
       labelRunFirstInOneMinute: messages.labelRunFirstInOneMinute(),
       labelOneTime: messages.labelOneTime(),
+      labelChatSession: messages.labelChatSession(),
+      labelChatSessionNew: messages.labelChatSessionNew(),
+      labelChatSessionContinue: messages.labelChatSessionContinue(),
+      labelChatSessionRecurringOnly: messages.labelChatSessionRecurringOnly(),
       labelAllTasks: messages.labelAllTasks(),
       labelRecurringTasks: messages.labelRecurringTasks(),
       labelOneTimeTasks: messages.labelOneTimeTasks(),
@@ -964,6 +974,7 @@ export class SchedulerWebview {
       workspacePaths: this.getResolvedWorkspaceRootPaths(),
       caseInsensitivePaths: process.platform === "win32",
       defaultJitterSeconds,
+      defaultChatSession,
       scheduleHistory: this.currentScheduleHistory,
       autoShowOnStartup: vscode.workspace
         .getConfiguration(
@@ -1598,6 +1609,15 @@ export class SchedulerWebview {
         </div>
       </div>
 
+      <div class="form-group" id="chat-session-group">
+        <label for="chat-session">${escapeHtml(strings.labelChatSession)}</label>
+        <select id="chat-session">
+          <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
+          <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
+        </select>
+        <p class="note">${escapeHtml(strings.labelChatSessionRecurringOnly)}</p>
+      </div>
+
       <div class="form-group">
         <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
         <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
@@ -1676,6 +1696,7 @@ export class SchedulerWebview {
       <section class="help-section">
         <h3>${escapeHtml(strings.helpSessionTitle)}</h3>
         <ul>
+          <li>${escapeHtml(strings.helpSessionItemPerTask)}</li>
           <li>${escapeHtml(strings.helpSessionItemNewChat)}</li>
           <li>${escapeHtml(strings.helpSessionItemCareful)}</li>
           <li>${escapeHtml(strings.helpSessionItemSeparate)}</li>
