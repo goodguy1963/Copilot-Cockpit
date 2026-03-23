@@ -857,6 +857,8 @@ export class SchedulerWebview {
       labelChatSession: messages.labelChatSession(),
       labelChatSessionNew: messages.labelChatSessionNew(),
       labelChatSessionContinue: messages.labelChatSessionContinue(),
+      labelChatSessionBadgeNew: messages.labelChatSessionBadgeNew(),
+      labelChatSessionBadgeContinue: messages.labelChatSessionBadgeContinue(),
       labelChatSessionRecurringOnly: messages.labelChatSessionRecurringOnly(),
       labelAllTasks: messages.labelAllTasks(),
       labelRecurringTasks: messages.labelRecurringTasks(),

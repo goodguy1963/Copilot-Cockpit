@@ -970,6 +970,18 @@
           escapeHtml(strings.labelOneTime || "One-time") +
           "</span>"
           : "";
+      var chatSessionBadgeHtml =
+        task.oneTime === true
+          ? ""
+          : '<span class="task-badge" title="' +
+            escapeAttr(strings.labelChatSession || "Recurring chat session") +
+            '">' +
+            escapeHtml(
+              task.chatSession === "continue"
+                ? strings.labelChatSessionBadgeContinue || "Chat: Continue"
+                : strings.labelChatSessionBadgeNew || "Chat: New",
+            ) +
+            "</span>";
 
       // Escape for HTML attributes to avoid broken inline handlers
       var taskIdEscaped = escapeAttr(task.id || "");
@@ -1059,6 +1071,7 @@
         '">' +
         taskName +
         "</span>" +
+        chatSessionBadgeHtml +
         oneTimeBadgeHtml +
         "</div>" +
         '<span class="task-status ' +
