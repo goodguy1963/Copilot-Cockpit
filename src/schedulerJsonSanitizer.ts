@@ -1,4 +1,5 @@
 import * as path from "path";
+import { createScheduleHistorySnapshot } from "./scheduleHistory";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
     /https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9._-]+/gi;
@@ -45,29 +46,7 @@ export function getPrivateSchedulerConfigPath(configPath: string): string {
 
 import * as fs from "fs";
 
-function hasSchedulerConfig(rootPath: string): boolean {
-    return (
-        fs.existsSync(path.join(rootPath, ".vscode", "scheduler.json")) ||
-        fs.existsSync(path.join(rootPath, ".vscode", "scheduler.private.json"))
-    );
-}
-
 export function findWorkspaceRoot(startPath: string): string {
-    let currentPath = path.resolve(startPath);
-    const rootPath = path.parse(currentPath).root;
-
-    while (true) {
-        if (hasSchedulerConfig(currentPath)) {
-            return currentPath;
-        }
-
-        if (currentPath === rootPath) {
-            break;
-        }
-
-        currentPath = path.dirname(currentPath);
-    }
-
     return path.resolve(startPath);
 }
 
@@ -164,8 +143,23 @@ export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any
 
     const publicConfig = { ...config, tasks: sanitizeSchedulerJsonValue(config.tasks) };
 
-    fs.writeFileSync(configPath, JSON.stringify(publicConfig, null, 4));
-    fs.writeFileSync(privateConfigPath, JSON.stringify(config, null, 4));
+    const nextPublicContent = JSON.stringify(publicConfig, null, 4);
+    const nextPrivateContent = JSON.stringify(config, null, 4);
+    const currentPublicContent = fs.existsSync(configPath)
+        ? fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "")
+        : undefined;
+    const currentPrivateContent = fs.existsSync(privateConfigPath)
+        ? fs.readFileSync(privateConfigPath, "utf8").replace(/^\uFEFF/, "")
+        : undefined;
+    const publicChanged = currentPublicContent !== nextPublicContent;
+    const privateChanged = currentPrivateContent !== nextPrivateContent;
+
+    if (publicChanged) {
+        fs.writeFileSync(configPath, nextPublicContent);
+    }
+    if (privateChanged) {
+        fs.writeFileSync(privateConfigPath, nextPrivateContent);
+    }
 
     const readBack = readSchedulerConfig(workspaceRoot);
     if (!readBack || !Array.isArray(readBack.tasks) || readBack.tasks.length !== config.tasks.length) {
@@ -177,5 +171,9 @@ export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any
     const actual = JSON.stringify(sanitizeSchedulerJsonValue(readBack.tasks));
     if (expected !== actual) {
         throw new Error("Persistence verification failed: read-back data did not match written data.");
+    }
+
+    if (publicChanged || privateChanged) {
+        createScheduleHistorySnapshot(workspaceRoot, publicConfig, config);
     }
 }

@@ -70,6 +70,16 @@ export const messages = {
     t(`Task "${name}" enabled`, `タスク「${name}」を有効にしました`),
   taskDisabled: (name: string) =>
     t(`Task "${name}" disabled`, `タスク「${name}」を無効にしました`),
+  taskRescheduled: (name: string, minutes: number) =>
+    t(
+      `Task "${name}" rescheduled to run in ${minutes} minutes`,
+      `タスク「${name}」を${minutes}分後に再スケジュールしました`,
+    ),
+  taskDeferredToNextCycle: (name: string) =>
+    t(
+      `Task "${name}" will wait until the next cycle`,
+      `タスク「${name}」は次の周期まで待機します`,
+    ),
   taskExecuting: (name: string) =>
     t(`Executing task "${name}"...`, `タスク「${name}」を実行中...`),
   taskExecuted: (name: string) =>
@@ -125,12 +135,16 @@ export const messages = {
   actionEnable: () => t("Enable", "有効化"),
   actionDisable: () => t("Disable", "無効化"),
   actionCancel: () => t("Cancel", "キャンセル"),
+  actionOpenScheduler: () => t("Open Scheduler", "Scheduler を開く"),
+  actionReschedule: () => t("Reschedule", "再スケジュール"),
+  actionWaitNextCycle: () => t("Wait for Next Cycle", "次の周期まで待機"),
   actionCopyPrompt: () => t("Copy Prompt", "プロンプトをコピー"),
   actionTestRun: () => t("Test Run", "テスト実行"),
   actionSave: () => t("Update", "更新"),
   actionCreate: () => t("Create", "作成"),
   actionNewTask: () => t("New Task", "新規タスク"),
   actionRefresh: () => t("Refresh", "再読込"),
+  actionRestoreBackup: () => t("Restore Backup", "バックアップを復元"),
 
   // Webview-only runtime strings (used in media/schedulerWebview.js)
   webviewScriptErrorPrefix: () => t("Script error: ", "スクリプトエラー: "),
@@ -183,6 +197,48 @@ export const messages = {
 
   labelThisWorkspaceShort: () => t("This workspace", "このWS"),
   labelOtherWorkspaceShort: () => t("Other workspace", "他のWS"),
+  autoShowOnStartupEnabled: () =>
+    t("Auto-open on startup: On", "起動時に自動表示: オン"),
+  autoShowOnStartupDisabled: () =>
+    t("Auto-open on startup: Off", "起動時に自動表示: オフ"),
+  autoShowOnStartupToggleEnabled: () =>
+    t("Disable Auto Open", "自動表示を無効化"),
+  autoShowOnStartupToggleDisabled: () =>
+    t("Enable Auto Open", "自動表示を有効化"),
+  autoShowOnStartupUpdated: (enabled: boolean) =>
+    enabled
+      ? t(
+          "Scheduler will open automatically on startup for this repo",
+          "このリポジトリでは起動時に Scheduler を自動表示します",
+        )
+      : t(
+          "Scheduler auto-open on startup was disabled for this repo",
+          "このリポジトリの起動時自動表示を無効化しました",
+        ),
+  scheduleHistoryLabel: () => t("Backup History", "バックアップ履歴"),
+  scheduleHistoryPlaceholder: () =>
+    t("Select a backup version", "復元するバックアップを選択"),
+  scheduleHistoryEmpty: () =>
+    t("No backup versions yet", "まだバックアップはありません"),
+  scheduleHistoryNote: () =>
+    t(
+      "The scheduler keeps the last 100 workspace schedule changes in .vscode/scheduler-history.",
+      "Scheduler はワークスペースの直近100件の変更を .vscode/scheduler-history に保存します。",
+    ),
+  scheduleHistoryRestoreSelectRequired: () =>
+    t("Select a backup version first", "先にバックアップを選択してください"),
+  scheduleHistoryRestoreConfirm: (createdAt: string) =>
+    t(
+      `Restore the repo schedule from ${createdAt}? The current state will be backed up first.`,
+      `${createdAt} のバックアップでリポジトリのスケジュールを復元しますか？ 現在の状態は先にバックアップされます。`,
+    ),
+  scheduleHistoryRestored: (createdAt: string) =>
+    t(
+      `Repo schedule restored from backup ${createdAt}`,
+      `バックアップ ${createdAt} からリポジトリのスケジュールを復元しました`,
+    ),
+  scheduleHistorySnapshotNotFound: () =>
+    t("The selected backup version was not found", "選択したバックアップが見つかりません"),
 
   cannotDeleteOtherWorkspaceTask: (name: string) =>
     t(
@@ -233,6 +289,126 @@ export const messages = {
   tabCreate: () => t("Create Task", "タスク作成"),
   tabEdit: () => t("Edit Task", "タスク編集"),
   tabList: () => t("Task List", "タスク一覧"),
+  tabHowTo: () => t("How To Use", "使い方"),
+
+  helpIntroTitle: () => t("How This Fork Works", "このフォークの動作"),
+  helpIntroBody: () =>
+    t(
+      "This local fork keeps repo schedules inside each repo's .vscode folder, runs the scheduler inside VS Code, and adds repo-specific startup behavior.",
+      "このローカルフォークは、各リポジトリの .vscode フォルダーにスケジュールを保存し、Scheduler を VS Code 内で動作させ、リポジトリ単位の起動時動作を追加しています。",
+    ),
+  helpCreateTitle: () => t("1. Create Tasks", "1. タスクを作成"),
+  helpCreateItemName: () =>
+    t(
+      "Use the Create tab to set the task name, prompt, cron schedule, scope, and optional agent/model.",
+      "Create タブでタスク名、プロンプト、cron スケジュール、スコープ、必要ならエージェントとモデルを設定します。",
+    ),
+  helpCreateItemTemplates: () =>
+    t(
+      "Prompt sources can be inline text, local templates from .github/prompts, or global templates from your VS Code prompts folder.",
+      "プロンプトソースは自由入力、.github/prompts のローカルテンプレート、または VS Code の prompts フォルダーにあるグローバルテンプレートを使えます。",
+    ),
+  helpCreateItemRunFirst: () =>
+    t(
+      "Run-first starts the first execution after 3 minutes; one-time tasks delete themselves after a successful run.",
+      "初回実行を有効にすると3分後に最初の実行を行い、一度きりタスクは成功後に自動削除されます。",
+    ),
+  helpListTitle: () => t("2. Manage Tasks", "2. タスクを管理"),
+  helpListItemSections: () =>
+    t(
+      "The Task List keeps recurring and one-time tasks in separate sections and shows a live countdown to the next run.",
+      "Task List では繰り返しタスクと一度きりタスクを別セクションで表示し、次回実行までのライブカウントダウンも表示します。",
+    ),
+  helpListItemActions: () =>
+    t(
+      "Tasks can be run immediately, edited, duplicated, copied, enabled, disabled, deleted, or moved to the current workspace.",
+      "タスクは即時実行、編集、複製、コピー、有効化、無効化、削除、現在のワークスペースへの移動ができます。",
+    ),
+  helpListItemStartup: () =>
+    t(
+      "Use the Task List toolbar to refresh data and toggle repo-scoped auto-open on startup without leaving the UI.",
+      "Task List のツールバーから、UI を離れずに再読込やリポジトリ単位の起動時自動表示の切り替えができます。",
+    ),
+  helpStorageTitle: () => t("3. Where Data Lives", "3. データ保存場所"),
+  helpStorageItemRepo: () =>
+    t(
+      "Workspace tasks are stored in .vscode/scheduler.json and .vscode/scheduler.private.json inside the repo that is open in VS Code.",
+      "ワークスペースタスクは、VS Code で開いているリポジトリ内の .vscode/scheduler.json と .vscode/scheduler.private.json に保存されます。",
+    ),
+  helpStorageItemIsolation: () =>
+    t(
+      "Nested repos do not inherit schedules from the parent folder anymore; each repo keeps its own schedule.",
+      "ネストされたリポジトリは親フォルダーのスケジュールを継承しません。各リポジトリが独自のスケジュールを持ちます。",
+    ),
+  helpStorageItemGlobal: () =>
+    t(
+      "Global tasks still exist in extension storage, but repo schedules are authoritative in the repo's .vscode files.",
+      "グローバルタスクは拡張ストレージにも存在しますが、リポジトリのスケジュールはそのリポジトリ内の .vscode ファイルが正本です。",
+    ),
+  helpOverdueTitle: () => t("4. Overdue Tasks", "4. 期限超過タスク"),
+  helpOverdueItemReview: () =>
+    t(
+      "If VS Code was closed and tasks became overdue, the extension reviews them one by one on startup instead of auto-running them silently.",
+      "VS Code を閉じている間にタスクが期限超過になると、自動で黙って実行せず、起動時に1件ずつ確認します。",
+    ),
+  helpOverdueItemRecurring: () =>
+    t(
+      "Recurring overdue tasks can run now or wait for the next cycle.",
+      "繰り返しの期限超過タスクは、今すぐ実行するか次の周期まで待機できます。",
+    ),
+  helpOverdueItemOneTime: () =>
+    t(
+      "One-time overdue tasks can run now or be rescheduled by entering how many minutes from now they should run.",
+      "一度きりの期限超過タスクは、今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
+    ),
+  helpSessionTitle: () => t("5. Session Behavior", "5. セッション動作"),
+  helpSessionItemNewChat: () =>
+    t(
+      "Scheduled runs can be configured to start a brand-new Copilot chat session before sending the prompt.",
+      "スケジュール実行では、プロンプト送信前に新しい Copilot チャットセッションを開始する設定が使えます。",
+    ),
+  helpSessionItemCareful: () =>
+    t(
+      "Use the new-session mode with extreme care. One scheduled AI run can intentionally open another AI session and continue from there.",
+      "新規セッションモードは最大限の注意を払って使ってください。1つの AI 実行が、意図的に別の AI セッションを開いて続行できます。",
+    ),
+  helpSessionItemSeparate: () =>
+    t(
+      "This is separate from MCP. New chat sessions are controlled by the scheduler chatSession setting, while MCP tool visibility still depends on workspace launch config.",
+      "これは MCP とは別の機能です。新しいチャットセッションは scheduler の chatSession 設定で制御され、MCP ツールの表示は引き続きワークスペースの起動設定に依存します。",
+    ),
+  helpMcpTitle: () => t("6. MCP Support", "6. MCP 対応"),
+  helpMcpItemEmbedded: () =>
+    t(
+      "Yes, MCP is built into this fork. The scheduler MCP server is implemented in server.ts and packaged as out/server.js.",
+      "はい。このフォークには MCP が組み込まれています。Scheduler MCP サーバーは server.ts に実装され、out/server.js としてパッケージされます。",
+    ),
+  helpMcpItemConfig: () =>
+    t(
+      "Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as .vscode/mcp.json.",
+      "拡張機能をインストールしても scheduler MCP ツールがグローバル登録されるわけではありません。ワークスペースには .vscode/mcp.json などの MCP ランチャー設定が必要です。",
+    ),
+  helpMcpItemTools: () =>
+    t(
+      "The embedded server exposes scheduler_list_tasks, scheduler_add_task, scheduler_remove_task, scheduler_run_task, and scheduler_toggle_task.",
+      "組み込みサーバーは scheduler_list_tasks、scheduler_add_task、scheduler_remove_task、scheduler_run_task、scheduler_toggle_task を提供します。",
+    ),
+  helpTipsTitle: () => t("7. Recommended Workflow", "7. 推奨ワークフロー"),
+  helpTipsItem1: () =>
+    t(
+      "Enable auto-open only for repos where you want the scheduler UI every time the repo opens.",
+      "起動時に毎回 Scheduler UI を出したいリポジトリだけ、自動表示を有効にしてください。",
+    ),
+  helpTipsItem2: () =>
+    t(
+      "Keep recurring tasks at reasonable intervals and use jitter plus daily limits to reduce automation risk.",
+      "繰り返しタスクは無理のない間隔にし、ジッターと1日上限を使って自動化リスクを下げてください。",
+    ),
+  helpTipsItem3: () =>
+    t(
+      "Use the restore dropdown to roll back repo-local schedule changes, and use the README for the full setup details.",
+      "復元ドロップダウンでリポジトリ単位のスケジュール変更を巻き戻し、詳細なセットアップは README を参照してください。",
+    ),
 
   webviewMessageHandlingFailed: (error: string) =>
     t(
@@ -398,6 +574,27 @@ export const messages = {
     t(
       `Daily execution limit (${limit}) reached. No more automatic executions today. You can increase this limit in settings.`,
       `1日の実行回数上限（${limit}回）に達しました。本日はこれ以上の自動実行は行われません。設定で上限を変更できます。`,
+    ),
+  overdueTaskPromptRecurring: (name: string, dueAt: string) =>
+    t(
+      `Task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or wait for the next cycle?`,
+      `タスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、次の周期まで待機しますか？`,
+    ),
+  overdueTaskPromptOneTime: (name: string, dueAt: string) =>
+    t(
+      `One-time task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or reschedule it?`,
+      `一度きりタスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、再スケジュールしますか？`,
+    ),
+  overdueTaskReschedulePrompt: (name: string) =>
+    t(
+      `How many minutes from now should "${name}" run?`,
+      `タスク「${name}」を何分後に実行しますか？`,
+    ),
+  overdueTaskReschedulePlaceholder: () => t("Minutes from now", "今から何分後"),
+  overdueTaskRescheduleValidation: () =>
+    t(
+      "Enter a whole number of minutes between 1 and 10080",
+      "1〜10080 の整数分を入力してください",
     ),
   storageWriteTimeout: () =>
     t(

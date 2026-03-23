@@ -15,6 +15,7 @@
   "command.openSettings": "Open Settings",
   "command.showVersion": "Show Version",
   "config.enabled": "Enable or disable scheduled execution",
+  "config.autoShowOnStartup": "Automatically open the scheduler webview on VS Code startup for this repo. Set this in the repo workspace settings if you want it enabled only here.",
   "config.showNotifications": "Show notifications when tasks are executed",
   "config.notificationMode": "Notification mode",
   "config.notificationMode.sound": "Use OS notification (may play sound)",
