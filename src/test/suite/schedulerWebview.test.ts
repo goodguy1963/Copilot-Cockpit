@@ -1,4 +1,5 @@
 import * as assert from "assert";
+import * as vscode from "vscode";
 import { SchedulerWebview } from "../../schedulerWebview";
 
 type WebviewLike = {
@@ -130,6 +131,89 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.panel = originalPanel;
       wv.webviewReady = originalReady;
       wv.pendingMessages = originalPending;
+    }
+  });
+});
+
+suite("SchedulerWebview Jobs Request Tests", () => {
+  test("requestCreateJob uses VS Code input boxes and dispatches createJob", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalShowInputBox = (vscode.window as any).showInputBox;
+    const actions: unknown[] = [];
+    let promptCount = 0;
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      (vscode.window as any).showInputBox = async () => {
+        promptCount += 1;
+        return "Morning Review";
+      };
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestCreateJob",
+        folderId: "folder-1",
+      });
+
+      assert.strictEqual(promptCount, 1);
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0], {
+        action: "createJob",
+        taskId: "__job__",
+        jobData: {
+          name: "Morning Review",
+          cronExpression: "0 9 * * 1-5",
+          folderId: "folder-1",
+        },
+      });
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      (vscode.window as any).showInputBox = originalShowInputBox;
+    }
+  });
+
+  test("requestDeleteJobFolder confirms before dispatching deleteJobFolder", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentJobFolders?: Array<{ id: string; name: string }>;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalFolders = wv.currentJobFolders;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentJobFolders = [{ id: "folder-1", name: "Ops" }];
+      (vscode.window as any).showWarningMessage = async () => "Yes, delete";
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestDeleteJobFolder",
+        folderId: "folder-1",
+      });
+
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0], {
+        action: "deleteJobFolder",
+        taskId: "__jobfolder__",
+        folderId: "folder-1",
+      });
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentJobFolders = originalFolders;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
     }
   });
 });
