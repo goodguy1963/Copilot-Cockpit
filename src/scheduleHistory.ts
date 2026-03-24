@@ -8,7 +8,7 @@ const PUBLIC_SUFFIX = ".json";
 const PRIVATE_SUFFIX = ".private.json";
 const MAX_HISTORY_ENTRIES = 100;
 
-type SchedulerConfig = { tasks: any[] };
+type SchedulerConfig = { tasks: any[]; jobs?: any[]; jobFolders?: any[] };
 
 function toHistoryFileId(date = new Date()): string {
   return String(date.getTime());
@@ -48,7 +48,11 @@ function readJsonFile(filePath: string): SchedulerConfig | undefined {
     const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.tasks)) {
-      return parsed as SchedulerConfig;
+      return {
+        ...parsed,
+        jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
+        jobFolders: Array.isArray(parsed.jobFolders) ? parsed.jobFolders : [],
+      } as SchedulerConfig;
     }
   } catch {
     // ignore invalid snapshot files and let listing continue

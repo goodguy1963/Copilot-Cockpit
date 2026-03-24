@@ -1,5 +1,6 @@
 import * as path from "path";
 import { createScheduleHistorySnapshot } from "./scheduleHistory";
+import type { SchedulerWorkspaceConfig } from "./types";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
     /https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9._-]+/gi;
@@ -112,7 +113,7 @@ export function getActiveSchedulerReadPath(workspaceRoot: string): string {
     return readPath;
 }
 
-export function readSchedulerConfig(workspaceRoot: string): { tasks: any[] } {
+export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceConfig {
     const readPath = getActiveSchedulerReadPath(workspaceRoot);
     if (!fs.existsSync(readPath)) {
         return { tasks: [] };
@@ -124,14 +125,21 @@ export function readSchedulerConfig(workspaceRoot: string): { tasks: any[] } {
         if (Array.isArray(parsed)) {
             return { tasks: parsed };
         }
-        return parsed;
+        if (parsed && Array.isArray(parsed.tasks)) {
+            return {
+                ...parsed,
+                jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
+                jobFolders: Array.isArray(parsed.jobFolders) ? parsed.jobFolders : [],
+            };
+        }
+        return { tasks: [] };
     } catch (e) {
         console.error(`[SchedulerStore] Failed to read config from ${readPath}: ${e}`);
         return { tasks: [] };
     }
 }
 
-export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any[] }): void {
+export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWorkspaceConfig): void {
     const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
     const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
 
@@ -141,10 +149,21 @@ export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any
         throw new Error("Invalid config format: 'tasks' array is missing.");
     }
 
-    const publicConfig = { ...config, tasks: sanitizeSchedulerJsonValue(config.tasks) };
+    const normalizedConfig: SchedulerWorkspaceConfig = {
+        tasks: config.tasks,
+        jobs: Array.isArray(config.jobs) ? config.jobs : [],
+        jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+    };
+
+    const publicConfig: SchedulerWorkspaceConfig = {
+        ...normalizedConfig,
+        tasks: sanitizeSchedulerJsonValue(normalizedConfig.tasks),
+        jobs: sanitizeSchedulerJsonValue(normalizedConfig.jobs ?? []),
+        jobFolders: sanitizeSchedulerJsonValue(normalizedConfig.jobFolders ?? []),
+    };
 
     const nextPublicContent = JSON.stringify(publicConfig, null, 4);
-    const nextPrivateContent = JSON.stringify(config, null, 4);
+    const nextPrivateContent = JSON.stringify(normalizedConfig, null, 4);
     const currentPublicContent = fs.existsSync(configPath)
         ? fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "")
         : undefined;
@@ -162,18 +181,18 @@ export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any
     }
 
     const readBack = readSchedulerConfig(workspaceRoot);
-    if (!readBack || !Array.isArray(readBack.tasks) || readBack.tasks.length !== config.tasks.length) {
+    if (!readBack || !Array.isArray(readBack.tasks) || readBack.tasks.length !== normalizedConfig.tasks.length) {
         throw new Error("Persistence verification failed: read-back config length mismatch.");
     }
 
     // Deeper verification: match a serialized fingerprint to ensure data was exactly persisted
-    const expected = JSON.stringify(sanitizeSchedulerJsonValue(config.tasks));
+    const expected = JSON.stringify(sanitizeSchedulerJsonValue(normalizedConfig.tasks));
     const actual = JSON.stringify(sanitizeSchedulerJsonValue(readBack.tasks));
     if (expected !== actual) {
         throw new Error("Persistence verification failed: read-back data did not match written data.");
     }
 
     if (publicChanged || privateChanged) {
-        createScheduleHistorySnapshot(workspaceRoot, publicConfig, config);
+        createScheduleHistorySnapshot(workspaceRoot, publicConfig, normalizedConfig);
     }
 }

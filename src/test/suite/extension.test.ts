@@ -65,6 +65,7 @@ suite("Extension Test Suite", () => {
       "copilotScheduler.moveToCurrentWorkspace",
       "copilotScheduler.openSettings",
       "copilotScheduler.showVersion",
+      "copilotScheduler.setupMcp",
     ];
 
     for (const cmd of expectedCommands) {

@@ -7,11 +7,15 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 ### What This Fork Adds
 
 - Strict per-repo workspace scheduling. Each repo keeps its own schedule in its own `.vscode` folder.
+- A repo-local `Jobs` board for ordered multi-step workflows with folders, pause/resume, drag-drop ordering, and per-step time windows.
 - Embedded MCP server support bundled with the extension.
+- Prompted MCP setup that can create or merge `.vscode/mcp.json` for the current repo.
 - Hybrid task storage, where workspace tasks live in repo files and global tasks remain in extension storage.
 - Repo-local schedule backup history with the last 100 changes stored under `.vscode/scheduler-history`.
 - Repo-scoped auto-open on startup.
 - Optional new-chat-session execution mode for scheduled runs.
+- Task-level agent/model selection that now runs in an isolated chat context when needed instead of silently reusing the currently active chat state.
+- A one-click skill inserter in the Create/Edit form that appends a skill instruction sentence into the prompt.
 - Startup review for overdue tasks instead of silent catch-up execution.
 - A more compact task list and larger countdown units.
 - An in-app `How To Use` tab inside the scheduler UI.
@@ -37,16 +41,37 @@ Notes:
 ### Basic Workflow
 
 1. Open the scheduler from the activity bar, from `Copilot Scheduler: Create Scheduled Prompt (GUI)`, or from the activation notification's `Open Scheduler` button.
-2. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, and optional agent/model.
-3. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, or move tasks.
-4. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
-5. Use the `How To Use` tab inside the UI for the quick in-app reference.
+2. Start in the `How To Use` tab, which now opens first and includes the current Jobs flow, MCP setup button, and visual references.
+3. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, labels, optional agent/model, and optional skill insertion.
+4. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, move tasks, and filter by effective labels.
+5. Build ordered workflows in the `Jobs` tab by creating folders, duplicating jobs, pausing jobs, attaching existing tasks, or creating inline steps.
+6. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
+
+### UI Walkthrough
+
+Jobs board overview:
+
+![Jobs Board Overview](images/jobs-overview.png)
+
+Prompted MCP setup flow:
+
+![Workspace MCP Setup](images/mcp-setup.png)
 
 ### Prompt Sources
 
 - Inline text stored directly in the task.
 - Local templates from `.github/prompts/*.md` in the current repo.
 - Global templates from the VS Code prompts folder or the configured global prompts path.
+- Skill references can be inserted into the prompt with one click from discovered workspace/global skill markdown files such as `SKILL.md`.
+
+### Jobs Board
+
+- Jobs are repo-local workflows stored next to the workspace scheduler files.
+- A job owns one cron schedule and an ordered list of step tasks.
+- Each step has a default 30-minute window that can be edited per node.
+- Drag-drop reordering updates the workflow timeline and the derived next-run order.
+- Pausing a job suppresses all child-task executions without changing each task's own enabled flag.
+- Effective labels combine manual task labels with the owning job name, so the Task List can be filtered by workflow.
 
 ### Repo Storage Model
 
@@ -66,6 +91,18 @@ The global setting `copilotScheduler.chatSession` still provides the default sch
 - Use `new` with absolute care. One scheduled AI run can intentionally open another AI session, which means an AI-driven chain can continue further than a single message.
 - VS Code does not currently expose a supported extension API to reopen a specific old Copilot conversation by saved session ID, so this fork can persist the recurring task mode but cannot force-restore an exact prior Copilot thread.
 - This setting is separate from MCP. New chat sessions are a scheduler execution behavior, while MCP tools still depend on workspace MCP launch configuration.
+
+### Agent and Model Selection
+
+- If a task specifies a dedicated agent or model, the extension now prefers a fresh Copilot chat context so that it does not silently reuse the currently active chat state.
+- If VS Code cannot honor a task-specific model in the fallback chat path, the run fails explicitly instead of pretending the active model was used correctly.
+- The Test Run path uses the same executor behavior as scheduled and manual runs.
+
+### Skill Insertion
+
+- The Create/Edit form includes a skill dropdown plus `Insert Skill` button.
+- Choosing a skill inserts a sentence such as `Use path/to/SKILL.md to know how things must be done.` into the prompt.
+- Inserting a skill switches the prompt to inline mode so the added instruction is preserved even if you started from a template.
 
 Example:
 
@@ -120,7 +157,16 @@ Yes, MCP is set up in the plugin itself.
 
 ### MCP Setup
 
-Add a workspace launcher config if you want Copilot Chat to see the scheduler MCP tools.
+Use the built-in `Set Up MCP` action from the How To tab or the `Copilot Scheduler: Set Up Workspace MCP` command if you want Copilot Chat to see the scheduler MCP tools.
+
+What the setup flow does:
+
+- Creates `.vscode/mcp.json` if it does not exist.
+- Merges the `scheduler` server entry into an existing `.vscode/mcp.json` without deleting unrelated MCP servers.
+- Writes the correct `out/server.js` path for the currently installed extension.
+- Reports invalid JSON instead of overwriting it blindly.
+
+Manual example for reference:
 
 Development checkout example:
 
@@ -156,7 +202,7 @@ Installed VSIX example:
 
 Notes:
 
-- Save that file as `.vscode/mcp.json` in the repo where you want the scheduler MCP tools available.
+- The automatic setup flow writes the same structure into `.vscode/mcp.json` in the repo where you want the scheduler MCP tools available.
 - On stable VS Code installs, the extension usually lives under `~/.vscode/extensions` on macOS/Linux or `%USERPROFILE%/.vscode/extensions` on Windows.
 - On VS Code Insiders, use the `.vscode-insiders/extensions` install root instead.
 - Replace the versioned extension folder name with the exact installed version of `local-dev.copilot-scheduler-local`.

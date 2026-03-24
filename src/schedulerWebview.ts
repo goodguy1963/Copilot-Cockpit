@@ -5,15 +5,19 @@
 
 import * as vscode from "vscode";
 import * as path from "path";
+import * as fs from "fs";
 import { notifyError } from "./extension";
 import type {
   ScheduledTask,
   ScheduleHistoryEntry,
   CreateTaskInput,
+  JobDefinition,
+  JobFolder,
   TaskAction,
   AgentInfo,
   ModelInfo,
   PromptTemplate,
+  SkillReference,
   ChatSessionBehavior,
   TaskScope,
   WebviewToExtensionMessage,
@@ -36,6 +40,7 @@ export class SchedulerWebview {
   private static cachedAgents: AgentInfo[] = [];
   private static cachedModels: ModelInfo[] = [];
   private static cachedPromptTemplates: PromptTemplate[] = [];
+  private static cachedSkillReferences: SkillReference[] = [];
   private static onTaskActionCallback:
     | ((action: TaskAction) => void)
     | undefined;
@@ -44,6 +49,8 @@ export class SchedulerWebview {
     | undefined;
   private static extensionUri: vscode.Uri;
   private static currentTasks: ScheduledTask[] = [];
+  private static currentJobs: JobDefinition[] = [];
+  private static currentJobFolders: JobFolder[] = [];
   private static currentScheduleHistory: ScheduleHistoryEntry[] = [];
   private static webviewReady = false;
   private static pendingMessages: OutgoingWebviewMessage[] = [];
@@ -100,11 +107,15 @@ export class SchedulerWebview {
   static async show(
     extensionUri: vscode.Uri,
     tasks: ScheduledTask[],
+    jobs: JobDefinition[],
+    jobFolders: JobFolder[],
     onTaskAction: (action: TaskAction) => void,
     onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
   ): Promise<void> {
     this.extensionUri = extensionUri;
     this.currentTasks = tasks;
+    this.currentJobs = jobs;
+    this.currentJobFolders = jobFolders;
     this.onTaskActionCallback = onTaskAction;
     this.onTestPromptCallback = onTestPrompt;
 
@@ -152,6 +163,22 @@ export class SchedulerWebview {
             this.sanitizeErrorDetailsForUser(rawMessage),
           );
         });
+
+      void this.refreshSkillReferences(true)
+        .then(() => {
+          this.postMessage({
+            type: "updateSkills",
+            skills: this.cachedSkillReferences,
+          });
+        })
+        .catch((error) => {
+          const rawMessage =
+            error instanceof Error ? error.message : String(error ?? "");
+          logError(
+            "[CopilotScheduler] Failed to refresh skills:",
+            this.sanitizeErrorDetailsForUser(rawMessage),
+          );
+        });
     };
 
     if (this.panel) {
@@ -170,6 +197,10 @@ export class SchedulerWebview {
       this.postMessage({
         type: "updatePromptTemplates",
         templates: this.cachedPromptTemplates,
+      });
+      this.postMessage({
+        type: "updateSkills",
+        skills: this.cachedSkillReferences,
       });
     } else {
       // Create new panel
@@ -256,6 +287,22 @@ export class SchedulerWebview {
     });
   }
 
+  static updateJobs(jobs: JobDefinition[]): void {
+    this.currentJobs = jobs;
+    this.postMessage({
+      type: "updateJobs",
+      jobs,
+    });
+  }
+
+  static updateJobFolders(jobFolders: JobFolder[]): void {
+    this.currentJobFolders = jobFolders;
+    this.postMessage({
+      type: "updateJobFolders",
+      jobFolders,
+    });
+  }
+
   static updateScheduleHistory(entries: ScheduleHistoryEntry[]): void {
     this.currentScheduleHistory = entries;
     this.postMessage({
@@ -314,6 +361,10 @@ export class SchedulerWebview {
         type: "updatePromptTemplates",
         templates: this.cachedPromptTemplates,
       });
+      this.postMessage({
+        type: "updateSkills",
+        skills: this.cachedSkillReferences,
+      });
 
       // Re-fetch agents/models/templates so that localized names reflect the new language
       void this.refreshCachesAndNotifyPanel(true).catch(() => { });
@@ -338,6 +389,12 @@ export class SchedulerWebview {
       this.cachedPromptTemplates = [];
     }
 
+    try {
+      await this.refreshSkillReferences(force);
+    } catch {
+      this.cachedSkillReferences = [];
+    }
+
     if (!this.panel) return;
 
     this.postMessage({
@@ -352,6 +409,10 @@ export class SchedulerWebview {
       type: "updatePromptTemplates",
       templates: this.cachedPromptTemplates,
     });
+    this.postMessage({
+      type: "updateSkills",
+      skills: this.cachedSkillReferences,
+    });
   }
 
   /**
@@ -359,6 +420,10 @@ export class SchedulerWebview {
    */
   static switchToList(successMessage?: string): void {
     this.postMessage({ type: "switchToList", successMessage });
+  }
+
+  static switchToTab(tab: "create" | "list" | "jobs" | "help"): void {
+    this.postMessage({ type: "switchToTab", tab });
   }
 
   static updateAutoShowOnStartup(enabled: boolean): void {
@@ -472,6 +537,20 @@ export class SchedulerWebview {
           type: "updatePromptTemplates",
           templates: this.cachedPromptTemplates,
         });
+        await this.refreshSkillReferences(true);
+        this.postMessage({
+          type: "updateSkills",
+          skills: this.cachedSkillReferences,
+        });
+        break;
+
+      case "setupMcp":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "setupMcp",
+            taskId: "__setupMcp__",
+          });
+        }
         break;
 
       case "refreshTasks":
@@ -515,6 +594,146 @@ export class SchedulerWebview {
           this.onTaskActionCallback({
             action: "duplicate",
             taskId: message.taskId,
+          });
+        }
+        break;
+
+      case "createJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createJob",
+            taskId: "__job__",
+            jobData: message.data,
+          });
+        }
+        break;
+
+      case "updateJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "updateJob",
+            taskId: "__job__",
+            jobId: message.jobId,
+            jobData: message.data,
+          });
+        }
+        break;
+
+      case "deleteJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteJob",
+            taskId: "__job__",
+            jobId: message.jobId,
+          });
+        }
+        break;
+
+      case "duplicateJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "duplicateJob",
+            taskId: "__job__",
+            jobId: message.jobId,
+          });
+        }
+        break;
+
+      case "toggleJobPaused":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "toggleJobPaused",
+            taskId: "__job__",
+            jobId: message.jobId,
+          });
+        }
+        break;
+
+      case "createJobFolder":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createJobFolder",
+            taskId: "__jobfolder__",
+            folderData: message.data,
+          });
+        }
+        break;
+
+      case "renameJobFolder":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "renameJobFolder",
+            taskId: "__jobfolder__",
+            folderId: message.folderId,
+            folderData: message.data,
+          });
+        }
+        break;
+
+      case "deleteJobFolder":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteJobFolder",
+            taskId: "__jobfolder__",
+            folderId: message.folderId,
+          });
+        }
+        break;
+
+      case "createJobTask":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createJobTask",
+            taskId: "__jobtask__",
+            jobId: message.jobId,
+            data: message.data,
+            windowMinutes: message.windowMinutes,
+          });
+        }
+        break;
+
+      case "attachTaskToJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "attachTaskToJob",
+            taskId: message.taskId,
+            jobId: message.jobId,
+            windowMinutes: message.windowMinutes,
+          });
+        }
+        break;
+
+      case "detachTaskFromJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "detachTaskFromJob",
+            taskId: "__jobtask__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+          });
+        }
+        break;
+
+      case "reorderJobNode":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "reorderJobNode",
+            taskId: "__jobtask__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+            targetIndex: message.targetIndex,
+          });
+        }
+        break;
+
+      case "updateJobNodeWindow":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "updateJobNodeWindow",
+            taskId: "__jobtask__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+            windowMinutes: message.windowMinutes,
           });
         }
         break;
@@ -663,6 +882,101 @@ export class SchedulerWebview {
     return templates;
   }
 
+  private static async refreshSkillReferences(force = false): Promise<void> {
+    if (!force && this.cachedSkillReferences.length > 0) {
+      return;
+    }
+
+    this.cachedSkillReferences = await this.getSkillReferences();
+  }
+
+  private static async getSkillReferences(): Promise<SkillReference[]> {
+    const results: SkillReference[] = [];
+    const seen = new Set<string>();
+    const workspaceRoots = this.getResolvedWorkspaceRootPaths();
+
+    const addSkill = (
+      filePath: string,
+      source: "workspace" | "global",
+      basePath?: string,
+    ): void => {
+      const resolved = path.resolve(filePath);
+      const key = process.platform === "win32"
+        ? resolved.toLowerCase()
+        : resolved;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      const reference = basePath
+        ? path.relative(basePath, resolved) || path.basename(resolved)
+        : path.basename(resolved);
+      results.push({
+        path: resolved,
+        name: path.basename(resolved),
+        reference,
+        source,
+      });
+    };
+
+    const workspaceSkills = await vscode.workspace.findFiles(
+      "**/{SKILL.md,*.skill.md}",
+      "**/{node_modules,.git,out,dist,build,.next}/**",
+      200,
+    );
+    for (const uri of workspaceSkills) {
+      if (uri.scheme !== "file") {
+        continue;
+      }
+      const matchedRoot = workspaceRoots.find((candidate) => {
+        const resolvedRoot = path.resolve(candidate);
+        const lhs = process.platform === "win32"
+          ? uri.fsPath.toLowerCase()
+          : uri.fsPath;
+        const rhs = process.platform === "win32"
+          ? resolvedRoot.toLowerCase()
+          : resolvedRoot;
+        return lhs === rhs || lhs.startsWith(`${rhs}${path.sep}`);
+      });
+      addSkill(uri.fsPath, "workspace", matchedRoot);
+    }
+
+    const globalRoot = this.getGlobalPromptsPath();
+    if (globalRoot && fs.existsSync(globalRoot)) {
+      const stack = [globalRoot];
+      while (stack.length > 0 && results.length < 250) {
+        const current = stack.pop();
+        if (!current) {
+          continue;
+        }
+        let entries: fs.Dirent[] = [];
+        try {
+          entries = fs.readdirSync(current, { withFileTypes: true });
+        } catch {
+          continue;
+        }
+        for (const entry of entries) {
+          const entryPath = path.join(current, entry.name);
+          if (entry.isDirectory()) {
+            if (["node_modules", ".git", "out", "dist", "build"].includes(entry.name)) {
+              continue;
+            }
+            stack.push(entryPath);
+            continue;
+          }
+          const lower = entry.name.toLowerCase();
+          if (lower !== "skill.md" && !lower.endsWith(".skill.md")) {
+            continue;
+          }
+          addSkill(entryPath, "global", globalRoot);
+        }
+      }
+    }
+
+    results.sort((a, b) => a.reference.localeCompare(b.reference));
+    return results;
+  }
+
   /**
    * Get global prompts path
    */
@@ -804,6 +1118,8 @@ export class SchedulerWebview {
       helpCreateTitle: messages.helpCreateTitle(),
       helpCreateItemName: messages.helpCreateItemName(),
       helpCreateItemTemplates: messages.helpCreateItemTemplates(),
+      helpCreateItemSkills: messages.helpCreateItemSkills(),
+      helpCreateItemAgentModel: messages.helpCreateItemAgentModel(),
       helpCreateItemRunFirst: messages.helpCreateItemRunFirst(),
       helpListTitle: messages.helpListTitle(),
       helpListItemSections: messages.helpListItemSections(),
@@ -825,12 +1141,60 @@ export class SchedulerWebview {
       helpMcpTitle: messages.helpMcpTitle(),
       helpMcpItemEmbedded: messages.helpMcpItemEmbedded(),
       helpMcpItemConfig: messages.helpMcpItemConfig(),
+      helpMcpItemAutoConfig: messages.helpMcpItemAutoConfig(),
       helpMcpItemTools: messages.helpMcpItemTools(),
+      helpJobsTitle: messages.helpJobsTitle(),
+      helpJobsItemBoard: messages.helpJobsItemBoard(),
+      helpJobsItemPause: messages.helpJobsItemPause(),
+      helpJobsItemLabels: messages.helpJobsItemLabels(),
       helpTipsTitle: messages.helpTipsTitle(),
       helpTipsItem1: messages.helpTipsItem1(),
       helpTipsItem2: messages.helpTipsItem2(),
       helpTipsItem3: messages.helpTipsItem3(),
       labelTaskName: messages.labelTaskName(),
+      tabJobs: "Jobs",
+      labelTaskLabels: "Labels",
+      placeholderTaskLabels: "marketing, finance, weekly",
+      labelSkills: messages.labelSkills(),
+      placeholderSelectSkill: messages.placeholderSelectSkill(),
+      actionInsertSkill: messages.actionInsertSkill(),
+      skillInsertNote: messages.skillInsertNote(),
+      skillSentenceTemplate: messages.skillSentenceTemplate("{skill}"),
+      actionSetupMcp: messages.mcpSetupAction(),
+      labelFilterByLabel: "Filter by label",
+      labelAllLabels: "All labels",
+      jobsTitle: "Jobs",
+      jobsFoldersTitle: "Folders",
+      jobsRootFolder: "All jobs",
+      jobsCreateFolder: "New Folder",
+      jobsCreateJob: "New Job",
+      jobsRenameFolder: "Rename Folder",
+      jobsDeleteFolder: "Delete Folder",
+      jobsSelectJob: "Select a job to edit its workflow.",
+      jobsName: "Job name",
+      jobsCron: "Job schedule",
+      jobsFolder: "Folder",
+      jobsPaused: "Paused",
+      jobsRunning: "Active",
+      jobsSave: "Save Job",
+      jobsDuplicate: "Duplicate Job",
+      jobsDelete: "Delete Job",
+      jobsPause: "Pause Job",
+      jobsResume: "Resume Job",
+      jobsSteps: "Workflow steps",
+      jobsWindowMinutes: "Window (minutes)",
+      jobsAddExistingTask: "Add Existing Task",
+      jobsAttach: "Attach Task",
+      jobsStandaloneTasks: "Standalone tasks",
+      jobsAddNewStep: "Add New Step",
+      jobsCreateStep: "Create Step",
+      jobsStepName: "Step name",
+      jobsStepPrompt: "Step prompt",
+      jobsNoJobs: "No jobs in this folder yet.",
+      jobsNoFolders: "No folders yet.",
+      jobsNoStandaloneTasks: "No standalone tasks available.",
+      jobsEmptySteps: "This job has no steps yet.",
+      jobsDropHint: "Drag steps to reorder the timeline.",
       labelPromptType: messages.labelPromptType(),
       labelPromptInline: messages.labelPromptInline(),
       labelPromptLocal: messages.labelPromptLocal(),
@@ -970,9 +1334,12 @@ export class SchedulerWebview {
 
     const initialData = {
       tasks: initialTasks,
+      jobs: this.currentJobs,
+      jobFolders: this.currentJobFolders,
       agents: initialAgents,
       models: initialModels,
       promptTemplates: initialTemplates,
+      skills: this.cachedSkillReferences,
       workspacePaths: this.getResolvedWorkspaceRootPaths(),
       caseInsensitivePaths: process.platform === "win32",
       defaultJitterSeconds,
@@ -990,6 +1357,12 @@ export class SchedulerWebview {
 
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "schedulerWebview.js"),
+    );
+    const jobsScreenshotUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "images", "jobs-overview.png"),
+    );
+    const mcpScreenshotUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, "images", "mcp-setup.png"),
     );
 
     const rawHtml = `<!DOCTYPE html>
@@ -1079,6 +1452,14 @@ export class SchedulerWebview {
 
     .help-section li + li {
       margin-top: 6px;
+    }
+
+    .help-image {
+      width: 100%;
+      margin-top: 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background-color: var(--vscode-editorWidget-background);
     }
     
     .form-group {
@@ -1184,6 +1565,12 @@ export class SchedulerWebview {
       gap: 6px;
       margin-bottom: 10px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .task-filter-select {
+      min-width: 180px;
+      max-width: 260px;
     }
 
     .task-filter-btn {
@@ -1303,6 +1690,19 @@ export class SchedulerWebview {
       background-color: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       margin-right: 0;
+    }
+
+    .task-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+      margin-bottom: 4px;
+    }
+
+    .task-badge.label {
+      background-color: var(--vscode-editorInfo-background);
+      color: var(--vscode-editorInfo-foreground);
     }
     
     .task-prompt {
@@ -1451,16 +1851,164 @@ export class SchedulerWebview {
       max-width: 100%;
       flex: 1 1 280px;
     }
+
+    .jobs-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .jobs-sidebar,
+    .jobs-main {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .jobs-toolbar,
+    .jobs-job-toolbar,
+    .jobs-inline-form,
+    .jobs-step-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .jobs-toolbar,
+    .jobs-job-toolbar {
+      margin-bottom: 12px;
+    }
+
+    .jobs-sidebar-section + .jobs-sidebar-section,
+    .jobs-main-section + .jobs-main-section {
+      margin-top: 16px;
+    }
+
+    .jobs-list,
+    .jobs-folder-list,
+    .jobs-step-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .jobs-folder-item,
+    .jobs-list-item,
+    .jobs-step-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 10px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .jobs-folder-item,
+    .jobs-list-item {
+      cursor: pointer;
+    }
+
+    .jobs-folder-item.active,
+    .jobs-list-item.active,
+    .jobs-step-card.drag-over {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .jobs-folder-item-header,
+    .jobs-list-item-header,
+    .jobs-step-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .jobs-list-item-meta,
+    .jobs-folder-item-meta,
+    .jobs-step-meta {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .jobs-empty {
+      padding: 16px;
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .jobs-job-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .jobs-step-list {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .jobs-step-card {
+      min-height: 160px;
+    }
+
+    .jobs-step-card[draggable="true"] {
+      cursor: grab;
+    }
+
+    .jobs-step-card.dragging {
+      opacity: 0.55;
+    }
+
+    .jobs-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      font-size: 11px;
+    }
+
+    .jobs-inline-form {
+      margin-top: 10px;
+    }
+
+    .jobs-inline-form .form-group {
+      margin-bottom: 0;
+      flex: 1 1 180px;
+    }
+
+    .jobs-folder-indent {
+      display: inline-block;
+      width: 14px;
+      flex: 0 0 14px;
+    }
+
+    @media (max-width: 980px) {
+      .jobs-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-job-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="tabs">
-    <button type="button" class="tab-button active" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
+    <button type="button" class="tab-button active" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
+    <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
     <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
-    <button type="button" class="tab-button" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
+    <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
   </div>
   
-  <div id="create-tab" class="tab-content active">
+  <div id="create-tab" class="tab-content">
     <form id="task-form">
       <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
       <input type="hidden" id="edit-task-id" value="">
@@ -1468,6 +2016,11 @@ export class SchedulerWebview {
       <div class="form-group">
         <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
         <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
+        <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
       </div>
       
       <div class="form-group">
@@ -1501,6 +2054,17 @@ export class SchedulerWebview {
       <div class="form-group" id="prompt-group">
         <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
         <textarea id="prompt-text" placeholder="${escapeHtmlAttr(strings.placeholderPrompt)}" required></textarea>
+      </div>
+
+      <div class="form-group" id="skill-select-group">
+        <label for="skill-select">${escapeHtml(strings.labelSkills)}</label>
+        <div class="template-row">
+          <select id="skill-select">
+            <option value="">${escapeHtml(strings.placeholderSelectSkill)}</option>
+          </select>
+          <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
+        </div>
+        <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
       </div>
       
       <div class="form-group">
@@ -1651,13 +2215,121 @@ export class SchedulerWebview {
       <button type="button" class="btn-secondary task-filter-btn active" data-filter="all">${escapeHtml(strings.labelAllTasks)}</button>
       <button type="button" class="btn-secondary task-filter-btn" data-filter="recurring">${escapeHtml(strings.labelRecurringTasks)}</button>
       <button type="button" class="btn-secondary task-filter-btn" data-filter="one-time">${escapeHtml(strings.labelOneTimeTasks)}</button>
+      <label for="task-label-filter">${escapeHtml(strings.labelFilterByLabel)}</label>
+      <select id="task-label-filter" class="task-filter-select">
+        <option value="">${escapeHtml(strings.labelAllLabels)}</option>
+      </select>
     </div>
     <div id="task-list" class="task-list">
       <div class="empty-state">${escapeHtml(strings.noTasksFound)}</div>
     </div>
   </div>
 
-  <div id="help-tab" class="tab-content">
+  <div id="jobs-tab" class="tab-content">
+    <div class="jobs-layout">
+      <aside class="jobs-sidebar">
+        <div class="jobs-sidebar-section">
+          <div class="section-title">${escapeHtml(strings.jobsFoldersTitle)}</div>
+          <div class="jobs-toolbar">
+            <button type="button" class="btn-secondary" id="jobs-new-folder-btn">${escapeHtml(strings.jobsCreateFolder)}</button>
+            <button type="button" class="btn-secondary" id="jobs-rename-folder-btn">${escapeHtml(strings.jobsRenameFolder)}</button>
+            <button type="button" class="btn-secondary" id="jobs-delete-folder-btn">${escapeHtml(strings.jobsDeleteFolder)}</button>
+            <button type="button" class="btn-secondary" id="jobs-new-job-btn">${escapeHtml(strings.jobsCreateJob)}</button>
+          </div>
+          <div id="jobs-folder-list" class="jobs-folder-list"></div>
+        </div>
+        <div class="jobs-sidebar-section">
+          <div class="section-title">${escapeHtml(strings.jobsTitle)}</div>
+          <div id="jobs-list" class="jobs-list"></div>
+        </div>
+      </aside>
+
+      <section class="jobs-main">
+        <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
+        <div id="jobs-details" style="display:none;">
+          <div class="jobs-job-toolbar">
+            <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
+            <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
+            <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
+            <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
+          </div>
+
+          <div class="jobs-main-section jobs-job-grid">
+            <div class="form-group">
+              <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
+              <input type="text" id="jobs-name-input">
+            </div>
+            <div class="form-group">
+              <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
+              <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
+            </div>
+            <div class="form-group">
+              <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
+              <select id="jobs-folder-select"></select>
+            </div>
+            <div class="form-group">
+              <label>${escapeHtml(strings.labelStatus)}</label>
+              <div id="jobs-status-pill" class="jobs-pill">${escapeHtml(strings.jobsRunning)}</div>
+            </div>
+          </div>
+
+          <div class="jobs-main-section">
+            <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
+            <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+            <div id="jobs-step-list" class="jobs-step-list"></div>
+          </div>
+
+          <div class="jobs-main-section">
+            <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
+            <div class="jobs-inline-form">
+              <div class="form-group">
+                <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
+                <select id="jobs-existing-task-select"></select>
+              </div>
+              <div class="form-group">
+                <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
+              </div>
+              <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
+            </div>
+          </div>
+
+          <div class="jobs-main-section">
+            <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
+            <div class="jobs-inline-form">
+              <div class="form-group">
+                <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
+                <input type="text" id="jobs-step-name-input">
+              </div>
+              <div class="form-group">
+                <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
+              </div>
+              <div class="form-group" style="flex-basis:100%;">
+                <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
+                <textarea id="jobs-step-prompt-input"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
+                <select id="jobs-step-agent-select"></select>
+              </div>
+              <div class="form-group">
+                <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
+                <select id="jobs-step-model-select"></select>
+              </div>
+              <div class="form-group">
+                <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
+                <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
+              </div>
+              <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="help-tab" class="tab-content active">
     <div class="help-panel">
       <section class="help-section">
         <h3>${escapeHtml(strings.helpIntroTitle)}</h3>
@@ -1668,6 +2340,8 @@ export class SchedulerWebview {
         <ul>
           <li>${escapeHtml(strings.helpCreateItemName)}</li>
           <li>${escapeHtml(strings.helpCreateItemTemplates)}</li>
+          <li>${escapeHtml(strings.helpCreateItemSkills)}</li>
+          <li>${escapeHtml(strings.helpCreateItemAgentModel)}</li>
           <li>${escapeHtml(strings.helpCreateItemRunFirst)}</li>
         </ul>
       </section>
@@ -1705,12 +2379,26 @@ export class SchedulerWebview {
         </ul>
       </section>
       <section class="help-section">
+        <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
+          <li>${escapeHtml(strings.helpJobsItemPause)}</li>
+          <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
+        </ul>
+        <img class="help-image" src="${jobsScreenshotUri}" alt="Jobs overview">
+      </section>
+      <section class="help-section">
         <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
         <ul>
           <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
           <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
+          <li>${escapeHtml(strings.helpMcpItemAutoConfig)}</li>
           <li>${escapeHtml(strings.helpMcpItemTools)}</li>
         </ul>
+        <div class="button-group" style="margin-top:12px;">
+          <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
+        </div>
+        <img class="help-image" src="${mcpScreenshotUri}" alt="MCP setup">
       </section>
       <section class="help-section">
         <h3>${escapeHtml(strings.helpTipsTitle)}</h3>

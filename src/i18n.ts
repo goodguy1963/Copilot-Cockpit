@@ -145,6 +145,7 @@ export const messages = {
   actionNewTask: () => t("New Task", "新規タスク"),
   actionRefresh: () => t("Refresh", "再読込"),
   actionRestoreBackup: () => t("Restore Backup", "バックアップを復元"),
+  actionInsertSkill: () => t("Insert Skill", "スキルを挿入"),
 
   // Webview-only runtime strings (used in media/schedulerWebview.js)
   webviewScriptErrorPrefix: () => t("Script error: ", "スクリプトエラー: "),
@@ -171,6 +172,7 @@ export const messages = {
     t("No models available", "利用可能なモデルがありません"),
   webviewSelectTemplatePlaceholder: () =>
     t("Select template", "テンプレートを選択"),
+  placeholderSelectSkill: () => t("Select skill", "スキルを選択"),
 
   // ==================== Confirmations ====================
   confirmDelete: (name: string) =>
@@ -308,6 +310,16 @@ export const messages = {
       "Prompt sources can be inline text, local templates from .github/prompts, or global templates from your VS Code prompts folder.",
       "プロンプトソースは自由入力、.github/prompts のローカルテンプレート、または VS Code の prompts フォルダーにあるグローバルテンプレートを使えます。",
     ),
+  helpCreateItemSkills: () =>
+    t(
+      "Use the skill picker to insert a fixed skill instruction sentence into the prompt with one click.",
+      "スキルピッカーを使うと、固定のスキル指示文をワンクリックでプロンプトへ挿入できます。",
+    ),
+  helpCreateItemAgentModel: () =>
+    t(
+      "Task-specific agent and model selections now run in a dedicated chat context when needed so they do not silently reuse the currently active setup.",
+      "タスクごとのエージェント/モデル指定は、必要に応じて専用のチャットコンテキストで実行されるため、現在アクティブな設定を黙って再利用しません。",
+    ),
   helpCreateItemRunFirst: () =>
     t(
       "Run-first starts the first execution after 3 minutes; one-time tasks delete themselves after a successful run.",
@@ -382,7 +394,7 @@ export const messages = {
       "This is separate from MCP. New chat sessions are controlled by the scheduler chatSession setting, while MCP tool visibility still depends on workspace launch config.",
       "これは MCP とは別の機能です。新しいチャットセッションは scheduler の chatSession 設定で制御され、MCP ツールの表示は引き続きワークスペースの起動設定に依存します。",
     ),
-  helpMcpTitle: () => t("6. MCP Support", "6. MCP 対応"),
+  helpMcpTitle: () => t("7. MCP Support", "7. MCP 対応"),
   helpMcpItemEmbedded: () =>
     t(
       "Yes, MCP is built into this fork. The scheduler MCP server is implemented in server.ts and packaged as out/server.js.",
@@ -393,12 +405,33 @@ export const messages = {
       "Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as .vscode/mcp.json.",
       "拡張機能をインストールしても scheduler MCP ツールがグローバル登録されるわけではありません。ワークスペースには .vscode/mcp.json などの MCP ランチャー設定が必要です。",
     ),
+  helpMcpItemAutoConfig: () =>
+    t(
+      "Use the setup button to create or merge the scheduler server entry into .vscode/mcp.json for this repo.",
+      "セットアップボタンを使うと、このリポジトリ用の scheduler サーバー設定を .vscode/mcp.json に作成またはマージできます。",
+    ),
   helpMcpItemTools: () =>
     t(
       "The embedded server exposes task list/get/add/update/duplicate/remove/run/toggle tools plus history list/restore and overdue-task queries.",
       "組み込みサーバーは、タスクの一覧・取得・追加・更新・複製・削除・実行・有効化切替に加え、履歴一覧・復元・期限超過タスク照会を提供します。",
     ),
-  helpTipsTitle: () => t("7. Recommended Workflow", "7. 推奨ワークフロー"),
+  helpJobsTitle: () => t("6. Jobs Board", "6. JOBS ボード"),
+  helpJobsItemBoard: () =>
+    t(
+      "Use the Jobs tab to build ordered multi-step workflows with folders, step windows, and drag-drop reordering.",
+      "Jobs タブでは、フォルダー・ステップ時間枠・ドラッグ&ドロップ並び替え付きの順序化ワークフローを作成できます。",
+    ),
+  helpJobsItemPause: () =>
+    t(
+      "Pausing a job suppresses all of its tasks without changing each task's own enabled state.",
+      "ジョブを一時停止すると、各タスク自身の enabled 状態を変えずに、そのジョブ内のすべてのタスク実行を抑止できます。",
+    ),
+  helpJobsItemLabels: () =>
+    t(
+      "Job names become effective task labels, so you can filter the Task List by workflow and still add your own manual labels.",
+      "ジョブ名は実効タスクラベルとして扱われるため、Task List をワークフロー単位で絞り込みつつ、手動ラベルも追加できます。",
+    ),
+  helpTipsTitle: () => t("8. Recommended Workflow", "8. 推奨ワークフロー"),
   helpTipsItem1: () =>
     t(
       "Enable auto-open only for repos where you want the scheduler UI every time the repo opens.",
@@ -530,6 +563,17 @@ export const messages = {
       "Enter prompt to send to Copilot...",
       "Copilotに送信するプロンプトを入力...",
     ),
+  labelSkills: () => t("Skills", "スキル"),
+  skillInsertNote: () =>
+    t(
+      "Insert a skill reference sentence into the prompt with one click. This switches the prompt to inline mode so the inserted instruction is preserved.",
+      "ワンクリックでスキル参照文をプロンプトへ挿入します。挿入した指示が保持されるよう、プロンプトは inline モードへ切り替わります。",
+    ),
+  skillSentenceTemplate: (skill: string) =>
+    t(
+      `Use ${skill} to know how things must be done.`,
+      `${skill} を使って、どのように進めるべきかを理解してください。`,
+    ),
   placeholderCron: () => t("e.g., 0 9 * * 1-5", "例: 0 9 * * 1-5"),
 
   // ==================== TreeView ====================
@@ -579,6 +623,27 @@ export const messages = {
   // ==================== Workspace ====================
   noWorkspaceOpen: () =>
     t("No workspace is open", "ワークスペースが開かれていません"),
+  mcpSetupWorkspaceRequired: () =>
+    t(
+      "Open a workspace folder before setting up the scheduler MCP config.",
+      "scheduler MCP 設定を作成する前に、ワークスペースフォルダーを開いてください。",
+    ),
+  mcpSetupPrompt: () =>
+    t(
+      "This repo does not have the scheduler MCP entry yet. Add or merge it into .vscode/mcp.json now?",
+      "このリポジトリにはまだ scheduler MCP 設定がありません。今すぐ .vscode/mcp.json に追加またはマージしますか？",
+    ),
+  mcpSetupAction: () => t("Set Up MCP", "MCP をセットアップ"),
+  mcpSetupCompleted: (configPath: string) =>
+    t(
+      `Scheduler MCP config updated: ${configPath}`,
+      `Scheduler MCP 設定を更新しました: ${configPath}`,
+    ),
+  mcpSetupFailed: (reason: string) =>
+    t(
+      `Failed to update .vscode/mcp.json: ${reason}`,
+      `.vscode/mcp.json の更新に失敗しました: ${reason}`,
+    ),
   moveOnlyWorkspaceTasks: () =>
     t(
       "Only workspace-scoped tasks can be moved",
