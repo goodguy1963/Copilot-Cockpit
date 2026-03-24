@@ -1,0 +1,69 @@
+{
+    "tasks": [
+        {
+            "id": "task_1774382082310_88vcoq",
+            "name": "dffd",
+            "cron": "0 9 * * 1-5",
+            "prompt": "rfddf",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "",
+            "model": "",
+            "promptSource": "inline",
+            "promptBackupPath": ".github/scheduler-prompt-backups/task_1774382082310_88vcoq.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-24T19:54:42.312Z",
+            "jitterSeconds": 0,
+            "oneTime": false,
+            "jobId": "job_1774382049732_k0zony",
+            "jobNodeId": "jobnode_1774382082327_jpld69",
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-03-25T08:00:00.000Z",
+            "createdAt": "2026-03-24T19:54:42.310Z",
+            "updatedAt": "2026-03-24T19:54:42.327Z"
+        },
+        {
+            "id": "task_1774382099685_s6t8o5",
+            "name": "dssd",
+            "cron": "0 9 * * 1-5",
+            "prompt": "cbcvb",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "",
+            "model": "",
+            "promptSource": "inline",
+            "promptBackupPath": ".github/scheduler-prompt-backups/task_1774382099685_s6t8o5.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-24T19:54:59.686Z",
+            "jitterSeconds": 0,
+            "oneTime": false,
+            "jobId": "job_1774382049732_k0zony",
+            "jobNodeId": "jobnode_1774382099698_i1nhb5",
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-03-25T08:20:00.000Z",
+            "createdAt": "2026-03-24T19:54:59.685Z",
+            "updatedAt": "2026-03-24T19:54:59.698Z"
+        }
+    ],
+    "jobs": [
+        {
+            "id": "job_1774382049732_k0zony",
+            "name": "JOb Test",
+            "cronExpression": "0 9 * * 1-5",
+            "paused": false,
+            "nodes": [
+                {
+                    "id": "jobnode_1774382082327_jpld69",
+                    "taskId": "task_1774382082310_88vcoq",
+                    "windowMinutes": 20
+                },
+                {
+                    "id": "jobnode_1774382099698_i1nhb5",
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "windowMinutes": 30
+                }
+            ],
+            "createdAt": "2026-03-24T19:54:09.732Z",
+            "updatedAt": "2026-03-24T20:04:49.633Z"
+        }
+    ],
+    "jobFolders": []
+}

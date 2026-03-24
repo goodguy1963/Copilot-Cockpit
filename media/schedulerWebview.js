@@ -221,6 +221,7 @@
   var scheduleHistorySelect = document.getElementById("schedule-history-select");
   var restoreHistoryBtn = document.getElementById("restore-history-btn");
   var autoShowStartupNote = document.getElementById("auto-show-startup-note");
+  var friendlyBuilder = document.getElementById("friendly-builder");
   var cronPreset = document.getElementById("cron-preset");
   var cronExpression = document.getElementById("cron-expression");
   var agentSelect = document.getElementById("agent-select");
@@ -261,7 +262,18 @@
   var jobsPauseBtn = document.getElementById("jobs-pause-btn");
   var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
   var jobsNameInput = document.getElementById("jobs-name-input");
+  var jobsCronPreset = document.getElementById("jobs-cron-preset");
   var jobsCronInput = document.getElementById("jobs-cron-input");
+  var jobsCronPreviewText = document.getElementById("jobs-cron-preview-text");
+  var jobsOpenGuruBtn = document.getElementById("jobs-open-guru-btn");
+  var jobsFriendlyBuilder = document.getElementById("jobs-friendly-builder");
+  var jobsFriendlyFrequency = document.getElementById("jobs-friendly-frequency");
+  var jobsFriendlyInterval = document.getElementById("jobs-friendly-interval");
+  var jobsFriendlyMinute = document.getElementById("jobs-friendly-minute");
+  var jobsFriendlyHour = document.getElementById("jobs-friendly-hour");
+  var jobsFriendlyDow = document.getElementById("jobs-friendly-dow");
+  var jobsFriendlyDom = document.getElementById("jobs-friendly-dom");
+  var jobsFriendlyGenerate = document.getElementById("jobs-friendly-generate");
   var jobsFolderSelect = document.getElementById("jobs-folder-select");
   var jobsStatusPill = document.getElementById("jobs-status-pill");
   var jobsStepList = document.getElementById("jobs-step-list");
@@ -575,6 +587,8 @@
   restoreTaskFilter();
   syncAutoShowOnStartupUi();
   syncScheduleHistoryOptions();
+  updateJobsCronPreview();
+  updateJobsFriendlyVisibility();
 
   function getCreateTabButton() {
     return document.querySelector('.tab-button[data-tab="create"]');
@@ -721,9 +735,29 @@
     });
   }
 
+  if (jobsCronPreset && jobsCronInput) {
+    jobsCronPreset.addEventListener("change", function () {
+      if (jobsCronPreset.value) {
+        jobsCronInput.value = jobsCronPreset.value;
+      }
+      updateJobsCronPreview();
+    });
+
+    jobsCronInput.addEventListener("input", function () {
+      jobsCronPreset.value = "";
+      updateJobsCronPreview();
+    });
+  }
+
   if (friendlyFrequency) {
     friendlyFrequency.addEventListener("change", function () {
       updateFriendlyVisibility();
+    });
+  }
+
+  if (jobsFriendlyFrequency) {
+    jobsFriendlyFrequency.addEventListener("change", function () {
+      updateJobsFriendlyVisibility();
     });
   }
 
@@ -733,12 +767,18 @@
     if (target && target.id === "friendly-frequency") {
       updateFriendlyVisibility();
     }
+    if (target && target.id === "jobs-friendly-frequency") {
+      updateJobsFriendlyVisibility();
+    }
   });
 
   document.addEventListener("input", function (e) {
     var target = e && e.target;
     if (target && target.id === "friendly-frequency") {
       updateFriendlyVisibility();
+    }
+    if (target && target.id === "jobs-friendly-frequency") {
+      updateJobsFriendlyVisibility();
     }
   });
 
@@ -748,9 +788,26 @@
     });
   }
 
+  if (jobsFriendlyGenerate) {
+    jobsFriendlyGenerate.addEventListener("click", function () {
+      generateJobsCronFromFriendly();
+    });
+  }
+
   if (openGuruBtn) {
     openGuruBtn.addEventListener("click", function () {
       var expression = cronExpression ? cronExpression.value.trim() : "";
+      if (!expression) {
+        expression = "* * * * *";
+      }
+      var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
+      window.open(targetUrl, "_blank");
+    });
+  }
+
+  if (jobsOpenGuruBtn) {
+    jobsOpenGuruBtn.addEventListener("click", function () {
+      var expression = jobsCronInput ? jobsCronInput.value.trim() : "";
       if (!expression) {
         expression = "* * * * *";
       }
@@ -993,14 +1050,9 @@
 
   if (jobsNewFolderBtn) {
     jobsNewFolderBtn.addEventListener("click", function () {
-      var name = window.prompt(strings.jobsCreateFolder || "New Folder", "");
-      if (!name || !name.trim()) return;
       vscode.postMessage({
-        type: "createJobFolder",
-        data: {
-          name: name.trim(),
-          parentId: selectedJobFolderId || undefined,
-        },
+        type: "requestCreateJobFolder",
+        parentFolderId: selectedJobFolderId || undefined,
       });
     });
   }
@@ -1008,14 +1060,9 @@
   if (jobsRenameFolderBtn) {
     jobsRenameFolderBtn.addEventListener("click", function () {
       if (!selectedJobFolderId) return;
-      var folder = getFolderById(selectedJobFolderId);
-      if (!folder) return;
-      var name = window.prompt(strings.jobsRenameFolder || "Rename Folder", folder.name || "");
-      if (!name || !name.trim()) return;
       vscode.postMessage({
-        type: "renameJobFolder",
+        type: "requestRenameJobFolder",
         folderId: selectedJobFolderId,
-        data: { name: name.trim() },
       });
     });
   }
@@ -1023,23 +1070,15 @@
   if (jobsDeleteFolderBtn) {
     jobsDeleteFolderBtn.addEventListener("click", function () {
       if (!selectedJobFolderId) return;
-      vscode.postMessage({ type: "deleteJobFolder", folderId: selectedJobFolderId });
+      vscode.postMessage({ type: "requestDeleteJobFolder", folderId: selectedJobFolderId });
     });
   }
 
   if (jobsNewJobBtn) {
     jobsNewJobBtn.addEventListener("click", function () {
-      var name = window.prompt(strings.jobsCreateJob || "New Job", "");
-      if (!name || !name.trim()) return;
-      var schedule = window.prompt(strings.jobsCron || "Job schedule", "0 9 * * 1-5");
-      if (!schedule || !schedule.trim()) return;
       vscode.postMessage({
-        type: "createJob",
-        data: {
-          name: name.trim(),
-          cronExpression: schedule.trim(),
-          folderId: selectedJobFolderId || undefined,
-        },
+        type: "requestCreateJob",
+        folderId: selectedJobFolderId || undefined,
       });
     });
   }
@@ -1837,6 +1876,11 @@
     cronPreviewText.textContent = getCronSummary(cronExpression.value || "");
   }
 
+  function updateJobsCronPreview() {
+    if (!jobsCronPreviewText || !jobsCronInput) return;
+    jobsCronPreviewText.textContent = getCronSummary(jobsCronInput.value || "");
+  }
+
   function updateFriendlyVisibility() {
     var selection = friendlyFrequency ? friendlyFrequency.value : "";
     var fields = [];
@@ -1860,7 +1904,49 @@
         fields = [];
     }
 
-    var friendlyFields = document.querySelectorAll(".friendly-field");
+    var friendlyFields = friendlyBuilder
+      ? friendlyBuilder.querySelectorAll(".friendly-field")
+      : [];
+    for (var i = 0; i < friendlyFields.length; i++) {
+      var el = friendlyFields[i];
+      if (!el || !el.getAttribute) continue;
+      var fieldName = el.getAttribute("data-field");
+      if (fields.indexOf(fieldName) !== -1) {
+        if (el.classList) el.classList.add("visible");
+        if (el.style) el.style.display = "block";
+      } else {
+        if (el.classList) el.classList.remove("visible");
+        if (el.style) el.style.display = "none";
+      }
+    }
+  }
+
+  function updateJobsFriendlyVisibility() {
+    var selection = jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "";
+    var fields = [];
+    switch (selection) {
+      case "every-n":
+        fields = ["interval"];
+        break;
+      case "hourly":
+        fields = ["minute"];
+        break;
+      case "daily":
+        fields = ["hour", "minute"];
+        break;
+      case "weekly":
+        fields = ["dow", "hour", "minute"];
+        break;
+      case "monthly":
+        fields = ["dom", "hour", "minute"];
+        break;
+      default:
+        fields = [];
+    }
+
+    var friendlyFields = jobsFriendlyBuilder
+      ? jobsFriendlyBuilder.querySelectorAll(".friendly-field")
+      : [];
     for (var i = 0; i < friendlyFields.length; i++) {
       var el = friendlyFields[i];
       if (!el || !el.getAttribute) continue;
@@ -1969,6 +2055,103 @@
       cronExpression.value = expr;
       if (cronPreset) cronPreset.value = "";
       updateCronPreview();
+    }
+  }
+
+  function generateJobsCronFromFriendly() {
+    if (!jobsFriendlyFrequency || !jobsCronInput) return;
+    var selection = jobsFriendlyFrequency.value;
+    var expr = "";
+
+    switch (selection) {
+      case "every-n": {
+        var interval = boundedNumber(
+          jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
+          1,
+          59,
+          5,
+        );
+        expr = "*/" + interval + " * * * *";
+        break;
+      }
+      case "hourly": {
+        var minuteValue = boundedNumber(
+          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+          0,
+          59,
+          0,
+        );
+        expr = minuteValue + " * * * *";
+        break;
+      }
+      case "daily": {
+        var dailyMinute = boundedNumber(
+          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+          0,
+          59,
+          0,
+        );
+        var dailyHour = boundedNumber(
+          jobsFriendlyHour ? jobsFriendlyHour.value : "",
+          0,
+          23,
+          9,
+        );
+        expr = dailyMinute + " " + dailyHour + " * * *";
+        break;
+      }
+      case "weekly": {
+        var weeklyMinute = boundedNumber(
+          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+          0,
+          59,
+          0,
+        );
+        var weeklyHour = boundedNumber(
+          jobsFriendlyHour ? jobsFriendlyHour.value : "",
+          0,
+          23,
+          9,
+        );
+        var dowValue = boundedNumber(
+          jobsFriendlyDow ? jobsFriendlyDow.value : "",
+          0,
+          6,
+          1,
+        );
+        expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
+        break;
+      }
+      case "monthly": {
+        var monthlyMinute = boundedNumber(
+          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+          0,
+          59,
+          0,
+        );
+        var monthlyHour = boundedNumber(
+          jobsFriendlyHour ? jobsFriendlyHour.value : "",
+          0,
+          23,
+          9,
+        );
+        var domValue = boundedNumber(
+          jobsFriendlyDom ? jobsFriendlyDom.value : "",
+          1,
+          31,
+          1,
+        );
+        expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
+        break;
+      }
+      default:
+        expr = "";
+    }
+
+    if (expr) {
+      jobsCronInput.value = expr;
+      if (jobsCronPreset) jobsCronPreset.value = "";
+      updateJobsCronPreview();
     }
   }
 
@@ -2334,6 +2517,11 @@
       } else {
         jobsList.innerHTML = visibleJobs
           .map(function (job) {
+                var scheduleSummary = getCronSummary(job.cronExpression || "");
+                var scheduleLabel =
+                  scheduleSummary !== (strings.labelFriendlyFallback || "")
+                    ? scheduleSummary
+                    : (job.cronExpression || "");
             return (
               '<div class="jobs-list-item' +
               (job.id === selectedJobId ? ' active' : '') +
@@ -2342,8 +2530,8 @@
               '<strong>' + escapeHtml(job.name || "") + '</strong>' +
               '<span class="jobs-pill">' + escapeHtml(job.paused ? (strings.jobsPaused || "Paused") : (strings.jobsRunning || "Active")) + '</span>' +
               '</div>' +
-              '<div class="jobs-list-item-meta">' +
-              escapeHtml(job.cronExpression || "") + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' steps' +
+                  '<div class="jobs-list-item-meta" title="' + escapeAttr(job.cronExpression || "") + '">' +
+                  escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' steps' +
               '</div>' +
               '</div>'
             );
@@ -2364,6 +2552,7 @@
 
     if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
     if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
+  if (jobsCronPreset) jobsCronPreset.value = "";
     syncJobsFolderSelect(selectedJob.folderId || "");
     if (jobsStatusPill) {
       jobsStatusPill.textContent = selectedJob.paused
@@ -2378,6 +2567,8 @@
 
     syncJobsExistingTaskSelect();
     syncJobsStepSelectors();
+  updateJobsCronPreview();
+  updateJobsFriendlyVisibility();
 
     if (jobsStepList) {
       var stepCards = (Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [])

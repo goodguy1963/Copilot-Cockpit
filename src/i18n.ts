@@ -644,6 +644,23 @@ export const messages = {
       `Failed to update .vscode/mcp.json: ${reason}`,
       `.vscode/mcp.json の更新に失敗しました: ${reason}`,
     ),
+  jobCreateTitle: () => t("New Job", "新規ジョブ"),
+  jobNamePrompt: () => t("Enter job name", "ジョブ名を入力してください"),
+  jobScheduleTitle: () => t("Job schedule", "ジョブのスケジュール"),
+  jobSchedulePrompt: () =>
+    t(
+      "Enter a cron expression for this job",
+      "このジョブの cron 式を入力してください",
+    ),
+  jobFolderCreateTitle: () => t("New Folder", "新規フォルダー"),
+  jobFolderRenameTitle: () => t("Rename Folder", "フォルダー名の変更"),
+  jobFolderNamePrompt: () =>
+    t("Enter folder name", "フォルダー名を入力してください"),
+  confirmDeleteJobFolder: (name: string) =>
+    t(
+      `Delete folder "${name}"? Jobs and subfolders inside it will move to the parent folder.`,
+      `フォルダー「${name}」を削除しますか？ 中のジョブとサブフォルダーは親フォルダーへ移動します。`,
+    ),
   moveOnlyWorkspaceTasks: () =>
     t(
       "Only workspace-scoped tasks can be moved",

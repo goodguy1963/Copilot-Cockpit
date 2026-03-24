@@ -457,6 +457,10 @@ export type WebviewToExtensionMessage =
   | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> }
   | { type: "testPrompt"; prompt: string; agent?: string; model?: string }
   | { type: "duplicateTask"; taskId: string }
+  | { type: "requestCreateJob"; folderId?: string }
+  | { type: "requestCreateJobFolder"; parentFolderId?: string }
+  | { type: "requestRenameJobFolder"; folderId: string }
+  | { type: "requestDeleteJobFolder"; folderId: string }
   | { type: "createJob"; data: CreateJobInput }
   | {
     type: "updateJob";

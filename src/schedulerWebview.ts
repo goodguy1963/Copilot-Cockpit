@@ -462,6 +462,115 @@ export class SchedulerWebview {
     });
   }
 
+  private static async promptForJobFolderName(
+    title: string,
+    value = "",
+  ): Promise<string | undefined> {
+    const result = await vscode.window.showInputBox({
+      title,
+      prompt: messages.jobFolderNamePrompt(),
+      value,
+      ignoreFocusOut: true,
+      validateInput: (input) =>
+        input.trim() ? undefined : messages.taskNameRequired(),
+    });
+    const trimmed = result?.trim();
+    return trimmed ? trimmed : undefined;
+  }
+
+  private static async handleCreateJobRequest(folderId?: string): Promise<void> {
+    const name = await vscode.window.showInputBox({
+      title: messages.jobCreateTitle(),
+      prompt: messages.jobNamePrompt(),
+      ignoreFocusOut: true,
+      validateInput: (input) =>
+        input.trim() ? undefined : messages.taskNameRequired(),
+    });
+    const trimmedName = name?.trim();
+    if (!trimmedName || !this.onTaskActionCallback) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "createJob",
+      taskId: "__job__",
+      jobData: {
+        name: trimmedName,
+        cronExpression: "0 9 * * 1-5",
+        folderId,
+      },
+    });
+  }
+
+  private static async handleCreateJobFolderRequest(
+    parentFolderId?: string,
+  ): Promise<void> {
+    const name = await this.promptForJobFolderName(
+      messages.jobFolderCreateTitle(),
+    );
+    if (!name || !this.onTaskActionCallback) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "createJobFolder",
+      taskId: "__jobfolder__",
+      folderData: {
+        name,
+        parentId: parentFolderId,
+      },
+    });
+  }
+
+  private static async handleRenameJobFolderRequest(
+    folderId: string,
+  ): Promise<void> {
+    const folder = this.currentJobFolders.find((entry) => entry.id === folderId);
+    if (!folder) {
+      return;
+    }
+
+    const name = await this.promptForJobFolderName(
+      messages.jobFolderRenameTitle(),
+      folder.name,
+    );
+    if (!name || !this.onTaskActionCallback) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "renameJobFolder",
+      taskId: "__jobfolder__",
+      folderId,
+      folderData: { name },
+    });
+  }
+
+  private static async handleDeleteJobFolderRequest(
+    folderId: string,
+  ): Promise<void> {
+    const folder = this.currentJobFolders.find((entry) => entry.id === folderId);
+    if (!folder || !this.onTaskActionCallback) {
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      messages.confirmDeleteJobFolder(folder.name),
+      { modal: true },
+      messages.confirmDeleteYes(),
+      messages.actionCancel(),
+    );
+    if (confirm !== messages.confirmDeleteYes()) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "deleteJobFolder",
+      taskId: "__jobfolder__",
+      folderId,
+    });
+  }
+
   /**
    * Handle messages from webview
    */
@@ -469,6 +578,22 @@ export class SchedulerWebview {
     message: WebviewToExtensionMessage,
   ): Promise<void> {
     switch (message.type) {
+      case "requestCreateJob":
+        await this.handleCreateJobRequest(message.folderId);
+        break;
+
+      case "requestCreateJobFolder":
+        await this.handleCreateJobFolderRequest(message.parentFolderId);
+        break;
+
+      case "requestRenameJobFolder":
+        await this.handleRenameJobFolderRequest(message.folderId);
+        break;
+
+      case "requestDeleteJobFolder":
+        await this.handleDeleteJobFolderRequest(message.folderId);
+        break;
+
       case "createTask":
         if (this.onTaskActionCallback) {
           // Use a special action for create
@@ -2081,7 +2206,7 @@ export class SchedulerWebview {
           <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
           <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
         </div>
-        <div class="friendly-cron">
+        <div class="friendly-cron" id="friendly-builder">
           <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
           <div class="friendly-grid">
             <div class="form-group">
@@ -2260,6 +2385,15 @@ export class SchedulerWebview {
               <input type="text" id="jobs-name-input">
             </div>
             <div class="form-group">
+              <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
+              <div class="preset-select">
+                <select id="jobs-cron-preset">
+                  <option value="">${escapeHtml(strings.labelCustom)}</option>
+                  ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
               <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
               <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
             </div>
@@ -2270,6 +2404,61 @@ export class SchedulerWebview {
             <div class="form-group">
               <label>${escapeHtml(strings.labelStatus)}</label>
               <div id="jobs-status-pill" class="jobs-pill">${escapeHtml(strings.jobsRunning)}</div>
+            </div>
+          </div>
+
+          <div class="jobs-main-section">
+            <div class="cron-preview">
+              <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
+              <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
+              <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+            </div>
+            <div class="friendly-cron" id="jobs-friendly-builder">
+              <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
+              <div class="friendly-grid">
+                <div class="form-group">
+                  <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
+                  <select id="jobs-friendly-frequency">
+                    <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
+                    <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
+                    <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
+                    <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
+                    <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
+                    <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
+                  </select>
+                </div>
+                <div class="form-group friendly-field" data-field="interval">
+                  <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
+                  <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
+                </div>
+                <div class="form-group friendly-field" data-field="minute">
+                  <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
+                  <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
+                </div>
+                <div class="form-group friendly-field" data-field="hour">
+                  <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
+                  <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
+                </div>
+                <div class="form-group friendly-field" data-field="dow">
+                  <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
+                  <select id="jobs-friendly-dow">
+                    <option value="0">${escapeHtml(strings.daySun)}</option>
+                    <option value="1">${escapeHtml(strings.dayMon)}</option>
+                    <option value="2">${escapeHtml(strings.dayTue)}</option>
+                    <option value="3">${escapeHtml(strings.dayWed)}</option>
+                    <option value="4">${escapeHtml(strings.dayThu)}</option>
+                    <option value="5">${escapeHtml(strings.dayFri)}</option>
+                    <option value="6">${escapeHtml(strings.daySat)}</option>
+                  </select>
+                </div>
+                <div class="form-group friendly-field" data-field="dom">
+                  <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
+                  <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
+                </div>
+              </div>
+              <div class="friendly-actions">
+                <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
+              </div>
             </div>
           </div>
 
