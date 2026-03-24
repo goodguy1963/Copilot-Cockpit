@@ -28,6 +28,111 @@ export type LogLevel = "none" | "error" | "info" | "debug";
 export type ChatSessionBehavior = "new" | "continue";
 
 /**
+ * Job node within a multi-step workflow.
+ */
+export interface JobNode {
+  /** Unique node identifier */
+  id: string;
+
+  /** Task executed by this node */
+  taskId: string;
+
+  /** Time window allocated to this node in minutes */
+  windowMinutes: number;
+}
+
+/**
+ * Folder for organizing jobs in the Jobs tab.
+ */
+export interface JobFolder {
+  /** Unique folder identifier */
+  id: string;
+
+  /** Folder name */
+  name: string;
+
+  /** Optional parent folder for nesting */
+  parentId?: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+/**
+ * Multi-step job workflow.
+ */
+export interface JobDefinition {
+  /** Unique job identifier */
+  id: string;
+
+  /** Job name */
+  name: string;
+
+  /** Job-level cron expression */
+  cronExpression: string;
+
+  /** Optional folder containing the job */
+  folderId?: string;
+
+  /** Whether execution is paused for all nodes in this job */
+  paused?: boolean;
+
+  /** Ordered workflow nodes */
+  nodes: JobNode[];
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+/**
+ * Repo-local scheduler config persisted in .vscode.
+ */
+export interface SchedulerWorkspaceConfig {
+  /** Workspace tasks */
+  tasks: any[];
+
+  /** Job workflows */
+  jobs?: JobDefinition[];
+
+  /** Job folders */
+  jobFolders?: JobFolder[];
+}
+
+/**
+ * Input for creating a new job.
+ */
+export interface CreateJobInput {
+  /** Job name */
+  name: string;
+
+  /** Job-level cron expression */
+  cronExpression: string;
+
+  /** Optional folder containing the job */
+  folderId?: string;
+
+  /** Whether the job starts paused */
+  paused?: boolean;
+}
+
+/**
+ * Input for creating a new job folder.
+ */
+export interface CreateJobFolderInput {
+  /** Folder name */
+  name: string;
+
+  /** Optional parent folder for nesting */
+  parentId?: string;
+}
+
+/**
  * Scheduled task definition
  */
 export interface ScheduledTask {
@@ -82,6 +187,15 @@ export interface ScheduledTask {
   /** Per-task chat session behavior for recurring tasks. */
   chatSession?: ChatSessionBehavior;
 
+  /** Optional manual labels for filtering and organization. */
+  labels?: string[];
+
+  /** Parent job when this task is job-managed. */
+  jobId?: string;
+
+  /** Owning job node when this task is job-managed. */
+  jobNodeId?: string;
+
   /** Last execution time */
   lastRun?: Date;
 
@@ -125,6 +239,9 @@ export interface CreateTaskInput {
 
   /** Per-task chat session behavior for recurring tasks. */
   chatSession?: ChatSessionBehavior;
+
+  /** Optional manual labels for filtering and organization. */
+  labels?: string[];
 
   /** Agent to use */
   agent?: string;
@@ -207,6 +324,23 @@ export interface PromptTemplate {
 }
 
 /**
+ * Discoverable skill reference for prompt insertion.
+ */
+export interface SkillReference {
+  /** Absolute file path */
+  path: string;
+
+  /** Display name */
+  name: string;
+
+  /** Displayable relative/reference path */
+  reference: string;
+
+  /** Source bucket */
+  source: "workspace" | "global";
+}
+
+/**
  * Repo-local scheduler history snapshot
  */
 export interface ScheduleHistoryEntry {
@@ -251,13 +385,51 @@ export interface TaskAction {
   | "duplicate"
   | "moveToCurrentWorkspace"
   | "restoreHistory"
-  | "refresh";
+  | "refresh"
+  | "createJob"
+  | "updateJob"
+  | "deleteJob"
+  | "duplicateJob"
+  | "toggleJobPaused"
+  | "createJobFolder"
+  | "renameJobFolder"
+  | "deleteJobFolder"
+  | "createJobTask"
+  | "attachTaskToJob"
+  | "detachTaskFromJob"
+  | "reorderJobNode"
+  | "updateJobNodeWindow"
+  | "setupMcp";
 
   /** Task ID */
   taskId: string;
 
   /** Additional data for the action */
   data?: Partial<CreateTaskInput>;
+
+  /** Job identifier for Jobs actions */
+  jobId?: string;
+
+  /** Folder identifier for Jobs actions */
+  folderId?: string;
+
+  /** Parent folder identifier when creating/updating folders */
+  parentFolderId?: string;
+
+  /** Job node identifier */
+  nodeId?: string;
+
+  /** Node target index when reordering */
+  targetIndex?: number;
+
+  /** Per-node window duration in minutes */
+  windowMinutes?: number;
+
+  /** Job create/update payload */
+  jobData?: Partial<CreateJobInput>;
+
+  /** Folder create/update payload */
+  folderData?: Partial<CreateJobFolderInput>;
 
   /** Selected history snapshot identifier for restore actions */
   historyId?: string;
@@ -285,11 +457,53 @@ export type WebviewToExtensionMessage =
   | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> }
   | { type: "testPrompt"; prompt: string; agent?: string; model?: string }
   | { type: "duplicateTask"; taskId: string }
+  | { type: "createJob"; data: CreateJobInput }
+  | {
+    type: "updateJob";
+    jobId: string;
+    data: Partial<CreateJobInput>;
+  }
+  | { type: "deleteJob"; jobId: string }
+  | { type: "duplicateJob"; jobId: string }
+  | { type: "toggleJobPaused"; jobId: string }
+  | { type: "createJobFolder"; data: CreateJobFolderInput }
+  | {
+    type: "renameJobFolder";
+    folderId: string;
+    data: Partial<CreateJobFolderInput>;
+  }
+  | { type: "deleteJobFolder"; folderId: string }
+  | {
+    type: "createJobTask";
+    jobId: string;
+    data: CreateTaskInput;
+    windowMinutes?: number;
+  }
+  | {
+    type: "attachTaskToJob";
+    jobId: string;
+    taskId: string;
+    windowMinutes?: number;
+  }
+  | { type: "detachTaskFromJob"; jobId: string; nodeId: string }
+  | {
+    type: "reorderJobNode";
+    jobId: string;
+    nodeId: string;
+    targetIndex: number;
+  }
+  | {
+    type: "updateJobNodeWindow";
+    jobId: string;
+    nodeId: string;
+    windowMinutes: number;
+  }
   | { type: "refreshTasks" }
   | { type: "restoreScheduleHistory"; snapshotId: string }
   | { type: "toggleAutoShowOnStartup" }
   | { type: "refreshAgents" }
   | { type: "refreshPrompts" }
+  | { type: "setupMcp" }
   | { type: "runTask"; taskId: string }
   | { type: "toggleTask"; taskId: string }
   | { type: "deleteTask"; taskId: string }

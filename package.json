@@ -113,6 +113,12 @@
         "title": "%command.showVersion%",
         "category": "%extension.title%",
         "icon": "$(info)"
+      },
+      {
+        "command": "copilotScheduler.setupMcp",
+        "title": "%command.setupMcp%",
+        "category": "%extension.title%",
+        "icon": "$(plug)"
       }
     ],
     "configuration": {

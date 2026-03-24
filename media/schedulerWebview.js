@@ -168,11 +168,16 @@
   }
 
   var tasks = Array.isArray(initialData.tasks) ? initialData.tasks : [];
+  var jobs = Array.isArray(initialData.jobs) ? initialData.jobs : [];
+  var jobFolders = Array.isArray(initialData.jobFolders)
+    ? initialData.jobFolders
+    : [];
   var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
   var models = Array.isArray(initialData.models) ? initialData.models : [];
   var promptTemplates = Array.isArray(initialData.promptTemplates)
     ? initialData.promptTemplates
     : [];
+  var skills = Array.isArray(initialData.skills) ? initialData.skills : [];
   var scheduleHistory = Array.isArray(initialData.scheduleHistory)
     ? initialData.scheduleHistory
     : [];
@@ -225,6 +230,9 @@
   var templateSelect = document.getElementById("template-select");
   var templateSelectGroup = document.getElementById("template-select-group");
   var templateRefreshBtn = document.getElementById("template-refresh-btn");
+  var skillSelect = document.getElementById("skill-select");
+  var insertSkillBtn = document.getElementById("insert-skill-btn");
+  var setupMcpBtn = document.getElementById("setup-mcp-btn");
   var promptGroup = document.getElementById("prompt-group");
   var jitterSecondsInput = document.getElementById("jitter-seconds");
   var friendlyFrequency = document.getElementById("friendly-frequency");
@@ -238,7 +246,40 @@
   var cronPreviewText = document.getElementById("cron-preview-text");
   var newTaskBtn = document.getElementById("new-task-btn");
   var taskFilterBar = document.getElementById("task-filter-bar");
+  var taskLabelFilter = document.getElementById("task-label-filter");
+  var taskLabelsInput = document.getElementById("task-labels");
+  var jobsFolderList = document.getElementById("jobs-folder-list");
+  var jobsList = document.getElementById("jobs-list");
+  var jobsEmptyState = document.getElementById("jobs-empty-state");
+  var jobsDetails = document.getElementById("jobs-details");
+  var jobsNewFolderBtn = document.getElementById("jobs-new-folder-btn");
+  var jobsRenameFolderBtn = document.getElementById("jobs-rename-folder-btn");
+  var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
+  var jobsNewJobBtn = document.getElementById("jobs-new-job-btn");
+  var jobsSaveBtn = document.getElementById("jobs-save-btn");
+  var jobsDuplicateBtn = document.getElementById("jobs-duplicate-btn");
+  var jobsPauseBtn = document.getElementById("jobs-pause-btn");
+  var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
+  var jobsNameInput = document.getElementById("jobs-name-input");
+  var jobsCronInput = document.getElementById("jobs-cron-input");
+  var jobsFolderSelect = document.getElementById("jobs-folder-select");
+  var jobsStatusPill = document.getElementById("jobs-status-pill");
+  var jobsStepList = document.getElementById("jobs-step-list");
+  var jobsExistingTaskSelect = document.getElementById("jobs-existing-task-select");
+  var jobsExistingWindowInput = document.getElementById("jobs-existing-window-input");
+  var jobsAttachBtn = document.getElementById("jobs-attach-btn");
+  var jobsStepNameInput = document.getElementById("jobs-step-name-input");
+  var jobsStepWindowInput = document.getElementById("jobs-step-window-input");
+  var jobsStepPromptInput = document.getElementById("jobs-step-prompt-input");
+  var jobsStepAgentSelect = document.getElementById("jobs-step-agent-select");
+  var jobsStepModelSelect = document.getElementById("jobs-step-model-select");
+  var jobsStepLabelsInput = document.getElementById("jobs-step-labels-input");
+  var jobsCreateStepBtn = document.getElementById("jobs-create-step-btn");
   var activeTaskFilter = "all";
+  var activeLabelFilter = "";
+  var selectedJobFolderId = "";
+  var selectedJobId = "";
+  var draggedJobNodeId = "";
 
   function isValidTaskFilter(value) {
     return value === "all" || value === "recurring" || value === "one-time";
@@ -251,6 +292,15 @@
       var saved = state && state.taskFilter;
       if (isValidTaskFilter(saved)) {
         activeTaskFilter = saved;
+      }
+      if (state && typeof state.labelFilter === "string") {
+        activeLabelFilter = state.labelFilter;
+      }
+      if (state && typeof state.selectedJobFolderId === "string") {
+        selectedJobFolderId = state.selectedJobFolderId;
+      }
+      if (state && typeof state.selectedJobId === "string") {
+        selectedJobId = state.selectedJobId;
       }
     } catch (_e) {
       // ignore state restore failures
@@ -271,6 +321,9 @@
         }
       }
       next.taskFilter = activeTaskFilter;
+      next.labelFilter = activeLabelFilter;
+      next.selectedJobFolderId = selectedJobFolderId;
+      next.selectedJobId = selectedJobId;
       vscode.setState(next);
     } catch (_e) {
       // ignore state persist failures
@@ -375,6 +428,147 @@
     }
     if (scheduleHistorySelect.value !== previousValue) {
       scheduleHistorySelect.value = "";
+    }
+  }
+
+  function parseLabels(value) {
+    if (!value) return [];
+    return String(value)
+      .split(",")
+      .map(function (item) {
+        return String(item || "").trim();
+      })
+      .filter(function (item, index, list) {
+        return item && list.indexOf(item) === index;
+      });
+  }
+
+  function toLabelString(labels) {
+    return Array.isArray(labels) ? labels.join(", ") : "";
+  }
+
+  function getJobById(id) {
+    return (Array.isArray(jobs) ? jobs : []).find(function (job) {
+      return job && job.id === id;
+    }) || null;
+  }
+
+  function getFolderById(id) {
+    return (Array.isArray(jobFolders) ? jobFolders : []).find(function (folder) {
+      return folder && folder.id === id;
+    }) || null;
+  }
+
+  function getTaskById(id) {
+    return (Array.isArray(tasks) ? tasks : []).find(function (task) {
+      return task && task.id === id;
+    }) || null;
+  }
+
+  function getFolderDepth(folder) {
+    var depth = 0;
+    var current = folder;
+    while (current && current.parentId) {
+      depth += 1;
+      current = getFolderById(current.parentId);
+      if (depth > 20) break;
+    }
+    return depth;
+  }
+
+  function getEffectiveLabels(task) {
+    var labels = [];
+    if (task && Array.isArray(task.labels)) {
+      labels = labels.concat(task.labels);
+    }
+    if (task && task.jobId) {
+      var job = getJobById(task.jobId);
+      if (job && job.name) {
+        labels.push(job.name);
+      }
+    }
+    return labels.filter(function (label, index, list) {
+      return label && list.indexOf(label) === index;
+    });
+  }
+
+  function getComparableTime(value) {
+    if (!value) return Number.MAX_SAFE_INTEGER;
+    var d = new Date(value);
+    var t = d.getTime();
+    return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+  }
+
+  function sortTasksByNextRun(list) {
+    return (Array.isArray(list) ? list.slice() : []).sort(function (a, b) {
+      var diff = getComparableTime(a && a.nextRun) - getComparableTime(b && b.nextRun);
+      if (diff !== 0) return diff;
+      var aName = a && a.name ? String(a.name) : "";
+      var bName = b && b.name ? String(b.name) : "";
+      return aName.localeCompare(bName);
+    });
+  }
+
+  function getStandaloneTasks() {
+    return sortTasksByNextRun(
+      (Array.isArray(tasks) ? tasks : []).filter(function (task) {
+        return task && !task.jobId && task.oneTime !== true;
+      }),
+    );
+  }
+
+  function syncTaskLabelFilterOptions() {
+    if (!taskLabelFilter) return;
+    var values = [];
+    (Array.isArray(tasks) ? tasks : []).forEach(function (task) {
+      getEffectiveLabels(task).forEach(function (label) {
+        if (values.indexOf(label) === -1) {
+          values.push(label);
+        }
+      });
+    });
+    values.sort(function (a, b) {
+      return String(a).localeCompare(String(b));
+    });
+
+    var currentValue = activeLabelFilter || "";
+    taskLabelFilter.innerHTML =
+      '<option value="">' +
+      escapeHtml(strings.labelAllLabels || "All labels") +
+      "</option>" +
+      values
+        .map(function (label) {
+          return (
+            '<option value="' +
+            escapeAttr(label) +
+            '">' +
+            escapeHtml(label) +
+            "</option>"
+          );
+        })
+        .join("");
+
+    taskLabelFilter.value = currentValue;
+    if (taskLabelFilter.value !== currentValue) {
+      activeLabelFilter = "";
+      taskLabelFilter.value = "";
+    }
+  }
+
+  function ensureValidJobSelection() {
+    if (selectedJobFolderId && !getFolderById(selectedJobFolderId)) {
+      selectedJobFolderId = "";
+    }
+    if (selectedJobId && !getJobById(selectedJobId)) {
+      selectedJobId = "";
+    }
+    if (!selectedJobId) {
+      var visibleJobs = (Array.isArray(jobs) ? jobs : []).filter(function (job) {
+        return (job && (job.folderId || "") === selectedJobFolderId);
+      });
+      if (visibleJobs.length > 0) {
+        selectedJobId = visibleJobs[0].id;
+      }
     }
   }
 
@@ -491,6 +685,14 @@
       if (!isValidTaskFilter(filterValue)) return;
       activeTaskFilter = filterValue;
       syncTaskFilterButtons();
+      persistTaskFilter();
+      renderTaskList(tasks);
+    });
+  }
+
+  if (taskLabelFilter) {
+    taskLabelFilter.addEventListener("change", function () {
+      activeLabelFilter = taskLabelFilter.value || "";
       persistTaskFilter();
       renderTaskList(tasks);
     });
@@ -643,6 +845,7 @@
         name: taskNameEl ? taskNameEl.value : "",
         prompt: promptTextEl ? promptTextEl.value : "",
         cronExpression: cronExpression ? cronExpression.value : "",
+        labels: parseLabels(taskLabelsInput ? taskLabelsInput.value : ""),
         agent: agentValue,
         model: modelValue,
         scope: scopeEl ? scopeEl.value : "workspace",
@@ -788,6 +991,252 @@
     });
   }
 
+  if (jobsNewFolderBtn) {
+    jobsNewFolderBtn.addEventListener("click", function () {
+      var name = window.prompt(strings.jobsCreateFolder || "New Folder", "");
+      if (!name || !name.trim()) return;
+      vscode.postMessage({
+        type: "createJobFolder",
+        data: {
+          name: name.trim(),
+          parentId: selectedJobFolderId || undefined,
+        },
+      });
+    });
+  }
+
+  if (jobsRenameFolderBtn) {
+    jobsRenameFolderBtn.addEventListener("click", function () {
+      if (!selectedJobFolderId) return;
+      var folder = getFolderById(selectedJobFolderId);
+      if (!folder) return;
+      var name = window.prompt(strings.jobsRenameFolder || "Rename Folder", folder.name || "");
+      if (!name || !name.trim()) return;
+      vscode.postMessage({
+        type: "renameJobFolder",
+        folderId: selectedJobFolderId,
+        data: { name: name.trim() },
+      });
+    });
+  }
+
+  if (jobsDeleteFolderBtn) {
+    jobsDeleteFolderBtn.addEventListener("click", function () {
+      if (!selectedJobFolderId) return;
+      vscode.postMessage({ type: "deleteJobFolder", folderId: selectedJobFolderId });
+    });
+  }
+
+  if (jobsNewJobBtn) {
+    jobsNewJobBtn.addEventListener("click", function () {
+      var name = window.prompt(strings.jobsCreateJob || "New Job", "");
+      if (!name || !name.trim()) return;
+      var schedule = window.prompt(strings.jobsCron || "Job schedule", "0 9 * * 1-5");
+      if (!schedule || !schedule.trim()) return;
+      vscode.postMessage({
+        type: "createJob",
+        data: {
+          name: name.trim(),
+          cronExpression: schedule.trim(),
+          folderId: selectedJobFolderId || undefined,
+        },
+      });
+    });
+  }
+
+  if (jobsSaveBtn) {
+    jobsSaveBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({
+        type: "updateJob",
+        jobId: selectedJobId,
+        data: {
+          name: jobsNameInput ? jobsNameInput.value : "",
+          cronExpression: jobsCronInput ? jobsCronInput.value : "",
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
+        },
+      });
+    });
+  }
+
+  if (jobsDuplicateBtn) {
+    jobsDuplicateBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
+    });
+  }
+
+  if (jobsPauseBtn) {
+    jobsPauseBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+    });
+  }
+
+  if (jobsDeleteBtn) {
+    jobsDeleteBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
+    });
+  }
+
+  if (jobsAttachBtn) {
+    jobsAttachBtn.addEventListener("click", function () {
+      if (!selectedJobId || !jobsExistingTaskSelect || !jobsExistingTaskSelect.value) return;
+      vscode.postMessage({
+        type: "attachTaskToJob",
+        jobId: selectedJobId,
+        taskId: jobsExistingTaskSelect.value,
+        windowMinutes: jobsExistingWindowInput ? Number(jobsExistingWindowInput.value || 30) : 30,
+      });
+    });
+  }
+
+  if (jobsCreateStepBtn) {
+    jobsCreateStepBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      var name = jobsStepNameInput ? jobsStepNameInput.value.trim() : "";
+      var prompt = jobsStepPromptInput ? jobsStepPromptInput.value.trim() : "";
+      if (!name || !prompt) return;
+      var selectedJob = getJobById(selectedJobId);
+      vscode.postMessage({
+        type: "createJobTask",
+        jobId: selectedJobId,
+        windowMinutes: jobsStepWindowInput ? Number(jobsStepWindowInput.value || 30) : 30,
+        data: {
+          name: name,
+          prompt: prompt,
+          cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
+          agent: jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
+          model: jobsStepModelSelect ? jobsStepModelSelect.value : "",
+          labels: parseLabels(jobsStepLabelsInput ? jobsStepLabelsInput.value : ""),
+          scope: "workspace",
+          promptSource: "inline",
+          oneTime: false,
+        },
+      });
+      if (jobsStepNameInput) jobsStepNameInput.value = "";
+      if (jobsStepPromptInput) jobsStepPromptInput.value = "";
+      if (jobsStepLabelsInput) jobsStepLabelsInput.value = "";
+      if (jobsStepWindowInput) jobsStepWindowInput.value = "30";
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    var target = e && e.target;
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
+      selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
+      selectedJobId = "";
+      persistTaskFilter();
+      renderJobsTab();
+      return;
+    }
+
+    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+    if (jobItem && jobsList && jobsList.contains(jobItem)) {
+      selectedJobId = jobItem.getAttribute("data-job-id") || "";
+      persistTaskFilter();
+      renderJobsTab();
+      return;
+    }
+
+    var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
+    if (!jobAction) return;
+
+    if (jobAction === "detach-node") {
+      var detachNodeId = target.getAttribute("data-job-node-id") || "";
+      if (selectedJobId && detachNodeId) {
+        vscode.postMessage({ type: "detachTaskFromJob", jobId: selectedJobId, nodeId: detachNodeId });
+      }
+      return;
+    }
+
+    if (jobAction === "edit-task") {
+      var editTaskId = target.getAttribute("data-job-task-id") || "";
+      if (editTaskId && typeof window.editTask === "function") {
+        window.editTask(editTaskId);
+      }
+      return;
+    }
+
+    if (jobAction === "run-task") {
+      var runTaskId = target.getAttribute("data-job-task-id") || "";
+      if (runTaskId && typeof window.runTask === "function") {
+        window.runTask(runTaskId);
+      }
+    }
+  });
+
+  document.addEventListener("change", function (e) {
+    var target = e && e.target;
+    if (!target) return;
+    if (target.classList && target.classList.contains("job-node-window-input")) {
+      if (!selectedJobId) return;
+      var nodeId = target.getAttribute("data-job-node-window-id") || "";
+      if (!nodeId) return;
+      vscode.postMessage({
+        type: "updateJobNodeWindow",
+        jobId: selectedJobId,
+        nodeId: nodeId,
+        windowMinutes: Number(target.value || 30),
+      });
+    }
+  });
+
+  document.addEventListener("dragstart", function (e) {
+    var target = e && e.target;
+    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+    if (!card) return;
+    draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
+    if (card.classList) card.classList.add("dragging");
+  });
+
+  document.addEventListener("dragend", function (e) {
+    var target = e && e.target;
+    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+    if (card && card.classList) card.classList.remove("dragging");
+    draggedJobNodeId = "";
+    Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function (item) {
+      if (item && item.classList) item.classList.remove("drag-over");
+    });
+  });
+
+  document.addEventListener("dragover", function (e) {
+    var target = e && e.target;
+    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+    if (!card || !draggedJobNodeId) return;
+    e.preventDefault();
+    if (card.classList) card.classList.add("drag-over");
+  });
+
+  document.addEventListener("dragleave", function (e) {
+    var target = e && e.target;
+    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+    if (card && card.classList) card.classList.remove("drag-over");
+  });
+
+  document.addEventListener("drop", function (e) {
+    var target = e && e.target;
+    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+    if (!card || !draggedJobNodeId || !selectedJobId) return;
+    e.preventDefault();
+    if (card.classList) card.classList.remove("drag-over");
+    var targetNodeId = card.getAttribute("data-job-node-id") || "";
+    var selectedJob = getJobById(selectedJobId);
+    if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
+    var targetIndex = selectedJob.nodes.findIndex(function (node) {
+      return node && node.id === targetNodeId;
+    });
+    if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
+    vscode.postMessage({
+      type: "reorderJobNode",
+      jobId: selectedJobId,
+      nodeId: draggedJobNodeId,
+      targetIndex: targetIndex,
+    });
+  });
+
   // Template refresh button (Create tab)
   if (templateRefreshBtn) {
     templateRefreshBtn.addEventListener("click", function () {
@@ -806,6 +1255,18 @@
           source: source,
         });
       }
+    });
+  }
+
+  if (insertSkillBtn) {
+    insertSkillBtn.addEventListener("click", function () {
+      insertSelectedSkillReference();
+    });
+  }
+
+  if (setupMcpBtn) {
+    setupMcpBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "setupMcp" });
     });
   }
 
@@ -873,6 +1334,12 @@
     if (!taskList) return;
 
     var taskItems = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+    taskItems = sortTasksByNextRun(taskItems);
+    if (activeLabelFilter) {
+      taskItems = taskItems.filter(function (task) {
+        return getEffectiveLabels(task).indexOf(activeLabelFilter) !== -1;
+      });
+    }
     var renderedTasks = "";
 
     function normalizePath(p) {
@@ -982,6 +1449,15 @@
                 : strings.labelChatSessionBadgeNew || "Chat: New",
             ) +
             "</span>";
+      var labelBadgesHtml = getEffectiveLabels(task)
+        .map(function (label) {
+          return (
+            '<span class="task-badge label">' +
+            escapeHtml(label) +
+            "</span>"
+          );
+        })
+        .join("");
 
       // Escape for HTML attributes to avoid broken inline handlers
       var taskIdEscaped = escapeAttr(task.id || "");
@@ -1095,6 +1571,9 @@
         scopeInfo +
         "</span>" +
         "</div>" +
+        (labelBadgesHtml
+          ? '<div class="task-badges">' + labelBadgesHtml + "</div>"
+          : "") +
         configRow +
         '<div class="task-prompt">' +
         escapeHtml(promptPreview) +
@@ -1504,6 +1983,7 @@
     if (friendlyFrequency) friendlyFrequency.value = "";
     if (jitterSecondsInput)
       jitterSecondsInput.value = String(defaultJitterSeconds);
+    if (taskLabelsInput) taskLabelsInput.value = "";
     var runFirstEl = document.getElementById("run-first");
     if (runFirstEl) runFirstEl.checked = false;
     var oneTimeEl = document.getElementById("one-time");
@@ -1645,6 +2125,299 @@
     updateTemplateOptions(effectiveSource, selectedPath);
   }
 
+  function updateSkillOptions() {
+    if (!skillSelect) return;
+    var items = Array.isArray(skills) ? skills : [];
+    var placeholder = strings.placeholderSelectSkill || "Select a skill";
+    skillSelect.innerHTML =
+      '<option value="">' +
+      escapeHtml(placeholder) +
+      "</option>" +
+      items
+        .map(function (skill) {
+          return (
+            '<option value="' +
+            escapeAttr(skill.path || "") +
+            '">' +
+            escapeHtml(skill.reference || skill.name || "") +
+            "</option>"
+          );
+        })
+        .join("");
+  }
+
+  function insertSelectedSkillReference() {
+    if (!skillSelect || !promptGroup) return;
+    var selectedPath = skillSelect.value || "";
+    if (!selectedPath) return;
+    var selectedSkill = (Array.isArray(skills) ? skills : []).find(function (skill) {
+      return skill && skill.path === selectedPath;
+    });
+    if (!selectedSkill) return;
+
+    var sourceRadio = document.querySelector('input[name="prompt-source"][value="inline"]');
+    if (sourceRadio) {
+      sourceRadio.checked = true;
+    }
+    applyPromptSource("inline", false);
+
+    var promptTextEl = document.getElementById("prompt-text");
+    if (!promptTextEl) return;
+    var template = strings.skillSentenceTemplate || "Use {skill} to know how things must be done.";
+    var sentence = template.replace("{skill}", selectedSkill.reference || selectedSkill.name || "skill");
+    var current = promptTextEl.value || "";
+    promptTextEl.value = current.trim()
+      ? current.replace(/\s*$/, "\n\n") + sentence
+      : sentence;
+    if (typeof promptTextEl.focus === "function") {
+      promptTextEl.focus();
+    }
+  }
+
+  function updateSimpleSelect(selectEl, items, placeholder, selectedValue, getValue, getLabel) {
+    if (!selectEl) return;
+    var optionItems = Array.isArray(items) ? items : [];
+    var html =
+      '<option value="">' +
+      escapeHtml(placeholder || "") +
+      "</option>" +
+      optionItems
+        .map(function (item) {
+          var value = getValue(item);
+          var label = getLabel(item);
+          return (
+            '<option value="' +
+            escapeAttr(value) +
+            '">' +
+            escapeHtml(label) +
+            "</option>"
+          );
+        })
+        .join("");
+    selectEl.innerHTML = html;
+    selectEl.value = selectedValue || "";
+    if (selectEl.value !== (selectedValue || "")) {
+      selectEl.value = "";
+    }
+  }
+
+  function syncJobsFolderSelect(selectedValue) {
+    updateSimpleSelect(
+      jobsFolderSelect,
+      Array.isArray(jobFolders) ? jobFolders.slice().sort(function (a, b) {
+        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      }) : [],
+      strings.jobsRootFolder || "All jobs",
+      selectedValue || "",
+      function (folder) {
+        return folder && folder.id ? folder.id : "";
+      },
+      function (folder) {
+        var depth = getFolderDepth(folder);
+        var prefix = new Array(depth + 1).join("  ");
+        return prefix + (folder && folder.name ? folder.name : "");
+      },
+    );
+  }
+
+  function syncJobsStepSelectors() {
+    updateSimpleSelect(
+      jobsStepAgentSelect,
+      agents,
+      strings.placeholderSelectAgent || "Select agent",
+      jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+    updateSimpleSelect(
+      jobsStepModelSelect,
+      models,
+      strings.placeholderSelectModel || "Select model",
+      jobsStepModelSelect ? jobsStepModelSelect.value : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+  }
+
+  function syncJobsExistingTaskSelect() {
+    var standaloneTasks = getStandaloneTasks();
+    updateSimpleSelect(
+      jobsExistingTaskSelect,
+      standaloneTasks,
+      strings.jobsNoStandaloneTasks || "No standalone tasks available",
+      jobsExistingTaskSelect ? jobsExistingTaskSelect.value : "",
+      function (task) {
+        return task && task.id ? task.id : "";
+      },
+      function (task) {
+        return task && task.name ? task.name : "";
+      },
+    );
+    if (jobsAttachBtn) {
+      jobsAttachBtn.disabled = standaloneTasks.length === 0;
+    }
+  }
+
+  function getVisibleJobs() {
+    return (Array.isArray(jobs) ? jobs : [])
+      .filter(function (job) {
+        return job && (job.folderId || "") === selectedJobFolderId;
+      })
+      .sort(function (a, b) {
+        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      });
+  }
+
+  function renderJobsTab() {
+    ensureValidJobSelection();
+    persistTaskFilter();
+
+    if (jobsRenameFolderBtn) jobsRenameFolderBtn.disabled = !selectedJobFolderId;
+    if (jobsDeleteFolderBtn) jobsDeleteFolderBtn.disabled = !selectedJobFolderId;
+
+    if (jobsFolderList) {
+      var folderItems = (Array.isArray(jobFolders) ? jobFolders.slice() : []).sort(function (a, b) {
+        var depthDiff = getFolderDepth(a) - getFolderDepth(b);
+        if (depthDiff !== 0) return depthDiff;
+        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      });
+
+      var rootClass = selectedJobFolderId ? "jobs-folder-item" : "jobs-folder-item active";
+      var folderHtml =
+        '<div class="' + rootClass + '" data-job-folder="">' +
+        '<div class="jobs-folder-item-header"><span>' +
+        escapeHtml(strings.jobsRootFolder || "All jobs") +
+        '</span><span class="jobs-pill">' +
+        String((Array.isArray(jobs) ? jobs : []).filter(function (job) {
+          return job && !(job.folderId || "");
+        }).length) +
+        '</span></div></div>';
+
+      folderHtml += folderItems
+        .map(function (folder) {
+          var depth = getFolderDepth(folder);
+          var isActive = folder && folder.id === selectedJobFolderId;
+          var count = (Array.isArray(jobs) ? jobs : []).filter(function (job) {
+            return job && job.folderId === folder.id;
+          }).length;
+          var indent = new Array(depth + 1)
+            .join('<span class="jobs-folder-indent"></span>');
+          return (
+            '<div class="jobs-folder-item' +
+            (isActive ? ' active' : '') +
+            '" data-job-folder="' +
+            escapeAttr(folder.id || "") +
+            '">' +
+            '<div class="jobs-folder-item-header">' +
+            '<span>' + indent + escapeHtml(folder.name || "") + '</span>' +
+            '<span class="jobs-pill">' + String(count) + '</span>' +
+            '</div>' +
+            '</div>'
+          );
+        })
+        .join("");
+      jobsFolderList.innerHTML = folderHtml || ('<div class="jobs-empty">' + escapeHtml(strings.jobsNoFolders || "No folders yet.") + '</div>');
+    }
+
+    if (jobsList) {
+      var visibleJobs = getVisibleJobs();
+      if (visibleJobs.length === 0) {
+        jobsList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsNoJobs || "No jobs in this folder yet.") + '</div>';
+      } else {
+        jobsList.innerHTML = visibleJobs
+          .map(function (job) {
+            return (
+              '<div class="jobs-list-item' +
+              (job.id === selectedJobId ? ' active' : '') +
+              '" data-job-id="' + escapeAttr(job.id || "") + '">' +
+              '<div class="jobs-list-item-header">' +
+              '<strong>' + escapeHtml(job.name || "") + '</strong>' +
+              '<span class="jobs-pill">' + escapeHtml(job.paused ? (strings.jobsPaused || "Paused") : (strings.jobsRunning || "Active")) + '</span>' +
+              '</div>' +
+              '<div class="jobs-list-item-meta">' +
+              escapeHtml(job.cronExpression || "") + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' steps' +
+              '</div>' +
+              '</div>'
+            );
+          })
+          .join("");
+      }
+    }
+
+    var selectedJob = getJobById(selectedJobId);
+    if (!selectedJob) {
+      if (jobsEmptyState) jobsEmptyState.style.display = "block";
+      if (jobsDetails) jobsDetails.style.display = "none";
+      return;
+    }
+
+    if (jobsEmptyState) jobsEmptyState.style.display = "none";
+    if (jobsDetails) jobsDetails.style.display = "block";
+
+    if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
+    if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
+    syncJobsFolderSelect(selectedJob.folderId || "");
+    if (jobsStatusPill) {
+      jobsStatusPill.textContent = selectedJob.paused
+        ? strings.jobsPaused || "Paused"
+        : strings.jobsRunning || "Active";
+    }
+    if (jobsPauseBtn) {
+      jobsPauseBtn.textContent = selectedJob.paused
+        ? strings.jobsResume || "Resume Job"
+        : strings.jobsPause || "Pause Job";
+    }
+
+    syncJobsExistingTaskSelect();
+    syncJobsStepSelectors();
+
+    if (jobsStepList) {
+      var stepCards = (Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [])
+        .map(function (node, index) {
+          var task = getTaskById(node.taskId);
+          var taskName = task && task.name ? task.name : "Missing task";
+          var taskPrompt = task && task.prompt ? String(task.prompt) : "";
+          var preview = taskPrompt.length > 120 ? taskPrompt.slice(0, 120) + "..." : taskPrompt;
+          var nextRunText = task && task.nextRun
+            ? new Date(task.nextRun).toLocaleString(locale)
+            : (strings.labelNever || "Never");
+          return (
+            '<div class="jobs-step-card" draggable="true" data-job-node-id="' +
+            escapeAttr(node.id || "") +
+            '">' +
+            '<div class="jobs-step-header">' +
+            '<strong>' + String(index + 1) + '. ' + escapeHtml(taskName) + '</strong>' +
+            '<span class="jobs-pill">' + escapeHtml(String(node.windowMinutes || 30) + 'm') + '</span>' +
+            '</div>' +
+            '<div class="jobs-step-meta">' + escapeHtml(strings.labelNextRun || "Next run") + ': ' + escapeHtml(nextRunText) + '</div>' +
+            '<div class="task-prompt" style="margin-top:8px;">' + escapeHtml(preview) + '</div>' +
+            '<div class="jobs-inline-form">' +
+            '<div class="form-group">' +
+            '<label>' + escapeHtml(strings.jobsWindowMinutes || "Window (minutes)") + '</label>' +
+            '<input type="number" class="job-node-window-input" data-job-node-window-id="' + escapeAttr(node.id || "") + '" min="1" max="1440" value="' + escapeAttr(String(node.windowMinutes || 30)) + '">' +
+            '</div>' +
+            '</div>' +
+            '<div class="jobs-step-toolbar">' +
+            '<button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionEdit || "Edit") + '</button>' +
+            '<button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionRun || "Run") + '</button>' +
+            '<button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="' + escapeAttr(node.id || "") + '">Remove</button>' +
+            '</div>' +
+            '</div>'
+          );
+        })
+        .join("");
+      jobsStepList.innerHTML = stepCards || ('<div class="jobs-empty">' + escapeHtml(strings.jobsEmptySteps || "This job has no steps yet.") + '</div>');
+    }
+  }
+
   // Initialize dropdowns with cached data
   updateAgentOptions();
   updateModelOptions();
@@ -1660,6 +2433,12 @@
   syncRecurringChatSessionUi();
   updateFriendlyVisibility();
   updateCronPreview();
+  updateSkillOptions();
+  syncTaskLabelFilterOptions();
+  syncJobsStepSelectors();
+  syncJobsFolderSelect("");
+  syncJobsExistingTaskSelect();
+  renderJobsTab();
 
   // Global functions for onclick handlers
   window.runTask = function (id) {
@@ -1688,6 +2467,7 @@
     var taskNameEl = document.getElementById("task-name");
     var promptTextEl = document.getElementById("prompt-text");
     if (taskNameEl) taskNameEl.value = task.name || "";
+    if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
     if (promptTextEl)
       promptTextEl.value = typeof task.prompt === "string" ? task.prompt : "";
     if (cronExpression) cronExpression.value = task.cronExpression || "";
@@ -1827,7 +2607,23 @@
     try {
       switch (message.type) {
         case "updateTasks":
+          tasks = Array.isArray(message.tasks) ? message.tasks : [];
+          syncTaskLabelFilterOptions();
+          syncJobsExistingTaskSelect();
           renderTaskList(message.tasks);
+          renderJobsTab();
+          break;
+        case "updateJobs":
+          jobs = Array.isArray(message.jobs) ? message.jobs : [];
+          syncTaskLabelFilterOptions();
+          renderTaskList(tasks);
+          renderJobsTab();
+          break;
+        case "updateJobFolders":
+          jobFolders = Array.isArray(message.jobFolders)
+            ? message.jobFolders
+            : [];
+          renderJobsTab();
           break;
         case "updateAgents":
           {
@@ -1835,6 +2631,7 @@
               pendingAgentValue || (agentSelect ? agentSelect.value : "");
             agents = Array.isArray(message.agents) ? message.agents : [];
             updateAgentOptions();
+            syncJobsStepSelectors();
             if (agentSelect && currentAgentValue) {
               agentSelect.value = currentAgentValue;
               if (agentSelect.value === currentAgentValue) {
@@ -1851,6 +2648,7 @@
               pendingModelValue || (modelSelect ? modelSelect.value : "");
             models = Array.isArray(message.models) ? message.models : [];
             updateModelOptions();
+            syncJobsStepSelectors();
             if (modelSelect && currentModelValue) {
               modelSelect.value = currentModelValue;
               if (modelSelect.value === currentModelValue) {
@@ -1890,6 +2688,10 @@
             }
           }
           break;
+        case "updateSkills":
+          skills = Array.isArray(message.skills) ? message.skills : [];
+          updateSkillOptions();
+          break;
         case "updateAutoShowOnStartup":
           autoShowOnStartup = !!message.enabled;
           syncAutoShowOnStartupUi();
@@ -1924,6 +2726,11 @@
                 toast.style.opacity = "1";
               }, 3500);
             }
+          }
+          break;
+        case "switchToTab":
+          if (message.tab) {
+            switchTab(message.tab);
           }
           break;
         case "focusTask":

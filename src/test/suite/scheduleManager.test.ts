@@ -226,6 +226,153 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
   });
 });
 
+suite("ScheduleManager Jobs Tests", () => {
+  function setWorkspaceFoldersForJobTest(root: string): () => void {
+    const wsAny = vscode.workspace as unknown as {
+      workspaceFolders?: Array<{ uri: vscode.Uri }>;
+    };
+    const original = wsAny.workspaceFolders;
+    try {
+      Object.defineProperty(vscode.workspace, "workspaceFolders", {
+        value: [{ uri: vscode.Uri.file(root) }],
+        configurable: true,
+      });
+    } catch {
+      // ignore
+    }
+    return () => {
+      try {
+        Object.defineProperty(vscode.workspace, "workspaceFolders", {
+          value: original,
+          configurable: true,
+        });
+      } catch {
+        // ignore
+      }
+    };
+  }
+
+  test("persists jobs and folders in workspace scheduler config", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-jobs-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-jobs-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const folder = await manager.createJobFolder({ name: "Marketing" });
+      const job = await manager.createJob({
+        name: "Morning pipeline",
+        cronExpression: "0 9 * * 1-5",
+        folderId: folder.id,
+      });
+      const step = await manager.createTaskInJob(
+        job.id,
+        {
+          name: "Draft newsletter",
+          cronExpression: "0 9 * * 1-5",
+          prompt: "Write the newsletter draft.",
+          enabled: true,
+          scope: "workspace",
+          labels: ["email", "weekly"],
+        },
+        45,
+      );
+
+      assert.ok(step);
+      assert.strictEqual(step?.jobId, job.id);
+      assert.strictEqual(manager.getAllJobs().length, 1);
+      assert.strictEqual(manager.getAllJobFolders().length, 1);
+
+      const liveSchedulerJson = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as {
+        tasks: Array<{ id: string; jobId?: string; labels?: string[] }>;
+        jobs: Array<{ id: string; folderId?: string; nodes?: Array<{ taskId: string; windowMinutes: number }> }>;
+        jobFolders: Array<{ id: string; name: string }>;
+      };
+
+      assert.strictEqual(liveSchedulerJson.jobs.length, 1);
+      assert.strictEqual(liveSchedulerJson.jobFolders.length, 1);
+      assert.strictEqual(liveSchedulerJson.jobs[0]?.folderId, folder.id);
+      assert.strictEqual(liveSchedulerJson.jobs[0]?.nodes?.[0]?.taskId, step?.id);
+      assert.strictEqual(liveSchedulerJson.jobs[0]?.nodes?.[0]?.windowMinutes, 45);
+      assert.strictEqual(
+        liveSchedulerJson.tasks.find((task) => task.id === step?.id)?.jobId,
+        job.id,
+      );
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("deleting a job detaches child tasks instead of deleting them", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-jobs-delete-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-jobs-delete-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Review flow",
+        cronExpression: "0 10 * * *",
+      });
+      const step = await manager.createTaskInJob(job.id, {
+        name: "Review prompt",
+        cronExpression: "0 10 * * *",
+        prompt: "Review the generated output.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      assert.ok(step);
+      assert.strictEqual(step?.jobId, job.id);
+
+      const deleted = await manager.deleteJob(job.id);
+      assert.strictEqual(deleted, true);
+      assert.strictEqual(manager.getAllJobs().length, 0);
+
+      const detachedTask = manager.getTask(step?.id || "");
+      assert.ok(detachedTask);
+      assert.strictEqual(detachedTask?.jobId, undefined);
+      assert.strictEqual(detachedTask?.jobNodeId, undefined);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+});
+
 suite("ScheduleManager Prompt Source Migration Tests", () => {
   function setWorkspaceFoldersForTest(root: string): () => void {
     const wsAny = vscode.workspace as unknown as {

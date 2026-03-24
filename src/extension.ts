@@ -14,6 +14,10 @@ import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
 import {
+  getSchedulerMcpSetupState,
+  upsertSchedulerMcpConfig,
+} from "./mcpConfigManager";
+import {
   normalizeForCompare,
   resolveGlobalPromptPath,
   resolveLocalPromptPath,
@@ -199,9 +203,13 @@ let scheduleManager: ScheduleManager;
 let copilotExecutor: CopilotExecutor;
 let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
+let extensionContext: vscode.ExtensionContext | undefined;
+let hasPromptedForMcpSetupThisSession = false;
 
 function refreshSchedulerUiState(): void {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+  SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
+  SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
   SchedulerWebview.updateScheduleHistory(
     scheduleManager.getWorkspaceScheduleHistory(),
   );
@@ -233,10 +241,86 @@ async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> 
   await SchedulerWebview.show(
     context.extensionUri,
     scheduleManager.getAllTasks(),
+    scheduleManager.getAllJobs(),
+    scheduleManager.getAllJobFolders(),
     handleTaskAction,
   );
   refreshSchedulerUiState();
-  SchedulerWebview.switchToList();
+  SchedulerWebview.switchToTab("help");
+  void maybePromptToSetupWorkspaceMcp(context);
+}
+
+function getPrimaryWorkspaceRootPath(): string | undefined {
+  return getPrimaryWorkspaceFolderUri()?.fsPath;
+}
+
+async function setupWorkspaceMcpConfig(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  try {
+    const result = upsertSchedulerMcpConfig(
+      workspaceRoot,
+      context.extensionUri.fsPath,
+    );
+    hasPromptedForMcpSetupThisSession = true;
+    notifyInfo(messages.mcpSetupCompleted(result.configPath));
+    return true;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error ?? "");
+    logError(
+      "[CopilotScheduler] Failed to update workspace MCP config:",
+      sanitizeErrorDetailsForLog(errorMessage),
+    );
+    notifyError(messages.mcpSetupFailed(sanitizeErrorDetailsForLog(errorMessage)));
+    return false;
+  }
+}
+
+async function maybePromptToSetupWorkspaceMcp(
+  context: vscode.ExtensionContext,
+): Promise<void> {
+  if (hasPromptedForMcpSetupThisSession) {
+    return;
+  }
+
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return;
+  }
+
+  const state = getSchedulerMcpSetupState(
+    workspaceRoot,
+    context.extensionUri.fsPath,
+  );
+  if (state.status === "configured") {
+    hasPromptedForMcpSetupThisSession = true;
+    return;
+  }
+
+  if (state.status === "invalid") {
+    logError(
+      "[CopilotScheduler] Unable to inspect workspace MCP config:",
+      sanitizeErrorDetailsForLog(state.reason),
+    );
+    return;
+  }
+
+  hasPromptedForMcpSetupThisSession = true;
+  const choice = await vscode.window.showInformationMessage(
+    messages.mcpSetupPrompt(),
+    messages.mcpSetupAction(),
+    messages.actionCancel(),
+  );
+  if (choice === messages.mcpSetupAction()) {
+    await setupWorkspaceMcpConfig(context);
+  }
 }
 
 function shouldAutoShowSchedulerOnStartup(): boolean {
@@ -425,6 +509,7 @@ async function runStartupSequence(
  * Extension activation
  */
 export function activate(context: vscode.ExtensionContext): void {
+  extensionContext = context;
   // Prompt reload when the extension has been updated
   {
     const currentVersion =
@@ -528,6 +613,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerMoveToCurrentWorkspaceCommand(),
     registerOpenSettingsCommand(),
     registerShowVersionCommand(context),
+    registerSetupMcpCommand(context),
   ];
 
   const executeScheduledTask = async (task: ScheduledTask): Promise<void> => {
@@ -895,7 +981,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (task.enabled) {
           await maybeShowDisclaimerOnce(task);
         }
-        SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+        refreshSchedulerUiState();
         break;
       }
 
@@ -934,7 +1020,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
             break;
           }
           notifyInfo(messages.taskDeleted(deleteTask.name));
-          SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+          refreshSchedulerUiState();
         }
         break;
       }
@@ -948,7 +1034,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           await maybeShowDisclaimerOnce(task);
           const createdMsg = messages.taskCreated(task.name);
           notifyInfo(createdMsg);
-          SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+          refreshSchedulerUiState();
           SchedulerWebview.switchToList(createdMsg);
         } else if (action.data) {
           await maybeWarnCronInterval(action.data.cronExpression);
@@ -964,7 +1050,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           }
           const updatedMsg = messages.taskUpdated(task.name);
           notifyInfo(updatedMsg);
-          SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+          refreshSchedulerUiState();
           SchedulerWebview.switchToList(updatedMsg);
         }
         break;
@@ -993,7 +1079,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         notifyInfo(messages.taskDuplicated(task.name));
-        SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+        refreshSchedulerUiState();
         break;
       }
 
@@ -1019,8 +1105,206 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         const moved = await scheduleManager.moveTaskToCurrentWorkspace(task.id);
         if (moved) {
           notifyInfo(messages.taskMovedToCurrentWorkspace(moved.name));
-          SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+          refreshSchedulerUiState();
         }
+        break;
+      }
+
+      case "createJob": {
+        if (!action.jobData) {
+          break;
+        }
+        const job = await scheduleManager.createJob(action.jobData as any);
+        notifyInfo(`Job created: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "updateJob": {
+        if (!action.jobId || !action.jobData) {
+          break;
+        }
+        const job = await scheduleManager.updateJob(action.jobId, action.jobData as any);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Job updated: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "deleteJob": {
+        if (!action.jobId) {
+          break;
+        }
+        const job = scheduleManager.getJob(action.jobId);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete job \"${job.name}\"? Attached tasks will remain as standalone tasks.`,
+          { modal: true },
+          messages.confirmDeleteYes(),
+        );
+        if (confirm !== messages.confirmDeleteYes()) {
+          break;
+        }
+        await scheduleManager.deleteJob(action.jobId);
+        notifyInfo(`Job deleted: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "duplicateJob": {
+        if (!action.jobId) {
+          break;
+        }
+        const duplicated = await scheduleManager.duplicateJob(action.jobId);
+        if (!duplicated) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Job duplicated: ${duplicated.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "toggleJobPaused": {
+        if (!action.jobId) {
+          break;
+        }
+        const job = await scheduleManager.toggleJobPaused(action.jobId);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(job.paused ? `Job paused: ${job.name}` : `Job resumed: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "createJobFolder": {
+        if (!action.folderData) {
+          break;
+        }
+        const folder = await scheduleManager.createJobFolder(action.folderData as any);
+        notifyInfo(`Folder created: ${folder.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "renameJobFolder": {
+        if (!action.folderId || !action.folderData) {
+          break;
+        }
+        const folder = await scheduleManager.renameJobFolder(action.folderId, action.folderData as any);
+        if (!folder) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Folder updated: ${folder.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "deleteJobFolder": {
+        if (!action.folderId) {
+          break;
+        }
+        const folder = scheduleManager.getJobFolder(action.folderId);
+        if (!folder) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        await scheduleManager.deleteJobFolder(action.folderId);
+        notifyInfo(`Folder deleted: ${folder.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "createJobTask": {
+        if (!action.jobId || !action.data) {
+          break;
+        }
+        const task = await scheduleManager.createTaskInJob(
+          action.jobId,
+          action.data as CreateTaskInput,
+          action.windowMinutes,
+        );
+        if (!task) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Job step created: ${task.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "attachTaskToJob": {
+        if (!action.jobId || !action.taskId) {
+          break;
+        }
+        const job = await scheduleManager.attachTaskToJob(
+          action.jobId,
+          action.taskId,
+          action.windowMinutes,
+        );
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Task added to job: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "detachTaskFromJob": {
+        if (!action.jobId || !action.nodeId) {
+          break;
+        }
+        const job = await scheduleManager.detachTaskFromJob(action.jobId, action.nodeId);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Job step removed: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "reorderJobNode": {
+        if (!action.jobId || !action.nodeId || action.targetIndex === undefined) {
+          break;
+        }
+        const job = await scheduleManager.reorderJobNode(
+          action.jobId,
+          action.nodeId,
+          action.targetIndex,
+        );
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "updateJobNodeWindow": {
+        if (!action.jobId || !action.nodeId || action.windowMinutes === undefined) {
+          break;
+        }
+        const job = await scheduleManager.updateJobNodeWindow(
+          action.jobId,
+          action.nodeId,
+          action.windowMinutes,
+        );
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        refreshSchedulerUiState();
         break;
       }
 
@@ -1065,6 +1349,15 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       case "refresh": {
         scheduleManager.reloadTasks();
         refreshSchedulerUiState();
+        break;
+      }
+
+      case "setupMcp": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupWorkspaceMcpConfig(extensionContext);
         break;
       }
     }
@@ -1121,6 +1414,17 @@ function registerCreateTaskCommand(): vscode.Disposable {
   );
 }
 
+function registerSetupMcpCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return vscode.commands.registerCommand(
+    "copilotScheduler.setupMcp",
+    async () => {
+      await setupWorkspaceMcpConfig(context);
+    },
+  );
+}
+
 function registerCreateTaskGuiCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
@@ -1131,6 +1435,8 @@ function registerCreateTaskGuiCommand(
         await SchedulerWebview.show(
           context.extensionUri,
           scheduleManager.getAllTasks(),
+          scheduleManager.getAllJobs(),
+          scheduleManager.getAllJobFolders(),
           handleTaskAction,
           async (prompt, agent, model) => {
             // Test prompt execution
@@ -1173,6 +1479,8 @@ function registerListTasksCommand(
         await SchedulerWebview.show(
           context.extensionUri,
           scheduleManager.getAllTasks(),
+          scheduleManager.getAllJobs(),
+          scheduleManager.getAllJobFolders(),
           handleTaskAction,
         );
         refreshSchedulerUiState();
@@ -1221,6 +1529,8 @@ function registerEditTaskCommand(
         await SchedulerWebview.show(
           context.extensionUri,
           scheduleManager.getAllTasks(),
+          scheduleManager.getAllJobs(),
+          scheduleManager.getAllJobFolders(),
           handleTaskAction,
         );
         refreshSchedulerUiState();

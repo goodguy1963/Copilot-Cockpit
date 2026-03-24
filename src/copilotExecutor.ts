@@ -126,11 +126,20 @@ export class CopilotExecutor {
     const chatSession =
       options?.chatSession ??
       config.get<ChatSessionBehavior>("chatSession", "new");
+    const requiresExplicitChatContext = Boolean(mode || options?.model);
+    const shouldForceNewChat = chatSession === "new" || requiresExplicitChatContext;
 
     try {
-      // Try to create new session if configured
-      if (chatSession === "new") {
-        await this.tryCreateNewChatSession();
+      // Explicit agent/model selection should not run inside an arbitrary
+      // existing conversation because that can silently reuse the active
+      // participant/model instead of the task-specific selection.
+      if (shouldForceNewChat) {
+        const createdNewSession = await this.tryCreateNewChatSession();
+        if (!createdNewSession && options?.model) {
+          throw new Error(
+            "Unable to open a fresh Copilot chat session for the selected model.",
+          );
+        }
       }
 
       // Prepare options for workbench.action.chat.open
@@ -174,6 +183,12 @@ export class CopilotExecutor {
           throw new Error("Unable to focus/open Copilot Chat panel");
         }
         await this.delay(DELAY_AFTER_FOCUS_MS);
+
+        if (options?.model) {
+          throw new Error(
+            "The current VS Code chat fallback cannot guarantee the selected model. Open the chat command path with model support or remove the task-specific model selection.",
+          );
+        }
 
         // Type the prompt including agent if we fell back
         let fallbackPrompt = query;
