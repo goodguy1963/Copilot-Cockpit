@@ -253,6 +253,8 @@
   var jobsList = document.getElementById("jobs-list");
   var jobsEmptyState = document.getElementById("jobs-empty-state");
   var jobsDetails = document.getElementById("jobs-details");
+  var jobsLayout = document.getElementById("jobs-layout");
+  var jobsToggleSidebarBtn = document.getElementById("jobs-toggle-sidebar-btn");
   var jobsNewFolderBtn = document.getElementById("jobs-new-folder-btn");
   var jobsRenameFolderBtn = document.getElementById("jobs-rename-folder-btn");
   var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
@@ -276,6 +278,7 @@
   var jobsFriendlyGenerate = document.getElementById("jobs-friendly-generate");
   var jobsFolderSelect = document.getElementById("jobs-folder-select");
   var jobsStatusPill = document.getElementById("jobs-status-pill");
+  var jobsTimelineInline = document.getElementById("jobs-timeline-inline");
   var jobsStepList = document.getElementById("jobs-step-list");
   var jobsExistingTaskSelect = document.getElementById("jobs-existing-task-select");
   var jobsExistingWindowInput = document.getElementById("jobs-existing-window-input");
@@ -292,6 +295,7 @@
   var selectedJobFolderId = "";
   var selectedJobId = "";
   var draggedJobNodeId = "";
+  var jobsSidebarHidden = false;
 
   function isValidTaskFilter(value) {
     return value === "all" || value === "recurring" || value === "one-time";
@@ -313,6 +317,9 @@
       }
       if (state && typeof state.selectedJobId === "string") {
         selectedJobId = state.selectedJobId;
+      }
+      if (state && typeof state.jobsSidebarHidden === "boolean") {
+        jobsSidebarHidden = state.jobsSidebarHidden;
       }
     } catch (_e) {
       // ignore state restore failures
@@ -336,10 +343,28 @@
       next.labelFilter = activeLabelFilter;
       next.selectedJobFolderId = selectedJobFolderId;
       next.selectedJobId = selectedJobId;
+      next.jobsSidebarHidden = jobsSidebarHidden;
       vscode.setState(next);
     } catch (_e) {
       // ignore state persist failures
     }
+  }
+
+  function applyJobsSidebarState() {
+    if (jobsLayout && jobsLayout.classList) {
+      jobsLayout.classList.toggle("sidebar-collapsed", !!jobsSidebarHidden);
+    }
+    if (jobsToggleSidebarBtn) {
+      jobsToggleSidebarBtn.textContent = jobsSidebarHidden
+        ? (strings.jobsShowSidebar || "Show Sidebar")
+        : (strings.jobsHideSidebar || "Hide Sidebar");
+    }
+  }
+
+  function getJobStatusText(job) {
+    return job && job.paused
+      ? (strings.jobsPaused || "Inactive")
+      : (strings.jobsRunning || "Active");
   }
 
   function syncTaskFilterButtons() {
@@ -1109,6 +1134,21 @@
     jobsPauseBtn.addEventListener("click", function () {
       if (!selectedJobId) return;
       vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+    });
+  }
+
+  if (jobsStatusPill) {
+    jobsStatusPill.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+    });
+  }
+
+  if (jobsToggleSidebarBtn) {
+    jobsToggleSidebarBtn.addEventListener("click", function () {
+      jobsSidebarHidden = !jobsSidebarHidden;
+      applyJobsSidebarState();
+      persistTaskFilter();
     });
   }
 
@@ -2528,7 +2568,7 @@
               '" data-job-id="' + escapeAttr(job.id || "") + '">' +
               '<div class="jobs-list-item-header">' +
               '<strong>' + escapeHtml(job.name || "") + '</strong>' +
-              '<span class="jobs-pill">' + escapeHtml(job.paused ? (strings.jobsPaused || "Paused") : (strings.jobsRunning || "Active")) + '</span>' +
+                '<span class="jobs-pill' + (job.paused ? ' is-inactive' : '') + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
               '</div>' +
                   '<div class="jobs-list-item-meta" title="' + escapeAttr(job.cronExpression || "") + '">' +
                   escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' steps' +
@@ -2541,6 +2581,7 @@
     }
 
     var selectedJob = getJobById(selectedJobId);
+    applyJobsSidebarState();
     if (!selectedJob) {
       if (jobsEmptyState) jobsEmptyState.style.display = "block";
       if (jobsDetails) jobsDetails.style.display = "none";
@@ -2549,15 +2590,17 @@
 
     if (jobsEmptyState) jobsEmptyState.style.display = "none";
     if (jobsDetails) jobsDetails.style.display = "block";
+    var selectedNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
 
     if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
     if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
-  if (jobsCronPreset) jobsCronPreset.value = "";
+    if (jobsCronPreset) jobsCronPreset.value = "";
     syncJobsFolderSelect(selectedJob.folderId || "");
     if (jobsStatusPill) {
-      jobsStatusPill.textContent = selectedJob.paused
-        ? strings.jobsPaused || "Paused"
-        : strings.jobsRunning || "Active";
+      jobsStatusPill.textContent = getJobStatusText(selectedJob);
+      if (jobsStatusPill.classList) {
+        jobsStatusPill.classList.toggle("is-inactive", !!selectedJob.paused);
+      }
     }
     if (jobsPauseBtn) {
       jobsPauseBtn.textContent = selectedJob.paused
@@ -2565,13 +2608,31 @@
         : strings.jobsPause || "Pause Job";
     }
 
+    if (jobsTimelineInline) {
+      var timelineHtml = selectedNodes
+        .map(function (node, index) {
+          var task = getTaskById(node.taskId);
+          var taskName = task && task.name ? task.name : ("Step " + String(index + 1));
+          return (
+            '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' +
+            escapeHtml(taskName) +
+            '</span>' +
+            (index < selectedNodes.length - 1
+              ? '<span class="jobs-timeline-arrow">→</span>'
+              : '')
+          );
+        })
+        .join("");
+      jobsTimelineInline.innerHTML = timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
+    }
+
     syncJobsExistingTaskSelect();
     syncJobsStepSelectors();
-  updateJobsCronPreview();
-  updateJobsFriendlyVisibility();
+    updateJobsCronPreview();
+    updateJobsFriendlyVisibility();
 
     if (jobsStepList) {
-      var stepCards = (Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [])
+      var stepCards = selectedNodes
         .map(function (node, index) {
           var task = getTaskById(node.taskId);
           var taskName = task && task.name ? task.name : "Missing task";
@@ -2585,14 +2646,13 @@
             escapeAttr(node.id || "") +
             '">' +
             '<div class="jobs-step-header">' +
-            '<strong>' + String(index + 1) + '. ' + escapeHtml(taskName) + '</strong>' +
+            '<strong title="' + escapeAttr(taskName) + '">' + String(index + 1) + '. ' + escapeHtml(taskName) + '</strong>' +
             '<span class="jobs-pill">' + escapeHtml(String(node.windowMinutes || 30) + 'm') + '</span>' +
             '</div>' +
             '<div class="jobs-step-meta">' + escapeHtml(strings.labelNextRun || "Next run") + ': ' + escapeHtml(nextRunText) + '</div>' +
-            '<div class="task-prompt" style="margin-top:8px;">' + escapeHtml(preview) + '</div>' +
+            '<div class="jobs-step-summary" title="' + escapeAttr(taskPrompt || preview) + '">' + escapeHtml(preview || "-") + '</div>' +
             '<div class="jobs-inline-form">' +
             '<div class="form-group">' +
-            '<label>' + escapeHtml(strings.jobsWindowMinutes || "Window (minutes)") + '</label>' +
             '<input type="number" class="job-node-window-input" data-job-node-window-id="' + escapeAttr(node.id || "") + '" min="1" max="1440" value="' + escapeAttr(String(node.windowMinutes || 30)) + '">' +
             '</div>' +
             '</div>' +
