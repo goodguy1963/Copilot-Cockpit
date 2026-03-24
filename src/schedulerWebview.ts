@@ -1299,13 +1299,18 @@ export class SchedulerWebview {
       jobsName: "Job name",
       jobsCron: "Job schedule",
       jobsFolder: "Folder",
-      jobsPaused: "Paused",
+      jobsPaused: "Inactive",
       jobsRunning: "Active",
       jobsSave: "Save Job",
       jobsDuplicate: "Duplicate Job",
       jobsDelete: "Delete Job",
-      jobsPause: "Pause Job",
-      jobsResume: "Resume Job",
+      jobsPause: "Deactivate Job",
+      jobsResume: "Activate Job",
+      jobsHideSidebar: "Hide Sidebar",
+      jobsShowSidebar: "Show Sidebar",
+      jobsCompactTimeline: "Workflow timeline",
+      jobsTimelineEmpty: "No steps yet",
+      jobsToggleStatus: "Toggle active status",
       jobsSteps: "Workflow steps",
       jobsWindowMinutes: "Window (minutes)",
       jobsAddExistingTask: "Add Existing Task",
@@ -1984,6 +1989,14 @@ export class SchedulerWebview {
       align-items: start;
     }
 
+    .jobs-layout.sidebar-collapsed {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .jobs-layout.sidebar-collapsed .jobs-sidebar {
+      display: none;
+    }
+
     .jobs-sidebar,
     .jobs-main {
       border: 1px solid var(--vscode-panel-border);
@@ -2017,6 +2030,12 @@ export class SchedulerWebview {
     .jobs-step-list {
       display: grid;
       gap: 8px;
+    }
+
+    .jobs-main-header {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 12px;
     }
 
     .jobs-folder-item,
@@ -2072,12 +2091,18 @@ export class SchedulerWebview {
       gap: 12px;
     }
 
+    .jobs-job-grid .form-group.wide {
+      grid-column: 1 / -1;
+    }
+
     .jobs-step-list {
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .jobs-step-card {
-      min-height: 160px;
+      min-height: 124px;
+      padding: 8px;
+      font-size: 12px;
     }
 
     .jobs-step-card[draggable="true"] {
@@ -2097,6 +2122,74 @@ export class SchedulerWebview {
       background-color: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       font-size: 11px;
+    }
+
+    .jobs-pill.is-toggle {
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .jobs-pill.is-toggle:hover {
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .jobs-pill.is-inactive {
+      background-color: var(--vscode-inputValidation-warningBackground);
+      color: var(--vscode-inputValidation-warningForeground);
+    }
+
+    .jobs-timeline-inline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+
+    .jobs-timeline-node {
+      display: inline-flex;
+      align-items: center;
+      max-width: 220px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--vscode-sideBar-background);
+      border: 1px solid var(--vscode-panel-border);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .jobs-timeline-arrow {
+      color: var(--vscode-descriptionForeground);
+      flex: 0 0 auto;
+    }
+
+    .jobs-step-summary {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-top: 6px;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.35;
+      min-height: 2.7em;
+    }
+
+    .jobs-step-toolbar {
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+
+    .jobs-step-toolbar .btn-secondary,
+    .jobs-step-toolbar .btn-danger {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .jobs-step-toolbar .btn-danger {
+      margin-left: auto;
     }
 
     .jobs-inline-form {
@@ -2120,6 +2213,22 @@ export class SchedulerWebview {
       }
 
       .jobs-job-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-step-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .jobs-step-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .jobs-step-list {
         grid-template-columns: 1fr;
       }
     }
@@ -2351,7 +2460,7 @@ export class SchedulerWebview {
   </div>
 
   <div id="jobs-tab" class="tab-content">
-    <div class="jobs-layout">
+    <div class="jobs-layout" id="jobs-layout">
       <aside class="jobs-sidebar">
         <div class="jobs-sidebar-section">
           <div class="section-title">${escapeHtml(strings.jobsFoldersTitle)}</div>
@@ -2370,6 +2479,9 @@ export class SchedulerWebview {
       </aside>
 
       <section class="jobs-main">
+        <div class="jobs-main-header">
+          <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn">${escapeHtml(strings.jobsHideSidebar)}</button>
+        </div>
         <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
         <div id="jobs-details" style="display:none;">
           <div class="jobs-job-toolbar">
@@ -2403,7 +2515,11 @@ export class SchedulerWebview {
             </div>
             <div class="form-group">
               <label>${escapeHtml(strings.labelStatus)}</label>
-              <div id="jobs-status-pill" class="jobs-pill">${escapeHtml(strings.jobsRunning)}</div>
+              <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
+            </div>
+            <div class="form-group wide">
+              <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
+              <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
             </div>
           </div>
 
