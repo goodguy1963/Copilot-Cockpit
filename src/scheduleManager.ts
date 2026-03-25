@@ -1791,6 +1791,28 @@ export class ScheduleManager {
     return job;
   }
 
+  async deleteTaskFromJob(
+    jobId: string,
+    nodeId: string,
+  ): Promise<JobDefinition | undefined> {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      return undefined;
+    }
+
+    const node = job.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    const deleted = await this.deleteTask(node.taskId);
+    if (!deleted) {
+      return undefined;
+    }
+
+    return this.jobs.get(jobId);
+  }
+
   async reorderJobNode(
     jobId: string,
     nodeId: string,

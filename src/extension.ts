@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { ScheduleManager } from "./scheduleManager";
 import { CopilotExecutor } from "./copilotExecutor";
+import { ResearchManager } from "./researchManager";
 import { ScheduledTaskTreeProvider, ScheduledTaskItem } from "./treeProvider";
 import { SchedulerWebview } from "./schedulerWebview";
 import { messages } from "./i18n";
@@ -26,6 +27,7 @@ import {
 import type {
   ScheduledTask,
   CreateTaskInput,
+  CreateResearchProfileInput,
   TaskAction,
   PromptSource,
 } from "./types";
@@ -201,6 +203,7 @@ export function notifyError(message: string, timeoutMs = 6000): void {
 // Global instances
 let scheduleManager: ScheduleManager;
 let copilotExecutor: CopilotExecutor;
+let researchManager: ResearchManager;
 let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
@@ -210,8 +213,30 @@ function refreshSchedulerUiState(): void {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
   SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
+  SchedulerWebview.updateResearchState(
+    researchManager.getAllProfiles(),
+    researchManager.getActiveRun(),
+    researchManager.getRecentRuns(),
+  );
   SchedulerWebview.updateScheduleHistory(
     scheduleManager.getWorkspaceScheduleHistory(),
+  );
+}
+
+async function showSchedulerWebview(
+  context: vscode.ExtensionContext,
+  onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
+): Promise<void> {
+  await SchedulerWebview.show(
+    context.extensionUri,
+    scheduleManager.getAllTasks(),
+    scheduleManager.getAllJobs(),
+    scheduleManager.getAllJobFolders(),
+    researchManager.getAllProfiles(),
+    researchManager.getActiveRun(),
+    researchManager.getRecentRuns(),
+    handleTaskAction,
+    onTestPrompt,
   );
 }
 
@@ -238,13 +263,7 @@ async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
 }
 
 async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> {
-  await SchedulerWebview.show(
-    context.extensionUri,
-    scheduleManager.getAllTasks(),
-    scheduleManager.getAllJobs(),
-    scheduleManager.getAllJobFolders(),
-    handleTaskAction,
-  );
+  await showSchedulerWebview(context);
   refreshSchedulerUiState();
   SchedulerWebview.switchToTab("help");
   void maybePromptToSetupWorkspaceMcp(context);
@@ -536,6 +555,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Initialize components
   scheduleManager = new ScheduleManager(context);
   copilotExecutor = new CopilotExecutor();
+  researchManager = new ResearchManager(context, copilotExecutor);
 
   // --- HBG CUSTOM: Watch .vscode/scheduler*.json ---
   if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -588,6 +608,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // Register callback to refresh tree when tasks change (e.g. from watcher or MCP)
   scheduleManager.setOnTasksChangedCallback(() => {
     treeProvider.refresh();
+    refreshSchedulerUiState();
+  });
+  researchManager.setOnChangedCallback(() => {
     refreshSchedulerUiState();
   });
 
@@ -1117,6 +1140,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         const job = await scheduleManager.createJob(action.jobData as any);
         notifyInfo(`Job created: ${job.name}`);
         refreshSchedulerUiState();
+        SchedulerWebview.focusJob(job.id, job.folderId);
         break;
       }
 
@@ -1124,6 +1148,10 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.jobData) {
           break;
         }
+        const hasFolderUpdate = Object.prototype.hasOwnProperty.call(
+          action.jobData,
+          "folderId",
+        );
         const job = await scheduleManager.updateJob(action.jobId, action.jobData as any);
         if (!job) {
           notifyError(messages.taskNotFound());
@@ -1131,6 +1159,9 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         }
         notifyInfo(`Job updated: ${job.name}`);
         refreshSchedulerUiState();
+        if (hasFolderUpdate) {
+          SchedulerWebview.focusJob(job.id, job.folderId);
+        }
         break;
       }
 
@@ -1274,6 +1305,23 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "deleteJobTask": {
+        if (!action.jobId || !action.nodeId) {
+          break;
+        }
+        const job = await scheduleManager.deleteTaskFromJob(
+          action.jobId,
+          action.nodeId,
+        );
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Job step deleted: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
       case "reorderJobNode": {
         if (!action.jobId || !action.nodeId || action.targetIndex === undefined) {
           break;
@@ -1360,6 +1408,99 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         await setupWorkspaceMcpConfig(extensionContext);
         break;
       }
+
+      case "createResearchProfile": {
+        if (!action.researchData) {
+          break;
+        }
+        const profile = await researchManager.createProfile(
+          action.researchData as CreateResearchProfileInput,
+        );
+        notifyInfo(`Research profile created: ${profile.name}`);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        break;
+      }
+
+      case "updateResearchProfile": {
+        if (!action.researchId || !action.researchData) {
+          break;
+        }
+        const profile = await researchManager.updateProfile(
+          action.researchId,
+          action.researchData,
+        );
+        if (!profile) {
+          notifyError("Research profile not found.");
+          break;
+        }
+        notifyInfo(`Research profile updated: ${profile.name}`);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        break;
+      }
+
+      case "deleteResearchProfile": {
+        if (!action.researchId) {
+          break;
+        }
+        const profile = researchManager.getProfile(action.researchId);
+        if (!profile) {
+          notifyError("Research profile not found.");
+          break;
+        }
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete research profile "${profile.name}"? Recent run history will stay on disk.`,
+          { modal: true },
+          messages.confirmDeleteYes(),
+          messages.actionCancel(),
+        );
+        if (confirm !== messages.confirmDeleteYes()) {
+          break;
+        }
+        await researchManager.deleteProfile(action.researchId);
+        notifyInfo(`Research profile deleted: ${profile.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "duplicateResearchProfile": {
+        if (!action.researchId) {
+          break;
+        }
+        const duplicate = await researchManager.duplicateProfile(action.researchId);
+        if (!duplicate) {
+          notifyError("Research profile not found.");
+          break;
+        }
+        notifyInfo(`Research profile duplicated: ${duplicate.name}`);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        break;
+      }
+
+      case "startResearchRun": {
+        if (!action.researchId) {
+          break;
+        }
+        const run = await researchManager.startRun(action.researchId);
+        notifyInfo(`Research run started: ${run.profileName}`);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        break;
+      }
+
+      case "stopResearchRun": {
+        const stopped = await researchManager.stopRun();
+        if (!stopped) {
+          notifyInfo("No research run is currently active.");
+          break;
+        }
+        notifyInfo("Research run stop requested.");
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        break;
+      }
     }
   } catch (error) {
     const errorMessage =
@@ -1432,12 +1573,8 @@ function registerCreateTaskGuiCommand(
     "copilotScheduler.createTaskGui",
     async () => {
       try {
-        await SchedulerWebview.show(
-          context.extensionUri,
-          scheduleManager.getAllTasks(),
-          scheduleManager.getAllJobs(),
-          scheduleManager.getAllJobFolders(),
-          handleTaskAction,
+        await showSchedulerWebview(
+          context,
           async (prompt, agent, model) => {
             // Test prompt execution
             // executePrompt already shows a user-facing warning with copy-to-clipboard
@@ -1476,13 +1613,7 @@ function registerListTasksCommand(
     "copilotScheduler.listTasks",
     async () => {
       try {
-        await SchedulerWebview.show(
-          context.extensionUri,
-          scheduleManager.getAllTasks(),
-          scheduleManager.getAllJobs(),
-          scheduleManager.getAllJobFolders(),
-          handleTaskAction,
-        );
+        await showSchedulerWebview(context);
         refreshSchedulerUiState();
         SchedulerWebview.switchToList();
       } catch (error) {
@@ -1526,13 +1657,7 @@ function registerEditTaskCommand(
           taskId = selected.id;
         }
 
-        await SchedulerWebview.show(
-          context.extensionUri,
-          scheduleManager.getAllTasks(),
-          scheduleManager.getAllJobs(),
-          scheduleManager.getAllJobFolders(),
-          handleTaskAction,
-        );
+        await showSchedulerWebview(context);
         refreshSchedulerUiState();
         SchedulerWebview.editTask(taskId);
       } catch (error) {

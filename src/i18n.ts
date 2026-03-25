@@ -394,7 +394,6 @@ export const messages = {
       "This is separate from MCP. New chat sessions are controlled by the scheduler chatSession setting, while MCP tool visibility still depends on workspace launch config.",
       "これは MCP とは別の機能です。新しいチャットセッションは scheduler の chatSession 設定で制御され、MCP ツールの表示は引き続きワークスペースの起動設定に依存します。",
     ),
-  helpMcpTitle: () => t("7. MCP Support", "7. MCP 対応"),
   helpMcpItemEmbedded: () =>
     t(
       "Yes, MCP is built into this fork. The scheduler MCP server is implemented in server.ts and packaged as out/server.js.",
@@ -431,7 +430,34 @@ export const messages = {
       "Job names become effective task labels, so you can filter the Task List by workflow and still add your own manual labels.",
       "ジョブ名は実効タスクラベルとして扱われるため、Task List をワークフロー単位で絞り込みつつ、手動ラベルも追加できます。",
     ),
-  helpTipsTitle: () => t("8. Recommended Workflow", "8. 推奨ワークフロー"),
+  helpJobsItemFolders: () =>
+    t(
+      "You can drag jobs into folders, drag them back to All jobs, and use the current-folder banner to see exactly where the board is filtered.",
+      "ジョブはフォルダーへドラッグして移動でき、All jobs に戻すこともできます。現在どのフォルダーで絞り込まれているかは、上部の現在フォルダーバナーで確認できます。",
+    ),
+  helpJobsItemDelete: () =>
+    t(
+      "Deleting a step from Jobs now asks for confirmation and also removes that task from the Task List.",
+      "Jobs からステップを削除するときは確認が入り、そのタスクは Task List からも削除されます。",
+    ),
+  helpResearchTitle: () => t("7. Research Tab", "7. Research タブ"),
+  helpResearchItemProfiles: () =>
+    t(
+      "Use the Research tab to save repo-local benchmark profiles with instructions, editable paths, benchmark command, metric regex, and agent/model choices.",
+      "Research タブでは、指示文、編集可能パス、ベンチマークコマンド、指標用正規表現、エージェント/モデル指定を含むリポジトリ単位のベンチマークプロファイルを保存できます。",
+    ),
+  helpResearchItemBounds: () =>
+    t(
+      "Runs are bounded by max iterations, max minutes, benchmark timeout, edit wait time, and consecutive failure limits.",
+      "実行は、最大反復回数、最大分数、ベンチマークタイムアウト、編集待機時間、連続失敗上限で制限されます。",
+    ),
+  helpResearchItemHistory: () =>
+    t(
+      "Recent runs show attempts, scores, changed files, outcomes, and benchmark output so you can inspect what happened before keeping a result.",
+      "最近の実行には、試行、スコア、変更ファイル、結果、ベンチマーク出力が表示されるため、結果を採用する前に内容を確認できます。",
+    ),
+  helpMcpTitle: () => t("8. MCP Support", "8. MCP 対応"),
+  helpTipsTitle: () => t("9. Recommended Workflow", "9. 推奨ワークフロー"),
   helpTipsItem1: () =>
     t(
       "Enable auto-open only for repos where you want the scheduler UI every time the repo opens.",
@@ -660,6 +686,11 @@ export const messages = {
     t(
       `Delete folder "${name}"? Jobs and subfolders inside it will move to the parent folder.`,
       `フォルダー「${name}」を削除しますか？ 中のジョブとサブフォルダーは親フォルダーへ移動します。`,
+    ),
+  confirmDeleteJobStep: (name: string) =>
+    t(
+      `Delete step "${name}"? This also deletes the task from the Task List.`,
+      `ステップ「${name}」を削除しますか？ この操作はタスクリストからも削除します。`,
     ),
   moveOnlyWorkspaceTasks: () =>
     t(

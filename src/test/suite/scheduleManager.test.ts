@@ -371,6 +371,58 @@ suite("ScheduleManager Jobs Tests", () => {
       }
     }
   });
+
+  test("deleting a job step removes the task from the task list too", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-step-delete-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-step-delete-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Cleanup flow",
+        cronExpression: "0 10 * * *",
+      });
+      const step = await manager.createTaskInJob(job.id, {
+        name: "Cleanup prompt",
+        cronExpression: "0 10 * * *",
+        prompt: "Delete stale items.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      assert.ok(step);
+      const nodeId = manager.getJob(job.id)?.nodes[0]?.id;
+      assert.ok(nodeId);
+
+      const updatedJob = await manager.deleteTaskFromJob(job.id, nodeId || "");
+      assert.ok(updatedJob);
+      assert.strictEqual(updatedJob?.nodes.length, 0);
+      assert.strictEqual(manager.getTask(step?.id || ""), undefined);
+      assert.strictEqual(
+        manager.getAllTasks().some((task) => task.id === step?.id),
+        false,
+      );
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
 });
 
 suite("ScheduleManager Prompt Source Migration Tests", () => {
