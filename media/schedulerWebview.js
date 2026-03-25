@@ -270,6 +270,7 @@
   var jobsSaveBtn = document.getElementById("jobs-save-btn");
   var jobsDuplicateBtn = document.getElementById("jobs-duplicate-btn");
   var jobsPauseBtn = document.getElementById("jobs-pause-btn");
+  var jobsCompileBtn = document.getElementById("jobs-compile-btn");
   var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
   var jobsNameInput = document.getElementById("jobs-name-input");
   var jobsCronPreset = document.getElementById("jobs-cron-preset");
@@ -288,6 +289,8 @@
   var jobsStatusPill = document.getElementById("jobs-status-pill");
   var jobsTimelineInline = document.getElementById("jobs-timeline-inline");
   var jobsStepList = document.getElementById("jobs-step-list");
+  var jobsPauseNameInput = document.getElementById("jobs-pause-name-input");
+  var jobsCreatePauseBtn = document.getElementById("jobs-create-pause-btn");
   var jobsExistingTaskSelect = document.getElementById("jobs-existing-task-select");
   var jobsExistingWindowInput = document.getElementById("jobs-existing-window-input");
   var jobsAttachBtn = document.getElementById("jobs-attach-btn");
@@ -416,6 +419,12 @@
   }
 
   function getJobStatusText(job) {
+    if (job && job.runtime && job.runtime.waitingPause) {
+      return strings.jobsPauseWaiting || "Waiting for approval";
+    }
+    if (job && job.archived) {
+      return strings.jobsArchivedBadge || "Archived";
+    }
     return job && job.paused
       ? (strings.jobsPaused || "Inactive")
       : (strings.jobsRunning || "Active");
@@ -544,6 +553,29 @@
     }) || null;
   }
 
+  function isPauseNode(node) {
+    return !!node && node.type === "pause";
+  }
+
+  function isTaskNode(node) {
+    return !!node && node.type !== "pause" && !!node.taskId;
+  }
+
+  function getApprovedPauseIds(job) {
+    var approved = job && job.runtime && Array.isArray(job.runtime.approvedPauseNodeIds)
+      ? job.runtime.approvedPauseNodeIds
+      : [];
+    return approved.filter(function (value) {
+      return typeof value === "string" && value;
+    });
+  }
+
+  function getWaitingPauseState(job) {
+    return job && job.runtime && job.runtime.waitingPause
+      ? job.runtime.waitingPause
+      : null;
+  }
+
   function getFolderById(id) {
     return (Array.isArray(jobFolders) ? jobFolders : []).find(function (folder) {
       return folder && folder.id === id;
@@ -597,6 +629,10 @@
     }
     parts.unshift(strings.jobsRootFolder || "All jobs");
     return parts.filter(Boolean).join(" / ");
+  }
+
+  function isArchiveFolder(folder) {
+    return !!folder && String(folder.name || "").toLowerCase() === String(strings.jobsArchiveFolder || "Archive").toLowerCase();
   }
 
   function getEffectiveLabels(task) {
@@ -696,6 +732,10 @@
         selectedJobId = visibleJobs[0].id;
       }
     }
+  }
+
+  function getSelectedJobFolder() {
+    return selectedJobFolderId ? getFolderById(selectedJobFolderId) : null;
   }
 
   restoreTaskFilter();
@@ -1335,6 +1375,13 @@
     });
   }
 
+  if (jobsCompileBtn) {
+    jobsCompileBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
+    });
+  }
+
   if (jobsStatusPill) {
     jobsStatusPill.addEventListener("click", function () {
       if (!selectedJobId) return;
@@ -1399,6 +1446,23 @@
     });
   }
 
+  if (jobsCreatePauseBtn) {
+    jobsCreatePauseBtn.addEventListener("click", function () {
+      if (!selectedJobId) return;
+      var title = jobsPauseNameInput ? jobsPauseNameInput.value.trim() : "";
+      vscode.postMessage({
+        type: "createJobPause",
+        jobId: selectedJobId,
+        data: {
+          title: title || strings.jobsPauseDefaultTitle || "Manual review",
+        },
+      });
+      if (jobsPauseNameInput) {
+        jobsPauseNameInput.value = "";
+      }
+    });
+  }
+
   document.addEventListener("click", function (e) {
     var target = e && e.target;
     var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
@@ -1433,6 +1497,38 @@
       var editTaskId = target.getAttribute("data-job-task-id") || "";
       if (editTaskId && typeof window.editTask === "function") {
         window.editTask(editTaskId);
+      }
+      return;
+    }
+
+    if (jobAction === "edit-pause") {
+      var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (selectedJobId && editPauseNodeId) {
+        vscode.postMessage({ type: "requestRenameJobPause", jobId: selectedJobId, nodeId: editPauseNodeId });
+      }
+      return;
+    }
+
+    if (jobAction === "delete-pause") {
+      var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (selectedJobId && deletePauseNodeId) {
+        vscode.postMessage({ type: "requestDeleteJobPause", jobId: selectedJobId, nodeId: deletePauseNodeId });
+      }
+      return;
+    }
+
+    if (jobAction === "approve-pause") {
+      var approveNodeId = target.getAttribute("data-job-node-id") || "";
+      if (selectedJobId && approveNodeId) {
+        vscode.postMessage({ type: "approveJobPause", jobId: selectedJobId, nodeId: approveNodeId });
+      }
+      return;
+    }
+
+    if (jobAction === "reject-pause") {
+      var rejectNodeId = target.getAttribute("data-job-node-id") || "";
+      if (selectedJobId && rejectNodeId) {
+        vscode.postMessage({ type: "rejectJobPause", jobId: selectedJobId, nodeId: rejectNodeId });
       }
       return;
     }
@@ -3232,16 +3328,18 @@
     persistTaskFilter();
 
     if (jobsCurrentFolderBanner) {
+      var selectedFolder = getSelectedJobFolder();
+      var isArchive = isArchiveFolder(selectedFolder);
       var currentFolderName = selectedJobFolderId
-        ? ((getFolderById(selectedJobFolderId) || {}).name || (strings.jobsRootFolder || "All jobs"))
+        ? ((selectedFolder || {}).name || (strings.jobsRootFolder || "All jobs"))
         : (strings.jobsRootFolder || "All jobs");
       jobsCurrentFolderBanner.innerHTML =
         '<div>' +
         '<span class="jobs-current-folder-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</span>' +
-        '<strong class="jobs-current-folder-name">' + escapeHtml(currentFolderName) + '</strong>' +
+        '<strong class="jobs-current-folder-name">' + escapeHtml(isArchive ? (strings.jobsArchiveFolderBadge || currentFolderName) : currentFolderName) + '</strong>' +
         '<div class="jobs-folder-path">' + escapeHtml(getFolderPath(selectedJobFolderId)) + '</div>' +
         '</div>' +
-        '<span class="jobs-pill">' + escapeHtml(strings.jobsCurrentFolderBadge || "Current") + '</span>';
+        '<span class="jobs-pill' + (isArchive ? ' is-inactive' : '') + '">' + escapeHtml(strings.jobsCurrentFolderBadge || "Current") + '</span>';
     }
 
     if (jobsRenameFolderBtn) jobsRenameFolderBtn.disabled = !selectedJobFolderId;
@@ -3249,6 +3347,8 @@
 
     if (jobsFolderList) {
       var folderItems = (Array.isArray(jobFolders) ? jobFolders.slice() : []).sort(function (a, b) {
+        var archiveDiff = (isArchiveFolder(a) ? 1 : 0) - (isArchiveFolder(b) ? 1 : 0);
+        if (archiveDiff !== 0) return archiveDiff;
         var depthDiff = getFolderDepth(a) - getFolderDepth(b);
         if (depthDiff !== 0) return depthDiff;
         return String(a && a.name || "").localeCompare(String(b && b.name || ""));
@@ -3269,6 +3369,7 @@
         .map(function (folder) {
           var depth = getFolderDepth(folder);
           var isActive = folder && folder.id === selectedJobFolderId;
+          var archiveClass = isArchiveFolder(folder) ? " is-archive" : "";
           var count = (Array.isArray(jobs) ? jobs : []).filter(function (job) {
             return job && job.folderId === folder.id;
           }).length;
@@ -3278,6 +3379,7 @@
           return (
             '<div class="jobs-folder-item' +
             (isActive ? ' active' : '') +
+            archiveClass +
             '" data-job-folder="' +
             escapeAttr(folder.id || "") +
             '">' +
@@ -3285,7 +3387,9 @@
             '<span>' + indent + escapeHtml(folder.name || "") + '</span>' +
             '<span class="jobs-pill">' + String(count) + '</span>' +
             '</div>' +
-            '<div class="jobs-folder-path">' + escapeHtml(folderPath) + '</div>' +
+            (isArchiveFolder(folder)
+              ? '<div class="jobs-folder-path"><span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchiveFolderBadge || "Archived jobs") + '</span></div>'
+              : '<div class="jobs-folder-path">' + escapeHtml(folderPath) + '</div>') +
             '</div>'
           );
         })
@@ -3305,16 +3409,25 @@
                   scheduleSummary !== (strings.labelFriendlyFallback || "")
                     ? scheduleSummary
                     : (job.cronExpression || "");
+              var statusClass = "";
+              if (job && job.runtime && job.runtime.waitingPause) {
+                statusClass = " is-waiting";
+              } else if (job && (job.paused || job.archived)) {
+                statusClass = " is-inactive";
+              }
             return (
               '<div class="jobs-list-item' +
               (job.id === selectedJobId ? ' active' : '') +
               '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true">' +
               '<div class="jobs-list-item-header">' +
               '<strong>' + escapeHtml(job.name || "") + '</strong>' +
-                '<span class="jobs-pill' + (job.paused ? ' is-inactive' : '') + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
+                '<span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
               '</div>' +
-                  '<div class="jobs-list-item-meta" title="' + escapeAttr(job.cronExpression || "") + '">' +
-                  escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' steps' +
+                  '<div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '">' +
+                  '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
+                  (job.archived
+                    ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || 'Archived') + '</span>'
+                    : '') +
               '</div>' +
               '</div>'
             );
@@ -3334,6 +3447,8 @@
     if (jobsEmptyState) jobsEmptyState.style.display = "none";
     if (jobsDetails) jobsDetails.style.display = "block";
     var selectedNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+    var selectedWaitingPause = getWaitingPauseState(selectedJob);
+    var approvedPauseIds = getApprovedPauseIds(selectedJob);
 
     if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
     if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
@@ -3342,7 +3457,8 @@
     if (jobsStatusPill) {
       jobsStatusPill.textContent = getJobStatusText(selectedJob);
       if (jobsStatusPill.classList) {
-        jobsStatusPill.classList.toggle("is-inactive", !!selectedJob.paused);
+        jobsStatusPill.classList.toggle("is-inactive", !!selectedJob.paused || !!selectedJob.archived);
+        jobsStatusPill.classList.toggle("is-waiting", !!selectedWaitingPause);
       }
     }
     if (jobsPauseBtn) {
@@ -3350,12 +3466,20 @@
         ? strings.jobsResume || "Resume Job"
         : strings.jobsPause || "Pause Job";
     }
+    if (jobsCompileBtn) {
+      jobsCompileBtn.disabled = selectedNodes.length === 0;
+    }
 
     if (jobsTimelineInline) {
       var timelineHtml = selectedNodes
         .map(function (node, index) {
-          var task = getTaskById(node.taskId);
-          var taskName = task && task.name ? task.name : ("Step " + String(index + 1));
+          var taskName = "";
+          if (isPauseNode(node)) {
+            taskName = "Pause: " + (node.title || (strings.jobsPauseDefaultTitle || "Manual review"));
+          } else {
+            var task = getTaskById(node.taskId);
+            taskName = task && task.name ? task.name : ("Step " + String(index + 1));
+          }
           return (
             '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' +
             escapeHtml(taskName) +
@@ -3377,6 +3501,35 @@
     if (jobsStepList) {
       var stepCards = selectedNodes
         .map(function (node, index) {
+          if (isPauseNode(node)) {
+            var isWaiting = !!selectedWaitingPause && selectedWaitingPause.nodeId === node.id;
+            var isApproved = approvedPauseIds.indexOf(node.id) >= 0;
+            var pauseStatusText = isWaiting
+              ? (strings.jobsPauseWaiting || "Waiting for approval")
+              : isApproved
+                ? (strings.jobsPauseApproved || "Approved")
+                : (strings.jobsPauseDefaultTitle || "Manual review");
+            return (
+              '<div class="jobs-step-card jobs-pause-card' + (isWaiting ? ' is-waiting' : '') + '" draggable="true" data-job-node-id="' +
+              escapeAttr(node.id || "") +
+              '">' +
+              '<div class="jobs-step-header">' +
+              '<strong title="' + escapeAttr(node.title || "") + '">' + String(index + 1) + '. ' + escapeHtml(node.title || (strings.jobsPauseDefaultTitle || "Manual review")) + '</strong>' +
+              '<span class="jobs-pill' + (isWaiting ? ' is-waiting' : '') + '">' + escapeHtml(pauseStatusText) + '</span>' +
+              '</div>' +
+              '<div class="jobs-pause-copy">' + escapeHtml(strings.jobsPauseHelpText || 'This checkpoint blocks downstream steps until you approve the previous result.') + '</div>' +
+              '<div class="jobs-step-toolbar">' +
+              '<button type="button" class="btn-secondary" data-job-action="edit-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseEdit || 'Edit') + '</button>' +
+              '<button type="button" class="btn-danger" data-job-action="delete-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseDelete || 'Delete') + '</button>' +
+              (isWaiting
+                ? '<button type="button" class="btn-primary" data-job-action="approve-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseApprove || 'Approve') + '</button>' +
+                  '<button type="button" class="btn-secondary" data-job-action="reject-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseReject || 'Reject and edit previous step') + '</button>'
+                : '') +
+              '</div>' +
+              '</div>'
+            );
+          }
+
           var task = getTaskById(node.taskId);
           var taskName = task && task.name ? task.name : "Missing task";
           var taskPrompt = task && task.prompt ? String(task.prompt) : "";

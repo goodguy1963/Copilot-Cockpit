@@ -27,18 +27,73 @@ export type LogLevel = "none" | "error" | "info" | "debug";
  */
 export type ChatSessionBehavior = "new" | "continue";
 
+export type JobNodeType = "task" | "pause";
+
 /**
- * Job node within a multi-step workflow.
+ * Executable task node within a job workflow.
  */
-export interface JobNode {
+export interface JobTaskNode {
   /** Unique node identifier */
   id: string;
+
+  /** Node kind. Omitted on legacy data and treated as "task". */
+  type?: "task";
 
   /** Task executed by this node */
   taskId: string;
 
   /** Time window allocated to this node in minutes */
   windowMinutes: number;
+}
+
+/**
+ * Manual review checkpoint within a job workflow.
+ */
+export interface JobPauseNode {
+  /** Unique node identifier */
+  id: string;
+
+  /** Node kind */
+  type: "pause";
+
+  /** Human-readable checkpoint title */
+  title: string;
+}
+
+/**
+ * Job node within a multi-step workflow.
+ */
+export type JobNode = JobTaskNode | JobPauseNode;
+
+/**
+ * Active manual checkpoint waiting for user approval.
+ */
+export interface JobPauseGateState {
+  /** Pause node currently blocking the workflow */
+  nodeId: string;
+
+  /** Task completed immediately before the pause */
+  previousTaskId?: string;
+
+  /** When the checkpoint became active */
+  activatedAt: string;
+}
+
+/**
+ * Runtime progress for a multi-step job with manual checkpoints.
+ */
+export interface JobRuntimeState {
+  /** Current cycle anchor for the running workflow */
+  cycleStartedAt?: string;
+
+  /** Segment start used for currently schedulable steps */
+  currentSegmentStartedAt?: string;
+
+  /** Pauses already approved within the active cycle */
+  approvedPauseNodeIds?: string[];
+
+  /** Current blocking pause, if any */
+  waitingPause?: JobPauseGateState;
 }
 
 /**
@@ -79,6 +134,18 @@ export interface JobDefinition {
 
   /** Whether execution is paused for all nodes in this job */
   paused?: boolean;
+
+  /** Whether the job was archived after being compiled to a standalone task */
+  archived?: boolean;
+
+  /** When the job was archived */
+  archivedAt?: string;
+
+  /** Most recent compiled standalone task created from this job */
+  lastCompiledTaskId?: string;
+
+  /** Active runtime checkpoint state for this job */
+  runtime?: JobRuntimeState;
 
   /** Ordered workflow nodes */
   nodes: JobNode[];
@@ -371,6 +438,14 @@ export interface CreateJobFolderInput {
 }
 
 /**
+ * Input for creating a dedicated pause checkpoint inside a job.
+ */
+export interface CreateJobPauseInput {
+  /** Pause title shown in the Jobs board */
+  title: string;
+}
+
+/**
  * Scheduled task definition
  */
 export interface ScheduledTask {
@@ -636,8 +711,16 @@ export interface TaskAction {
   | "attachTaskToJob"
   | "detachTaskFromJob"
   | "deleteJobTask"
+  | "requestRenameJobPause"
+  | "requestDeleteJobPause"
+  | "createJobPause"
+  | "updateJobPause"
+  | "deleteJobPause"
+  | "approveJobPause"
+  | "rejectJobPause"
   | "reorderJobNode"
   | "updateJobNodeWindow"
+  | "compileJob"
   | "setupMcp"
   | "createResearchProfile"
   | "updateResearchProfile"
@@ -675,6 +758,15 @@ export interface TaskAction {
 
   /** Folder create/update payload */
   folderData?: Partial<CreateJobFolderInput>;
+
+  /** Pause create payload */
+  pauseData?: Partial<CreateJobPauseInput>;
+
+  /** Pause identifier */
+  pauseNodeId?: string;
+
+  /** Pause update payload */
+  pauseUpdateData?: Partial<CreateJobPauseInput>;
 
   /** Selected history snapshot identifier for restore actions */
   historyId?: string;
@@ -729,6 +821,9 @@ export type WebviewToExtensionMessage =
   }
   | { type: "deleteJobFolder"; folderId: string }
   | { type: "requestDeleteJobTask"; jobId: string; nodeId: string }
+  | { type: "requestRenameJobPause"; jobId: string; nodeId: string }
+  | { type: "requestDeleteJobPause"; jobId: string; nodeId: string }
+  | { type: "createJobPause"; jobId: string; data: CreateJobPauseInput }
   | {
     type: "createJobTask";
     jobId: string;
@@ -743,6 +838,10 @@ export type WebviewToExtensionMessage =
   }
   | { type: "detachTaskFromJob"; jobId: string; nodeId: string }
   | { type: "deleteJobTask"; jobId: string; nodeId: string }
+  | { type: "updateJobPause"; jobId: string; nodeId: string; data: CreateJobPauseInput }
+  | { type: "deleteJobPause"; jobId: string; nodeId: string }
+  | { type: "approveJobPause"; jobId: string; nodeId: string }
+  | { type: "rejectJobPause"; jobId: string; nodeId: string }
   | {
     type: "reorderJobNode";
     jobId: string;
@@ -755,6 +854,7 @@ export type WebviewToExtensionMessage =
     nodeId: string;
     windowMinutes: number;
   }
+  | { type: "compileJob"; jobId: string }
   | { type: "refreshTasks" }
   | { type: "restoreScheduleHistory"; snapshotId: string }
   | { type: "toggleAutoShowOnStartup" }

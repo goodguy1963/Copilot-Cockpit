@@ -618,7 +618,7 @@ export class SchedulerWebview {
   ): Promise<void> {
     const job = this.currentJobs.find((entry) => entry.id === jobId);
     const node = job?.nodes.find((entry) => entry.id === nodeId);
-    const task = node
+    const task = node && "taskId" in node
       ? this.currentTasks.find((entry) => entry.id === node.taskId)
       : undefined;
 
@@ -639,6 +639,66 @@ export class SchedulerWebview {
     this.onTaskActionCallback({
       action: "deleteJobTask",
       taskId: "__jobtask__",
+      jobId,
+      nodeId,
+    });
+  }
+
+  private static async handleRenameJobPauseRequest(
+    jobId: string,
+    nodeId: string,
+  ): Promise<void> {
+    const job = this.currentJobs.find((entry) => entry.id === jobId);
+    const node = job?.nodes.find((entry) => entry.id === nodeId);
+    if (!job || !node || !this.onTaskActionCallback || node.type !== "pause") {
+      return;
+    }
+
+    const title = await vscode.window.showInputBox({
+      title: messages.jobsPauseTitle(),
+      prompt: messages.jobsPauseName(),
+      value: node.title || messages.jobsPauseDefaultTitle(),
+      ignoreFocusOut: true,
+      validateInput: (input) =>
+        input.trim() ? undefined : messages.taskNameRequired(),
+    });
+    const trimmed = title?.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "updateJobPause",
+      taskId: "__jobpause__",
+      jobId,
+      nodeId,
+      pauseUpdateData: { title: trimmed },
+    });
+  }
+
+  private static async handleDeleteJobPauseRequest(
+    jobId: string,
+    nodeId: string,
+  ): Promise<void> {
+    const job = this.currentJobs.find((entry) => entry.id === jobId);
+    const node = job?.nodes.find((entry) => entry.id === nodeId);
+    if (!job || !node || !this.onTaskActionCallback || node.type !== "pause") {
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      `Delete pause checkpoint "${node.title || messages.jobsPauseDefaultTitle()}"? Downstream steps will no longer wait here.`,
+      { modal: true },
+      messages.confirmDeleteYes(),
+      messages.actionCancel(),
+    );
+    if (confirm !== messages.confirmDeleteYes()) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "deleteJobPause",
+      taskId: "__jobpause__",
       jobId,
       nodeId,
     });
@@ -669,6 +729,14 @@ export class SchedulerWebview {
 
       case "requestDeleteJobTask":
         await this.handleDeleteJobTaskRequest(message.jobId, message.nodeId);
+        break;
+
+      case "requestRenameJobPause":
+        await this.handleRenameJobPauseRequest(message.jobId, message.nodeId);
+        break;
+
+      case "requestDeleteJobPause":
+        await this.handleDeleteJobPauseRequest(message.jobId, message.nodeId);
         break;
 
       case "createTask":
@@ -927,6 +995,39 @@ export class SchedulerWebview {
         }
         break;
 
+      case "createJobPause":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createJobPause",
+            taskId: "__jobpause__",
+            jobId: message.jobId,
+            pauseData: message.data,
+          });
+        }
+        break;
+
+      case "approveJobPause":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "approveJobPause",
+            taskId: "__jobpause__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+          });
+        }
+        break;
+
+      case "rejectJobPause":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "rejectJobPause",
+            taskId: "__jobpause__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+          });
+        }
+        break;
+
       case "reorderJobNode":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -947,6 +1048,16 @@ export class SchedulerWebview {
             jobId: message.jobId,
             nodeId: message.nodeId,
             windowMinutes: message.windowMinutes,
+          });
+        }
+        break;
+
+      case "compileJob":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "compileJob",
+            taskId: "__job__",
+            jobId: message.jobId,
           });
         }
         break;
@@ -1415,11 +1526,15 @@ export class SchedulerWebview {
       helpMcpItemEmbedded: messages.helpMcpItemEmbedded(),
       helpMcpItemConfig: messages.helpMcpItemConfig(),
       helpMcpItemAutoConfig: messages.helpMcpItemAutoConfig(),
+      helpMcpItemDanger: messages.helpMcpItemDanger(),
+      helpMcpItemInspect: messages.helpMcpItemInspect(),
+      helpMcpItemWrite: messages.helpMcpItemWrite(),
       helpMcpItemTools: messages.helpMcpItemTools(),
       helpJobsTitle: messages.helpJobsTitle(),
       tabResearch: "Research",
       helpJobsItemBoard: messages.helpJobsItemBoard(),
       helpJobsItemPause: messages.helpJobsItemPause(),
+      helpJobsItemCompile: messages.helpJobsItemCompile(),
       helpJobsItemLabels: messages.helpJobsItemLabels(),
       helpJobsItemFolders: messages.helpJobsItemFolders(),
       helpJobsItemDelete: messages.helpJobsItemDelete(),
@@ -1448,6 +1563,7 @@ export class SchedulerWebview {
       jobsRootFolder: "All jobs",
       jobsCurrentFolderLabel: "Current folder",
       jobsCurrentFolderBadge: "Current",
+      jobsArchiveFolder: "Bundled Jobs",
       jobsCreateFolder: "New Folder",
       jobsCreateJob: "New Job",
       jobsRenameFolder: "Rename Folder",
@@ -1463,12 +1579,26 @@ export class SchedulerWebview {
       jobsDelete: "Delete Job",
       jobsPause: "Deactivate Job",
       jobsResume: "Activate Job",
+      jobsCompile: "Compile To Task",
       jobsHideSidebar: "Hide Sidebar",
       jobsShowSidebar: "Show Sidebar",
       jobsCompactTimeline: "Workflow timeline",
       jobsTimelineEmpty: "No steps yet",
       jobsToggleStatus: "Toggle active status",
       jobsSteps: "Workflow steps",
+      jobsPauseTitle: "Pause checkpoints",
+      jobsCreatePause: "Create Pause",
+      jobsPauseName: "Pause title",
+      jobsPauseHelpText: "This checkpoint blocks downstream steps until you approve the previous result.",
+      jobsPauseWaiting: "Waiting for approval",
+      jobsPauseApproved: "Approved",
+      jobsPauseApprove: "Approve",
+      jobsPauseReject: "Reject and edit previous step",
+      jobsPauseDefaultTitle: "Manual review",
+      jobsArchivedBadge: "Archived",
+      jobsPauseEdit: "Edit",
+      jobsPauseDelete: "Delete",
+      jobsArchiveFolderBadge: "Bundled jobs",
       jobsWindowMinutes: "Window (minutes)",
       jobsAddExistingTask: "Add Existing Task",
       jobsAttach: "Attach Task",
@@ -1715,13 +1845,6 @@ export class SchedulerWebview {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "schedulerWebview.js"),
     );
-    const jobsScreenshotUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "images", "jobs-overview.png"),
-    );
-    const mcpScreenshotUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "images", "mcp-setup.png"),
-    );
-
     const rawHtml = `<!DOCTYPE html>
 <html lang="${isJa ? "ja" : "en"}">
 <head>
@@ -1854,14 +1977,6 @@ export class SchedulerWebview {
       margin-top: 6px;
     }
 
-    .help-image {
-      width: 100%;
-      margin-top: 12px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background-color: var(--vscode-editorWidget-background);
-    }
-    
     .form-group {
       margin-bottom: 16px;
     }
@@ -2391,6 +2506,14 @@ export class SchedulerWebview {
       color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground) 80%, transparent);
     }
 
+    .jobs-folder-item.is-archive {
+      border-style: dashed;
+    }
+
+    .jobs-folder-item.is-archive .jobs-folder-item-header span:first-child {
+      font-style: italic;
+    }
+
     .jobs-folder-item-header,
     .jobs-list-item-header,
     .jobs-step-header {
@@ -2434,6 +2557,39 @@ export class SchedulerWebview {
       min-height: 124px;
       padding: 8px;
       font-size: 12px;
+    }
+
+    .jobs-step-card.is-waiting,
+    .jobs-pill.is-waiting {
+      border-color: var(--vscode-focusBorder);
+      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, var(--vscode-sideBar-background));
+      color: var(--vscode-editorWarning-foreground);
+    }
+
+    .jobs-pause-card {
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-button-secondaryBackground) 72%, transparent)
+      );
+    }
+
+    .jobs-pause-card .jobs-step-toolbar {
+      margin-top: 10px;
+    }
+
+    .jobs-pause-copy {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .jobs-list-item-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
     }
 
     .jobs-step-card[draggable="true"] {
@@ -3042,6 +3198,7 @@ export class SchedulerWebview {
             <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
             <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
             <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
+            <button type="button" class="btn-secondary" id="jobs-compile-btn">${escapeHtml(strings.jobsCompile)}</button>
             <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
           </div>
 
@@ -3136,6 +3293,17 @@ export class SchedulerWebview {
             <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
             <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
             <div id="jobs-step-list" class="jobs-step-list"></div>
+          </div>
+
+          <div class="jobs-main-section">
+            <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
+            <div class="jobs-inline-form">
+              <div class="form-group">
+                <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
+                <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
+              </div>
+              <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
+            </div>
           </div>
 
           <div class="jobs-main-section">
@@ -3332,6 +3500,25 @@ export class SchedulerWebview {
         </ul>
       </section>
       <section class="help-section">
+        <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
+          <li>${escapeHtml(strings.helpJobsItemPause)}</li>
+          <li>${escapeHtml(strings.helpJobsItemCompile)}</li>
+          <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
+          <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
+          <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
+          <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
+          <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
+        </ul>
+      </section>
+      <section class="help-section">
         <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
         <ul>
           <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
@@ -3357,36 +3544,19 @@ export class SchedulerWebview {
         </ul>
       </section>
       <section class="help-section">
-        <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
-          <li>${escapeHtml(strings.helpJobsItemPause)}</li>
-          <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
-          <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
-          <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
-        </ul>
-        <img class="help-image" src="${jobsScreenshotUri}" alt="Jobs overview">
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
-          <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
-          <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
         <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
         <ul>
           <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
           <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
           <li>${escapeHtml(strings.helpMcpItemAutoConfig)}</li>
+          <li>${escapeHtml(strings.helpMcpItemDanger)}</li>
+          <li>${escapeHtml(strings.helpMcpItemInspect)}</li>
+          <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
           <li>${escapeHtml(strings.helpMcpItemTools)}</li>
         </ul>
         <div class="button-group" style="margin-top:12px;">
           <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
         </div>
-        <img class="help-image" src="${mcpScreenshotUri}" alt="MCP setup">
       </section>
       <section class="help-section">
         <h3>${escapeHtml(strings.helpTipsTitle)}</h3>

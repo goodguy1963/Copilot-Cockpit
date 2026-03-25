@@ -340,6 +340,111 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       (vscode.window as any).showWarningMessage = originalShowWarningMessage;
     }
   });
+
+  test("createJobPause and compileJob forward the expected task actions", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const actions: unknown[] = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "createJobPause",
+        jobId: "job-1",
+        data: { title: "Review checkpoint" },
+      });
+      await wv.handleMessage!({
+        type: "compileJob",
+        jobId: "job-1",
+      });
+
+      assert.deepStrictEqual(actions, [
+        {
+          action: "createJobPause",
+          taskId: "__jobpause__",
+          jobId: "job-1",
+          pauseData: { title: "Review checkpoint" },
+        },
+        {
+          action: "compileJob",
+          taskId: "__job__",
+          jobId: "job-1",
+        },
+      ]);
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+    }
+  });
+
+  test("requestRenameJobPause and requestDeleteJobPause prompt before dispatching", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentJobs?: Array<{
+        id: string;
+        nodes: Array<{ id: string; type?: string; title?: string }>;
+      }>;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalJobs = wv.currentJobs;
+    const originalShowInputBox = (vscode.window as any).showInputBox;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentJobs = [{
+        id: "job-1",
+        nodes: [{ id: "pause-1", type: "pause", title: "Review" }],
+      }];
+      (vscode.window as any).showInputBox = async () => "Updated Review";
+      (vscode.window as any).showWarningMessage = async () => "Yes, delete";
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestRenameJobPause",
+        jobId: "job-1",
+        nodeId: "pause-1",
+      });
+      await wv.handleMessage!({
+        type: "requestDeleteJobPause",
+        jobId: "job-1",
+        nodeId: "pause-1",
+      });
+
+      assert.deepStrictEqual(actions, [
+        {
+          action: "updateJobPause",
+          taskId: "__jobpause__",
+          jobId: "job-1",
+          nodeId: "pause-1",
+          pauseUpdateData: { title: "Updated Review" },
+        },
+        {
+          action: "deleteJobPause",
+          taskId: "__jobpause__",
+          jobId: "job-1",
+          nodeId: "pause-1",
+        },
+      ]);
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentJobs = originalJobs;
+      (vscode.window as any).showInputBox = originalShowInputBox;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
 });
 
 suite("SchedulerWebview Error Detail Sanitization Tests", () => {

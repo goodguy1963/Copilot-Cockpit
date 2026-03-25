@@ -423,6 +423,204 @@ suite("ScheduleManager Jobs Tests", () => {
       }
     }
   });
+
+  test("pause checkpoints block downstream steps until approval", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-pause-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-pause-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+    manager.setOnExecuteCallback(async () => undefined);
+
+    try {
+      const job = await manager.createJob({
+        name: "Approval flow",
+        cronExpression: "0 10 * * *",
+      });
+      const firstStep = await manager.createTaskInJob(job.id, {
+        name: "Draft step",
+        cronExpression: "0 10 * * *",
+        prompt: "Draft the output.",
+        enabled: true,
+        scope: "workspace",
+      });
+      await manager.createPauseInJob(job.id, { title: "Review checkpoint" });
+      const secondStep = await manager.createTaskInJob(job.id, {
+        name: "Publish step",
+        cronExpression: "0 10 * * *",
+        prompt: "Publish the approved result.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      const liveJob = manager.getJob(job.id);
+      const pauseNode = liveJob?.nodes.find((node) => (node as { type?: string }).type === "pause");
+
+      assert.ok(firstStep);
+      assert.ok(secondStep);
+      assert.ok(pauseNode);
+      assert.ok(manager.getTask(firstStep?.id || "")?.nextRun);
+      assert.strictEqual(manager.getTask(secondStep?.id || "")?.nextRun, undefined);
+
+      const executed = await manager.runTaskNow(firstStep?.id || "");
+      assert.strictEqual(executed, true);
+      assert.strictEqual(
+        manager.getJob(job.id)?.runtime?.waitingPause?.nodeId,
+        pauseNode?.id,
+      );
+
+      const rejection = await manager.rejectJobPause(job.id, pauseNode?.id || "");
+      assert.strictEqual(rejection?.previousTaskId, firstStep?.id);
+      assert.strictEqual(manager.getTask(secondStep?.id || "")?.nextRun, undefined);
+
+      const approved = await manager.approveJobPause(job.id, pauseNode?.id || "");
+      assert.ok(approved);
+      assert.strictEqual(approved?.runtime?.waitingPause, undefined);
+      assert.ok(manager.getTask(secondStep?.id || "")?.nextRun);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("pause checkpoints can be renamed and deleted", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-pause-edit-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-pause-edit-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Pause edit flow",
+        cronExpression: "0 10 * * *",
+      });
+      const firstStep = await manager.createTaskInJob(job.id, {
+        name: "Draft step",
+        cronExpression: "0 10 * * *",
+        prompt: "Draft.",
+        enabled: true,
+        scope: "workspace",
+      });
+      await manager.createPauseInJob(job.id, { title: "Review checkpoint" });
+
+      const pauseNodeId = manager.getJob(job.id)?.nodes.find((node) => (node as { type?: string }).type === "pause")?.id || "";
+      assert.ok(firstStep);
+      assert.ok(pauseNodeId);
+
+      const renamed = await manager.updateJobPause(job.id, pauseNodeId, { title: "Updated review" });
+      assert.ok(renamed);
+      const renamedPauseNode = renamed?.nodes.find((node) => node.id === pauseNodeId) as
+        | { id: string; type: "pause"; title: string }
+        | undefined;
+      assert.strictEqual(
+        renamedPauseNode?.title,
+        "Updated review",
+      );
+
+      const deleted = await manager.deleteJobPause(job.id, pauseNodeId);
+      assert.ok(deleted);
+      assert.strictEqual(
+        deleted?.nodes.some((node) => node.id === pauseNodeId),
+        false,
+      );
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("compiling a job creates one combined task and archives the source job", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-compile-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-compile-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Campaign flow",
+        cronExpression: "0 9 * * 1-5",
+      });
+      await manager.createTaskInJob(job.id, {
+        name: "Draft brief",
+        cronExpression: "0 9 * * 1-5",
+        prompt: "Write the campaign brief.",
+        enabled: true,
+        scope: "workspace",
+      });
+      await manager.createPauseInJob(job.id, { title: "Manager review" });
+      await manager.createTaskInJob(job.id, {
+        name: "Publish brief",
+        cronExpression: "0 9 * * 1-5",
+        prompt: "Publish the approved brief.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      const compiled = await manager.compileJobToTask(job.id);
+      const archivedJob = manager.getJob(job.id);
+      const archiveFolder = archivedJob?.folderId
+        ? manager.getJobFolder(archivedJob.folderId)
+        : undefined;
+
+      assert.ok(compiled);
+      assert.strictEqual(compiled?.task.name, "Bundled Task");
+      assert.ok(compiled?.task.prompt.includes("Draft brief"));
+      assert.ok(compiled?.task.prompt.includes("Checkpoint 1: Manager review"));
+      assert.ok(compiled?.task.prompt.includes("Publish brief"));
+      assert.strictEqual(compiled?.task.jobId, undefined);
+      assert.strictEqual(archivedJob?.paused, true);
+      assert.strictEqual(archivedJob?.archived, true);
+      assert.strictEqual(archiveFolder?.name, "Bundled Jobs");
+      assert.strictEqual(archivedJob?.lastCompiledTaskId, compiled?.task.id);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
 });
 
 suite("ScheduleManager Prompt Source Migration Tests", () => {
