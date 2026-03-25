@@ -15,8 +15,12 @@ import type {
   JobDefinition,
   JobFolder,
   JobNode,
+  JobPauseNode,
+  JobRuntimeState,
+  JobTaskNode,
   SchedulerWorkspaceConfig,
   CreateJobInput,
+  CreateJobPauseInput,
   CreateJobFolderInput,
 } from "./types";
 import { messages } from "./i18n";
@@ -116,10 +120,17 @@ type WorkspaceSchedulerState = {
   jobFolders: JobFolder[];
 };
 
+type JobPauseResolution = {
+  job: JobDefinition;
+  previousTaskId?: string;
+};
+
 /**
  * Manages scheduled tasks including CRUD operations, cron parsing, and persistence
  */
 export class ScheduleManager {
+  private static readonly BUNDLED_JOB_FOLDER_NAME = "Bundled Jobs";
+
   private tasks: Map<string, ScheduledTask> = new Map();
   private jobs: Map<string, JobDefinition> = new Map();
   private jobFolders: Map<string, JobFolder> = new Map();
@@ -926,10 +937,29 @@ export class ScheduleManager {
           tasks: fileTasks,
           jobs: this.getAllJobs().map((job) => ({
             ...job,
-            nodes: job.nodes.map((node) => ({
-              ...node,
-              windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
-            })),
+            runtime: job.runtime
+              ? {
+                cycleStartedAt: job.runtime.cycleStartedAt,
+                currentSegmentStartedAt: job.runtime.currentSegmentStartedAt,
+                approvedPauseNodeIds: this.getApprovedPauseNodeIds(job),
+                waitingPause: job.runtime.waitingPause
+                  ? { ...job.runtime.waitingPause }
+                  : undefined,
+              }
+              : undefined,
+            nodes: job.nodes.map((node) =>
+              this.isPauseNode(node)
+                ? {
+                  id: node.id,
+                  type: "pause" as const,
+                  title: node.title,
+                }
+                : {
+                  id: node.id,
+                  type: "task" as const,
+                  taskId: node.taskId,
+                  windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
+                }),
           })),
           jobFolders: this.getAllJobFolders().map((folder) => ({ ...folder })),
         };
@@ -1187,15 +1217,160 @@ export class ScheduleManager {
     return this.generateScopedId("jobnode");
   }
 
+  private isPauseNode(node: JobNode | undefined | null): node is JobPauseNode {
+    return !!node && node.type === "pause";
+  }
+
+  private isTaskNode(node: JobNode | undefined | null): node is JobTaskNode {
+    return (
+      !!node &&
+      node.type !== "pause" &&
+      typeof (node as JobTaskNode).taskId === "string" &&
+      (node as JobTaskNode).taskId.trim().length > 0
+    );
+  }
+
+  private parseIsoDate(value: string | undefined): Date | undefined {
+    if (!value || typeof value !== "string") {
+      return undefined;
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  private getApprovedPauseNodeIds(job: JobDefinition): string[] {
+    const values = Array.isArray(job.runtime?.approvedPauseNodeIds)
+      ? job.runtime?.approvedPauseNodeIds
+      : [];
+    return values.filter(
+      (value): value is string => typeof value === "string" && value.trim().length > 0,
+    );
+  }
+
+  private getLastApprovedPauseIndex(job: JobDefinition): number {
+    const approvedIds = this.getApprovedPauseNodeIds(job);
+    for (let index = job.nodes.length - 1; index >= 0; index -= 1) {
+      const node = job.nodes[index];
+      if (this.isPauseNode(node) && approvedIds.includes(node.id)) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  private getCurrentSegmentStartIndex(job: JobDefinition): number {
+    const lastApprovedPauseIndex = this.getLastApprovedPauseIndex(job);
+    return lastApprovedPauseIndex >= 0 ? lastApprovedPauseIndex + 1 : 0;
+  }
+
+  private getNextPauseIndex(job: JobDefinition, startIndex: number): number {
+    for (let index = Math.max(0, startIndex); index < job.nodes.length; index += 1) {
+      if (this.isPauseNode(job.nodes[index])) {
+        return index;
+      }
+    }
+
+    return -1;
+  }
+
+  private getSegmentEndExclusive(job: JobDefinition, startIndex: number): number {
+    const pauseIndex = this.getNextPauseIndex(job, startIndex);
+    return pauseIndex >= 0 ? pauseIndex : job.nodes.length;
+  }
+
+  private getJobNodeOffsetMinutes(
+    job: JobDefinition,
+    nodeIndex: number,
+    startIndex = 0,
+  ): number {
+    return job.nodes.slice(startIndex, nodeIndex).reduce((total, node) => {
+      if (!this.isTaskNode(node)) {
+        return total;
+      }
+
+      return total + this.normalizeWindowMinutes(node.windowMinutes);
+    }, 0);
+  }
+
+  private hasTaskExecutedSince(task: ScheduledTask | undefined, startAt: Date): boolean {
+    return !!task?.lastRun && task.lastRun.getTime() >= startAt.getTime();
+  }
+
+  private isJobTaskOutsideCurrentSegment(
+    job: JobDefinition,
+    nodeIndex: number,
+  ): boolean {
+    const segmentStartIndex = this.getCurrentSegmentStartIndex(job);
+    const segmentEndExclusive = this.getSegmentEndExclusive(job, segmentStartIndex);
+    return nodeIndex < segmentStartIndex || nodeIndex >= segmentEndExclusive;
+  }
+
+  private getPreviousTaskNodeBeforeIndex(
+    job: JobDefinition,
+    startIndex: number,
+  ): JobTaskNode | undefined {
+    for (let index = startIndex - 1; index >= 0; index -= 1) {
+      const node = job.nodes[index];
+      if (this.isTaskNode(node)) {
+        return node;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getPreviousTaskIdForPause(job: JobDefinition, pauseNodeId: string): string | undefined {
+    const pauseIndex = job.nodes.findIndex((node) => node.id === pauseNodeId);
+    if (pauseIndex < 0) {
+      return undefined;
+    }
+
+    return this.getPreviousTaskNodeBeforeIndex(job, pauseIndex)?.taskId;
+  }
+
+  private getWorkingRuntimeState(job: JobDefinition): JobRuntimeState {
+    if (!job.runtime) {
+      job.runtime = {};
+    }
+
+    job.runtime.approvedPauseNodeIds = this.getApprovedPauseNodeIds(job);
+    if (
+      job.runtime.waitingPause &&
+      (!job.runtime.waitingPause.nodeId ||
+        !this.getNode(job, job.runtime.waitingPause.nodeId) ||
+        !this.isPauseNode(this.getNode(job, job.runtime.waitingPause.nodeId)))
+    ) {
+      job.runtime.waitingPause = undefined;
+    }
+
+    return job.runtime;
+  }
+
+  private clearJobRuntime(job: JobDefinition): void {
+    job.runtime = undefined;
+  }
+
+  private getNode(job: JobDefinition, nodeId: string): JobNode | undefined {
+    return job.nodes.find((candidate) => candidate.id === nodeId);
+  }
+
   private findJobNodeByTaskId(taskId: string):
-    | { job: JobDefinition; node: JobNode; nodeIndex: number }
+    | { job: JobDefinition; node: JobTaskNode; nodeIndex: number }
     | undefined {
     for (const job of this.jobs.values()) {
-      const nodeIndex = job.nodes.findIndex((candidate) => candidate.taskId === taskId);
+      const nodeIndex = job.nodes.findIndex(
+        (candidate) => this.isTaskNode(candidate) && candidate.taskId === taskId,
+      );
       if (nodeIndex >= 0) {
+        const node = job.nodes[nodeIndex];
+        if (!this.isTaskNode(node)) {
+          continue;
+        }
         return {
           job,
-          node: job.nodes[nodeIndex],
+          node,
           nodeIndex,
         };
       }
@@ -1203,16 +1378,6 @@ export class ScheduleManager {
 
     return undefined;
   }
-
-  private getJobNodeOffsetMinutes(job: JobDefinition, nodeIndex: number): number {
-    return job.nodes
-      .slice(0, nodeIndex)
-      .reduce(
-        (total, node) => total + this.normalizeWindowMinutes(node.windowMinutes),
-        0,
-      );
-  }
-
   private getPreviousCronOccurrence(
     cronExpression: string,
     referenceTime: Date,
@@ -1248,11 +1413,37 @@ export class ScheduleManager {
     }
 
     const node = job.nodes[nodeIndex];
-    if (!node) {
+    if (!this.isTaskNode(node)) {
       return undefined;
     }
 
-    const offsetMinutes = this.getJobNodeOffsetMinutes(job, nodeIndex);
+    const runtime = job.runtime;
+    if (runtime?.waitingPause?.nodeId) {
+      return undefined;
+    }
+
+    if (this.isJobTaskOutsideCurrentSegment(job, nodeIndex)) {
+      return undefined;
+    }
+
+    const segmentStartIndex = this.getCurrentSegmentStartIndex(job);
+    const offsetMinutes = this.getJobNodeOffsetMinutes(job, nodeIndex, segmentStartIndex);
+    const segmentBase = this.parseIsoDate(runtime?.currentSegmentStartedAt);
+    if (segmentBase) {
+      const task = this.tasks.get(node.taskId);
+      if (this.hasTaskExecutedSince(task, segmentBase)) {
+        return undefined;
+      }
+
+      return this.truncateToMinute(
+        new Date(segmentBase.getTime() + offsetMinutes * 60 * 1000),
+      );
+    }
+
+    if (segmentStartIndex > 0) {
+      return undefined;
+    }
+
     const previousBase = this.getPreviousCronOccurrence(
       job.cronExpression,
       referenceTime,
@@ -1278,6 +1469,9 @@ export class ScheduleManager {
     for (const job of this.jobs.values()) {
       for (let index = 0; index < job.nodes.length; index += 1) {
         const node = job.nodes[index];
+        if (!this.isTaskNode(node)) {
+          continue;
+        }
         const task = this.tasks.get(node.taskId);
         if (!task) {
           continue;
@@ -1305,7 +1499,20 @@ export class ScheduleManager {
       return false;
     }
 
-    return this.jobs.get(task.jobId)?.paused === true;
+    const jobContext = this.findJobNodeByTaskId(task.id);
+    if (!jobContext) {
+      return this.jobs.get(task.jobId)?.paused === true;
+    }
+
+    if (jobContext.job.paused === true) {
+      return true;
+    }
+
+    if (jobContext.job.runtime?.waitingPause?.nodeId) {
+      return true;
+    }
+
+    return this.isJobTaskOutsideCurrentSegment(jobContext.job, jobContext.nodeIndex);
   }
 
   getAllJobs(): JobDefinition[] {
@@ -1506,6 +1713,7 @@ export class ScheduleManager {
           ? input.folderId.trim()
           : undefined,
       paused: input.paused === true,
+      archived: false,
       nodes: [],
       createdAt: now,
       updatedAt: now,
@@ -1536,14 +1744,26 @@ export class ScheduleManager {
     if (updates.cronExpression !== undefined) {
       this.validateCronExpression(updates.cronExpression);
       job.cronExpression = updates.cronExpression;
+      this.clearJobRuntime(job);
     }
 
     if (updates.folderId !== undefined) {
       job.folderId = updates.folderId?.trim() || undefined;
+      if (job.folderId !== job.folderId?.trim()) {
+        job.folderId = job.folderId?.trim() || undefined;
+      }
     }
 
     if (updates.paused !== undefined) {
       job.paused = updates.paused === true;
+    }
+
+    if (job.archived && job.folderId !== undefined) {
+      const archiveFolder = this.jobFolders.get(job.folderId);
+      if (!archiveFolder || !this.isBundledJobsFolder(archiveFolder)) {
+        job.archived = false;
+        job.archivedAt = undefined;
+      }
     }
 
     job.updatedAt = new Date().toISOString();
@@ -1559,6 +1779,9 @@ export class ScheduleManager {
     }
 
     for (const node of job.nodes) {
+      if (!this.isTaskNode(node)) {
+        continue;
+      }
       const task = this.tasks.get(node.taskId);
       if (!task) {
         continue;
@@ -1590,6 +1813,13 @@ export class ScheduleManager {
     });
 
     for (const node of original.nodes) {
+      if (this.isPauseNode(node)) {
+        await this.createPauseInJob(duplicate.id, {
+          title: node.title,
+        });
+        continue;
+      }
+
       const originalTask = this.tasks.get(node.taskId);
       if (!originalTask) {
         continue;
@@ -1704,6 +1934,139 @@ export class ScheduleManager {
     return true;
   }
 
+  async createPauseInJob(
+    jobId: string,
+    input: CreateJobPauseInput,
+  ): Promise<JobDefinition | undefined> {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      return undefined;
+    }
+
+    const title = input.title.trim();
+    if (!title) {
+      throw new Error(messages.taskNameRequired());
+    }
+
+    job.nodes.push({
+      id: this.generateJobNodeId(),
+      type: "pause",
+      title,
+    });
+    this.clearJobRuntime(job);
+    job.updatedAt = new Date().toISOString();
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return job;
+  }
+
+  async updateJobPause(
+    jobId: string,
+    nodeId: string,
+    updates: Partial<CreateJobPauseInput>,
+  ): Promise<JobDefinition | undefined> {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      return undefined;
+    }
+
+    const pauseNode = this.getNode(job, nodeId);
+    if (!this.isPauseNode(pauseNode)) {
+      return undefined;
+    }
+
+    if (updates.title !== undefined) {
+      const title = updates.title.trim();
+      if (!title) {
+        throw new Error(messages.taskNameRequired());
+      }
+      pauseNode.title = title;
+    }
+
+    this.clearJobRuntime(job);
+    job.updatedAt = new Date().toISOString();
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return job;
+  }
+
+  async deleteJobPause(
+    jobId: string,
+    nodeId: string,
+  ): Promise<JobDefinition | undefined> {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      return undefined;
+    }
+
+    const nodeIndex = job.nodes.findIndex((node) => node.id === nodeId);
+    if (nodeIndex < 0) {
+      return undefined;
+    }
+
+    const node = job.nodes[nodeIndex];
+    if (!this.isPauseNode(node)) {
+      return undefined;
+    }
+
+    job.nodes.splice(nodeIndex, 1);
+    this.clearJobRuntime(job);
+    job.updatedAt = new Date().toISOString();
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return job;
+  }
+
+  async approveJobPause(
+    jobId: string,
+    nodeId: string,
+  ): Promise<JobDefinition | undefined> {
+    const job = this.jobs.get(jobId);
+    const pauseNode = job ? this.getNode(job, nodeId) : undefined;
+    if (!job || !this.isPauseNode(pauseNode)) {
+      return undefined;
+    }
+
+    const runtime = this.getWorkingRuntimeState(job);
+    if (runtime.waitingPause?.nodeId !== nodeId) {
+      return undefined;
+    }
+    const approvedIds = new Set(this.getApprovedPauseNodeIds(job));
+    approvedIds.add(nodeId);
+    runtime.approvedPauseNodeIds = Array.from(approvedIds);
+    runtime.waitingPause = undefined;
+    runtime.cycleStartedAt = runtime.cycleStartedAt || new Date().toISOString();
+    runtime.currentSegmentStartedAt = this.truncateToMinute(new Date()).toISOString();
+    job.updatedAt = new Date().toISOString();
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return job;
+  }
+
+  async rejectJobPause(
+    jobId: string,
+    nodeId: string,
+  ): Promise<JobPauseResolution | undefined> {
+    const job = this.jobs.get(jobId);
+    const pauseNode = job ? this.getNode(job, nodeId) : undefined;
+    if (!job || !this.isPauseNode(pauseNode)) {
+      return undefined;
+    }
+
+    if (job.runtime?.waitingPause?.nodeId !== nodeId) {
+      return undefined;
+    }
+
+    const previousTaskId =
+      job.runtime?.waitingPause?.previousTaskId ||
+      this.getPreviousTaskIdForPause(job, nodeId);
+
+    return {
+      job,
+      previousTaskId,
+    };
+  }
+
   async createTaskInJob(
     jobId: string,
     input: CreateTaskInput,
@@ -1739,10 +2102,11 @@ export class ScheduleManager {
       await this.detachTaskFromJob(existing.job.id, existing.node.id);
     }
 
-    if (!job.nodes.some((node) => node.taskId === taskId)) {
+    if (!job.nodes.some((node) => this.isTaskNode(node) && node.taskId === taskId)) {
       const nodeId = this.generateJobNodeId();
       job.nodes.push({
         id: nodeId,
+        type: "task",
         taskId,
         windowMinutes: this.normalizeWindowMinutes(windowMinutes),
       });
@@ -1754,6 +2118,7 @@ export class ScheduleManager {
       task.updatedAt = new Date();
     }
 
+    this.clearJobRuntime(job);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
@@ -1775,7 +2140,7 @@ export class ScheduleManager {
     }
 
     const [node] = job.nodes.splice(nodeIndex, 1);
-    const task = this.tasks.get(node.taskId);
+    const task = this.isTaskNode(node) ? this.tasks.get(node.taskId) : undefined;
     if (task) {
       task.jobId = undefined;
       task.jobNodeId = undefined;
@@ -1785,6 +2150,7 @@ export class ScheduleManager {
       task.updatedAt = new Date();
     }
 
+    this.clearJobRuntime(job);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
@@ -1801,7 +2167,7 @@ export class ScheduleManager {
     }
 
     const node = job.nodes.find((candidate) => candidate.id === nodeId);
-    if (!node) {
+    if (!node || !this.isTaskNode(node)) {
       return undefined;
     }
 
@@ -1831,6 +2197,7 @@ export class ScheduleManager {
     const boundedIndex = Math.max(0, Math.min(targetIndex, job.nodes.length - 1));
     const [node] = job.nodes.splice(sourceIndex, 1);
     job.nodes.splice(boundedIndex, 0, node);
+    this.clearJobRuntime(job);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
@@ -1848,7 +2215,7 @@ export class ScheduleManager {
     }
 
     const node = job.nodes.find((candidate) => candidate.id === nodeId);
-    if (!node) {
+    if (!node || !this.isTaskNode(node)) {
       return undefined;
     }
 
@@ -1857,6 +2224,135 @@ export class ScheduleManager {
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
     return job;
+  }
+
+  private async ensureArchiveFolder(): Promise<JobFolder> {
+    const existing = Array.from(this.jobFolders.values()).find((folder) =>
+      !folder.parentId && this.isBundledJobsFolder(folder),
+    );
+    if (existing) {
+      existing.name = ScheduleManager.BUNDLED_JOB_FOLDER_NAME;
+      existing.updatedAt = new Date().toISOString();
+      return existing;
+    }
+
+    const now = new Date().toISOString();
+    const folder: JobFolder = {
+      id: this.generateJobFolderId(),
+      name: ScheduleManager.BUNDLED_JOB_FOLDER_NAME,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.jobFolders.set(folder.id, folder);
+    return folder;
+  }
+
+  private isBundledJobsFolder(folder: JobFolder | undefined): boolean {
+    if (!folder) {
+      return false;
+    }
+
+    const normalized = folder.name.trim().toLowerCase();
+    return normalized === "bundled jobs" || normalized === "archive";
+  }
+
+  private buildCompiledJobPrompt(job: JobDefinition): {
+    prompt: string;
+    agent?: string;
+    model?: string;
+    labels: string[];
+  } {
+    const sections: string[] = [
+      `Job: ${job.name}`,
+      "Execute the following workflow as one combined task. Keep the sections in order and preserve explicit checkpoints before continuing.",
+    ];
+    const labels = new Set<string>([job.name, "bundled-task"]);
+    let agent: string | undefined;
+    let model: string | undefined;
+    let taskCount = 0;
+    let pauseCount = 0;
+
+    for (const node of job.nodes) {
+      if (this.isPauseNode(node)) {
+        pauseCount += 1;
+        sections.push(
+          `Checkpoint ${pauseCount}: ${node.title}`,
+          "Review the immediately previous section before continuing to the next one.",
+        );
+        continue;
+      }
+
+      const task = this.tasks.get(node.taskId);
+      if (!task) {
+        continue;
+      }
+
+      taskCount += 1;
+      if (!agent && task.agent) {
+        agent = task.agent;
+      }
+      if (!model && task.model) {
+        model = task.model;
+      }
+      for (const label of task.labels ?? []) {
+        if (label.trim().length > 0) {
+          labels.add(label.trim());
+        }
+      }
+
+      sections.push(
+        `Step ${taskCount}: ${task.name}`,
+        `Original window: ${this.normalizeWindowMinutes(node.windowMinutes)} minutes`,
+        task.prompt,
+      );
+    }
+
+    if (taskCount === 0) {
+      throw new Error("This job does not contain any task steps to compile.");
+    }
+
+    return {
+      prompt: sections.join("\n\n"),
+      agent,
+      model,
+      labels: Array.from(labels),
+    };
+  }
+
+  async compileJobToTask(
+    jobId: string,
+  ): Promise<{ job: JobDefinition; task: ScheduledTask } | undefined> {
+    const job = this.jobs.get(jobId);
+    if (!job) {
+      return undefined;
+    }
+
+    const compiled = this.buildCompiledJobPrompt(job);
+    const task = await this.createTask({
+      name: "Bundled Task",
+      cronExpression: job.cronExpression,
+      prompt: compiled.prompt,
+      enabled: job.paused !== true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: false,
+      agent: compiled.agent,
+      model: compiled.model,
+      labels: compiled.labels,
+    });
+
+    const bundledJobsFolder = await this.ensureArchiveFolder();
+    job.folderId = bundledJobsFolder.id;
+    job.paused = true;
+    job.archived = true;
+    job.archivedAt = new Date().toISOString();
+    job.lastCompiledTaskId = task.id;
+    this.clearJobRuntime(job);
+    job.updatedAt = new Date().toISOString();
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+
+    return { job, task };
   }
 
   getWorkspaceScheduleHistory(): ScheduleHistoryEntry[] {
@@ -2083,6 +2579,7 @@ export class ScheduleManager {
       jobContext.job.nodes = jobContext.job.nodes.filter(
         (node) => node.id !== jobContext.node.id,
       );
+      this.clearJobRuntime(jobContext.job);
       jobContext.job.updatedAt = new Date().toISOString();
     }
 
@@ -2392,6 +2889,8 @@ export class ScheduleManager {
             task.lastRun = new Date();
             task.lastError = undefined;
             task.lastErrorAt = undefined;
+            this.handleSuccessfulJobTaskExecution(task, task.lastRun);
+            needsSave = this.syncJobTaskSchedules(task.lastRun) || needsSave;
             executedSuccessfully = true;
           } catch (error) {
             const details = toSafeErrorDetails(error);
@@ -2454,6 +2953,52 @@ export class ScheduleManager {
     }
   }
 
+  private handleSuccessfulJobTaskExecution(
+    task: ScheduledTask,
+    executedAt: Date,
+  ): void {
+    const jobContext = this.findJobNodeByTaskId(task.id);
+    if (!jobContext) {
+      return;
+    }
+
+    const runtime = this.getWorkingRuntimeState(jobContext.job);
+    const cycleStart =
+      this.parseIsoDate(runtime.cycleStartedAt) ||
+      this.getPreviousCronOccurrence(jobContext.job.cronExpression, executedAt) ||
+      this.truncateToMinute(executedAt);
+    runtime.cycleStartedAt = cycleStart.toISOString();
+    if (!runtime.currentSegmentStartedAt) {
+      runtime.currentSegmentStartedAt = cycleStart.toISOString();
+    }
+
+    const nextNode = jobContext.job.nodes[jobContext.nodeIndex + 1];
+    if (
+      this.isPauseNode(nextNode) &&
+      !this.getApprovedPauseNodeIds(jobContext.job).includes(nextNode.id)
+    ) {
+      runtime.waitingPause = {
+        nodeId: nextNode.id,
+        previousTaskId: jobContext.node.taskId,
+        activatedAt: executedAt.toISOString(),
+      };
+      runtime.currentSegmentStartedAt = undefined;
+      jobContext.job.updatedAt = new Date().toISOString();
+      return;
+    }
+
+    runtime.waitingPause = undefined;
+    const hasFutureTask = jobContext.job.nodes
+      .slice(jobContext.nodeIndex + 1)
+      .some((node) => this.isTaskNode(node));
+
+    if (!hasFutureTask) {
+      this.clearJobRuntime(jobContext.job);
+    }
+
+    jobContext.job.updatedAt = new Date().toISOString();
+  }
+
   /**
    * Force run a task immediately
    */
@@ -2475,6 +3020,8 @@ export class ScheduleManager {
       task.lastRun = executedAt;
       task.lastError = undefined;
       task.lastErrorAt = undefined;
+      this.handleSuccessfulJobTaskExecution(task, executedAt);
+      this.syncJobTaskSchedules(executedAt);
       if (this.isOneTimeExecutionTask(task)) {
         this.tasks.delete(task.id);
         this.suppressedOverdueTaskIds.delete(task.id);
@@ -2572,38 +3119,127 @@ export class ScheduleManager {
               typeof job.cronExpression === "string" &&
               job.cronExpression.trim().length > 0,
           )
-          .map((job) => ({
-            ...job,
-            folderId:
-              typeof job.folderId === "string" && job.folderId.trim().length > 0
-                ? job.folderId.trim()
-                : undefined,
-            paused: job.paused === true,
-            nodes: Array.isArray(job.nodes)
-              ? job.nodes
-                .filter(
-                  (node): node is JobNode =>
-                    !!node &&
-                    typeof node.id === "string" &&
-                    node.id.trim().length > 0 &&
-                    typeof node.taskId === "string" &&
-                    node.taskId.trim().length > 0,
-                )
-                .map((node) => ({
+          .map((job) => {
+            const normalizedNodes: JobNode[] = Array.isArray(job.nodes)
+              ? job.nodes.reduce<JobNode[]>((acc, node) => {
+                if (!node || typeof node.id !== "string" || node.id.trim().length === 0) {
+                  return acc;
+                }
+
+                if (node.type === "pause") {
+                  const rawTitle = (node as { title?: unknown }).title;
+                  if (typeof rawTitle !== "string" || rawTitle.trim().length === 0) {
+                    return acc;
+                  }
+
+                  acc.push({
+                    id: node.id.trim(),
+                    type: "pause" as const,
+                    title: rawTitle.trim(),
+                  });
+                  return acc;
+                }
+
+                const rawTaskId = (node as { taskId?: unknown }).taskId;
+                if (typeof rawTaskId !== "string" || rawTaskId.trim().length === 0) {
+                  return acc;
+                }
+
+                acc.push({
                   id: node.id.trim(),
-                  taskId: node.taskId.trim(),
-                  windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
-                }))
-              : [],
-            createdAt:
-              typeof job.createdAt === "string" && job.createdAt.trim().length > 0
-                ? job.createdAt
-                : new Date().toISOString(),
-            updatedAt:
-              typeof job.updatedAt === "string" && job.updatedAt.trim().length > 0
-                ? job.updatedAt
-                : new Date().toISOString(),
-          }))
+                  type: "task" as const,
+                  taskId: rawTaskId.trim(),
+                  windowMinutes: this.normalizeWindowMinutes(
+                    (node as { windowMinutes?: number }).windowMinutes,
+                  ),
+                });
+                return acc;
+              }, [])
+              : [];
+
+            const pauseIds = new Set(
+              normalizedNodes
+                .filter((node): node is JobPauseNode => this.isPauseNode(node))
+                .map((node) => node.id),
+            );
+            const rawRuntime =
+              job.runtime && typeof job.runtime === "object"
+                ? (job.runtime as JobRuntimeState)
+                : undefined;
+            const approvedPauseNodeIds = Array.isArray(rawRuntime?.approvedPauseNodeIds)
+              ? rawRuntime.approvedPauseNodeIds
+                .filter(
+                  (value): value is string =>
+                    typeof value === "string" && pauseIds.has(value.trim()),
+                )
+                .map((value) => value.trim())
+              : [];
+            const waitingPause =
+              rawRuntime?.waitingPause && pauseIds.has(rawRuntime.waitingPause.nodeId.trim())
+                ? {
+                  nodeId: rawRuntime.waitingPause.nodeId.trim(),
+                  previousTaskId:
+                    typeof rawRuntime.waitingPause.previousTaskId === "string" &&
+                    rawRuntime.waitingPause.previousTaskId.trim().length > 0
+                      ? rawRuntime.waitingPause.previousTaskId.trim()
+                      : undefined,
+                  activatedAt:
+                    typeof rawRuntime.waitingPause.activatedAt === "string" &&
+                    rawRuntime.waitingPause.activatedAt.trim().length > 0
+                      ? rawRuntime.waitingPause.activatedAt.trim()
+                      : new Date().toISOString(),
+                }
+                : undefined;
+            const runtime =
+              rawRuntime?.cycleStartedAt ||
+              rawRuntime?.currentSegmentStartedAt ||
+              approvedPauseNodeIds.length > 0 ||
+              waitingPause
+                ? {
+                  cycleStartedAt:
+                    typeof rawRuntime?.cycleStartedAt === "string" &&
+                    rawRuntime.cycleStartedAt.trim().length > 0
+                      ? rawRuntime.cycleStartedAt.trim()
+                      : undefined,
+                  currentSegmentStartedAt:
+                    typeof rawRuntime?.currentSegmentStartedAt === "string" &&
+                    rawRuntime.currentSegmentStartedAt.trim().length > 0
+                      ? rawRuntime.currentSegmentStartedAt.trim()
+                      : undefined,
+                  approvedPauseNodeIds,
+                  waitingPause,
+                }
+                : undefined;
+
+            return {
+              ...job,
+              folderId:
+                typeof job.folderId === "string" && job.folderId.trim().length > 0
+                  ? job.folderId.trim()
+                  : undefined,
+              paused: job.paused === true,
+              archived: job.archived === true,
+              archivedAt:
+                typeof job.archivedAt === "string" && job.archivedAt.trim().length > 0
+                  ? job.archivedAt.trim()
+                  : undefined,
+              lastCompiledTaskId:
+                typeof job.lastCompiledTaskId === "string" &&
+                job.lastCompiledTaskId.trim().length > 0
+                  ? job.lastCompiledTaskId.trim()
+                  : undefined,
+              nodes: normalizedNodes,
+              runtime,
+              createdAt:
+                typeof job.createdAt === "string" && job.createdAt.trim().length > 0
+                  ? job.createdAt
+                  : new Date().toISOString(),
+              updatedAt:
+                typeof job.updatedAt === "string" && job.updatedAt.trim().length > 0
+                  ? job.updatedAt
+                  : new Date().toISOString(),
+            };
+          })
         : [];
 
       const jobFolders = Array.isArray(config.jobFolders)

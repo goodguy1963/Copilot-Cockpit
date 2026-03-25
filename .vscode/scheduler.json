@@ -43,43 +43,6 @@
             "updatedAt": "2026-03-25T15:34:45.711Z"
         }
     ],
-    "jobs": [
-        {
-            "id": "job_1774382049732_k0zony",
-            "name": "JOb Test",
-            "cronExpression": "0 9 * * 1-5",
-            "paused": false,
-            "nodes": [],
-            "createdAt": "2026-03-24T19:54:09.732Z",
-            "updatedAt": "2026-03-25T16:46:41.377Z",
-            "folderId": "jobfolder_1774456829317_8ye81u"
-        },
-        {
-            "id": "job_1774456513540_x7666y",
-            "name": "jobds",
-            "cronExpression": "0 9 * * 1-5",
-            "paused": false,
-            "nodes": [],
-            "createdAt": "2026-03-25T16:35:13.540Z",
-            "updatedAt": "2026-03-25T16:35:13.540Z"
-        },
-        {
-            "id": "job_1774456524002_2gi3y4",
-            "name": "p",
-            "cronExpression": "0 9 * * 1-5",
-            "paused": false,
-            "nodes": [],
-            "createdAt": "2026-03-25T16:35:24.002Z",
-            "updatedAt": "2026-03-25T16:46:30.890Z",
-            "folderId": "jobfolder_1774456829317_8ye81u"
-        }
-    ],
-    "jobFolders": [
-        {
-            "id": "jobfolder_1774456829317_8ye81u",
-            "name": "1",
-            "createdAt": "2026-03-25T16:40:29.317Z",
-            "updatedAt": "2026-03-25T16:40:29.317Z"
-        }
-    ]
+    "jobs": [],
+    "jobFolders": []
 }

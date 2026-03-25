@@ -1322,6 +1322,88 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "createJobPause": {
+        if (!action.jobId || !action.pauseData?.title) {
+          break;
+        }
+        const job = await scheduleManager.createPauseInJob(action.jobId, {
+          title: action.pauseData.title,
+        });
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Pause added to job: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "updateJobPause": {
+        if (!action.jobId || !action.nodeId || !action.pauseUpdateData?.title) {
+          break;
+        }
+        const job = await scheduleManager.updateJobPause(
+          action.jobId,
+          action.nodeId,
+          action.pauseUpdateData as any,
+        );
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Pause updated: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "deleteJobPause": {
+        if (!action.jobId || !action.nodeId) {
+          break;
+        }
+        const job = await scheduleManager.deleteJobPause(action.jobId, action.nodeId);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Pause deleted: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "approveJobPause": {
+        if (!action.jobId || !action.nodeId) {
+          break;
+        }
+        const job = await scheduleManager.approveJobPause(action.jobId, action.nodeId);
+        if (!job) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Checkpoint approved: ${job.name}`);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "rejectJobPause": {
+        if (!action.jobId || !action.nodeId) {
+          break;
+        }
+        const resolution = await scheduleManager.rejectJobPause(
+          action.jobId,
+          action.nodeId,
+        );
+        if (!resolution) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Checkpoint still paused: ${resolution.job.name}`);
+        refreshSchedulerUiState();
+        if (resolution.previousTaskId) {
+          SchedulerWebview.editTask(resolution.previousTaskId);
+        }
+        break;
+      }
+
       case "reorderJobNode": {
         if (!action.jobId || !action.nodeId || action.targetIndex === undefined) {
           break;
@@ -1353,6 +1435,21 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         refreshSchedulerUiState();
+        break;
+      }
+
+      case "compileJob": {
+        if (!action.jobId) {
+          break;
+        }
+        const compiled = await scheduleManager.compileJobToTask(action.jobId);
+        if (!compiled) {
+          notifyError(messages.taskNotFound());
+          break;
+        }
+        notifyInfo(`Compiled job into task: ${compiled.task.name}`);
+        refreshSchedulerUiState();
+        SchedulerWebview.focusTask(compiled.task.id);
         break;
       }
 

@@ -7,7 +7,7 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 ### What This Fork Adds
 
 - Strict per-repo workspace scheduling. Each repo keeps its own schedule in its own `.vscode` folder.
-- A repo-local `Jobs` board for ordered multi-step workflows with folders, pause/resume, drag-drop ordering, per-step time windows, drag-drop moves between folders, and a clearer current-folder indicator.
+- A repo-local `Jobs` board for workflows built in columns of chained tasks, with folders, pause/resume, dedicated pause checkpoints, compile-to-task/Bundled Jobs flow, drag-drop ordering, per-step time windows, drag-drop moves between folders, and a clearer current-folder indicator.
 - A repo-local `Research` tab for bounded benchmark-driven iteration against an allowlisted file set.
 - Embedded MCP server support bundled with the extension.
 - Prompted MCP setup that can create or merge `.vscode/mcp.json` for the current repo.
@@ -42,22 +42,12 @@ Notes:
 ### Basic Workflow
 
 1. Open the scheduler from the activity bar, from `Copilot Scheduler: Create Scheduled Prompt (GUI)`, or from the activation notification's `Open Scheduler` button.
-2. Start in the `How To Use` tab, which now opens first and includes the current Jobs flow, MCP setup button, and visual references.
+2. Start in the `How To Use` tab, which now opens first and includes the current Jobs flow, the Research tab guidance, and the MCP setup button.
 3. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, labels, optional agent/model, and optional skill insertion.
 4. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, move tasks, and filter by effective labels.
-5. Build ordered workflows in the `Jobs` tab by creating folders, dragging jobs into folders, duplicating jobs, pausing jobs, attaching existing tasks, or creating inline steps.
+5. Build chained workflows in the `Jobs` tab by creating folders, dragging jobs into folders, duplicating jobs, inserting pause checkpoints, pausing jobs, attaching existing tasks, creating inline steps, or compiling a whole job into one task and moving the source job into `Bundled Jobs`.
 6. Use the `Research` tab to define a benchmark command, metric regex, bounded run budget, and allowlisted editable paths for controlled iteration.
 7. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
-
-### UI Walkthrough
-
-Jobs board overview:
-
-![Jobs Board Overview](images/jobs-overview.png)
-
-Prompted MCP setup flow:
-
-![Workspace MCP Setup](images/mcp-setup.png)
 
 ### Prompt Sources
 
@@ -69,11 +59,13 @@ Prompted MCP setup flow:
 ### Jobs Board
 
 - Jobs are repo-local workflows stored next to the workspace scheduler files.
-- A job owns one cron schedule and an ordered list of step tasks.
+- A job owns one cron schedule and an ordered list of workflow items, so you can build it as columns of chained tasks with dedicated pause checkpoints between segments.
 - Jobs can be dragged from the Jobs list into sidebar folders, including back to `All jobs`.
 - The sidebar now shows the current folder explicitly and highlights the active folder more clearly.
 - Each step has a default 30-minute window that can be edited per node.
 - Drag-drop reordering updates the workflow timeline and the derived next-run order.
+- Dedicated pause checkpoints block all downstream steps until you approve the previous result. Rejecting a waiting pause opens the previous task in the editor so it can be changed.
+- `Compile To Task` merges the full workflow into one combined prompt task, then moves the source job into the `Bundled Jobs` folder in an inactive state so it can still be edited or duplicated later.
 - Deleting a step from Jobs now confirms first and removes the underlying task from both the workflow and the Task List.
 - Pausing a job suppresses all child-task executions without changing each task's own enabled flag.
 - Effective labels combine manual task labels with the owning job name, so the Task List can be filtered by workflow.
@@ -103,7 +95,7 @@ The global setting `copilotScheduler.chatSession` still provides the default sch
 - `new` tries to open a new Copilot chat session before sending the scheduled prompt.
 - Use `new` with absolute care. One scheduled AI run can intentionally open another AI session, which means an AI-driven chain can continue further than a single message.
 - VS Code does not currently expose a supported extension API to reopen a specific old Copilot conversation by saved session ID, so this fork can persist the recurring task mode but cannot force-restore an exact prior Copilot thread.
-- This setting is separate from MCP. New chat sessions are a scheduler execution behavior, while MCP tools still depend on workspace MCP launch configuration.
+- MCP is a different launch path, but it can still trigger new sessions indirectly. Once the scheduler MCP tools are exposed to Copilot, a model can create, modify, or run tasks that use `new` chat-session mode, so one LLM can open another.
 
 ### Agent and Model Selection
 
@@ -153,18 +145,10 @@ Example:
 Yes, MCP is set up in the plugin itself.
 
 - The extension includes an embedded MCP server implemented in `src/server.ts` and packaged as `out/server.js`.
-- The embedded server now exposes these scheduler tools:
-  `scheduler_list_tasks`
-  `scheduler_get_task`
-  `scheduler_add_task`
-  `scheduler_update_task`
-  `scheduler_duplicate_task`
-  `scheduler_remove_task`
-  `scheduler_run_task`
-  `scheduler_toggle_task`
-  `scheduler_list_history`
-  `scheduler_restore_snapshot`
-  `scheduler_get_overdue_tasks`
+- Treat MCP exposure as high risk. Once Copilot can see these tools, it can inspect scheduler state, modify saved tasks, and trigger runs that may open additional AI sessions.
+- `scheduler_list_tasks` and `scheduler_get_task` inspect current scheduler state and single saved tasks.
+- `scheduler_add_task`, `scheduler_update_task`, `scheduler_duplicate_task`, `scheduler_remove_task`, and `scheduler_toggle_task` create or change saved tasks.
+- `scheduler_run_task` triggers a task, while `scheduler_list_history`, `scheduler_restore_snapshot`, and `scheduler_get_overdue_tasks` inspect recovery state and due work.
 - Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as `.vscode/mcp.json` that starts the installed scheduler server.
 - In short: the server is bundled with the plugin, but the workspace still decides how to launch it.
 

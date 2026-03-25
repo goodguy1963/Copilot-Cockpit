@@ -296,8 +296,8 @@ export const messages = {
   helpIntroTitle: () => t("How This Fork Works", "このフォークの動作"),
   helpIntroBody: () =>
     t(
-      "This local fork keeps repo schedules inside each repo's .vscode folder, runs the scheduler inside VS Code, and adds repo-specific startup behavior.",
-      "このローカルフォークは、各リポジトリの .vscode フォルダーにスケジュールを保存し、Scheduler を VS Code 内で動作させ、リポジトリ単位の起動時動作を追加しています。",
+      "This local fork keeps repo schedules inside each repo's .vscode folder, runs the scheduler inside VS Code, and adds repo-specific startup behavior, Jobs workflows built in columns of chained tasks, pause checkpoints, compile/Bundled Jobs flow, and bounded Research runs.",
+      "このローカルフォークは、各リポジトリの .vscode フォルダーにスケジュールを保存し、Scheduler を VS Code 内で動作させ、リポジトリ単位の起動時動作に加えて、列状に連鎖した Jobs ワークフロー、停止チェックポイント、コンパイル/Bundled Jobs 機能、制限付きの Research 実行を追加しています。",
     ),
   helpCreateTitle: () => t("1. Create Tasks", "1. タスクを作成"),
   helpCreateItemName: () =>
@@ -341,7 +341,54 @@ export const messages = {
       "Use the Task List toolbar to refresh data and toggle repo-scoped auto-open on startup without leaving the UI.",
       "Task List のツールバーから、UI を離れずに再読込やリポジトリ単位の起動時自動表示の切り替えができます。",
     ),
-  helpStorageTitle: () => t("3. Where Data Lives", "3. データ保存場所"),
+  helpJobsTitle: () => t("3. Jobs Board", "3. JOBS ボード"),
+  helpJobsItemBoard: () =>
+    t(
+      "Use the Jobs tab to build workflows in columns of chained tasks with folders, step windows, and drag-drop reordering.",
+      "Jobs タブでは、フォルダー・ステップ時間枠・ドラッグ&ドロップ並び替え付きで、列状に連鎖したワークフローを作成できます。",
+    ),
+  helpJobsItemPause: () =>
+    t(
+      "Dedicated pause checkpoints block all downstream steps until you approve the previous result; rejecting the pause opens the previous task in the editor.",
+      "専用の停止チェックポイントは、前の結果を承認するまで後続ステップをすべて止めます。却下すると、直前のタスクがエディターで開きます。",
+    ),
+  helpJobsItemCompile: () =>
+    t(
+      "Use Compile To Task to merge the whole job into one combined prompt task, then move the source job into the Bundled Jobs folder in an inactive state.",
+      "Compile To Task を使うと、ジョブ全体を1つの結合プロンプトタスクへまとめたうえで、元のジョブを Bundled Jobs フォルダーへ非アクティブ状態で移動できます。",
+    ),
+  helpJobsItemLabels: () =>
+    t(
+      "Job names become effective task labels, so you can filter the Task List by workflow and still add your own manual labels.",
+      "ジョブ名は実効タスクラベルとして扱われるため、Task List をワークフロー単位で絞り込みつつ、手動ラベルも追加できます。",
+    ),
+  helpJobsItemFolders: () =>
+    t(
+      "You can drag jobs into folders, drag them back to All jobs, and use the current-folder banner to see exactly where the board is filtered.",
+      "ジョブはフォルダーへドラッグして移動でき、All jobs に戻すこともできます。現在どのフォルダーで絞り込まれているかは、上部の現在フォルダーバナーで確認できます。",
+    ),
+  helpJobsItemDelete: () =>
+    t(
+      "Deleting a step from Jobs now asks for confirmation and also removes that task from the Task List.",
+      "Jobs からステップを削除するときは確認が入り、そのタスクは Task List からも削除されます。",
+    ),
+  helpResearchTitle: () => t("4. Research Tab", "4. Research タブ"),
+  helpResearchItemProfiles: () =>
+    t(
+      "Use the Research tab to save repo-local benchmark profiles with instructions, editable paths, benchmark command, metric regex, and agent/model choices.",
+      "Research タブでは、指示文、編集可能パス、ベンチマークコマンド、指標用正規表現、エージェント/モデル指定を含むリポジトリ単位のベンチマークプロファイルを保存できます。",
+    ),
+  helpResearchItemBounds: () =>
+    t(
+      "Runs are bounded by max iterations, max minutes, benchmark timeout, edit wait time, and consecutive failure limits.",
+      "実行は、最大反復回数、最大分数、ベンチマークタイムアウト、編集待機時間、連続失敗上限で制限されます。",
+    ),
+  helpResearchItemHistory: () =>
+    t(
+      "Recent runs show attempts, scores, changed files, outcomes, and benchmark output so you can inspect what happened before keeping a result.",
+      "最近の実行には、試行、スコア、変更ファイル、結果、ベンチマーク出力が表示されるため、結果を採用する前に内容を確認できます。",
+    ),
+  helpStorageTitle: () => t("5. Where Data Lives", "5. データ保存場所"),
   helpStorageItemRepo: () =>
     t(
       "Workspace tasks are stored in .vscode/scheduler.json and .vscode/scheduler.private.json inside the repo that is open in VS Code.",
@@ -357,7 +404,7 @@ export const messages = {
       "Global tasks still exist in extension storage, but repo schedules are authoritative in the repo's .vscode files.",
       "グローバルタスクは拡張ストレージにも存在しますが、リポジトリのスケジュールはそのリポジトリ内の .vscode ファイルが正本です。",
     ),
-  helpOverdueTitle: () => t("4. Overdue Tasks", "4. 期限超過タスク"),
+  helpOverdueTitle: () => t("6. Overdue Tasks", "6. 期限超過タスク"),
   helpOverdueItemReview: () =>
     t(
       "If VS Code was closed and tasks became overdue, the extension reviews them one by one on startup instead of auto-running them silently.",
@@ -373,7 +420,7 @@ export const messages = {
       "One-time overdue tasks can run now or be rescheduled by entering how many minutes from now they should run.",
       "一度きりの期限超過タスクは、今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
     ),
-  helpSessionTitle: () => t("5. Session Behavior", "5. セッション動作"),
+  helpSessionTitle: () => t("7. Session Behavior", "7. セッション動作"),
   helpSessionItemPerTask: () =>
     t(
       "Recurring tasks can override the global chatSession setting directly in the Create/Edit form.",
@@ -391,8 +438,8 @@ export const messages = {
     ),
   helpSessionItemSeparate: () =>
     t(
-      "This is separate from MCP. New chat sessions are controlled by the scheduler chatSession setting, while MCP tool visibility still depends on workspace launch config.",
-      "これは MCP とは別の機能です。新しいチャットセッションは scheduler の chatSession 設定で制御され、MCP ツールの表示は引き続きワークスペースの起動設定に依存します。",
+      "MCP is a different launch path, but it can still trigger new sessions indirectly. Once the scheduler MCP tools are exposed, a model can create, modify, or run tasks that use new-session mode, so one LLM can open another.",
+      "MCP は別の起動経路ですが、間接的に新規セッションを起動できます。scheduler MCP ツールが公開されると、モデルは new-session モードのタスクを作成・変更・実行できるため、1つの LLM が別の LLM を開けます。",
     ),
   helpMcpItemEmbedded: () =>
     t(
@@ -409,52 +456,25 @@ export const messages = {
       "Use the setup button to create or merge the scheduler server entry into .vscode/mcp.json for this repo.",
       "セットアップボタンを使うと、このリポジトリ用の scheduler サーバー設定を .vscode/mcp.json に作成またはマージできます。",
     ),
+  helpMcpItemDanger: () =>
+    t(
+      "Treat MCP exposure as high risk. Once Copilot can see these tools, it can inspect scheduler state, change tasks, and trigger runs that may open more AI sessions.",
+      "MCP 公開は高リスクとして扱ってください。Copilot がこれらのツールを見える状態になると、scheduler 状態の確認、タスク変更、さらに別の AI セッションを開く可能性がある実行のトリガーまで行えます。",
+    ),
+  helpMcpItemInspect: () =>
+    t(
+      "scheduler_list_tasks and scheduler_get_task inspect the current scheduler state and a single saved task.",
+      "scheduler_list_tasks と scheduler_get_task は、現在の scheduler 状態と単一タスクの内容を確認します。",
+    ),
+  helpMcpItemWrite: () =>
+    t(
+      "scheduler_add_task, scheduler_update_task, scheduler_duplicate_task, scheduler_remove_task, and scheduler_toggle_task create or change saved tasks.",
+      "scheduler_add_task、scheduler_update_task、scheduler_duplicate_task、scheduler_remove_task、scheduler_toggle_task は、保存済みタスクの作成や変更を行います。",
+    ),
   helpMcpItemTools: () =>
     t(
-      "The embedded server exposes task list/get/add/update/duplicate/remove/run/toggle tools plus history list/restore and overdue-task queries.",
-      "組み込みサーバーは、タスクの一覧・取得・追加・更新・複製・削除・実行・有効化切替に加え、履歴一覧・復元・期限超過タスク照会を提供します。",
-    ),
-  helpJobsTitle: () => t("6. Jobs Board", "6. JOBS ボード"),
-  helpJobsItemBoard: () =>
-    t(
-      "Use the Jobs tab to build ordered multi-step workflows with folders, step windows, and drag-drop reordering.",
-      "Jobs タブでは、フォルダー・ステップ時間枠・ドラッグ&ドロップ並び替え付きの順序化ワークフローを作成できます。",
-    ),
-  helpJobsItemPause: () =>
-    t(
-      "Pausing a job suppresses all of its tasks without changing each task's own enabled state.",
-      "ジョブを一時停止すると、各タスク自身の enabled 状態を変えずに、そのジョブ内のすべてのタスク実行を抑止できます。",
-    ),
-  helpJobsItemLabels: () =>
-    t(
-      "Job names become effective task labels, so you can filter the Task List by workflow and still add your own manual labels.",
-      "ジョブ名は実効タスクラベルとして扱われるため、Task List をワークフロー単位で絞り込みつつ、手動ラベルも追加できます。",
-    ),
-  helpJobsItemFolders: () =>
-    t(
-      "You can drag jobs into folders, drag them back to All jobs, and use the current-folder banner to see exactly where the board is filtered.",
-      "ジョブはフォルダーへドラッグして移動でき、All jobs に戻すこともできます。現在どのフォルダーで絞り込まれているかは、上部の現在フォルダーバナーで確認できます。",
-    ),
-  helpJobsItemDelete: () =>
-    t(
-      "Deleting a step from Jobs now asks for confirmation and also removes that task from the Task List.",
-      "Jobs からステップを削除するときは確認が入り、そのタスクは Task List からも削除されます。",
-    ),
-  helpResearchTitle: () => t("7. Research Tab", "7. Research タブ"),
-  helpResearchItemProfiles: () =>
-    t(
-      "Use the Research tab to save repo-local benchmark profiles with instructions, editable paths, benchmark command, metric regex, and agent/model choices.",
-      "Research タブでは、指示文、編集可能パス、ベンチマークコマンド、指標用正規表現、エージェント/モデル指定を含むリポジトリ単位のベンチマークプロファイルを保存できます。",
-    ),
-  helpResearchItemBounds: () =>
-    t(
-      "Runs are bounded by max iterations, max minutes, benchmark timeout, edit wait time, and consecutive failure limits.",
-      "実行は、最大反復回数、最大分数、ベンチマークタイムアウト、編集待機時間、連続失敗上限で制限されます。",
-    ),
-  helpResearchItemHistory: () =>
-    t(
-      "Recent runs show attempts, scores, changed files, outcomes, and benchmark output so you can inspect what happened before keeping a result.",
-      "最近の実行には、試行、スコア、変更ファイル、結果、ベンチマーク出力が表示されるため、結果を採用する前に内容を確認できます。",
+      "scheduler_run_task triggers a task, while scheduler_list_history, scheduler_restore_snapshot, and scheduler_get_overdue_tasks inspect recovery state and due work.",
+      "scheduler_run_task はタスクを起動し、scheduler_list_history、scheduler_restore_snapshot、scheduler_get_overdue_tasks は復旧履歴や期限超過状態を確認します。",
     ),
   helpMcpTitle: () => t("8. MCP Support", "8. MCP 対応"),
   helpTipsTitle: () => t("9. Recommended Workflow", "9. 推奨ワークフロー"),
@@ -682,6 +702,9 @@ export const messages = {
   jobFolderRenameTitle: () => t("Rename Folder", "フォルダー名の変更"),
   jobFolderNamePrompt: () =>
     t("Enter folder name", "フォルダー名を入力してください"),
+  jobsPauseTitle: () => t("Pause checkpoints", "停止チェックポイント"),
+  jobsPauseName: () => t("Pause title", "停止タイトル"),
+  jobsPauseDefaultTitle: () => t("Manual review", "手動確認"),
   confirmDeleteJobFolder: (name: string) =>
     t(
       `Delete folder "${name}"? Jobs and subfolders inside it will move to the parent folder.`,
