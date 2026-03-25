@@ -43,6 +43,38 @@
     return basenameAny(s);
   }
 
+  function getModelSourceLabel(model) {
+    var id = model && model.id ? String(model.id).trim() : "";
+    var name = model && model.name ? String(model.name).trim() : "";
+    var vendor = model && model.vendor ? String(model.vendor).trim() : "";
+    var description = model && model.description ? String(model.description).trim() : "";
+    var normalized = (id + " " + name + " " + vendor + " " + description).toLowerCase();
+
+    if (normalized.indexOf("openrouter") >= 0) {
+      return "OpenRouter";
+    }
+
+    if (
+      normalized.indexOf("copilot") >= 0 ||
+      normalized.indexOf("codex") >= 0 ||
+      normalized.indexOf("github") >= 0 ||
+      normalized.indexOf("microsoft") >= 0
+    ) {
+      return "Copilot";
+    }
+
+    return vendor;
+  }
+
+  function formatModelLabel(model) {
+    var name = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
+    var source = getModelSourceLabel(model);
+    if (!source || source.toLowerCase() === name.toLowerCase()) {
+      return name;
+    }
+    return name + " • " + source;
+  }
+
   function formatCountdown(totalSec) {
     var remaining = Math.max(0, Math.floor(totalSec));
     var units = [
@@ -1890,7 +1922,7 @@
         if (Array.isArray(items)) {
           items.forEach(function (item) {
             var id = item.id || item.slug;
-            var label = item.name || id;
+            var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : (item.name || id);
             var sel = (id === selectedId) ? ' selected' : '';
             options += '<option value="' + escapeAttr(id) + '"' + sel + '>' + escapeHtml(label) + '</option>';
           });
@@ -2626,7 +2658,7 @@
               '<option value="' +
               escapeAttr(m.id) +
               '">' +
-              escapeHtml(m.name) +
+              escapeHtml(formatModelLabel(m)) +
               "</option>"
             );
           })

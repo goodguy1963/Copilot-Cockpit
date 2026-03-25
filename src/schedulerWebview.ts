@@ -1453,6 +1453,39 @@ export class SchedulerWebview {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   }
+
+  private static getModelSourceLabel(model: ModelInfo): string {
+    const id = String(model.id || "").trim();
+    const name = String(model.name || "").trim();
+    const vendor = String(model.vendor || "").trim();
+    const description = String(model.description || "").trim();
+    const normalized = [id, name, vendor, description].join(" ").toLowerCase();
+
+    if (normalized.includes("openrouter")) {
+      return "OpenRouter";
+    }
+
+    if (
+      normalized.includes("copilot") ||
+      normalized.includes("codex") ||
+      normalized.includes("github") ||
+      normalized.includes("microsoft")
+    ) {
+      return "Copilot";
+    }
+
+    return vendor;
+  }
+
+  private static formatModelLabel(model: ModelInfo): string {
+    const name = String(model.name || model.id || "").trim();
+    const source = this.getModelSourceLabel(model);
+    if (!source || source.toLowerCase() === name.toLowerCase()) {
+      return name;
+    }
+
+    return `${name} • ${source}`;
+  }
   /**
    * Generate webview HTML content
    */
@@ -3087,7 +3120,7 @@ export class SchedulerWebview {
         <div class="form-group">
           <label for="model-select">${escapeHtml(strings.labelModel)}</label>
           <select id="model-select">
-            ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(m.name || "")}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
+            ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(SchedulerWebview.formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
           </select>
           <p class="note">${escapeHtml(strings.labelModelNote)}</p>
         </div>
