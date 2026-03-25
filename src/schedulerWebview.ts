@@ -17,6 +17,8 @@ import type {
   AgentInfo,
   ModelInfo,
   PromptTemplate,
+  ResearchProfile,
+  ResearchRun,
   SkillReference,
   ChatSessionBehavior,
   TaskScope,
@@ -51,6 +53,9 @@ export class SchedulerWebview {
   private static currentTasks: ScheduledTask[] = [];
   private static currentJobs: JobDefinition[] = [];
   private static currentJobFolders: JobFolder[] = [];
+  private static currentResearchProfiles: ResearchProfile[] = [];
+  private static currentActiveResearchRun: ResearchRun | undefined;
+  private static currentRecentResearchRuns: ResearchRun[] = [];
   private static currentScheduleHistory: ScheduleHistoryEntry[] = [];
   private static webviewReady = false;
   private static pendingMessages: OutgoingWebviewMessage[] = [];
@@ -109,6 +114,9 @@ export class SchedulerWebview {
     tasks: ScheduledTask[],
     jobs: JobDefinition[],
     jobFolders: JobFolder[],
+    researchProfiles: ResearchProfile[],
+    activeResearchRun: ResearchRun | undefined,
+    recentResearchRuns: ResearchRun[],
     onTaskAction: (action: TaskAction) => void,
     onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
   ): Promise<void> {
@@ -116,6 +124,9 @@ export class SchedulerWebview {
     this.currentTasks = tasks;
     this.currentJobs = jobs;
     this.currentJobFolders = jobFolders;
+    this.currentResearchProfiles = researchProfiles;
+    this.currentActiveResearchRun = activeResearchRun;
+    this.currentRecentResearchRuns = recentResearchRuns;
     this.onTaskActionCallback = onTaskAction;
     this.onTestPromptCallback = onTestPrompt;
 
@@ -185,6 +196,11 @@ export class SchedulerWebview {
       // Reveal existing panel — send cached data only (no heavy re-scan)
       this.panel.reveal(vscode.ViewColumn.One);
       this.updateTasks(tasks);
+      this.updateResearchState(
+        researchProfiles,
+        activeResearchRun,
+        recentResearchRuns,
+      );
       // Send already-cached agents/models/templates without rescanning
       this.postMessage({
         type: "updateAgents",
@@ -300,6 +316,22 @@ export class SchedulerWebview {
     this.postMessage({
       type: "updateJobFolders",
       jobFolders,
+    });
+  }
+
+  static updateResearchState(
+    profiles: ResearchProfile[],
+    activeRun: ResearchRun | undefined,
+    recentRuns: ResearchRun[],
+  ): void {
+    this.currentResearchProfiles = profiles;
+    this.currentActiveResearchRun = activeRun;
+    this.currentRecentResearchRuns = recentRuns;
+    this.postMessage({
+      type: "updateResearchState",
+      profiles,
+      activeRun,
+      recentRuns,
     });
   }
 
@@ -422,7 +454,7 @@ export class SchedulerWebview {
     this.postMessage({ type: "switchToList", successMessage });
   }
 
-  static switchToTab(tab: "create" | "list" | "jobs" | "help"): void {
+  static switchToTab(tab: "create" | "list" | "jobs" | "research" | "help"): void {
     this.postMessage({ type: "switchToTab", tab });
   }
 
@@ -448,6 +480,15 @@ export class SchedulerWebview {
     this.postMessage({
       type: "focusTask",
       taskId: taskId,
+    });
+  }
+
+  static focusJob(jobId: string, folderId?: string): void {
+    if (!jobId) return;
+    this.postMessage({
+      type: "focusJob",
+      jobId,
+      folderId,
     });
   }
 
@@ -571,6 +612,38 @@ export class SchedulerWebview {
     });
   }
 
+  private static async handleDeleteJobTaskRequest(
+    jobId: string,
+    nodeId: string,
+  ): Promise<void> {
+    const job = this.currentJobs.find((entry) => entry.id === jobId);
+    const node = job?.nodes.find((entry) => entry.id === nodeId);
+    const task = node
+      ? this.currentTasks.find((entry) => entry.id === node.taskId)
+      : undefined;
+
+    if (!job || !node || !task || !this.onTaskActionCallback) {
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      messages.confirmDeleteJobStep(task.name),
+      { modal: true },
+      messages.confirmDeleteYes(),
+      messages.actionCancel(),
+    );
+    if (confirm !== messages.confirmDeleteYes()) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "deleteJobTask",
+      taskId: "__jobtask__",
+      jobId,
+      nodeId,
+    });
+  }
+
   /**
    * Handle messages from webview
    */
@@ -592,6 +665,10 @@ export class SchedulerWebview {
 
       case "requestDeleteJobFolder":
         await this.handleDeleteJobFolderRequest(message.folderId);
+        break;
+
+      case "requestDeleteJobTask":
+        await this.handleDeleteJobTaskRequest(message.jobId, message.nodeId);
         break;
 
       case "createTask":
@@ -839,6 +916,17 @@ export class SchedulerWebview {
         }
         break;
 
+      case "deleteJobTask":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteJobTask",
+            taskId: "__jobtask__",
+            jobId: message.jobId,
+            nodeId: message.nodeId,
+          });
+        }
+        break;
+
       case "reorderJobNode":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -877,6 +965,66 @@ export class SchedulerWebview {
           this.onTaskActionCallback({
             action: "copy",
             taskId: message.taskId,
+          });
+        }
+        break;
+
+      case "createResearchProfile":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createResearchProfile",
+            taskId: "__research__",
+            researchData: message.data,
+          });
+        }
+        break;
+
+      case "updateResearchProfile":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "updateResearchProfile",
+            taskId: "__research__",
+            researchId: message.researchId,
+            researchData: message.data,
+          });
+        }
+        break;
+
+      case "deleteResearchProfile":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteResearchProfile",
+            taskId: "__research__",
+            researchId: message.researchId,
+          });
+        }
+        break;
+
+      case "duplicateResearchProfile":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "duplicateResearchProfile",
+            taskId: "__research__",
+            researchId: message.researchId,
+          });
+        }
+        break;
+
+      case "startResearchRun":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "startResearchRun",
+            taskId: "__research__",
+            researchId: message.researchId,
+          });
+        }
+        break;
+
+      case "stopResearchRun":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "stopResearchRun",
+            taskId: "__research__",
           });
         }
         break;
@@ -1269,9 +1417,16 @@ export class SchedulerWebview {
       helpMcpItemAutoConfig: messages.helpMcpItemAutoConfig(),
       helpMcpItemTools: messages.helpMcpItemTools(),
       helpJobsTitle: messages.helpJobsTitle(),
+      tabResearch: "Research",
       helpJobsItemBoard: messages.helpJobsItemBoard(),
       helpJobsItemPause: messages.helpJobsItemPause(),
       helpJobsItemLabels: messages.helpJobsItemLabels(),
+      helpJobsItemFolders: messages.helpJobsItemFolders(),
+      helpJobsItemDelete: messages.helpJobsItemDelete(),
+      helpResearchTitle: messages.helpResearchTitle(),
+      helpResearchItemProfiles: messages.helpResearchItemProfiles(),
+      helpResearchItemBounds: messages.helpResearchItemBounds(),
+      helpResearchItemHistory: messages.helpResearchItemHistory(),
       helpTipsTitle: messages.helpTipsTitle(),
       helpTipsItem1: messages.helpTipsItem1(),
       helpTipsItem2: messages.helpTipsItem2(),
@@ -1291,6 +1446,8 @@ export class SchedulerWebview {
       jobsTitle: "Jobs",
       jobsFoldersTitle: "Folders",
       jobsRootFolder: "All jobs",
+      jobsCurrentFolderLabel: "Current folder",
+      jobsCurrentFolderBadge: "Current",
       jobsCreateFolder: "New Folder",
       jobsCreateJob: "New Job",
       jobsRenameFolder: "Rename Folder",
@@ -1325,6 +1482,73 @@ export class SchedulerWebview {
       jobsNoStandaloneTasks: "No standalone tasks available.",
       jobsEmptySteps: "This job has no steps yet.",
       jobsDropHint: "Drag steps to reorder the timeline.",
+      researchTitle: "Benchmark Research",
+      researchProfilesTitle: "Profiles",
+      researchActiveRunTitle: "Run details",
+      researchHistoryTitle: "Recent runs",
+      researchEmptyProfiles: "No research profiles yet.",
+      researchEmptyRuns: "No research runs yet.",
+      researchNewProfile: "New Profile",
+      researchCreateProfile: "Create Profile",
+      researchSaveProfile: "Save Profile",
+      researchDuplicateProfile: "Duplicate Profile",
+      researchDeleteProfile: "Delete Profile",
+      researchStartRun: "Start Run",
+      researchStopRun: "Stop Run",
+      researchName: "Profile name",
+      researchInstructions: "Instructions",
+      researchInstructionsPlaceholder: "Describe the goal and the kind of focused edits Copilot should attempt.",
+      researchEditablePaths: "Editable files",
+      researchEditablePathsPlaceholder: "src/file.ts\nsrc/other.ts",
+      researchBenchmarkCommand: "Benchmark command",
+      researchBenchmarkPlaceholder: "npm test -- --runInBand",
+      researchMetricPattern: "Metric regex",
+      researchMetricPatternPlaceholder: "score:\\s*([0-9.]+)",
+      researchMetricDirection: "Metric direction",
+      researchDirectionMaximize: "Maximize",
+      researchDirectionMinimize: "Minimize",
+      researchMaxIterations: "Max iterations",
+      researchMaxMinutes: "Max minutes",
+      researchMaxFailures: "Max consecutive failures",
+      researchBenchmarkTimeout: "Benchmark timeout (seconds)",
+      researchEditWait: "Copilot edit settle time (seconds)",
+      researchCurrentBest: "Current best",
+      researchNoScore: "No score yet",
+      researchStatusIdle: "Idle",
+      researchStatusRunning: "Running",
+      researchStatusStopping: "Stopping",
+      researchStatusCompleted: "Completed",
+      researchStatusFailed: "Failed",
+      researchStatusStopped: "Stopped",
+      researchAttempts: "Attempts",
+      researchLastOutcome: "Last outcome",
+      researchStopReason: "Stop reason",
+      researchActiveRunEmpty: "No research run is active.",
+      researchAttemptTimeline: "Attempt timeline",
+      researchBaselineLabel: "Baseline",
+      researchIterationLabel: "Iteration",
+      researchStartedAt: "Started",
+      researchFinishedAt: "Finished",
+      researchDuration: "Duration",
+      researchBaselineScore: "Baseline score",
+      researchBestScore: "Best score",
+      researchCompletedIterations: "Completed iterations",
+      researchChangedFiles: "Changed files",
+      researchViolationFiles: "Policy violation files",
+      researchBenchmarkOutput: "Benchmark output",
+      researchExitCode: "Exit code",
+      researchSnapshot: "Snapshot",
+      researchMetricPatternShort: "Metric",
+      researchBudgetShort: "Budget",
+      researchEditableCount: "Editable files",
+      researchUnsavedNew: "New profile",
+      researchUnsavedChanges: "Unsaved changes",
+      researchNoRunSelected: "Select a recent run to inspect its attempts.",
+      researchProfileNameRequired: "Research profile name is required.",
+      researchBenchmarkRequired: "Benchmark command is required.",
+      researchMetricRequired: "Metric regex is required.",
+      researchEditableRequired: "Add at least one editable file path.",
+      researchHelpText: "This first implementation runs bounded benchmark iterations against a small allowlisted file set and records keep or revert outcomes in repo-local history.",
       labelPromptType: messages.labelPromptType(),
       labelPromptInline: messages.labelPromptInline(),
       labelPromptLocal: messages.labelPromptLocal(),
@@ -1466,6 +1690,9 @@ export class SchedulerWebview {
       tasks: initialTasks,
       jobs: this.currentJobs,
       jobFolders: this.currentJobFolders,
+      researchProfiles: this.currentResearchProfiles,
+      activeResearchRun: this.currentActiveResearchRun,
+      recentResearchRuns: this.currentRecentResearchRuns,
       agents: initialAgents,
       models: initialModels,
       promptTemplates: initialTemplates,
@@ -1513,12 +1740,54 @@ export class SchedulerWebview {
       color: var(--vscode-foreground);
       background-color: var(--vscode-editor-background);
     }
+
+    .tab-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin: -20px -20px 20px -20px;
+      padding: 10px 20px 8px 20px;
+      background-color: var(--vscode-editor-background);
+      background: linear-gradient(
+        to bottom,
+        var(--vscode-editor-background) 0%,
+        var(--vscode-editor-background) 85%,
+        color-mix(in srgb, var(--vscode-editor-background) 75%, transparent) 100%
+      );
+      border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
+    }
     
     .tabs {
       display: flex;
       gap: 0;
-      margin-bottom: 20px;
       border-bottom: 1px solid var(--vscode-panel-border);
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      scrollbar-gutter: stable both-edges;
+      scrollbar-width: thin;
+    }
+
+    .tabs::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    .tabs::-webkit-scrollbar-thumb {
+      background: var(--vscode-scrollbarSlider-background);
+      border-radius: 999px;
+    }
+
+    .tab-actions {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     
     .tab-button {
@@ -1529,6 +1798,7 @@ export class SchedulerWebview {
       cursor: pointer;
       border-bottom: 2px solid transparent;
       font-size: 14px;
+      flex: 0 0 auto;
     }
     
     .tab-button:hover {
@@ -2033,9 +2303,7 @@ export class SchedulerWebview {
     }
 
     .jobs-main-header {
-      display: flex;
-      justify-content: flex-end;
-      margin-bottom: 12px;
+      display: none;
     }
 
     .jobs-folder-item,
@@ -2052,12 +2320,75 @@ export class SchedulerWebview {
       cursor: pointer;
     }
 
+    .jobs-list-item[draggable="true"] {
+      cursor: grab;
+    }
+
+    .jobs-list-item.dragging {
+      opacity: 0.55;
+    }
+
+    .jobs-current-folder-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-panel-border));
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 58%, transparent),
+        color-mix(in srgb, var(--vscode-editorWidget-background) 85%, transparent)
+      );
+    }
+
+    .jobs-current-folder-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
+
+    .jobs-current-folder-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+      word-break: break-word;
+    }
+
+    .jobs-folder-path {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      word-break: break-word;
+    }
+
     .jobs-folder-item.active,
     .jobs-list-item.active,
+    .jobs-folder-item.drag-over,
     .jobs-step-card.drag-over {
       border-color: var(--vscode-focusBorder);
       background-color: var(--vscode-list-activeSelectionBackground);
       color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .jobs-folder-item.active {
+      box-shadow: inset 4px 0 0 var(--vscode-focusBorder);
+      font-weight: 600;
+    }
+
+    .jobs-folder-item.active .jobs-folder-item-header strong,
+    .jobs-folder-item.active .jobs-folder-item-header span {
+      color: inherit;
+    }
+
+    .jobs-folder-item.active .jobs-folder-path {
+      color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground) 80%, transparent);
     }
 
     .jobs-folder-item-header,
@@ -2207,7 +2538,206 @@ export class SchedulerWebview {
       flex: 0 0 14px;
     }
 
+    .research-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .research-sidebar,
+    .research-main,
+    .research-panel {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .research-sidebar {
+      display: grid;
+      gap: 12px;
+    }
+
+    .research-profile-list,
+    .research-run-list,
+    .research-attempt-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .research-card,
+    .research-run-card,
+    .research-attempt-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 10px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .research-card.active {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .research-run-card {
+      cursor: pointer;
+    }
+
+    .research-run-card.active {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .research-card-header,
+    .research-run-card-header,
+    .research-attempt-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .research-meta,
+    .research-run-meta,
+    .research-attempt-meta {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 4px;
+      white-space: pre-wrap;
+    }
+
+    .research-main {
+      display: grid;
+      gap: 16px;
+    }
+
+    .research-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .research-form-grid .form-group.wide {
+      grid-column: 1 / -1;
+    }
+
+    .research-toolbar,
+    .research-run-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .research-form-error {
+      display: none;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+
+    .research-chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .research-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+    }
+
+    .research-attempt-card {
+      display: grid;
+      gap: 8px;
+    }
+
+    .research-attempt-paths {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      white-space: pre-wrap;
+    }
+
+    .research-output details {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px;
+      background: var(--vscode-editorWidget-background);
+    }
+
+    .research-output summary {
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--vscode-foreground);
+    }
+
+    .research-output pre {
+      margin: 8px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 11px;
+      color: var(--vscode-editor-foreground);
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .research-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .research-stat {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 10px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .research-stat-label {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
+
+    .research-stat-value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
     @media (max-width: 980px) {
+      .research-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .research-form-grid,
+      .research-stat-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .tab-bar {
+        gap: 8px;
+        padding: 10px 12px 8px 12px;
+        margin: -20px -20px 16px -20px;
+      }
+
       .jobs-layout {
         grid-template-columns: 1fr;
       }
@@ -2222,6 +2752,26 @@ export class SchedulerWebview {
     }
 
     @media (max-width: 768px) {
+      .tab-bar {
+        flex-wrap: wrap;
+        align-items: stretch;
+      }
+
+      .tabs {
+        order: 2;
+        flex: 1 1 100%;
+      }
+
+      .tab-actions {
+        order: 1;
+        width: 100%;
+        justify-content: flex-end;
+      }
+
+      .tab-button {
+        padding: 10px 14px;
+      }
+
       .jobs-step-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -2235,11 +2785,17 @@ export class SchedulerWebview {
   </style>
 </head>
 <body>
-  <div class="tabs">
-    <button type="button" class="tab-button active" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
-    <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
-    <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
-    <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
+  <div class="tab-bar">
+    <div class="tabs">
+      <button type="button" class="tab-button active" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
+      <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
+      <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
+      <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
+      <button type="button" class="tab-button" data-tab="research">${escapeHtml(strings.tabResearch)}</button>
+    </div>
+    <div class="tab-actions">
+      <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn" style="display:none;">${escapeHtml(strings.jobsHideSidebar)}</button>
+    </div>
   </div>
   
   <div id="create-tab" class="tab-content">
@@ -2470,6 +3026,7 @@ export class SchedulerWebview {
             <button type="button" class="btn-secondary" id="jobs-delete-folder-btn">${escapeHtml(strings.jobsDeleteFolder)}</button>
             <button type="button" class="btn-secondary" id="jobs-new-job-btn">${escapeHtml(strings.jobsCreateJob)}</button>
           </div>
+          <div id="jobs-current-folder-banner" class="jobs-current-folder-banner"></div>
           <div id="jobs-folder-list" class="jobs-folder-list"></div>
         </div>
         <div class="jobs-sidebar-section">
@@ -2479,9 +3036,6 @@ export class SchedulerWebview {
       </aside>
 
       <section class="jobs-main">
-        <div class="jobs-main-header">
-          <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn">${escapeHtml(strings.jobsHideSidebar)}</button>
-        </div>
         <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
         <div id="jobs-details" style="display:none;">
           <div class="jobs-job-toolbar">
@@ -2634,6 +3188,125 @@ export class SchedulerWebview {
     </div>
   </div>
 
+  <div id="research-tab" class="tab-content">
+    <div class="research-layout">
+      <aside class="research-sidebar">
+        <section class="research-panel">
+          <div class="section-title">${escapeHtml(strings.researchProfilesTitle)}</div>
+          <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+          <div class="research-toolbar">
+            <button type="button" class="btn-secondary" id="research-new-btn">${escapeHtml(strings.researchNewProfile)}</button>
+          </div>
+          <div id="research-profile-list" class="research-profile-list"></div>
+        </section>
+        <section class="research-panel">
+          <div class="section-title">${escapeHtml(strings.researchHistoryTitle)}</div>
+          <div id="research-run-list" class="research-run-list"></div>
+        </section>
+      </aside>
+
+      <section class="research-main">
+        <section class="research-panel">
+          <div class="section-title">${escapeHtml(strings.researchTitle)}</div>
+          <div id="research-form-error" class="research-form-error"></div>
+          <input type="hidden" id="research-edit-id" value="">
+          <div class="research-form-grid">
+            <div class="form-group">
+              <label for="research-name">${escapeHtml(strings.researchName)}</label>
+              <input type="text" id="research-name">
+            </div>
+            <div class="form-group">
+              <label for="research-benchmark-command">${escapeHtml(strings.researchBenchmarkCommand)}</label>
+              <input type="text" id="research-benchmark-command" placeholder="${escapeHtmlAttr(strings.researchBenchmarkPlaceholder)}">
+            </div>
+            <div class="form-group wide">
+              <label for="research-instructions">${escapeHtml(strings.researchInstructions)}</label>
+              <textarea id="research-instructions" placeholder="${escapeHtmlAttr(strings.researchInstructionsPlaceholder)}"></textarea>
+            </div>
+            <div class="form-group wide">
+              <label for="research-editable-paths">${escapeHtml(strings.researchEditablePaths)}</label>
+              <textarea id="research-editable-paths" placeholder="${escapeHtmlAttr(strings.researchEditablePathsPlaceholder)}"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="research-metric-pattern">${escapeHtml(strings.researchMetricPattern)}</label>
+              <input type="text" id="research-metric-pattern" placeholder="${escapeHtmlAttr(strings.researchMetricPatternPlaceholder)}">
+            </div>
+            <div class="form-group">
+              <label for="research-metric-direction">${escapeHtml(strings.researchMetricDirection)}</label>
+              <select id="research-metric-direction">
+                <option value="maximize">${escapeHtml(strings.researchDirectionMaximize)}</option>
+                <option value="minimize">${escapeHtml(strings.researchDirectionMinimize)}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="research-max-iterations">${escapeHtml(strings.researchMaxIterations)}</label>
+              <input type="number" id="research-max-iterations" min="0" max="25" value="3">
+            </div>
+            <div class="form-group">
+              <label for="research-max-minutes">${escapeHtml(strings.researchMaxMinutes)}</label>
+              <input type="number" id="research-max-minutes" min="1" max="240" value="15">
+            </div>
+            <div class="form-group">
+              <label for="research-max-failures">${escapeHtml(strings.researchMaxFailures)}</label>
+              <input type="number" id="research-max-failures" min="1" max="10" value="2">
+            </div>
+            <div class="form-group">
+              <label for="research-benchmark-timeout">${escapeHtml(strings.researchBenchmarkTimeout)}</label>
+              <input type="number" id="research-benchmark-timeout" min="5" max="3600" value="180">
+            </div>
+            <div class="form-group">
+              <label for="research-edit-wait">${escapeHtml(strings.researchEditWait)}</label>
+              <input type="number" id="research-edit-wait" min="5" max="300" value="20">
+            </div>
+            <div class="form-group">
+              <label for="research-agent-select">${escapeHtml(strings.labelAgent)}</label>
+              <select id="research-agent-select"></select>
+            </div>
+            <div class="form-group">
+              <label for="research-model-select">${escapeHtml(strings.labelModel)}</label>
+              <select id="research-model-select"></select>
+            </div>
+          </div>
+          <div class="research-toolbar">
+            <button type="button" class="btn-primary" id="research-save-btn">${escapeHtml(strings.researchSaveProfile)}</button>
+            <button type="button" class="btn-secondary" id="research-duplicate-btn">${escapeHtml(strings.researchDuplicateProfile)}</button>
+            <button type="button" class="btn-danger" id="research-delete-btn">${escapeHtml(strings.researchDeleteProfile)}</button>
+            <button type="button" class="btn-secondary" id="research-start-btn">${escapeHtml(strings.researchStartRun)}</button>
+            <button type="button" class="btn-secondary" id="research-stop-btn">${escapeHtml(strings.researchStopRun)}</button>
+          </div>
+        </section>
+
+        <section class="research-panel">
+          <div class="section-title" id="research-run-title">${escapeHtml(strings.researchActiveRunTitle)}</div>
+          <div id="research-active-empty" class="jobs-empty">${escapeHtml(strings.researchNoRunSelected)}</div>
+          <div id="research-active-details" style="display:none;">
+            <div class="research-stat-grid">
+              <div class="research-stat">
+                <div class="research-stat-label">${escapeHtml(strings.labelStatus)}</div>
+                <div class="research-stat-value" id="research-active-status">${escapeHtml(strings.researchStatusIdle)}</div>
+              </div>
+              <div class="research-stat">
+                <div class="research-stat-label">${escapeHtml(strings.researchCurrentBest)}</div>
+                <div class="research-stat-value" id="research-active-best">${escapeHtml(strings.researchNoScore)}</div>
+              </div>
+              <div class="research-stat">
+                <div class="research-stat-label">${escapeHtml(strings.researchAttempts)}</div>
+                <div class="research-stat-value" id="research-active-attempts">0</div>
+              </div>
+              <div class="research-stat">
+                <div class="research-stat-label">${escapeHtml(strings.researchLastOutcome)}</div>
+                <div class="research-stat-value" id="research-active-last-outcome">-</div>
+              </div>
+            </div>
+            <div class="research-run-meta" id="research-active-meta"></div>
+            <div class="section-title" style="margin-top:12px;">${escapeHtml(strings.researchAttemptTimeline)}</div>
+            <div id="research-attempt-list" class="research-attempt-list"></div>
+          </div>
+        </section>
+      </section>
+    </div>
+  </div>
+
   <div id="help-tab" class="tab-content active">
     <div class="help-panel">
       <section class="help-section">
@@ -2689,8 +3362,18 @@ export class SchedulerWebview {
           <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
           <li>${escapeHtml(strings.helpJobsItemPause)}</li>
           <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
+          <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
+          <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
         </ul>
         <img class="help-image" src="${jobsScreenshotUri}" alt="Jobs overview">
+      </section>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
+        <ul>
+          <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
+          <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
+          <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
+        </ul>
       </section>
       <section class="help-section">
         <h3>${escapeHtml(strings.helpMcpTitle)}</h3>

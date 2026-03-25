@@ -172,6 +172,13 @@
   var jobFolders = Array.isArray(initialData.jobFolders)
     ? initialData.jobFolders
     : [];
+  var researchProfiles = Array.isArray(initialData.researchProfiles)
+    ? initialData.researchProfiles
+    : [];
+  var activeResearchRun = initialData.activeResearchRun || null;
+  var recentResearchRuns = Array.isArray(initialData.recentResearchRuns)
+    ? initialData.recentResearchRuns
+    : [];
   var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
   var models = Array.isArray(initialData.models) ? initialData.models : [];
   var promptTemplates = Array.isArray(initialData.promptTemplates)
@@ -250,6 +257,7 @@
   var taskLabelFilter = document.getElementById("task-label-filter");
   var taskLabelsInput = document.getElementById("task-labels");
   var jobsFolderList = document.getElementById("jobs-folder-list");
+  var jobsCurrentFolderBanner = document.getElementById("jobs-current-folder-banner");
   var jobsList = document.getElementById("jobs-list");
   var jobsEmptyState = document.getElementById("jobs-empty-state");
   var jobsDetails = document.getElementById("jobs-details");
@@ -290,12 +298,50 @@
   var jobsStepModelSelect = document.getElementById("jobs-step-model-select");
   var jobsStepLabelsInput = document.getElementById("jobs-step-labels-input");
   var jobsCreateStepBtn = document.getElementById("jobs-create-step-btn");
+  var researchNewBtn = document.getElementById("research-new-btn");
+  var researchSaveBtn = document.getElementById("research-save-btn");
+  var researchDuplicateBtn = document.getElementById("research-duplicate-btn");
+  var researchDeleteBtn = document.getElementById("research-delete-btn");
+  var researchStartBtn = document.getElementById("research-start-btn");
+  var researchStopBtn = document.getElementById("research-stop-btn");
+  var researchEditIdInput = document.getElementById("research-edit-id");
+  var researchNameInput = document.getElementById("research-name");
+  var researchInstructionsInput = document.getElementById("research-instructions");
+  var researchEditablePathsInput = document.getElementById("research-editable-paths");
+  var researchBenchmarkInput = document.getElementById("research-benchmark-command");
+  var researchMetricPatternInput = document.getElementById("research-metric-pattern");
+  var researchMetricDirectionSelect = document.getElementById("research-metric-direction");
+  var researchMaxIterationsInput = document.getElementById("research-max-iterations");
+  var researchMaxMinutesInput = document.getElementById("research-max-minutes");
+  var researchMaxFailuresInput = document.getElementById("research-max-failures");
+  var researchBenchmarkTimeoutInput = document.getElementById("research-benchmark-timeout");
+  var researchEditWaitInput = document.getElementById("research-edit-wait");
+  var researchAgentSelect = document.getElementById("research-agent-select");
+  var researchModelSelect = document.getElementById("research-model-select");
+  var researchProfileList = document.getElementById("research-profile-list");
+  var researchRunList = document.getElementById("research-run-list");
+  var researchRunTitle = document.getElementById("research-run-title");
+  var researchFormError = document.getElementById("research-form-error");
+  var researchActiveEmpty = document.getElementById("research-active-empty");
+  var researchActiveDetails = document.getElementById("research-active-details");
+  var researchActiveStatus = document.getElementById("research-active-status");
+  var researchActiveBest = document.getElementById("research-active-best");
+  var researchActiveAttempts = document.getElementById("research-active-attempts");
+  var researchActiveLastOutcome = document.getElementById("research-active-last-outcome");
+  var researchActiveMeta = document.getElementById("research-active-meta");
+  var researchAttemptList = document.getElementById("research-attempt-list");
   var activeTaskFilter = "all";
   var activeLabelFilter = "";
   var selectedJobFolderId = "";
   var selectedJobId = "";
+  var selectedResearchId = "";
+  var selectedResearchRunId = "";
   var draggedJobNodeId = "";
+  var draggedJobId = "";
   var jobsSidebarHidden = false;
+  var isCreatingResearchProfile = false;
+  var researchFormDirty = false;
+  var loadedResearchProfileId = "";
 
   function isValidTaskFilter(value) {
     return value === "all" || value === "recurring" || value === "one-time";
@@ -321,6 +367,12 @@
       if (state && typeof state.jobsSidebarHidden === "boolean") {
         jobsSidebarHidden = state.jobsSidebarHidden;
       }
+      if (state && typeof state.selectedResearchId === "string") {
+        selectedResearchId = state.selectedResearchId;
+      }
+      if (state && typeof state.selectedResearchRunId === "string") {
+        selectedResearchRunId = state.selectedResearchRunId;
+      }
     } catch (_e) {
       // ignore state restore failures
     }
@@ -344,6 +396,8 @@
       next.selectedJobFolderId = selectedJobFolderId;
       next.selectedJobId = selectedJobId;
       next.jobsSidebarHidden = jobsSidebarHidden;
+      next.selectedResearchId = selectedResearchId;
+      next.selectedResearchRunId = selectedResearchRunId;
       vscode.setState(next);
     } catch (_e) {
       // ignore state persist failures
@@ -502,6 +556,22 @@
     }) || null;
   }
 
+  function getVisibleJobs() {
+    return (Array.isArray(jobs) ? jobs : [])
+      .filter(function (job) {
+        return job && (job.folderId || "") === selectedJobFolderId;
+      })
+      .sort(function (a, b) {
+        var updatedDiff = getComparableTime(b && b.updatedAt) - getComparableTime(a && a.updatedAt);
+        if (updatedDiff !== 0) {
+          return updatedDiff;
+        }
+        var aName = a && a.name ? String(a.name) : "";
+        var bName = b && b.name ? String(b.name) : "";
+        return aName.localeCompare(bName);
+      });
+  }
+
   function getFolderDepth(folder) {
     var depth = 0;
     var current = folder;
@@ -511,6 +581,22 @@
       if (depth > 20) break;
     }
     return depth;
+  }
+
+  function getFolderPath(folderId) {
+    if (!folderId) {
+      return strings.jobsRootFolder || "All jobs";
+    }
+    var parts = [];
+    var current = getFolderById(folderId);
+    var guard = 0;
+    while (current && guard < 20) {
+      parts.unshift(current.name || "");
+      current = current.parentId ? getFolderById(current.parentId) : null;
+      guard += 1;
+    }
+    parts.unshift(strings.jobsRootFolder || "All jobs");
+    return parts.filter(Boolean).join(" / ");
   }
 
   function getEffectiveLabels(task) {
@@ -596,13 +682,16 @@
     if (selectedJobFolderId && !getFolderById(selectedJobFolderId)) {
       selectedJobFolderId = "";
     }
-    if (selectedJobId && !getJobById(selectedJobId)) {
+    var selectedJob = selectedJobId ? getJobById(selectedJobId) : null;
+    if (selectedJob && (selectedJob.folderId || "") !== selectedJobFolderId) {
+      selectedJobId = "";
+      selectedJob = null;
+    }
+    if (selectedJobId && !selectedJob) {
       selectedJobId = "";
     }
     if (!selectedJobId) {
-      var visibleJobs = (Array.isArray(jobs) ? jobs : []).filter(function (job) {
-        return (job && (job.folderId || "") === selectedJobFolderId);
-      });
+      var visibleJobs = getVisibleJobs();
       if (visibleJobs.length > 0) {
         selectedJobId = visibleJobs[0].id;
       }
@@ -614,6 +703,9 @@
   syncScheduleHistoryOptions();
   updateJobsCronPreview();
   updateJobsFriendlyVisibility();
+  syncResearchSelectors();
+  hookResearchFormDirtyTracking();
+  renderResearchTab();
 
   function getCreateTabButton() {
     return document.querySelector('.tab-button[data-tab="create"]');
@@ -656,6 +748,9 @@
     var targetContent = document.getElementById(tabName + "-tab");
     if (targetBtn) targetBtn.classList.add("active");
     if (targetContent) targetContent.classList.add("active");
+    if (jobsToggleSidebarBtn) {
+      jobsToggleSidebarBtn.style.display = tabName === "jobs" ? "inline-flex" : "none";
+    }
   }
 
   // Keep pending values in sync when the user explicitly changes selection
@@ -1073,6 +1168,109 @@
     });
   }
 
+  if (researchNewBtn) {
+    researchNewBtn.addEventListener("click", function () {
+      isCreatingResearchProfile = true;
+      selectedResearchId = "";
+      resetResearchForm(null);
+      renderResearchTab();
+    });
+  }
+
+  if (researchSaveBtn) {
+    researchSaveBtn.addEventListener("click", function () {
+      var data = collectResearchFormData();
+      var errorMessage = validateResearchFormData(data);
+      if (errorMessage) {
+        showResearchFormError(errorMessage);
+        return;
+      }
+      clearResearchFormError();
+      if (selectedResearchId) {
+        vscode.postMessage({
+          type: "updateResearchProfile",
+          researchId: selectedResearchId,
+          data: data,
+        });
+      } else {
+        vscode.postMessage({
+          type: "createResearchProfile",
+          data: data,
+        });
+      }
+    });
+  }
+
+  if (researchDuplicateBtn) {
+    researchDuplicateBtn.addEventListener("click", function () {
+      if (!selectedResearchId) return;
+      vscode.postMessage({
+        type: "duplicateResearchProfile",
+        researchId: selectedResearchId,
+      });
+    });
+  }
+
+  if (researchDeleteBtn) {
+    researchDeleteBtn.addEventListener("click", function () {
+      if (!selectedResearchId) return;
+      vscode.postMessage({
+        type: "deleteResearchProfile",
+        researchId: selectedResearchId,
+      });
+    });
+  }
+
+  if (researchStartBtn) {
+    researchStartBtn.addEventListener("click", function () {
+      if (!selectedResearchId) return;
+      vscode.postMessage({
+        type: "startResearchRun",
+        researchId: selectedResearchId,
+      });
+    });
+  }
+
+  if (researchStopBtn) {
+    researchStopBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "stopResearchRun" });
+    });
+  }
+
+  if (researchProfileList) {
+    researchProfileList.addEventListener("click", function (e) {
+      var target = e && e.target;
+      while (target && target !== researchProfileList) {
+        if (target.getAttribute && target.getAttribute("data-research-id")) {
+          break;
+        }
+        target = target.parentElement;
+      }
+      if (!target || target === researchProfileList) return;
+      isCreatingResearchProfile = false;
+      selectedResearchId = target.getAttribute("data-research-id") || "";
+      var profile = getSelectedResearchProfile();
+      resetResearchForm(profile || null);
+      renderResearchTab();
+    });
+  }
+
+  if (researchRunList) {
+    researchRunList.addEventListener("click", function (e) {
+      var target = e && e.target;
+      while (target && target !== researchRunList) {
+        if (target.getAttribute && target.getAttribute("data-run-id")) {
+          break;
+        }
+        target = target.parentElement;
+      }
+      if (!target || target === researchRunList) return;
+      selectedResearchRunId = target.getAttribute("data-run-id") || "";
+      persistTaskFilter();
+      renderResearchTab();
+    });
+  }
+
   if (jobsNewFolderBtn) {
     jobsNewFolderBtn.addEventListener("click", function () {
       vscode.postMessage({
@@ -1226,7 +1424,7 @@
     if (jobAction === "detach-node") {
       var detachNodeId = target.getAttribute("data-job-node-id") || "";
       if (selectedJobId && detachNodeId) {
-        vscode.postMessage({ type: "detachTaskFromJob", jobId: selectedJobId, nodeId: detachNodeId });
+        vscode.postMessage({ type: "requestDeleteJobTask", jobId: selectedJobId, nodeId: detachNodeId });
       }
       return;
     }
@@ -1265,38 +1463,87 @@
 
   document.addEventListener("dragstart", function (e) {
     var target = e && e.target;
+    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+    if (jobItem && jobsList && jobsList.contains(jobItem)) {
+      draggedJobId = jobItem.getAttribute("data-job-id") || "";
+      if (jobItem.classList) jobItem.classList.add("dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+      }
+      return;
+    }
     var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
     if (!card) return;
     draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
     if (card.classList) card.classList.add("dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+    }
   });
 
   document.addEventListener("dragend", function (e) {
     var target = e && e.target;
+    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+    if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
     var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
     if (card && card.classList) card.classList.remove("dragging");
+    draggedJobId = "";
     draggedJobNodeId = "";
     Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function (item) {
+      if (item && item.classList) item.classList.remove("drag-over");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"), function (item) {
       if (item && item.classList) item.classList.remove("drag-over");
     });
   });
 
   document.addEventListener("dragover", function (e) {
     var target = e && e.target;
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && draggedJobId) {
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "move";
+      }
+      if (folderItem.classList) folderItem.classList.add("drag-over");
+      return;
+    }
     var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
     if (!card || !draggedJobNodeId) return;
     e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "move";
+    }
     if (card.classList) card.classList.add("drag-over");
   });
 
   document.addEventListener("dragleave", function (e) {
     var target = e && e.target;
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
     var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
     if (card && card.classList) card.classList.remove("drag-over");
   });
 
   document.addEventListener("drop", function (e) {
     var target = e && e.target;
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && draggedJobId) {
+      e.preventDefault();
+      if (folderItem.classList) folderItem.classList.remove("drag-over");
+      var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
+      var draggedJob = getJobById(draggedJobId);
+      if (!draggedJob) return;
+      if ((draggedJob.folderId || "") === droppedFolderId) return;
+      vscode.postMessage({
+        type: "updateJob",
+        jobId: draggedJobId,
+        data: {
+          folderId: droppedFolderId || undefined,
+        },
+      });
+      return;
+    }
     var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
     if (!card || !draggedJobNodeId || !selectedJobId) return;
     e.preventDefault();
@@ -1737,6 +1984,12 @@
       return;
     }
 
+    // The list refreshes every second for countdowns. Avoid replacing an open
+    // inline select while the user is choosing an agent or model.
+    if (isInlineTaskSelectActive()) {
+      return;
+    }
+
     lastRenderedTasksHtml = renderedTasks;
     taskList.innerHTML = renderedTasks;
   }
@@ -1757,6 +2010,12 @@
       .replace(/'/g, "&#39;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  function isInlineTaskSelectActive() {
+    var active = document.activeElement;
+    if (!active || !active.classList) return false;
+    return active.classList.contains("task-agent-select") || active.classList.contains("task-model-select");
   }
 
   var dayNames = [
@@ -2489,19 +2748,501 @@
     }
   }
 
-  function getVisibleJobs() {
-    return (Array.isArray(jobs) ? jobs : [])
-      .filter(function (job) {
-        return job && (job.folderId || "") === selectedJobFolderId;
+  function ensureValidResearchSelection() {
+    var profiles = Array.isArray(researchProfiles) ? researchProfiles : [];
+    if (isCreatingResearchProfile) {
+      if (researchEditIdInput) {
+        researchEditIdInput.value = "";
+      }
+      return;
+    }
+    var hasSelected = profiles.some(function (profile) {
+      return profile && profile.id === selectedResearchId;
+    });
+    if (!hasSelected) {
+      selectedResearchId = profiles.length > 0 && profiles[0] ? profiles[0].id : "";
+    }
+    if (researchEditIdInput) {
+      researchEditIdInput.value = selectedResearchId || "";
+    }
+  }
+
+  function clearResearchFormError() {
+    if (!researchFormError) {
+      return;
+    }
+    researchFormError.textContent = "";
+    researchFormError.style.display = "none";
+  }
+
+  function showResearchFormError(message) {
+    if (!researchFormError) {
+      return;
+    }
+    researchFormError.textContent = String(message || "");
+    researchFormError.style.display = message ? "block" : "none";
+  }
+
+  function formatResearchDate(value) {
+    if (!value) {
+      return "-";
+    }
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString(locale);
+  }
+
+  function formatResearchDuration(startedAt, finishedAt) {
+    if (!startedAt) {
+      return "-";
+    }
+    var start = new Date(startedAt).getTime();
+    if (!isFinite(start)) {
+      return "-";
+    }
+    var end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+    if (!isFinite(end) || end < start) {
+      return "-";
+    }
+    var totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
+    return formatCountdown(totalSeconds);
+  }
+
+  function formatOutcomeLabel(outcome) {
+    return String(outcome || "").replace(/-/g, " ");
+  }
+
+  function getResearchRunById(runId) {
+    return (Array.isArray(recentResearchRuns) ? recentResearchRuns : []).find(function (run) {
+      return run && run.id === runId;
+    });
+  }
+
+  function ensureValidResearchRunSelection() {
+    var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+    var activeId = activeResearchRun && activeResearchRun.id ? activeResearchRun.id : "";
+    var hasSelected = runs.some(function (run) {
+      return run && run.id === selectedResearchRunId;
+    });
+    if (hasSelected) {
+      return;
+    }
+    if (activeId) {
+      selectedResearchRunId = activeId;
+      return;
+    }
+    selectedResearchRunId = runs.length > 0 && runs[0] ? runs[0].id : "";
+  }
+
+  function getDisplayedResearchRun() {
+    ensureValidResearchRunSelection();
+    return getResearchRunById(selectedResearchRunId) || null;
+  }
+
+  function parseResearchEditablePaths(raw) {
+    return String(raw || "")
+      .split(/\r?\n/)
+      .map(function (line) {
+        return String(line || "").trim();
       })
-      .sort(function (a, b) {
-        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      .filter(function (line) {
+        return line.length > 0;
       });
+  }
+
+  function getSelectedResearchProfile() {
+    return (Array.isArray(researchProfiles) ? researchProfiles : []).find(function (profile) {
+      return profile && profile.id === selectedResearchId;
+    });
+  }
+
+  function formatResearchStatus(status) {
+    if (status === "running") return strings.researchStatusRunning || "Running";
+    if (status === "stopping") return strings.researchStatusStopping || "Stopping";
+    if (status === "completed") return strings.researchStatusCompleted || "Completed";
+    if (status === "failed") return strings.researchStatusFailed || "Failed";
+    if (status === "stopped") return strings.researchStatusStopped || "Stopped";
+    return strings.researchStatusIdle || "Idle";
+  }
+
+  function resetResearchForm(profile) {
+    var value = profile || null;
+    selectedResearchId = value && value.id ? value.id : "";
+    loadedResearchProfileId = selectedResearchId || "";
+    researchFormDirty = false;
+    isCreatingResearchProfile = !selectedResearchId;
+    clearResearchFormError();
+    if (researchEditIdInput) {
+      researchEditIdInput.value = selectedResearchId || "";
+    }
+    if (researchNameInput) {
+      researchNameInput.value = value && value.name ? value.name : "";
+    }
+    if (researchInstructionsInput) {
+      researchInstructionsInput.value = value && value.instructions ? value.instructions : "";
+    }
+    if (researchEditablePathsInput) {
+      researchEditablePathsInput.value = value && Array.isArray(value.editablePaths)
+        ? value.editablePaths.join("\n")
+        : "";
+    }
+    if (researchBenchmarkInput) {
+      researchBenchmarkInput.value = value && value.benchmarkCommand ? value.benchmarkCommand : "";
+    }
+    if (researchMetricPatternInput) {
+      researchMetricPatternInput.value = value && value.metricPattern ? value.metricPattern : "";
+    }
+    if (researchMetricDirectionSelect) {
+      researchMetricDirectionSelect.value = value && value.metricDirection === "minimize"
+        ? "minimize"
+        : "maximize";
+    }
+    if (researchMaxIterationsInput) {
+      researchMaxIterationsInput.value = String(value && value.maxIterations !== undefined ? value.maxIterations : 3);
+    }
+    if (researchMaxMinutesInput) {
+      researchMaxMinutesInput.value = String(value && value.maxMinutes !== undefined ? value.maxMinutes : 15);
+    }
+    if (researchMaxFailuresInput) {
+      researchMaxFailuresInput.value = String(value && value.maxConsecutiveFailures !== undefined ? value.maxConsecutiveFailures : 2);
+    }
+    if (researchBenchmarkTimeoutInput) {
+      researchBenchmarkTimeoutInput.value = String(value && value.benchmarkTimeoutSeconds !== undefined ? value.benchmarkTimeoutSeconds : 180);
+    }
+    if (researchEditWaitInput) {
+      researchEditWaitInput.value = String(value && value.editWaitSeconds !== undefined ? value.editWaitSeconds : 20);
+    }
+    if (researchAgentSelect) {
+      researchAgentSelect.value = value && value.agent ? value.agent : "";
+    }
+    if (researchModelSelect) {
+      researchModelSelect.value = value && value.model ? value.model : "";
+    }
+    persistTaskFilter();
+  }
+
+  function collectResearchFormData() {
+    return {
+      name: researchNameInput ? researchNameInput.value : "",
+      instructions: researchInstructionsInput ? researchInstructionsInput.value : "",
+      editablePaths: parseResearchEditablePaths(
+        researchEditablePathsInput ? researchEditablePathsInput.value : "",
+      ),
+      benchmarkCommand: researchBenchmarkInput ? researchBenchmarkInput.value : "",
+      metricPattern: researchMetricPatternInput ? researchMetricPatternInput.value : "",
+      metricDirection:
+        researchMetricDirectionSelect && researchMetricDirectionSelect.value === "minimize"
+          ? "minimize"
+          : "maximize",
+      maxIterations: researchMaxIterationsInput ? Number(researchMaxIterationsInput.value || 0) : 0,
+      maxMinutes: researchMaxMinutesInput ? Number(researchMaxMinutesInput.value || 0) : 0,
+      maxConsecutiveFailures: researchMaxFailuresInput ? Number(researchMaxFailuresInput.value || 0) : 0,
+      benchmarkTimeoutSeconds: researchBenchmarkTimeoutInput ? Number(researchBenchmarkTimeoutInput.value || 0) : 0,
+      editWaitSeconds: researchEditWaitInput ? Number(researchEditWaitInput.value || 0) : 0,
+      agent: researchAgentSelect ? researchAgentSelect.value : "",
+      model: researchModelSelect ? researchModelSelect.value : "",
+    };
+  }
+
+  function validateResearchFormData(data) {
+    if (!String(data.name || "").trim()) {
+      return strings.researchProfileNameRequired || "Research profile name is required.";
+    }
+    if (!String(data.benchmarkCommand || "").trim()) {
+      return strings.researchBenchmarkRequired || "Benchmark command is required.";
+    }
+    if (!String(data.metricPattern || "").trim()) {
+      return strings.researchMetricRequired || "Metric regex is required.";
+    }
+    if (!Array.isArray(data.editablePaths) || data.editablePaths.length === 0) {
+      return strings.researchEditableRequired || "Add at least one editable file path.";
+    }
+    return "";
+  }
+
+  function syncResearchSelectors() {
+    updateSimpleSelect(
+      researchAgentSelect,
+      agents,
+      strings.placeholderSelectAgent || "Select agent",
+      researchAgentSelect ? researchAgentSelect.value : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+    updateSimpleSelect(
+      researchModelSelect,
+      models,
+      strings.placeholderSelectModel || "Select model",
+      researchModelSelect ? researchModelSelect.value : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+  }
+
+  function renderResearchProfiles() {
+    ensureValidResearchSelection();
+    if (!researchProfileList) {
+      return;
+    }
+    var profiles = Array.isArray(researchProfiles) ? researchProfiles.slice() : [];
+    profiles.sort(function (a, b) {
+      return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+    });
+    if (profiles.length === 0) {
+      researchProfileList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyProfiles || "No research profiles yet.") + "</div>";
+      resetResearchForm(null);
+      return;
+    }
+
+    researchProfileList.innerHTML = profiles.map(function (profile) {
+      var isActive = profile && profile.id === selectedResearchId;
+      return (
+        '<div class="research-card' + (isActive ? ' active' : '') + '" data-research-id="' +
+        escapeAttr(profile.id || "") + '">' +
+        '<div class="research-card-header">' +
+        '<strong>' + escapeHtml(profile.name || "") + '</strong>' +
+        '<span class="jobs-pill">' + escapeHtml(profile.metricDirection === "minimize"
+          ? (strings.researchDirectionMinimize || "Minimize")
+          : (strings.researchDirectionMaximize || "Maximize")) + '</span>' +
+        '</div>' +
+        '<div class="research-meta">' +
+        escapeHtml(profile.benchmarkCommand || "") +
+        '</div>' +
+        '<div class="research-chip-row">' +
+        '<span class="research-chip">' + escapeHtml((strings.researchEditableCount || 'Editable files') + ': ' + String((profile.editablePaths || []).length)) + '</span>' +
+        '<span class="research-chip">' + escapeHtml((strings.researchBudgetShort || 'Budget') + ': ' + String(profile.maxIterations || 0) + ' / ' + String(profile.maxMinutes || 0) + 'm') + '</span>' +
+        '<span class="research-chip">' + escapeHtml((strings.researchMetricPatternShort || 'Metric') + ': ' + String(profile.metricPattern || '')) + '</span>' +
+        '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  function renderResearchRuns() {
+    if (!researchRunList) {
+      return;
+    }
+    var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+    if (runs.length === 0) {
+      researchRunList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyRuns || "No research runs yet.") + "</div>";
+      return;
+    }
+    researchRunList.innerHTML = runs.map(function (run) {
+      var lastAttempt = Array.isArray(run.attempts) && run.attempts.length > 0
+        ? run.attempts[run.attempts.length - 1]
+        : null;
+      var isActive = run && run.id === selectedResearchRunId;
+      return (
+        '<div class="research-run-card' + (isActive ? ' active' : '') + '" data-run-id="' + escapeAttr(run.id || '') + '">' +
+        '<div class="research-run-card-header">' +
+        '<strong>' + escapeHtml(run.profileName || "") + '</strong>' +
+        '<span class="jobs-pill">' + escapeHtml(formatResearchStatus(run.status)) + '</span>' +
+        '</div>' +
+        '<div class="research-run-meta">' +
+        escapeHtml('Best: ' + (run.bestScore !== undefined ? String(run.bestScore) : (strings.researchNoScore || 'No score yet'))) + '\n' +
+        escapeHtml('Duration: ' + formatResearchDuration(run.startedAt, run.finishedAt)) + '\n' +
+        escapeHtml('Attempts: ' + String(Array.isArray(run.attempts) ? run.attempts.length : 0)) +
+        (lastAttempt ? '\n' + escapeHtml('Last: ' + (lastAttempt.summary || lastAttempt.outcome || '')) : '') +
+        '</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  function renderResearchActiveRun() {
+    if (!researchActiveEmpty || !researchActiveDetails) {
+      return;
+    }
+    var run = getDisplayedResearchRun();
+    if (researchRunTitle) {
+      researchRunTitle.textContent = strings.researchActiveRunTitle || "Run details";
+    }
+    if (!run) {
+      researchActiveEmpty.style.display = "block";
+      researchActiveDetails.style.display = "none";
+      researchActiveEmpty.textContent = strings.researchNoRunSelected || "Select a recent run to inspect its attempts.";
+      if (researchAttemptList) {
+        researchAttemptList.innerHTML = "";
+      }
+      return;
+    }
+
+    researchActiveEmpty.style.display = "none";
+    researchActiveDetails.style.display = "block";
+    var attempts = Array.isArray(run.attempts) ? run.attempts : [];
+    var lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+    if (researchActiveStatus) {
+      researchActiveStatus.textContent = formatResearchStatus(run.status);
+    }
+    if (researchActiveBest) {
+      researchActiveBest.textContent = run.bestScore !== undefined
+        ? String(run.bestScore)
+        : (strings.researchNoScore || "No score yet");
+    }
+    if (researchActiveAttempts) {
+      researchActiveAttempts.textContent = String(attempts.length);
+    }
+    if (researchActiveLastOutcome) {
+      researchActiveLastOutcome.textContent = lastAttempt
+        ? String(lastAttempt.outcome || "-")
+        : "-";
+    }
+    if (researchActiveMeta) {
+      researchActiveMeta.textContent = [
+        run.profileName || "",
+        (strings.researchStartedAt || "Started") + ": " + formatResearchDate(run.startedAt),
+        (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(run.finishedAt),
+        (strings.researchDuration || "Duration") + ": " + formatResearchDuration(run.startedAt, run.finishedAt),
+        (strings.researchBaselineScore || "Baseline score") + ": " + (run.baselineScore !== undefined ? String(run.baselineScore) : (strings.researchNoScore || "No score yet")),
+        (strings.researchBestScore || "Best score") + ": " + (run.bestScore !== undefined ? String(run.bestScore) : (strings.researchNoScore || "No score yet")),
+        (strings.researchCompletedIterations || "Completed iterations") + ": " + String(run.completedIterations || 0),
+        run.stopReason ? (strings.researchStopReason || "Stop reason") + ": " + run.stopReason : "",
+      ].filter(Boolean).join("\n");
+    }
+    if (researchAttemptList) {
+      researchAttemptList.innerHTML = attempts.map(function (attempt) {
+        var title = attempt.iteration === 0
+          ? (strings.researchBaselineLabel || "Baseline")
+          : (strings.researchIterationLabel || "Iteration") + ' ' + attempt.iteration;
+        var metaLines = [
+          attempt.summary || "",
+          (strings.researchStartedAt || "Started") + ": " + formatResearchDate(attempt.startedAt),
+          attempt.finishedAt
+            ? (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(attempt.finishedAt)
+            : "",
+          attempt.score !== undefined ? "Score: " + String(attempt.score) : "",
+          attempt.bestScoreAfter !== undefined
+            ? (strings.researchBestScore || "Best score") + ": " + String(attempt.bestScoreAfter)
+            : "",
+          attempt.exitCode !== undefined
+            ? (strings.researchExitCode || "Exit code") + ": " + String(attempt.exitCode)
+            : "",
+        ].filter(Boolean);
+        var pathLines = [];
+        if (Array.isArray(attempt.changedPaths) && attempt.changedPaths.length > 0) {
+          pathLines.push(
+            (strings.researchChangedFiles || "Changed files") + ": " + attempt.changedPaths.join(", "),
+          );
+        }
+        if (
+          Array.isArray(attempt.policyViolationPaths) &&
+          attempt.policyViolationPaths.length > 0
+        ) {
+          pathLines.push(
+            (strings.researchViolationFiles || "Policy violation files") + ": " + attempt.policyViolationPaths.join(", "),
+          );
+        }
+        if (attempt.snapshot && attempt.snapshot.label) {
+          pathLines.push(
+            (strings.researchSnapshot || "Snapshot") + ": " + attempt.snapshot.label,
+          );
+        }
+        return (
+          '<div class="research-attempt-card">' +
+          '<div class="research-attempt-card-header">' +
+          '<strong>' + escapeHtml(title) + '</strong>' +
+          '<span class="jobs-pill">' + escapeHtml(formatOutcomeLabel(attempt.outcome || "")) + '</span>' +
+          '</div>' +
+          '<div class="research-attempt-meta">' +
+          escapeHtml(metaLines.join('\n')) +
+          '</div>' +
+          (pathLines.length > 0
+            ? '<div class="research-attempt-paths">' + escapeHtml(pathLines.join('\n')) + '</div>'
+            : '') +
+            (attempt.output
+              ? '<div class="research-output"><details><summary>' + escapeHtml(strings.researchBenchmarkOutput || 'Benchmark output') + '</summary><pre>' + escapeHtml(attempt.output) + '</pre></details></div>'
+              : '') +
+          '</div>'
+        );
+      }).join("");
+    }
+  }
+
+  function renderResearchTab() {
+    renderResearchProfiles();
+    renderResearchRuns();
+    renderResearchActiveRun();
+    var selected = getSelectedResearchProfile();
+    if (!researchFormDirty) {
+      resetResearchForm(selected || null);
+    } else if (researchEditIdInput) {
+      researchEditIdInput.value = selectedResearchId || "";
+    }
+    if (researchSaveBtn) {
+      researchSaveBtn.textContent = isCreatingResearchProfile
+        ? (strings.researchCreateProfile || strings.researchSaveProfile || "Create Profile")
+        : (strings.researchSaveProfile || "Save Profile");
+    }
+    if (researchDuplicateBtn) {
+      researchDuplicateBtn.disabled = !selectedResearchId;
+    }
+    if (researchDeleteBtn) {
+      researchDeleteBtn.disabled = !selectedResearchId;
+    }
+    if (researchStartBtn) {
+      researchStartBtn.disabled = !selectedResearchId || (activeResearchRun && activeResearchRun.status === "running");
+    }
+    if (researchStopBtn) {
+      researchStopBtn.disabled = !(activeResearchRun && (activeResearchRun.status === "running" || activeResearchRun.status === "stopping"));
+    }
+    persistTaskFilter();
+  }
+
+  function markResearchFormDirty() {
+    researchFormDirty = true;
+    clearResearchFormError();
+  }
+
+  function hookResearchFormDirtyTracking() {
+    [
+      researchNameInput,
+      researchInstructionsInput,
+      researchEditablePathsInput,
+      researchBenchmarkInput,
+      researchMetricPatternInput,
+      researchMetricDirectionSelect,
+      researchMaxIterationsInput,
+      researchMaxMinutesInput,
+      researchMaxFailuresInput,
+      researchBenchmarkTimeoutInput,
+      researchEditWaitInput,
+      researchAgentSelect,
+      researchModelSelect,
+    ].forEach(function (element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", markResearchFormDirty);
+      element.addEventListener("change", markResearchFormDirty);
+    });
   }
 
   function renderJobsTab() {
     ensureValidJobSelection();
     persistTaskFilter();
+
+    if (jobsCurrentFolderBanner) {
+      var currentFolderName = selectedJobFolderId
+        ? ((getFolderById(selectedJobFolderId) || {}).name || (strings.jobsRootFolder || "All jobs"))
+        : (strings.jobsRootFolder || "All jobs");
+      jobsCurrentFolderBanner.innerHTML =
+        '<div>' +
+        '<span class="jobs-current-folder-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</span>' +
+        '<strong class="jobs-current-folder-name">' + escapeHtml(currentFolderName) + '</strong>' +
+        '<div class="jobs-folder-path">' + escapeHtml(getFolderPath(selectedJobFolderId)) + '</div>' +
+        '</div>' +
+        '<span class="jobs-pill">' + escapeHtml(strings.jobsCurrentFolderBadge || "Current") + '</span>';
+    }
 
     if (jobsRenameFolderBtn) jobsRenameFolderBtn.disabled = !selectedJobFolderId;
     if (jobsDeleteFolderBtn) jobsDeleteFolderBtn.disabled = !selectedJobFolderId;
@@ -2533,6 +3274,7 @@
           }).length;
           var indent = new Array(depth + 1)
             .join('<span class="jobs-folder-indent"></span>');
+          var folderPath = getFolderPath(folder.id);
           return (
             '<div class="jobs-folder-item' +
             (isActive ? ' active' : '') +
@@ -2543,6 +3285,7 @@
             '<span>' + indent + escapeHtml(folder.name || "") + '</span>' +
             '<span class="jobs-pill">' + String(count) + '</span>' +
             '</div>' +
+            '<div class="jobs-folder-path">' + escapeHtml(folderPath) + '</div>' +
             '</div>'
           );
         })
@@ -2565,7 +3308,7 @@
             return (
               '<div class="jobs-list-item' +
               (job.id === selectedJobId ? ' active' : '') +
-              '" data-job-id="' + escapeAttr(job.id || "") + '">' +
+              '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true">' +
               '<div class="jobs-list-item-header">' +
               '<strong>' + escapeHtml(job.name || "") + '</strong>' +
                 '<span class="jobs-pill' + (job.paused ? ' is-inactive' : '') + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
@@ -2659,7 +3402,7 @@
             '<div class="jobs-step-toolbar">' +
             '<button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionEdit || "Edit") + '</button>' +
             '<button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionRun || "Run") + '</button>' +
-            '<button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="' + escapeAttr(node.id || "") + '">Remove</button>' +
+            '<button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="' + escapeAttr(node.id || "") + '">Delete</button>' +
             '</div>' +
             '</div>'
           );
@@ -2876,6 +3619,27 @@
             : [];
           renderJobsTab();
           break;
+        case "updateResearchState":
+          researchProfiles = Array.isArray(message.profiles)
+            ? message.profiles
+            : [];
+          activeResearchRun = message.activeRun || null;
+          recentResearchRuns = Array.isArray(message.recentRuns)
+            ? message.recentRuns
+            : [];
+          if (
+            activeResearchRun &&
+            (!selectedResearchRunId || selectedResearchRunId === activeResearchRun.id)
+          ) {
+            selectedResearchRunId = activeResearchRun.id;
+          } else {
+            ensureValidResearchRunSelection();
+          }
+          if (!selectedResearchId && !isCreatingResearchProfile) {
+            ensureValidResearchSelection();
+          }
+          renderResearchTab();
+          break;
         case "updateAgents":
           {
             var currentAgentValue =
@@ -2883,6 +3647,7 @@
             agents = Array.isArray(message.agents) ? message.agents : [];
             updateAgentOptions();
             syncJobsStepSelectors();
+            syncResearchSelectors();
             if (agentSelect && currentAgentValue) {
               agentSelect.value = currentAgentValue;
               if (agentSelect.value === currentAgentValue) {
@@ -2900,6 +3665,7 @@
             models = Array.isArray(message.models) ? message.models : [];
             updateModelOptions();
             syncJobsStepSelectors();
+            syncResearchSelectors();
             if (modelSelect && currentModelValue) {
               modelSelect.value = currentModelValue;
               if (modelSelect.value === currentModelValue) {
@@ -3002,6 +3768,23 @@
             }
             if (card) card.scrollIntoView({ behavior: "smooth" });
           }, 100);
+          break;
+        case "focusJob":
+          selectedJobFolderId = typeof message.folderId === "string"
+            ? message.folderId
+            : "";
+          selectedJobId = message.jobId || "";
+          persistTaskFilter();
+          switchTab("jobs");
+          renderJobsTab();
+          setTimeout(function () {
+            var jobCard = selectedJobId
+              ? document.querySelector('[data-job-id="' + selectedJobId + '"]')
+              : null;
+            if (jobCard && typeof jobCard.scrollIntoView === "function") {
+              jobCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+          }, 50);
           break;
         case "editTask":
           if (message.taskId && typeof window.editTask === "function") {

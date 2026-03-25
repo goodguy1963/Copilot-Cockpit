@@ -1,5 +1,8 @@
 import * as assert from "assert";
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
+import * as vm from "vm";
 import { SchedulerWebview } from "../../schedulerWebview";
 
 type WebviewLike = {
@@ -11,6 +14,18 @@ type WebviewPanelLike = {
 };
 
 suite("SchedulerWebview Message Queue Tests", () => {
+  test("webview client script parses", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    assert.doesNotThrow(() => {
+      new vm.Script(scriptSource, { filename: scriptPath });
+    });
+  });
+
   test("Queues messages until ready and flushes (dedup by type)", () => {
     const wv = SchedulerWebview as unknown as {
       panel?: WebviewPanelLike;
@@ -133,6 +148,68 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.pendingMessages = originalPending;
     }
   });
+
+  test("Queues research state updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateResearchState?: (
+        profiles: unknown[],
+        activeRun: unknown,
+        recentRuns: unknown[],
+      ) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateResearchState === "function");
+      wv.updateResearchState!(
+        [{ id: "profile-1", name: "Research" }],
+        { id: "run-1", status: "running" },
+        [{ id: "run-1", status: "running" }],
+      );
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateResearchState");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        profiles?: unknown[];
+        recentRuns?: unknown[];
+        activeRun?: { id?: string };
+      };
+      assert.strictEqual(message.type, "updateResearchState");
+      assert.strictEqual(Array.isArray(message.profiles), true);
+      assert.strictEqual(Array.isArray(message.recentRuns), true);
+      assert.strictEqual(message.activeRun?.id, "run-1");
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
 });
 
 suite("SchedulerWebview Jobs Request Tests", () => {
@@ -216,6 +293,53 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       (vscode.window as any).showWarningMessage = originalShowWarningMessage;
     }
   });
+
+  test("requestDeleteJobTask confirms before dispatching deleteJobTask", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentJobs?: Array<{
+        id: string;
+        nodes: Array<{ id: string; taskId: string }>;
+      }>;
+      currentTasks?: Array<{ id: string; name: string }>;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalJobs = wv.currentJobs;
+    const originalTasks = wv.currentTasks;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentJobs = [{ id: "job-1", nodes: [{ id: "node-1", taskId: "task-1" }] }];
+      wv.currentTasks = [{ id: "task-1", name: "Review prompt" }];
+      (vscode.window as any).showWarningMessage = async () => "Yes, delete";
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestDeleteJobTask",
+        jobId: "job-1",
+        nodeId: "node-1",
+      });
+
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0], {
+        action: "deleteJobTask",
+        taskId: "__jobtask__",
+        jobId: "job-1",
+        nodeId: "node-1",
+      });
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentJobs = originalJobs;
+      wv.currentTasks = originalTasks;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
 });
 
 suite("SchedulerWebview Error Detail Sanitization Tests", () => {
@@ -277,6 +401,49 @@ suite("SchedulerWebview Error Detail Sanitization Tests", () => {
 });
 
 suite("SchedulerWebview showError Sanitization Tests", () => {
+  test("focusJob posts job selection message", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = true;
+      wv.pendingMessages = [];
+
+      SchedulerWebview.focusJob("job-1", "folder-1");
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        jobId?: unknown;
+        folderId?: unknown;
+      };
+      assert.strictEqual(message.type, "focusJob");
+      assert.strictEqual(message.jobId, "job-1");
+      assert.strictEqual(message.folderId, "folder-1");
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
+
   test("showError sanitizes absolute paths before posting", () => {
     const wv = SchedulerWebview as unknown as {
       panel?: WebviewPanelLike;

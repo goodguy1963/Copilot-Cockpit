@@ -105,6 +105,244 @@ export interface SchedulerWorkspaceConfig {
 }
 
 /**
+ * Optimization direction for a research metric.
+ */
+export type ResearchMetricDirection = "maximize" | "minimize";
+
+/**
+ * Active run status for the Research tab.
+ */
+export type ResearchRunStatus =
+  | "idle"
+  | "running"
+  | "stopping"
+  | "completed"
+  | "failed"
+  | "stopped";
+
+/**
+ * Result category for a single research attempt.
+ */
+export type ResearchAttemptOutcome =
+  | "baseline"
+  | "kept"
+  | "rejected"
+  | "crash"
+  | "parse-error"
+  | "policy-violation"
+  | "stopped";
+
+/**
+ * Repo-local research profile persisted under .vscode.
+ */
+export interface ResearchProfile {
+  /** Unique profile identifier */
+  id: string;
+
+  /** Human-readable profile name */
+  name: string;
+
+  /** Goal and mutation instructions for Copilot */
+  instructions: string;
+
+  /** Workspace-relative file allowlist */
+  editablePaths: string[];
+
+  /** Benchmark command to execute */
+  benchmarkCommand: string;
+
+  /** Regex used to extract the numeric score */
+  metricPattern: string;
+
+  /** Whether bigger or smaller is better */
+  metricDirection: ResearchMetricDirection;
+
+  /** Maximum bounded iterations after the baseline */
+  maxIterations: number;
+
+  /** Maximum wall-clock runtime in minutes */
+  maxMinutes: number;
+
+  /** Stop after this many consecutive failed attempts */
+  maxConsecutiveFailures: number;
+
+  /** Timeout for each benchmark invocation in seconds */
+  benchmarkTimeoutSeconds: number;
+
+  /** Maximum time to wait for Copilot-applied edits in seconds */
+  editWaitSeconds: number;
+
+  /** Optional task-specific agent */
+  agent?: string;
+
+  /** Optional task-specific model */
+  model?: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+/**
+ * Input for creating a research profile.
+ */
+export interface CreateResearchProfileInput {
+  /** Profile name */
+  name: string;
+
+  /** Goal and mutation instructions */
+  instructions: string;
+
+  /** Workspace-relative file allowlist */
+  editablePaths: string[];
+
+  /** Benchmark command to execute */
+  benchmarkCommand: string;
+
+  /** Regex used to extract the numeric score */
+  metricPattern: string;
+
+  /** Whether bigger or smaller is better */
+  metricDirection: ResearchMetricDirection;
+
+  /** Maximum bounded iterations after the baseline */
+  maxIterations?: number;
+
+  /** Maximum wall-clock runtime in minutes */
+  maxMinutes?: number;
+
+  /** Stop after this many consecutive failed attempts */
+  maxConsecutiveFailures?: number;
+
+  /** Timeout for each benchmark invocation in seconds */
+  benchmarkTimeoutSeconds?: number;
+
+  /** Maximum time to wait for Copilot-applied edits in seconds */
+  editWaitSeconds?: number;
+
+  /** Optional task-specific agent */
+  agent?: string;
+
+  /** Optional task-specific model */
+  model?: string;
+}
+
+/**
+ * Stored snapshot metadata for a research run.
+ */
+export interface ResearchSnapshotInfo {
+  /** Snapshot directory name */
+  id: string;
+
+  /** Snapshot creation time */
+  createdAt: string;
+
+  /** Snapshot label */
+  label: string;
+}
+
+/**
+ * Single attempt in a bounded research run.
+ */
+export interface ResearchAttempt {
+  /** Attempt identifier */
+  id: string;
+
+  /** Baseline or iteration number */
+  iteration: number;
+
+  /** Attempt start time */
+  startedAt: string;
+
+  /** Attempt end time */
+  finishedAt?: string;
+
+  /** Attempt outcome */
+  outcome: ResearchAttemptOutcome;
+
+  /** Parsed score, if available */
+  score?: number;
+
+  /** Best score after this attempt */
+  bestScoreAfter?: number;
+
+  /** Human-readable summary */
+  summary?: string;
+
+  /** Benchmark exit code */
+  exitCode?: number | null;
+
+  /** Changed allowlisted files */
+  changedPaths?: string[];
+
+  /** Newly detected external changed files */
+  policyViolationPaths?: string[];
+
+  /** Truncated benchmark output for debugging */
+  output?: string;
+
+  /** Error details */
+  error?: string;
+
+  /** Snapshot retained after this attempt */
+  snapshot?: ResearchSnapshotInfo;
+}
+
+/**
+ * Persisted run record for a research profile.
+ */
+export interface ResearchRun {
+  /** Unique run identifier */
+  id: string;
+
+  /** Owning profile */
+  profileId: string;
+
+  /** Cached profile name for history rendering */
+  profileName: string;
+
+  /** Current run status */
+  status: ResearchRunStatus;
+
+  /** Run start time */
+  startedAt: string;
+
+  /** Run end time */
+  finishedAt?: string;
+
+  /** Baseline score if it could be computed */
+  baselineScore?: number;
+
+  /** Current best score */
+  bestScore?: number;
+
+  /** Completed bounded iterations excluding the baseline */
+  completedIterations: number;
+
+  /** Human-readable stop or failure reason */
+  stopReason?: string;
+
+  /** Execution log */
+  attempts: ResearchAttempt[];
+}
+
+/**
+ * Repo-local Research tab state persisted under .vscode.
+ */
+export interface ResearchWorkspaceConfig {
+  /** Version number for future migrations */
+  version: number;
+
+  /** Saved research profiles */
+  profiles: ResearchProfile[];
+
+  /** Recent run records */
+  runs: ResearchRun[];
+}
+
+/**
  * Input for creating a new job.
  */
 export interface CreateJobInput {
@@ -397,9 +635,16 @@ export interface TaskAction {
   | "createJobTask"
   | "attachTaskToJob"
   | "detachTaskFromJob"
+  | "deleteJobTask"
   | "reorderJobNode"
   | "updateJobNodeWindow"
-  | "setupMcp";
+  | "setupMcp"
+  | "createResearchProfile"
+  | "updateResearchProfile"
+  | "deleteResearchProfile"
+  | "duplicateResearchProfile"
+  | "startResearchRun"
+  | "stopResearchRun";
 
   /** Task ID */
   taskId: string;
@@ -433,6 +678,12 @@ export interface TaskAction {
 
   /** Selected history snapshot identifier for restore actions */
   historyId?: string;
+
+  /** Research profile identifier */
+  researchId?: string;
+
+  /** Research profile create/update payload */
+  researchData?: Partial<CreateResearchProfileInput>;
 }
 
 /**
@@ -477,6 +728,7 @@ export type WebviewToExtensionMessage =
     data: Partial<CreateJobFolderInput>;
   }
   | { type: "deleteJobFolder"; folderId: string }
+  | { type: "requestDeleteJobTask"; jobId: string; nodeId: string }
   | {
     type: "createJobTask";
     jobId: string;
@@ -490,6 +742,7 @@ export type WebviewToExtensionMessage =
     windowMinutes?: number;
   }
   | { type: "detachTaskFromJob"; jobId: string; nodeId: string }
+  | { type: "deleteJobTask"; jobId: string; nodeId: string }
   | {
     type: "reorderJobNode";
     jobId: string;
@@ -508,6 +761,16 @@ export type WebviewToExtensionMessage =
   | { type: "refreshAgents" }
   | { type: "refreshPrompts" }
   | { type: "setupMcp" }
+  | { type: "createResearchProfile"; data: CreateResearchProfileInput }
+  | {
+    type: "updateResearchProfile";
+    researchId: string;
+    data: Partial<CreateResearchProfileInput>;
+  }
+  | { type: "deleteResearchProfile"; researchId: string }
+  | { type: "duplicateResearchProfile"; researchId: string }
+  | { type: "startResearchRun"; researchId: string }
+  | { type: "stopResearchRun" }
   | { type: "runTask"; taskId: string }
   | { type: "toggleTask"; taskId: string }
   | { type: "deleteTask"; taskId: string }

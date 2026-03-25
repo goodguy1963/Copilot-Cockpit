@@ -7,7 +7,8 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 ### What This Fork Adds
 
 - Strict per-repo workspace scheduling. Each repo keeps its own schedule in its own `.vscode` folder.
-- A repo-local `Jobs` board for ordered multi-step workflows with folders, pause/resume, drag-drop ordering, and per-step time windows.
+- A repo-local `Jobs` board for ordered multi-step workflows with folders, pause/resume, drag-drop ordering, per-step time windows, drag-drop moves between folders, and a clearer current-folder indicator.
+- A repo-local `Research` tab for bounded benchmark-driven iteration against an allowlisted file set.
 - Embedded MCP server support bundled with the extension.
 - Prompted MCP setup that can create or merge `.vscode/mcp.json` for the current repo.
 - Hybrid task storage, where workspace tasks live in repo files and global tasks remain in extension storage.
@@ -44,8 +45,9 @@ Notes:
 2. Start in the `How To Use` tab, which now opens first and includes the current Jobs flow, MCP setup button, and visual references.
 3. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, labels, optional agent/model, and optional skill insertion.
 4. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, move tasks, and filter by effective labels.
-5. Build ordered workflows in the `Jobs` tab by creating folders, duplicating jobs, pausing jobs, attaching existing tasks, or creating inline steps.
-6. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
+5. Build ordered workflows in the `Jobs` tab by creating folders, dragging jobs into folders, duplicating jobs, pausing jobs, attaching existing tasks, or creating inline steps.
+6. Use the `Research` tab to define a benchmark command, metric regex, bounded run budget, and allowlisted editable paths for controlled iteration.
+7. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
 
 ### UI Walkthrough
 
@@ -68,10 +70,21 @@ Prompted MCP setup flow:
 
 - Jobs are repo-local workflows stored next to the workspace scheduler files.
 - A job owns one cron schedule and an ordered list of step tasks.
+- Jobs can be dragged from the Jobs list into sidebar folders, including back to `All jobs`.
+- The sidebar now shows the current folder explicitly and highlights the active folder more clearly.
 - Each step has a default 30-minute window that can be edited per node.
 - Drag-drop reordering updates the workflow timeline and the derived next-run order.
+- Deleting a step from Jobs now confirms first and removes the underlying task from both the workflow and the Task List.
 - Pausing a job suppresses all child-task executions without changing each task's own enabled flag.
 - Effective labels combine manual task labels with the owning job name, so the Task List can be filtered by workflow.
+
+### Research Tab
+
+- Research profiles are stored repo-locally in `.vscode/research.json` with run history under `.vscode/research-history`.
+- Each profile defines the benchmark command, a numeric metric regex, whether to maximize or minimize it, a run budget, and an allowlisted set of editable files.
+- Runs are bounded by max iterations, max minutes, benchmark timeout, and max consecutive failures.
+- The UI keeps recent runs, attempt outcomes, scores, changed files, and benchmark output so you can decide whether to keep or reject a result.
+- This is intentionally a bounded benchmark-command researcher, not an unrestricted autonomous code editor.
 
 ### Repo Storage Model
 
