@@ -527,8 +527,8 @@ export const messages = {
   labelModel: () => t("Model", "モデル"),
   labelModelNote: () =>
     t(
-      "Model selection is a preview feature and may not apply in all environments. If needed, pick the model directly in the Copilot Chat panel.",
-      "モデルの選択はプレビュー機能で、環境によって反映されない場合があります。Copilot Chat パネルのモデルも確認してください。",
+      "Model selection is a preview feature and may not apply in all environments. The dropdown labels show the API source, such as Copilot or OpenRouter. If needed, pick the model directly in the Copilot Chat panel.",
+      "モデルの選択はプレビュー機能で、環境によって反映されない場合があります。ドロップダウンのラベルには Copilot や OpenRouter などの API ソースが表示されます。必要に応じて Copilot Chat パネルでも確認してください。",
     ),
   labelScope: () => t("Scope", "スコープ"),
   labelScopeGlobal: () =>
