@@ -82,6 +82,7 @@ Notes:
 
 - Workspace tasks are stored in `.vscode/scheduler.json` and `.vscode/scheduler.private.json` inside the repo that is actually open in VS Code.
 - The last 100 workspace schedule changes are stored in `.vscode/scheduler-history` so you can restore an older repo-local version from the UI.
+- Recurring inline workspace prompts also get backup-only markdown copies in `.vscode/scheduler-prompt-backups`; this is separate from `.vscode/scheduler-history`, which stores full scheduler snapshots.
 - Nested repos no longer inherit tasks from a parent folder.
 - Global tasks still exist in extension storage, but repo schedules are authoritative in the repo's `.vscode` files.
 
@@ -108,6 +109,10 @@ The global setting `copilotScheduler.chatSession` still provides the default sch
 - The Create/Edit form includes a skill dropdown plus `Insert Skill` button.
 - Choosing a skill inserts a sentence such as `Use path/to/SKILL.md to know how things must be done.` into the prompt.
 - Inserting a skill switches the prompt to inline mode so the added instruction is preserved even if you started from a template.
+- The scheduler MCP skill is repo-local at `.github/skills/scheduler-mcp-agent/SKILL.md`, so it is available when this workspace is open; installing the extension alone does not add it to other repos.
+- On startup, the extension now creates that repo-local skill file in each open workspace root if it is missing.
+- The skill file being present in the repo does not make agents use it automatically. You still need to add it to the agent prompt with `Insert Skill`, mention the skill path in your instructions, or call the skill explicitly when you want it applied.
+- The skill is meant for agents that need a concept map for tasks, jobs, job folders, pause checkpoints, bundled jobs, or research profiles.
 
 Example:
 
@@ -124,6 +129,25 @@ If VS Code was closed and tasks became overdue:
 - Recurring tasks are reviewed one by one on startup and can either run now or wait for the next cycle.
 - One-time tasks are reviewed one by one on startup and can either run now or be rescheduled by choosing how many minutes from now they should run.
 - Remaining overdue tasks are not silently auto-executed after you dismiss the review.
+
+### One-time vs recurring tasks
+
+- Use a one-time task when you want a single execution that should delete itself after success.
+- Use a recurring task when you want the same prompt to keep running on cron until you disable or delete it.
+- One-time tasks are best for ad hoc cleanup, migration, or one-off follow-up actions.
+- Recurring tasks are best for daily dispatchers, weekly reviews, and other repeatable automation.
+- Recurring tasks can store a per-task chat-session mode (`new` or `continue`); one-time tasks do not store that setting.
+- If you are building a workflow with multiple steps, pause checkpoints, or a bundled output task, use a job instead of a plain task.
+
+### Choosing the right concept
+
+- Use a **task** for one scheduled prompt.
+- Use a **one-time task** when that prompt should run once and then disappear.
+- Use a **recurring task** when that prompt should stay scheduled on cron.
+- Use a **job** when the user wants multiple steps, pause checkpoints, or a bundled output.
+- Use a **research profile** when the user wants a bounded benchmark loop with editable paths and a score command.
+- The `scheduler-mcp-agent` skill is repo-local in `.github/skills/scheduler-mcp-agent/SKILL.md`, so it is available when this workspace is open; installing the extension alone does not add it to other repos.
+- The skill explains which MCP tool to use for each concept so agents can choose between tasks, jobs, folders, pauses, bundled-task compilation, and research without guessing.
 
 ### Auto-Open On Startup
 
@@ -149,6 +173,8 @@ Yes, MCP is set up in the plugin itself.
 - `scheduler_list_tasks` and `scheduler_get_task` inspect current scheduler state and single saved tasks.
 - `scheduler_add_task`, `scheduler_update_task`, `scheduler_duplicate_task`, `scheduler_remove_task`, and `scheduler_toggle_task` create or change saved tasks.
 - `scheduler_run_task` triggers a task, while `scheduler_list_history`, `scheduler_restore_snapshot`, and `scheduler_get_overdue_tasks` inspect recovery state and due work.
+- The MCP surface also includes job tools for workflow composition, bundled-task compilation, and research profile tools for benchmark setup and run inspection.
+- The `scheduler-mcp-agent` skill documents which tool to use for each concept so an agent can choose between tasks, jobs, folders, pauses, and research without guessing.
 - Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as `.vscode/mcp.json` that starts the installed scheduler server.
 - In short: the server is bundled with the plugin, but the workspace still decides how to launch it.
 

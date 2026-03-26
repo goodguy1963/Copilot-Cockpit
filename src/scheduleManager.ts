@@ -40,6 +40,7 @@ import {
   resolveLocalPromptPath,
 } from "./promptResolver";
 import {
+  getCanonicalPromptBackupPath,
   getDefaultPromptBackupRelativePath,
   isRecurringPromptBackupCandidate,
   renderPromptBackupContent,
@@ -411,9 +412,16 @@ export class ScheduleManager {
           ? task.promptBackupPath.trim()
           : getDefaultPromptBackupRelativePath(task.id);
 
-      const resolvedBackupPath =
+      const resolvedExistingBackupPath =
         resolvePromptBackupPath(workspaceRoot, backupPathCandidate) ??
         resolvePromptBackupPath(
+          workspaceRoot,
+          getDefaultPromptBackupRelativePath(task.id),
+        );
+
+      const resolvedBackupPath =
+        getCanonicalPromptBackupPath(workspaceRoot, backupPathCandidate) ??
+        getCanonicalPromptBackupPath(
           workspaceRoot,
           getDefaultPromptBackupRelativePath(task.id),
         );
@@ -468,6 +476,19 @@ export class ScheduleManager {
       if (task.promptBackupPath !== relativeBackupPath) {
         task.promptBackupPath = relativeBackupPath;
         changed++;
+      }
+
+      if (
+        resolvedExistingBackupPath &&
+        normalizeForCompare(resolvedExistingBackupPath) !==
+          normalizeForCompare(resolvedBackupPath)
+      ) {
+        try {
+          await fs.promises.rm(resolvedExistingBackupPath, { force: true });
+          changed++;
+        } catch {
+          // ignore best-effort legacy cleanup failures
+        }
       }
     }
 

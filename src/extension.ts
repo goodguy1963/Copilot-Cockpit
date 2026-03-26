@@ -14,6 +14,7 @@ import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
+import { ensureSchedulerSkillForWorkspaceRoots } from "./skillBootstrap";
 import {
   getSchedulerMcpSetupState,
   upsertSchedulerMcpConfig,
@@ -157,6 +158,22 @@ async function syncRecurringPromptBackupsIfNeeded(
   }
 
   await context.globalState.update(PROMPT_BACKUP_SYNC_MONTH_KEY, monthKey);
+}
+
+async function ensureSchedulerSkillOnStartup(
+  context: vscode.ExtensionContext,
+): Promise<void> {
+  const workspaceRoots = getResolvedWorkspaceRoots(
+    (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
+  );
+  if (workspaceRoots.length === 0) {
+    return;
+  }
+
+  await ensureSchedulerSkillForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+  );
 }
 
 export function notifyInfo(message: string, timeoutMs = 4000): void {
@@ -653,6 +670,15 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
+  void ensureSchedulerSkillOnStartup(context).catch((error) =>
+    logError(
+      "[CopilotScheduler] Scheduler skill bootstrap failed:",
+      sanitizeErrorDetailsForLog(
+        error instanceof Error ? error.message : String(error ?? ""),
+      ),
+    ),
+  );
+
   // Sync prompt templates to tasks (startup and daily)
   void syncPromptTemplatesIfNeeded(context, true).catch((error) =>
     logError(
@@ -913,6 +939,7 @@ async function resolvePromptText(
 export const __testOnly = {
   resolvePromptText,
   sanitizeErrorDetailsForLog,
+  ensureSchedulerSkillOnStartup,
 };
 
 function getWorkspaceFolderPaths(): string[] {

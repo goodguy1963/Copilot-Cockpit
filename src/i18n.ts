@@ -312,8 +312,8 @@ export const messages = {
     ),
   helpCreateItemSkills: () =>
     t(
-      "Use the skill picker to insert a fixed skill instruction sentence into the prompt with one click.",
-      "スキルピッカーを使うと、固定のスキル指示文をワンクリックでプロンプトへ挿入できます。",
+      "Use the skill picker to insert a fixed skill instruction sentence into the prompt with one click. The scheduler MCP skill lives in the repo under .github/skills/scheduler-mcp-agent/SKILL.md, so it is available when this workspace is open; installing the extension alone does not add it to other repos. The skill file being present does not make agents use it automatically, so add it to the prompt with Insert Skill or call it explicitly when needed.",
+      "スキルピッカーを使うと、固定のスキル指示文をワンクリックでプロンプトへ挿入できます。scheduler MCP の skill はリポジトリ内の .github/skills/scheduler-mcp-agent/SKILL.md にあるため、この workspace を開いているときに利用できます。拡張機能を入れただけでは他のリポジトリには追加されません。skill ファイルが存在するだけで agent が自動的に使うわけではないため、必要なときは Insert Skill でプロンプトへ追加するか、明示的に呼び出してください。",
     ),
   helpCreateItemAgentModel: () =>
     t(
@@ -322,8 +322,8 @@ export const messages = {
     ),
   helpCreateItemRunFirst: () =>
     t(
-      "Run-first starts the first execution after 3 minutes; one-time tasks delete themselves after a successful run.",
-      "初回実行を有効にすると3分後に最初の実行を行い、一度きりタスクは成功後に自動削除されます。",
+      "Run-first starts the first execution after 3 minutes; one-time tasks delete themselves after a successful run. Use one-time tasks for a single execution and recurring tasks for prompts that should keep running on cron.",
+      "初回実行を有効にすると3分後に最初の実行を行い、一度きりタスクは成功後に自動削除されます。1回だけ実行したい場合は一度きりタスク、cron で繰り返し実行したい場合は繰り返しタスクを使ってください。",
     ),
   helpListTitle: () => t("2. Manage Tasks", "2. タスクを管理"),
   helpListItemSections: () =>
@@ -393,6 +393,11 @@ export const messages = {
     t(
       "Workspace tasks are stored in .vscode/scheduler.json and .vscode/scheduler.private.json inside the repo that is open in VS Code.",
       "ワークスペースタスクは、VS Code で開いているリポジトリ内の .vscode/scheduler.json と .vscode/scheduler.private.json に保存されます。",
+    ),
+  helpStorageItemBackups: () =>
+    t(
+      "Recurring inline workspace prompts also get backup-only markdown copies in .vscode/scheduler-prompt-backups. This is separate from .vscode/scheduler-history, which stores full scheduler snapshots.",
+      "繰り返し実行のインライン ワークスペース プロンプトは、.vscode/scheduler-prompt-backups にバックアップ専用の Markdown としても保存されます。これはスケジューラ全体のスナップショットを保存する .vscode/scheduler-history とは別物です。",
     ),
   helpStorageItemIsolation: () =>
     t(
@@ -473,8 +478,8 @@ export const messages = {
     ),
   helpMcpItemTools: () =>
     t(
-      "scheduler_run_task triggers a task, while scheduler_list_history, scheduler_restore_snapshot, and scheduler_get_overdue_tasks inspect recovery state and due work.",
-      "scheduler_run_task はタスクを起動し、scheduler_list_history、scheduler_restore_snapshot、scheduler_get_overdue_tasks は復旧履歴や期限超過状態を確認します。",
+      "scheduler_run_task triggers a task, while scheduler_list_history, scheduler_restore_snapshot, and scheduler_get_overdue_tasks inspect recovery state and due work. Job tools manage workflows, pause checkpoints, and bundled-task compilation, and research tools manage benchmark profiles and runs.",
+      "scheduler_run_task はタスクを起動し、scheduler_list_history、scheduler_restore_snapshot、scheduler_get_overdue_tasks は復旧履歴や期限超過状態を確認します。job の tool はワークフロー、停止チェックポイント、Bundled Task への変換を扱い、research の tool はベンチマーク用プロファイルと実行履歴を扱います。",
     ),
   helpMcpTitle: () => t("8. MCP Support", "8. MCP 対応"),
   helpTipsTitle: () => t("9. Recommended Workflow", "9. 推奨ワークフロー"),
@@ -490,8 +495,8 @@ export const messages = {
     ),
   helpTipsItem3: () =>
     t(
-      "Use the restore dropdown to roll back repo-local schedule changes, and use the README for the full setup details.",
-      "復元ドロップダウンでリポジトリ単位のスケジュール変更を巻き戻し、詳細なセットアップは README を参照してください。",
+      "Use the restore dropdown to roll back repo-local schedule changes, and choose the right concept: task for one scheduled prompt, one-time task for a single execution, recurring task for ongoing cron runs, job for multi-step workflows, and research profile for bounded benchmarks. The scheduler MCP skill is repo-local in .github/skills/scheduler-mcp-agent/SKILL.md, so it is available when this workspace is open; installing the extension alone does not add it to other repos. Presence alone does not auto-apply the skill, so insert it into the prompt or call it explicitly when you want the agent to use it.",
+      "復元ドロップダウンでリポジトリ単位のスケジュール変更を巻き戻し、概念を使い分けてください。task は 1 件の定期プロンプト、one-time task は 1 回だけの実行、recurring task は cron で継続実行、job は複数ステップのワークフロー、research profile は制限付きベンチマーク用です。scheduler MCP の skill は .github/skills/scheduler-mcp-agent/SKILL.md にある repo-local のため、この workspace を開いているときに利用できます。拡張機能を入れただけでは他のリポジトリには追加されません。存在するだけで自動適用されるわけではないため、agent に使わせたいときはプロンプトへ挿入するか、明示的に呼び出してください。",
     ),
 
   webviewMessageHandlingFailed: (error: string) =>

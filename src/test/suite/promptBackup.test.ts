@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import * as path from "path";
 import {
+    getCanonicalPromptBackupPath,
     getDefaultPromptBackupRelativePath,
     renderPromptBackupContent,
     resolvePromptBackupPath,
@@ -18,14 +19,18 @@ suite("Prompt Backup Helpers", () => {
             "exec:task/with unsafe chars",
         );
 
-        assert.ok(relativePath.startsWith(".github/scheduler-prompt-backups/"));
+        assert.ok(relativePath.startsWith(".vscode/scheduler-prompt-backups/"));
         assert.strictEqual(relativePath.includes(".github/prompts"), false);
         assert.ok(relativePath.endsWith(".prompt.md"));
     });
 
-    test("resolvePromptBackupPath allows backup-root relative paths only", () => {
+    test("resolvePromptBackupPath allows current and legacy backup-root paths only", () => {
         const workspaceRoot = path.join("/tmp", "workspace");
-        const resolved = resolvePromptBackupPath(
+        const resolvedCurrent = resolvePromptBackupPath(
+            workspaceRoot,
+            ".vscode/scheduler-prompt-backups/test.prompt.md",
+        );
+        const resolvedLegacy = resolvePromptBackupPath(
             workspaceRoot,
             ".github/scheduler-prompt-backups/test.prompt.md",
         );
@@ -35,7 +40,18 @@ suite("Prompt Backup Helpers", () => {
         );
 
         assert.strictEqual(
-            normalizePathForTest(resolved),
+            normalizePathForTest(resolvedCurrent),
+            normalizePathForTest(
+                path.join(
+                    workspaceRoot,
+                    ".vscode",
+                    "scheduler-prompt-backups",
+                    "test.prompt.md",
+                ),
+            ),
+        );
+        assert.strictEqual(
+            normalizePathForTest(resolvedLegacy),
             normalizePathForTest(
                 path.join(
                     workspaceRoot,
@@ -46,6 +62,26 @@ suite("Prompt Backup Helpers", () => {
             ),
         );
         assert.strictEqual(rejected, undefined);
+    });
+
+    test("getCanonicalPromptBackupPath rewrites legacy paths into .vscode", () => {
+        const workspaceRoot = path.join("/tmp", "workspace");
+        const canonical = getCanonicalPromptBackupPath(
+            workspaceRoot,
+            ".github/scheduler-prompt-backups/test.prompt.md",
+        );
+
+        assert.strictEqual(
+            normalizePathForTest(canonical),
+            normalizePathForTest(
+                path.join(
+                    workspaceRoot,
+                    ".vscode",
+                    "scheduler-prompt-backups",
+                    "test.prompt.md",
+                ),
+            ),
+        );
     });
 
     test("renderPromptBackupContent adds metadata header and preserves prompt body", () => {

@@ -14,6 +14,10 @@ node_modules/**
 FULL_SPECIFICATION.md
 AGENTS.md
 .github/**
+!.github/
+!.github/skills/
+!.github/skills/scheduler-mcp-agent/
+!.github/skills/scheduler-mcp-agent/SKILL.md
 
 # Dev-only artifacts
 output_sessions/**
