@@ -4,9 +4,17 @@ import type { SchedulerWorkspaceConfig } from "./types";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
     /https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9._-]+/gi;
+const TELEGRAM_BOT_URL_PATTERN =
+    /https:\/\/api\.telegram\.org\/bot[0-9]{5,}:[A-Za-z0-9_-]{20,}\/[^\s"']*/gi;
+const TELEGRAM_BOT_TOKEN_PATTERN =
+    /\b[0-9]{5,}:[A-Za-z0-9_-]{20,}\b/g;
 
 export const REDACTED_DISCORD_WEBHOOK_URL =
     "[REDACTED_DISCORD_WEBHOOK_URL]";
+export const REDACTED_TELEGRAM_BOT_URL =
+    "[REDACTED_TELEGRAM_BOT_URL]";
+export const REDACTED_TELEGRAM_BOT_TOKEN =
+    "[REDACTED_TELEGRAM_BOT_TOKEN]";
 
 export function redactDiscordWebhookUrls(value: string): string {
     return value.replace(
@@ -15,9 +23,15 @@ export function redactDiscordWebhookUrls(value: string): string {
     );
 }
 
+export function redactTelegramBotSecrets(value: string): string {
+    return value
+        .replace(TELEGRAM_BOT_URL_PATTERN, REDACTED_TELEGRAM_BOT_URL)
+        .replace(TELEGRAM_BOT_TOKEN_PATTERN, REDACTED_TELEGRAM_BOT_TOKEN);
+}
+
 export function sanitizeSchedulerJsonValue<T>(value: T): T {
     if (typeof value === "string") {
-        return redactDiscordWebhookUrls(value) as T;
+        return redactTelegramBotSecrets(redactDiscordWebhookUrls(value)) as T;
     }
 
     if (Array.isArray(value)) {
@@ -130,6 +144,9 @@ export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceCo
                 ...parsed,
                 jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
                 jobFolders: Array.isArray(parsed.jobFolders) ? parsed.jobFolders : [],
+                telegramNotification: parsed.telegramNotification && typeof parsed.telegramNotification === "object"
+                    ? parsed.telegramNotification
+                    : undefined,
             };
         }
         return { tasks: [] };
@@ -153,6 +170,10 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
         tasks: config.tasks,
         jobs: Array.isArray(config.jobs) ? config.jobs : [],
         jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+        telegramNotification: config.telegramNotification
+            && typeof config.telegramNotification === "object"
+            ? { ...config.telegramNotification }
+            : undefined,
     };
 
     const publicConfig: SchedulerWorkspaceConfig = {
@@ -160,6 +181,9 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
         tasks: sanitizeSchedulerJsonValue(normalizedConfig.tasks),
         jobs: sanitizeSchedulerJsonValue(normalizedConfig.jobs ?? []),
         jobFolders: sanitizeSchedulerJsonValue(normalizedConfig.jobFolders ?? []),
+        telegramNotification: sanitizeSchedulerJsonValue(
+            normalizedConfig.telegramNotification,
+        ),
     };
 
     const nextPublicContent = JSON.stringify(publicConfig, null, 4);

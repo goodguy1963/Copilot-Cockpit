@@ -205,6 +205,18 @@
           ],
           "description": "%config.chatSession%"
         },
+        "copilotScheduler.defaultAgent": {
+          "type": "string",
+          "default": "agent",
+          "scope": "resource",
+          "description": "%config.defaultAgent%"
+        },
+        "copilotScheduler.defaultModel": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "%config.defaultModel%"
+        },
         "copilotScheduler.defaultScope": {
           "type": "string",
           "default": "workspace",

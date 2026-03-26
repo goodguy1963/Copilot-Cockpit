@@ -21,6 +21,8 @@ import type {
   ResearchRun,
   SkillReference,
   ChatSessionBehavior,
+  ExecutionDefaultsView,
+  TelegramNotificationView,
   TaskScope,
   WebviewToExtensionMessage,
 } from "./types";
@@ -53,6 +55,15 @@ export class SchedulerWebview {
   private static currentTasks: ScheduledTask[] = [];
   private static currentJobs: JobDefinition[] = [];
   private static currentJobFolders: JobFolder[] = [];
+  private static currentTelegramNotification: TelegramNotificationView = {
+    enabled: false,
+    hasBotToken: false,
+    hookConfigured: false,
+  };
+  private static currentExecutionDefaults: ExecutionDefaultsView = {
+    agent: "agent",
+    model: "",
+  };
   private static currentResearchProfiles: ResearchProfile[] = [];
   private static currentActiveResearchRun: ResearchRun | undefined;
   private static currentRecentResearchRuns: ResearchRun[] = [];
@@ -114,6 +125,8 @@ export class SchedulerWebview {
     tasks: ScheduledTask[],
     jobs: JobDefinition[],
     jobFolders: JobFolder[],
+    telegramNotification: TelegramNotificationView,
+    executionDefaults: ExecutionDefaultsView,
     researchProfiles: ResearchProfile[],
     activeResearchRun: ResearchRun | undefined,
     recentResearchRuns: ResearchRun[],
@@ -124,6 +137,8 @@ export class SchedulerWebview {
     this.currentTasks = tasks;
     this.currentJobs = jobs;
     this.currentJobFolders = jobFolders;
+    this.currentTelegramNotification = telegramNotification;
+    this.currentExecutionDefaults = executionDefaults;
     this.currentResearchProfiles = researchProfiles;
     this.currentActiveResearchRun = activeResearchRun;
     this.currentRecentResearchRuns = recentResearchRuns;
@@ -196,6 +211,10 @@ export class SchedulerWebview {
       // Reveal existing panel — send cached data only (no heavy re-scan)
       this.panel.reveal(vscode.ViewColumn.One);
       this.updateTasks(tasks);
+      this.updateJobs(jobs);
+      this.updateJobFolders(jobFolders);
+      this.updateTelegramNotification(telegramNotification);
+      this.updateExecutionDefaults(executionDefaults);
       this.updateResearchState(
         researchProfiles,
         activeResearchRun,
@@ -316,6 +335,26 @@ export class SchedulerWebview {
     this.postMessage({
       type: "updateJobFolders",
       jobFolders,
+    });
+  }
+
+  static updateTelegramNotification(
+    telegramNotification: TelegramNotificationView,
+  ): void {
+    this.currentTelegramNotification = telegramNotification;
+    this.postMessage({
+      type: "updateTelegramNotification",
+      telegramNotification,
+    });
+  }
+
+  static updateExecutionDefaults(
+    executionDefaults: ExecutionDefaultsView,
+  ): void {
+    this.currentExecutionDefaults = executionDefaults;
+    this.postMessage({
+      type: "updateExecutionDefaults",
+      executionDefaults,
     });
   }
 
@@ -454,7 +493,7 @@ export class SchedulerWebview {
     this.postMessage({ type: "switchToList", successMessage });
   }
 
-  static switchToTab(tab: "create" | "list" | "jobs" | "research" | "help"): void {
+  static switchToTab(tab: "create" | "list" | "jobs" | "telegram" | "research" | "help"): void {
     this.postMessage({ type: "switchToTab", tab });
   }
 
@@ -819,6 +858,36 @@ export class SchedulerWebview {
           this.onTaskActionCallback({
             action: "setupMcp",
             taskId: "__setupMcp__",
+          });
+        }
+        break;
+
+      case "saveTelegramNotification":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "saveTelegramNotification",
+            taskId: "__telegram__",
+            telegramData: message.data,
+          });
+        }
+        break;
+
+      case "testTelegramNotification":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "testTelegramNotification",
+            taskId: "__telegram__",
+            telegramData: message.data,
+          });
+        }
+        break;
+
+      case "saveExecutionDefaults":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "saveExecutionDefaults",
+            taskId: "__defaults__",
+            executionDefaults: message.data,
           });
         }
         break;
@@ -1576,6 +1645,39 @@ export class SchedulerWebview {
       helpResearchItemProfiles: messages.helpResearchItemProfiles(),
       helpResearchItemBounds: messages.helpResearchItemBounds(),
       helpResearchItemHistory: messages.helpResearchItemHistory(),
+      tabTelegram: "Telegram",
+      telegramTitle: "Telegram Notifications",
+      telegramDescription:
+        "Configure a repo-local Stop hook that sends the last assistant reply to your Telegram bot.",
+      telegramEnable: "Enable Telegram Stop notification",
+      telegramBotToken: "Bot token",
+      telegramBotTokenPlaceholder: "123456:ABCDEF...",
+      telegramBotTokenHelp:
+        "Stored only in .vscode/scheduler.private.json. Leave blank to keep the currently saved token.",
+      telegramChatId: "Chat ID",
+      telegramChatIdPlaceholder: "123456789 or -100...",
+      telegramMessagePrefix: "Message prefix",
+      telegramMessagePrefixPlaceholder: "Optional short header shown above the last assistant reply.",
+      telegramSave: "Save Telegram Settings",
+      telegramTest: "Send Test Message",
+      telegramSavedToken: "Bot token stored privately",
+      telegramMissingToken: "No bot token saved yet",
+      telegramHookReady: "Stop hook configured",
+      telegramHookMissing: "Stop hook files not configured",
+      telegramUpdatedAt: "Last updated",
+      telegramWorkspaceNote:
+        "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.",
+      telegramValidationChatId: "Telegram chat ID is required.",
+      telegramValidationBotToken: "Telegram bot token is required.",
+      telegramStatusSaved:
+        "Settings are repo-local. Save after changing chat ID, prefix, or token.",
+      executionDefaultsTitle: "Execution Defaults",
+      executionDefaultsDescription:
+        "These workspace settings apply when a task, job step, research profile, or test run leaves agent or model empty.",
+      executionDefaultsAgent: "Default agent",
+      executionDefaultsModel: "Default model",
+      executionDefaultsSave: "Save Defaults",
+      executionDefaultsSaved: "Workspace default agent and model settings.",
       helpTipsTitle: messages.helpTipsTitle(),
       helpTipsItem1: messages.helpTipsItem1(),
       helpTipsItem2: messages.helpTipsItem2(),
@@ -1854,6 +1956,8 @@ export class SchedulerWebview {
       tasks: initialTasks,
       jobs: this.currentJobs,
       jobFolders: this.currentJobFolders,
+      telegramNotification: this.currentTelegramNotification,
+      executionDefaults: this.currentExecutionDefaults,
       researchProfiles: this.currentResearchProfiles,
       activeResearchRun: this.currentActiveResearchRun,
       recentResearchRuns: this.currentRecentResearchRuns,
@@ -2990,6 +3094,63 @@ export class SchedulerWebview {
       overflow: auto;
     }
 
+    .telegram-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .telegram-card,
+    .telegram-status-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 14px;
+    }
+
+    .telegram-status-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .telegram-status-item {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background-color: var(--vscode-sideBar-background);
+      padding: 10px;
+    }
+
+    .telegram-status-label {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
+
+    .telegram-status-value {
+      font-size: 13px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .telegram-feedback {
+      display: none;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorInfo-background));
+      color: var(--vscode-foreground);
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .telegram-feedback.error {
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+    }
+
     .research-stat-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3022,6 +3183,10 @@ export class SchedulerWebview {
 
       .research-form-grid,
       .research-stat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .telegram-layout {
         grid-template-columns: 1fr;
       }
     }
@@ -3104,6 +3269,7 @@ export class SchedulerWebview {
       <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
       <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
       <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
+      <button type="button" class="tab-button" data-tab="telegram">${escapeHtml(strings.tabTelegram)}</button>
       <button type="button" class="tab-button" data-tab="research">${escapeHtml(strings.tabResearch)}</button>
     </div>
     <div class="tab-actions">
@@ -3661,6 +3827,88 @@ export class SchedulerWebview {
             <div id="research-attempt-list" class="research-attempt-list"></div>
           </div>
         </section>
+      </section>
+    </div>
+  </div>
+
+  <div id="telegram-tab" class="tab-content">
+    <div class="telegram-layout">
+      <section class="telegram-card">
+        <div class="section-title">${escapeHtml(strings.telegramTitle)}</div>
+        <p class="note">${escapeHtml(strings.telegramDescription)}</p>
+        <div id="telegram-feedback" class="telegram-feedback"></div>
+
+        <div class="form-group" style="margin-top:16px;">
+          <label class="checkbox-group">
+            <input type="checkbox" id="telegram-enabled">
+            <span>${escapeHtml(strings.telegramEnable)}</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="telegram-bot-token">${escapeHtml(strings.telegramBotToken)}</label>
+          <input type="password" id="telegram-bot-token" placeholder="${escapeHtmlAttr(strings.telegramBotTokenPlaceholder)}" autocomplete="off">
+          <p class="note">${escapeHtml(strings.telegramBotTokenHelp)}</p>
+        </div>
+
+        <div class="form-group">
+          <label for="telegram-chat-id">${escapeHtml(strings.telegramChatId)}</label>
+          <input type="text" id="telegram-chat-id" placeholder="${escapeHtmlAttr(strings.telegramChatIdPlaceholder)}">
+        </div>
+
+        <div class="form-group">
+          <label for="telegram-message-prefix">${escapeHtml(strings.telegramMessagePrefix)}</label>
+          <textarea id="telegram-message-prefix" placeholder="${escapeHtmlAttr(strings.telegramMessagePrefixPlaceholder)}"></textarea>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="telegram-save-btn">${escapeHtml(strings.telegramSave)}</button>
+          <button type="button" class="btn-secondary" id="telegram-test-btn">${escapeHtml(strings.telegramTest)}</button>
+        </div>
+      </section>
+
+      <aside class="telegram-status-card">
+        <div class="section-title">${escapeHtml(strings.tabTelegram)}</div>
+        <p class="note">${escapeHtml(strings.telegramWorkspaceNote)}</p>
+        <div class="telegram-status-grid">
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.telegramBotToken)}</div>
+            <div class="telegram-status-value" id="telegram-token-status"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.telegramChatId)}</div>
+            <div class="telegram-status-value" id="telegram-chat-status"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">Hook</div>
+            <div class="telegram-status-value" id="telegram-hook-status"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.telegramUpdatedAt)}</div>
+            <div class="telegram-status-value" id="telegram-updated-at"></div>
+          </div>
+        </div>
+        <p class="note" id="telegram-status-note">${escapeHtml(strings.telegramStatusSaved)}</p>
+      </aside>
+
+      <section class="telegram-card">
+        <div class="section-title">${escapeHtml(strings.executionDefaultsTitle)}</div>
+        <p class="note">${escapeHtml(strings.executionDefaultsDescription)}</p>
+
+        <div class="form-group" style="margin-top:16px;">
+          <label for="default-agent-select">${escapeHtml(strings.executionDefaultsAgent)}</label>
+          <select id="default-agent-select"></select>
+        </div>
+
+        <div class="form-group">
+          <label for="default-model-select">${escapeHtml(strings.executionDefaultsModel)}</label>
+          <select id="default-model-select"></select>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="execution-defaults-save-btn">${escapeHtml(strings.executionDefaultsSave)}</button>
+        </div>
+        <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
       </section>
     </div>
   </div>

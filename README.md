@@ -44,10 +44,11 @@ Notes:
 1. Open the scheduler from the activity bar, from `Copilot Scheduler: Create Scheduled Prompt (GUI)`, or from the activation notification's `Open Scheduler` button.
 2. Start in the `How To Use` tab, which now opens first and includes the current Jobs flow, the Research tab guidance, and the MCP setup button.
 3. Create tasks in the `Create Task` tab by choosing the task name, prompt source, cron schedule, scope, labels, optional agent/model, and optional skill insertion.
-4. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, move tasks, and filter by effective labels.
-5. Build chained workflows in the `Jobs` tab by creating folders, dragging jobs into folders, duplicating jobs, inserting pause checkpoints, pausing jobs, attaching existing tasks, creating inline steps, or compiling a whole job into one task and moving the source job into `Bundled Jobs`.
-6. Use the `Research` tab to define a benchmark command, metric regex, bounded run budget, and allowlisted editable paths for controlled iteration.
-7. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
+4. Use the `Telegram` tab to configure Stop-hook notifications plus the repo-scoped default agent and default model that are used whenever a task leaves agent/model empty.
+5. Manage tasks in the `Task List` tab: run, edit, duplicate, copy, enable, disable, delete, move tasks, and filter by effective labels.
+6. Build chained workflows in the `Jobs` tab by creating folders, dragging jobs into folders, duplicating jobs, inserting pause checkpoints, pausing jobs, attaching existing tasks, creating inline steps, or compiling a whole job into one task and moving the source job into `Bundled Jobs`.
+7. Use the `Research` tab to define a benchmark command, metric regex, bounded run budget, and allowlisted editable paths for controlled iteration.
+8. Use the toolbar in the `Task List` tab to refresh data, toggle repo-scoped startup auto-open, and restore older repo-local schedule backups.
 
 ### Prompt Sources
 
@@ -101,6 +102,7 @@ The global setting `copilotScheduler.chatSession` still provides the default sch
 ### Agent and Model Selection
 
 - If a task specifies a dedicated agent or model, the extension now prefers a fresh Copilot chat context so that it does not silently reuse the currently active chat state.
+- If a task leaves agent or model empty, the run inherits the repo-scoped default agent/model from the `Telegram` tab. The shipped default agent is `agent`; the default model is empty until you choose one.
 - If VS Code cannot honor a task-specific model in the fallback chat path, the run fails explicitly instead of pretending the active model was used correctly.
 - The Test Run path uses the same executor behavior as scheduled and manual runs.
 

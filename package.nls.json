@@ -35,6 +35,8 @@
   "config.chatSession": "Chat session behavior",
   "config.chatSession.new": "Create new chat session for each execution",
   "config.chatSession.continue": "Continue in existing chat session",
+  "config.defaultAgent": "Default agent used when a task, job step, research profile, or test run leaves the agent empty. Set this per repo from the Scheduler Telegram tab.",
+  "config.defaultModel": "Default model used when a task, job step, research profile, or test run leaves the model empty. Set this per repo from the Scheduler Telegram tab.",
   "config.defaultScope": "Default scope for new tasks",
   "config.defaultScope.global": "Global (all workspaces)",
   "config.defaultScope.workspace": "Workspace (current workspace only)",

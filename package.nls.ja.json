@@ -35,6 +35,8 @@
   "config.chatSession": "チャットセッションの動作",
   "config.chatSession.new": "実行ごとに新しいチャットセッションを作成",
   "config.chatSession.continue": "既存のチャットセッションを継続",
+  "config.defaultAgent": "タスク、ジョブステップ、research profile、テスト実行で agent が空のときに使う既定の agent。リポジトリごとに Scheduler の Telegram タブから設定できます。",
+  "config.defaultModel": "タスク、ジョブステップ、research profile、テスト実行で model が空のときに使う既定の model。リポジトリごとに Scheduler の Telegram タブから設定できます。",
   "config.defaultScope": "新規タスクのデフォルトスコープ",
   "config.defaultScope.global": "グローバル（全ワークスペース）",
   "config.defaultScope.workspace": "ワークスペース（現在のワークスペースのみ）",

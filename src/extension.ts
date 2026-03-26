@@ -16,6 +16,11 @@ import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
 import { ensureSchedulerSkillForWorkspaceRoots } from "./skillBootstrap";
 import {
+  getTelegramNotificationView,
+  saveTelegramNotificationConfig,
+  sendTelegramNotificationTest,
+} from "./telegramNotificationManager";
+import {
   getSchedulerMcpSetupState,
   upsertSchedulerMcpConfig,
 } from "./mcpConfigManager";
@@ -30,6 +35,7 @@ import type {
   CreateTaskInput,
   CreateResearchProfileInput,
   TaskAction,
+  ExecutionDefaultsView,
   PromptSource,
 } from "./types";
 
@@ -230,6 +236,8 @@ function refreshSchedulerUiState(): void {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
   SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
+  SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
+  SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
   SchedulerWebview.updateResearchState(
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
@@ -249,6 +257,8 @@ async function showSchedulerWebview(
     scheduleManager.getAllTasks(),
     scheduleManager.getAllJobs(),
     scheduleManager.getAllJobFolders(),
+    getCurrentTelegramNotificationView(),
+    getCurrentExecutionDefaults(),
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
     researchManager.getRecentRuns(),
@@ -288,6 +298,58 @@ async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> 
 
 function getPrimaryWorkspaceRootPath(): string | undefined {
   return getPrimaryWorkspaceFolderUri()?.fsPath;
+}
+
+function getExecutionDefaultsTarget(): vscode.ConfigurationTarget {
+  return getPrimaryWorkspaceFolderUri()
+    ? vscode.ConfigurationTarget.WorkspaceFolder
+    : vscode.ConfigurationTarget.Workspace;
+}
+
+function getCurrentExecutionDefaults(): ExecutionDefaultsView {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  const config = vscode.workspace.getConfiguration(
+    "copilotScheduler",
+    folderUri,
+  );
+  return {
+    agent: config.get<string>("defaultAgent", "agent").trim(),
+    model: config.get<string>("defaultModel", "").trim(),
+  };
+}
+
+async function saveExecutionDefaults(
+  input: Partial<ExecutionDefaultsView>,
+): Promise<ExecutionDefaultsView> {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  const config = vscode.workspace.getConfiguration(
+    "copilotScheduler",
+    folderUri,
+  );
+  const target = getExecutionDefaultsTarget();
+  const nextAgent = typeof input.agent === "string"
+    ? input.agent.trim()
+    : config.get<string>("defaultAgent", "agent").trim();
+  const nextModel = typeof input.model === "string"
+    ? input.model.trim()
+    : config.get<string>("defaultModel", "").trim();
+
+  await config.update("defaultAgent", nextAgent, target);
+  await config.update("defaultModel", nextModel, target);
+
+  return getCurrentExecutionDefaults();
+}
+
+function getCurrentTelegramNotificationView() {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return {
+      enabled: false,
+      hasBotToken: false,
+      hookConfigured: false,
+    };
+  }
+  return getTelegramNotificationView(workspaceRoot);
 }
 
 async function setupWorkspaceMcpConfig(
@@ -758,6 +820,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     if (e.affectsConfiguration("copilotScheduler.autoShowOnStartup")) {
       SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
+    }
+    if (
+      e.affectsConfiguration("copilotScheduler.defaultAgent") ||
+      e.affectsConfiguration("copilotScheduler.defaultModel")
+    ) {
+      SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
     }
     if (
       e.affectsConfiguration("copilotScheduler.globalPromptsPath") ||
@@ -1530,6 +1598,54 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         await setupWorkspaceMcpConfig(extensionContext);
+        break;
+      }
+
+      case "saveTelegramNotification": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot) {
+          const msg = messages.noWorkspaceOpen();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+        const view = saveTelegramNotificationConfig(
+          workspaceRoot,
+          action.telegramData ?? {},
+        );
+        SchedulerWebview.updateTelegramNotification(view);
+        notifyInfo("Telegram notification settings saved.");
+        SchedulerWebview.switchToTab("telegram");
+        break;
+      }
+
+      case "testTelegramNotification": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot) {
+          const msg = messages.noWorkspaceOpen();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+        await sendTelegramNotificationTest(
+          workspaceRoot,
+          action.telegramData ?? {},
+        );
+        SchedulerWebview.updateTelegramNotification(
+          getTelegramNotificationView(workspaceRoot),
+        );
+        notifyInfo("Telegram test message sent.");
+        SchedulerWebview.switchToTab("telegram");
+        break;
+      }
+
+      case "saveExecutionDefaults": {
+        const defaults = await saveExecutionDefaults(
+          action.executionDefaults ?? {},
+        );
+        SchedulerWebview.updateExecutionDefaults(defaults);
+        notifyInfo("Default agent and model updated.");
+        SchedulerWebview.switchToTab("telegram");
         break;
       }
 
