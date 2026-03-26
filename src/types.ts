@@ -169,6 +169,81 @@ export interface SchedulerWorkspaceConfig {
 
   /** Job folders */
   jobFolders?: JobFolder[];
+
+  /** Telegram stop-notification config */
+  telegramNotification?: TelegramNotificationConfig;
+}
+
+/**
+ * Repo-local Telegram Stop hook notification config.
+ * Stored in scheduler.private.json and sanitized in scheduler.json.
+ */
+export interface TelegramNotificationConfig {
+  /** Whether Stop-hook notifications are enabled */
+  enabled: boolean;
+
+  /** Telegram bot token; private file only */
+  botToken?: string;
+
+  /** Telegram chat identifier */
+  chatId?: string;
+
+  /** Optional prefix prepended above the final assistant reply */
+  messagePrefix?: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+/**
+ * UI-safe Telegram notification state sent to the webview.
+ */
+export interface TelegramNotificationView {
+  /** Whether Stop-hook notifications are enabled */
+  enabled: boolean;
+
+  /** Saved Telegram chat identifier */
+  chatId?: string;
+
+  /** Optional prefix prepended above the final assistant reply */
+  messagePrefix?: string;
+
+  /** Whether a bot token is already stored privately */
+  hasBotToken: boolean;
+
+  /** Last update timestamp */
+  updatedAt?: string;
+
+  /** Whether the generated Stop hook files currently exist */
+  hookConfigured: boolean;
+}
+
+/**
+ * Input payload from the Telegram tab.
+ */
+export interface SaveTelegramNotificationInput {
+  /** Whether Stop-hook notifications should be enabled */
+  enabled?: boolean;
+
+  /** Telegram bot token. Optional on update when already stored privately. */
+  botToken?: string;
+
+  /** Telegram chat identifier */
+  chatId?: string;
+
+  /** Optional message prefix */
+  messagePrefix?: string;
+}
+
+/**
+ * Workspace-level default execution settings used when a task leaves agent/model empty.
+ */
+export interface ExecutionDefaultsView {
+  /** Default agent identifier */
+  agent: string;
+
+  /** Default model identifier */
+  model: string;
 }
 
 /**
@@ -727,7 +802,10 @@ export interface TaskAction {
   | "deleteResearchProfile"
   | "duplicateResearchProfile"
   | "startResearchRun"
-  | "stopResearchRun";
+  | "stopResearchRun"
+  | "saveTelegramNotification"
+  | "testTelegramNotification"
+  | "saveExecutionDefaults";
 
   /** Task ID */
   taskId: string;
@@ -776,6 +854,12 @@ export interface TaskAction {
 
   /** Research profile create/update payload */
   researchData?: Partial<CreateResearchProfileInput>;
+
+  /** Telegram notification create/update payload */
+  telegramData?: Partial<SaveTelegramNotificationInput>;
+
+  /** Default execution settings payload */
+  executionDefaults?: Partial<ExecutionDefaultsView>;
 }
 
 /**
@@ -871,6 +955,9 @@ export type WebviewToExtensionMessage =
   | { type: "duplicateResearchProfile"; researchId: string }
   | { type: "startResearchRun"; researchId: string }
   | { type: "stopResearchRun" }
+  | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
+  | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
+  | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "runTask"; taskId: string }
   | { type: "toggleTask"; taskId: string }
   | { type: "deleteTask"; taskId: string }

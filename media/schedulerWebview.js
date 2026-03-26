@@ -204,6 +204,15 @@
   var jobFolders = Array.isArray(initialData.jobFolders)
     ? initialData.jobFolders
     : [];
+  var telegramNotification = initialData.telegramNotification || {
+    enabled: false,
+    hasBotToken: false,
+    hookConfigured: false,
+  };
+  var executionDefaults = initialData.executionDefaults || {
+    agent: "agent",
+    model: "",
+  };
   var researchProfiles = Array.isArray(initialData.researchProfiles)
     ? initialData.researchProfiles
     : [];
@@ -365,6 +374,22 @@
   var researchActiveLastOutcome = document.getElementById("research-active-last-outcome");
   var researchActiveMeta = document.getElementById("research-active-meta");
   var researchAttemptList = document.getElementById("research-attempt-list");
+  var telegramEnabledInput = document.getElementById("telegram-enabled");
+  var telegramBotTokenInput = document.getElementById("telegram-bot-token");
+  var telegramChatIdInput = document.getElementById("telegram-chat-id");
+  var telegramMessagePrefixInput = document.getElementById("telegram-message-prefix");
+  var telegramSaveBtn = document.getElementById("telegram-save-btn");
+  var telegramTestBtn = document.getElementById("telegram-test-btn");
+  var telegramFeedback = document.getElementById("telegram-feedback");
+  var telegramTokenStatus = document.getElementById("telegram-token-status");
+  var telegramChatStatus = document.getElementById("telegram-chat-status");
+  var telegramHookStatus = document.getElementById("telegram-hook-status");
+  var telegramUpdatedAt = document.getElementById("telegram-updated-at");
+  var telegramStatusNote = document.getElementById("telegram-status-note");
+  var defaultAgentSelect = document.getElementById("default-agent-select");
+  var defaultModelSelect = document.getElementById("default-model-select");
+  var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
+  var executionDefaultsNote = document.getElementById("execution-defaults-note");
   var activeTaskFilter = "all";
   var activeLabelFilter = "";
   var selectedJobFolderId = "";
@@ -436,6 +461,140 @@
       vscode.setState(next);
     } catch (_e) {
       // ignore state persist failures
+    }
+  }
+
+  function clearTelegramFeedback() {
+    if (!telegramFeedback) return;
+    telegramFeedback.textContent = "";
+    telegramFeedback.style.display = "none";
+    telegramFeedback.classList.remove("error");
+  }
+
+  function showTelegramFeedback(message, isError) {
+    if (!telegramFeedback) return;
+    telegramFeedback.textContent = String(message || "");
+    telegramFeedback.style.display = message ? "block" : "none";
+    telegramFeedback.classList.toggle("error", !!isError);
+  }
+
+  function formatTelegramUpdatedAt(value) {
+    if (!value) return "-";
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString(locale);
+  }
+
+  function collectTelegramFormData() {
+    return {
+      enabled: !!(telegramEnabledInput && telegramEnabledInput.checked),
+      botToken: telegramBotTokenInput ? String(telegramBotTokenInput.value || "") : "",
+      chatId: telegramChatIdInput ? String(telegramChatIdInput.value || "") : "",
+      messagePrefix: telegramMessagePrefixInput
+        ? String(telegramMessagePrefixInput.value || "")
+        : "",
+    };
+  }
+
+  function validateTelegramFormData(data) {
+    var needsConfig = data.enabled
+      || !!String(data.chatId || "").trim()
+      || !!String(data.messagePrefix || "").trim();
+    if (needsConfig && !String(data.chatId || "").trim()) {
+      return strings.telegramValidationChatId || "Telegram chat ID is required.";
+    }
+    if (
+      needsConfig
+      && !String(data.botToken || "").trim()
+      && !(telegramNotification && telegramNotification.hasBotToken)
+    ) {
+      return strings.telegramValidationBotToken || "Telegram bot token is required.";
+    }
+    return "";
+  }
+
+  function renderTelegramTab() {
+    if (telegramEnabledInput) {
+      telegramEnabledInput.checked = !!telegramNotification.enabled;
+    }
+    if (telegramChatIdInput) {
+      telegramChatIdInput.value = telegramNotification.chatId || "";
+    }
+    if (telegramMessagePrefixInput) {
+      telegramMessagePrefixInput.value = telegramNotification.messagePrefix || "";
+    }
+    if (telegramBotTokenInput) {
+      telegramBotTokenInput.value = "";
+      telegramBotTokenInput.placeholder = telegramNotification.hasBotToken
+        ? (strings.telegramSavedToken || "Bot token stored privately")
+        : (strings.telegramBotTokenPlaceholder || "123456:ABCDEF...");
+    }
+    if (telegramTokenStatus) {
+      telegramTokenStatus.textContent = telegramNotification.hasBotToken
+        ? (strings.telegramSavedToken || "Bot token stored privately")
+        : (strings.telegramMissingToken || "No bot token saved yet");
+    }
+    if (telegramChatStatus) {
+      telegramChatStatus.textContent = telegramNotification.chatId || "-";
+    }
+    if (telegramHookStatus) {
+      telegramHookStatus.textContent = telegramNotification.hookConfigured
+        ? (strings.telegramHookReady || "Stop hook configured")
+        : (strings.telegramHookMissing || "Stop hook files not configured");
+    }
+    if (telegramUpdatedAt) {
+      telegramUpdatedAt.textContent = formatTelegramUpdatedAt(telegramNotification.updatedAt);
+    }
+    if (telegramStatusNote) {
+      telegramStatusNote.textContent = strings.telegramWorkspaceNote
+        || "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.";
+    }
+    clearTelegramFeedback();
+  }
+
+  function collectExecutionDefaultsFormData() {
+    return {
+      agent: defaultAgentSelect ? String(defaultAgentSelect.value || "") : "",
+      model: defaultModelSelect ? String(defaultModelSelect.value || "") : "",
+    };
+  }
+
+  function renderExecutionDefaultsControls() {
+    updateSimpleSelect(
+      defaultAgentSelect,
+      agents,
+      strings.placeholderSelectAgent || "Select agent",
+      executionDefaults && typeof executionDefaults.agent === "string"
+        ? executionDefaults.agent
+        : "agent",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+
+    updateSimpleSelect(
+      defaultModelSelect,
+      models,
+      strings.placeholderSelectModel || "Select model",
+      executionDefaults && typeof executionDefaults.model === "string"
+        ? executionDefaults.model
+        : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return formatModelLabel(item);
+      },
+    );
+
+    if (executionDefaultsNote) {
+      executionDefaultsNote.textContent = strings.executionDefaultsSaved
+        || "Workspace default agent and model settings.";
     }
   }
 
@@ -778,6 +937,8 @@
   syncResearchSelectors();
   hookResearchFormDirtyTracking();
   renderResearchTab();
+  renderTelegramTab();
+  renderExecutionDefaultsControls();
 
   function getCreateTabButton() {
     return document.querySelector('.tab-button[data-tab="create"]');
@@ -950,6 +1111,35 @@
   if (jobsFriendlyFrequency) {
     jobsFriendlyFrequency.addEventListener("change", function () {
       updateJobsFriendlyVisibility();
+    });
+  }
+
+  [telegramEnabledInput, telegramBotTokenInput, telegramChatIdInput, telegramMessagePrefixInput].forEach(function (element) {
+    if (!element || typeof element.addEventListener !== "function") {
+      return;
+    }
+    element.addEventListener("input", clearTelegramFeedback);
+    element.addEventListener("change", clearTelegramFeedback);
+  });
+
+  if (telegramSaveBtn) {
+    telegramSaveBtn.addEventListener("click", function () {
+      submitTelegramForm("saveTelegramNotification");
+    });
+  }
+
+  if (telegramTestBtn) {
+    telegramTestBtn.addEventListener("click", function () {
+      submitTelegramForm("testTelegramNotification");
+    });
+  }
+
+  if (executionDefaultsSaveBtn) {
+    executionDefaultsSaveBtn.addEventListener("click", function () {
+      vscode.postMessage({
+        type: "saveExecutionDefaults",
+        data: collectExecutionDefaultsFormData(),
+      });
     });
   }
 
@@ -2599,6 +2789,8 @@
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = false;
     if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
+    if (agentSelect) agentSelect.value = executionDefaults.agent || "";
+    if (modelSelect) modelSelect.value = executionDefaults.model || "";
     syncRecurringChatSessionUi();
     updateFriendlyVisibility();
     updateCronPreview();
@@ -2629,11 +2821,14 @@
           })
           .join("");
 
-      // Default to @ceo if available and no selection made
+      // Apply configured default agent if available and no selection made
       if (!agentSelect.value) {
-        var hasCeo = items.find(function (a) { return a.id === '@ceo'; });
-        if (hasCeo) {
-          agentSelect.value = '@ceo';
+        var defaultAgentId = executionDefaults && typeof executionDefaults.agent === "string"
+          ? executionDefaults.agent
+          : "agent";
+        var hasDefaultAgent = items.find(function (a) { return a.id === defaultAgentId; });
+        if (hasDefaultAgent) {
+          agentSelect.value = defaultAgentId;
         }
       }
     }
@@ -2664,9 +2859,11 @@
           })
           .join("");
 
-      // Default to GPT-5.3-Codex if available and no selection made
+      // Apply configured default model if available and no selection made
       if (!modelSelect.value) {
-        var defaultModelId = "GPT-5.3-Codex";
+        var defaultModelId = executionDefaults && typeof executionDefaults.model === "string"
+          ? executionDefaults.model
+          : "";
         var hasDefault = items.find(function (m) { return m.id === defaultModelId; });
         if (hasDefault) {
           modelSelect.value = defaultModelId;
@@ -3326,6 +3523,23 @@
     persistTaskFilter();
   }
 
+  function submitTelegramForm(messageType) {
+    clearTelegramFeedback();
+    var data = collectTelegramFormData();
+    var validationError = validateTelegramFormData(data);
+    if (validationError) {
+      showTelegramFeedback(validationError, true);
+      return;
+    }
+    vscode.postMessage({ type: messageType, data: data });
+    showTelegramFeedback(
+      messageType === "saveTelegramNotification"
+        ? (strings.telegramStatusSaved || "Saving Telegram settings...")
+        : (strings.telegramTest || "Sending test message..."),
+      false,
+    );
+  }
+
   function markResearchFormDirty() {
     researchFormDirty = true;
     clearResearchFormError();
@@ -3825,12 +4039,32 @@
           }
           renderResearchTab();
           break;
+        case "updateTelegramNotification":
+          telegramNotification = message.telegramNotification || {
+            enabled: false,
+            hasBotToken: false,
+            hookConfigured: false,
+          };
+          renderTelegramTab();
+          break;
+        case "updateExecutionDefaults":
+          executionDefaults = message.executionDefaults || {
+            agent: "agent",
+            model: "",
+          };
+          renderExecutionDefaultsControls();
+          if (!editingTaskId) {
+            if (agentSelect) agentSelect.value = executionDefaults.agent || "";
+            if (modelSelect) modelSelect.value = executionDefaults.model || "";
+          }
+          break;
         case "updateAgents":
           {
             var currentAgentValue =
               pendingAgentValue || (agentSelect ? agentSelect.value : "");
             agents = Array.isArray(message.agents) ? message.agents : [];
             updateAgentOptions();
+            renderExecutionDefaultsControls();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (agentSelect && currentAgentValue) {
@@ -3849,6 +4083,7 @@
               pendingModelValue || (modelSelect ? modelSelect.value : "");
             models = Array.isArray(message.models) ? message.models : [];
             updateModelOptions();
+            renderExecutionDefaultsControls();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (modelSelect && currentModelValue) {

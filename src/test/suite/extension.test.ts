@@ -45,6 +45,18 @@ suite("Extension Test Suite", () => {
         "copilotScheduler.autoShowOnStartup",
       ),
     );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotScheduler.defaultAgent",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotScheduler.defaultModel",
+      ),
+    );
   });
 
   test("Commands should be registered", async () => {

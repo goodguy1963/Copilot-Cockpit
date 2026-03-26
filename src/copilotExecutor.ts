@@ -91,14 +91,21 @@ export class CopilotExecutor {
   async executePrompt(prompt: string, options?: ExecuteOptions): Promise<void> {
     // Apply prompt commands/placeholders
     const processedPrompt = this.applyPromptCommands(prompt);
+    const config = vscode.workspace.getConfiguration("copilotScheduler");
+    const configuredDefaultAgent = config.get<string>("defaultAgent", "agent").trim();
+    const configuredDefaultModel = config.get<string>("defaultModel", "").trim();
+    const requestedAgent = typeof options?.agent === "string" ? options.agent.trim() : "";
+    const effectiveModel = typeof options?.model === "string" && options.model.trim()
+      ? options.model.trim()
+      : configuredDefaultModel;
 
     // Build query (without agent prefix if we use mode parameter)
     let query = processedPrompt;
     let mode: string | undefined;
 
     // Handle agent selection
-    if (options?.agent && options.agent !== "") {
-      const cleanAgent = options.agent.replace(/^@/, "");
+    if (requestedAgent) {
+      const cleanAgent = requestedAgent.replace(/^@/, "");
 
       // Set mode to route chat to the correct agent
       mode = cleanAgent;
@@ -118,15 +125,17 @@ export class CopilotExecutor {
         mode = detectedAgent;
         query = this.stripLeadingAgentRef(query, detectedAgent);
         logDebug(`[CopilotScheduler] Detected custom agent from prompt, setting mode: ${detectedAgent}`);
+      } else if (configuredDefaultAgent) {
+        mode = configuredDefaultAgent.replace(/^@/, "");
+        logDebug(`[CopilotScheduler] Using configured default agent: ${mode}`);
       }
     }
 
     // Get chat session behavior
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
     const chatSession =
       options?.chatSession ??
       config.get<ChatSessionBehavior>("chatSession", "new");
-    const requiresExplicitChatContext = Boolean(mode || options?.model);
+    const requiresExplicitChatContext = Boolean(mode || effectiveModel);
     const shouldForceNewChat = chatSession === "new" || requiresExplicitChatContext;
 
     try {
@@ -135,7 +144,7 @@ export class CopilotExecutor {
       // participant/model instead of the task-specific selection.
       if (shouldForceNewChat) {
         const createdNewSession = await this.tryCreateNewChatSession();
-        if (!createdNewSession && options?.model) {
+        if (!createdNewSession && effectiveModel) {
           throw new Error(
             "Unable to open a fresh Copilot chat session for the selected model.",
           );
@@ -154,11 +163,11 @@ export class CopilotExecutor {
       // If model is specified, use modelSelector (VS Code 1.98+ API style)
       // or legacy generic handling if specific API isn't available.
       // Based on research, modelSelector is available in IOpenChatOptions.
-      if (options?.model && options.model !== "") {
+      if (effectiveModel) {
         // We can pass just the ID as a string or object depending on version, 
         // but the research shows `modelSelector` taking `{ id: ... }`
-        openOptions.modelSelector = { id: options.model };
-        logDebug(`[CopilotScheduler] Setting modelSelector: ${options.model}`);
+        openOptions.modelSelector = { id: effectiveModel };
+        logDebug(`[CopilotScheduler] Setting modelSelector: ${effectiveModel}`);
       }
 
       // "workbench.action.chat.open"
@@ -184,7 +193,7 @@ export class CopilotExecutor {
         }
         await this.delay(DELAY_AFTER_FOCUS_MS);
 
-        if (options?.model) {
+        if (effectiveModel) {
           throw new Error(
             "The current VS Code chat fallback cannot guarantee the selected model. Open the chat command path with model support or remove the task-specific model selection.",
           );

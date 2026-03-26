@@ -210,6 +210,116 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.pendingMessages = originalPending;
     }
   });
+
+  test("Queues Telegram notification updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateTelegramNotification?: (telegramNotification: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateTelegramNotification === "function");
+      wv.updateTelegramNotification!({
+        enabled: true,
+        chatId: "123456789",
+        hasBotToken: true,
+        hookConfigured: true,
+      });
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateTelegramNotification");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        telegramNotification?: { enabled?: boolean; hasBotToken?: boolean };
+      };
+      assert.strictEqual(message.type, "updateTelegramNotification");
+      assert.strictEqual(message.telegramNotification?.enabled, true);
+      assert.strictEqual(message.telegramNotification?.hasBotToken, true);
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
+
+  test("Queues execution default updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateExecutionDefaults?: (executionDefaults: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateExecutionDefaults === "function");
+      wv.updateExecutionDefaults!({
+        agent: "agent",
+        model: "gpt-test",
+      });
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateExecutionDefaults");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        executionDefaults?: { agent?: string; model?: string };
+      };
+      assert.strictEqual(message.type, "updateExecutionDefaults");
+      assert.strictEqual(message.executionDefaults?.agent, "agent");
+      assert.strictEqual(message.executionDefaults?.model, "gpt-test");
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
 });
 
 suite("SchedulerWebview Jobs Request Tests", () => {

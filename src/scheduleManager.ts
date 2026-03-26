@@ -923,6 +923,7 @@ export class ScheduleManager {
     try {
       const workspaceRoot = this.getPrimaryWorkspaceRoot();
       if (workspaceRoot) {
+        const existingConfig = readSchedulerConfig(workspaceRoot);
 
         const fileTasks = tasksArray.filter(t => t.scope === 'workspace').map(t => ({
           id: t.id,
@@ -955,6 +956,7 @@ export class ScheduleManager {
         }));
 
         const config: SchedulerWorkspaceConfig = {
+          ...existingConfig,
           tasks: fileTasks,
           jobs: this.getAllJobs().map((job) => ({
             ...job,
