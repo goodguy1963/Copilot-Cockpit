@@ -1544,6 +1544,7 @@ export class SchedulerWebview {
       helpListItemStartup: messages.helpListItemStartup(),
       helpStorageTitle: messages.helpStorageTitle(),
       helpStorageItemRepo: messages.helpStorageItemRepo(),
+      helpStorageItemBackups: messages.helpStorageItemBackups(),
       helpStorageItemIsolation: messages.helpStorageItemIsolation(),
       helpStorageItemGlobal: messages.helpStorageItemGlobal(),
       helpOverdueTitle: messages.helpOverdueTitle(),
@@ -3711,6 +3712,7 @@ export class SchedulerWebview {
         <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
         <ul>
           <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
+          <li>${escapeHtml(strings.helpStorageItemBackups)}</li>
           <li>${escapeHtml(strings.helpStorageItemIsolation)}</li>
           <li>${escapeHtml(strings.helpStorageItemGlobal)}</li>
         </ul>

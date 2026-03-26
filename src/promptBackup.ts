@@ -1,8 +1,13 @@
 import * as path from "path";
 import type { ScheduledTask } from "./types";
-import { resolveAllowedPathInBaseDir } from "./promptResolver";
+import {
+    isPathInsideBaseDir,
+    resolveAllowedPathInBaseDir,
+} from "./promptResolver";
 
-const BACKUP_DIR_PARTS = [".github", "scheduler-prompt-backups"] as const;
+const BACKUP_DIR_NAME = "scheduler-prompt-backups";
+const BACKUP_DIR_PARTS = [".vscode", BACKUP_DIR_NAME] as const;
+const LEGACY_BACKUP_DIR_PARTS = [".github", BACKUP_DIR_NAME] as const;
 const INVALID_BACKUP_FILE_CHARS = /[^a-zA-Z0-9._-]+/g;
 
 function normalizeBackupBaseName(taskId: string): string {
@@ -31,6 +36,17 @@ export function getPromptBackupRoot(workspaceRoot: string): string {
     return path.join(workspaceRoot, ...BACKUP_DIR_PARTS);
 }
 
+function getLegacyPromptBackupRoot(workspaceRoot: string): string {
+    return path.join(workspaceRoot, ...LEGACY_BACKUP_DIR_PARTS);
+}
+
+function getAllowedPromptBackupRoots(workspaceRoot: string): string[] {
+    return [
+        getPromptBackupRoot(workspaceRoot),
+        getLegacyPromptBackupRoot(workspaceRoot),
+    ];
+}
+
 export function getDefaultPromptBackupRelativePath(taskId: string): string {
     const fileName = `${normalizeBackupBaseName(taskId)}.prompt.md`;
     return `${BACKUP_DIR_PARTS.join("/")}/${fileName}`;
@@ -42,25 +58,59 @@ export function resolvePromptBackupPath(
 ): string | undefined {
     if (!workspaceRoot || !promptBackupPath) return undefined;
 
-    const backupRoot = getPromptBackupRoot(workspaceRoot);
     const normalizedInput = promptBackupPath.replace(/\\/g, "/").trim();
+    const allowedRoots = getAllowedPromptBackupRoots(workspaceRoot);
 
     if (path.isAbsolute(promptBackupPath)) {
-        return resolveAllowedPathInBaseDir(backupRoot, promptBackupPath);
-    }
-
-    const fromWorkspace = path.resolve(workspaceRoot, promptBackupPath);
-    if (resolveAllowedPathInBaseDir(backupRoot, fromWorkspace)) {
-        return fromWorkspace;
-    }
-
-    if (normalizedInput.startsWith(".github/")) {
+        for (const allowedRoot of allowedRoots) {
+            const resolved = resolveAllowedPathInBaseDir(
+                allowedRoot,
+                promptBackupPath,
+            );
+            if (resolved) {
+                return resolved;
+            }
+        }
         return undefined;
     }
 
-    const fromBackupRoot = path.resolve(backupRoot, promptBackupPath);
-    if (resolveAllowedPathInBaseDir(backupRoot, fromBackupRoot)) {
-        return fromBackupRoot;
+    const fromWorkspace = path.resolve(workspaceRoot, promptBackupPath);
+    for (const allowedRoot of allowedRoots) {
+        if (resolveAllowedPathInBaseDir(allowedRoot, fromWorkspace)) {
+            return fromWorkspace;
+        }
+    }
+
+    if (normalizedInput.startsWith(".github/prompts/")) {
+        return undefined;
+    }
+
+    for (const allowedRoot of allowedRoots) {
+        const fromBackupRoot = path.resolve(allowedRoot, promptBackupPath);
+        if (resolveAllowedPathInBaseDir(allowedRoot, fromBackupRoot)) {
+            return fromBackupRoot;
+        }
+    }
+
+    return undefined;
+}
+
+export function getCanonicalPromptBackupPath(
+    workspaceRoot: string,
+    promptBackupPath: string,
+): string | undefined {
+    const resolvedPath = resolvePromptBackupPath(workspaceRoot, promptBackupPath);
+    if (!resolvedPath) {
+        return undefined;
+    }
+
+    for (const allowedRoot of getAllowedPromptBackupRoots(workspaceRoot)) {
+        if (isPathInsideBaseDir(allowedRoot, resolvedPath)) {
+            return path.join(
+                getPromptBackupRoot(workspaceRoot),
+                path.relative(allowedRoot, resolvedPath),
+            );
+        }
     }
 
     return undefined;

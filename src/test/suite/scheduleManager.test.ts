@@ -1121,6 +1121,11 @@ suite("ScheduleManager Prompt Backup Tests", () => {
         : undefined;
 
       assert.ok(recurringBackupPath);
+      assert.ok(
+        recurringBackupPath?.includes(
+          path.join(".vscode", "scheduler-prompt-backups"),
+        ),
+      );
       assert.ok(fs.existsSync(recurringBackupPath!));
       assert.strictEqual(savedRecurring?.promptSource, "inline");
       assert.ok(savedRecurring?.promptBackupUpdatedAt instanceof Date);
@@ -1135,6 +1140,80 @@ suite("ScheduleManager Prompt Backup Tests", () => {
         /lastUpdated: "\d{4}-\d{2}-\d{2}"/.test(backupContent),
       );
       assert.ok(backupContent.endsWith("Recurring backup body\n"));
+    } finally {
+      restoreWs();
+      try {
+        fs.rmSync(workspaceRoot, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 50,
+        });
+      } catch {
+        // ignore
+      }
+      try {
+        fs.rmSync(storageRoot, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 50,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  });
+
+  test("migrates legacy recurring prompt backups into .vscode", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-migrate-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-migrate-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const createdTask = await manager.createTask({
+        name: "Legacy inline backup",
+        cronExpression: "0 * * * *",
+        prompt: "Recurring backup body",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      const liveTask = manager.getTask(createdTask.id);
+      const currentRelativePath = liveTask?.promptBackupPath;
+      assert.ok(currentRelativePath);
+
+      const currentBackupPath = path.join(workspaceRoot, currentRelativePath!);
+      const legacyRelativePath = currentRelativePath!.replace(
+        ".vscode/",
+        ".github/",
+      );
+      const nextRelativePath = currentRelativePath!;
+      const legacyBackupPath = path.join(workspaceRoot, legacyRelativePath);
+
+      fs.mkdirSync(path.dirname(legacyBackupPath), { recursive: true });
+      fs.renameSync(currentBackupPath, legacyBackupPath);
+
+      liveTask!.promptBackupPath = legacyRelativePath;
+
+      const changed = await manager.ensureRecurringPromptBackups();
+      const migratedTask = manager.getTask(createdTask.id);
+      const nextBackupPath = path.join(workspaceRoot, nextRelativePath);
+
+      assert.ok(changed > 0);
+      assert.strictEqual(migratedTask?.promptBackupPath, nextRelativePath);
+      assert.ok(fs.existsSync(nextBackupPath));
+      assert.strictEqual(fs.existsSync(legacyBackupPath), false);
+      assert.ok(
+        fs
+          .readFileSync(nextBackupPath, "utf8")
+          .endsWith("Recurring backup body\n"),
+      );
     } finally {
       restoreWs();
       try {
