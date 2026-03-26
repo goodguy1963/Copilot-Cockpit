@@ -2440,7 +2440,7 @@ export class SchedulerWebview {
 
     .jobs-sidebar-section + .jobs-sidebar-section,
     .jobs-main-section + .jobs-main-section {
-      margin-top: 16px;
+      margin-top: 0;
     }
 
     .jobs-list,
@@ -2572,14 +2572,119 @@ export class SchedulerWebview {
       text-align: center;
     }
 
+    .jobs-editor-shell {
+      display: grid;
+      gap: 16px;
+    }
+
+    .jobs-editor-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
+      );
+    }
+
+    .jobs-editor-intro {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .jobs-editor-subtitle {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 72ch;
+    }
+
+    .jobs-editor-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .jobs-editor-card {
+      display: grid;
+      gap: 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      background-color: var(--vscode-editor-background);
+      padding: 14px;
+    }
+
+    .jobs-editor-card .section-title {
+      margin-bottom: 0;
+    }
+
+    .jobs-editor-card .note {
+      margin-top: -4px;
+    }
+
     .jobs-job-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
 
+    .jobs-job-grid-overview {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
     .jobs-job-grid .form-group.wide {
       grid-column: 1 / -1;
+    }
+
+    .jobs-schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .jobs-schedule-grid .wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .jobs-action-card {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .jobs-action-card-wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-new-step-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .jobs-new-step-form .wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-new-step-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: flex-end;
     }
 
     .jobs-step-list {
@@ -2935,6 +3040,24 @@ export class SchedulerWebview {
         grid-template-columns: 1fr;
       }
 
+      .jobs-job-grid-overview,
+      .jobs-schedule-grid,
+      .jobs-action-grid,
+      .jobs-new-step-form {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-action-card-wide,
+      .jobs-new-step-actions,
+      .jobs-schedule-grid .wide,
+      .jobs-new-step-form .wide {
+        grid-column: 1 / -1;
+      }
+
+      .jobs-editor-header {
+        flex-direction: column;
+      }
+
       .jobs-step-list {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
@@ -3227,163 +3350,196 @@ export class SchedulerWebview {
       <section class="jobs-main">
         <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
         <div id="jobs-details" style="display:none;">
-          <div class="jobs-job-toolbar">
-            <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
-            <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
-            <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
-            <button type="button" class="btn-secondary" id="jobs-compile-btn">${escapeHtml(strings.jobsCompile)}</button>
-            <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
-          </div>
+          <div class="jobs-editor-shell">
+            <div class="jobs-editor-header">
+              <div class="jobs-editor-intro">
+                <div class="section-title">${escapeHtml(strings.jobsTitle)}</div>
+                <div class="jobs-editor-subtitle">${escapeHtml(strings.jobsSelectJob)}</div>
+              </div>
+              <div class="jobs-job-toolbar">
+                <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
+                <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
+                <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
+                <button type="button" class="btn-secondary" id="jobs-compile-btn">${escapeHtml(strings.jobsCompile)}</button>
+                <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
+              </div>
+            </div>
 
-          <div class="jobs-main-section jobs-job-grid">
-            <div class="form-group">
-              <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
-              <input type="text" id="jobs-name-input">
-            </div>
-            <div class="form-group">
-              <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
-              <div class="preset-select">
-                <select id="jobs-cron-preset">
-                  <option value="">${escapeHtml(strings.labelCustom)}</option>
-                  ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
-              <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
-            </div>
-            <div class="form-group">
-              <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
-              <select id="jobs-folder-select"></select>
-            </div>
-            <div class="form-group">
-              <label>${escapeHtml(strings.labelStatus)}</label>
-              <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
-            </div>
-            <div class="form-group wide">
-              <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
-              <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
-            </div>
-          </div>
+            <div class="jobs-editor-grid">
+              <section class="jobs-main-section jobs-editor-card">
+                <div class="section-title">Job details</div>
+                <p class="note">Name the job, place it in a folder, and toggle whether it is active.</p>
+                <div class="jobs-job-grid jobs-job-grid-overview">
+                  <div class="form-group">
+                    <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
+                    <input type="text" id="jobs-name-input">
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
+                    <select id="jobs-folder-select"></select>
+                  </div>
+                  <div class="form-group">
+                    <label>${escapeHtml(strings.labelStatus)}</label>
+                    <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
+                  </div>
+                </div>
+              </section>
 
-          <div class="jobs-main-section">
-            <div class="cron-preview">
-              <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-              <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-              <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-            </div>
-            <div class="friendly-cron" id="jobs-friendly-builder">
-              <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-              <div class="friendly-grid">
-                <div class="form-group">
-                  <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-                  <select id="jobs-friendly-frequency">
-                    <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                    <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                    <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                    <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                    <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                    <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-                  </select>
+              <section class="jobs-main-section jobs-editor-card">
+                <div class="section-title">Schedule</div>
+                <p class="note">Choose a preset, edit the cron expression, or use the friendly builder.</p>
+                <div class="jobs-schedule-grid">
+                  <div class="form-group">
+                    <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
+                    <div class="preset-select">
+                      <select id="jobs-cron-preset">
+                        <option value="">${escapeHtml(strings.labelCustom)}</option>
+                        ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
+                    <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
+                  </div>
+                  <div class="form-group wide">
+                    <div class="cron-preview">
+                      <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
+                      <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
+                      <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+                    </div>
+                  </div>
+                  <div class="form-group wide">
+                    <div class="friendly-cron" id="jobs-friendly-builder">
+                      <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
+                      <div class="friendly-grid">
+                        <div class="form-group">
+                          <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
+                          <select id="jobs-friendly-frequency">
+                            <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
+                            <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
+                            <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
+                            <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
+                            <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
+                            <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
+                          </select>
+                        </div>
+                        <div class="form-group friendly-field" data-field="interval">
+                          <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
+                          <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
+                        </div>
+                        <div class="form-group friendly-field" data-field="minute">
+                          <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
+                          <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
+                        </div>
+                        <div class="form-group friendly-field" data-field="hour">
+                          <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
+                          <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
+                        </div>
+                        <div class="form-group friendly-field" data-field="dow">
+                          <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
+                          <select id="jobs-friendly-dow">
+                            <option value="0">${escapeHtml(strings.daySun)}</option>
+                            <option value="1">${escapeHtml(strings.dayMon)}</option>
+                            <option value="2">${escapeHtml(strings.dayTue)}</option>
+                            <option value="3">${escapeHtml(strings.dayWed)}</option>
+                            <option value="4">${escapeHtml(strings.dayThu)}</option>
+                            <option value="5">${escapeHtml(strings.dayFri)}</option>
+                            <option value="6">${escapeHtml(strings.daySat)}</option>
+                          </select>
+                        </div>
+                        <div class="form-group friendly-field" data-field="dom">
+                          <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
+                          <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
+                        </div>
+                      </div>
+                      <div class="friendly-actions">
+                        <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="form-group friendly-field" data-field="interval">
-                  <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-                  <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
-                </div>
-                <div class="form-group friendly-field" data-field="minute">
-                  <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-                  <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
-                </div>
-                <div class="form-group friendly-field" data-field="hour">
-                  <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
-                  <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
-                </div>
-                <div class="form-group friendly-field" data-field="dow">
-                  <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-                  <select id="jobs-friendly-dow">
-                    <option value="0">${escapeHtml(strings.daySun)}</option>
-                    <option value="1">${escapeHtml(strings.dayMon)}</option>
-                    <option value="2">${escapeHtml(strings.dayTue)}</option>
-                    <option value="3">${escapeHtml(strings.dayWed)}</option>
-                    <option value="4">${escapeHtml(strings.dayThu)}</option>
-                    <option value="5">${escapeHtml(strings.dayFri)}</option>
-                    <option value="6">${escapeHtml(strings.daySat)}</option>
-                  </select>
-                </div>
-                <div class="form-group friendly-field" data-field="dom">
-                  <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-                  <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
-                </div>
-              </div>
-              <div class="friendly-actions">
-                <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-              </div>
-            </div>
-          </div>
+              </section>
 
-          <div class="jobs-main-section">
-            <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
-            <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
-            <div id="jobs-step-list" class="jobs-step-list"></div>
-          </div>
+              <section class="jobs-main-section jobs-editor-card">
+                <div class="section-title">Workflow</div>
+                <p class="note">Steps run in order. Pause checkpoints stop the job until you approve the previous result.</p>
+                <div class="form-group wide">
+                  <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
+                  <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
+                </div>
+                <div class="form-group wide">
+                  <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
+                  <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+                  <div id="jobs-step-list" class="jobs-step-list"></div>
+                </div>
+              </section>
 
-          <div class="jobs-main-section">
-            <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
-            <div class="jobs-inline-form">
-              <div class="form-group">
-                <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
-                <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
-              </div>
-              <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
-            </div>
-          </div>
+              <section class="jobs-main-section jobs-editor-card">
+                <div class="section-title">Add to workflow</div>
+                <p class="note">Use these quick actions to insert pause checkpoints, attach existing tasks, or create a brand new step.</p>
+                <div class="jobs-action-grid">
+                  <div class="jobs-action-card">
+                    <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
+                    <div class="jobs-inline-form">
+                      <div class="form-group">
+                        <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
+                        <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
+                      </div>
+                      <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
+                    </div>
+                  </div>
 
-          <div class="jobs-main-section">
-            <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
-            <div class="jobs-inline-form">
-              <div class="form-group">
-                <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
-                <select id="jobs-existing-task-select"></select>
-              </div>
-              <div class="form-group">
-                <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
-              </div>
-              <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
-            </div>
-          </div>
+                  <div class="jobs-action-card">
+                    <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
+                    <div class="jobs-inline-form">
+                      <div class="form-group">
+                        <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
+                        <select id="jobs-existing-task-select"></select>
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                        <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
+                      </div>
+                      <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
+                    </div>
+                  </div>
 
-          <div class="jobs-main-section">
-            <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
-            <div class="jobs-inline-form">
-              <div class="form-group">
-                <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
-                <input type="text" id="jobs-step-name-input">
-              </div>
-              <div class="form-group">
-                <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
-              </div>
-              <div class="form-group" style="flex-basis:100%;">
-                <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
-                <textarea id="jobs-step-prompt-input"></textarea>
-              </div>
-              <div class="form-group">
-                <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
-                <select id="jobs-step-agent-select"></select>
-              </div>
-              <div class="form-group">
-                <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
-                <select id="jobs-step-model-select"></select>
-              </div>
-              <div class="form-group">
-                <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
-                <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-              </div>
-              <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+                  <div class="jobs-action-card jobs-action-card-wide">
+                    <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
+                    <div class="jobs-inline-form jobs-new-step-form">
+                      <div class="form-group">
+                        <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
+                        <input type="text" id="jobs-step-name-input">
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                        <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
+                      </div>
+                      <div class="form-group wide">
+                        <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
+                        <textarea id="jobs-step-prompt-input"></textarea>
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
+                        <select id="jobs-step-agent-select"></select>
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
+                        <select id="jobs-step-model-select"></select>
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
+                        <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
+                      </div>
+                      <div class="jobs-new-step-actions">
+                        <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
-          </div>
         </div>
       </section>
     </div>

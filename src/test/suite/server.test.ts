@@ -8,8 +8,10 @@ function parseJsonText(result: any): any {
   return JSON.parse(result.content[0].text);
 }
 
-function createServerContext(initialConfig?: { tasks: any[] }) {
-  let currentConfig = JSON.parse(JSON.stringify(initialConfig || { tasks: [] }));
+function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[] }) {
+  let currentConfig = JSON.parse(
+    JSON.stringify(initialConfig || { tasks: [], jobs: [], jobFolders: [] }),
+  );
   const createdSnapshots: Array<{ publicConfig: any; privateConfig: any }> = [];
   const snapshots = new Map<string, { publicConfig?: any; privateConfig?: any }>();
   const historyEntries: Array<{ id: string; createdAt: string; hasPrivate: boolean }> = [];
@@ -19,7 +21,7 @@ function createServerContext(initialConfig?: { tasks: any[] }) {
       workspaceRoot: "/tmp/workspace",
       historyRoot: "/tmp/workspace/.vscode/scheduler-history",
       readConfig: () => JSON.parse(JSON.stringify(currentConfig)),
-      writeConfig: (config: { tasks: any[] }) => {
+      writeConfig: (config: { tasks: any[]; jobs?: any[]; jobFolders?: any[] }) => {
         currentConfig = JSON.parse(JSON.stringify(config));
       },
       listHistory: () => historyEntries.slice(),
@@ -57,6 +59,118 @@ suite("Scheduler MCP Server Tests", () => {
     assert.ok(toolNames.includes("scheduler_list_history"));
     assert.ok(toolNames.includes("scheduler_restore_snapshot"));
     assert.ok(toolNames.includes("scheduler_get_overdue_tasks"));
+    assert.ok(toolNames.includes("scheduler_list_jobs"));
+    assert.ok(toolNames.includes("scheduler_create_job"));
+    assert.ok(toolNames.includes("scheduler_compile_job_to_task"));
+    assert.ok(toolNames.includes("research_list_profiles"));
+    assert.ok(toolNames.includes("research_create_profile"));
+    assert.ok(toolNames.includes("research_list_runs"));
+  });
+
+  test("job tools can create a job, attach a task, and compile it", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-a",
+          name: "Draft brief",
+          cron: "0 9 * * 1-5",
+          prompt: "Write the brief.",
+          enabled: true,
+          createdAt: "2026-03-23T00:00:00.000Z",
+          updatedAt: "2026-03-23T00:00:00.000Z",
+        },
+      ],
+      jobs: [],
+      jobFolders: [],
+    });
+
+    const folderResponse = await handleSchedulerToolCall(
+      "scheduler_create_job_folder",
+      { name: "Active Jobs" },
+      server.context as any,
+    );
+    const folderPayload = parseJsonText(folderResponse);
+
+    const jobResponse = await handleSchedulerToolCall(
+      "scheduler_create_job",
+      {
+        name: "Campaign flow",
+        cronExpression: "0 9 * * 1-5",
+        folderId: folderPayload.folder.id,
+      },
+      server.context as any,
+    );
+    const jobPayload = parseJsonText(jobResponse);
+
+    await handleSchedulerToolCall(
+      "scheduler_add_job_pause",
+      { jobId: jobPayload.job.id, title: "Manager review" },
+      server.context as any,
+    );
+    await handleSchedulerToolCall(
+      "scheduler_add_job_task",
+      { jobId: jobPayload.job.id, taskId: "task-a", windowMinutes: 45 },
+      server.context as any,
+    );
+
+    const compiledResponse = await handleSchedulerToolCall(
+      "scheduler_compile_job_to_task",
+      { jobId: jobPayload.job.id },
+      server.context as any,
+    );
+    const compiledPayload = parseJsonText(compiledResponse);
+
+    assert.strictEqual(compiledPayload.job.archived, true);
+    assert.strictEqual(compiledPayload.job.paused, true);
+    assert.strictEqual(compiledPayload.task.name, "Bundled Task");
+    assert.ok(server.getConfig().tasks.some((task: any) => task.name === "Bundled Task"));
+  });
+
+  test("research tools create and list profiles", async () => {
+    const workspaceRoot = process.platform === "win32"
+      ? "C:/tmp/copilot-scheduler-research-tests"
+      : "/tmp/copilot-scheduler-research-tests";
+    const researchPath = `${workspaceRoot}/.vscode/research.json`;
+
+    const fs = require("fs");
+    const path = require("path");
+    fs.mkdirSync(path.dirname(researchPath), { recursive: true });
+    fs.writeFileSync(researchPath, JSON.stringify({ version: 1, profiles: [], runs: [] }, null, 2));
+
+    const server = createServerContext();
+    (server.context as any).workspaceRoot = workspaceRoot;
+
+    const createResponse = await handleSchedulerToolCall(
+      "research_create_profile",
+      {
+        researchData: {
+          name: "Market loop",
+          instructions: "Improve growth loops.",
+          editablePaths: ["README.md"],
+          benchmarkCommand: "npm test",
+          metricPattern: "score: (\\d+)",
+          metricDirection: "maximize",
+          maxIterations: 2,
+          maxMinutes: 10,
+          maxConsecutiveFailures: 2,
+          benchmarkTimeoutSeconds: 60,
+          editWaitSeconds: 10,
+        },
+      },
+      server.context as any,
+    );
+    const created = parseJsonText(createResponse);
+
+    const listResponse = await handleSchedulerToolCall(
+      "research_list_profiles",
+      {},
+      server.context as any,
+    );
+    const listed = parseJsonText(listResponse);
+
+    assert.strictEqual(created.profile.name, "Market loop");
+    assert.strictEqual(listed.profileCount, 1);
+    assert.strictEqual(listed.profiles[0].name, "Market loop");
   });
 
   test("update_task preserves existing metadata while updating selected fields", async () => {

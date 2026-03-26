@@ -50,6 +50,14 @@ interface SchedulerTask {
 
 interface SchedulerConfig {
     tasks: SchedulerTask[];
+    jobs?: any[];
+    jobFolders?: any[];
+}
+
+interface ResearchConfig {
+    version: number;
+    profiles: any[];
+    runs: any[];
 }
 
 type SchedulerServerContext = {
@@ -65,13 +73,22 @@ type SchedulerServerContext = {
 
 function ensureConfig(raw: unknown): SchedulerConfig {
     if (raw && typeof raw === "object" && Array.isArray((raw as SchedulerConfig).tasks)) {
-        return raw as SchedulerConfig;
+        const config = raw as SchedulerConfig;
+        return {
+            ...config,
+            jobs: Array.isArray(config.jobs) ? config.jobs : [],
+            jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+        };
     }
-    return { tasks: [] };
+    return { tasks: [], jobs: [], jobFolders: [] };
 }
 
 function nowIso(): string {
     return new Date().toISOString();
+}
+
+function createId(prefix: string): string {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -89,6 +106,149 @@ function parseStoredConfig(filePath: string): SchedulerConfig | undefined {
     } catch {
         return undefined;
     }
+}
+
+function getResearchConfigPath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, ".vscode", "research.json");
+}
+
+function readResearchConfig(workspaceRoot: string): ResearchConfig {
+    const filePath = getResearchConfigPath(workspaceRoot);
+    if (!fs.existsSync(filePath)) {
+        return { version: 1, profiles: [], runs: [] };
+    }
+
+    try {
+        const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
+        const parsed = JSON.parse(raw) as Partial<ResearchConfig>;
+        return {
+            version: typeof parsed.version === "number" ? parsed.version : 1,
+            profiles: Array.isArray(parsed.profiles) ? parsed.profiles : [],
+            runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+        };
+    } catch {
+        return { version: 1, profiles: [], runs: [] };
+    }
+}
+
+function writeResearchConfig(workspaceRoot: string, config: ResearchConfig): void {
+    const filePath = getResearchConfigPath(workspaceRoot);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const normalized: ResearchConfig = {
+        version: typeof config.version === "number" ? config.version : 1,
+        profiles: Array.isArray(config.profiles) ? config.profiles : [],
+        runs: Array.isArray(config.runs) ? config.runs : [],
+    };
+    fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+}
+
+function getSchedulerJob(config: SchedulerConfig, jobId: string): any | undefined {
+    return Array.isArray(config.jobs) ? config.jobs.find((job) => job && job.id === jobId) : undefined;
+}
+
+function getSchedulerFolder(config: SchedulerConfig, folderId: string): any | undefined {
+    return Array.isArray(config.jobFolders)
+        ? config.jobFolders.find((folder) => folder && folder.id === folderId)
+        : undefined;
+}
+
+function getSchedulerTask(config: SchedulerConfig, taskId: string): SchedulerTask | undefined {
+    return Array.isArray(config.tasks)
+        ? config.tasks.find((task) => task && task.id === taskId)
+        : undefined;
+}
+
+function normalizeJobNode(node: any): any {
+    if (!node || typeof node !== "object") {
+        return undefined;
+    }
+    if (node.type === "pause") {
+        return {
+            id: typeof node.id === "string" && node.id.trim() ? node.id.trim() : createId("jobpause"),
+            type: "pause",
+            title: typeof node.title === "string" && node.title.trim() ? node.title.trim() : "Manual review",
+        };
+    }
+    return {
+        id: typeof node.id === "string" && node.id.trim() ? node.id.trim() : createId("jobnode"),
+        type: "task",
+        taskId: typeof node.taskId === "string" ? node.taskId.trim() : "",
+        windowMinutes: Number.isFinite(Number(node.windowMinutes)) ? Math.max(1, Math.floor(Number(node.windowMinutes))) : 30,
+    };
+}
+
+function normalizeJob(job: any): any {
+    const nodes = Array.isArray(job?.nodes) ? job.nodes.map(normalizeJobNode).filter(Boolean) : [];
+    return {
+        ...job,
+        id: typeof job?.id === "string" && job.id.trim() ? job.id.trim() : createId("job"),
+        name: typeof job?.name === "string" && job.name.trim() ? job.name.trim() : "Untitled Job",
+        cronExpression: typeof job?.cronExpression === "string" && job.cronExpression.trim() ? job.cronExpression.trim() : "0 9 * * 1-5",
+        folderId: typeof job?.folderId === "string" && job.folderId.trim() ? job.folderId.trim() : undefined,
+        paused: job?.paused === true,
+        archived: job?.archived === true,
+        archivedAt: typeof job?.archivedAt === "string" ? job.archivedAt : undefined,
+        lastCompiledTaskId: typeof job?.lastCompiledTaskId === "string" ? job.lastCompiledTaskId : undefined,
+        runtime: job?.runtime && typeof job.runtime === "object" ? job.runtime : undefined,
+        nodes,
+        createdAt: typeof job?.createdAt === "string" ? job.createdAt : nowIso(),
+        updatedAt: nowIso(),
+    };
+}
+
+function summarizeJobNode(config: SchedulerConfig, node: any): Record<string, unknown> {
+    if (!node) {
+        return { type: "unknown" };
+    }
+    if (node.type === "pause") {
+        return { id: node.id, type: "pause", title: node.title };
+    }
+    const task = getSchedulerTask(config, node.taskId);
+    return {
+        id: node.id,
+        type: "task",
+        taskId: node.taskId,
+        taskName: task?.name,
+        windowMinutes: node.windowMinutes,
+    };
+}
+
+function summarizeJob(config: SchedulerConfig, job: any): Record<string, unknown> {
+    const folder = job?.folderId ? getSchedulerFolder(config, job.folderId) : undefined;
+    return {
+        ...job,
+        folderName: folder?.name,
+        nodeCount: Array.isArray(job?.nodes) ? job.nodes.length : 0,
+        taskNodeCount: Array.isArray(job?.nodes)
+            ? job.nodes.filter((node: any) => node && node.type !== "pause").length
+            : 0,
+        pauseNodeCount: Array.isArray(job?.nodes)
+            ? job.nodes.filter((node: any) => node && node.type === "pause").length
+            : 0,
+        nodes: Array.isArray(job?.nodes) ? job.nodes.map((node: any) => summarizeJobNode(config, node)) : [],
+    };
+}
+
+function normalizeResearchProfile(profile: any): any {
+    return {
+        ...profile,
+        id: typeof profile?.id === "string" && profile.id.trim() ? profile.id.trim() : createId("research"),
+        name: typeof profile?.name === "string" && profile.name.trim() ? profile.name.trim() : "Untitled Research Profile",
+        instructions: typeof profile?.instructions === "string" ? profile.instructions.trim() : "",
+        editablePaths: Array.isArray(profile?.editablePaths) ? profile.editablePaths : [],
+        benchmarkCommand: typeof profile?.benchmarkCommand === "string" ? profile.benchmarkCommand.trim() : "",
+        metricPattern: typeof profile?.metricPattern === "string" ? profile.metricPattern.trim() : "",
+        metricDirection: profile?.metricDirection === "minimize" ? "minimize" : "maximize",
+        maxIterations: Number.isFinite(Number(profile?.maxIterations)) ? Math.floor(Number(profile.maxIterations)) : 3,
+        maxMinutes: Number.isFinite(Number(profile?.maxMinutes)) ? Math.floor(Number(profile.maxMinutes)) : 15,
+        maxConsecutiveFailures: Number.isFinite(Number(profile?.maxConsecutiveFailures)) ? Math.floor(Number(profile.maxConsecutiveFailures)) : 2,
+        benchmarkTimeoutSeconds: Number.isFinite(Number(profile?.benchmarkTimeoutSeconds)) ? Math.floor(Number(profile.benchmarkTimeoutSeconds)) : 180,
+        editWaitSeconds: Number.isFinite(Number(profile?.editWaitSeconds)) ? Math.floor(Number(profile.editWaitSeconds)) : 20,
+        agent: typeof profile?.agent === "string" ? profile.agent : undefined,
+        model: typeof profile?.model === "string" ? profile.model : undefined,
+        createdAt: typeof profile?.createdAt === "string" ? profile.createdAt : nowIso(),
+        updatedAt: typeof profile?.updatedAt === "string" ? profile.updatedAt : nowIso(),
+    };
 }
 
 function createDefaultContext(): SchedulerServerContext {
@@ -382,6 +542,294 @@ export const MCP_TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        name: "scheduler_list_jobs",
+        description: "List all saved jobs and folders from .vscode/scheduler.json.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "scheduler_get_job",
+        description: "Get a saved job by ID with resolved folder and node summaries.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID to fetch." },
+            },
+            required: ["jobId"],
+        },
+    },
+    {
+        name: "scheduler_create_job",
+        description: "Create a new job definition in .vscode/scheduler.json.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Optional job ID override." },
+                name: { type: "string", description: "Job name." },
+                cronExpression: { type: "string", description: "Job cron expression." },
+                folderId: { type: "string", description: "Optional folder ID." },
+                paused: { type: "boolean", description: "Create the job paused." },
+            },
+            required: ["name", "cronExpression"],
+        },
+    },
+    {
+        name: "scheduler_update_job",
+        description: "Update an existing job without changing unrelated fields.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID to update." },
+                name: { type: "string" },
+                cronExpression: { type: "string" },
+                folderId: { type: "string" },
+                paused: { type: "boolean" },
+            },
+            required: ["jobId"],
+        },
+    },
+    {
+        name: "scheduler_delete_job",
+        description: "Delete a job and detach any tasks linked to it.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID to delete." },
+            },
+            required: ["jobId"],
+        },
+    },
+    {
+        name: "scheduler_duplicate_job",
+        description: "Duplicate a job and its task/pause structure.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Source job ID." },
+                newJobId: { type: "string", description: "Optional new job ID." },
+                name: { type: "string", description: "Optional duplicate name override." },
+            },
+            required: ["jobId"],
+        },
+    },
+    {
+        name: "scheduler_list_job_folders",
+        description: "List all job folders from .vscode/scheduler.json.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "scheduler_create_job_folder",
+        description: "Create a new job folder.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                folderId: { type: "string", description: "Optional folder ID override." },
+                name: { type: "string", description: "Folder name." },
+                parentId: { type: "string", description: "Optional parent folder ID." },
+            },
+            required: ["name"],
+        },
+    },
+    {
+        name: "scheduler_update_job_folder",
+        description: "Rename or reparent an existing job folder.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                folderId: { type: "string", description: "Folder ID to update." },
+                name: { type: "string" },
+                parentId: { type: "string" },
+            },
+            required: ["folderId"],
+        },
+    },
+    {
+        name: "scheduler_delete_job_folder",
+        description: "Delete an empty job folder.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                folderId: { type: "string", description: "Folder ID to delete." },
+            },
+            required: ["folderId"],
+        },
+    },
+    {
+        name: "scheduler_add_job_task",
+        description: "Attach an existing task to a job as a workflow node.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                taskId: { type: "string", description: "Existing task ID to attach." },
+                windowMinutes: { type: "number", description: "Optional node window in minutes." },
+            },
+            required: ["jobId", "taskId"],
+        },
+    },
+    {
+        name: "scheduler_remove_job_task",
+        description: "Detach a task node from a job.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                nodeId: { type: "string", description: "Job node ID to remove." },
+            },
+            required: ["jobId", "nodeId"],
+        },
+    },
+    {
+        name: "scheduler_create_job_pause",
+        description: "Insert a manual pause checkpoint into a job.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                title: { type: "string", description: "Pause title." },
+            },
+            required: ["jobId", "title"],
+        },
+    },
+    {
+        name: "scheduler_update_job_pause",
+        description: "Rename an existing manual pause checkpoint.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                nodeId: { type: "string", description: "Pause node ID." },
+                title: { type: "string", description: "New pause title." },
+            },
+            required: ["jobId", "nodeId", "title"],
+        },
+    },
+    {
+        name: "scheduler_delete_job_pause",
+        description: "Remove a pause checkpoint from a job.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                nodeId: { type: "string", description: "Pause node ID." },
+            },
+            required: ["jobId", "nodeId"],
+        },
+    },
+    {
+        name: "scheduler_update_job_node_window",
+        description: "Change the window length for a job task node.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                nodeId: { type: "string", description: "Node ID." },
+                windowMinutes: { type: "number", description: "New window length in minutes." },
+            },
+            required: ["jobId", "nodeId", "windowMinutes"],
+        },
+    },
+    {
+        name: "scheduler_reorder_job_node",
+        description: "Move a job node to a new position in the workflow order.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID." },
+                nodeId: { type: "string", description: "Node ID." },
+                targetIndex: { type: "number", description: "Zero-based target index." },
+            },
+            required: ["jobId", "nodeId", "targetIndex"],
+        },
+    },
+    {
+        name: "scheduler_compile_job_to_task",
+        description: "Compile a job workflow into one standalone task and park the source job in Bundled Jobs.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                jobId: { type: "string", description: "Job ID to compile." },
+            },
+            required: ["jobId"],
+        },
+    },
+    {
+        name: "research_list_profiles",
+        description: "List research profiles from .vscode/research.json.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "research_get_profile",
+        description: "Get one research profile by ID.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                researchId: { type: "string", description: "Research profile ID." },
+            },
+            required: ["researchId"],
+        },
+    },
+    {
+        name: "research_create_profile",
+        description: "Create a research profile in .vscode/research.json.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                researchData: { type: "object", description: "Profile fields, matching the Research tab form." },
+            },
+            required: ["researchData"],
+        },
+    },
+    {
+        name: "research_update_profile",
+        description: "Update an existing research profile.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                researchId: { type: "string", description: "Research profile ID." },
+                researchData: { type: "object", description: "Fields to update." },
+            },
+            required: ["researchId", "researchData"],
+        },
+    },
+    {
+        name: "research_delete_profile",
+        description: "Delete a research profile.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                researchId: { type: "string", description: "Research profile ID." },
+            },
+            required: ["researchId"],
+        },
+    },
+    {
+        name: "research_duplicate_profile",
+        description: "Duplicate a research profile.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                researchId: { type: "string", description: "Source research profile ID." },
+            },
+            required: ["researchId"],
+        },
+    },
+    {
+        name: "research_list_runs",
+        description: "List recent research runs from .vscode/research.json.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "research_get_run",
+        description: "Get a research run by ID.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                runId: { type: "string", description: "Research run ID." },
+            },
+            required: ["runId"],
+        },
+    },
 ];
 
 export async function handleSchedulerToolCall(
@@ -553,6 +1001,600 @@ export async function handleSchedulerToolCall(
                     taskCount: overdueTasks.length,
                     tasks: overdueTasks,
                 });
+            }
+
+            case "scheduler_list_jobs": {
+                const jobs = Array.isArray(config.jobs) ? config.jobs.map((job) => summarizeJob(config, job)) : [];
+                const folders = Array.isArray(config.jobFolders) ? config.jobFolders : [];
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    jobCount: jobs.length,
+                    folderCount: folders.length,
+                    jobs,
+                    jobFolders: folders,
+                });
+            }
+
+            case "scheduler_get_job": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                return textResponse(summarizeJob(config, job));
+            }
+
+            case "scheduler_create_job": {
+                const jobId = typeof args.jobId === "string" && args.jobId.trim() ? args.jobId.trim() : createId("job");
+                if (getSchedulerJob(config, jobId)) {
+                    return errorResponse(`Job '${jobId}' already exists.`);
+                }
+                const folderId = typeof args.folderId === "string" && args.folderId.trim() ? args.folderId.trim() : undefined;
+                if (folderId && !getSchedulerFolder(config, folderId)) {
+                    return errorResponse(`Folder '${folderId}' not found.`);
+                }
+                const job = normalizeJob({
+                    id: jobId,
+                    name: ensureString(args.name, "name"),
+                    cronExpression: ensureString(args.cronExpression, "cronExpression"),
+                    folderId,
+                    paused: args.paused === true,
+                    nodes: [],
+                });
+                config.jobs = Array.isArray(config.jobs) ? config.jobs : [];
+                config.jobs.push(job);
+                context.writeConfig(config);
+                return textResponse({ message: `Job '${jobId}' created.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_update_job": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const folderId = typeof args.folderId === "string"
+                    ? args.folderId.trim() || undefined
+                    : job.folderId;
+                if (folderId && !getSchedulerFolder(config, folderId)) {
+                    return errorResponse(`Folder '${folderId}' not found.`);
+                }
+                const nextJob = normalizeJob({
+                    ...job,
+                    id: job.id,
+                    name: typeof args.name === "string" && args.name.trim() ? args.name.trim() : job.name,
+                    cronExpression: typeof args.cronExpression === "string" && args.cronExpression.trim() ? args.cronExpression.trim() : job.cronExpression,
+                    folderId,
+                    paused: typeof args.paused === "boolean" ? args.paused : job.paused,
+                    nodes: Array.isArray(job.nodes) ? job.nodes : [],
+                    createdAt: job.createdAt,
+                    archived: job.archived,
+                    archivedAt: job.archivedAt,
+                    lastCompiledTaskId: job.lastCompiledTaskId,
+                    runtime: job.runtime,
+                });
+                const index = config.jobs.findIndex((entry) => entry.id === jobId);
+                config.jobs[index] = nextJob;
+                context.writeConfig(config);
+                return textResponse({ message: `Job '${jobId}' updated.`, job: summarizeJob(config, nextJob) });
+            }
+
+            case "scheduler_delete_job": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                if (Array.isArray(config.tasks)) {
+                    for (const task of config.tasks) {
+                        if (task.jobId === jobId) {
+                            task.jobId = undefined;
+                            task.jobNodeId = undefined;
+                        }
+                    }
+                }
+                config.jobs = config.jobs.filter((entry) => entry.id !== jobId);
+                context.writeConfig(config);
+                return textResponse({ message: `Job '${jobId}' deleted.`, jobId });
+            }
+
+            case "scheduler_duplicate_job": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const duplicateJobId = typeof args.newJobId === "string" && args.newJobId.trim()
+                    ? args.newJobId.trim()
+                    : createId("job");
+                if (getSchedulerJob(config, duplicateJobId)) {
+                    return errorResponse(`Job '${duplicateJobId}' already exists.`);
+                }
+
+                const duplicateNodes: any[] = [];
+                const duplicatedTasks: SchedulerTask[] = [];
+                for (const node of Array.isArray(job.nodes) ? job.nodes : []) {
+                    if (node?.type === "pause") {
+                        duplicateNodes.push({
+                            id: createId("jobpause"),
+                            type: "pause",
+                            title: node.title || "Manual review",
+                        });
+                        continue;
+                    }
+
+                    const sourceTask = getSchedulerTask(config, node.taskId);
+                    if (!sourceTask) {
+                        continue;
+                    }
+
+                    const duplicatedTaskId = createId("task");
+                    const duplicatedTask: SchedulerTask = {
+                        ...sourceTask,
+                        id: duplicatedTaskId,
+                        name: typeof sourceTask.name === "string" && sourceTask.name.trim()
+                            ? `${sourceTask.name} (Copy)`
+                            : duplicatedTaskId,
+                        enabled: false,
+                        jobId: duplicateJobId,
+                        jobNodeId: undefined,
+                        createdAt: nowIso(),
+                        updatedAt: nowIso(),
+                    };
+                    duplicatedTasks.push(duplicatedTask);
+                    duplicateNodes.push({
+                        id: createId("jobnode"),
+                        type: "task",
+                        taskId: duplicatedTaskId,
+                        windowMinutes: Number.isFinite(Number(node.windowMinutes)) ? Math.max(1, Math.floor(Number(node.windowMinutes))) : 30,
+                    });
+                }
+
+                const duplicate = normalizeJob({
+                    ...job,
+                    id: duplicateJobId,
+                    name: typeof args.name === "string" && args.name.trim() ? args.name.trim() : `${job.name} (Copy)`,
+                    paused: true,
+                    nodes: duplicateNodes,
+                    createdAt: nowIso(),
+                    updatedAt: nowIso(),
+                    archived: false,
+                    archivedAt: undefined,
+                    lastCompiledTaskId: undefined,
+                    runtime: undefined,
+                });
+                config.jobs.push(duplicate);
+                if (duplicatedTasks.length > 0) {
+                    config.tasks.push(...duplicatedTasks);
+                }
+                context.writeConfig(config);
+                return textResponse({ message: `Job '${jobId}' duplicated as '${duplicateJobId}'.`, job: summarizeJob(config, duplicate) });
+            }
+
+            case "scheduler_list_job_folders": {
+                const folders = Array.isArray(config.jobFolders) ? config.jobFolders : [];
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    folderCount: folders.length,
+                    jobFolders: folders,
+                });
+            }
+
+            case "scheduler_create_job_folder": {
+                const folderId = typeof args.folderId === "string" && args.folderId.trim() ? args.folderId.trim() : createId("jobfolder");
+                if (getSchedulerFolder(config, folderId)) {
+                    return errorResponse(`Folder '${folderId}' already exists.`);
+                }
+                const folder = {
+                    id: folderId,
+                    name: ensureString(args.name, "name"),
+                    parentId: typeof args.parentId === "string" && args.parentId.trim() ? args.parentId.trim() : undefined,
+                    createdAt: nowIso(),
+                    updatedAt: nowIso(),
+                };
+                if (folder.parentId && !getSchedulerFolder(config, folder.parentId)) {
+                    return errorResponse(`Parent folder '${folder.parentId}' not found.`);
+                }
+                config.jobFolders = Array.isArray(config.jobFolders) ? config.jobFolders : [];
+                config.jobFolders.push(folder);
+                context.writeConfig(config);
+                return textResponse({ message: `Folder '${folderId}' created.`, folder });
+            }
+
+            case "scheduler_update_job_folder": {
+                const folderId = ensureString(args.folderId, "folderId");
+                const folder = getSchedulerFolder(config, folderId);
+                if (!folder) {
+                    return errorResponse(`Folder '${folderId}' not found.`);
+                }
+                const parentId = typeof args.parentId === "string"
+                    ? args.parentId.trim() || undefined
+                    : folder.parentId;
+                if (parentId && parentId !== folderId && !getSchedulerFolder(config, parentId)) {
+                    return errorResponse(`Parent folder '${parentId}' not found.`);
+                }
+                folder.name = typeof args.name === "string" && args.name.trim() ? args.name.trim() : folder.name;
+                folder.parentId = parentId;
+                folder.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Folder '${folderId}' updated.`, folder });
+            }
+
+            case "scheduler_delete_job_folder": {
+                const folderId = ensureString(args.folderId, "folderId");
+                const folder = getSchedulerFolder(config, folderId);
+                if (!folder) {
+                    return errorResponse(`Folder '${folderId}' not found.`);
+                }
+                const childFolders = Array.isArray(config.jobFolders)
+                    ? config.jobFolders.filter((entry) => entry.parentId === folderId)
+                    : [];
+                const attachedJobs = Array.isArray(config.jobs)
+                    ? config.jobs.filter((job) => job.folderId === folderId)
+                    : [];
+                if (childFolders.length > 0 || attachedJobs.length > 0) {
+                    return errorResponse(`Folder '${folderId}' is not empty.`);
+                }
+                config.jobFolders = config.jobFolders.filter((entry) => entry.id !== folderId);
+                context.writeConfig(config);
+                return textResponse({ message: `Folder '${folderId}' deleted.`, folderId });
+            }
+
+            case "scheduler_add_job_task": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const taskId = ensureString(args.taskId, "taskId");
+                const job = getSchedulerJob(config, jobId);
+                const task = getSchedulerTask(config, taskId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                if (!task) {
+                    return errorResponse(`Task '${taskId}' not found.`);
+                }
+                const windowMinutes = Number.isFinite(Number(args.windowMinutes)) ? Math.max(1, Math.floor(Number(args.windowMinutes))) : 30;
+                config.jobs = Array.isArray(config.jobs) ? config.jobs : [];
+                config.tasks = Array.isArray(config.tasks) ? config.tasks : [];
+
+                if (typeof task.jobId === "string" && task.jobId && task.jobId !== jobId) {
+                    const previousJob = getSchedulerJob(config, task.jobId);
+                    if (previousJob && Array.isArray(previousJob.nodes)) {
+                        previousJob.nodes = previousJob.nodes.filter((node: any) => node?.taskId !== taskId);
+                        previousJob.updatedAt = nowIso();
+                    }
+                }
+
+                let node = Array.isArray(job.nodes)
+                    ? job.nodes.find((entry: any) => entry && entry.type !== "pause" && entry.taskId === taskId)
+                    : undefined;
+                if (!node) {
+                    node = {
+                        id: createId("jobnode"),
+                        type: "task",
+                        taskId,
+                        windowMinutes,
+                    };
+                    job.nodes = Array.isArray(job.nodes) ? job.nodes : [];
+                    job.nodes.push(node);
+                } else {
+                    node.windowMinutes = windowMinutes;
+                }
+
+                task.jobId = jobId;
+                task.jobNodeId = node.id;
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Task '${taskId}' attached to job '${jobId}'.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_remove_job_task": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const nodeId = ensureString(args.nodeId, "nodeId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const nodeIndex = Array.isArray(job.nodes)
+                    ? job.nodes.findIndex((entry: any) => entry && entry.id === nodeId)
+                    : -1;
+                if (nodeIndex < 0) {
+                    return errorResponse(`Node '${nodeId}' not found.`);
+                }
+                const [removed] = job.nodes.splice(nodeIndex, 1);
+                if (removed?.taskId) {
+                    const task = getSchedulerTask(config, removed.taskId);
+                    if (task) {
+                        task.jobId = undefined;
+                        task.jobNodeId = undefined;
+                    }
+                }
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Node '${nodeId}' removed from job '${jobId}'.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_create_job_pause": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const title = ensureString(args.title, "title");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const node = {
+                    id: createId("jobpause"),
+                    type: "pause",
+                    title,
+                };
+                job.nodes = Array.isArray(job.nodes) ? job.nodes : [];
+                job.nodes.push(node);
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Pause checkpoint added to job '${jobId}'.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_update_job_pause": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const nodeId = ensureString(args.nodeId, "nodeId");
+                const title = ensureString(args.title, "title");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const node = Array.isArray(job.nodes) ? job.nodes.find((entry: any) => entry && entry.id === nodeId && entry.type === "pause") : undefined;
+                if (!node) {
+                    return errorResponse(`Pause node '${nodeId}' not found.`);
+                }
+                node.title = title;
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Pause '${nodeId}' updated.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_delete_job_pause": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const nodeId = ensureString(args.nodeId, "nodeId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const before = Array.isArray(job.nodes) ? job.nodes.length : 0;
+                job.nodes = Array.isArray(job.nodes)
+                    ? job.nodes.filter((entry: any) => !(entry && entry.id === nodeId && entry.type === "pause"))
+                    : [];
+                if (job.nodes.length === before) {
+                    return errorResponse(`Pause node '${nodeId}' not found.`);
+                }
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Pause '${nodeId}' deleted.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_update_job_node_window": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const nodeId = ensureString(args.nodeId, "nodeId");
+                const windowMinutes = Number.isFinite(Number(args.windowMinutes)) ? Math.max(1, Math.floor(Number(args.windowMinutes))) : 30;
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const node = Array.isArray(job.nodes)
+                    ? job.nodes.find((entry: any) => entry && entry.id === nodeId && entry.type !== "pause")
+                    : undefined;
+                if (!node) {
+                    return errorResponse(`Node '${nodeId}' not found.`);
+                }
+                node.windowMinutes = windowMinutes;
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Node '${nodeId}' window updated.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_reorder_job_node": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const nodeId = ensureString(args.nodeId, "nodeId");
+                const targetIndex = Number.isFinite(Number(args.targetIndex)) ? Math.floor(Number(args.targetIndex)) : 0;
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+                const nodes = Array.isArray(job.nodes) ? job.nodes : [];
+                const currentIndex = nodes.findIndex((entry: any) => entry && entry.id === nodeId);
+                if (currentIndex < 0) {
+                    return errorResponse(`Node '${nodeId}' not found.`);
+                }
+                const [node] = nodes.splice(currentIndex, 1);
+                const clampedIndex = Math.max(0, Math.min(targetIndex, nodes.length));
+                nodes.splice(clampedIndex, 0, node);
+                job.nodes = nodes;
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Node '${nodeId}' moved.`, job: summarizeJob(config, job) });
+            }
+
+            case "scheduler_compile_job_to_task": {
+                const jobId = ensureString(args.jobId, "jobId");
+                const job = getSchedulerJob(config, jobId);
+                if (!job) {
+                    return errorResponse(`Job '${jobId}' not found.`);
+                }
+
+                const sections = [
+                    `Job: ${job.name}`,
+                    "Execute the following workflow as one combined task. Keep the sections in order and preserve explicit checkpoints before continuing.",
+                ];
+                const labels = new Set<string>([job.name, "bundled-task"]);
+                let taskCount = 0;
+                let pauseCount = 0;
+                let agent: string | undefined;
+                let model: string | undefined;
+
+                for (const node of Array.isArray(job.nodes) ? job.nodes : []) {
+                    if (node?.type === "pause") {
+                        pauseCount += 1;
+                        sections.push(
+                            `Checkpoint ${pauseCount}: ${node.title}`,
+                            "Review the immediately previous section before continuing to the next one.",
+                        );
+                        continue;
+                    }
+
+                    const task = getSchedulerTask(config, node.taskId);
+                    if (!task) {
+                        continue;
+                    }
+
+                    taskCount += 1;
+                    if (!agent && task.agent) {
+                        agent = task.agent;
+                    }
+                    if (!model && task.model) {
+                        model = task.model;
+                    }
+                    if (Array.isArray(task.labels)) {
+                        for (const label of task.labels) {
+                            labels.add(label);
+                        }
+                    }
+
+                    sections.push(
+                        `Step ${taskCount}: ${task.name}`,
+                        task.prompt,
+                    );
+                }
+
+                const taskId = createId("task");
+                const bundledTask: SchedulerTask = {
+                    id: taskId,
+                    name: "Bundled Task",
+                    description: `Compiled from job ${job.name}`,
+                    cron: job.cronExpression,
+                    prompt: sections.join("\n\n"),
+                    enabled: job.paused !== true,
+                    oneTime: false,
+                    chatSession: undefined,
+                    agent,
+                    model,
+                    promptSource: "inline",
+                    promptPath: undefined,
+                    promptBackupPath: undefined,
+                    promptBackupUpdatedAt: undefined,
+                    jitterSeconds: 0,
+                    workspacePath: context.workspaceRoot,
+                    labels: Array.from(labels),
+                    createdAt: nowIso(),
+                    updatedAt: nowIso(),
+                };
+                config.tasks.push(bundledTask);
+                job.folderId = getSchedulerFolder(config, job.folderId || "")?.id || job.folderId;
+                job.paused = true;
+                job.archived = true;
+                job.archivedAt = nowIso();
+                job.lastCompiledTaskId = taskId;
+                job.updatedAt = nowIso();
+                context.writeConfig(config);
+                return textResponse({ message: `Job '${jobId}' compiled into task '${taskId}'.`, job: summarizeJob(config, job), task: bundledTask });
+            }
+
+            case "research_list_profiles": {
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    profileCount: researchConfig.profiles.length,
+                    profiles: researchConfig.profiles,
+                });
+            }
+
+            case "research_get_profile": {
+                const researchId = ensureString(args.researchId, "researchId");
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const profile = researchConfig.profiles.find((entry: any) => entry && entry.id === researchId);
+                if (!profile) {
+                    return errorResponse(`Research profile '${researchId}' not found.`);
+                }
+                return textResponse(profile);
+            }
+
+            case "research_create_profile": {
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const profile = normalizeResearchProfile(args.researchData);
+                profile.id = createId("research");
+                profile.createdAt = nowIso();
+                profile.updatedAt = profile.createdAt;
+                researchConfig.profiles.push(profile);
+                writeResearchConfig(context.workspaceRoot, researchConfig);
+                return textResponse({ message: `Research profile '${profile.id}' created.`, profile });
+            }
+
+            case "research_update_profile": {
+                const researchId = ensureString(args.researchId, "researchId");
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const index = researchConfig.profiles.findIndex((entry: any) => entry && entry.id === researchId);
+                if (index < 0) {
+                    return errorResponse(`Research profile '${researchId}' not found.`);
+                }
+                const profile = normalizeResearchProfile({
+                    ...researchConfig.profiles[index],
+                    ...asObject(args.researchData),
+                    id: researchId,
+                    createdAt: researchConfig.profiles[index].createdAt,
+                });
+                profile.id = researchId;
+                profile.createdAt = researchConfig.profiles[index].createdAt;
+                profile.updatedAt = nowIso();
+                researchConfig.profiles[index] = profile;
+                writeResearchConfig(context.workspaceRoot, researchConfig);
+                return textResponse({ message: `Research profile '${researchId}' updated.`, profile });
+            }
+
+            case "research_delete_profile": {
+                const researchId = ensureString(args.researchId, "researchId");
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const before = researchConfig.profiles.length;
+                researchConfig.profiles = researchConfig.profiles.filter((entry: any) => entry && entry.id !== researchId);
+                if (researchConfig.profiles.length === before) {
+                    return errorResponse(`Research profile '${researchId}' not found.`);
+                }
+                writeResearchConfig(context.workspaceRoot, researchConfig);
+                return textResponse({ message: `Research profile '${researchId}' deleted.`, researchId });
+            }
+
+            case "research_duplicate_profile": {
+                const researchId = ensureString(args.researchId, "researchId");
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const profile = researchConfig.profiles.find((entry: any) => entry && entry.id === researchId);
+                if (!profile) {
+                    return errorResponse(`Research profile '${researchId}' not found.`);
+                }
+                const duplicateId = createId("research");
+                const duplicate = {
+                    ...profile,
+                    id: duplicateId,
+                    name: typeof profile.name === "string" && profile.name.trim() ? `${profile.name} Copy` : "Research Copy",
+                    createdAt: nowIso(),
+                    updatedAt: nowIso(),
+                };
+                researchConfig.profiles.push(duplicate);
+                writeResearchConfig(context.workspaceRoot, researchConfig);
+                return textResponse({ message: `Research profile '${researchId}' duplicated as '${duplicateId}'.`, profile: duplicate });
+            }
+
+            case "research_list_runs": {
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    runCount: researchConfig.runs.length,
+                    runs: researchConfig.runs,
+                    activeRun: researchConfig.runs.find((run: any) => run && (run.status === "running" || run.status === "stopping")),
+                });
+            }
+
+            case "research_get_run": {
+                const runId = ensureString(args.runId, "runId");
+                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const run = researchConfig.runs.find((entry: any) => entry && entry.id === runId);
+                if (!run) {
+                    return errorResponse(`Research run '${runId}' not found.`);
+                }
+                return textResponse(run);
             }
 
             default:
