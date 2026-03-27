@@ -250,6 +250,61 @@ function buildLabelCatalog(
   );
 }
 
+const DEFAULT_FLAG_SEEDS: { name: string; color: string }[] = [
+  { name: "GO", color: "#22c55e" },
+  { name: "needs-bot-review", color: "#f59e0b" },
+  { name: "needs-user-review", color: "#3b82f6" },
+  { name: "NEW", color: "#a78bfa" },
+];
+
+function buildFlagCatalog(
+  cards: CockpitTodoCard[],
+  existingCatalog: unknown,
+): CockpitLabelDefinition[] {
+  const timestamp = nowIso();
+  const entries = Array.isArray(existingCatalog)
+    ? existingCatalog
+        .map((entry, index) => normalizeLabelDefinition(entry, index))
+        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
+    : [];
+  const catalog = new Map(entries.map((entry) => [entry.key, entry]));
+
+  for (const card of cards) {
+    const flag = card.flags[0];
+    if (!flag) {
+      continue;
+    }
+    const key = normalizeLabelKey(flag);
+    if (!key || catalog.has(key)) {
+      continue;
+    }
+    catalog.set(key, {
+      name: flag,
+      key,
+      color: "var(--vscode-badge-background)",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+  }
+
+  for (const seed of DEFAULT_FLAG_SEEDS) {
+    const key = normalizeLabelKey(seed.name);
+    if (key && !catalog.has(key)) {
+      catalog.set(key, {
+        name: seed.name,
+        key,
+        color: seed.color,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+    }
+  }
+
+  return Array.from(catalog.values()).sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+}
+
 function normalizeArchivedCards(cards: unknown): CockpitTodoCard[] {
   return Array.isArray(cards)
     ? cards.map((entry, index) => normalizeCard(entry, index))
@@ -351,6 +406,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
     sections: buildDefaultSections(timestamp),
     cards: [],
     labelCatalog: [],
+    flagCatalog: [],
     archives: {
       completedSuccessfully: [],
       rejected: [],
@@ -396,6 +452,7 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
     sections: ensureUnsortedSection(sections, timestamp),
     cards,
     labelCatalog: buildLabelCatalog(allCards, record.labelCatalog),
+    flagCatalog: buildFlagCatalog(allCards, record.flagCatalog),
     archives: {
       completedSuccessfully: archivedCompleted,
       rejected: archivedRejected,

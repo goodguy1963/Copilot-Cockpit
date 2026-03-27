@@ -387,6 +387,9 @@ export interface CockpitBoard {
   /** Shared label palette for autocomplete and consistent colors */
   labelCatalog?: CockpitLabelDefinition[];
 
+  /** Flag palette for single-value agent-state chips */
+  flagCatalog?: CockpitLabelDefinition[];
+
   /** Archived cards grouped by outcome */
   archives?: {
     completedSuccessfully: CockpitTodoCard[];
@@ -1183,6 +1186,8 @@ export interface TaskAction {
   | "setTodoFilters"
   | "saveTodoLabelDefinition"
   | "deleteTodoLabelDefinition"
+  | "saveTodoFlagDefinition"
+  | "deleteTodoFlagDefinition"
   | "linkTodoTask"
   | "createTaskFromTodo"
   | "addCockpitSection"
@@ -1259,6 +1264,9 @@ export interface TaskAction {
 
   /** Shared todo label definition payload */
   todoLabelData?: UpsertCockpitLabelDefinitionInput;
+
+  /** Shared todo flag definition payload */
+  todoFlagData?: UpsertCockpitLabelDefinitionInput;
 
   /** Task identifier used for linking */
   linkedTaskId?: string;
@@ -1387,6 +1395,8 @@ export type WebviewToExtensionMessage =
   | { type: "setTodoFilters"; data: UpdateCockpitBoardFiltersInput }
   | { type: "saveTodoLabelDefinition"; data: UpsertCockpitLabelDefinitionInput }
   | { type: "deleteTodoLabelDefinition"; data: { name: string } }
+  | { type: "saveTodoFlagDefinition"; data: UpsertCockpitLabelDefinitionInput }
+  | { type: "deleteTodoFlagDefinition"; data: { name: string } }
   | { type: "linkTodoTask"; todoId: string; taskId?: string }
   | { type: "createTaskFromTodo"; todoId: string }
   | { type: "runTask"; taskId: string }
