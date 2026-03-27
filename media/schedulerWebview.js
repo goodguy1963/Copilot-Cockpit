@@ -458,16 +458,13 @@
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
   var boardAddSectionBtn = document.getElementById("board-add-section-btn");
+  var boardSectionInlineForm = document.getElementById("board-section-inline-form");
+  var boardSectionNameInput = document.getElementById("board-section-name-input");
+  var boardSectionSaveBtn = document.getElementById("board-section-save-btn");
+  var boardSectionCancelBtn = document.getElementById("board-section-cancel-btn");
   var cockpitColSlider = document.getElementById("cockpit-col-slider");
 
-  // Restore persisted column width
-  (function () {
-    var savedWidth = localStorage.getItem("cockpit-col-width");
-    if (savedWidth) {
-      document.documentElement.style.setProperty("--cockpit-col-width", savedWidth + "px");
-      if (cockpitColSlider) cockpitColSlider.value = savedWidth;
-    }
-  })();
+  // Restore persisted column width\n  (function () {\n    var savedWidth = localStorage.getItem(\"cockpit-col-width\");\n    if (savedWidth) {\n      var w = Number(savedWidth);\n      document.documentElement.style.setProperty(\"--cockpit-col-width\", w + \"px\");\n      var font = Math.round(10 + (w - 180) * 3 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-col-font\", font + \"px\");\n      var pad = Math.round(8 + (w - 180) * 6 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-card-pad\", pad + \"px\");\n      if (cockpitColSlider) cockpitColSlider.value = savedWidth;\n    }\n  })();
 
   var activeTaskFilter = "all";
   var activeLabelFilter = "";
@@ -477,6 +474,7 @@
   var selectedResearchRunId = "";
   var draggedJobNodeId = "";
   var draggedJobId = "";
+  var draggingSectionId = null;
   var jobsSidebarHidden = false;
   var isCreatingResearchProfile = false;
   var researchFormDirty = false;
@@ -1151,7 +1149,10 @@
 
   function syncLabelCatalog() {
     if (!todoLabelCatalog) return;
-    var catalog = getLabelCatalog();
+    var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+    var catalog = getLabelCatalog().filter(function (entry) {
+      return addedKeys.indexOf(normalizeTodoLabelKey(entry.name)) < 0;
+    });
     if (catalog.length === 0) {
       todoLabelCatalog.innerHTML = "";
       return;
@@ -1159,12 +1160,9 @@
     todoLabelCatalog.innerHTML = catalog.map(function (entry) {
       var bg = entry.color || "var(--vscode-badge-background)";
       var fg = getReadableTextColor(bg);
-      var isSelected = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(selectedTodoLabelName);
-      var borderColor = isSelected
-        ? "var(--vscode-focusBorder)"
-        : "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
+      var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
-        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Select to edit color">' + escapeHtml(entry.name) + '</button>'
+        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Add to todo">' + escapeHtml(entry.name) + '</button>'
         + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="Delete label">×</button>'
         + '</span>';
     }).join("");
@@ -1766,8 +1764,8 @@
           return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
         }), filters);
         return (
-          '<section data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,300px);min-width:var(--cockpit-col-width,300px);max-height:72vh;overflow:hidden;">' +
-          '<div class="cockpit-section-header">' +
+          '<section class="board-column" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;gap:12px;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,300px);min-width:var(--cockpit-col-width,300px);max-height:72vh;overflow:hidden;">' +
+          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '">' +
           '<strong>' + escapeHtml(section.title || "Section") + '</strong>' +
           '<div class="cockpit-section-actions">' +
           '<span class="note">' + String(sectionCards.length) + '</span>' +
@@ -1793,16 +1791,16 @@
                 ? (strings.boardLinkedTaskShort || "Linked")
                 : (strings.boardNoLinkedTask || "No linked task yet");
               var dueMarkup = card.dueAt
-                ? '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>'
+                ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>'
                 : '';
-              var statusMarkup = '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>';
+              var statusMarkup = '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>';
               var archiveMarkup = card.archived && card.archiveOutcome
-                ? '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>'
+                ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>'
                 : '';
               var latestCommentMarkup = latestComment && latestComment.body
                 ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;">' +
-                  '<strong style="font-size:11px;">' + escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
-                  '<span style="font-size:11px;">#' + escapeHtml(String(latestComment.sequence || 1)) + ' • ' + escapeHtml(getTodoCommentSourceLabel(latestComment.source || "human-form")) + ' • ' + escapeHtml(getTodoDescriptionPreview(latestComment.body || "")) + '</span>' +
+                  '<strong data-card-meta>' + escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
+                  '<span data-card-meta>#' + escapeHtml(String(latestComment.sequence || 1)) + ' • ' + escapeHtml(getTodoCommentSourceLabel(latestComment.source || "human-form")) + ' • ' + escapeHtml(getTodoDescriptionPreview(latestComment.body || "")) + '</span>' +
                   '</div>'
                 : '';
               var canApprove = !card.archived && (card.status || "active") !== "ready";
@@ -1812,14 +1810,14 @@
                 '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:' + (isSelected ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-sideBar-background)') + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
                 '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
                 '<strong style="line-height:1.35;">' + escapeHtml(card.title || "Untitled") + '</strong>' +
-                '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
+                '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
                 '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
                 '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
                 labelMarkup +
                 latestCommentMarkup +
                 (Array.isArray(card.flags) && card.flags.length
-                  ? '<div class="note" style="font-size:11px;">' + escapeHtml(card.flags.join(" • ")) + '</div>'
+                  ? '<div class="note" data-card-meta>' + escapeHtml(card.flags.join(" • ")) + '</div>'
                   : '') +
                 '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">' +
                 '<button type="button" class="btn-secondary todo-card-edit" data-todo-edit="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardEditTodo || 'Edit') + '</button>' +
@@ -1865,18 +1863,57 @@
         }
         if (sectionRenameBtn) {
           var sectionId = sectionRenameBtn.getAttribute("data-section-rename");
-          var currentSection = getTodoSections().find(function (s) { return s.id === sectionId; });
-          var newTitle = window.prompt("Rename section:", currentSection ? currentSection.title : "");
-          if (newTitle && newTitle.trim()) {
-            vscode.postMessage({ type: "renameCockpitSection", sectionId: sectionId, title: newTitle.trim() });
-          }
+          var sectionEl = event.target.closest ? event.target.closest("[data-section-id]") : null;
+          var sectionHeader = sectionEl ? sectionEl.querySelector(".cockpit-section-header") : null;
+          var strongEl = sectionHeader ? sectionHeader.querySelector("strong") : null;
+          if (!strongEl) return;
+          var currentTitle = strongEl.textContent || "";
+          var inputEl = document.createElement("input");
+          inputEl.type = "text";
+          inputEl.value = currentTitle;
+          inputEl.style.cssText = "font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";
+          var committed = false;
+          var saveRename = function () {
+            if (committed) return;
+            committed = true;
+            var newTitle = inputEl.value.trim();
+            if (newTitle && newTitle !== currentTitle) {
+              vscode.postMessage({ type: "renameCockpitSection", sectionId: sectionId, title: newTitle });
+            } else {
+              strongEl.style.display = "";
+              if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+            }
+          };
+          inputEl.onkeydown = function (e) {
+            if (e.key === "Enter") { e.preventDefault(); saveRename(); }
+            if (e.key === "Escape") { committed = true; strongEl.style.display = ""; if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl); }
+          };
+          inputEl.onblur = function () { setTimeout(saveRename, 120); };
+          strongEl.style.display = "none";
+          strongEl.parentNode.insertBefore(inputEl, strongEl);
+          inputEl.select();
           return;
         }
         if (sectionDeleteBtn) {
           var sectionId = sectionDeleteBtn.getAttribute("data-section-delete");
-          var currentSection = getTodoSections().find(function (s) { return s.id === sectionId; });
-          if (currentSection && window.confirm("Delete section \u201c" + (currentSection.title || "Section") + "\u201d?\nCards will be moved to the default section.")) {
+          if (sectionDeleteBtn.getAttribute("data-confirming")) {
             vscode.postMessage({ type: "deleteCockpitSection", sectionId: sectionId });
+            sectionDeleteBtn.removeAttribute("data-confirming");
+          } else {
+            sectionDeleteBtn.setAttribute("data-confirming", "1");
+            var origText = sectionDeleteBtn.textContent;
+            var origColor = sectionDeleteBtn.style.color;
+            sectionDeleteBtn.textContent = "Delete?";
+            sectionDeleteBtn.style.color = "var(--vscode-errorForeground)";
+            sectionDeleteBtn.style.opacity = "1";
+            setTimeout(function () {
+              if (sectionDeleteBtn.getAttribute("data-confirming")) {
+                sectionDeleteBtn.removeAttribute("data-confirming");
+                sectionDeleteBtn.textContent = origText;
+                sectionDeleteBtn.style.color = origColor;
+                sectionDeleteBtn.style.opacity = "";
+              }
+            }, 2500);
           }
           return;
         }
@@ -1903,6 +1940,16 @@
         }
       };
       boardColumns.ondragstart = function (event) {
+        // Section header drag takes priority over card drag
+        var sectionHeader = event.target && event.target.closest ? event.target.closest("[data-section-drag]") : null;
+        if (sectionHeader) {
+          draggingSectionId = sectionHeader.getAttribute("data-section-drag");
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", draggingSectionId || "");
+          }
+          return;
+        }
         var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
         if (!card) return;
         if (card.getAttribute("draggable") === "false") {
@@ -1915,12 +1962,42 @@
         }
       };
       boardColumns.ondragover = function (event) {
+        if (draggingSectionId) {
+          var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+          if (section) {
+            event.preventDefault();
+            document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
+            if (section.getAttribute("data-section-id") !== draggingSectionId) {
+              section.classList.add("section-drag-over");
+            }
+          }
+          return;
+        }
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
         if (section && draggingTodoId) {
           event.preventDefault();
         }
       };
       boardColumns.ondrop = function (event) {
+        if (draggingSectionId) {
+          var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
+          if (!section) { draggingSectionId = null; return; }
+          event.preventDefault();
+          var targetSectionId = section.getAttribute("data-section-id");
+          if (targetSectionId && targetSectionId !== draggingSectionId) {
+            var allSections = boardColumns.querySelectorAll("[data-section-id]");
+            var targetIndex = -1;
+            for (var i = 0; i < allSections.length; i++) {
+              if (allSections[i].getAttribute("data-section-id") === targetSectionId) { targetIndex = i; break; }
+            }
+            if (targetIndex >= 0) {
+              vscode.postMessage({ type: "reorderCockpitSection", sectionId: draggingSectionId, targetIndex: targetIndex });
+            }
+          }
+          draggingSectionId = null;
+          return;
+        }
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
         var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
         if (!section || !draggingTodoId) {
@@ -1937,7 +2014,9 @@
         draggingTodoId = null;
       };
       boardColumns.ondragend = function () {
+        document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
         draggingTodoId = null;
+        draggingSectionId = null;
       };
     }
 
@@ -1957,16 +2036,38 @@
     }
     if (boardAddSectionBtn) {
       boardAddSectionBtn.onclick = function () {
-        var title = window.prompt("New section name:");
-        if (title && title.trim()) {
-          vscode.postMessage({ type: "addCockpitSection", title: title.trim() });
+        boardAddSectionBtn.style.display = "none";
+        if (boardSectionInlineForm) {
+          boardSectionInlineForm.style.display = "flex";
+          if (boardSectionNameInput) { boardSectionNameInput.value = ""; boardSectionNameInput.focus(); }
         }
+      };
+    }
+    function hideSectionForm() {
+      if (boardSectionInlineForm) boardSectionInlineForm.style.display = "none";
+      if (boardAddSectionBtn) boardAddSectionBtn.style.display = "";
+    }
+    function doAddSection() {
+      var title = boardSectionNameInput ? boardSectionNameInput.value.trim() : "";
+      if (title) { vscode.postMessage({ type: "addCockpitSection", title: title }); }
+      hideSectionForm();
+    }
+    if (boardSectionSaveBtn) { boardSectionSaveBtn.onclick = doAddSection; }
+    if (boardSectionCancelBtn) { boardSectionCancelBtn.onclick = hideSectionForm; }
+    if (boardSectionNameInput) {
+      boardSectionNameInput.onkeydown = function (e) {
+        if (e.key === "Enter") { e.preventDefault(); doAddSection(); }
+        if (e.key === "Escape") { hideSectionForm(); }
       };
     }
     if (cockpitColSlider) {
       cockpitColSlider.oninput = function () {
-        var w = cockpitColSlider.value;
+        var w = Number(cockpitColSlider.value);
         document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+        var font = Math.round(10 + (w - 180) * 3 / 340);
+        document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
+        var pad = Math.round(8 + (w - 180) * 6 / 340);
+        document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
         try { localStorage.setItem("cockpit-col-width", w); } catch (e) {}
       };
     }
@@ -2169,18 +2270,29 @@
         var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
         if (deleteBtn) {
           var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
-          if (name && window.confirm('Delete label "' + name + '" from the catalog?')) {
+          if (!name) return;
+          if (deleteBtn.getAttribute("data-confirming")) {
+            deleteBtn.removeAttribute("data-confirming");
+            deleteBtn.textContent = "×";
             vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: name } });
+          } else {
+            deleteBtn.setAttribute("data-confirming", "1");
+            deleteBtn.textContent = "?";
+            setTimeout(function () {
+              if (deleteBtn.getAttribute("data-confirming")) {
+                deleteBtn.removeAttribute("data-confirming");
+                deleteBtn.textContent = "×";
+              }
+            }, 2500);
           }
           return;
         }
         if (selectBtn) {
           var name = selectBtn.getAttribute("data-label-catalog-select") || "";
-          selectedTodoLabelName = name;
+          if (!name) return;
+          // Add the label to the current todo directly (catalog only shows un-applied labels)
           if (todoLabelsInput) todoLabelsInput.value = name;
-          var def = getLabelDefinition(name);
-          if (def && def.color && todoLabelColorInput) todoLabelColorInput.value = def.color;
-          syncTodoLabelEditor();
+          addEditorLabelFromInput();
         }
       };
     }

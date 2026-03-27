@@ -28,6 +28,7 @@ import {
   moveCockpitTodo,
   rejectCockpitTodo,
   renameCockpitSection,
+  reorderCockpitSection,
   deleteCockpitTodoLabelDefinition,
   saveCockpitTodoLabelDefinition,
   setCockpitBoardFilters,
@@ -1861,7 +1862,6 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
         notifyInfo(`Saved label palette entry: ${result.label.name}`);
         break;
       }
@@ -1945,6 +1945,14 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         moveCockpitSection(workspaceRoot, action.sectionId, action.sectionDirection);
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "reorderCockpitSection": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.sectionId || action.targetIndex == null) break;
+        reorderCockpitSection(workspaceRoot, action.sectionId, action.targetIndex);
+        refreshSchedulerUiState();
         break;
       }
 

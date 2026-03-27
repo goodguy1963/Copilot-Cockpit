@@ -770,3 +770,22 @@ export function moveCockpitSection(
   touchBoard(nextBoard);
   return persistBoard(workspaceRoot, nextBoard);
 }
+
+export function reorderCockpitSection(
+  workspaceRoot: string,
+  sectionId: string,
+  targetIndex: number,
+): CockpitBoard {
+  const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  const sorted = nextBoard.sections.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const fromIndex = sorted.findIndex((s) => s.id === sectionId);
+  if (fromIndex === -1 || fromIndex === targetIndex) return persistBoard(workspaceRoot, nextBoard);
+  const [moved] = sorted.splice(fromIndex, 1);
+  sorted.splice(targetIndex, 0, moved);
+  sorted.forEach((s, i) => {
+    const inBoard = nextBoard.sections.find((ns) => ns.id === s.id);
+    if (inBoard) inBoard.order = i;
+  });
+  touchBoard(nextBoard);
+  return persistBoard(workspaceRoot, nextBoard);
+}
