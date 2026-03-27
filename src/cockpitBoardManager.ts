@@ -634,6 +634,19 @@ export function saveCockpitTodoLabelDefinition(
   };
 }
 
+export function deleteCockpitTodoLabelDefinition(
+  workspaceRoot: string,
+  name: string,
+): CockpitBoard {
+  const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  const key = normalizeLabelKey(name);
+  nextBoard.labelCatalog = (nextBoard.labelCatalog ?? []).filter(
+    (entry) => entry.key !== key,
+  );
+  touchBoard(nextBoard);
+  return persistBoard(workspaceRoot, nextBoard);
+}
+
 export function ensureTaskTodos(
   workspaceRoot: string,
   tasks: ScheduledTask[],

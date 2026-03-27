@@ -1182,6 +1182,7 @@ export interface TaskAction {
   | "addTodoComment"
   | "setTodoFilters"
   | "saveTodoLabelDefinition"
+  | "deleteTodoLabelDefinition"
   | "linkTodoTask"
   | "createTaskFromTodo"
   | "addCockpitSection"
@@ -1384,6 +1385,7 @@ export type WebviewToExtensionMessage =
   | { type: "addTodoComment"; todoId: string; data: AddCockpitTodoCommentInput }
   | { type: "setTodoFilters"; data: UpdateCockpitBoardFiltersInput }
   | { type: "saveTodoLabelDefinition"; data: UpsertCockpitLabelDefinitionInput }
+  | { type: "deleteTodoLabelDefinition"; data: { name: string } }
   | { type: "linkTodoTask"; todoId: string; taskId?: string }
   | { type: "createTaskFromTodo"; todoId: string }
   | { type: "runTask"; taskId: string }
