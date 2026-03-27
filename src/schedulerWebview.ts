@@ -1023,6 +1023,26 @@ export class SchedulerWebview {
         }
         break;
 
+      case "saveTodoFlagDefinition":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "saveTodoFlagDefinition",
+            taskId: "__todo__",
+            todoFlagData: message.data,
+          });
+        }
+        break;
+
+      case "deleteTodoFlagDefinition":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteTodoFlagDefinition",
+            taskId: "__todo__",
+            todoFlagData: { name: message.data.name },
+          });
+        }
+        break;
+
       case "linkTodoTask":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -1933,7 +1953,10 @@ export class SchedulerWebview {
       boardFieldSection: "Section",
       boardFieldPriority: "Priority",
       boardFieldLabels: "Labels",
-      boardFieldFlags: "Flags",
+      boardFieldFlags: "Flag (agent state)",
+      boardFlagAdd: "Add Flag",
+      boardFlagClear: "Clear",
+      boardFlagCatalogHint: "Click a flag to set it. Only one flag at a time.",
       boardFieldLinkedTask: "Linked scheduled task",
       boardLinkedTaskNone: "No linked task",
       boardSaveCreate: "Create Todo",
@@ -2449,6 +2472,29 @@ export class SchedulerWebview {
     }
 
     .label-catalog-section:empty {
+      display: none;
+    }
+
+    .flag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: inherit;
+      line-height: 1.4;
+      font-weight: 600;
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .flag-catalog-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .flag-catalog-section:empty {
       display: none;
     }
     
@@ -2996,7 +3042,7 @@ export class SchedulerWebview {
       overflow-x: auto;
       overflow-y: hidden;
       padding-bottom: 10px;
-      min-height: calc(100vh - 320px);
+      min-height: 200px;
     }
 
     .board-toolbar {
@@ -3034,9 +3080,99 @@ export class SchedulerWebview {
       cursor: grabbing;
     }
 
+    .cockpit-section-header strong {
+      padding-left: 2px;
+    }
+
+    .cockpit-collapse-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border: none;
+      background: transparent;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      border-radius: 3px;
+      flex-shrink: 0;
+      padding: 0;
+      opacity: 0.6;
+      transition: opacity 0.12s, transform 0.2s ease;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .cockpit-collapse-btn:hover {
+      opacity: 1;
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .cockpit-collapse-btn.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .section-body-wrapper {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.22s ease;
+      overflow: hidden;
+    }
+
+    .section-body-wrapper.collapsed {
+      grid-template-rows: 0fr;
+    }
+
+    .section-body-inner {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .card-labels [data-label-index]:not([data-label-index="0"]) {
+      display: none;
+    }
+
+    @container (min-width: 300px) {
+      .card-labels [data-label-index="1"],
+      .card-labels [data-label-index="2"] {
+        display: inline-flex;
+      }
+    }
+
+    @container (min-width: 390px) {
+      .card-labels [data-label-index="3"],
+      .card-labels [data-label-index="4"],
+      .card-labels [data-label-index="5"] {
+        display: inline-flex;
+      }
+    }
+
+    section[data-section-id] {
+      transition: opacity 0.15s ease, outline-color 0.1s ease;
+    }
+
+    section[data-section-id].section-dragging {
+      opacity: 0.4;
+    }
+
     section[data-section-id].section-drag-over {
       outline: 2px solid var(--vscode-focusBorder);
       outline-offset: 2px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) !important;
+    }
+
+    article[data-todo-id] {
+      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
+    }
+
+    article[data-todo-id].todo-dragging {
+      opacity: 0.35;
+      transform: rotate(1.5deg) scale(0.97) !important;
+    }
+
+    article[data-todo-id].todo-drop-target {
+      box-shadow: 0 -3px 0 0 var(--vscode-focusBorder) !important;
+      transform: translateY(2px);
     }
 
     [data-card-meta] {
@@ -3044,11 +3180,41 @@ export class SchedulerWebview {
     }
 
     section[data-section-id] {
-      padding: var(--cockpit-card-pad, 14px) !important;
+      padding: 0 !important;
     }
 
     article[data-todo-id] {
-      padding: var(--cockpit-card-pad, 12px) !important;
+      padding: var(--cockpit-card-pad, 8px) !important;
+      font-size: var(--cockpit-col-font, 11px) !important;
+    }
+
+    article[data-todo-id] .note {
+      font-size: inherit !important;
+    }
+
+    article[data-todo-id] button {
+      font-size: inherit !important;
+      padding: 2px 6px !important;
+      line-height: 1.3;
+    }
+
+    .todo-card-edit {
+      background-color: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, transparent) !important;
+    }
+
+    .todo-card-approve {
+      background-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 22%, var(--vscode-button-secondaryBackground)) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-finalize {
+      background-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-button-secondaryBackground)) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-delete {
+      background-color: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground)) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
     }
 
     .cockpit-section-actions {
@@ -3059,8 +3225,22 @@ export class SchedulerWebview {
       transition: opacity 0.15s;
     }
 
+    .board-column {
+      container-type: inline-size;
+    }
+
     .board-column:hover .cockpit-section-actions {
       opacity: 1;
+    }
+
+    .board-column.is-collapsed .cockpit-section-actions {
+      display: none;
+    }
+
+    .board-column.is-collapsed .cockpit-section-header strong {
+      overflow: visible;
+      text-overflow: unset;
+      white-space: normal;
     }
 
     .btn-icon {
@@ -4043,12 +4223,18 @@ export class SchedulerWebview {
                 <button type="button" class="btn-secondary" id="todo-label-color-save-btn">${escapeHtml(strings.boardLabelSaveColor)}</button>
               </div>
               <div id="todo-label-suggestions" class="label-suggestion-list"></div>
-              <div class="note" id="todo-label-note">${escapeHtml(strings.boardLabelHint)}</div>
               <div id="todo-label-catalog" class="label-catalog-section"></div>
             </div>
             <div class="form-group" style="margin:0;">
-              <label for="todo-flags-input">${escapeHtml(strings.boardFieldFlags)}</label>
-              <input type="text" id="todo-flags-input" placeholder="needs-user-review, scheduled-task">
+              <label>${escapeHtml(strings.boardFieldFlags)}</label>
+              <div id="todo-flag-current" style="min-height:24px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;margin-bottom:8px;">
+                <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
+                <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color" style="width:42px;padding:4px;">
+                <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
+              </div>
+              <div id="todo-flag-picker" class="flag-catalog-section"></div>
+              <div class="note" style="margin-top:4px;">${escapeHtml(strings.boardFlagCatalogHint)}</div>
             </div>
             <div id="todo-linked-task-note" class="note">${escapeHtml(strings.boardTaskDraftNote)}</div>
             <div class="button-group" style="margin:0;">
@@ -4311,46 +4497,52 @@ export class SchedulerWebview {
   <div id="board-tab" class="tab-content">
     <div class="section-title">${escapeHtml(strings.boardTitle)}</div>
     <p class="note">${escapeHtml(strings.boardDescription)}</p>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px;">
-      <div class="form-group" style="margin:0;min-width:220px;flex:1 1 220px;">
-        <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
-        <input type="text" id="todo-search-input" placeholder="${escapeHtmlAttr(strings.boardSearchPlaceholder)}">
+    <div id="board-filter-sticky" style="position:sticky;top:0;z-index:20;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 0 6px;margin-bottom:8px;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;max-width:1600px;">
+        <div class="form-group" style="margin:0;min-width:220px;flex:1 1 220px;">
+          <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
+          <input type="text" id="todo-search-input" placeholder="${escapeHtmlAttr(strings.boardSearchPlaceholder)}">
+        </div>
+        <div class="form-group" style="margin:0;min-width:130px;">
+          <label for="todo-section-filter">${escapeHtml(strings.boardSectionFilterLabel)}</label>
+          <select id="todo-section-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:130px;">
+          <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
+          <select id="todo-label-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:120px;">
+          <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
+          <select id="todo-priority-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:120px;">
+          <label for="todo-status-filter">${escapeHtml(strings.boardStatusFilterLabel)}</label>
+          <select id="todo-status-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:140px;">
+          <label for="todo-archive-outcome-filter">${escapeHtml(strings.boardArchiveOutcomeFilterLabel)}</label>
+          <select id="todo-archive-outcome-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:130px;">
+          <label for="todo-sort-by">${escapeHtml(strings.boardSortLabel)}</label>
+          <select id="todo-sort-by"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:110px;">
+          <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
+          <select id="todo-sort-direction"></select>
+        </div>
       </div>
-      <div class="form-group" style="margin:0;min-width:150px;">
-        <label for="todo-section-filter">${escapeHtml(strings.boardSectionFilterLabel)}</label>
-        <select id="todo-section-filter"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:150px;">
-        <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
-        <select id="todo-label-filter"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:150px;">
-        <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
-        <select id="todo-priority-filter"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:150px;">
-        <label for="todo-status-filter">${escapeHtml(strings.boardStatusFilterLabel)}</label>
-        <select id="todo-status-filter"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:170px;">
-        <label for="todo-archive-outcome-filter">${escapeHtml(strings.boardArchiveOutcomeFilterLabel)}</label>
-        <select id="todo-archive-outcome-filter"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:150px;">
-        <label for="todo-sort-by">${escapeHtml(strings.boardSortLabel)}</label>
-        <select id="todo-sort-by"></select>
-      </div>
-      <div class="form-group" style="margin:0;min-width:130px;">
-        <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
-        <select id="todo-sort-direction"></select>
-      </div>
-      <div class="form-group" style="margin:0;display:flex;align-items:center;gap:8px;min-height:64px;">
-        <input type="checkbox" id="todo-show-archived">
-        <label for="todo-show-archived" style="margin:0;">${escapeHtml(strings.boardShowArchived)}</label>
-      </div>
-      <div class="button-group" style="margin:0 0 0 auto;justify-content:flex-end;align-items:center;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;max-width:1600px;">
         <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
         <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
+          <input type="checkbox" id="todo-show-archived" style="margin:0;">
+          ${escapeHtml(strings.boardShowArchived)}
+        </label>
+        <div class="board-col-width-group" style="margin-left:auto;">
+          <label for="cockpit-col-slider">Column width</label>
+          <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
+        </div>
       </div>
     </div>
     <div id="board-summary" class="note"></div>
@@ -4361,10 +4553,6 @@ export class SchedulerWebview {
         <input type="text" id="board-section-name-input" placeholder="Section name..." style="max-width:180px;">
         <button type="button" class="btn-primary" id="board-section-save-btn">Add</button>
         <button type="button" class="btn-secondary" id="board-section-cancel-btn">Cancel</button>
-      </div>
-      <div class="board-col-width-group">
-        <label for="cockpit-col-slider">Column width</label>
-        <input type="range" id="cockpit-col-slider" min="180" max="520" value="300" step="10">
       </div>
     </div>
     <div class="board-columns-shell">

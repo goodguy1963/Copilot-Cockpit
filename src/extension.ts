@@ -31,6 +31,8 @@ import {
   reorderCockpitSection,
   deleteCockpitTodoLabelDefinition,
   saveCockpitTodoLabelDefinition,
+  saveCockpitFlagDefinition,
+  deleteCockpitFlagDefinition,
   setCockpitBoardFilters,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
@@ -1872,6 +1874,34 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         deleteCockpitTodoLabelDefinition(workspaceRoot, action.todoLabelData.name);
+        refreshSchedulerUiState();
+        break;
+      }
+
+      case "saveTodoFlagDefinition": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoFlagData?.name) {
+          break;
+        }
+        const result = saveCockpitFlagDefinition(
+          workspaceRoot,
+          action.todoFlagData,
+        );
+        if (!result.label) {
+          notifyError("Todo Cockpit flag could not be saved.");
+          break;
+        }
+        refreshSchedulerUiState();
+        notifyInfo(`Saved flag palette entry: ${result.label.name}`);
+        break;
+      }
+
+      case "deleteTodoFlagDefinition": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoFlagData?.name) {
+          break;
+        }
+        deleteCockpitFlagDefinition(workspaceRoot, action.todoFlagData.name);
         refreshSchedulerUiState();
         break;
       }

@@ -15,11 +15,15 @@ import {
     addTodoCommentInBoard,
     approveTodoInBoard,
     createTodoInBoard,
+    deleteCockpitFlagDefinition,
+    deleteCockpitTodoLabelDefinition,
     deleteTodoInBoard,
     ensureTaskTodosInBoard,
     finalizeTodoInBoard,
     moveTodoInBoard,
     rejectTodoInBoard,
+    saveCockpitFlagDefinition,
+    saveCockpitTodoLabelDefinition,
     setCockpitBoardFiltersInBoard,
     updateTodoInBoard,
 } from "./cockpitBoardManager.js";
@@ -869,7 +873,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string", description: "Optional target section ID." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional labels." },
-                flags: { type: "array", items: { type: "string" }, description: "Optional flags." },
+                flags: { type: "array", items: { type: "string" }, description: "Single agent-state flag (only first value is kept). Use cockpit_save_flag_definition to manage flag colors." },
                 comment: { type: "string", description: "Optional initial comment." },
                 author: { type: "string", description: "Optional initial comment author: user or system." },
                 commentSource: { type: "string", description: "Optional initial comment source: human-form, bot-mcp, bot-manual, or system-event." },
@@ -942,7 +946,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 status: { type: "string", description: "active, ready, completed, or rejected." },
                 labels: { type: "array", items: { type: "string" } },
-                flags: { type: "array", items: { type: "string" } },
+                flags: { type: "array", items: { type: "string" }, description: "Single agent-state flag (only first value is kept). Use cockpit_save_flag_definition to manage flag colors." },
                 order: { type: "number" },
                 taskId: { type: "string" },
                 sessionId: { type: "string" },
@@ -1003,6 +1007,52 @@ export const MCP_TOOL_DEFINITIONS = [
             properties: {
                 taskIds: { type: "array", items: { type: "string" }, description: "Optional list of task IDs to seed." },
             },
+        },
+    },
+    {
+        name: "cockpit_save_label_definition",
+        description: "Upsert a label palette entry for the Todo Cockpit board. Labels are multi-value workflow tags displayed as pill-shaped chips (border-radius: 999px). Sets the display name and optional chip color.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Label name." },
+                color: { type: "string", description: "Optional hex color, e.g. #4f8cff." },
+            },
+            required: ["name"],
+        },
+    },
+    {
+        name: "cockpit_delete_label_definition",
+        description: "Remove a label definition from the Todo Cockpit label palette by name.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Label name to remove." },
+            },
+            required: ["name"],
+        },
+    },
+    {
+        name: "cockpit_save_flag_definition",
+        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are single-value agent-state indicators displayed as squared chips (border-radius: 4px). Only one flag per card is kept at a time.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Flag name." },
+                color: { type: "string", description: "Optional hex color, e.g. #f59e0b." },
+            },
+            required: ["name"],
+        },
+    },
+    {
+        name: "cockpit_delete_flag_definition",
+        description: "Remove a flag definition from the Todo Cockpit flag palette by name.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Flag name to remove." },
+            },
+            required: ["name"],
         },
     },
     {
@@ -1991,6 +2041,36 @@ export async function handleSchedulerToolCall(
                         cards: result.board.cards.map((card: any) => summarizeCockpitTodo(result.board, card)),
                     },
                 });
+            }
+
+            case "cockpit_save_label_definition": {
+                const name = ensureString(args.name, "name");
+                const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
+                const result = saveCockpitTodoLabelDefinition(context.workspaceRoot, { name, color });
+                config.cockpitBoard = result.board;
+                return textResponse({ message: `Label definition '${name}' saved.` });
+            }
+
+            case "cockpit_delete_label_definition": {
+                const name = ensureString(args.name, "name");
+                const board = deleteCockpitTodoLabelDefinition(context.workspaceRoot, name);
+                config.cockpitBoard = board;
+                return textResponse({ message: `Label definition '${name}' removed.` });
+            }
+
+            case "cockpit_save_flag_definition": {
+                const name = ensureString(args.name, "name");
+                const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
+                const result = saveCockpitFlagDefinition(context.workspaceRoot, { name, color });
+                config.cockpitBoard = result.board;
+                return textResponse({ message: `Flag definition '${name}' saved.` });
+            }
+
+            case "cockpit_delete_flag_definition": {
+                const name = ensureString(args.name, "name");
+                const board = deleteCockpitFlagDefinition(context.workspaceRoot, name);
+                config.cockpitBoard = board;
+                return textResponse({ message: `Flag definition '${name}' removed.` });
             }
 
             case "research_list_profiles": {

@@ -145,6 +145,54 @@ function upsertLabelDefinitionInBoard(
   return { board: nextBoard, label };
 }
 
+function upsertFlagDefinitionInBoard(
+  board: CockpitBoard,
+  input: UpsertCockpitLabelDefinitionInput,
+): { board: CockpitBoard; label: CockpitLabelDefinition | undefined } {
+  const name = normalizeOptionalString(input.name);
+  if (!name) {
+    return {
+      board: cloneBoard(board),
+      label: undefined,
+    };
+  }
+
+  const nextBoard = cloneBoard(board);
+  const timestamp = nowIso();
+  const key = normalizeLabelKey(name);
+  const nextCatalog = Array.isArray(nextBoard.flagCatalog)
+    ? nextBoard.flagCatalog.slice()
+    : [];
+  const existingIndex = nextCatalog.findIndex((entry) => entry.key === key);
+  const label: CockpitLabelDefinition = existingIndex >= 0
+    ? {
+      ...nextCatalog[existingIndex],
+      name,
+      color: normalizeOptionalString(input.color)
+        ?? nextCatalog[existingIndex].color,
+      updatedAt: timestamp,
+    }
+    : {
+      name,
+      key,
+      color: normalizeOptionalString(input.color) ?? "var(--vscode-badge-background)",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+  if (existingIndex >= 0) {
+    nextCatalog[existingIndex] = label;
+  } else {
+    nextCatalog.push(label);
+  }
+
+  nextBoard.flagCatalog = nextCatalog.sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+  touchBoard(nextBoard, timestamp);
+  return { board: nextBoard, label };
+}
+
 function archiveOutcomeToBucketKey(
   outcome: CockpitArchiveOutcome,
 ): keyof NonNullable<CockpitBoard["archives"]> {
@@ -355,7 +403,9 @@ export function updateTodoInBoard(
     todo.labels = normalizeStringList(updates.labels);
   }
   if (updates.flags) {
-    todo.flags = normalizeStringList(updates.flags);
+    // Single-value: only keep the first flag
+    const firstFlag = normalizeStringList(updates.flags)[0];
+    todo.flags = firstFlag ? [firstFlag] : [];
   }
   if (updates.taskId !== undefined) {
     todo.taskId = normalizeOptionalString(updates.taskId ?? undefined);
@@ -525,7 +575,7 @@ export function ensureTaskTodosInBoard(
       dueAt: undefined,
       status: "active",
       labels: normalizeStringList(task.labels ?? []).concat(["scheduled-task"]),
-      flags: [task.enabled === false ? "task-disabled" : "task-enabled"],
+      flags: [],
       comments: task.lastError
         ? [{
           id: createId("comment"),
@@ -641,6 +691,30 @@ export function deleteCockpitTodoLabelDefinition(
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
   const key = normalizeLabelKey(name);
   nextBoard.labelCatalog = (nextBoard.labelCatalog ?? []).filter(
+    (entry) => entry.key !== key,
+  );
+  touchBoard(nextBoard);
+  return persistBoard(workspaceRoot, nextBoard);
+}
+
+export function saveCockpitFlagDefinition(
+  workspaceRoot: string,
+  input: UpsertCockpitLabelDefinitionInput,
+): { board: CockpitBoard; label: CockpitLabelDefinition | undefined } {
+  const result = upsertFlagDefinitionInBoard(getCockpitBoard(workspaceRoot), input);
+  return {
+    board: persistBoard(workspaceRoot, result.board),
+    label: result.label,
+  };
+}
+
+export function deleteCockpitFlagDefinition(
+  workspaceRoot: string,
+  name: string,
+): CockpitBoard {
+  const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  const key = normalizeLabelKey(name);
+  nextBoard.flagCatalog = (nextBoard.flagCatalog ?? []).filter(
     (entry) => entry.key !== key,
   );
   touchBoard(nextBoard);

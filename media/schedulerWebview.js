@@ -259,6 +259,7 @@
   var draggingTodoId = null;
   var currentTodoLabels = [];
   var selectedTodoLabelName = "";
+  var currentTodoFlag = "";
   var pendingAgentValue = "";
   var pendingModelValue = "";
   var pendingTemplatePath = "";
@@ -370,7 +371,9 @@
   var todoLabelAddBtn = document.getElementById("todo-label-add-btn");
   var todoLabelColorSaveBtn = document.getElementById("todo-label-color-save-btn");
   var todoLabelCatalog = document.getElementById("todo-label-catalog");
-  var todoFlagsInput = document.getElementById("todo-flags-input");
+  var todoFlagNameInput = document.getElementById("todo-flag-name-input");
+  var todoFlagColorInput = document.getElementById("todo-flag-color-input");
+  var todoFlagAddBtn = document.getElementById("todo-flag-add-btn");
   var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
   var todoSaveBtn = document.getElementById("todo-save-btn");
   var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
@@ -476,6 +479,35 @@
   var draggedJobId = "";
   var draggingSectionId = null;
   var jobsSidebarHidden = false;
+
+  // Edit-mode tracking for flag and label catalog
+  var editingFlagOriginalName = "";
+  var editingLabelOriginalName = "";
+
+  // Collapsed sections — persisted in localStorage
+  var collapsedSections = (function () {
+    try { return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections") || "[]")); }
+    catch (e) { return new Set(); }
+  })();
+  function toggleSectionCollapsed(sectionId) {
+    if (collapsedSections.has(sectionId)) { collapsedSections.delete(sectionId); }
+    else { collapsedSections.add(sectionId); }
+    try { localStorage.setItem("cockpit-collapsed-sections", JSON.stringify(Array.from(collapsedSections))); }
+    catch (e) {}
+  }
+
+  // Always apply column CSS vars from saved width or slider default
+  (function () {
+    var saved = localStorage.getItem("cockpit-col-width");
+    var w = saved ? Number(saved) : (cockpitColSlider ? Number(cockpitColSlider.value) : 240);
+    if (w >= 180 && w <= 520) {
+      document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+      document.documentElement.style.setProperty("--cockpit-col-font", Math.round(10 + (w - 180) * 3 / 340) + "px");
+      document.documentElement.style.setProperty("--cockpit-card-pad", Math.round(8 + (w - 180) * 6 / 340) + "px");
+      document.documentElement.style.setProperty("--cockpit-card-gap", Math.round(4 + (w - 180) * 4 / 340) + "px");
+      if (cockpitColSlider && !saved) cockpitColSlider.value = String(w);
+    }
+  })();
   var isCreatingResearchProfile = false;
   var researchFormDirty = false;
   var loadedResearchProfileId = "";
@@ -1085,6 +1117,30 @@
       : [];
   }
 
+  function getFlagCatalog() {
+    return cockpitBoard && Array.isArray(cockpitBoard.flagCatalog)
+      ? cockpitBoard.flagCatalog.slice()
+      : [];
+  }
+
+  function getFlagDefinition(flagName) {
+    var key = normalizeTodoLabelKey(flagName);
+    var catalog = getFlagCatalog();
+    for (var index = 0; index < catalog.length; index += 1) {
+      if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+        return catalog[index];
+      }
+    }
+    return null;
+  }
+
+  function getFlagColor(flagName) {
+    var definition = getFlagDefinition(flagName);
+    return definition && definition.color
+      ? definition.color
+      : "#f59e0b";
+  }
+
   function getLabelDefinition(label) {
     var key = normalizeTodoLabelKey(label);
     var catalog = getLabelCatalog();
@@ -1126,10 +1182,23 @@
       ? "var(--vscode-focusBorder)"
       : "var(--vscode-panel-border)";
     return (
-      '<span data-label-chip="' + escapeAttr(label) + '" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';font-size:11px;line-height:1.4;">' +
+      '<span data-label-chip="' + escapeAttr(label) + '" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';font-size:inherit;line-height:1.4;">' +
       '<button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + '</button>' +
       (removable
         ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">×</button>'
+        : "") +
+      '</span>'
+    );
+  }
+
+  function renderFlagChip(flagName, removable) {
+    var color = getFlagColor(flagName);
+    var textColor = getReadableTextColor(color);
+    return (
+      '<span data-flag-chip="' + escapeAttr(flagName) + '" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-size:inherit;line-height:1.4;font-weight:600;">' +
+      '<span>' + escapeHtml(flagName) + '</span>' +
+      (removable
+        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="Clear flag">×</button>'
         : "") +
       '</span>'
     );
@@ -1247,14 +1316,27 @@
     if (!label) {
       return;
     }
-    // Capture the currently-chosen color before resetting the editor
+    var prevName = editingLabelOriginalName;
+    editingLabelOriginalName = "";
     var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
+    todoLabelsInput.value = "";
+    if (prevName) {
+      // Edit mode: update catalog definition only, don't add to current todo
+      if (normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(label)) {
+        vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });
+      }
+      if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+        vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, color: pendingColor } });
+      }
+      if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+      syncTodoLabelEditor();
+      return;
+    }
+    // Normal add: add to current todo labels
     setTodoEditorLabels(currentTodoLabels.concat([label]), true);
     selectedTodoLabelName = label;
-    todoLabelsInput.value = "";
     if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
     syncTodoLabelEditor();
-    // Persist the chosen color for this label immediately
     if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
       vscode.postMessage({
         type: "saveTodoLabelDefinition",
@@ -1271,6 +1353,57 @@
       true,
     );
     syncTodoLabelEditor();
+  }
+
+  function syncFlagEditor() {
+    var todoflagCurrentEl = document.getElementById("todo-flag-current");
+    var todoFlagPickerEl = document.getElementById("todo-flag-picker");
+    if (todoflagCurrentEl) {
+      if (currentTodoFlag) {
+        todoflagCurrentEl.innerHTML = renderFlagChip(currentTodoFlag, true);
+      } else {
+        todoflagCurrentEl.innerHTML = '<span class="note">No flag set.</span>';
+      }
+    }
+    if (todoFlagPickerEl) {
+      var catalog = getFlagCatalog();
+      if (catalog.length === 0) {
+        todoFlagPickerEl.innerHTML = "";
+      } else {
+        todoFlagPickerEl.innerHTML = catalog.map(function (entry) {
+          var bg = entry.color || "#f59e0b";
+          var fg = getReadableTextColor(bg);
+          var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
+          var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
+          return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
+            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Set as flag">' + escapeHtml(entry.name) + '</button>'
+            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;font-size:11px;opacity:0.55;line-height:1;padding:0 1px;" title="Edit flag">✎</button>'
+            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="Delete flag">×</button>'
+            + '</span>';
+        }).join("");
+      }
+    }
+  }
+
+  function addFlagFromInput() {
+    var todoFlagNameInput = document.getElementById("todo-flag-name-input");
+    var todoFlagColorInput = document.getElementById("todo-flag-color-input");
+    if (!todoFlagNameInput) return;
+    var name = normalizeTodoLabel(todoFlagNameInput.value);
+    if (!name) return;
+    var color = todoFlagColorInput ? todoFlagColorInput.value : "#f59e0b";
+    var prevName = editingFlagOriginalName;
+    editingFlagOriginalName = "";
+    todoFlagNameInput.value = "";
+    if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(name)) {
+      vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });
+      if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+        currentTodoFlag = name;
+      }
+    }
+    vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name: name, color: color } });
+    if (!prevName) { currentTodoFlag = name; }
+    syncFlagEditor();
   }
 
   function toLocalDateTimeInput(value) {
@@ -1319,6 +1452,17 @@
       case "medium": return 2;
       case "low": return 1;
       default: return 0;
+    }
+  }
+
+  function getTodoPriorityCardBg(priority, isSelected) {
+    if (isSelected) return "var(--vscode-list-activeSelectionBackground)";
+    switch (priority) {
+      case "urgent": return "color-mix(in srgb, #ef4444 12%, var(--vscode-sideBar-background))";
+      case "high":   return "color-mix(in srgb, #f59e0b 12%, var(--vscode-sideBar-background))";
+      case "medium": return "color-mix(in srgb, #3b82f6 12%, var(--vscode-sideBar-background))";
+      case "low":    return "color-mix(in srgb, #6b7280 12%, var(--vscode-sideBar-background))";
+      default:       return "color-mix(in srgb, #9ca3af 6%, var(--vscode-sideBar-background))";
     }
   }
 
@@ -1517,6 +1661,7 @@
       todoLabelFilter.value = filters.labels[0] || "";
     }
     if (todoPriorityFilter) {
+      var PRIORITY_FILTER_STYLES = { "": "", none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
       todoPriorityFilter.innerHTML = [
         { value: "", label: strings.boardAllPriorities || "All priorities" },
         { value: "none", label: getTodoPriorityLabel("none") },
@@ -1525,7 +1670,9 @@
         { value: "high", label: getTodoPriorityLabel("high") },
         { value: "urgent", label: getTodoPriorityLabel("urgent") },
       ].map(function (option) {
-        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+        var optStyle = PRIORITY_FILTER_STYLES[option.value] || "";
+        var style = optStyle ? ' style="' + optStyle + '"' : "";
+        return '<option value="' + escapeAttr(option.value) + '"' + style + '>' + escapeHtml(option.label) + '</option>';
       }).join("");
       todoPriorityFilter.value = filters.priorities[0] || "";
     }
@@ -1600,7 +1747,8 @@
     if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? (selectedTodo.description || "") : "";
     if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : "";
     if (todoLabelsInput) todoLabelsInput.value = "";
-    if (todoFlagsInput) todoFlagsInput.value = isEditingTodo ? (selectedTodo.flags || []).join(", ") : "";
+    currentTodoFlag = isEditingTodo ? ((selectedTodo.flags || [])[0] || "") : "";
+    syncFlagEditor();
     syncTodoLabelEditor();
 
     if (todoDetailStatus) {
@@ -1622,8 +1770,11 @@
     }
 
     if (todoPriorityInput) {
+      var PRIORITY_EDIT_STYLES = { none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
       todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function (priority) {
-        return '<option value="' + escapeAttr(priority) + '">' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
+        var optStyle = PRIORITY_EDIT_STYLES[priority] || "";
+        var style = optStyle ? ' style="' + optStyle + '"' : "";
+        return '<option value="' + escapeAttr(priority) + '"' + style + '>' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
       }).join("");
       todoPriorityInput.value = isEditingTodo ? (selectedTodo.priority || "none") : "none";
     }
@@ -1764,9 +1915,10 @@
           return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
         }), filters);
         return (
-          '<section class="board-column" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;gap:12px;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,300px);min-width:var(--cockpit-col-width,300px);max-height:72vh;overflow:hidden;">' +
-          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '">' +
-          '<strong>' + escapeHtml(section.title || "Section") + '</strong>' +
+          '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;">' +
+          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px)">' +
+          '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + (collapsedSections.has(section.id) ? 'Expand' : 'Collapse') + ' section">&#9660;</button>' +
+          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || "Section") + '</strong>' +
           '<div class="cockpit-section-actions">' +
           '<span class="note">' + String(sectionCards.length) + '</span>' +
           '<button type="button" class="btn-icon" data-section-move="' + escapeAttr(section.id) + '" data-direction="left" title="Move left">&#8592;</button>' +
@@ -1775,13 +1927,19 @@
           '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="Delete section">&#215;</button>' +
           '</div>' +
           '</div>' +
-          '<div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-right:4px;min-height:120px;">' +
+          '<div class="section-body-wrapper' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '">' +
+          '<div class="section-body-inner" style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);">'+
+          '<div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">'  +
           (sectionCards.length
             ? sectionCards.map(function (card) {
               var isSelected = card.id === selectedTodoId;
+              var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
+              var flagMarkup = cardFlag
+                ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + renderFlagChip(cardFlag, false) + '</div>'
+                : "";
               var labelMarkup = Array.isArray(card.labels) && card.labels.length
-                ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.map(function (label) {
-                  return renderLabelChip(label, false, false);
+                ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
+                  return renderLabelChip(label, false, false).replace('<span ', '<span data-label-index="' + idx + '" ');
                 }).join("") + '</div>'
                 : "";
               var latestComment = Array.isArray(card.comments) && card.comments.length
@@ -1807,19 +1965,17 @@
               var canFinalize = !card.archived && (card.status || "active") === "ready";
               var canDelete = !card.archived;
               return (
-                '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:' + (isSelected ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-sideBar-background)') + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
-                '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
-                '<strong style="line-height:1.35;">' + escapeHtml(card.title || "Untitled") + '</strong>' +
+                '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
+                '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
+                '<strong style="line-height:1.3;">' + escapeHtml(card.title || "Untitled") + '</strong>' +
                 '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
                 '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
                 '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
+                flagMarkup +
                 labelMarkup +
                 latestCommentMarkup +
-                (Array.isArray(card.flags) && card.flags.length
-                  ? '<div class="note" data-card-meta>' + escapeHtml(card.flags.join(" • ")) + '</div>'
-                  : '') +
-                '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">' +
+                '<div style="display:flex;justify-content:flex-end;gap:4px;flex-wrap:wrap;">' +
                 '<button type="button" class="btn-secondary todo-card-edit" data-todo-edit="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardEditTodo || 'Edit') + '</button>' +
                 (canApprove
                   ? '<button type="button" class="btn-secondary todo-card-approve" data-todo-approve="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardApproveTodo || 'Approve') + '</button>'
@@ -1836,6 +1992,8 @@
             }).join("")
             : '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>') +
           '</div>' +
+          '</div>' +
+          '</div>' +
           '</section>'
         );
       }).join("") +
@@ -1848,6 +2006,21 @@
 
     if (boardColumns) {
       boardColumns.onclick = function (event) {
+        var collapseBtn = event.target && event.target.closest ? event.target.closest("[data-section-collapse]") : null;
+        if (collapseBtn) {
+          event.stopPropagation();
+          var sectionId = collapseBtn.getAttribute("data-section-collapse");
+          toggleSectionCollapsed(sectionId);
+          var sectionEl = collapseBtn.closest ? collapseBtn.closest("[data-section-id]") : null;
+          var bodyWrapper = sectionEl ? sectionEl.querySelector(".section-body-wrapper") : null;
+          var isNowCollapsed = collapsedSections.has(sectionId);
+          collapseBtn.classList.toggle("collapsed", isNowCollapsed);
+          collapseBtn.title = isNowCollapsed ? "Expand section" : "Collapse section";
+          if (bodyWrapper) { bodyWrapper.classList.toggle("collapsed", isNowCollapsed); }
+          if (sectionEl) { sectionEl.classList.toggle("is-collapsed", isNowCollapsed); }
+          return;
+        }
+
         var editButton = event.target && event.target.closest ? event.target.closest("[data-todo-edit]") : null;
         var approveButton = event.target && event.target.closest ? event.target.closest("[data-todo-approve]") : null;
         var finalizeButton = event.target && event.target.closest ? event.target.closest("[data-todo-finalize]") : null;
@@ -1948,6 +2121,8 @@
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", draggingSectionId || "");
           }
+          var sectionEl = sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null;
+          if (sectionEl) { requestAnimationFrame(function () { sectionEl.classList.add("section-dragging"); }); }
           return;
         }
         var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
@@ -1960,6 +2135,7 @@
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", draggingTodoId || "");
         }
+        requestAnimationFrame(function () { card.classList.add("todo-dragging"); });
       };
       boardColumns.ondragover = function (event) {
         if (draggingSectionId) {
@@ -1976,12 +2152,28 @@
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
         if (section && draggingTodoId) {
           event.preventDefault();
+          var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
+          document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
+          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
+          if (targetCard && targetCard.getAttribute("data-todo-id") !== draggingTodoId) {
+            targetCard.classList.add("todo-drop-target");
+          } else if (!targetCard) {
+            section.classList.add("section-drag-over");
+          }
+        }
+      };
+      boardColumns.ondragleave = function (event) {
+        var related = event.relatedTarget;
+        if (!related || !boardColumns.contains(related)) {
+          document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
+          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
         }
       };
       boardColumns.ondrop = function (event) {
         if (draggingSectionId) {
           var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
           document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
+          document.querySelectorAll("[data-section-id].section-dragging").forEach(function (el) { el.classList.remove("section-dragging"); });
           if (!section) { draggingSectionId = null; return; }
           event.preventDefault();
           var targetSectionId = section.getAttribute("data-section-id");
@@ -2005,6 +2197,8 @@
         }
         event.preventDefault();
         var targetIndex = targetCard ? Number(targetCard.getAttribute("data-order") || 0) : Number(section.getAttribute("data-card-count") || 0);
+        document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
+        document.querySelectorAll("[data-todo-id].todo-dragging").forEach(function (el) { el.classList.remove("todo-dragging"); });
         vscode.postMessage({
           type: "moveTodo",
           todoId: draggingTodoId,
@@ -2015,6 +2209,9 @@
       };
       boardColumns.ondragend = function () {
         document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
+        document.querySelectorAll("[data-section-id].section-dragging").forEach(function (el) { el.classList.remove("section-dragging"); });
+        document.querySelectorAll("[data-todo-id].todo-dragging").forEach(function (el) { el.classList.remove("todo-dragging"); });
+        document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
         draggingTodoId = null;
         draggingSectionId = null;
       };
@@ -2068,6 +2265,8 @@
         document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
         var pad = Math.round(8 + (w - 180) * 6 / 340);
         document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
+        var gap = Math.round(4 + (w - 180) * 4 / 340);
+        document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
         try { localStorage.setItem("cockpit-col-width", w); } catch (e) {}
       };
     }
@@ -2134,7 +2333,7 @@
           sectionId: todoSectionInput.value || "",
           priority: todoPriorityInput.value || "none",
           labels: currentTodoLabels.slice(),
-          flags: parseTagList(todoFlagsInput ? todoFlagsInput.value : ""),
+          flags: currentTodoFlag ? [currentTodoFlag] : [],
           taskId: todoLinkedTaskSelect && todoLinkedTaskSelect.value ? todoLinkedTaskSelect.value : null,
         };
         if (selectedTodoId) {
@@ -2266,8 +2465,22 @@
     }
     if (todoLabelCatalog) {
       todoLabelCatalog.onclick = function (event) {
+        var editBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-edit]") : null;
         var deleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-delete]") : null;
         var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
+        if (editBtn) {
+          var eName = editBtn.getAttribute("data-label-catalog-edit") || "";
+          var eCatalog = getLabelCatalog();
+          var eEntry = null;
+          for (var ei = 0; ei < eCatalog.length; ei++) {
+            if (normalizeTodoLabelKey(eCatalog[ei].name) === normalizeTodoLabelKey(eName)) { eEntry = eCatalog[ei]; break; }
+          }
+          if (todoLabelsInput) todoLabelsInput.value = eEntry ? eEntry.name : eName;
+          if (todoLabelColorInput && eEntry && eEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(eEntry.color)) todoLabelColorInput.value = eEntry.color;
+          editingLabelOriginalName = eName;
+          if (todoLabelsInput) todoLabelsInput.focus();
+          return;
+        }
         if (deleteBtn) {
           var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
           if (!name) return;
@@ -2296,6 +2509,74 @@
         }
       };
     }
+    if (todoFlagAddBtn) {
+      todoFlagAddBtn.onclick = function () {
+        addFlagFromInput();
+      };
+    }
+    if (todoFlagNameInput) {
+      todoFlagNameInput.onkeydown = function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addFlagFromInput();
+        }
+      };
+    }
+    // Flag current chip click (clear)
+    document.addEventListener("click", function (event) {
+      var removeBtn = event.target && event.target.closest ? event.target.closest("[data-flag-chip-remove]") : null;
+      if (removeBtn) {
+        currentTodoFlag = "";
+        syncFlagEditor();
+        return;
+      }
+      var catalogSelect = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-select]") : null;
+      if (catalogSelect) {
+        var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
+        if (!flagName) return;
+        currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
+        syncFlagEditor();
+        return;
+      }
+      var catalogEdit = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-edit]") : null;
+      if (catalogEdit) {
+        var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
+        var feCatalog = getFlagCatalog();
+        var feEntry = null;
+        for (var fei = 0; fei < feCatalog.length; fei++) {
+          if (normalizeTodoLabelKey(feCatalog[fei].name) === normalizeTodoLabelKey(feName)) { feEntry = feCatalog[fei]; break; }
+        }
+        var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+        var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+        if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
+        if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
+        editingFlagOriginalName = feName;
+        if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
+        return;
+      }
+      var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
+      if (catalogDelete) {
+        var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
+        if (!flagName) return;
+        if (catalogDelete.getAttribute("data-confirming")) {
+          catalogDelete.removeAttribute("data-confirming");
+          catalogDelete.textContent = "×";
+          if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(flagName)) {
+            currentTodoFlag = "";
+          }
+          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: flagName } });
+        } else {
+          catalogDelete.setAttribute("data-confirming", "1");
+          catalogDelete.textContent = "?";
+          setTimeout(function () {
+            if (catalogDelete.getAttribute("data-confirming")) {
+              catalogDelete.removeAttribute("data-confirming");
+              catalogDelete.textContent = "×";
+            }
+          }, 2500);
+        }
+      }
+    });
   }
 
   function getCreateTabButton() {
@@ -5443,6 +5724,7 @@
             updatedAt: "",
           };
           renderCockpitBoard();
+          syncFlagEditor();
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)
