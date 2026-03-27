@@ -391,7 +391,7 @@ export async function sendTelegramNotificationTest(
     lines.push(prefix, "");
   }
   lines.push(
-    "Telegram test from Copilot Scheduler.",
+    "Telegram test from Copilot Cockpit.",
     `Workspace: ${path.basename(workspaceRoot)}`,
     "This test confirms that the Stop hook can reach your bot.",
   );

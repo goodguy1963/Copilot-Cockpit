@@ -3,6 +3,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import {
+  COCKPIT_TODO_SKILL_RELATIVE_PATH,
+  ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
   SCHEDULER_SKILL_RELATIVE_PATH,
 } from "../../skillBootstrap";
@@ -27,7 +29,7 @@ suite("Skill Bootstrap Tests", () => {
       fs.mkdirSync(path.dirname(bundledSkillPath), { recursive: true });
       fs.writeFileSync(
         bundledSkillPath,
-        "---\nname: scheduler-mcp-agent\n---\n\ncontent\n",
+        "---\nname: cockpit-scheduler-agent\n---\n\ncontent\n",
         "utf8",
       );
 
@@ -42,14 +44,14 @@ suite("Skill Bootstrap Tests", () => {
           path.join(workspaceRootA, SCHEDULER_SKILL_RELATIVE_PATH),
           "utf8",
         ),
-        "---\nname: scheduler-mcp-agent\n---\n\ncontent\n",
+        "---\nname: cockpit-scheduler-agent\n---\n\ncontent\n",
       );
       assert.strictEqual(
         fs.readFileSync(
           path.join(workspaceRootB, SCHEDULER_SKILL_RELATIVE_PATH),
           "utf8",
         ),
-        "---\nname: scheduler-mcp-agent\n---\n\ncontent\n",
+        "---\nname: cockpit-scheduler-agent\n---\n\ncontent\n",
       );
     } finally {
       for (const dir of [extensionRoot, workspaceRootA, workspaceRootB]) {
@@ -98,6 +100,55 @@ suite("Skill Bootstrap Tests", () => {
       assert.strictEqual(
         fs.readFileSync(workspaceSkillPath, "utf8"),
         "workspace-custom\n",
+      );
+    } finally {
+      for (const dir of [extensionRoot, workspaceRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("creates the cockpit todo skill in each workspace root when missing", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-cockpit-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-cockpit-"),
+    );
+
+    try {
+      const bundledSkillPath = path.join(
+        extensionRoot,
+        COCKPIT_TODO_SKILL_RELATIVE_PATH,
+      );
+      fs.mkdirSync(path.dirname(bundledSkillPath), { recursive: true });
+      fs.writeFileSync(
+        bundledSkillPath,
+        "---\nname: cockpit-todo-agent\n---\n\nboard skill\n",
+        "utf8",
+      );
+
+      const created = await ensureCockpitTodoSkillForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      assert.strictEqual(created.length, 1);
+      assert.strictEqual(
+        fs.readFileSync(
+          path.join(workspaceRoot, COCKPIT_TODO_SKILL_RELATIVE_PATH),
+          "utf8",
+        ),
+        "---\nname: cockpit-todo-agent\n---\n\nboard skill\n",
       );
     } finally {
       for (const dir of [extensionRoot, workspaceRoot]) {

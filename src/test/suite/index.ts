@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Test Suite Index
+ * Copilot Cockpit - Test Suite Index
  * Mocha configuration and test discovery
  */
 

@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Type Definitions
+ * Copilot Cockpit - Type Definitions
  */
 
 /**
@@ -170,8 +170,373 @@ export interface SchedulerWorkspaceConfig {
   /** Job folders */
   jobFolders?: JobFolder[];
 
+  /** Local-only cockpit board state kept in scheduler.private.json */
+  cockpitBoard?: CockpitBoard;
+
   /** Telegram stop-notification config */
   telegramNotification?: TelegramNotificationConfig;
+}
+
+export type CockpitCommentAuthor = "user" | "system";
+
+export type CockpitCommentSource =
+  | "human-form"
+  | "bot-mcp"
+  | "bot-manual"
+  | "system-event";
+
+export type CockpitTodoPriority =
+  | "none"
+  | "low"
+  | "medium"
+  | "high"
+  | "urgent";
+
+export type CockpitTodoSortBy =
+  | "manual"
+  | "dueAt"
+  | "priority"
+  | "updatedAt"
+  | "createdAt";
+
+export type CockpitTodoSortDirection = "asc" | "desc";
+
+export type CockpitTodoStatus =
+  | "active"
+  | "ready"
+  | "completed"
+  | "rejected";
+
+export type CockpitArchiveOutcome =
+  | "completed-successfully"
+  | "rejected";
+
+export interface CockpitBoardSection {
+  /** Unique section identifier */
+  id: string;
+
+  /** Section title shown in the board column */
+  title: string;
+
+  /** Explicit sort order for drag/drop persistence */
+  order: number;
+
+  /** Optional accent color token */
+  color?: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+export interface CockpitTodoComment {
+  /** Unique comment identifier */
+  id: string;
+
+  /** User or system author */
+  author: CockpitCommentAuthor;
+
+  /** Comment body */
+  body: string;
+
+  /** Optional labels implied by the comment */
+  labels?: string[];
+
+  /** Whether the comment was added by a human form, MCP, bot edit, or system event */
+  source: CockpitCommentSource;
+
+  /** Stable chronological number inside a todo thread */
+  sequence: number;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Optional last edit timestamp */
+  updatedAt?: string;
+
+  /** Optional edit timestamp if the text changed after creation */
+  editedAt?: string;
+}
+
+export interface CockpitLabelDefinition {
+  /** Canonical label name shown in the UI */
+  name: string;
+
+  /** Normalized lookup key for autocomplete and dedupe */
+  key: string;
+
+  /** Accent color stored as a CSS-compatible token */
+  color: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+export interface CockpitTodoCard {
+  /** Unique card identifier */
+  id: string;
+
+  /** Short card title */
+  title: string;
+
+  /** Optional card detail text */
+  description?: string;
+
+  /** Section containing this card */
+  sectionId: string;
+
+  /** Explicit per-section ordering */
+  order: number;
+
+  /** Priority shown on the card */
+  priority: CockpitTodoPriority;
+
+  /** Optional due date for planning and review */
+  dueAt?: string;
+
+  /** Current planning workflow state */
+  status: CockpitTodoStatus;
+
+  /** Free-form labels used for workflow routing */
+  labels: string[];
+
+  /** Additional free-form flags for board filtering */
+  flags: string[];
+
+  /** Communication trail between user and system */
+  comments: CockpitTodoComment[];
+
+  /** Optional linked scheduler task */
+  taskId?: string;
+
+  /** Optional linked external or chat session identifier */
+  sessionId?: string;
+
+  /** Whether the card is archived */
+  archived?: boolean;
+
+  /** Archive bucket outcome when archived */
+  archiveOutcome?: CockpitArchiveOutcome;
+
+  /** Approval timestamp when moved into ready state */
+  approvedAt?: string;
+
+  /** Completion timestamp when finalized */
+  completedAt?: string;
+
+  /** Rejection timestamp when archived as rejected */
+  rejectedAt?: string;
+
+  /** Archive timestamp for completed or rejected records */
+  archivedAt?: string;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+export interface CockpitBoardFilters {
+  /** Free-text search term */
+  searchText?: string;
+
+  /** Selected label filters */
+  labels: string[];
+
+  /** Selected priority filters */
+  priorities: CockpitTodoPriority[];
+
+  /** Selected status filters */
+  statuses: CockpitTodoStatus[];
+
+  /** Selected archive outcome filters */
+  archiveOutcomes: CockpitArchiveOutcome[];
+
+  /** Selected flag filters */
+  flags: string[];
+
+  /** Optional focused section */
+  sectionId?: string;
+
+  /** Active sort mode */
+  sortBy: CockpitTodoSortBy;
+
+  /** Active sort direction */
+  sortDirection: CockpitTodoSortDirection;
+
+  /** Whether archived cards should remain visible */
+  showArchived: boolean;
+}
+
+export interface CockpitBoard {
+  /** Schema version for future migrations */
+  version: number;
+
+  /** Editable board sections */
+  sections: CockpitBoardSection[];
+
+  /** Cards stored across all sections */
+  cards: CockpitTodoCard[];
+
+  /** Shared label palette for autocomplete and consistent colors */
+  labelCatalog?: CockpitLabelDefinition[];
+
+  /** Archived cards grouped by outcome */
+  archives?: {
+    completedSuccessfully: CockpitTodoCard[];
+    rejected: CockpitTodoCard[];
+  };
+
+  /** Persisted board filters */
+  filters?: CockpitBoardFilters;
+
+  /** Last update timestamp */
+  updatedAt: string;
+}
+
+export interface CreateCockpitTodoInput {
+  /** Optional todo identifier override */
+  id?: string;
+
+  /** Todo title */
+  title: string;
+
+  /** Optional detail text */
+  description?: string;
+
+  /** Optional target section */
+  sectionId?: string;
+
+  /** Optional due date */
+  dueAt?: string;
+
+  /** Optional priority */
+  priority?: CockpitTodoPriority;
+
+  /** Optional labels */
+  labels?: string[];
+
+  /** Optional flags */
+  flags?: string[];
+
+  /** Optional initial comment */
+  comment?: string;
+
+  /** Optional initial comment author */
+  author?: CockpitCommentAuthor;
+
+  /** Optional initial comment source */
+  commentSource?: CockpitCommentSource;
+
+  /** Optional initial workflow state */
+  status?: CockpitTodoStatus;
+
+  /** Optional linked task identifier */
+  taskId?: string;
+
+  /** Optional linked chat/session identifier */
+  sessionId?: string;
+}
+
+export interface UpdateCockpitTodoInput {
+  /** Optional title update */
+  title?: string;
+
+  /** Optional description update; null clears the field */
+  description?: string | null;
+
+  /** Optional section update */
+  sectionId?: string;
+
+  /** Optional due date update; null clears the field */
+  dueAt?: string | null;
+
+  /** Optional priority update */
+  priority?: CockpitTodoPriority;
+
+  /** Optional status update */
+  status?: CockpitTodoStatus;
+
+  /** Optional labels update */
+  labels?: string[];
+
+  /** Optional flags update */
+  flags?: string[];
+
+  /** Optional order override */
+  order?: number;
+
+  /** Optional task link update; null clears the field */
+  taskId?: string | null;
+
+  /** Optional session link update; null clears the field */
+  sessionId?: string | null;
+
+  /** Optional archive state update */
+  archived?: boolean;
+
+  /** Optional archive outcome update */
+  archiveOutcome?: CockpitArchiveOutcome | null;
+}
+
+export interface AddCockpitTodoCommentInput {
+  /** Comment body */
+  body: string;
+
+  /** Optional author */
+  author?: CockpitCommentAuthor;
+
+  /** Optional comment source */
+  source?: CockpitCommentSource;
+
+  /** Optional comment labels */
+  labels?: string[];
+}
+
+export interface UpdateCockpitBoardFiltersInput {
+  /** Free-text search term */
+  searchText?: string;
+
+  /** Selected labels */
+  labels?: string[];
+
+  /** Selected priorities */
+  priorities?: CockpitTodoPriority[];
+
+  /** Selected statuses */
+  statuses?: CockpitTodoStatus[];
+
+  /** Selected archive outcomes */
+  archiveOutcomes?: CockpitArchiveOutcome[];
+
+  /** Selected flags */
+  flags?: string[];
+
+  /** Optional focused section */
+  sectionId?: string | null;
+
+  /** Whether archived cards should stay visible */
+  showArchived?: boolean;
+
+  /** Active sort mode */
+  sortBy?: CockpitTodoSortBy;
+
+  /** Active sort direction */
+  sortDirection?: CockpitTodoSortDirection;
+}
+
+export interface UpsertCockpitLabelDefinitionInput {
+  /** Human-readable label name */
+  name: string;
+
+  /** Optional shared chip color */
+  color?: string | null;
 }
 
 /**
@@ -219,7 +584,7 @@ export interface TelegramNotificationView {
 }
 
 /**
- * Input payload from the Telegram tab.
+ * Input payload from the Settings tab.
  */
 export interface SaveTelegramNotificationInput {
   /** Whether Stop-hook notifications should be enabled */
@@ -805,7 +1170,24 @@ export interface TaskAction {
   | "stopResearchRun"
   | "saveTelegramNotification"
   | "testTelegramNotification"
-  | "saveExecutionDefaults";
+  | "saveExecutionDefaults"
+  | "createTodo"
+  | "updateTodo"
+  | "deleteTodo"
+  | "approveTodo"
+  | "rejectTodo"
+  | "finalizeTodo"
+  | "archiveTodo"
+  | "moveTodo"
+  | "addTodoComment"
+  | "setTodoFilters"
+  | "saveTodoLabelDefinition"
+  | "linkTodoTask"
+  | "createTaskFromTodo"
+  | "addCockpitSection"
+  | "renameCockpitSection"
+  | "deleteCockpitSection"
+  | "moveCockpitSection";
 
   /** Task ID */
   taskId: string;
@@ -860,6 +1242,39 @@ export interface TaskAction {
 
   /** Default execution settings payload */
   executionDefaults?: Partial<ExecutionDefaultsView>;
+
+  /** Todo identifier */
+  todoId?: string;
+
+  /** Todo create/update payload */
+  todoData?: Partial<CreateCockpitTodoInput> | UpdateCockpitTodoInput;
+
+  /** Todo comment payload */
+  todoCommentData?: Partial<AddCockpitTodoCommentInput>;
+
+  /** Todo filter payload */
+  todoFilters?: Partial<UpdateCockpitBoardFiltersInput>;
+
+  /** Shared todo label definition payload */
+  todoLabelData?: UpsertCockpitLabelDefinitionInput;
+
+  /** Task identifier used for linking */
+  linkedTaskId?: string;
+
+  /** Target section for movement */
+  targetSectionId?: string;
+
+  /** Target order/index for movement */
+  targetOrder?: number;
+
+  /** Section identifier for cockpit section management */
+  sectionId?: string;
+
+  /** Section title for cockpit section management */
+  sectionTitle?: string;
+
+  /** Section move direction */
+  sectionDirection?: "left" | "right";
 }
 
 /**
@@ -958,9 +1373,26 @@ export type WebviewToExtensionMessage =
   | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
+  | { type: "createTodo"; data: CreateCockpitTodoInput }
+  | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }
+  | { type: "deleteTodo"; todoId: string }
+  | { type: "approveTodo"; todoId: string }
+  | { type: "rejectTodo"; todoId: string }
+  | { type: "finalizeTodo"; todoId: string }
+  | { type: "archiveTodo"; todoId: string; archived?: boolean }
+  | { type: "moveTodo"; todoId: string; sectionId?: string; targetIndex: number }
+  | { type: "addTodoComment"; todoId: string; data: AddCockpitTodoCommentInput }
+  | { type: "setTodoFilters"; data: UpdateCockpitBoardFiltersInput }
+  | { type: "saveTodoLabelDefinition"; data: UpsertCockpitLabelDefinitionInput }
+  | { type: "linkTodoTask"; todoId: string; taskId?: string }
+  | { type: "createTaskFromTodo"; todoId: string }
   | { type: "runTask"; taskId: string }
   | { type: "toggleTask"; taskId: string }
   | { type: "deleteTask"; taskId: string }
+  | { type: "addCockpitSection"; title: string }
+  | { type: "renameCockpitSection"; sectionId: string; title: string }
+  | { type: "deleteCockpitSection"; sectionId: string }
+  | { type: "moveCockpitSection"; sectionId: string; direction: "left" | "right" }
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }

@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Extension Tests
+ * Copilot Cockpit - Extension Tests
  */
 
 import * as assert from "assert";
@@ -42,19 +42,19 @@ suite("Extension Test Suite", () => {
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotScheduler.autoShowOnStartup",
+        "copilotCockpit.autoShowOnStartup",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotScheduler.defaultAgent",
+        "copilotCockpit.defaultAgent",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotScheduler.defaultModel",
+        "copilotCockpit.defaultModel",
       ),
     );
   });
@@ -63,6 +63,21 @@ suite("Extension Test Suite", () => {
     const commands = await vscode.commands.getCommands(true);
 
     const expectedCommands = [
+      "copilotCockpit.createTask",
+      "copilotCockpit.createTaskGui",
+      "copilotCockpit.listTasks",
+      "copilotCockpit.deleteTask",
+      "copilotCockpit.toggleTask",
+      "copilotCockpit.enableTask",
+      "copilotCockpit.disableTask",
+      "copilotCockpit.runNow",
+      "copilotCockpit.copyPrompt",
+      "copilotCockpit.editTask",
+      "copilotCockpit.duplicateTask",
+      "copilotCockpit.moveToCurrentWorkspace",
+      "copilotCockpit.openSettings",
+      "copilotCockpit.showVersion",
+      "copilotCockpit.setupMcp",
       "copilotScheduler.createTask",
       "copilotScheduler.createTaskGui",
       "copilotScheduler.listTasks",
@@ -84,14 +99,22 @@ suite("Extension Test Suite", () => {
       assert.ok(commands.includes(cmd), `Command ${cmd} should be registered`);
     }
 
-    // Verify no unexpected copilotScheduler commands exist (P6)
+    const registeredCockpitCommands = commands.filter((cmd) =>
+      cmd.startsWith("copilotCockpit."),
+    );
+    assert.strictEqual(
+      registeredCockpitCommands.length,
+      15,
+      `Expected 15 copilotCockpit commands but found ${registeredCockpitCommands.length}. Update expectedCommands when adding new commands.`,
+    );
+
     const registeredSchedulerCommands = commands.filter((cmd) =>
       cmd.startsWith("copilotScheduler."),
     );
     assert.strictEqual(
       registeredSchedulerCommands.length,
-      expectedCommands.length,
-      `Expected ${expectedCommands.length} copilotScheduler commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
+      15,
+      `Expected 15 copilotScheduler alias commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
     );
   });
 });

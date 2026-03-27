@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Test Runner
+ * Copilot Cockpit - Test Runner
  */
 
 import * as path from "path";

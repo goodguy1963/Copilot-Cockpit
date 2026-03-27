@@ -1,5 +1,7 @@
 import * as path from "path";
+import { normalizeCockpitBoard } from "./cockpitBoard";
 import { createScheduleHistorySnapshot } from "./scheduleHistory";
+import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
 import type { SchedulerWorkspaceConfig } from "./types";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
@@ -129,6 +131,9 @@ export function getActiveSchedulerReadPath(workspaceRoot: string): string {
 
 export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceConfig {
     const readPath = getActiveSchedulerReadPath(workspaceRoot);
+    const privateConfigPath = getPrivateSchedulerConfigPath(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+    );
     if (!fs.existsSync(readPath)) {
         return { tasks: [] };
     }
@@ -136,16 +141,32 @@ export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceCo
         let content = fs.readFileSync(readPath, "utf-8");
         content = content.replace(/^\uFEFF/, "");
         const parsed = JSON.parse(content);
+        const privateParsed = fs.existsSync(privateConfigPath)
+            ? JSON.parse(fs.readFileSync(privateConfigPath, "utf8").replace(/^\uFEFF/, ""))
+            : undefined;
         if (Array.isArray(parsed)) {
-            return { tasks: parsed };
+            return {
+                tasks: parsed,
+                cockpitBoard: privateParsed?.cockpitBoard
+                    ? normalizeCockpitBoard(privateParsed.cockpitBoard)
+                    : undefined,
+                telegramNotification: privateParsed?.telegramNotification && typeof privateParsed.telegramNotification === "object"
+                    ? privateParsed.telegramNotification
+                    : undefined,
+            };
         }
         if (parsed && Array.isArray(parsed.tasks)) {
             return {
                 ...parsed,
                 jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
                 jobFolders: Array.isArray(parsed.jobFolders) ? parsed.jobFolders : [],
+                cockpitBoard: privateParsed?.cockpitBoard
+                    ? normalizeCockpitBoard(privateParsed.cockpitBoard)
+                    : undefined,
                 telegramNotification: parsed.telegramNotification && typeof parsed.telegramNotification === "object"
-                    ? parsed.telegramNotification
+                    ? privateParsed?.telegramNotification && typeof privateParsed.telegramNotification === "object"
+                        ? privateParsed.telegramNotification
+                        : parsed.telegramNotification
                     : undefined,
             };
         }
@@ -161,6 +182,7 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
     const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
 
     if (!config || !Array.isArray(config.tasks)) {
         throw new Error("Invalid config format: 'tasks' array is missing.");
@@ -170,6 +192,9 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
         tasks: config.tasks,
         jobs: Array.isArray(config.jobs) ? config.jobs : [],
         jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+        cockpitBoard: config.cockpitBoard
+            ? normalizeCockpitBoard(config.cockpitBoard)
+            : undefined,
         telegramNotification: config.telegramNotification
             && typeof config.telegramNotification === "object"
             ? { ...config.telegramNotification }
@@ -177,7 +202,6 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
     };
 
     const publicConfig: SchedulerWorkspaceConfig = {
-        ...normalizedConfig,
         tasks: sanitizeSchedulerJsonValue(normalizedConfig.tasks),
         jobs: sanitizeSchedulerJsonValue(normalizedConfig.jobs ?? []),
         jobFolders: sanitizeSchedulerJsonValue(normalizedConfig.jobFolders ?? []),

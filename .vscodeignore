@@ -18,6 +18,8 @@ AGENTS.md
 !.github/skills/
 !.github/skills/scheduler-mcp-agent/
 !.github/skills/scheduler-mcp-agent/SKILL.md
+!.github/skills/cockpit-todo-agent/
+!.github/skills/cockpit-todo-agent/SKILL.md
 
 # Dev-only artifacts
 output_sessions/**

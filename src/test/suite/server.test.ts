@@ -8,7 +8,7 @@ function parseJsonText(result: any): any {
   return JSON.parse(result.content[0].text);
 }
 
-function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[] }) {
+function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[]; cockpitBoard?: any; telegramNotification?: any }) {
   let currentConfig = JSON.parse(
     JSON.stringify(initialConfig || { tasks: [], jobs: [], jobFolders: [] }),
   );
@@ -62,9 +62,167 @@ suite("Scheduler MCP Server Tests", () => {
     assert.ok(toolNames.includes("scheduler_list_jobs"));
     assert.ok(toolNames.includes("scheduler_create_job"));
     assert.ok(toolNames.includes("scheduler_compile_job_to_task"));
+    assert.ok(toolNames.includes("cockpit_get_board"));
+    assert.ok(toolNames.includes("cockpit_create_todo"));
+    assert.ok(toolNames.includes("cockpit_add_todo_comment"));
+    assert.ok(toolNames.includes("cockpit_update_todo"));
+    assert.ok(toolNames.includes("cockpit_delete_todo"));
+    assert.ok(toolNames.includes("cockpit_move_todo"));
+    assert.ok(toolNames.includes("cockpit_set_filters"));
+    assert.ok(toolNames.includes("cockpit_seed_todos_from_tasks"));
     assert.ok(toolNames.includes("research_list_profiles"));
     assert.ok(toolNames.includes("research_create_profile"));
     assert.ok(toolNames.includes("research_list_runs"));
+  });
+
+  test("cockpit tools create and comment on internal todos", async () => {
+    const server = createServerContext({
+      tasks: [],
+      jobs: [],
+      jobFolders: [],
+    });
+
+    const boardResponse = await handleSchedulerToolCall(
+      "cockpit_get_board",
+      {},
+      server.context as any,
+    );
+    const boardPayload = parseJsonText(boardResponse);
+
+    const createResponse = await handleSchedulerToolCall(
+      "cockpit_create_todo",
+      {
+        title: "Review launch blockers",
+        sectionId: boardPayload.board.sections[0].id,
+        priority: "high",
+        labels: ["needs-user-review"],
+        comment: "Waiting for GO.",
+      },
+      server.context as any,
+    );
+    const created = parseJsonText(createResponse);
+
+    const commentResponse = await handleSchedulerToolCall(
+      "cockpit_add_todo_comment",
+      {
+        todoId: created.todo.id,
+        author: "user",
+        body: "GO after the final check.",
+        labels: ["go"],
+      },
+      server.context as any,
+    );
+    const commented = parseJsonText(commentResponse);
+
+    assert.strictEqual(created.todo.title, "Review launch blockers");
+    assert.strictEqual(created.todo.commentCount, 1);
+    assert.strictEqual(commented.todo.commentCount, 2);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 1);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].comments.length, 2);
+  });
+
+  test("cockpit tools update move filter and delete todos", async () => {
+    const server = createServerContext({ tasks: [], jobs: [], jobFolders: [] });
+
+    const boardResponse = await handleSchedulerToolCall(
+      "cockpit_get_board",
+      {},
+      server.context as any,
+    );
+    const boardPayload = parseJsonText(boardResponse);
+    const unsortedId = boardPayload.board.sections[0].id;
+    const featuresId = boardPayload.board.sections[2].id;
+
+    const createResponse = await handleSchedulerToolCall(
+      "cockpit_create_todo",
+      {
+        title: "Shape Todo Cockpit",
+        sectionId: unsortedId,
+      },
+      server.context as any,
+    );
+    const created = parseJsonText(createResponse);
+
+    const updateResponse = await handleSchedulerToolCall(
+      "cockpit_update_todo",
+      {
+        todoId: created.todo.id,
+        dueAt: "2026-03-30T09:00:00.000Z",
+        priority: "urgent",
+        labels: ["ux", "approval"],
+      },
+      server.context as any,
+    );
+    const updated = parseJsonText(updateResponse);
+
+    const moveResponse = await handleSchedulerToolCall(
+      "cockpit_move_todo",
+      {
+        todoId: created.todo.id,
+        sectionId: featuresId,
+        targetIndex: 0,
+      },
+      server.context as any,
+    );
+    const moved = parseJsonText(moveResponse);
+
+    const filterResponse = await handleSchedulerToolCall(
+      "cockpit_set_filters",
+      {
+        searchText: "Shape",
+        sectionId: featuresId,
+        sortBy: "dueAt",
+        sortDirection: "desc",
+      },
+      server.context as any,
+    );
+    const filters = parseJsonText(filterResponse);
+
+    const deleteResponse = await handleSchedulerToolCall(
+      "cockpit_delete_todo",
+      { todoId: created.todo.id },
+      server.context as any,
+    );
+    const deleted = parseJsonText(deleteResponse);
+
+    assert.strictEqual(updated.todo.priority, "urgent");
+    assert.strictEqual(updated.todo.dueAt, "2026-03-30T09:00:00.000Z");
+    assert.strictEqual(moved.todo.sectionId, featuresId);
+    assert.strictEqual(filters.filters.sortBy, "dueAt");
+    assert.strictEqual(filters.filters.sortDirection, "desc");
+    assert.strictEqual(deleted.todoId, created.todo.id);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 0);
+  });
+
+  test("cockpit seed tool surfaces scheduled tasks inside Todo Cockpit", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-a",
+          name: "Publish approved launch note",
+          description: "Ship after GO.",
+          labels: ["launch"],
+          enabled: true,
+          nextRun: "2026-03-28T09:00:00.000Z",
+          createdAt: "2026-03-27T09:00:00.000Z",
+          updatedAt: "2026-03-27T09:05:00.000Z",
+        },
+      ],
+      jobs: [],
+      jobFolders: [],
+    });
+
+    const seedResponse = await handleSchedulerToolCall(
+      "cockpit_seed_todos_from_tasks",
+      {},
+      server.context as any,
+    );
+    const seeded = parseJsonText(seedResponse);
+    const createdCard = server.getConfig().cockpitBoard.cards[0];
+
+    assert.strictEqual(seeded.createdTodoIds.length, 1);
+    assert.strictEqual(createdCard.taskId, "task-a");
+    assert.ok(createdCard.labels.includes("scheduled-task"));
   });
 
   test("job tools can create a job, attach a task, and compile it", async () => {

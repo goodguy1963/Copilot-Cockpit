@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Copilot Executor
+ * Copilot Cockpit - Copilot Executor
  * Handles communication with GitHub Copilot Chat
  */
 
@@ -15,6 +15,7 @@ import type {
 import { messages, isJapanese } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
+import { getCompatibleConfigurationValue } from "./extensionCompat";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
 
 // Node.js globals
@@ -91,9 +92,14 @@ export class CopilotExecutor {
   async executePrompt(prompt: string, options?: ExecuteOptions): Promise<void> {
     // Apply prompt commands/placeholders
     const processedPrompt = this.applyPromptCommands(prompt);
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const configuredDefaultAgent = config.get<string>("defaultAgent", "agent").trim();
-    const configuredDefaultModel = config.get<string>("defaultModel", "").trim();
+    const configuredDefaultAgent = getCompatibleConfigurationValue<string>(
+      "defaultAgent",
+      "agent",
+    ).trim();
+    const configuredDefaultModel = getCompatibleConfigurationValue<string>(
+      "defaultModel",
+      "",
+    ).trim();
     const requestedAgent = typeof options?.agent === "string" ? options.agent.trim() : "";
     const effectiveModel = typeof options?.model === "string" && options.model.trim()
       ? options.model.trim()
@@ -134,7 +140,10 @@ export class CopilotExecutor {
     // Get chat session behavior
     const chatSession =
       options?.chatSession ??
-      config.get<ChatSessionBehavior>("chatSession", "new");
+      getCompatibleConfigurationValue<ChatSessionBehavior>(
+        "chatSession",
+        "new",
+      );
     const requiresExplicitChatContext = Boolean(mode || effectiveModel);
     const shouldForceNewChat = chatSession === "new" || requiresExplicitChatContext;
 
@@ -441,9 +450,8 @@ export class CopilotExecutor {
     const agents: AgentInfo[] = [];
 
     // Reuse resolveGlobalPromptsRoot with the agents-specific setting
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
     const globalPath = resolveGlobalPromptsRoot(
-      config.get<string>("globalAgentsPath", ""),
+      getCompatibleConfigurationValue<string>("globalAgentsPath", ""),
     );
     try {
       if (!globalPath) {

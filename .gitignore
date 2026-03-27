@@ -28,3 +28,4 @@ FULL_SPECIFICATION.md
 /.github/skills/
 /output_sessions/
 .vscode/scheduler-history/
+.vscode/scheduler.private.json

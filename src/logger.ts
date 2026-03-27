@@ -1,11 +1,11 @@
 import * as vscode from "vscode";
 import type { LogLevel } from "./types";
+import { getCompatibleConfigurationValue } from "./extensionCompat";
 
 type Level = Exclude<LogLevel, "none">;
 
 function getConfiguredLogLevel(): LogLevel {
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  return config.get<LogLevel>("logLevel", "info");
+  return getCompatibleConfigurationValue<LogLevel>("logLevel", "info");
 }
 
 function rank(level: LogLevel): number {

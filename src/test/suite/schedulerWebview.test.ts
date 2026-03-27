@@ -320,6 +320,61 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.pendingMessages = originalPending;
     }
   });
+
+  test("Queues cockpit board updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateCockpitBoard?: (cockpitBoard: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateCockpitBoard === "function");
+      wv.updateCockpitBoard!({
+        version: 1,
+        sections: [{ id: "section_0", title: "Bugs", order: 0 }],
+        cards: [{ id: "card_1", title: "Fix config leak", sectionId: "section_0", order: 0 }],
+      });
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateCockpitBoard");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        cockpitBoard?: { sections?: unknown[]; cards?: unknown[] };
+      };
+      assert.strictEqual(message.type, "updateCockpitBoard");
+      assert.strictEqual(message.cockpitBoard?.sections?.length, 1);
+      assert.strictEqual(message.cockpitBoard?.cards?.length, 1);
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
 });
 
 suite("SchedulerWebview Jobs Request Tests", () => {
