@@ -195,16 +195,16 @@
             {
                 "name": "dfffd",
                 "key": "dfffd",
-                "color": "var(--vscode-badge-background)",
+                "color": "#000000",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T18:34:25.285Z"
+                "updatedAt": "2026-03-27T20:18:07.601Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
-                "color": "var(--vscode-badge-background)",
+                "color": "#000000",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T18:34:25.285Z"
+                "updatedAt": "2026-03-27T20:28:19.394Z"
             },
             {
                 "name": "scheduled-task",
@@ -228,6 +228,6 @@
             "sortDirection": "asc",
             "showArchived": false
         },
-        "updatedAt": "2026-03-27T18:34:40.854Z"
+        "updatedAt": "2026-03-27T20:28:19.394Z"
     }
 }

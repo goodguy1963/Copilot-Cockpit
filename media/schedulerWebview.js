@@ -326,6 +326,7 @@
   var jobsDetails = document.getElementById("jobs-details");
   var jobsLayout = document.getElementById("jobs-layout");
   var jobsToggleSidebarBtn = document.getElementById("jobs-toggle-sidebar-btn");
+  var jobsShowSidebarBtn = document.getElementById("jobs-show-sidebar-btn");
   var jobsNewFolderBtn = document.getElementById("jobs-new-folder-btn");
   var jobsRenameFolderBtn = document.getElementById("jobs-rename-folder-btn");
   var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
@@ -368,6 +369,7 @@
   var todoLabelColorInput = document.getElementById("todo-label-color-input");
   var todoLabelAddBtn = document.getElementById("todo-label-add-btn");
   var todoLabelColorSaveBtn = document.getElementById("todo-label-color-save-btn");
+  var todoLabelCatalog = document.getElementById("todo-label-catalog");
   var todoFlagsInput = document.getElementById("todo-flags-input");
   var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
   var todoSaveBtn = document.getElementById("todo-save-btn");
@@ -679,10 +681,8 @@
     if (jobsLayout && jobsLayout.classList) {
       jobsLayout.classList.toggle("sidebar-collapsed", !!jobsSidebarHidden);
     }
-    if (jobsToggleSidebarBtn) {
-      jobsToggleSidebarBtn.textContent = jobsSidebarHidden
-        ? (strings.jobsShowSidebar || "Show Sidebar")
-        : (strings.jobsHideSidebar || "Hide Sidebar");
+    if (jobsShowSidebarBtn) {
+      jobsShowSidebarBtn.style.display = jobsSidebarHidden ? "inline-flex" : "none";
     }
   }
 
@@ -1149,6 +1149,27 @@
     }
   }
 
+  function syncLabelCatalog() {
+    if (!todoLabelCatalog) return;
+    var catalog = getLabelCatalog();
+    if (catalog.length === 0) {
+      todoLabelCatalog.innerHTML = "";
+      return;
+    }
+    todoLabelCatalog.innerHTML = catalog.map(function (entry) {
+      var bg = entry.color || "var(--vscode-badge-background)";
+      var fg = getReadableTextColor(bg);
+      var isSelected = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(selectedTodoLabelName);
+      var borderColor = isSelected
+        ? "var(--vscode-focusBorder)"
+        : "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
+      return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
+        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Select to edit color">' + escapeHtml(entry.name) + '</button>'
+        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="Delete label">×</button>'
+        + '</span>';
+    }).join("");
+  }
+
   function syncTodoLabelSuggestions() {
     if (!todoLabelSuggestions) {
       return;
@@ -1217,6 +1238,7 @@
       todoLabelColorSaveBtn.disabled = !selectedTodoLabelName;
     }
     syncTodoLabelSuggestions();
+    syncLabelCatalog();
   }
 
   function addEditorLabelFromInput() {
@@ -2141,6 +2163,27 @@
         }
       };
     }
+    if (todoLabelCatalog) {
+      todoLabelCatalog.onclick = function (event) {
+        var deleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-delete]") : null;
+        var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
+        if (deleteBtn) {
+          var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
+          if (name && window.confirm('Delete label "' + name + '" from the catalog?')) {
+            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: name } });
+          }
+          return;
+        }
+        if (selectBtn) {
+          var name = selectBtn.getAttribute("data-label-catalog-select") || "";
+          selectedTodoLabelName = name;
+          if (todoLabelsInput) todoLabelsInput.value = name;
+          var def = getLabelDefinition(name);
+          if (def && def.color && todoLabelColorInput) todoLabelColorInput.value = def.color;
+          syncTodoLabelEditor();
+        }
+      };
+    }
   }
 
   function getCreateTabButton() {
@@ -2207,7 +2250,10 @@
     if (targetBtn) targetBtn.classList.add("active");
     if (targetContent) targetContent.classList.add("active");
     if (jobsToggleSidebarBtn) {
-      jobsToggleSidebarBtn.style.display = tabName === "jobs" ? "inline-flex" : "none";
+      jobsToggleSidebarBtn.style.display = "";
+    }
+    if (jobsShowSidebarBtn) {
+      jobsShowSidebarBtn.style.display = (tabName === "jobs" && jobsSidebarHidden) ? "inline-flex" : "none";
     }
   }
 
@@ -2852,6 +2898,14 @@
   if (jobsToggleSidebarBtn) {
     jobsToggleSidebarBtn.addEventListener("click", function () {
       jobsSidebarHidden = !jobsSidebarHidden;
+      applyJobsSidebarState();
+      persistTaskFilter();
+    });
+  }
+
+  if (jobsShowSidebarBtn) {
+    jobsShowSidebarBtn.addEventListener("click", function () {
+      jobsSidebarHidden = false;
       applyJobsSidebarState();
       persistTaskFilter();
     });

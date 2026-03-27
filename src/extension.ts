@@ -28,6 +28,7 @@ import {
   moveCockpitTodo,
   rejectCockpitTodo,
   renameCockpitSection,
+  deleteCockpitTodoLabelDefinition,
   saveCockpitTodoLabelDefinition,
   setCockpitBoardFilters,
   updateCockpitTodo,
@@ -1862,6 +1863,16 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("board");
         notifyInfo(`Saved label palette entry: ${result.label.name}`);
+        break;
+      }
+
+      case "deleteTodoLabelDefinition": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoLabelData?.name) {
+          break;
+        }
+        deleteCockpitTodoLabelDefinition(workspaceRoot, action.todoLabelData.name);
+        refreshSchedulerUiState();
         break;
       }
 

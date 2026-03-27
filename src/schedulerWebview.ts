@@ -1013,6 +1013,16 @@ export class SchedulerWebview {
         }
         break;
 
+      case "deleteTodoLabelDefinition":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteTodoLabelDefinition",
+            taskId: "__todo__",
+            todoLabelData: { name: message.data.name },
+          });
+        }
+        break;
+
       case "linkTodoTask":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -2386,7 +2396,9 @@ export class SchedulerWebview {
       border-bottom: 2px solid transparent;
       font-size: 11px;
       line-height: 1.15;
-      flex: 0 0 auto;
+      flex: 1 1 auto;
+      text-align: center;
+      min-width: max-content;
     }
     
     .tab-button:hover {
@@ -2416,6 +2428,17 @@ export class SchedulerWebview {
       background: var(--vscode-editorWidget-background);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
+    }
+
+    .label-catalog-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .label-catalog-section:empty {
+      display: none;
     }
     
     .tab-content {
@@ -3914,7 +3937,7 @@ export class SchedulerWebview {
       <button type="button" class="tab-button" data-tab="research">${escapeHtml(strings.tabResearch)}</button>
     </div>
     <div class="tab-actions">
-      <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn" style="display:none;">${escapeHtml(strings.jobsHideSidebar)}</button>
+      <button type="button" class="btn-secondary" id="jobs-show-sidebar-btn" style="display:none;">${escapeHtml(strings.jobsShowSidebar)}</button>
       <button type="button" class="tab-button tab-settings-button" data-tab="settings" title="${escapeHtmlAttr(strings.tabTelegram)}">&#9881;</button>
     </div>
   </div>
@@ -3987,6 +4010,7 @@ export class SchedulerWebview {
               </div>
               <div id="todo-label-suggestions" class="label-suggestion-list"></div>
               <div class="note" id="todo-label-note">${escapeHtml(strings.boardLabelHint)}</div>
+              <div id="todo-label-catalog" class="label-catalog-section"></div>
             </div>
             <div class="form-group" style="margin:0;">
               <label for="todo-flags-input">${escapeHtml(strings.boardFieldFlags)}</label>
@@ -4314,7 +4338,10 @@ export class SchedulerWebview {
     <div class="jobs-layout" id="jobs-layout">
       <aside class="jobs-sidebar">
         <div class="jobs-sidebar-section">
-          <div class="section-title">${escapeHtml(strings.jobsFoldersTitle)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div class="section-title" style="margin:0;">${escapeHtml(strings.jobsFoldersTitle)}</div>
+            <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn" style="padding:2px 8px;font-size:11px;">${escapeHtml(strings.jobsHideSidebar)}</button>
+          </div>
           <div class="jobs-toolbar">
             <button type="button" class="btn-secondary" id="jobs-new-folder-btn">${escapeHtml(strings.jobsCreateFolder)}</button>
             <button type="button" class="btn-secondary" id="jobs-rename-folder-btn">${escapeHtml(strings.jobsRenameFolder)}</button>
