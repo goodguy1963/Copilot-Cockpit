@@ -24,14 +24,25 @@ This repository is the maintained private fork used in the HBG workspace. It is 
 
 ### Installation
 
+#### From a GitHub Release (recommended for collaborators)
+
+1. Go to the [Releases page](https://github.com/goodguy1963/source-scheduler-private/releases) and download the latest `copilot-scheduler-local-X.X.X.vsix` file.
+2. In VS Code, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run **Extensions: Install from VSIX…**, then select the downloaded file.
+3. Reload VS Code when prompted.
+4. Disable or uninstall `yamapan.copilot-scheduler` if it is installed, so this fork remains the active implementation.
+
+#### From Source (for local development)
+
 This fork is packaged as a normal VSIX and is intended to install on Windows, macOS, and Linux.
 
 1. Build the VSIX with `npm run package:vsix`.
 2. Install it with one of these cross-platform scripts:
-  `npm run install:vsix`
-  `npm run install:vsix:insiders`
-  `npm run install:vsix:both`
-3. If the VS Code shell command is not available on the machine, use `Extensions: Install from VSIX...` inside VS Code or VS Code Insiders and select the generated VSIX manually.
+   ```
+   npm run install:vsix
+   npm run install:vsix:insiders
+   npm run install:vsix:both
+   ```
+3. If the VS Code shell command is not available on the machine, use **Extensions: Install from VSIX…** inside VS Code or VS Code Insiders and select the generated VSIX manually.
 4. Reload VS Code.
 5. Disable or uninstall `yamapan.copilot-scheduler` if it is installed, so this fork remains the active implementation.
 
