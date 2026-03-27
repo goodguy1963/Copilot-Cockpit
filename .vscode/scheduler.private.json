@@ -60,43 +60,43 @@
         "version": 2,
         "sections": [
             {
-                "id": "unsorted",
-                "title": "Unsorted",
+                "id": "section_4",
+                "title": "Automation",
                 "order": 0,
-                "createdAt": "2026-03-27T17:18:22.124Z",
-                "updatedAt": "2026-03-27T17:18:22.124Z"
-            },
-            {
-                "id": "section_0",
-                "title": "Bugs",
-                "order": 1,
                 "createdAt": "2026-03-27T16:11:14.762Z",
                 "updatedAt": "2026-03-27T16:11:14.762Z"
             },
             {
                 "id": "section_1",
                 "title": "Features",
+                "order": 1,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "unsorted",
+                "title": "Unsorted",
                 "order": 2,
+                "createdAt": "2026-03-27T17:18:22.124Z",
+                "updatedAt": "2026-03-27T17:18:22.124Z"
+            },
+            {
+                "id": "section_0",
+                "title": "Bugs",
+                "order": 3,
                 "createdAt": "2026-03-27T16:11:14.762Z",
                 "updatedAt": "2026-03-27T16:11:14.762Z"
             },
             {
                 "id": "section_2",
                 "title": "Ops/DevOps",
-                "order": 3,
+                "order": 4,
                 "createdAt": "2026-03-27T16:11:14.762Z",
                 "updatedAt": "2026-03-27T16:11:14.762Z"
             },
             {
                 "id": "section_3",
                 "title": "Marketing/Growth",
-                "order": 4,
-                "createdAt": "2026-03-27T16:11:14.762Z",
-                "updatedAt": "2026-03-27T16:11:14.762Z"
-            },
-            {
-                "id": "section_4",
-                "title": "Automation",
                 "order": 5,
                 "createdAt": "2026-03-27T16:11:14.762Z",
                 "updatedAt": "2026-03-27T16:11:14.762Z"
@@ -195,23 +195,23 @@
             {
                 "name": "dfffd",
                 "key": "dfffd",
-                "color": "#000000",
+                "color": "#f1a2a2",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T20:18:07.601Z"
+                "updatedAt": "2026-03-27T21:18:47.545Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
-                "color": "#000000",
+                "color": "#14ff4f",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T20:28:19.394Z"
+                "updatedAt": "2026-03-27T21:19:17.559Z"
             },
             {
                 "name": "scheduled-task",
                 "key": "scheduled-task",
-                "color": "var(--vscode-badge-background)",
+                "color": "#000000",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T18:34:25.285Z"
+                "updatedAt": "2026-03-27T21:19:06.979Z"
             }
         ],
         "archives": {
@@ -228,6 +228,6 @@
             "sortDirection": "asc",
             "showArchived": false
         },
-        "updatedAt": "2026-03-27T20:28:19.394Z"
+        "updatedAt": "2026-03-27T21:19:17.559Z"
     }
 }

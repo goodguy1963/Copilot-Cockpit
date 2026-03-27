@@ -1086,6 +1086,17 @@ export class SchedulerWebview {
         }
         break;
 
+      case "reorderCockpitSection":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "reorderCockpitSection",
+            taskId: "__section__",
+            sectionId: message.sectionId,
+            targetIndex: message.targetIndex,
+          });
+        }
+        break;
+
       case "refreshTasks":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -3015,6 +3026,29 @@ export class SchedulerWebview {
       justify-content: space-between;
       align-items: center;
       gap: 6px;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .cockpit-section-header:active {
+      cursor: grabbing;
+    }
+
+    section[data-section-id].section-drag-over {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
+    [data-card-meta] {
+      font-size: var(--cockpit-col-font, 11px) !important;
+    }
+
+    section[data-section-id] {
+      padding: var(--cockpit-card-pad, 14px) !important;
+    }
+
+    article[data-todo-id] {
+      padding: var(--cockpit-card-pad, 12px) !important;
     }
 
     .cockpit-section-actions {
@@ -4323,6 +4357,11 @@ export class SchedulerWebview {
     <div class="note" style="margin-bottom:12px;">${escapeHtml(strings.boardDropHint)}</div>
     <div class="board-toolbar">
       <button type="button" class="btn-secondary" id="board-add-section-btn">+ Add Section</button>
+      <div id="board-section-inline-form" style="display:none;align-items:center;gap:6px;">
+        <input type="text" id="board-section-name-input" placeholder="Section name..." style="max-width:180px;">
+        <button type="button" class="btn-primary" id="board-section-save-btn">Add</button>
+        <button type="button" class="btn-secondary" id="board-section-cancel-btn">Cancel</button>
+      </div>
       <div class="board-col-width-group">
         <label for="cockpit-col-slider">Column width</label>
         <input type="range" id="cockpit-col-slider" min="180" max="520" value="300" step="10">

@@ -1188,7 +1188,8 @@ export interface TaskAction {
   | "addCockpitSection"
   | "renameCockpitSection"
   | "deleteCockpitSection"
-  | "moveCockpitSection";
+  | "moveCockpitSection"
+  | "reorderCockpitSection";
 
   /** Task ID */
   taskId: string;
@@ -1395,6 +1396,7 @@ export type WebviewToExtensionMessage =
   | { type: "renameCockpitSection"; sectionId: string; title: string }
   | { type: "deleteCockpitSection"; sectionId: string }
   | { type: "moveCockpitSection"; sectionId: string; direction: "left" | "right" }
+  | { type: "reorderCockpitSection"; sectionId: string; targetIndex: number }
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }
