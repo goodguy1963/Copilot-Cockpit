@@ -1,0 +1,51 @@
+name: Release
+
+# Runs when you push a version tag: git tag v99.0.12 && git push origin v99.0.12
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # vsce package auto-calls vscode:prepublish (esbuild minify) before packing
+      - name: Build & package VSIX
+        run: npm run package:vsix
+
+      # Pull the top section from CHANGELOG.md as release notes
+      - name: Extract changelog section
+        run: |
+          node -e "
+            const fs = require('fs');
+            const text = fs.readFileSync('CHANGELOG.md', 'utf8');
+            const match = text.match(/^## \[[\s\S]*?\n([\s\S]*?)(?=\n## \[|$)/m);
+            const notes = match ? match[1].trim() : 'See CHANGELOG.md for details.';
+            fs.writeFileSync('release-notes.md', notes);
+          "
+
+      - name: Create GitHub Release with VSIX
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            copilot-scheduler-local-*.vsix \
+            --title "Copilot Cockpit ${{ github.ref_name }}" \
+            --notes-file release-notes.md
