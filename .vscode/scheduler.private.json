@@ -17,8 +17,8 @@
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-26T08:00:05.168Z",
-            "nextRun": "2026-03-27T08:00:00.000Z",
+            "lastRun": "2026-03-27T08:00:05.680Z",
+            "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-24T19:54:42.310Z",
             "updatedAt": "2026-03-25T15:34:46.803Z"
         },
@@ -37,8 +37,8 @@
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-26T08:00:05.581Z",
-            "nextRun": "2026-03-27T08:00:00.000Z",
+            "lastRun": "2026-03-27T08:00:06.110Z",
+            "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-24T19:54:59.685Z",
             "updatedAt": "2026-03-25T15:34:45.711Z"
         }
@@ -55,5 +55,179 @@
             "updatedAt": "2026-03-25T22:23:25.113Z"
         }
     ],
-    "jobFolders": []
+    "jobFolders": [],
+    "cockpitBoard": {
+        "version": 2,
+        "sections": [
+            {
+                "id": "unsorted",
+                "title": "Unsorted",
+                "order": 0,
+                "createdAt": "2026-03-27T17:18:22.124Z",
+                "updatedAt": "2026-03-27T17:18:22.124Z"
+            },
+            {
+                "id": "section_0",
+                "title": "Bugs",
+                "order": 1,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "section_1",
+                "title": "Features",
+                "order": 2,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "section_2",
+                "title": "Ops/DevOps",
+                "order": 3,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "section_3",
+                "title": "Marketing/Growth",
+                "order": 4,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "section_4",
+                "title": "Automation",
+                "order": 5,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            },
+            {
+                "id": "section_5",
+                "title": "Future",
+                "order": 6,
+                "createdAt": "2026-03-27T16:11:14.762Z",
+                "updatedAt": "2026-03-27T16:11:14.762Z"
+            }
+        ],
+        "cards": [
+            {
+                "id": "todo_mn960jay_tzci0t",
+                "title": "dffd12522",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_1",
+                "order": 0,
+                "priority": "low",
+                "status": "active",
+                "labels": [
+                    "dfffd"
+                ],
+                "flags": [
+                    "task-enabled"
+                ],
+                "comments": [],
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:42.310Z",
+                "updatedAt": "2026-03-27T17:55:53.085Z"
+            },
+            {
+                "id": "todo_mn960jay_4ez2kv",
+                "title": "dssd",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_0",
+                "order": 0,
+                "priority": "low",
+                "status": "active",
+                "labels": [
+                    "scheduled-task"
+                ],
+                "flags": [
+                    "task-enabled"
+                ],
+                "comments": [],
+                "taskId": "task_1774382099685_s6t8o5",
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-03-27T18:34:40.854Z"
+            },
+            {
+                "id": "todo_mn975hbd_cjclva",
+                "title": "dffd12522",
+                "sectionId": "unsorted",
+                "order": 0,
+                "priority": "none",
+                "status": "active",
+                "labels": [
+                    "scheduled-task",
+                    "from-todo-cockpit",
+                    "scheduled-task"
+                ],
+                "flags": [
+                    "task-disabled"
+                ],
+                "comments": [],
+                "taskId": "task_1774633812433_guuodn",
+                "archived": false,
+                "createdAt": "2026-03-27T17:50:12.433Z",
+                "updatedAt": "2026-03-27T17:50:12.433Z"
+            },
+            {
+                "id": "todo_mn975hc2_ae6w8w",
+                "title": "dffd12522",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_5",
+                "order": 0,
+                "priority": "low",
+                "status": "active",
+                "labels": [
+                    "scheduled-task"
+                ],
+                "flags": [
+                    "task-enabled"
+                ],
+                "comments": [],
+                "taskId": "task_1774382082310_88vcoq",
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:42.310Z",
+                "updatedAt": "2026-03-27T18:09:15.766Z"
+            }
+        ],
+        "labelCatalog": [
+            {
+                "name": "dfffd",
+                "key": "dfffd",
+                "color": "var(--vscode-badge-background)",
+                "createdAt": "2026-03-27T18:34:25.285Z",
+                "updatedAt": "2026-03-27T18:34:25.285Z"
+            },
+            {
+                "name": "from-todo-cockpit",
+                "key": "from-todo-cockpit",
+                "color": "var(--vscode-badge-background)",
+                "createdAt": "2026-03-27T18:34:25.285Z",
+                "updatedAt": "2026-03-27T18:34:25.285Z"
+            },
+            {
+                "name": "scheduled-task",
+                "key": "scheduled-task",
+                "color": "var(--vscode-badge-background)",
+                "createdAt": "2026-03-27T18:34:25.285Z",
+                "updatedAt": "2026-03-27T18:34:25.285Z"
+            }
+        ],
+        "archives": {
+            "completedSuccessfully": [],
+            "rejected": []
+        },
+        "filters": {
+            "labels": [],
+            "priorities": [],
+            "statuses": [],
+            "archiveOutcomes": [],
+            "flags": [],
+            "sortBy": "manual",
+            "sortDirection": "asc",
+            "showArchived": false
+        },
+        "updatedAt": "2026-03-27T18:34:40.854Z"
+    }
 }

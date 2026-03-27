@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Tree Provider
+ * Copilot Cockpit - Tree Provider
  * Provides data for the sidebar TreeView
  */
 
@@ -7,6 +7,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import type { ScheduledTask, TaskScope, TreeContextValue } from "./types";
 import { ScheduleManager } from "./scheduleManager";
+import { getCockpitCommandId } from "./extensionCompat";
 import { messages, formatCronForDisplay } from "./i18n";
 
 type WorkspaceTaskGroup = "this" | "other";
@@ -124,7 +125,7 @@ export class ScheduledTaskItem extends vscode.TreeItem {
 
     // Set command to edit task on click
     this.command = {
-      command: "copilotScheduler.editTask",
+      command: getCockpitCommandId("editTask"),
       title: messages.actionEdit(),
       arguments: [this],
     };

@@ -204,6 +204,24 @@
   var jobFolders = Array.isArray(initialData.jobFolders)
     ? initialData.jobFolders
     : [];
+  var cockpitBoard = initialData.cockpitBoard || {
+    version: 2,
+    sections: [],
+    cards: [],
+    labelCatalog: [],
+    archives: { completedSuccessfully: [], rejected: [] },
+    filters: {
+      labels: [],
+      priorities: [],
+      statuses: [],
+      archiveOutcomes: [],
+      flags: [],
+      sortBy: "manual",
+      sortDirection: "asc",
+      showArchived: false,
+    },
+    updatedAt: "",
+  };
   var telegramNotification = initialData.telegramNotification || {
     enabled: false,
     hasBotToken: false,
@@ -237,6 +255,10 @@
     : [];
   var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
   var editingTaskId = null;
+  var selectedTodoId = null;
+  var draggingTodoId = null;
+  var currentTodoLabels = [];
+  var selectedTodoLabelName = "";
   var pendingAgentValue = "";
   var pendingModelValue = "";
   var pendingTemplatePath = "";
@@ -313,6 +335,49 @@
   var jobsPauseBtn = document.getElementById("jobs-pause-btn");
   var jobsCompileBtn = document.getElementById("jobs-compile-btn");
   var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
+  var jobsBackBtn = document.getElementById("jobs-back-btn");
+  var jobsOpenEditorBtn = document.getElementById("jobs-open-editor-btn");
+  var boardSummary = document.getElementById("board-summary");
+  var boardColumns = document.getElementById("board-columns");
+  var todoSearchInput = document.getElementById("todo-search-input");
+  var todoSectionFilter = document.getElementById("todo-section-filter");
+  var todoLabelFilter = document.getElementById("todo-label-filter");
+  var todoPriorityFilter = document.getElementById("todo-priority-filter");
+  var todoStatusFilter = document.getElementById("todo-status-filter");
+  var todoArchiveOutcomeFilter = document.getElementById("todo-archive-outcome-filter");
+  var todoSortBy = document.getElementById("todo-sort-by");
+  var todoSortDirection = document.getElementById("todo-sort-direction");
+  var todoShowArchived = document.getElementById("todo-show-archived");
+  var todoNewBtn = document.getElementById("todo-new-btn");
+  var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
+  var todoBackBtn = document.getElementById("todo-back-btn");
+  var todoDetailTitle = document.getElementById("todo-detail-title");
+  var todoDetailModeNote = document.getElementById("todo-detail-mode-note");
+  var todoDetailForm = document.getElementById("todo-detail-form");
+  var todoDetailId = document.getElementById("todo-detail-id");
+  var todoTitleInput = document.getElementById("todo-title-input");
+  var todoDescriptionInput = document.getElementById("todo-description-input");
+  var todoDueInput = document.getElementById("todo-due-input");
+  var todoPriorityInput = document.getElementById("todo-priority-input");
+  var todoSectionInput = document.getElementById("todo-section-input");
+  var todoLinkedTaskSelect = document.getElementById("todo-linked-task-select");
+  var todoDetailStatus = document.getElementById("todo-detail-status");
+  var todoLabelChipList = document.getElementById("todo-label-chip-list");
+  var todoLabelsInput = document.getElementById("todo-labels-input");
+  var todoLabelSuggestions = document.getElementById("todo-label-suggestions");
+  var todoLabelColorInput = document.getElementById("todo-label-color-input");
+  var todoLabelAddBtn = document.getElementById("todo-label-add-btn");
+  var todoLabelColorSaveBtn = document.getElementById("todo-label-color-save-btn");
+  var todoFlagsInput = document.getElementById("todo-flags-input");
+  var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
+  var todoSaveBtn = document.getElementById("todo-save-btn");
+  var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
+  var todoApproveBtn = document.getElementById("todo-approve-btn");
+  var todoFinalizeBtn = document.getElementById("todo-finalize-btn");
+  var todoDeleteBtn = document.getElementById("todo-delete-btn");
+  var todoCommentList = document.getElementById("todo-comment-list");
+  var todoCommentInput = document.getElementById("todo-comment-input");
+  var todoAddCommentBtn = document.getElementById("todo-add-comment-btn");
   var jobsNameInput = document.getElementById("jobs-name-input");
   var jobsCronPreset = document.getElementById("jobs-cron-preset");
   var jobsCronInput = document.getElementById("jobs-cron-input");
@@ -390,6 +455,18 @@
   var defaultModelSelect = document.getElementById("default-model-select");
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
+  var boardAddSectionBtn = document.getElementById("board-add-section-btn");
+  var cockpitColSlider = document.getElementById("cockpit-col-slider");
+
+  // Restore persisted column width
+  (function () {
+    var savedWidth = localStorage.getItem("cockpit-col-width");
+    if (savedWidth) {
+      document.documentElement.style.setProperty("--cockpit-col-width", savedWidth + "px");
+      if (cockpitColSlider) cockpitColSlider.value = savedWidth;
+    }
+  })();
+
   var activeTaskFilter = "all";
   var activeLabelFilter = "";
   var selectedJobFolderId = "";
@@ -938,7 +1015,1133 @@
   hookResearchFormDirtyTracking();
   renderResearchTab();
   renderTelegramTab();
+  renderCockpitBoard();
   renderExecutionDefaultsControls();
+
+  function parseTagList(text) {
+    if (!text) return [];
+    return String(text)
+      .split(",")
+      .map(function (entry) { return entry.trim(); })
+      .filter(function (entry) { return entry.length > 0; });
+  }
+
+  function normalizeTodoLabel(value) {
+    return String(value || "").trim().replace(/\s+/g, " ");
+  }
+
+  function normalizeTodoLabelKey(value) {
+    return normalizeTodoLabel(value).toLowerCase();
+  }
+
+  function dedupeStringList(values) {
+    var seen = {};
+    return (Array.isArray(values) ? values : [])
+      .map(normalizeTodoLabel)
+      .filter(function (value) {
+        var key = normalizeTodoLabelKey(value);
+        if (!key || seen[key]) {
+          return false;
+        }
+        seen[key] = true;
+        return true;
+      });
+  }
+
+  function getTodoArchiveCollections() {
+    var archives = cockpitBoard && cockpitBoard.archives ? cockpitBoard.archives : {};
+    return {
+      completedSuccessfully: Array.isArray(archives.completedSuccessfully)
+        ? archives.completedSuccessfully
+        : [],
+      rejected: Array.isArray(archives.rejected) ? archives.rejected : [],
+    };
+  }
+
+  function getAllTodoCards() {
+    var activeCards = cockpitBoard && Array.isArray(cockpitBoard.cards)
+      ? cockpitBoard.cards.slice()
+      : [];
+    var archives = getTodoArchiveCollections();
+    return activeCards
+      .concat(archives.completedSuccessfully)
+      .concat(archives.rejected);
+  }
+
+  function getVisibleTodoCards(filters) {
+    var activeCards = cockpitBoard && Array.isArray(cockpitBoard.cards)
+      ? cockpitBoard.cards.slice()
+      : [];
+    if (!filters || filters.showArchived !== true) {
+      return activeCards;
+    }
+    var archives = getTodoArchiveCollections();
+    return activeCards
+      .concat(archives.completedSuccessfully)
+      .concat(archives.rejected);
+  }
+
+  function getLabelCatalog() {
+    return cockpitBoard && Array.isArray(cockpitBoard.labelCatalog)
+      ? cockpitBoard.labelCatalog.slice()
+      : [];
+  }
+
+  function getLabelDefinition(label) {
+    var key = normalizeTodoLabelKey(label);
+    var catalog = getLabelCatalog();
+    for (var index = 0; index < catalog.length; index += 1) {
+      if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+        return catalog[index];
+      }
+    }
+    return null;
+  }
+
+  function getLabelColor(label) {
+    var definition = getLabelDefinition(label);
+    return definition && definition.color
+      ? definition.color
+      : "var(--vscode-badge-background)";
+  }
+
+  function getReadableTextColor(background) {
+    var value = String(background || "").trim();
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      var hex = value.slice(1);
+      if (hex.length === 3) {
+        hex = hex.split("").map(function (part) { return part + part; }).join("");
+      }
+      var red = parseInt(hex.slice(0, 2), 16);
+      var green = parseInt(hex.slice(2, 4), 16);
+      var blue = parseInt(hex.slice(4, 6), 16);
+      var luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+      return luminance >= 150 ? "#111111" : "#ffffff";
+    }
+    return "var(--vscode-badge-foreground)";
+  }
+
+  function renderLabelChip(label, removable, selected) {
+    var color = getLabelColor(label);
+    var textColor = getReadableTextColor(color);
+    var borderColor = selected
+      ? "var(--vscode-focusBorder)"
+      : "var(--vscode-panel-border)";
+    return (
+      '<span data-label-chip="' + escapeAttr(label) + '" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';font-size:11px;line-height:1.4;">' +
+      '<button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + '</button>' +
+      (removable
+        ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">×</button>'
+        : "") +
+      '</span>'
+    );
+  }
+
+  function setTodoEditorLabels(labels, preserveSelection) {
+    currentTodoLabels = dedupeStringList(labels);
+    if (!preserveSelection) {
+      selectedTodoLabelName = currentTodoLabels[0] || "";
+    } else if (
+      selectedTodoLabelName &&
+      currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(selectedTodoLabelName)) < 0
+    ) {
+      selectedTodoLabelName = currentTodoLabels[0] || "";
+    }
+  }
+
+  function syncTodoLabelSuggestions() {
+    if (!todoLabelSuggestions) {
+      return;
+    }
+    var inputValue = todoLabelsInput ? normalizeTodoLabelKey(todoLabelsInput.value) : "";
+    var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+    var labels = dedupeStringList(
+      getLabelCatalog().map(function (entry) {
+        return entry.name;
+      }).concat(currentTodoLabels),
+    ).filter(function (label) {
+      // Exclude already-added labels
+      return addedKeys.indexOf(normalizeTodoLabelKey(label)) < 0;
+    }).sort(function (left, right) {
+      return left.localeCompare(right);
+    });
+    if (inputValue) {
+      labels = labels.filter(function (label) {
+        return normalizeTodoLabelKey(label).indexOf(inputValue) >= 0;
+      });
+    }
+    if (labels.length === 0) {
+      todoLabelSuggestions.style.display = "none";
+      todoLabelSuggestions.innerHTML = "";
+      return;
+    }
+    todoLabelSuggestions.style.display = "flex";
+    todoLabelSuggestions.innerHTML = labels.map(function (label) {
+      var bg = getLabelColor(label);
+      var fg = getReadableTextColor(bg);
+      return '<button type="button" data-label-suggestion="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1px solid color-mix(in srgb,' + escapeAttr(bg) + ' 60%,var(--vscode-panel-border));font-size:12.5px;line-height:1.5;">' + escapeHtml(label) + '</button>';
+    }).join("");
+  }
+
+  function syncTodoLabelEditor() {
+    if (todoLabelChipList) {
+      todoLabelChipList.innerHTML = currentTodoLabels.length > 0
+        ? currentTodoLabels.map(function (label) {
+          return renderLabelChip(
+            label,
+            true,
+            normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName),
+          );
+        }).join("")
+        : '<div class="note">No labels yet.</div>';
+    }
+
+    var selectedDefinition = selectedTodoLabelName
+      ? getLabelDefinition(selectedTodoLabelName)
+      : null;
+    if (todoLabelColorInput) {
+      // Only update the color picker when a chip is selected — don't overwrite
+      // the user's current choice while they're typing a new label name.
+      var isTypingNew = todoLabelsInput && todoLabelsInput.value.trim();
+      if (selectedTodoLabelName) {
+        todoLabelColorInput.value = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+          selectedDefinition && selectedDefinition.color ? selectedDefinition.color : ""
+        ) ? selectedDefinition.color : "#4f8cff";
+      } else if (!isTypingNew) {
+        todoLabelColorInput.value = "#4f8cff";
+      }
+      // Always enabled — user can pick a color before clicking Add
+      todoLabelColorInput.disabled = false;
+    }
+    if (todoLabelColorSaveBtn) {
+      todoLabelColorSaveBtn.disabled = !selectedTodoLabelName;
+    }
+    syncTodoLabelSuggestions();
+  }
+
+  function addEditorLabelFromInput() {
+    if (!todoLabelsInput) {
+      return;
+    }
+    var label = normalizeTodoLabel(todoLabelsInput.value);
+    if (!label) {
+      return;
+    }
+    // Capture the currently-chosen color before resetting the editor
+    var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
+    setTodoEditorLabels(currentTodoLabels.concat([label]), true);
+    selectedTodoLabelName = label;
+    todoLabelsInput.value = "";
+    if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+    syncTodoLabelEditor();
+    // Persist the chosen color for this label immediately
+    if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+      vscode.postMessage({
+        type: "saveTodoLabelDefinition",
+        data: { name: label, color: pendingColor },
+      });
+    }
+  }
+
+  function removeEditorLabel(label) {
+    setTodoEditorLabels(
+      currentTodoLabels.filter(function (entry) {
+        return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+      }),
+      true,
+    );
+    syncTodoLabelEditor();
+  }
+
+  function toLocalDateTimeInput(value) {
+    if (!value) return "";
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    var year = date.getFullYear();
+    var month = padNumber(date.getMonth() + 1);
+    var day = padNumber(date.getDate());
+    var hour = padNumber(date.getHours());
+    var minute = padNumber(date.getMinutes());
+    return year + "-" + month + "-" + day + "T" + hour + ":" + minute;
+  }
+
+  function fromLocalDateTimeInput(value) {
+    if (!value) return undefined;
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return undefined;
+    return date.toISOString();
+  }
+
+  function formatTodoDate(value) {
+    if (!value) return "";
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(locale || undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
+  function getTodoPriorityLabel(priority) {
+    switch (priority) {
+      case "low": return strings.boardPriorityLow || "Low";
+      case "medium": return strings.boardPriorityMedium || "Medium";
+      case "high": return strings.boardPriorityHigh || "High";
+      case "urgent": return strings.boardPriorityUrgent || "Urgent";
+      default: return strings.boardPriorityNone || "None";
+    }
+  }
+
+  function getTodoPriorityRank(priority) {
+    switch (priority) {
+      case "urgent": return 4;
+      case "high": return 3;
+      case "medium": return 2;
+      case "low": return 1;
+      default: return 0;
+    }
+  }
+
+  function getTodoStatusLabel(status) {
+    switch (status) {
+      case "ready": return strings.boardStatusReady || "Ready";
+      case "completed": return strings.boardStatusCompleted || "Completed";
+      case "rejected": return strings.boardStatusRejected || "Rejected";
+      default: return strings.boardStatusActive || "Active";
+    }
+  }
+
+  function getTodoArchiveOutcomeLabel(outcome) {
+    switch (outcome) {
+      case "completed-successfully":
+        return strings.boardArchiveCompletedSuccessfully || "Completed successfully";
+      case "rejected":
+        return strings.boardArchiveRejected || "Rejected";
+      default:
+        return strings.boardAllArchiveOutcomes || "All outcomes";
+    }
+  }
+
+  function getTodoCommentSourceLabel(source) {
+    switch (source) {
+      case "bot-mcp": return strings.boardCommentSourceBotMcp || "Bot MCP";
+      case "bot-manual": return strings.boardCommentSourceBotManual || "Bot manual";
+      case "system-event": return strings.boardCommentSourceSystemEvent || "System event";
+      default: return strings.boardCommentSourceHumanForm || "Human form";
+    }
+  }
+
+  function getTodoDescriptionPreview(description) {
+    var text = String(description || "").trim().replace(/\s+/g, " ");
+    if (!text) {
+      return strings.boardDescriptionPreviewEmpty || "No description yet.";
+    }
+    return text.length > 140 ? text.slice(0, 137) + "..." : text;
+  }
+
+  function getTodoFilters() {
+    var filters = cockpitBoard && cockpitBoard.filters ? cockpitBoard.filters : {};
+    return {
+      searchText: filters.searchText || "",
+      labels: Array.isArray(filters.labels) ? filters.labels : [],
+      priorities: Array.isArray(filters.priorities) ? filters.priorities : [],
+      statuses: Array.isArray(filters.statuses) ? filters.statuses : [],
+      archiveOutcomes: Array.isArray(filters.archiveOutcomes) ? filters.archiveOutcomes : [],
+      flags: Array.isArray(filters.flags) ? filters.flags : [],
+      sectionId: filters.sectionId || "",
+      sortBy: filters.sortBy || "manual",
+      sortDirection: filters.sortDirection || "asc",
+      showArchived: filters.showArchived === true,
+    };
+  }
+
+  function updateTodoFilters(partial) {
+    var next = Object.assign({}, getTodoFilters(), partial || {});
+    if (!cockpitBoard) {
+      cockpitBoard = {
+        sections: [],
+        cards: [],
+        labelCatalog: [],
+        archives: { completedSuccessfully: [], rejected: [] },
+        filters: {},
+        updatedAt: "",
+      };
+    }
+    cockpitBoard.filters = next;
+    renderCockpitBoard();
+    vscode.postMessage({ type: "setTodoFilters", data: next });
+  }
+
+  function getTodoSections() {
+    var sections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice() : [];
+    sections.sort(function (left, right) {
+      return (left.order || 0) - (right.order || 0);
+    });
+    return sections;
+  }
+
+  function getLinkedTask(taskId) {
+    if (!taskId) return null;
+    for (var i = 0; i < tasks.length; i += 1) {
+      if (tasks[i] && tasks[i].id === taskId) {
+        return tasks[i];
+      }
+    }
+    return null;
+  }
+
+  function cardMatchesTodoFilters(card, filters) {
+    if (!filters.showArchived && card.archived) {
+      return false;
+    }
+    if (filters.sectionId && card.sectionId !== filters.sectionId) {
+      return false;
+    }
+    if (filters.labels.length > 0) {
+      var hasLabel = (card.labels || []).some(function (label) {
+        return filters.labels.indexOf(label) >= 0;
+      });
+      if (!hasLabel) return false;
+    }
+    if (filters.priorities.length > 0 && filters.priorities.indexOf(card.priority || "none") < 0) {
+      return false;
+    }
+    if (filters.statuses.length > 0 && filters.statuses.indexOf(card.status || "active") < 0) {
+      return false;
+    }
+    if (filters.archiveOutcomes.length > 0) {
+      if (!card.archived || filters.archiveOutcomes.indexOf(card.archiveOutcome || "") < 0) {
+        return false;
+      }
+    }
+    if (filters.flags.length > 0) {
+      var hasFlag = (card.flags || []).some(function (flag) {
+        return filters.flags.indexOf(flag) >= 0;
+      });
+      if (!hasFlag) return false;
+    }
+    if (filters.searchText) {
+      var needle = String(filters.searchText).toLowerCase();
+      var commentsText = (card.comments || []).map(function (comment) {
+        return (comment.author || "") + " " + (comment.body || "");
+      }).join(" ");
+      var haystack = [
+        card.title || "",
+        card.description || "",
+        (card.labels || []).join(" "),
+        (card.flags || []).join(" "),
+        commentsText,
+      ].join(" ").toLowerCase();
+      if (haystack.indexOf(needle) < 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function sortTodoCards(cards, filters) {
+    var direction = filters.sortDirection === "desc" ? -1 : 1;
+    return cards.slice().sort(function (left, right) {
+      var result = 0;
+      switch (filters.sortBy) {
+        case "dueAt": {
+          var leftDue = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+          var rightDue = right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+          result = leftDue - rightDue;
+          break;
+        }
+        case "priority":
+          result = getTodoPriorityRank(left.priority) - getTodoPriorityRank(right.priority);
+          break;
+        case "updatedAt":
+          result = new Date(left.updatedAt || 0).getTime() - new Date(right.updatedAt || 0).getTime();
+          break;
+        case "createdAt":
+          result = new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime();
+          break;
+        default:
+          result = (left.order || 0) - (right.order || 0);
+          break;
+      }
+      if (result === 0) {
+        result = String(left.title || "").localeCompare(String(right.title || ""));
+      }
+      return result * direction;
+    });
+  }
+
+  function renderTodoFilterControls(filters, sections, cards) {
+    var labels = dedupeStringList(
+      getLabelCatalog().map(function (entry) {
+        return entry.name;
+      }).concat((Array.isArray(cards) ? cards : []).reduce(function (all, card) {
+        return all.concat(card.labels || []);
+      }, [])),
+    ).sort();
+
+    if (todoSearchInput) todoSearchInput.value = filters.searchText || "";
+    if (todoSectionFilter) {
+      todoSectionFilter.innerHTML =
+        '<option value="">' + escapeHtml(strings.boardAllSections || "All sections") + '</option>' +
+        sections.map(function (section) {
+          return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + '</option>';
+        }).join("");
+      todoSectionFilter.value = filters.sectionId || "";
+    }
+    if (todoLabelFilter) {
+      todoLabelFilter.innerHTML =
+        '<option value="">' + escapeHtml(strings.boardAllLabels || "All labels") + '</option>' +
+        labels.map(function (label) {
+          return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + '</option>';
+        }).join("");
+      todoLabelFilter.value = filters.labels[0] || "";
+    }
+    if (todoPriorityFilter) {
+      todoPriorityFilter.innerHTML = [
+        { value: "", label: strings.boardAllPriorities || "All priorities" },
+        { value: "none", label: getTodoPriorityLabel("none") },
+        { value: "low", label: getTodoPriorityLabel("low") },
+        { value: "medium", label: getTodoPriorityLabel("medium") },
+        { value: "high", label: getTodoPriorityLabel("high") },
+        { value: "urgent", label: getTodoPriorityLabel("urgent") },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoPriorityFilter.value = filters.priorities[0] || "";
+    }
+    if (todoStatusFilter) {
+      todoStatusFilter.innerHTML = [
+        { value: "", label: strings.boardAllStatuses || "All statuses" },
+        { value: "active", label: getTodoStatusLabel("active") },
+        { value: "ready", label: getTodoStatusLabel("ready") },
+        { value: "completed", label: getTodoStatusLabel("completed") },
+        { value: "rejected", label: getTodoStatusLabel("rejected") },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoStatusFilter.value = filters.statuses[0] || "";
+    }
+    if (todoArchiveOutcomeFilter) {
+      todoArchiveOutcomeFilter.innerHTML = [
+        { value: "", label: strings.boardAllArchiveOutcomes || "All outcomes" },
+        { value: "completed-successfully", label: getTodoArchiveOutcomeLabel("completed-successfully") },
+        { value: "rejected", label: getTodoArchiveOutcomeLabel("rejected") },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoArchiveOutcomeFilter.value = filters.archiveOutcomes[0] || "";
+    }
+    if (todoSortBy) {
+      todoSortBy.innerHTML = [
+        { value: "manual", label: strings.boardSortManual || "Manual order" },
+        { value: "dueAt", label: strings.boardSortDueAt || "Due date" },
+        { value: "priority", label: strings.boardSortPriority || "Priority" },
+        { value: "updatedAt", label: strings.boardSortUpdatedAt || "Last updated" },
+        { value: "createdAt", label: strings.boardSortCreatedAt || "Created date" },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoSortBy.value = filters.sortBy || "manual";
+    }
+    if (todoSortDirection) {
+      todoSortDirection.innerHTML = [
+        { value: "asc", label: strings.boardSortAsc || "Ascending" },
+        { value: "desc", label: strings.boardSortDesc || "Descending" },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoSortDirection.value = filters.sortDirection || "asc";
+    }
+    if (todoShowArchived) {
+      todoShowArchived.checked = filters.showArchived === true;
+    }
+  }
+
+  function renderTodoDetailPanel(selectedTodo, sections) {
+    var isEditingTodo = !!selectedTodo;
+    var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    if (isEditingTodo) {
+      setTodoEditorLabels(selectedTodo.labels || [], false);
+    } else {
+      setTodoEditorLabels(currentTodoLabels, true);
+    }
+    if (todoDetailTitle) {
+      todoDetailTitle.textContent = isEditingTodo
+        ? (strings.boardDetailTitleEdit || "Edit Todo")
+        : (strings.boardDetailTitleCreate || "Create Todo");
+    }
+    if (todoDetailModeNote) {
+      todoDetailModeNote.textContent = isEditingTodo
+        ? (strings.boardDetailModeEdit || "Update this todo.")
+        : (strings.boardDetailModeCreate || "Fill the form to create a new todo.");
+    }
+    if (todoDetailId) todoDetailId.value = isEditingTodo ? selectedTodo.id : "";
+    if (todoTitleInput) todoTitleInput.value = isEditingTodo ? (selectedTodo.title || "") : "";
+    if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? (selectedTodo.description || "") : "";
+    if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : "";
+    if (todoLabelsInput) todoLabelsInput.value = "";
+    if (todoFlagsInput) todoFlagsInput.value = isEditingTodo ? (selectedTodo.flags || []).join(", ") : "";
+    syncTodoLabelEditor();
+
+    if (todoDetailStatus) {
+      if (!isEditingTodo) {
+        todoDetailStatus.textContent = strings.boardStatusLabel
+          ? strings.boardStatusLabel + ": " + (strings.boardStatusActive || "Active")
+          : "Status: Active";
+      } else if (selectedTodo.archived) {
+        todoDetailStatus.textContent =
+          (strings.boardStatusLabel || "Status") + ": " +
+          getTodoStatusLabel(selectedTodo.status || "active") +
+          " • " +
+          getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
+      } else {
+        todoDetailStatus.textContent =
+          (strings.boardStatusLabel || "Status") + ": " +
+          getTodoStatusLabel(selectedTodo.status || "active");
+      }
+    }
+
+    if (todoPriorityInput) {
+      todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function (priority) {
+        return '<option value="' + escapeAttr(priority) + '">' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
+      }).join("");
+      todoPriorityInput.value = isEditingTodo ? (selectedTodo.priority || "none") : "none";
+    }
+
+    if (todoSectionInput) {
+      todoSectionInput.innerHTML = sections.map(function (section) {
+        return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + '</option>';
+      }).join("");
+      todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : (sections[0] ? sections[0].id : "");
+    }
+
+    if (todoLinkedTaskSelect) {
+      todoLinkedTaskSelect.innerHTML =
+        '<option value="">' + escapeHtml(strings.boardLinkedTaskNone || "No linked task") + '</option>' +
+        tasks.map(function (task) {
+          return '<option value="' + escapeAttr(task.id) + '">' + escapeHtml(task.name || task.id) + '</option>';
+        }).join("");
+      todoLinkedTaskSelect.value = isEditingTodo && selectedTodo.taskId ? selectedTodo.taskId : "";
+    }
+
+    if (todoSaveBtn) {
+      todoSaveBtn.textContent = isEditingTodo
+        ? (strings.boardSaveUpdate || "Save Todo")
+        : (strings.boardSaveCreate || "Create Todo");
+      todoSaveBtn.disabled = isArchivedTodo;
+    }
+    if (todoCreateTaskBtn) {
+      todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") !== "ready";
+    }
+    if (todoApproveBtn) {
+      todoApproveBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") === "ready";
+    }
+    if (todoFinalizeBtn) {
+      todoFinalizeBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") !== "ready";
+    }
+    if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+    if (todoAddCommentBtn) todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo;
+    if (todoCommentInput) {
+      todoCommentInput.disabled = !isEditingTodo || isArchivedTodo;
+      if (!isEditingTodo) {
+        todoCommentInput.value = "";
+      }
+    }
+
+    var linkedTask = isEditingTodo ? getLinkedTask(selectedTodo.taskId) : null;
+    if (todoLinkedTaskNote) {
+      if (!isEditingTodo) {
+        todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+      } else if (selectedTodo.archived) {
+        todoLinkedTaskNote.textContent = strings.boardReadOnlyArchived || "Archived items are read-only.";
+      } else if (selectedTodo.taskId && !linkedTask) {
+        todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";
+      } else if (linkedTask) {
+        todoLinkedTaskNote.textContent = (strings.boardTaskLinked || "Linked task") + ": " + (linkedTask.name || linkedTask.id);
+      } else if ((selectedTodo.status || "active") === "ready") {
+        todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
+      } else {
+        todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+      }
+    }
+
+    if (todoCommentList) {
+      var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+      todoCommentList.innerHTML = comments.length > 0
+        ? comments.map(function (comment) {
+          var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+          var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
+          var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+          return '<article style="padding:10px;border-radius:8px;border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;">' +
+            '<strong>#' + escapeHtml(String(sequence)) + ' • ' + escapeHtml(sourceLabel) + '</strong>' +
+            '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
+            '</div>' +
+            '<div class="note" style="margin-bottom:6px;">' + escapeHtml(comment.author || "system") + '</div>' +
+            '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(comment.body || "") + '</div>' +
+            '</article>';
+        }).join("")
+        : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + '</div>';
+    }
+  }
+
+  function renderCockpitBoard() {
+    var sections = getTodoSections();
+    var filters = getTodoFilters();
+    var allCards = getAllTodoCards();
+    var cards = getVisibleTodoCards(filters);
+
+    if (selectedTodoId) {
+      var selectedTodo = allCards.find(function (card) {
+        return card && card.id === selectedTodoId;
+      });
+      if (selectedTodo && selectedTodo.archived && filters.showArchived !== true) {
+        selectedTodoId = null;
+      }
+      var hasSelectedTodo = allCards.some(function (card) {
+        return card && card.id === selectedTodoId;
+      });
+      if (!hasSelectedTodo) {
+        selectedTodoId = null;
+      }
+    }
+
+    renderTodoFilterControls(filters, sections, cards);
+
+    if (boardSummary) {
+      var activeCount = cockpitBoard && Array.isArray(cockpitBoard.cards)
+        ? cockpitBoard.cards.length
+        : 0;
+      boardSummary.textContent =
+        (strings.boardSections || "Sections") + ": " + sections.length +
+        " • " +
+        (strings.boardCards || "Cards") + ": " + activeCount +
+        " • Archived: " + String(Math.max(0, allCards.length - activeCount)) +
+        " • " +
+        (strings.boardComments || "Comments") + ": " + allCards.reduce(function (count, card) {
+          return count + (Array.isArray(card.comments) ? card.comments.length : 0);
+        }, 0);
+    }
+
+    if (!boardColumns) {
+      return;
+    }
+
+    var visibleSections = sections.filter(function (section) {
+      return !filters.sectionId || section.id === filters.sectionId;
+    });
+
+    if (visibleSections.length === 0) {
+      boardColumns.innerHTML = '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>';
+      renderTodoDetailPanel(null, sections);
+      return;
+    }
+
+    boardColumns.innerHTML =
+      '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' +
+      visibleSections.map(function (section) {
+        var sectionCards = sortTodoCards(cards.filter(function (card) {
+          return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
+        }), filters);
+        return (
+          '<section data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,300px);min-width:var(--cockpit-col-width,300px);max-height:72vh;overflow:hidden;">' +
+          '<div class="cockpit-section-header">' +
+          '<strong>' + escapeHtml(section.title || "Section") + '</strong>' +
+          '<div class="cockpit-section-actions">' +
+          '<span class="note">' + String(sectionCards.length) + '</span>' +
+          '<button type="button" class="btn-icon" data-section-move="' + escapeAttr(section.id) + '" data-direction="left" title="Move left">&#8592;</button>' +
+          '<button type="button" class="btn-icon" data-section-move="' + escapeAttr(section.id) + '" data-direction="right" title="Move right">&#8594;</button>' +
+          '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="Rename section">&#9998;</button>' +
+          '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="Delete section">&#215;</button>' +
+          '</div>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-right:4px;min-height:120px;">' +
+          (sectionCards.length
+            ? sectionCards.map(function (card) {
+              var isSelected = card.id === selectedTodoId;
+              var labelMarkup = Array.isArray(card.labels) && card.labels.length
+                ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.map(function (label) {
+                  return renderLabelChip(label, false, false);
+                }).join("") + '</div>'
+                : "";
+              var latestComment = Array.isArray(card.comments) && card.comments.length
+                ? card.comments[card.comments.length - 1]
+                : null;
+              var linkedTaskText = card.taskId
+                ? (strings.boardLinkedTaskShort || "Linked")
+                : (strings.boardNoLinkedTask || "No linked task yet");
+              var dueMarkup = card.dueAt
+                ? '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>'
+                : '';
+              var statusMarkup = '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>';
+              var archiveMarkup = card.archived && card.archiveOutcome
+                ? '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>'
+                : '';
+              var latestCommentMarkup = latestComment && latestComment.body
+                ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;">' +
+                  '<strong style="font-size:11px;">' + escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
+                  '<span style="font-size:11px;">#' + escapeHtml(String(latestComment.sequence || 1)) + ' • ' + escapeHtml(getTodoCommentSourceLabel(latestComment.source || "human-form")) + ' • ' + escapeHtml(getTodoDescriptionPreview(latestComment.body || "")) + '</span>' +
+                  '</div>'
+                : '';
+              var canApprove = !card.archived && (card.status || "active") !== "ready";
+              var canFinalize = !card.archived && (card.status || "active") === "ready";
+              var canDelete = !card.archived;
+              return (
+                '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:8px;background:' + (isSelected ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-sideBar-background)') + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
+                '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">' +
+                '<strong style="line-height:1.35;">' + escapeHtml(card.title || "Untitled") + '</strong>' +
+                '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span style="font-size:11px;white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
+                '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
+                labelMarkup +
+                latestCommentMarkup +
+                (Array.isArray(card.flags) && card.flags.length
+                  ? '<div class="note" style="font-size:11px;">' + escapeHtml(card.flags.join(" • ")) + '</div>'
+                  : '') +
+                '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">' +
+                '<button type="button" class="btn-secondary todo-card-edit" data-todo-edit="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardEditTodo || 'Edit') + '</button>' +
+                (canApprove
+                  ? '<button type="button" class="btn-secondary todo-card-approve" data-todo-approve="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardApproveTodo || 'Approve') + '</button>'
+                  : '') +
+                (canFinalize
+                  ? '<button type="button" class="btn-secondary todo-card-finalize" data-todo-finalize="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardFinalizeTodo || 'Final Accept') + '</button>'
+                  : '') +
+                (canDelete
+                  ? '<button type="button" class="btn-secondary todo-card-delete" data-todo-delete="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardDeleteTodo || 'Delete') + '</button>'
+                  : '') +
+                '</div>' +
+                '</article>'
+              );
+            }).join("")
+            : '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>') +
+          '</div>' +
+          '</section>'
+        );
+      }).join("") +
+      '</div>';
+
+    renderTodoDetailPanel(selectedTodoId
+      ? allCards.find(function (card) { return card.id === selectedTodoId; }) || null
+      : null,
+    sections);
+
+    if (boardColumns) {
+      boardColumns.onclick = function (event) {
+        var editButton = event.target && event.target.closest ? event.target.closest("[data-todo-edit]") : null;
+        var approveButton = event.target && event.target.closest ? event.target.closest("[data-todo-approve]") : null;
+        var finalizeButton = event.target && event.target.closest ? event.target.closest("[data-todo-finalize]") : null;
+        var deleteButton = event.target && event.target.closest ? event.target.closest("[data-todo-delete]") : null;
+        var sectionMoveBtn = event.target && event.target.closest ? event.target.closest("[data-section-move]") : null;
+        var sectionRenameBtn = event.target && event.target.closest ? event.target.closest("[data-section-rename]") : null;
+        var sectionDeleteBtn = event.target && event.target.closest ? event.target.closest("[data-section-delete]") : null;
+        var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
+
+        if (sectionMoveBtn) {
+          vscode.postMessage({ type: "moveCockpitSection", sectionId: sectionMoveBtn.getAttribute("data-section-move"), direction: sectionMoveBtn.getAttribute("data-direction") });
+          return;
+        }
+        if (sectionRenameBtn) {
+          var sectionId = sectionRenameBtn.getAttribute("data-section-rename");
+          var currentSection = getTodoSections().find(function (s) { return s.id === sectionId; });
+          var newTitle = window.prompt("Rename section:", currentSection ? currentSection.title : "");
+          if (newTitle && newTitle.trim()) {
+            vscode.postMessage({ type: "renameCockpitSection", sectionId: sectionId, title: newTitle.trim() });
+          }
+          return;
+        }
+        if (sectionDeleteBtn) {
+          var sectionId = sectionDeleteBtn.getAttribute("data-section-delete");
+          var currentSection = getTodoSections().find(function (s) { return s.id === sectionId; });
+          if (currentSection && window.confirm("Delete section \u201c" + (currentSection.title || "Section") + "\u201d?\nCards will be moved to the default section.")) {
+            vscode.postMessage({ type: "deleteCockpitSection", sectionId: sectionId });
+          }
+          return;
+        }
+
+        if (editButton) {
+          openTodoEditor(editButton.getAttribute("data-todo-edit") || "");
+          return;
+        }
+        if (approveButton) {
+          vscode.postMessage({ type: "approveTodo", todoId: approveButton.getAttribute("data-todo-approve") });
+          return;
+        }
+        if (finalizeButton) {
+          vscode.postMessage({ type: "finalizeTodo", todoId: finalizeButton.getAttribute("data-todo-finalize") });
+          return;
+        }
+        if (deleteButton) {
+          vscode.postMessage({ type: "deleteTodo", todoId: deleteButton.getAttribute("data-todo-delete") });
+          return;
+        }
+        if (card) {
+          selectedTodoId = card.getAttribute("data-todo-id");
+          renderCockpitBoard();
+        }
+      };
+      boardColumns.ondragstart = function (event) {
+        var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
+        if (!card) return;
+        if (card.getAttribute("draggable") === "false") {
+          return;
+        }
+        draggingTodoId = card.getAttribute("data-todo-id");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", draggingTodoId || "");
+        }
+      };
+      boardColumns.ondragover = function (event) {
+        var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+        if (section && draggingTodoId) {
+          event.preventDefault();
+        }
+      };
+      boardColumns.ondrop = function (event) {
+        var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+        var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
+        if (!section || !draggingTodoId) {
+          return;
+        }
+        event.preventDefault();
+        var targetIndex = targetCard ? Number(targetCard.getAttribute("data-order") || 0) : Number(section.getAttribute("data-card-count") || 0);
+        vscode.postMessage({
+          type: "moveTodo",
+          todoId: draggingTodoId,
+          sectionId: section.getAttribute("data-section-id"),
+          targetIndex: targetIndex,
+        });
+        draggingTodoId = null;
+      };
+      boardColumns.ondragend = function () {
+        draggingTodoId = null;
+      };
+    }
+
+    if (todoNewBtn) {
+      todoNewBtn.onclick = function () {
+        openTodoEditor("");
+      };
+    }
+    if (todoClearSelectionBtn) {
+      todoClearSelectionBtn.onclick = function () {
+        selectedTodoId = null;
+        currentTodoLabels = [];
+        selectedTodoLabelName = "";
+        renderCockpitBoard();
+        switchTab("board");
+      };
+    }
+    if (boardAddSectionBtn) {
+      boardAddSectionBtn.onclick = function () {
+        var title = window.prompt("New section name:");
+        if (title && title.trim()) {
+          vscode.postMessage({ type: "addCockpitSection", title: title.trim() });
+        }
+      };
+    }
+    if (cockpitColSlider) {
+      cockpitColSlider.oninput = function () {
+        var w = cockpitColSlider.value;
+        document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+        try { localStorage.setItem("cockpit-col-width", w); } catch (e) {}
+      };
+    }
+    if (todoBackBtn) {
+      todoBackBtn.onclick = function () {
+        switchTab("board");
+      };
+    }
+    if (todoSearchInput) {
+      todoSearchInput.oninput = function () {
+        updateTodoFilters({ searchText: todoSearchInput.value || "" });
+      };
+    }
+    if (todoSectionFilter) {
+      todoSectionFilter.onchange = function () {
+        updateTodoFilters({ sectionId: todoSectionFilter.value || "" });
+      };
+    }
+    if (todoLabelFilter) {
+      todoLabelFilter.onchange = function () {
+        updateTodoFilters({ labels: todoLabelFilter.value ? [todoLabelFilter.value] : [] });
+      };
+    }
+    if (todoPriorityFilter) {
+      todoPriorityFilter.onchange = function () {
+        updateTodoFilters({ priorities: todoPriorityFilter.value ? [todoPriorityFilter.value] : [] });
+      };
+    }
+    if (todoStatusFilter) {
+      todoStatusFilter.onchange = function () {
+        updateTodoFilters({ statuses: todoStatusFilter.value ? [todoStatusFilter.value] : [] });
+      };
+    }
+    if (todoArchiveOutcomeFilter) {
+      todoArchiveOutcomeFilter.onchange = function () {
+        updateTodoFilters({ archiveOutcomes: todoArchiveOutcomeFilter.value ? [todoArchiveOutcomeFilter.value] : [] });
+      };
+    }
+    if (todoSortBy) {
+      todoSortBy.onchange = function () {
+        updateTodoFilters({ sortBy: todoSortBy.value || "manual" });
+      };
+    }
+    if (todoSortDirection) {
+      todoSortDirection.onchange = function () {
+        updateTodoFilters({ sortDirection: todoSortDirection.value || "asc" });
+      };
+    }
+    if (todoShowArchived) {
+      todoShowArchived.onchange = function () {
+        updateTodoFilters({ showArchived: todoShowArchived.checked === true });
+      };
+    }
+    if (todoDetailForm) {
+      todoDetailForm.onsubmit = function (event) {
+        event.preventDefault();
+        if (!todoTitleInput || !todoSectionInput || !todoPriorityInput) {
+          return;
+        }
+        var payload = {
+          title: todoTitleInput.value || "",
+          description: todoDescriptionInput ? todoDescriptionInput.value : "",
+          dueAt: fromLocalDateTimeInput(todoDueInput ? todoDueInput.value : "") || null,
+          sectionId: todoSectionInput.value || "",
+          priority: todoPriorityInput.value || "none",
+          labels: currentTodoLabels.slice(),
+          flags: parseTagList(todoFlagsInput ? todoFlagsInput.value : ""),
+          taskId: todoLinkedTaskSelect && todoLinkedTaskSelect.value ? todoLinkedTaskSelect.value : null,
+        };
+        if (selectedTodoId) {
+          vscode.postMessage({ type: "updateTodo", todoId: selectedTodoId, data: payload });
+        } else {
+          vscode.postMessage({ type: "createTodo", data: payload });
+        }
+      };
+    }
+    if (todoAddCommentBtn) {
+      todoAddCommentBtn.onclick = function () {
+        if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
+          return;
+        }
+        vscode.postMessage({
+          type: "addTodoComment",
+          todoId: selectedTodoId,
+          data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" },
+        });
+        todoCommentInput.value = "";
+      };
+    }
+    if (todoCreateTaskBtn) {
+      todoCreateTaskBtn.onclick = function () {
+        if (!selectedTodoId) return;
+        vscode.postMessage({ type: "createTaskFromTodo", todoId: selectedTodoId });
+      };
+    }
+    if (todoApproveBtn) {
+      todoApproveBtn.onclick = function () {
+        if (!selectedTodoId) return;
+        vscode.postMessage({ type: "approveTodo", todoId: selectedTodoId });
+      };
+    }
+    if (todoFinalizeBtn) {
+      todoFinalizeBtn.onclick = function () {
+        if (!selectedTodoId) return;
+        vscode.postMessage({ type: "finalizeTodo", todoId: selectedTodoId });
+      };
+    }
+    if (todoDeleteBtn) {
+      todoDeleteBtn.onclick = function () {
+        if (!selectedTodoId) return;
+        vscode.postMessage({ type: "deleteTodo", todoId: selectedTodoId });
+        selectedTodoId = null;
+      };
+    }
+    if (todoLabelAddBtn) {
+      todoLabelAddBtn.onclick = function () {
+        addEditorLabelFromInput();
+      };
+    }
+    if (todoLabelsInput) {
+      todoLabelsInput.oninput = function () {
+        var label = normalizeTodoLabel(todoLabelsInput.value);
+        if (label) {
+          // Preview the existing definition color for this label name
+          var def = getLabelDefinition(label);
+          if (def && def.color && todoLabelColorInput) {
+            todoLabelColorInput.value = def.color;
+          }
+          if (todoLabelColorInput) todoLabelColorInput.disabled = false;
+        } else {
+          selectedTodoLabelName = "";
+          syncTodoLabelEditor();
+        }
+        syncTodoLabelSuggestions();
+      };
+      todoLabelsInput.onfocus = function () {
+        syncTodoLabelSuggestions();
+      };
+      todoLabelsInput.onblur = function () {
+        setTimeout(function () {
+          if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+        }, 200);
+      };
+      todoLabelsInput.onkeydown = function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          addEditorLabelFromInput();
+        } else if (event.key === "Escape") {
+          if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+        }
+      };
+    }
+    if (todoLabelChipList) {
+      todoLabelChipList.onclick = function (event) {
+        var removeButton = event.target && event.target.closest ? event.target.closest("[data-label-chip-remove]") : null;
+        var selectButton = event.target && event.target.closest ? event.target.closest("[data-label-chip-select]") : null;
+        if (removeButton) {
+          removeEditorLabel(removeButton.getAttribute("data-label-chip-remove") || "");
+          return;
+        }
+        if (selectButton) {
+          selectedTodoLabelName = selectButton.getAttribute("data-label-chip-select") || "";
+          syncTodoLabelEditor();
+        }
+      };
+    }
+    if (todoLabelColorSaveBtn) {
+      todoLabelColorSaveBtn.onclick = function () {
+        if (!selectedTodoLabelName || !todoLabelColorInput) {
+          return;
+        }
+        vscode.postMessage({
+          type: "saveTodoLabelDefinition",
+          data: {
+            name: selectedTodoLabelName,
+            color: todoLabelColorInput.value,
+          },
+        });
+      };
+    }
+    if (todoLabelSuggestions) {
+      todoLabelSuggestions.onclick = function (event) {
+        var btn = event.target && event.target.closest
+          ? event.target.closest("[data-label-suggestion]")
+          : null;
+        if (btn) {
+          var pickedLabel = btn.getAttribute("data-label-suggestion") || "";
+          var def = getLabelDefinition(pickedLabel);
+          if (def && def.color && todoLabelColorInput) {
+            todoLabelColorInput.value = def.color;
+          }
+          if (todoLabelsInput) todoLabelsInput.value = pickedLabel;
+          addEditorLabelFromInput();
+        }
+      };
+    }
+  }
 
   function getCreateTabButton() {
     return document.querySelector('.tab-button[data-tab="create"]');
@@ -965,6 +2168,28 @@
     if (newTaskBtn) {
       newTaskBtn.style.display = editingTaskId ? "inline-flex" : "none";
     }
+  }
+
+  function openTodoEditor(todoId) {
+    selectedTodoId = todoId || null;
+    if (!selectedTodoId) {
+      currentTodoLabels = [];
+      selectedTodoLabelName = "";
+    }
+    renderCockpitBoard();
+    switchTab("todo-edit");
+  }
+
+  function openJobEditor(jobId) {
+    if (typeof jobId === "string") {
+      selectedJobId = jobId;
+    } else if (!selectedJobId) {
+      var visibleJobs = getVisibleJobs();
+      selectedJobId = visibleJobs.length ? String(visibleJobs[0].id || "") : "";
+    }
+    persistTaskFilter();
+    renderJobsTab();
+    switchTab("jobs-edit");
   }
 
   // Tab switching function
@@ -1565,6 +2790,19 @@
         type: "requestCreateJob",
         folderId: selectedJobFolderId || undefined,
       });
+      switchTab("jobs-edit");
+    });
+  }
+
+  if (jobsBackBtn) {
+    jobsBackBtn.addEventListener("click", function () {
+      switchTab("jobs");
+    });
+  }
+
+  if (jobsOpenEditorBtn) {
+    jobsOpenEditorBtn.addEventListener("click", function () {
+      openJobEditor(selectedJobId || "");
     });
   }
 
@@ -1693,6 +2931,12 @@
       selectedJobId = "";
       persistTaskFilter();
       renderJobsTab();
+      return;
+    }
+
+    var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
+    if (openJobEditorButton && jobsList && jobsList.contains(openJobEditorButton)) {
+      openJobEditor(openJobEditorButton.getAttribute("data-job-open-editor") || "");
       return;
     }
 
@@ -2044,6 +3288,7 @@
           ? lastErrorAtDate.toLocaleString(locale)
           : "";
       var cronText = escapeHtml(task.cronExpression || "");
+      var cronSummary = getCronSummary(task.cronExpression || "");
       var taskName = escapeHtml(task.name || "");
 
       var scopeValue = task.scope || "workspace";
@@ -2204,7 +3449,7 @@
         "</div>" +
         '<div class="task-info">' +
         "<span>⏰ " +
-        cronText +
+        escapeHtml(cronSummary) +
         "</span>" +
         "<span>" +
         escapeHtml(strings.labelNextRun) +
@@ -2215,6 +3460,7 @@
         scopeInfo +
         "</span>" +
         "</div>" +
+        '<div class="task-info"><span>Cron: ' + cronText + '</span></div>' +
         (labelBadgesHtml
           ? '<div class="task-badges">' + labelBadgesHtml + "</div>"
           : "") +
@@ -3671,9 +4917,12 @@
               '</div>' +
                   '<div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '">' +
                   '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
+                  '<div style="display:flex;align-items:center;gap:8px;">' +
                   (job.archived
                     ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || 'Archived') + '</span>'
                     : '') +
+                  '<button type="button" class="btn-secondary" data-job-open-editor="' + escapeAttr(job.id || '') + '">' + escapeHtml(strings.jobsOpenEditor || 'Open editor') + '</button>' +
+                  '</div>' +
               '</div>' +
               '</div>'
             );
@@ -4005,6 +5254,7 @@
           syncJobsExistingTaskSelect();
           renderTaskList(message.tasks);
           renderJobsTab();
+          renderCockpitBoard();
           break;
         case "updateJobs":
           jobs = Array.isArray(message.jobs) ? message.jobs : [];
@@ -4017,6 +5267,16 @@
             ? message.jobFolders
             : [];
           renderJobsTab();
+          break;
+        case "updateCockpitBoard":
+          cockpitBoard = message.cockpitBoard || {
+            version: 1,
+            sections: [],
+            cards: [],
+            filters: { labels: [], priorities: [], flags: [], sortBy: "manual", sortDirection: "asc", showArchived: false },
+            updatedAt: "",
+          };
+          renderCockpitBoard();
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)
@@ -4195,8 +5455,7 @@
             : "";
           selectedJobId = message.jobId || "";
           persistTaskFilter();
-          switchTab("jobs");
-          renderJobsTab();
+          openJobEditor(selectedJobId);
           setTimeout(function () {
             var jobCard = selectedJobId
               ? document.querySelector('[data-job-id="' + selectedJobId + '"]')

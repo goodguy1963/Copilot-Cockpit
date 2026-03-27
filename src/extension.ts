@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Extension Entry Point
+ * Copilot Cockpit - Extension Entry Point
  * Registers commands, initializes components, and starts the scheduler
  */
 
@@ -13,8 +13,40 @@ import { SchedulerWebview } from "./schedulerWebview";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
+import { createDefaultCockpitBoard } from "./cockpitBoard";
+import {
+  addCockpitTodoComment,
+  approveCockpitTodo,
+  addCockpitSection,
+  createCockpitTodo,
+  deleteCockpitSection,
+  deleteCockpitTodo,
+  ensureTaskTodos,
+  finalizeCockpitTodo,
+  getCockpitBoard,
+  moveCockpitSection,
+  moveCockpitTodo,
+  rejectCockpitTodo,
+  renameCockpitSection,
+  saveCockpitTodoLabelDefinition,
+  setCockpitBoardFilters,
+  updateCockpitTodo,
+} from "./cockpitBoardManager";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
-import { ensureSchedulerSkillForWorkspaceRoots } from "./skillBootstrap";
+import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
+import {
+  ensureCockpitTodoSkillForWorkspaceRoots,
+  ensureSchedulerSkillForWorkspaceRoots,
+} from "./skillBootstrap";
+import {
+  affectsCompatibleConfiguration,
+  COCKPIT_TASKS_VIEW_ID,
+  getCockpitCommandId,
+  getCompatibleConfigurationValue,
+  getLegacySchedulerCommandId,
+  type SchedulerCommandName,
+  updateCompatibleConfigurationValue,
+} from "./extensionCompat";
 import {
   getTelegramNotificationView,
   saveTelegramNotificationConfig,
@@ -31,12 +63,15 @@ import {
   resolveGlobalPromptsRoot,
 } from "./promptResolver";
 import type {
+  AddCockpitTodoCommentInput,
+  CreateCockpitTodoInput,
   ScheduledTask,
   CreateTaskInput,
   CreateResearchProfileInput,
   TaskAction,
   ExecutionDefaultsView,
   PromptSource,
+  UpdateCockpitBoardFiltersInput,
 } from "./types";
 
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
@@ -45,20 +80,51 @@ const PROMPT_SYNC_DATE_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
 const LAST_VERSION_KEY = "lastKnownVersion";
 
+function getSchedulerSetting<T>(
+  key: string,
+  defaultValue: T,
+  scope?: vscode.ConfigurationScope,
+): T {
+  return getCompatibleConfigurationValue<T>(key, defaultValue, scope);
+}
+
+async function updateSchedulerSetting(
+  key: string,
+  value: unknown,
+  target: vscode.ConfigurationTarget,
+  scope?: vscode.ConfigurationScope,
+): Promise<void> {
+  await updateCompatibleConfigurationValue(key, value, target, scope);
+}
+
+function registerSchedulerCommand(
+  name: SchedulerCommandName,
+  callback: (...args: any[]) => unknown,
+): vscode.Disposable {
+  const cockpitCommandId = getCockpitCommandId(name);
+
+  return vscode.Disposable.from(
+    vscode.commands.registerCommand(cockpitCommandId, callback),
+    vscode.commands.registerCommand(
+      getLegacySchedulerCommandId(name),
+      (...args: unknown[]) =>
+        vscode.commands.executeCommand(cockpitCommandId, ...args),
+    ),
+  );
+}
+
 function sanitizeErrorDetailsForLog(message: string): string {
   return sanitizeAbsolutePathDetails(message);
 }
 
 function shouldNotify(): boolean {
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  return config.get<boolean>("showNotifications", true);
+  return getSchedulerSetting<boolean>("showNotifications", true);
 }
 
 function getNotificationMode(): NotificationMode {
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  const mode = config.get<NotificationMode>("notificationMode", "sound");
+  const mode = getSchedulerSetting<NotificationMode>("notificationMode", "sound");
   // Legacy: if notifications were disabled, honor that as silentStatus
-  if (config.get<boolean>("showNotifications", true) === false) {
+  if (getSchedulerSetting<boolean>("showNotifications", true) === false) {
     return "silentStatus";
   }
   return mode || "sound";
@@ -66,8 +132,7 @@ function getNotificationMode(): NotificationMode {
 
 async function maybeWarnCronInterval(cronExpression?: string): Promise<void> {
   if (!cronExpression) return;
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  const enabled = config.get<boolean>("minimumIntervalWarning", true);
+  const enabled = getSchedulerSetting<boolean>("minimumIntervalWarning", true);
   if (!enabled) return;
   const warning = scheduleManager.checkMinimumInterval(cronExpression);
   if (warning) {
@@ -176,7 +241,13 @@ async function ensureSchedulerSkillOnStartup(
     return;
   }
 
+  ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+
   await ensureSchedulerSkillForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+  );
+  await ensureCockpitTodoSkillForWorkspaceRoots(
     context.extensionUri.fsPath,
     workspaceRoots,
   );
@@ -236,6 +307,7 @@ function refreshSchedulerUiState(): void {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
   SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
+  SchedulerWebview.updateCockpitBoard(getCurrentCockpitBoard());
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
   SchedulerWebview.updateResearchState(
@@ -257,6 +329,7 @@ async function showSchedulerWebview(
     scheduleManager.getAllTasks(),
     scheduleManager.getAllJobs(),
     scheduleManager.getAllJobFolders(),
+    getCurrentCockpitBoard(),
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
     researchManager.getAllProfiles(),
@@ -267,15 +340,50 @@ async function showSchedulerWebview(
   );
 }
 
+function getCurrentCockpitBoard() {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return createDefaultCockpitBoard();
+  }
+
+  return ensureTaskTodos(
+    workspaceRoot,
+    scheduleManager?.getAllTasks?.() ?? [],
+  ).board;
+}
+
+function buildTaskPromptFromTodo(taskSource: {
+  title: string;
+  description?: string;
+  comments?: Array<{ author?: string; body?: string }>;
+}): string {
+  const sections: string[] = [
+    `Task goal: ${taskSource.title}`,
+  ];
+
+  if (taskSource.description?.trim()) {
+    sections.push(`Context:\n${taskSource.description.trim()}`);
+  }
+
+  const commentLines = (taskSource.comments ?? [])
+    .filter((comment) => comment?.body)
+    .slice(-5)
+    .map((comment) => `- ${comment.author || "system"}: ${comment.body}`);
+  if (commentLines.length > 0) {
+    sections.push(`Recent coordination:\n${commentLines.join("\n")}`);
+  }
+
+  sections.push("Produce the approved execution artifact for this todo and keep any unresolved questions explicit.");
+  return sections.join("\n\n");
+}
+
 function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
 function isAutoShowOnStartupEnabled(): boolean {
   const folderUri = getPrimaryWorkspaceFolderUri();
-  return vscode.workspace
-    .getConfiguration("copilotScheduler", folderUri)
-    .get<boolean>("autoShowOnStartup", false);
+  return getSchedulerSetting<boolean>("autoShowOnStartup", false, folderUri);
 }
 
 async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
@@ -284,9 +392,7 @@ async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
     ? vscode.ConfigurationTarget.WorkspaceFolder
     : vscode.ConfigurationTarget.Workspace;
 
-  await vscode.workspace
-    .getConfiguration("copilotScheduler", folderUri)
-    .update("autoShowOnStartup", enabled, target);
+  await updateSchedulerSetting("autoShowOnStartup", enabled, target, folderUri);
 }
 
 async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> {
@@ -308,13 +414,9 @@ function getExecutionDefaultsTarget(): vscode.ConfigurationTarget {
 
 function getCurrentExecutionDefaults(): ExecutionDefaultsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
-  const config = vscode.workspace.getConfiguration(
-    "copilotScheduler",
-    folderUri,
-  );
   return {
-    agent: config.get<string>("defaultAgent", "agent").trim(),
-    model: config.get<string>("defaultModel", "").trim(),
+    agent: getSchedulerSetting<string>("defaultAgent", "agent", folderUri).trim(),
+    model: getSchedulerSetting<string>("defaultModel", "", folderUri).trim(),
   };
 }
 
@@ -322,20 +424,16 @@ async function saveExecutionDefaults(
   input: Partial<ExecutionDefaultsView>,
 ): Promise<ExecutionDefaultsView> {
   const folderUri = getPrimaryWorkspaceFolderUri();
-  const config = vscode.workspace.getConfiguration(
-    "copilotScheduler",
-    folderUri,
-  );
   const target = getExecutionDefaultsTarget();
   const nextAgent = typeof input.agent === "string"
     ? input.agent.trim()
-    : config.get<string>("defaultAgent", "agent").trim();
+    : getSchedulerSetting<string>("defaultAgent", "agent", folderUri).trim();
   const nextModel = typeof input.model === "string"
     ? input.model.trim()
-    : config.get<string>("defaultModel", "").trim();
+    : getSchedulerSetting<string>("defaultModel", "", folderUri).trim();
 
-  await config.update("defaultAgent", nextAgent, target);
-  await config.update("defaultModel", nextModel, target);
+  await updateSchedulerSetting("defaultAgent", nextAgent, target, folderUri);
+  await updateSchedulerSetting("defaultModel", nextModel, target, folderUri);
 
   return getCurrentExecutionDefaults();
 }
@@ -589,14 +687,13 @@ async function runStartupSequence(
   context: vscode.ExtensionContext,
   onExecute: (task: ScheduledTask) => Promise<void>,
 ): Promise<void> {
-  const cfg = vscode.workspace.getConfiguration("copilotScheduler");
-  if (cfg.get<boolean>("enabled", true) !== false) {
+  if (getSchedulerSetting<boolean>("enabled", true) !== false) {
     await processOverdueTasksOnStartup();
   }
 
   scheduleAutoShowSchedulerOnStartup(context);
 
-  if (cfg.get<boolean>("enabled", true) !== false) {
+  if (getSchedulerSetting<boolean>("enabled", true) !== false) {
     scheduleManager.startScheduler(onExecute);
   } else {
     scheduleManager.stopScheduler();
@@ -694,7 +791,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   // Register TreeView
-  const treeView = vscode.window.createTreeView("copilotSchedulerTasks", {
+  const treeView = vscode.window.createTreeView(COCKPIT_TASKS_VIEW_ID, {
     treeDataProvider: treeProvider,
     showCollapseAll: true,
   });
@@ -790,8 +887,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   // Show activation message
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  const logLevel = config.get<string>("logLevel", "info");
+  const logLevel = getSchedulerSetting<string>("logLevel", "info");
   if (logLevel === "info" || logLevel === "debug") {
     void vscode.window
       .showInformationMessage(
@@ -814,34 +910,33 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // React to language changes so the webview can be re-rendered in the selected locale
   const configWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
-    if (e.affectsConfiguration("copilotScheduler.language")) {
+    if (affectsCompatibleConfiguration(e, "language")) {
       SchedulerWebview.refreshLanguage(scheduleManager.getAllTasks());
       treeProvider.refresh();
     }
-    if (e.affectsConfiguration("copilotScheduler.autoShowOnStartup")) {
+    if (affectsCompatibleConfiguration(e, "autoShowOnStartup")) {
       SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
     }
     if (
-      e.affectsConfiguration("copilotScheduler.defaultAgent") ||
-      e.affectsConfiguration("copilotScheduler.defaultModel")
+      affectsCompatibleConfiguration(e, "defaultAgent") ||
+      affectsCompatibleConfiguration(e, "defaultModel")
     ) {
       SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
     }
     if (
-      e.affectsConfiguration("copilotScheduler.globalPromptsPath") ||
-      e.affectsConfiguration("copilotScheduler.globalAgentsPath")
+      affectsCompatibleConfiguration(e, "globalPromptsPath") ||
+      affectsCompatibleConfiguration(e, "globalAgentsPath")
     ) {
       void SchedulerWebview.refreshCachesAndNotifyPanel(true);
     }
     // Consolidate timezone / enabled recalculation to avoid duplicate
     // recalculateAllNextRuns() when both change in one event (U22/U24).
     let needsRecalculate = false;
-    if (e.affectsConfiguration("copilotScheduler.timezone")) {
+    if (affectsCompatibleConfiguration(e, "timezone")) {
       needsRecalculate = true;
     }
-    if (e.affectsConfiguration("copilotScheduler.enabled")) {
-      const cfg = vscode.workspace.getConfiguration("copilotScheduler");
-      const enabled = cfg.get<boolean>("enabled", true);
+    if (affectsCompatibleConfiguration(e, "enabled")) {
+      const enabled = getSchedulerSetting<boolean>("enabled", true);
       if (enabled) {
         scheduleManager.startScheduler(executeScheduledTask);
         needsRecalculate = true;
@@ -867,9 +962,8 @@ export function activate(context: vscode.ExtensionContext): void {
           SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
         });
     }
-    if (e.affectsConfiguration("copilotScheduler.maxDailyExecutions")) {
-      const cfg = vscode.workspace.getConfiguration("copilotScheduler");
-      if (cfg.get<number>("maxDailyExecutions", 24) === 0) {
+    if (affectsCompatibleConfiguration(e, "maxDailyExecutions")) {
+      if (getSchedulerSetting<number>("maxDailyExecutions", 24) === 0) {
         void vscode.window.showWarningMessage(messages.unlimitedDailyWarning());
       }
     }
@@ -1019,8 +1113,9 @@ function getWorkspaceFolderPaths(): string[] {
 }
 
 function getGlobalPromptsRoot(): string | undefined {
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  return resolveGlobalPromptsRoot(config.get<string>("globalPromptsPath", ""));
+  return resolveGlobalPromptsRoot(
+    getSchedulerSetting<string>("globalPromptsPath", ""),
+  );
 }
 
 /**
@@ -1615,7 +1710,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         );
         SchedulerWebview.updateTelegramNotification(view);
         notifyInfo("Telegram notification settings saved.");
-        SchedulerWebview.switchToTab("telegram");
+        SchedulerWebview.switchToTab("settings");
         break;
       }
 
@@ -1635,7 +1730,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           getTelegramNotificationView(workspaceRoot),
         );
         notifyInfo("Telegram test message sent.");
-        SchedulerWebview.switchToTab("telegram");
+        SchedulerWebview.switchToTab("settings");
         break;
       }
 
@@ -1645,7 +1740,282 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         );
         SchedulerWebview.updateExecutionDefaults(defaults);
         notifyInfo("Default agent and model updated.");
-        SchedulerWebview.switchToTab("telegram");
+        SchedulerWebview.switchToTab("settings");
+        break;
+      }
+
+      case "createTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoData?.title) {
+          const msg = messages.noWorkspaceOpen();
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+          break;
+        }
+        createCockpitTodo(
+          workspaceRoot,
+          action.todoData as CreateCockpitTodoInput,
+        );
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo("Todo Cockpit item created.");
+        break;
+      }
+
+      case "updateTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = updateCockpitTodo(
+          workspaceRoot,
+          action.todoId,
+          action.todoData ?? {},
+        );
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Updated Todo Cockpit item: ${result.todo.title}`);
+        break;
+      }
+
+      case "deleteTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = deleteCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.deleted) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo("Todo Cockpit item rejected and archived.");
+        break;
+      }
+
+      case "approveTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = approveCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Approved Todo Cockpit item: ${result.todo.title}`);
+        break;
+      }
+
+      case "rejectTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = rejectCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Rejected Todo Cockpit item: ${result.todo.title}`);
+        break;
+      }
+
+      case "finalizeTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
+        break;
+      }
+
+      case "saveTodoLabelDefinition": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoLabelData?.name) {
+          break;
+        }
+        const result = saveCockpitTodoLabelDefinition(
+          workspaceRoot,
+          action.todoLabelData,
+        );
+        if (!result.label) {
+          notifyError("Todo Cockpit label could not be saved.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Saved label palette entry: ${result.label.name}`);
+        break;
+      }
+
+      case "archiveTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
+        break;
+      }
+
+      case "moveTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = moveCockpitTodo(
+          workspaceRoot,
+          action.todoId,
+          action.targetSectionId,
+          action.targetOrder ?? 0,
+        );
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "addCockpitSection": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.sectionTitle) break;
+        addCockpitSection(workspaceRoot, action.sectionTitle);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "renameCockpitSection": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.sectionId || !action.sectionTitle) break;
+        renameCockpitSection(workspaceRoot, action.sectionId, action.sectionTitle);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "deleteCockpitSection": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.sectionId) break;
+        deleteCockpitSection(workspaceRoot, action.sectionId);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "moveCockpitSection": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.sectionId || !action.sectionDirection) break;
+        moveCockpitSection(workspaceRoot, action.sectionId, action.sectionDirection);
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "addTodoComment": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId || !action.todoCommentData?.body) {
+          break;
+        }
+        const result = addCockpitTodoComment(
+          workspaceRoot,
+          action.todoId,
+          action.todoCommentData as AddCockpitTodoCommentInput,
+        );
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "setTodoFilters": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot) {
+          break;
+        }
+        setCockpitBoardFilters(
+          workspaceRoot,
+          (action.todoFilters ?? {}) as UpdateCockpitBoardFiltersInput,
+        );
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "linkTodoTask": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = updateCockpitTodo(
+          workspaceRoot,
+          action.todoId,
+          { taskId: action.linkedTaskId ?? null },
+        );
+        if (!result.todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        break;
+      }
+
+      case "createTaskFromTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const board = getCurrentCockpitBoard();
+        const todo = board.cards.find((entry) => entry.id === action.todoId);
+        if (!todo) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+
+        const createdTask = await scheduleManager.createTask({
+          name: todo.title,
+          description: todo.description,
+          cronExpression: "0 9 * * 1-5",
+          prompt: buildTaskPromptFromTodo(todo),
+          enabled: false,
+          labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
+          scope: "workspace",
+          promptSource: "inline",
+        });
+        updateCockpitTodo(workspaceRoot, todo.id, { taskId: createdTask.id });
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("list");
+        SchedulerWebview.focusTask(createdTask.id);
+        notifyInfo(`Created scheduled task draft from Todo Cockpit: ${createdTask.name}`);
         break;
       }
 
@@ -1753,8 +2123,8 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
 // ==================== Command Registrations ====================
 
 function registerCreateTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.createTask",
+  return registerSchedulerCommand(
+    "createTask",
     async () => {
       try {
         // CLI-style task creation using InputBox
@@ -1798,8 +2168,8 @@ function registerCreateTaskCommand(): vscode.Disposable {
 function registerSetupMcpCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.setupMcp",
+  return registerSchedulerCommand(
+    "setupMcp",
     async () => {
       await setupWorkspaceMcpConfig(context);
     },
@@ -1809,8 +2179,8 @@ function registerSetupMcpCommand(
 function registerCreateTaskGuiCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.createTaskGui",
+  return registerSchedulerCommand(
+    "createTaskGui",
     async () => {
       try {
         await showSchedulerWebview(
@@ -1849,8 +2219,8 @@ function registerCreateTaskGuiCommand(
 function registerListTasksCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.listTasks",
+  return registerSchedulerCommand(
+    "listTasks",
     async () => {
       try {
         await showSchedulerWebview(context);
@@ -1868,8 +2238,8 @@ function registerListTasksCommand(
 function registerEditTaskCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.editTask",
+  return registerSchedulerCommand(
+    "editTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let taskId: string | undefined;
@@ -1910,8 +2280,8 @@ function registerEditTaskCommand(
 }
 
 function registerDeleteTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.deleteTask",
+  return registerSchedulerCommand(
+    "deleteTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let task: ScheduledTask | undefined;
@@ -1975,8 +2345,8 @@ function registerDeleteTaskCommand(): vscode.Disposable {
 }
 
 function registerToggleTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.toggleTask",
+  return registerSchedulerCommand(
+    "toggleTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let taskId: string | undefined;
@@ -2026,8 +2396,8 @@ function registerToggleTaskCommand(): vscode.Disposable {
 }
 
 function registerEnableTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.enableTask",
+  return registerSchedulerCommand(
+    "enableTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let taskId: string | undefined;
@@ -2071,8 +2441,8 @@ function registerEnableTaskCommand(): vscode.Disposable {
 }
 
 function registerDisableTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.disableTask",
+  return registerSchedulerCommand(
+    "disableTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let taskId: string | undefined;
@@ -2115,8 +2485,8 @@ function registerDisableTaskCommand(): vscode.Disposable {
 }
 
 function registerRunNowCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.runNow",
+  return registerSchedulerCommand(
+    "runNow",
     async (item?: ScheduledTaskItem) => {
       try {
         let task: ScheduledTask | undefined;
@@ -2163,8 +2533,8 @@ function registerRunNowCommand(): vscode.Disposable {
 }
 
 function registerCopyPromptCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.copyPrompt",
+  return registerSchedulerCommand(
+    "copyPrompt",
     async (item?: ScheduledTaskItem) => {
       try {
         let task: ScheduledTask | undefined;
@@ -2208,8 +2578,8 @@ function registerCopyPromptCommand(): vscode.Disposable {
 }
 
 function registerDuplicateTaskCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.duplicateTask",
+  return registerSchedulerCommand(
+    "duplicateTask",
     async (item?: ScheduledTaskItem) => {
       try {
         let taskId: string | undefined;
@@ -2252,8 +2622,8 @@ function registerDuplicateTaskCommand(): vscode.Disposable {
 }
 
 function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.moveToCurrentWorkspace",
+  return registerSchedulerCommand(
+    "moveToCurrentWorkspace",
     async (item?: ScheduledTaskItem) => {
       try {
         let task: ScheduledTask | undefined;
@@ -2317,13 +2687,13 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
 }
 
 function registerOpenSettingsCommand(): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.openSettings",
+  return registerSchedulerCommand(
+    "openSettings",
     async () => {
       try {
         await vscode.commands.executeCommand(
           "workbench.action.openSettings",
-          "@ext:yamapan.copilot-scheduler",
+          "@ext:local-dev.copilot-scheduler-local",
         );
       } catch (error) {
         const errorMessage =
@@ -2337,8 +2707,8 @@ function registerOpenSettingsCommand(): vscode.Disposable {
 function registerShowVersionCommand(
   context: vscode.ExtensionContext,
 ): vscode.Disposable {
-  return vscode.commands.registerCommand(
-    "copilotScheduler.showVersion",
+  return registerSchedulerCommand(
+    "showVersion",
     async () => {
       try {
         const packageJson = context.extension.packageJSON as {

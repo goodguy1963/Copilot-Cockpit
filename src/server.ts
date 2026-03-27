@@ -8,6 +8,22 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 import {
+    createDefaultCockpitBoard,
+    normalizeCockpitBoard,
+} from "./cockpitBoard.js";
+import {
+    addTodoCommentInBoard,
+    approveTodoInBoard,
+    createTodoInBoard,
+    deleteTodoInBoard,
+    ensureTaskTodosInBoard,
+    finalizeTodoInBoard,
+    moveTodoInBoard,
+    rejectTodoInBoard,
+    setCockpitBoardFiltersInBoard,
+    updateTodoInBoard,
+} from "./cockpitBoardManager.js";
+import {
     findWorkspaceRoot,
     getPrivateSchedulerConfigPath,
     readSchedulerConfig,
@@ -52,6 +68,8 @@ interface SchedulerConfig {
     tasks: SchedulerTask[];
     jobs?: any[];
     jobFolders?: any[];
+    cockpitBoard?: any;
+    telegramNotification?: any;
 }
 
 interface ResearchConfig {
@@ -78,6 +96,12 @@ function ensureConfig(raw: unknown): SchedulerConfig {
             ...config,
             jobs: Array.isArray(config.jobs) ? config.jobs : [],
             jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+            cockpitBoard: config.cockpitBoard && typeof config.cockpitBoard === "object"
+                ? normalizeCockpitBoard(config.cockpitBoard)
+                : undefined,
+            telegramNotification: config.telegramNotification && typeof config.telegramNotification === "object"
+                ? config.telegramNotification
+                : undefined,
         };
     }
     return { tasks: [], jobs: [], jobFolders: [] };
@@ -226,6 +250,58 @@ function summarizeJob(config: SchedulerConfig, job: any): Record<string, unknown
             ? job.nodes.filter((node: any) => node && node.type === "pause").length
             : 0,
         nodes: Array.isArray(job?.nodes) ? job.nodes.map((node: any) => summarizeJobNode(config, node)) : [],
+    };
+}
+
+function getCockpitBoard(config: SchedulerConfig): any {
+    const board = config.cockpitBoard && typeof config.cockpitBoard === "object"
+        ? normalizeCockpitBoard(config.cockpitBoard)
+        : createDefaultCockpitBoard();
+    config.cockpitBoard = board;
+    return board;
+}
+
+function getCockpitSection(board: any, sectionId: string): any | undefined {
+    return Array.isArray(board?.sections)
+        ? board.sections.find((section: any) => section && section.id === sectionId)
+        : undefined;
+}
+
+function getCockpitTodo(board: any, todoId: string): any | undefined {
+    return Array.isArray(board?.cards)
+        ? board.cards.find((card: any) => card && card.id === todoId)
+        : undefined;
+}
+
+function normalizeStringList(value: unknown): string[] {
+    return Array.isArray(value)
+        ? value
+            .filter((entry): entry is string => typeof entry === "string")
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0)
+        : [];
+}
+
+function normalizeTodoPriority(value: unknown): string {
+    switch (value) {
+        case "low":
+        case "medium":
+        case "high":
+        case "urgent":
+            return value;
+        default:
+            return "none";
+    }
+}
+
+function summarizeCockpitTodo(board: any, todo: any): Record<string, unknown> {
+    const section = getCockpitSection(board, todo.sectionId);
+    const comments = Array.isArray(todo.comments) ? todo.comments : [];
+    return {
+        ...todo,
+        sectionTitle: section?.title,
+        commentCount: comments.length,
+        latestComment: comments.length > 0 ? comments[comments.length - 1] : undefined,
     };
 }
 
@@ -751,6 +827,182 @@ export const MCP_TOOL_DEFINITIONS = [
                 jobId: { type: "string", description: "Job ID to compile." },
             },
             required: ["jobId"],
+        },
+    },
+    {
+        name: "cockpit_get_board",
+        description: "Get the internal Cockpit board with sections and summarized cards.",
+        inputSchema: { type: "object", properties: {} },
+    },
+    {
+        name: "cockpit_list_todos",
+        description: "List Cockpit todo cards, optionally filtered by section or label.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                sectionId: { type: "string", description: "Optional section ID filter." },
+                label: { type: "string", description: "Optional label filter." },
+                includeArchived: { type: "boolean", description: "Set true to include archived cards." },
+            },
+        },
+    },
+    {
+        name: "cockpit_get_todo",
+        description: "Get one Cockpit todo card by ID.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to fetch." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_create_todo",
+        description: "Create a new Cockpit todo card in a section.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Optional card ID override." },
+                title: { type: "string", description: "Card title." },
+                description: { type: "string", description: "Optional card detail text." },
+                sectionId: { type: "string", description: "Optional target section ID." },
+                priority: { type: "string", description: "none, low, medium, high, or urgent." },
+                labels: { type: "array", items: { type: "string" }, description: "Optional labels." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional flags." },
+                comment: { type: "string", description: "Optional initial comment." },
+                author: { type: "string", description: "Optional initial comment author: user or system." },
+                commentSource: { type: "string", description: "Optional initial comment source: human-form, bot-mcp, bot-manual, or system-event." },
+                status: { type: "string", description: "Optional initial workflow state: active, ready, completed, or rejected." },
+                taskId: { type: "string", description: "Optional linked task ID." },
+                sessionId: { type: "string", description: "Optional linked session ID." },
+            },
+            required: ["title"],
+        },
+    },
+    {
+        name: "cockpit_add_todo_comment",
+        description: "Append a user or system comment to an existing Cockpit todo card.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to update." },
+                body: { type: "string", description: "Comment body." },
+                author: { type: "string", description: "Comment author: user or system." },
+                source: { type: "string", description: "Comment source: human-form, bot-mcp, bot-manual, or system-event." },
+                labels: { type: "array", items: { type: "string" }, description: "Optional labels implied by the comment." },
+            },
+            required: ["todoId", "body"],
+        },
+    },
+    {
+        name: "cockpit_approve_todo",
+        description: "Mark a Cockpit todo card as approved and ready for final acceptance.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to approve." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_finalize_todo",
+        description: "Archive a Cockpit todo card as completed successfully.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to finalize." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_reject_todo",
+        description: "Archive a Cockpit todo card as rejected.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to reject." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_update_todo",
+        description: "Update an existing Cockpit todo card, including due date, labels, flags, and section.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to update." },
+                title: { type: "string" },
+                description: { type: "string" },
+                sectionId: { type: "string" },
+                dueAt: { type: "string", description: "Optional ISO due date." },
+                priority: { type: "string", description: "none, low, medium, high, or urgent." },
+                status: { type: "string", description: "active, ready, completed, or rejected." },
+                labels: { type: "array", items: { type: "string" } },
+                flags: { type: "array", items: { type: "string" } },
+                order: { type: "number" },
+                taskId: { type: "string" },
+                sessionId: { type: "string" },
+                archived: { type: "boolean" },
+                archiveOutcome: { type: "string", description: "completed-successfully or rejected." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_delete_todo",
+        description: "Delete a Cockpit todo card by ID.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to delete." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_move_todo",
+        description: "Move a Cockpit todo card to another section and index.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to move." },
+                sectionId: { type: "string", description: "Optional target section." },
+                targetIndex: { type: "number", description: "Zero-based insertion index." },
+            },
+            required: ["todoId", "targetIndex"],
+        },
+    },
+    {
+        name: "cockpit_set_filters",
+        description: "Update persisted Todo Cockpit filters and sort options.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                searchText: { type: "string" },
+                labels: { type: "array", items: { type: "string" } },
+                priorities: { type: "array", items: { type: "string" } },
+                statuses: { type: "array", items: { type: "string" } },
+                archiveOutcomes: { type: "array", items: { type: "string" } },
+                flags: { type: "array", items: { type: "string" } },
+                sectionId: { type: "string" },
+                sortBy: { type: "string", description: "manual, dueAt, priority, updatedAt, or createdAt." },
+                sortDirection: { type: "string", description: "asc or desc." },
+                showArchived: { type: "boolean" },
+            },
+        },
+    },
+    {
+        name: "cockpit_seed_todos_from_tasks",
+        description: "Ensure scheduled tasks also appear in Todo Cockpit as task-linked cards under Unsorted.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                taskIds: { type: "array", items: { type: "string" }, description: "Optional list of task IDs to seed." },
+            },
         },
     },
     {
@@ -1492,6 +1744,253 @@ export async function handleSchedulerToolCall(
                 job.updatedAt = nowIso();
                 context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' compiled into task '${taskId}'.`, job: summarizeJob(config, job), task: bundledTask });
+            }
+
+            case "cockpit_get_board": {
+                const board = getCockpitBoard(config);
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    sectionCount: Array.isArray(board.sections) ? board.sections.length : 0,
+                    cardCount: Array.isArray(board.cards) ? board.cards.length : 0,
+                    board: {
+                        ...board,
+                        cards: Array.isArray(board.cards)
+                            ? board.cards.map((card: any) => summarizeCockpitTodo(board, card))
+                            : [],
+                    },
+                });
+            }
+
+            case "cockpit_list_todos": {
+                const board = getCockpitBoard(config);
+                const sectionId = typeof args.sectionId === "string" ? args.sectionId.trim() : "";
+                const label = typeof args.label === "string" ? args.label.trim() : "";
+                const includeArchived = args.includeArchived === true;
+                const cards = Array.isArray(board.cards)
+                    ? board.cards.filter((card: any) => {
+                        if (!includeArchived && card.archived === true) {
+                            return false;
+                        }
+                        if (sectionId && card.sectionId !== sectionId) {
+                            return false;
+                        }
+                        if (label && !(Array.isArray(card.labels) && card.labels.includes(label))) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    : [];
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    cardCount: cards.length,
+                    cards: cards.map((card: any) => summarizeCockpitTodo(board, card)),
+                });
+            }
+
+            case "cockpit_get_todo": {
+                const board = getCockpitBoard(config);
+                const todoId = ensureString(args.todoId, "todoId");
+                const todo = getCockpitTodo(board, todoId);
+                if (!todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                return textResponse(summarizeCockpitTodo(board, todo));
+            }
+
+            case "cockpit_create_todo": {
+                const board = getCockpitBoard(config);
+                const result = createTodoInBoard(board, {
+                    id: typeof args.todoId === "string" ? args.todoId : undefined,
+                    title: ensureString(args.title, "title"),
+                    description: typeof args.description === "string" ? args.description : undefined,
+                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                    dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
+                    priority: normalizeTodoPriority(args.priority),
+                    labels: normalizeStringList(args.labels),
+                    flags: normalizeStringList(args.flags),
+                    comment: typeof args.comment === "string" ? args.comment : undefined,
+                    author: args.author === "user" ? "user" : "system",
+                    commentSource: typeof args.commentSource === "string" ? args.commentSource : undefined,
+                    status: typeof args.status === "string" ? args.status : undefined,
+                    taskId: typeof args.taskId === "string" ? args.taskId : undefined,
+                    sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
+                });
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${result.todo.id}' created.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_add_todo_comment": {
+                const board = getCockpitBoard(config);
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = addTodoCommentInBoard(board, todoId, {
+                    body: ensureString(args.body, "body"),
+                    author: args.author === "user" ? "user" : "system",
+                    source: typeof args.source === "string" ? args.source : undefined,
+                    labels: normalizeStringList(args.labels),
+                });
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Comment added to Cockpit todo '${todoId}'.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_approve_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = approveTodoInBoard(getCockpitBoard(config), todoId);
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' approved.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_finalize_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = finalizeTodoInBoard(getCockpitBoard(config), todoId);
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' finalized as completed.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_reject_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = rejectTodoInBoard(getCockpitBoard(config), todoId);
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' rejected.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_update_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = updateTodoInBoard(getCockpitBoard(config), todoId, {
+                    title: typeof args.title === "string" ? args.title : undefined,
+                    description: typeof args.description === "string" ? args.description : undefined,
+                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                    dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
+                    priority: normalizeTodoPriority(args.priority),
+                    status: typeof args.status === "string" ? args.status : undefined,
+                    labels: normalizeStringList(args.labels),
+                    flags: normalizeStringList(args.flags),
+                    order: Number.isFinite(Number(args.order)) ? Number(args.order) : undefined,
+                    taskId: typeof args.taskId === "string" ? args.taskId : undefined,
+                    sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
+                    archived: typeof args.archived === "boolean" ? args.archived : undefined,
+                    archiveOutcome: typeof args.archiveOutcome === "string" ? args.archiveOutcome : undefined,
+                });
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' updated.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_delete_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = deleteTodoInBoard(getCockpitBoard(config), todoId);
+                if (!result.deleted) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' deleted.`,
+                    todoId,
+                });
+            }
+
+            case "cockpit_move_todo": {
+                const todoId = ensureString(args.todoId, "todoId");
+                const result = moveTodoInBoard(
+                    getCockpitBoard(config),
+                    todoId,
+                    typeof args.sectionId === "string" ? args.sectionId : undefined,
+                    Number.isFinite(Number(args.targetIndex)) ? Number(args.targetIndex) : 0,
+                );
+                if (!result.todo) {
+                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${todoId}' moved.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_set_filters": {
+                const board = setCockpitBoardFiltersInBoard(getCockpitBoard(config), {
+                    searchText: typeof args.searchText === "string" ? args.searchText : undefined,
+                    labels: normalizeStringList(args.labels),
+                    priorities: Array.isArray(args.priorities)
+                        ? args.priorities.map((entry: unknown) => normalizeTodoPriority(entry)).filter((entry: string) => entry !== "none")
+                        : undefined,
+                    statuses: Array.isArray(args.statuses)
+                        ? args.statuses.filter((entry: unknown): entry is string => typeof entry === "string")
+                        : undefined,
+                    archiveOutcomes: Array.isArray(args.archiveOutcomes)
+                        ? args.archiveOutcomes.filter((entry: unknown): entry is string => typeof entry === "string")
+                        : undefined,
+                    flags: normalizeStringList(args.flags),
+                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                    sortBy: typeof args.sortBy === "string" ? args.sortBy : undefined,
+                    sortDirection: typeof args.sortDirection === "string" ? args.sortDirection : undefined,
+                    showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
+                });
+                config.cockpitBoard = board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: "Cockpit Todo filters updated.",
+                    filters: board.filters,
+                });
+            }
+
+            case "cockpit_seed_todos_from_tasks": {
+                const selectedTaskIds = Array.isArray(args.taskIds)
+                    ? new Set(args.taskIds.filter((entry: unknown): entry is string => typeof entry === "string" && entry.trim()).map((entry: string) => entry.trim()))
+                    : undefined;
+                const tasks = selectedTaskIds
+                    ? config.tasks.filter((task) => selectedTaskIds.has(task.id))
+                    : config.tasks;
+                const result = ensureTaskTodosInBoard(getCockpitBoard(config), tasks as any);
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Seeded ${result.createdTodoIds.length} task-linked todo cards.`,
+                    createdTodoIds: result.createdTodoIds,
+                    board: {
+                        ...result.board,
+                        cards: result.board.cards.map((card: any) => summarizeCockpitTodo(result.board, card)),
+                    },
+                });
             }
 
             case "research_list_profiles": {

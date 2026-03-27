@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Schedule Manager
+ * Copilot Cockpit - Schedule Manager
  * Handles task CRUD operations, cron scheduling, and persistence
  */
 
@@ -39,6 +39,7 @@ import {
   resolveGlobalPromptsRoot,
   resolveLocalPromptPath,
 } from "./promptResolver";
+import { getCompatibleConfigurationValue } from "./extensionCompat";
 import {
   getCanonicalPromptBackupPath,
   getDefaultPromptBackupRelativePath,
@@ -779,9 +780,8 @@ export class ScheduleManager {
           const workspaceFolderPaths = this.getResolvedWorkspaceRoots();
 
           // Prefer global if it matches the configured (or default) global prompts root.
-          const cfg = vscode.workspace.getConfiguration("copilotScheduler");
           const globalRoot = resolveGlobalPromptsRoot(
-            cfg.get<string>("globalPromptsPath", ""),
+            getCompatibleConfigurationValue<string>("globalPromptsPath", ""),
           );
           if (resolveGlobalPromptPath(globalRoot, promptPath)) {
             return "global";
@@ -1065,8 +1065,7 @@ export class ScheduleManager {
    * Get timezone from configuration
    */
   private getTimeZone(): string | undefined {
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const tz = config.get<string>("timezone", "");
+    const tz = getCompatibleConfigurationValue<string>("timezone", "");
     return tz || undefined;
   }
 
@@ -1576,10 +1575,12 @@ export class ScheduleManager {
     const id = this.generateId();
 
     // Get defaults from configuration
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const defaultScope = config.get<TaskScope>("defaultScope", "workspace");
+    const defaultScope = getCompatibleConfigurationValue<TaskScope>(
+      "defaultScope",
+      "workspace",
+    );
     const defaultJitter = this.clampJitterSeconds(
-      config.get<number>("jitterSeconds", 0),
+      getCompatibleConfigurationValue<number>("jitterSeconds", 0),
     );
 
     const enabled = input.enabled !== false;
@@ -2819,8 +2820,7 @@ export class ScheduleManager {
    * Check and execute tasks that are due
    */
   private async checkAndExecuteTasks(): Promise<void> {
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const enabled = config.get<boolean>("enabled", true);
+    const enabled = getCompatibleConfigurationValue<boolean>("enabled", true);
 
     if (!enabled) {
       return;
@@ -2837,11 +2837,17 @@ export class ScheduleManager {
     );
 
     // Read config values once per tick (avoid redundant reads inside the loop)
-    const rawMaxDaily = config.get<number>("maxDailyExecutions", 24);
+    const rawMaxDaily = getCompatibleConfigurationValue<number>(
+      "maxDailyExecutions",
+      24,
+    );
     const safeMaxDaily = Number.isFinite(rawMaxDaily) ? rawMaxDaily : 24;
     const maxDailyLimit =
       safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100);
-    const defaultJitterSeconds = config.get<number>("jitterSeconds", 0);
+    const defaultJitterSeconds = getCompatibleConfigurationValue<number>(
+      "jitterSeconds",
+      0,
+    );
 
     let needsSave = false;
     let executedCount = 0;

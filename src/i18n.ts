@@ -1,16 +1,16 @@
 /**
- * Copilot Scheduler - Internationalization (i18n)
+ * Copilot Cockpit - Internationalization (i18n)
  */
 
 import * as vscode from "vscode";
 import type { CronPreset } from "./types";
+import { getCompatibleConfigurationValue } from "./extensionCompat";
 
 /**
  * Check if the current language is Japanese
  */
 export function isJapanese(): boolean {
-  const config = vscode.workspace.getConfiguration("copilotScheduler");
-  const lang = config.get<string>("language", "auto");
+  const lang = getCompatibleConfigurationValue<string>("language", "auto");
 
   if (lang === "ja") {
     return true;
@@ -35,16 +35,16 @@ function t(en: string, ja: string): string {
  */
 export const messages = {
   // ==================== General ====================
-  webviewTitle: () => t("Copilot Scheduler", "Copilot Scheduler"),
+  webviewTitle: () => t("Copilot Cockpit", "Copilot Cockpit"),
   extensionActive: () =>
     t(
-      "Copilot Scheduler is now active",
-      "Copilot Scheduler が有効になりました",
+      "Copilot Cockpit is now active",
+      "Copilot Cockpit が有効になりました",
     ),
   extensionDeactivated: () =>
     t(
-      "Copilot Scheduler has been deactivated",
-      "Copilot Scheduler が無効になりました",
+      "Copilot Cockpit has been deactivated",
+      "Copilot Cockpit が無効になりました",
     ),
   schedulerStarted: () =>
     t("Scheduler started", "スケジューラーが開始されました"),
@@ -135,7 +135,7 @@ export const messages = {
   actionEnable: () => t("Enable", "有効化"),
   actionDisable: () => t("Disable", "無効化"),
   actionCancel: () => t("Cancel", "キャンセル"),
-  actionOpenScheduler: () => t("Open Scheduler", "Scheduler を開く"),
+  actionOpenScheduler: () => t("Open Cockpit", "Cockpit を開く"),
   actionReschedule: () => t("Reschedule", "再スケジュール"),
   actionWaitNextCycle: () => t("Wait for Next Cycle", "次の周期まで待機"),
   actionCopyPrompt: () => t("Copy Prompt", "プロンプトをコピー"),
@@ -293,210 +293,210 @@ export const messages = {
   tabList: () => t("Task List", "タスク一覧"),
   tabHowTo: () => t("How To Use", "使い方"),
 
-  helpIntroTitle: () => t("How This Fork Works", "このフォークの動作"),
+  helpIntroTitle: () => t("Schedule Copilot prompts to run automatically", "Copilot プロンプトを自動実行するスケジューラ"),
   helpIntroBody: () =>
     t(
-      "This local fork keeps repo schedules inside each repo's .vscode folder, runs the scheduler inside VS Code, and adds repo-specific startup behavior, Jobs workflows built in columns of chained tasks, pause checkpoints, compile/Bundled Jobs flow, and bounded Research runs.",
-      "このローカルフォークは、各リポジトリの .vscode フォルダーにスケジュールを保存し、Scheduler を VS Code 内で動作させ、リポジトリ単位の起動時動作に加えて、列状に連鎖した Jobs ワークフロー、停止チェックポイント、コンパイル/Bundled Jobs 機能、制限付きの Research 実行を追加しています。",
+      "Write a prompt, set a cron schedule, and this extension sends it to Copilot on time — every time. Schedules are stored per repo in .vscode so teams can share them via git. Chain tasks into Jobs for multi-step workflows, add pause checkpoints for human review, or run bounded Research loops that stop themselves automatically.",
+      "プロンプトを書いてcronスケジュールを設定すれば、この拡張機能が毎回定刻にCopilotへ送信します。スケジュールはリポジトリごとに.vscodeへ保存されるため、gitで共有できます。Jobsでタスクを連結したり、レビュー用の一時停止チェックポイントを追加したり、自動終了するResearchループを実行できます。",
     ),
-  helpCreateTitle: () => t("1. Create Tasks", "1. タスクを作成"),
+  helpCreateTitle: () => t("1. Create a Task", "1. タスクを作成"),
   helpCreateItemName: () =>
     t(
-      "Use the Create tab to set the task name, prompt, cron schedule, scope, and optional agent/model.",
-      "Create タブでタスク名、プロンプト、cron スケジュール、スコープ、必要ならエージェントとモデルを設定します。",
+      "Open the Create Task tab. Enter a name, write your prompt, set a cron schedule (or use the friendly schedule builder), and choose a scope.",
+      "Create Task タブを開き、名前・プロンプト・cronスケジュール（またはフレンドリービルダー）・スコープを設定します。",
     ),
   helpCreateItemTemplates: () =>
     t(
-      "Prompt sources can be inline text, local templates from .github/prompts, or global templates from your VS Code prompts folder.",
-      "プロンプトソースは自由入力、.github/prompts のローカルテンプレート、または VS Code の prompts フォルダーにあるグローバルテンプレートを使えます。",
+      "For the prompt, choose Free Input to type directly, Local Template to load a file from .github/prompts/, or Global Template from your VS Code prompts folder.",
+      "プロンプトは、直接入力のFree Input、.github/prompts/からのLocal Template、VS CodeプロンプトフォルダーのGlobal Templateから選べます。",
     ),
   helpCreateItemSkills: () =>
     t(
-      "Use the skill picker to insert a fixed skill instruction sentence into the prompt with one click. The scheduler MCP skill lives in the repo under .github/skills/scheduler-mcp-agent/SKILL.md, so it is available when this workspace is open; installing the extension alone does not add it to other repos. The skill file being present does not make agents use it automatically, so add it to the prompt with Insert Skill or call it explicitly when needed.",
-      "スキルピッカーを使うと、固定のスキル指示文をワンクリックでプロンプトへ挿入できます。scheduler MCP の skill はリポジトリ内の .github/skills/scheduler-mcp-agent/SKILL.md にあるため、この workspace を開いているときに利用できます。拡張機能を入れただけでは他のリポジトリには追加されません。skill ファイルが存在するだけで agent が自動的に使うわけではないため、必要なときは Insert Skill でプロンプトへ追加するか、明示的に呼び出してください。",
+      "Click Insert Skill to append a skill instruction to the prompt. Skills are .md files in .github/skills/ — they are only available when that repo is open, and they are not used automatically just by being present.",
+      "Insert Skillをクリックすると、スキル指示文をプロンプトへ追加できます。スキルは.github/skills/内の.mdファイルで、そのリポジトリが開いているときのみ有効です。ファイルがあるだけでは自動適用されません。",
     ),
   helpCreateItemAgentModel: () =>
     t(
-      "Task-specific agent and model selections now run in a dedicated chat context when needed so they do not silently reuse the currently active setup.",
-      "タスクごとのエージェント/モデル指定は、必要に応じて専用のチャットコンテキストで実行されるため、現在アクティブな設定を黙って再利用しません。",
+      "Leave agent and model blank to use your current VS Code defaults. Set them explicitly on a task to lock a specific agent and model for that task only.",
+      "エージェントとモデルは空白のままにするとVS Codeのデフォルトが使われます。タスクごとに明示的に指定すると、そのタスク専用に固定できます。",
     ),
   helpCreateItemRunFirst: () =>
     t(
-      "Run-first starts the first execution after 3 minutes; one-time tasks delete themselves after a successful run. Use one-time tasks for a single execution and recurring tasks for prompts that should keep running on cron.",
-      "初回実行を有効にすると3分後に最初の実行を行い、一度きりタスクは成功後に自動削除されます。1回だけ実行したい場合は一度きりタスク、cron で繰り返し実行したい場合は繰り返しタスクを使ってください。",
+      "Check Run First to fire the task 3 minutes after saving. Check One-Time to delete the task automatically after it runs once successfully.",
+      "Run Firstにチェックすると保存から3分後に初回実行します。One-Timeにチェックすると1回成功後にタスクを自動削除します。",
     ),
-  helpListTitle: () => t("2. Manage Tasks", "2. タスクを管理"),
+  helpListTitle: () => t("2. Manage Your Tasks", "2. タスクを管理"),
   helpListItemSections: () =>
     t(
-      "The Task List keeps recurring and one-time tasks in separate sections and shows a live countdown to the next run.",
-      "Task List では繰り返しタスクと一度きりタスクを別セクションで表示し、次回実行までのライブカウントダウンも表示します。",
+      "The Task List shows recurring tasks and one-time tasks in separate sections, with a live countdown to the next scheduled run.",
+      "Task Listでは繰り返しタスクと一度きりタスクを別セクションで表示し、次回実行までのカウントダウンも表示します。",
     ),
   helpListItemActions: () =>
     t(
-      "Tasks can be run immediately, edited, duplicated, copied, enabled, disabled, deleted, or moved to the current workspace.",
-      "タスクは即時実行、編集、複製、コピー、有効化、無効化、削除、現在のワークスペースへの移動ができます。",
+      "Click a task's action buttons to run it now, open it in the editor, duplicate it, enable or disable it, or delete it. You can also move a task to another open workspace.",
+      "タスクのアクションボタンから、即時実行・エディターで開く・複製・有効化/無効化・削除ができます。別のワークスペースへの移動も可能です。",
     ),
   helpListItemStartup: () =>
     t(
-      "Use the Task List toolbar to refresh data and toggle repo-scoped auto-open on startup without leaving the UI.",
-      "Task List のツールバーから、UI を離れずに再読込やリポジトリ単位の起動時自動表示の切り替えができます。",
+      "Use the toolbar to refresh the list or toggle whether the Scheduler opens automatically whenever this repo opens in VS Code.",
+      "ツールバーからリストの更新や、このリポジトリを開いたときにSchedulerを自動表示するかの切り替えができます。",
     ),
-  helpJobsTitle: () => t("3. Jobs Board", "3. JOBS ボード"),
+  helpJobsTitle: () => t("3. Chain Tasks with Jobs", "3. Jobsでタスクを連結"),
   helpJobsItemBoard: () =>
     t(
-      "Use the Jobs tab to build workflows in columns of chained tasks with folders, step windows, and drag-drop reordering.",
-      "Jobs タブでは、フォルダー・ステップ時間枠・ドラッグ&ドロップ並び替え付きで、列状に連鎖したワークフローを作成できます。",
+      "Open the Jobs tab to build multi-step workflows. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
+      "Jobs タブでマルチステップのワークフローを作成します。タスクをステップとして追加し、ドラッグで並べ替え、フォルダーで整理できます。",
     ),
   helpJobsItemPause: () =>
     t(
-      "Dedicated pause checkpoints block all downstream steps until you approve the previous result; rejecting the pause opens the previous task in the editor.",
-      "専用の停止チェックポイントは、前の結果を承認するまで後続ステップをすべて止めます。却下すると、直前のタスクがエディターで開きます。",
+      "Add a Pause Checkpoint between steps to stop the workflow and wait for your approval before continuing. Reject to reopen the previous task in the editor for fixes.",
+      "ステップ間にPause Checkpointを追加すると、次のステップへ進む前に承認を待ちます。却下すると直前のタスクがエディターで開きます。",
     ),
   helpJobsItemCompile: () =>
     t(
-      "Use Compile To Task to merge the whole job into one combined prompt task, then move the source job into the Bundled Jobs folder in an inactive state.",
-      "Compile To Task を使うと、ジョブ全体を1つの結合プロンプトタスクへまとめたうえで、元のジョブを Bundled Jobs フォルダーへ非アクティブ状態で移動できます。",
+      "Use Compile To Task to collapse the entire Job into a single combined prompt task. The original Job moves to a Bundled Jobs folder and becomes inactive.",
+      "Compile To Taskを使うとJob全体を1つのプロンプトタスクにまとめます。元のJobはBundled Jobsフォルダーへ移動し非アクティブになります。",
     ),
   helpJobsItemLabels: () =>
     t(
-      "Job names become effective task labels, so you can filter the Task List by workflow and still add your own manual labels.",
-      "ジョブ名は実効タスクラベルとして扱われるため、Task List をワークフロー単位で絞り込みつつ、手動ラベルも追加できます。",
+      "A Job's name becomes a label on all its steps. Filter the Task List by that label to see only the tasks that belong to that workflow.",
+      "Job名はすべてのステップのラベルになります。Task ListでそのラベルをフィルターするとそのJobのタスクだけを表示できます。",
     ),
   helpJobsItemFolders: () =>
     t(
-      "You can drag jobs into folders, drag them back to All jobs, and use the current-folder banner to see exactly where the board is filtered.",
-      "ジョブはフォルダーへドラッグして移動でき、All jobs に戻すこともできます。現在どのフォルダーで絞り込まれているかは、上部の現在フォルダーバナーで確認できます。",
+      "Drag jobs into folders to organize them. The banner at the top shows which folder you are currently viewing.",
+      "ジョブをフォルダーへドラッグして整理できます。上部のバナーで現在どのフォルダーを表示しているか確認できます。",
     ),
   helpJobsItemDelete: () =>
     t(
-      "Deleting a step from Jobs now asks for confirmation and also removes that task from the Task List.",
-      "Jobs からステップを削除するときは確認が入り、そのタスクは Task List からも削除されます。",
+      "Deleting a step from a Job also removes that task from the Task List. A confirmation prompt appears first.",
+      "JobからステップをDeleteするとTask Listからも削除されます。実行前に確認が表示されます。",
     ),
-  helpResearchTitle: () => t("4. Research Tab", "4. Research タブ"),
+  helpResearchTitle: () => t("4. Run Bounded Research", "4. 制限付きResearchを実行"),
   helpResearchItemProfiles: () =>
     t(
-      "Use the Research tab to save repo-local benchmark profiles with instructions, editable paths, benchmark command, metric regex, and agent/model choices.",
-      "Research タブでは、指示文、編集可能パス、ベンチマークコマンド、指標用正規表現、エージェント/モデル指定を含むリポジトリ単位のベンチマークプロファイルを保存できます。",
+      "Go to the Research tab and create a profile. Set your instructions, the file paths the agent may edit, a benchmark command, a metric pattern, and your agent/model choice.",
+      "Researchタブでプロファイルを作成します。指示文・編集可能なファイルパス・ベンチマークコマンド・指標パターン・エージェント/モデルを設定します。",
     ),
   helpResearchItemBounds: () =>
     t(
-      "Runs are bounded by max iterations, max minutes, benchmark timeout, edit wait time, and consecutive failure limits.",
-      "実行は、最大反復回数、最大分数、ベンチマークタイムアウト、編集待機時間、連続失敗上限で制限されます。",
+      "Set hard limits on how long a run can go: maximum iterations, maximum minutes, benchmark timeout, edit wait time, and consecutive failure limit.",
+      "実行の上限を設定します：最大反復回数・最大分数・ベンチマークタイムアウト・編集待機時間・連続失敗上限。",
     ),
   helpResearchItemHistory: () =>
     t(
-      "Recent runs show attempts, scores, changed files, outcomes, and benchmark output so you can inspect what happened before keeping a result.",
-      "最近の実行には、試行、スコア、変更ファイル、結果、ベンチマーク出力が表示されるため、結果を採用する前に内容を確認できます。",
+      "After a run, check the history to review attempts, scores, which files changed, and the benchmark output — before deciding whether to keep the result.",
+      "実行後はHistoryを確認して、試行・スコア・変更ファイル・ベンチマーク出力を検証してから結果を採用するか判断できます。",
     ),
-  helpStorageTitle: () => t("5. Where Data Lives", "5. データ保存場所"),
+  helpStorageTitle: () => t("5. Where Files Are Saved", "5. ファイルの保存場所"),
   helpStorageItemRepo: () =>
     t(
-      "Workspace tasks are stored in .vscode/scheduler.json and .vscode/scheduler.private.json inside the repo that is open in VS Code.",
-      "ワークスペースタスクは、VS Code で開いているリポジトリ内の .vscode/scheduler.json と .vscode/scheduler.private.json に保存されます。",
+      "Tasks are saved in .vscode/scheduler.json inside the open repo. Todo Cockpit items go to .vscode/scheduler.private.json and are never synced via git.",
+      "タスクは開いているリポジトリの.vscode/scheduler.jsonに保存されます。Todo Cockpitは.vscode/scheduler.private.jsonに保存され、gitで同期されません。",
     ),
   helpStorageItemBackups: () =>
     t(
-      "Recurring inline workspace prompts also get backup-only markdown copies in .vscode/scheduler-prompt-backups. This is separate from .vscode/scheduler-history, which stores full scheduler snapshots.",
-      "繰り返し実行のインライン ワークスペース プロンプトは、.vscode/scheduler-prompt-backups にバックアップ専用の Markdown としても保存されます。これはスケジューラ全体のスナップショットを保存する .vscode/scheduler-history とは別物です。",
+      "Inline prompts are backed up to .vscode/scheduler-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/scheduler-history/.",
+      "インラインプロンプトは.vscode/scheduler-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/scheduler-history/に保存されます。",
     ),
   helpStorageItemIsolation: () =>
     t(
-      "Nested repos do not inherit schedules from the parent folder anymore; each repo keeps its own schedule.",
-      "ネストされたリポジトリは親フォルダーのスケジュールを継承しません。各リポジトリが独自のスケジュールを持ちます。",
+      "Each repo keeps its own schedule. Opening a parent folder does not pull in schedules from nested repos inside it.",
+      "各リポジトリは独自のスケジュールを持ちます。親フォルダーを開いても、内部のネストされたリポジトリのスケジュールは読み込まれません。",
     ),
   helpStorageItemGlobal: () =>
     t(
-      "Global tasks still exist in extension storage, but repo schedules are authoritative in the repo's .vscode files.",
-      "グローバルタスクは拡張ストレージにも存在しますが、リポジトリのスケジュールはそのリポジトリ内の .vscode ファイルが正本です。",
+      "Global tasks are kept in extension storage as a fallback, but the .vscode files in the open repo always take priority.",
+      "グローバルタスクは拡張ストレージにフォールバックとして保存されますが、開いているリポジトリの.vscodeファイルが常に優先されます。",
     ),
-  helpOverdueTitle: () => t("6. Overdue Tasks", "6. 期限超過タスク"),
+  helpOverdueTitle: () => t("6. Handling Overdue Tasks", "6. 期限超過タスクの処理"),
   helpOverdueItemReview: () =>
     t(
-      "If VS Code was closed and tasks became overdue, the extension reviews them one by one on startup instead of auto-running them silently.",
-      "VS Code を閉じている間にタスクが期限超過になると、自動で黙って実行せず、起動時に1件ずつ確認します。",
+      "If VS Code was closed while tasks were scheduled, they won't run automatically on restart. Instead, you'll be asked what to do with each overdue task one at a time.",
+      "VS Codeを閉じている間にスケジュールされたタスクは、再起動時に自動実行されません。代わりに、期限超過のタスクを1件ずつ確認するプロンプトが表示されます。",
     ),
   helpOverdueItemRecurring: () =>
     t(
-      "Recurring overdue tasks can run now or wait for the next cycle.",
-      "繰り返しの期限超過タスクは、今すぐ実行するか次の周期まで待機できます。",
+      "For overdue recurring tasks: choose to run now or skip to the next scheduled cycle.",
+      "繰り返しの期限超過タスク：今すぐ実行するか、次のcyclまで待機するかを選べます。",
     ),
   helpOverdueItemOneTime: () =>
     t(
-      "One-time overdue tasks can run now or be rescheduled by entering how many minutes from now they should run.",
-      "一度きりの期限超過タスクは、今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
+      "For overdue one-time tasks: choose to run now or enter a number of minutes from now to reschedule it.",
+      "一度きりの期限超過タスク：今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
     ),
-  helpSessionTitle: () => t("7. Session Behavior", "7. セッション動作"),
+  helpSessionTitle: () => t("7. Chat Session Options", "7. チャットセッション設定"),
   helpSessionItemPerTask: () =>
     t(
-      "Recurring tasks can override the global chatSession setting directly in the Create/Edit form.",
-      "繰り返しタスクは Create/Edit フォームでグローバル chatSession 設定を上書きできます。",
+      "Each recurring task can override the global new-session setting. Find the option in the Create/Edit Task form.",
+      "繰り返しタスクはCreate/Edit Taskフォームでグローバルのnew-session設定を上書きできます。",
     ),
   helpSessionItemNewChat: () =>
     t(
-      "Scheduled runs can be configured to start a brand-new Copilot chat session before sending the prompt.",
-      "スケジュール実行では、プロンプト送信前に新しい Copilot チャットセッションを開始する設定が使えます。",
+      "Enable New Chat Session on a task to start a fresh Copilot chat before each run, rather than continuing in the same conversation.",
+      "タスクのNew Chat Sessionを有効にすると、毎回の実行前に新しいCopilotチャットを開きます（同じ会話を続けません）。",
     ),
   helpSessionItemCareful: () =>
     t(
-      "Use the new-session mode with extreme care. One scheduled AI run can intentionally open another AI session and continue from there.",
-      "新規セッションモードは最大限の注意を払って使ってください。1つの AI 実行が、意図的に別の AI セッションを開いて続行できます。",
+      "Use this carefully: a scheduled run in new-session mode can deliberately open another AI session and chain into it.",
+      "注意して使用してください：new-sessionモードのスケジュール実行は意図的に別のAIセッションを開いて連鎖できます。",
     ),
   helpSessionItemSeparate: () =>
     t(
-      "MCP is a different launch path, but it can still trigger new sessions indirectly. Once the scheduler MCP tools are exposed, a model can create, modify, or run tasks that use new-session mode, so one LLM can open another.",
-      "MCP は別の起動経路ですが、間接的に新規セッションを起動できます。scheduler MCP ツールが公開されると、モデルは new-session モードのタスクを作成・変更・実行できるため、1つの LLM が別の LLM を開けます。",
+      "If scheduler MCP tools are enabled, an AI model can create or trigger tasks that open new sessions — meaning one LLM can chain into another.",
+      "scheduler MCPツールが有効な場合、AIモデルが新規セッションを開くタスクを作成・実行できます。つまり1つのLLMが別のLLMを連鎖起動できます。",
     ),
   helpMcpItemEmbedded: () =>
     t(
-      "Yes, MCP is built into this fork. The scheduler MCP server is implemented in server.ts and packaged as out/server.js.",
-      "はい。このフォークには MCP が組み込まれています。Scheduler MCP サーバーは server.ts に実装され、out/server.js としてパッケージされます。",
+      "MCP is built in. The scheduler's MCP server starts alongside the extension — no separate install needed.",
+      "MCPは組み込みです。SchedulerのMCPサーバーは拡張機能と一緒に起動します。別途インストールは不要です。",
     ),
   helpMcpItemConfig: () =>
     t(
-      "Installing the extension does not register scheduler MCP tools globally. A workspace still needs an MCP launcher entry such as .vscode/mcp.json.",
-      "拡張機能をインストールしても scheduler MCP ツールがグローバル登録されるわけではありません。ワークスペースには .vscode/mcp.json などの MCP ランチャー設定が必要です。",
+      "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the scheduler server in this workspace.",
+      "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加してこのワークスペースに登録します。",
     ),
   helpMcpItemAutoConfig: () =>
     t(
-      "Use the setup button to create or merge the scheduler server entry into .vscode/mcp.json for this repo.",
-      "セットアップボタンを使うと、このリポジトリ用の scheduler サーバー設定を .vscode/mcp.json に作成またはマージできます。",
+      "Click the Setup MCP button below to automatically create or update .vscode/mcp.json for this repo.",
+      "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonを自動的に作成または更新します。",
     ),
   helpMcpItemDanger: () =>
     t(
-      "Treat MCP exposure as high risk. Once Copilot can see these tools, it can inspect scheduler state, change tasks, and trigger runs that may open more AI sessions.",
-      "MCP 公開は高リスクとして扱ってください。Copilot がこれらのツールを見える状態になると、scheduler 状態の確認、タスク変更、さらに別の AI セッションを開く可能性がある実行のトリガーまで行えます。",
+      "Warning: once Copilot can see these MCP tools, it can read your schedule, modify tasks, and trigger runs — including ones that open new AI sessions. Only enable this if you understand the risk.",
+      "警告：CopilotがこれらのMCPツールを参照できると、スケジュールの読み取り・タスクの変更・実行のトリガー（新しいAIセッションを開くものも含む）が可能になります。リスクを理解した上で有効にしてください。",
     ),
   helpMcpItemInspect: () =>
     t(
-      "scheduler_list_tasks and scheduler_get_task inspect the current scheduler state and a single saved task.",
-      "scheduler_list_tasks と scheduler_get_task は、現在の scheduler 状態と単一タスクの内容を確認します。",
+      "Read tools: list all tasks, fetch a single task's details, get overdue tasks, and view run history.",
+      "読み取りツール：全タスクの一覧・単一タスクの詳細取得・期限超過タスクの確認・実行履歴の表示。",
     ),
   helpMcpItemWrite: () =>
     t(
-      "scheduler_add_task, scheduler_update_task, scheduler_duplicate_task, scheduler_remove_task, and scheduler_toggle_task create or change saved tasks.",
-      "scheduler_add_task、scheduler_update_task、scheduler_duplicate_task、scheduler_remove_task、scheduler_toggle_task は、保存済みタスクの作成や変更を行います。",
+      "Write tools: add, update, duplicate, remove, or toggle tasks. Job tools create and edit workflows and their steps.",
+      "書き込みツール：タスクの追加・更新・複製・削除・切り替え。JobツールはワークフローとそのステップをCRUD操作します。",
     ),
   helpMcpItemTools: () =>
     t(
-      "scheduler_run_task triggers a task, while scheduler_list_history, scheduler_restore_snapshot, and scheduler_get_overdue_tasks inspect recovery state and due work. Job tools manage workflows, pause checkpoints, and bundled-task compilation, and research tools manage benchmark profiles and runs.",
-      "scheduler_run_task はタスクを起動し、scheduler_list_history、scheduler_restore_snapshot、scheduler_get_overdue_tasks は復旧履歴や期限超過状態を確認します。job の tool はワークフロー、停止チェックポイント、Bundled Task への変換を扱い、research の tool はベンチマーク用プロファイルと実行履歴を扱います。",
+      "Action tools: run a task immediately, restore a scheduler snapshot, manage pause checkpoints in Jobs, and start or review Research profile runs.",
+      "アクションツール：タスクの即時実行・スナップショット復元・Jobsの一時停止チェックポイント管理・Researchプロファイル実行の開始と確認。",
     ),
-  helpMcpTitle: () => t("8. MCP Support", "8. MCP 対応"),
-  helpTipsTitle: () => t("9. Recommended Workflow", "9. 推奨ワークフロー"),
+  helpMcpTitle: () => t("8. MCP Integration", "8. MCPインテグレーション"),
+  helpTipsTitle: () => t("9. Tips", "9. ヒント"),
   helpTipsItem1: () =>
     t(
-      "Enable auto-open only for repos where you want the scheduler UI every time the repo opens.",
-      "起動時に毎回 Scheduler UI を出したいリポジトリだけ、自動表示を有効にしてください。",
+      "Enable auto-open only for repos where you want the Scheduler panel to appear every time the repo opens in VS Code.",
+      "VS Codeでリポジトリを開くたびにSchedulerパネルを表示したいリポジトリにだけ自動表示を有効にしてください。",
     ),
   helpTipsItem2: () =>
     t(
-      "Keep recurring tasks at reasonable intervals and use jitter plus daily limits to reduce automation risk.",
-      "繰り返しタスクは無理のない間隔にし、ジッターと1日上限を使って自動化リスクを下げてください。",
+      "Set reasonable cron intervals. Use jitter and daily run limits to avoid burning through your AI quota with runaway automation.",
+      "無理のないcron間隔を設定し、ジッターと1日の実行上限を使って自動化のリスクとAIクォータの消費を抑えてください。",
     ),
   helpTipsItem3: () =>
     t(
-      "Use the restore dropdown to roll back repo-local schedule changes, and choose the right concept: task for one scheduled prompt, one-time task for a single execution, recurring task for ongoing cron runs, job for multi-step workflows, and research profile for bounded benchmarks. The Telegram tab also stores the repo-scoped default agent and default model used whenever a task leaves those fields empty. The scheduler MCP skill is repo-local in .github/skills/scheduler-mcp-agent/SKILL.md, so it is available when this workspace is open; installing the extension alone does not add it to other repos. Presence alone does not auto-apply the skill, so insert it into the prompt or call it explicitly when you want the agent to use it.",
-      "復元ドロップダウンでリポジトリ単位のスケジュール変更を巻き戻し、概念を使い分けてください。task は 1 件の定期プロンプト、one-time task は 1 回だけの実行、recurring task は cron で継続実行、job は複数ステップのワークフロー、research profile は制限付きベンチマーク用です。Telegram タブには、task 側で agent や model を空にしたときに使われるリポジトリ単位の既定 agent / model も保存されます。scheduler MCP の skill は .github/skills/scheduler-mcp-agent/SKILL.md にある repo-local のため、この workspace を開いているときに利用できます。拡張機能を入れただけでは他のリポジトリには追加されません。存在するだけで自動適用されるわけではないため、agent に使わせたいときはプロンプトへ挿入するか、明示的に呼び出してください。",
+      "Use the restore dropdown to roll back schedule changes. Skills in .github/skills/ must be inserted into the prompt manually — they are not applied automatically. The Settings tab stores the default agent and model used when a task leaves those fields blank.",
+      "復元ドロップダウンでスケジュール変更を巻き戻せます。.github/skills/のスキルは手動でプロンプトへ挿入する必要があり、自動適用されません。Settingsタブには、タスクでエージェント/モデルが未指定のときに使うデフォルト値を保存できます。",
     ),
 
   webviewMessageHandlingFailed: (error: string) =>
@@ -637,11 +637,11 @@ export const messages = {
 
   // ==================== Version Info ====================
   versionInfo: (version: string) =>
-    t(`Copilot Scheduler v${version}`, `Copilot Scheduler v${version}`),
+    t(`Copilot Cockpit v${version}`, `Copilot Cockpit v${version}`),
   reloadAfterUpdate: (version: string) =>
     t(
-      `Copilot Scheduler has been updated to v${version}. Reload to activate the new version.`,
-      `Copilot Scheduler が v${version} に更新されました。新しいバージョンを有効にするにはリロードしてください。`,
+      `Copilot Cockpit has been updated to v${version}. Reload to activate the new version.`,
+      `Copilot Cockpit が v${version} に更新されました。新しいバージョンを有効にするにはリロードしてください。`,
     ),
   reloadNow: () => t("Reload Now", "今すぐリロード"),
 

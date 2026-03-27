@@ -1,5 +1,5 @@
 /**
- * Copilot Scheduler - Scheduler Webview
+ * Copilot Cockpit - Scheduler Webview
  * Provides GUI for task creation, editing, and listing
  */
 
@@ -8,6 +8,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { notifyError } from "./extension";
 import type {
+  CockpitBoard,
   ScheduledTask,
   ScheduleHistoryEntry,
   CreateTaskInput,
@@ -30,6 +31,7 @@ import { CopilotExecutor } from "./copilotExecutor";
 import { messages, isJapanese, getCronPresets } from "./i18n";
 import { logError } from "./logger";
 import { validateTemplateLoadRequest } from "./templateValidation";
+import { getCompatibleConfigurationValue } from "./extensionCompat";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
@@ -55,6 +57,27 @@ export class SchedulerWebview {
   private static currentTasks: ScheduledTask[] = [];
   private static currentJobs: JobDefinition[] = [];
   private static currentJobFolders: JobFolder[] = [];
+  private static currentCockpitBoard: CockpitBoard = {
+    version: 2,
+    sections: [],
+    cards: [],
+    labelCatalog: [],
+    archives: {
+      completedSuccessfully: [],
+      rejected: [],
+    },
+    filters: {
+      labels: [],
+      priorities: [],
+      statuses: [],
+      archiveOutcomes: [],
+      flags: [],
+      sortBy: "manual",
+      sortDirection: "asc",
+      showArchived: false,
+    },
+    updatedAt: "",
+  };
   private static currentTelegramNotification: TelegramNotificationView = {
     enabled: false,
     hasBotToken: false,
@@ -125,6 +148,7 @@ export class SchedulerWebview {
     tasks: ScheduledTask[],
     jobs: JobDefinition[],
     jobFolders: JobFolder[],
+    cockpitBoard: CockpitBoard,
     telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView,
     researchProfiles: ResearchProfile[],
@@ -137,6 +161,7 @@ export class SchedulerWebview {
     this.currentTasks = tasks;
     this.currentJobs = jobs;
     this.currentJobFolders = jobFolders;
+    this.currentCockpitBoard = cockpitBoard;
     this.currentTelegramNotification = telegramNotification;
     this.currentExecutionDefaults = executionDefaults;
     this.currentResearchProfiles = researchProfiles;
@@ -213,6 +238,7 @@ export class SchedulerWebview {
       this.updateTasks(tasks);
       this.updateJobs(jobs);
       this.updateJobFolders(jobFolders);
+      this.updateCockpitBoard(cockpitBoard);
       this.updateTelegramNotification(telegramNotification);
       this.updateExecutionDefaults(executionDefaults);
       this.updateResearchState(
@@ -335,6 +361,14 @@ export class SchedulerWebview {
     this.postMessage({
       type: "updateJobFolders",
       jobFolders,
+    });
+  }
+
+  static updateCockpitBoard(cockpitBoard: CockpitBoard): void {
+    this.currentCockpitBoard = cockpitBoard;
+    this.postMessage({
+      type: "updateCockpitBoard",
+      cockpitBoard,
     });
   }
 
@@ -493,7 +527,7 @@ export class SchedulerWebview {
     this.postMessage({ type: "switchToList", successMessage });
   }
 
-  static switchToTab(tab: "create" | "list" | "jobs" | "telegram" | "research" | "help"): void {
+  static switchToTab(tab: "create" | "list" | "jobs" | "board" | "research" | "settings" | "help"): void {
     this.postMessage({ type: "switchToTab", tab });
   }
 
@@ -888,6 +922,156 @@ export class SchedulerWebview {
             action: "saveExecutionDefaults",
             taskId: "__defaults__",
             executionDefaults: message.data,
+          });
+        }
+        break;
+
+      case "createTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createTodo",
+            taskId: "__todo__",
+            todoData: message.data,
+          });
+        }
+        break;
+
+      case "updateTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "updateTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+            todoData: message.data,
+          });
+        }
+        break;
+
+      case "deleteTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "archiveTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "archiveTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+            todoData: {
+              archived: message.archived !== false,
+            },
+          });
+        }
+        break;
+
+      case "moveTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "moveTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+            targetSectionId: message.sectionId,
+            targetOrder: message.targetIndex,
+          });
+        }
+        break;
+
+      case "addTodoComment":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "addTodoComment",
+            taskId: "__todo__",
+            todoId: message.todoId,
+            todoCommentData: message.data,
+          });
+        }
+        break;
+
+      case "setTodoFilters":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "setTodoFilters",
+            taskId: "__todo__",
+            todoFilters: message.data,
+          });
+        }
+        break;
+
+      case "saveTodoLabelDefinition":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "saveTodoLabelDefinition",
+            taskId: "__todo__",
+            todoLabelData: message.data,
+          });
+        }
+        break;
+
+      case "linkTodoTask":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "linkTodoTask",
+            taskId: "__todo__",
+            todoId: message.todoId,
+            linkedTaskId: message.taskId,
+          });
+        }
+        break;
+
+      case "createTaskFromTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "createTaskFromTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "addCockpitSection":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "addCockpitSection",
+            taskId: "__section__",
+            sectionTitle: message.title,
+          });
+        }
+        break;
+
+      case "renameCockpitSection":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "renameCockpitSection",
+            taskId: "__section__",
+            sectionId: message.sectionId,
+            sectionTitle: message.title,
+          });
+        }
+        break;
+
+      case "deleteCockpitSection":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "deleteCockpitSection",
+            taskId: "__section__",
+            sectionId: message.sectionId,
+          });
+        }
+        break;
+
+      case "moveCockpitSection":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "moveCockpitSection",
+            taskId: "__section__",
+            sectionId: message.sectionId,
+            sectionDirection: message.direction,
           });
         }
         break;
@@ -1434,9 +1618,8 @@ export class SchedulerWebview {
    * Get global prompts path
    */
   private static getGlobalPromptsPath(): string | undefined {
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
     return resolveGlobalPromptsRoot(
-      config.get<string>("globalPromptsPath", ""),
+      getCompatibleConfigurationValue<string>("globalPromptsPath", ""),
     );
   }
 
@@ -1568,13 +1751,18 @@ export class SchedulerWebview {
     const nonce = this.getNonce();
     const isJa = isJapanese();
     const presets = getCronPresets();
-    const config = vscode.workspace.getConfiguration("copilotScheduler");
-    const defaultScope = config.get<TaskScope>("defaultScope", "workspace");
-    const defaultChatSession = config.get<ChatSessionBehavior>(
+    const defaultScope = getCompatibleConfigurationValue<TaskScope>(
+      "defaultScope",
+      "workspace",
+    );
+    const defaultChatSession = getCompatibleConfigurationValue<ChatSessionBehavior>(
       "chatSession",
       "new",
     );
-    const defaultJitterSecondsRaw = config.get<number>("jitterSeconds", 600);
+    const defaultJitterSecondsRaw = getCompatibleConfigurationValue<number>(
+      "jitterSeconds",
+      600,
+    );
     // Keep the Webview resilient even if settings are corrupted/out-of-range.
     const defaultJitterSeconds = (() => {
       const n =
@@ -1595,10 +1783,13 @@ export class SchedulerWebview {
     // Localized strings
     const strings = {
       title: messages.webviewTitle(),
+      tabTodoEditor: "Create Todo",
+      tabTaskEditor: "Create Task",
       tabCreate: messages.tabCreate(),
       tabEdit: messages.tabEdit(),
       tabList: messages.tabList(),
       tabHowTo: messages.tabHowTo(),
+      tabHelpGlyph: "?",
       helpIntroTitle: messages.helpIntroTitle(),
       helpIntroBody: messages.helpIntroBody(),
       helpCreateTitle: messages.helpCreateTitle(),
@@ -1634,6 +1825,7 @@ export class SchedulerWebview {
       helpMcpItemWrite: messages.helpMcpItemWrite(),
       helpMcpItemTools: messages.helpMcpItemTools(),
       helpJobsTitle: messages.helpJobsTitle(),
+      tabBoard: "Todo Cockpit",
       tabResearch: "Research",
       helpJobsItemBoard: messages.helpJobsItemBoard(),
       helpJobsItemPause: messages.helpJobsItemPause(),
@@ -1645,7 +1837,7 @@ export class SchedulerWebview {
       helpResearchItemProfiles: messages.helpResearchItemProfiles(),
       helpResearchItemBounds: messages.helpResearchItemBounds(),
       helpResearchItemHistory: messages.helpResearchItemHistory(),
-      tabTelegram: "Telegram",
+      tabTelegram: "Settings",
       telegramTitle: "Telegram Notifications",
       telegramDescription:
         "Configure a repo-local Stop hook that sends the last assistant reply to your Telegram bot.",
@@ -1678,11 +1870,101 @@ export class SchedulerWebview {
       executionDefaultsModel: "Default model",
       executionDefaultsSave: "Save Defaults",
       executionDefaultsSaved: "Workspace default agent and model settings.",
+      boardTitle: "Todo Cockpit",
+      boardDescription:
+        "Local-only planning and approval workspace. Todos stay distinct from scheduled tasks, while existing task drafts also surface here under Unsorted.",
+      boardEmpty: "No todos yet. Create one here or let existing scheduled tasks appear under Unsorted.",
+      boardSections: "Sections",
+      boardCards: "Cards",
+      boardComments: "Comments",
+      boardPrivacyNote:
+        "Todo Cockpit state is kept only in .vscode/scheduler.private.json so user-system planning stays local to this workspace.",
+      boardToolbarNew: "New Todo",
+      boardToolbarClear: "Clear Selection",
+      boardSearchLabel: "Search",
+      boardSearchPlaceholder: "Search title, description, labels, comments",
+      boardSortLabel: "Sort",
+      boardSectionFilterLabel: "Section",
+      boardLabelFilterLabel: "Label",
+      boardPriorityFilterLabel: "Priority",
+      boardStatusFilterLabel: "Status",
+      boardArchiveOutcomeFilterLabel: "Archive outcome",
+      boardShowArchived: "Show archived",
+      boardAllSections: "All sections",
+      boardAllLabels: "All labels",
+      boardAllPriorities: "All priorities",
+      boardAllStatuses: "All statuses",
+      boardAllArchiveOutcomes: "All outcomes",
+      boardSortManual: "Manual order",
+      boardSortDueAt: "Due date",
+      boardSortPriority: "Priority",
+      boardSortUpdatedAt: "Last updated",
+      boardSortCreatedAt: "Created date",
+      boardSortAsc: "Ascending",
+      boardSortDesc: "Descending",
+      boardDetailTitleCreate: "Create Todo",
+      boardDetailTitleEdit: "Edit Todo",
+      boardDetailModeCreate: "Fill the form to create a new Todo Cockpit item.",
+      boardDetailModeEdit: "Update fields, manage labels, and move the item through approval, completion, or rejection.",
+      boardFieldTitle: "Title",
+      boardFieldDescription: "Description",
+      boardFieldDueAt: "Due date",
+      boardFieldSection: "Section",
+      boardFieldPriority: "Priority",
+      boardFieldLabels: "Labels",
+      boardFieldFlags: "Flags",
+      boardFieldLinkedTask: "Linked scheduled task",
+      boardLinkedTaskNone: "No linked task",
+      boardSaveCreate: "Create Todo",
+      boardSaveUpdate: "Save Todo",
+      boardAddComment: "Add Comment",
+      boardCreateTask: "Create Task Draft",
+      boardApproveTodo: "Approve",
+      boardFinalizeTodo: "Final Accept",
+      boardDeleteTodo: "Delete Todo",
+      boardDeleteTodoHelp: "Reject and archive this todo.",
+      boardReadOnlyArchived: "Archived items are read-only. Toggle archived visibility to review outcomes and history.",
+      boardReadyForTask: "Approved items can become scheduled task drafts or be final accepted.",
+      boardCommentsTitle: "Comments",
+      boardCommentsEmpty: "No comments yet.",
+      boardCommentPlaceholder: "Add a comment with context, provenance, or approval notes...",
+      boardCommentSourceHumanForm: "Human form",
+      boardCommentSourceBotMcp: "Bot MCP",
+      boardCommentSourceBotManual: "Bot manual",
+      boardCommentSourceSystemEvent: "System event",
+      boardTaskDraftNote: "Scheduled tasks are downstream execution artifacts. Creating a task draft here does not replace the todo.",
+      boardDueLabel: "Due",
+      boardTaskMissing: "Linked task not found in Task List.",
+      boardTaskLinked: "Linked task",
+      boardStatusLabel: "Status",
+      boardStatusActive: "Active",
+      boardStatusReady: "Ready",
+      boardStatusCompleted: "Completed",
+      boardStatusRejected: "Rejected",
+      boardArchiveCompletedSuccessfully: "Completed successfully",
+      boardArchiveRejected: "Rejected",
+      boardLatestComment: "Latest comment",
+      boardLabelInputPlaceholder: "Type a label and press Enter",
+      boardLabelAdd: "Add",
+      boardLabelSaveColor: "Save Color",
+      boardLabelHint: "Click a chip to target its shared color. Press Enter to add more labels.",
+      boardNoLinkedTask: "No linked task yet",
+      boardLinkedTaskShort: "Linked",
+      boardDescriptionPreviewEmpty: "No description yet.",
+      boardEditTodo: "Open Editor",
+      boardBackToCockpit: "Back to Cockpit",
+      boardPriorityNone: "None",
+      boardPriorityLow: "Low",
+      boardPriorityMedium: "Medium",
+      boardPriorityHigh: "High",
+      boardPriorityUrgent: "Urgent",
+      boardDropHint: "Drag between columns to reorder or move todos.",
       helpTipsTitle: messages.helpTipsTitle(),
       helpTipsItem1: messages.helpTipsItem1(),
       helpTipsItem2: messages.helpTipsItem2(),
       helpTipsItem3: messages.helpTipsItem3(),
       labelTaskName: messages.labelTaskName(),
+      tabJobsEditor: "Create / Edit Job",
       tabJobs: "Jobs",
       labelTaskLabels: "Labels",
       placeholderTaskLabels: "marketing, finance, weekly",
@@ -1702,6 +1984,18 @@ export class SchedulerWebview {
       jobsArchiveFolder: "Bundled Jobs",
       jobsCreateFolder: "New Folder",
       jobsCreateJob: "New Job",
+      jobsOpenEditor: "Open Editor",
+      jobsBackToJobs: "Back to Jobs",
+      jobsOverviewTitle: "Jobs Overview",
+      jobsOverviewNote: "Keep folders and job selection here, then open the dedicated editor tab when you want to change workflow details.",
+      taskEditorTitle: "Create / Edit Task",
+      taskEditorDescription: "Configure the prompt, schedule, and runtime behavior in a single compact view.",
+      taskEditorPromptTitle: "Prompt",
+      taskEditorScheduleTitle: "Schedule",
+      taskEditorRuntimeTitle: "Runtime",
+      taskEditorOptionsTitle: "Options",
+      taskEditorActionsTitle: "Actions",
+      taskEditorTestPrompt: "Test Prompt",
       jobsRenameFolder: "Rename Folder",
       jobsDeleteFolder: "Delete Folder",
       jobsSelectJob: "Select a job to edit its workflow.",
@@ -1956,6 +2250,7 @@ export class SchedulerWebview {
       tasks: initialTasks,
       jobs: this.currentJobs,
       jobFolders: this.currentJobFolders,
+      cockpitBoard: this.currentCockpitBoard,
       telegramNotification: this.currentTelegramNotification,
       executionDefaults: this.currentExecutionDefaults,
       researchProfiles: this.currentResearchProfiles,
@@ -1997,9 +2292,11 @@ export class SchedulerWebview {
     
     body {
       font-family: var(--vscode-font-family);
-      padding: 20px;
+      padding: 12px 14px;
       color: var(--vscode-foreground);
       background-color: var(--vscode-editor-background);
+      font-size: 12px;
+      line-height: 1.35;
     }
 
     .tab-bar {
@@ -2009,9 +2306,9 @@ export class SchedulerWebview {
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 12px;
-      margin: -20px -20px 20px -20px;
-      padding: 10px 20px 8px 20px;
+      gap: 6px;
+      margin: -12px -14px 10px -14px;
+      padding: 6px 12px 4px 12px;
       background-color: var(--vscode-editor-background);
       background: linear-gradient(
         to bottom,
@@ -2036,7 +2333,7 @@ export class SchedulerWebview {
     }
 
     .tabs::-webkit-scrollbar {
-      height: 8px;
+      height: 6px;
     }
 
     .tabs::-webkit-scrollbar-thumb {
@@ -2048,17 +2345,47 @@ export class SchedulerWebview {
       flex: 0 0 auto;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
+    }
+
+    .tab-help-button {
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid var(--vscode-panel-border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .tab-settings-button {
+      width: 28px;
+      min-width: 28px;
+      height: 28px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid var(--vscode-panel-border);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      line-height: 1;
+      margin-left: 4px;
     }
     
     .tab-button {
-      padding: 10px 20px;
+      padding: 6px 10px;
       border: none;
       background: transparent;
       color: var(--vscode-foreground);
       cursor: pointer;
       border-bottom: 2px solid transparent;
-      font-size: 14px;
+      font-size: 11px;
+      line-height: 1.15;
       flex: 0 0 auto;
     }
     
@@ -2069,6 +2396,26 @@ export class SchedulerWebview {
     .tab-button.active {
       border-bottom-color: var(--vscode-focusBorder);
       color: var(--vscode-textLink-foreground);
+    }
+
+    .tab-group-sep {
+      flex: 0 0 1px;
+      width: 1px;
+      align-self: stretch;
+      background: var(--vscode-panel-border);
+      margin: 4px 3px;
+      opacity: 0.6;
+    }
+
+    .label-suggestion-list {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      margin-top: 4px;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
     }
     
     .tab-content {
@@ -2081,48 +2428,87 @@ export class SchedulerWebview {
 
     .help-panel {
       display: grid;
-      gap: 14px;
+      gap: 10px;
+    }
+
+    .help-intro {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 10px 14px 12px 14px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 86%, var(--vscode-editor-background) 14%) 0%,
+        var(--vscode-editor-background) 100%);
+    }
+
+    .help-intro-title {
+      margin: 0 0 4px 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .help-intro-body {
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: start;
     }
 
     .help-section {
       border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 12px;
+      border-radius: 8px;
+      padding: 10px 12px;
       background-color: var(--vscode-editor-background);
+      display: grid;
+      gap: 7px;
+    }
+
+    .help-section.is-featured {
+      grid-column: 1 / -1;
+      background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-focusBorder) 12%);
     }
 
     .help-section h3 {
-      margin: 0 0 8px 0;
-      font-size: 13px;
+      margin: 0;
+      font-size: 12px;
     }
 
     .help-section p {
       margin: 0;
       color: var(--vscode-descriptionForeground);
-      line-height: 1.5;
-      font-size: 13px;
+      line-height: 1.4;
+      font-size: 12px;
     }
 
     .help-section ul {
-      margin: 8px 0 0 18px;
-      padding: 0;
+      margin: 0;
+      padding-left: 18px;
       color: var(--vscode-descriptionForeground);
-      line-height: 1.5;
-      font-size: 13px;
+      line-height: 1.38;
+      font-size: 12px;
     }
 
     .help-section li + li {
-      margin-top: 6px;
+      margin-top: 5px;
     }
 
     .form-group {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
     
     .form-group label {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       font-weight: 500;
+      font-size: 12px;
     }
     
     input[type="text"],
@@ -2130,17 +2516,17 @@ export class SchedulerWebview {
     textarea,
     select {
       width: 100%;
-      padding: 8px 10px;
+      padding: 6px 8px;
       border: 1px solid var(--vscode-input-border);
       background-color: var(--vscode-input-background);
       color: var(--vscode-input-foreground);
       border-radius: 4px;
       font-family: inherit;
-      font-size: 13px;
+      font-size: 12px;
     }
     
     textarea {
-      min-height: 120px;
+      min-height: 92px;
       resize: vertical;
     }
     
@@ -2154,7 +2540,7 @@ export class SchedulerWebview {
     .checkbox-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
     
     .checkbox-group input[type="checkbox"] {
@@ -2163,17 +2549,19 @@ export class SchedulerWebview {
     
     .button-group {
       display: flex;
-      gap: 10px;
-      margin-top: 20px;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
     
     button {
-      padding: 8px 16px;
+      padding: 6px 10px;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       font-family: inherit;
+      line-height: 1.2;
     }
     
     .btn-primary {
@@ -2200,7 +2588,7 @@ export class SchedulerWebview {
     }
     
     .btn-icon {
-      padding: 6px 8px;
+      padding: 4px 6px;
       background: transparent;
       color: var(--vscode-foreground);
     }
@@ -2215,20 +2603,20 @@ export class SchedulerWebview {
 
     .task-filter-bar {
       display: flex;
-      gap: 6px;
-      margin-bottom: 10px;
+      gap: 5px;
+      margin-bottom: 6px;
       flex-wrap: wrap;
       align-items: center;
     }
 
     .task-filter-select {
-      min-width: 180px;
-      max-width: 260px;
+      min-width: 160px;
+      max-width: 220px;
     }
 
     .task-filter-btn {
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: 3px 8px;
+      font-size: 11px;
     }
 
     .task-filter-btn.active {
@@ -2239,7 +2627,7 @@ export class SchedulerWebview {
     .task-sections {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 5px;
       align-items: start;
     }
 
@@ -2250,15 +2638,15 @@ export class SchedulerWebview {
     .task-section {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 7px;
+      padding: 5px;
       background-color: var(--vscode-editor-background);
       min-width: 0;
     }
 
     .task-section-title {
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 600;
-      margin-bottom: 6px;
+      margin-bottom: 3px;
       color: var(--vscode-descriptionForeground);
       display: flex;
       justify-content: space-between;
@@ -2266,11 +2654,13 @@ export class SchedulerWebview {
     }
     
     .task-card {
-      padding: 8px;
+      display: grid;
+      gap: 3px;
+      padding: 5px;
       border: 1px solid var(--vscode-panel-border);
       border-radius: 4px;
       background-color: var(--vscode-editor-background);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .task-card.other-workspace {
@@ -2285,19 +2675,22 @@ export class SchedulerWebview {
     .task-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
+      align-items: flex-start;
+      gap: 6px;
+      margin-bottom: 1px;
     }
 
     .task-header-main {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
+      min-width: 0;
     }
     
     .task-name {
       font-weight: 600;
-      font-size: 13px;
+      font-size: 11px;
+      line-height: 1.25;
     }
     
     .task-name.clickable, .task-status, .task-badge.clickable {
@@ -2310,9 +2703,10 @@ export class SchedulerWebview {
     }
     
     .task-status {
-      padding: 2px 8px;
+      padding: 1px 6px;
       border-radius: 10px;
-      font-size: 10px;
+      font-size: 9px;
+      line-height: 1.25;
     }
     
     .task-status.enabled {
@@ -2326,20 +2720,23 @@ export class SchedulerWebview {
     }
     
     .task-info {
-      font-size: 11px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px 8px;
+      font-size: 9px;
       color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
+      margin-bottom: 1px;
     }
     
     .task-info span {
-      margin-right: 10px;
+      margin-right: 0;
     }
 
     .task-badge {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 1px 6px;
       border-radius: 10px;
-      font-size: 10px;
+      font-size: 9px;
       background-color: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       margin-right: 0;
@@ -2348,9 +2745,9 @@ export class SchedulerWebview {
     .task-badges {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
-      margin-top: 4px;
-      margin-bottom: 4px;
+      gap: 3px;
+      margin-top: 1px;
+      margin-bottom: 1px;
     }
 
     .task-badge.label {
@@ -2359,27 +2756,35 @@ export class SchedulerWebview {
     }
     
     .task-prompt {
-      padding: 6px;
+      padding: 4px 5px;
       background-color: var(--vscode-textBlockQuote-background);
       border-radius: 4px;
-      font-size: 11px;
+      font-size: 9px;
+      line-height: 1.3;
       white-space: pre-wrap;
-      max-height: 34px;
+      max-height: 28px;
       overflow: hidden;
-      margin-bottom: 4px;
+      margin-bottom: 1px;
     }
     
     .task-actions {
       display: flex;
-      gap: 6px;
+      gap: 3px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .task-actions button {
+      padding: 3px 6px;
+      font-size: 10px;
+      line-height: 1.1;
     }
     
     .empty-state {
       text-align: center;
-      padding: 14px;
+      padding: 10px;
       color: var(--vscode-descriptionForeground);
-      font-size: 12px;
+      font-size: 11px;
     }
 
     @media (max-width: 920px) {
@@ -2390,7 +2795,8 @@ export class SchedulerWebview {
     
     .radio-group {
       display: flex;
-      gap: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
     
     .radio-group label {
@@ -2405,15 +2811,15 @@ export class SchedulerWebview {
     }
     
     .section-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       color: var(--vscode-foreground);
     }
     
     .inline-group {
       display: flex;
-      gap: 16px;
+      gap: 12px;
     }
     
     .inline-group .form-group {
@@ -2422,7 +2828,7 @@ export class SchedulerWebview {
 
     .template-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
     }
 
@@ -2432,8 +2838,8 @@ export class SchedulerWebview {
     }
 
     .friendly-cron {
-      margin-top: 10px;
-      padding: 12px;
+      margin-top: 8px;
+      padding: 8px;
       border: 1px dashed var(--vscode-panel-border);
       border-radius: 6px;
       background-color: var(--vscode-editorWidget-background);
@@ -2442,12 +2848,12 @@ export class SchedulerWebview {
     .friendly-grid {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px;
     }
 
     .friendly-grid .form-group {
       flex: 1 1 160px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .friendly-field {
@@ -2460,17 +2866,82 @@ export class SchedulerWebview {
 
     .friendly-actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       margin-top: 6px;
     }
 
+    .task-editor-shell {
+      display: grid;
+      gap: 12px;
+    }
+
+    .task-editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
+      );
+    }
+
+    .task-editor-header-copy {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .task-editor-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .task-editor-card {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .task-editor-card.is-wide {
+      grid-column: 1 / -1;
+    }
+
+    .task-editor-card .section-title {
+      margin-bottom: 0;
+    }
+
+    .task-editor-card .note {
+      margin-top: -3px;
+    }
+
+    .task-editor-options-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+      align-items: start;
+    }
+
+    .task-editor-options-grid .form-group.wide {
+      grid-column: 1 / -1;
+    }
+
     .cron-preview {
-      margin-top: 8px;
+      margin-top: 6px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 12px;
+      gap: 6px;
+      font-size: 11px;
       color: var(--vscode-descriptionForeground);
       flex-wrap: wrap;
     }
@@ -2480,18 +2951,128 @@ export class SchedulerWebview {
     }
 
     .note {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--vscode-descriptionForeground);
-      margin-top: 4px;
+      margin-top: 3px;
       margin-bottom: 0;
+    }
+
+    .board-columns-shell {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 10px;
+      min-height: calc(100vh - 320px);
+    }
+
+    .board-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .board-col-width-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .board-col-width-group input[type="range"] {
+      width: 100px;
+      cursor: pointer;
+    }
+
+    .cockpit-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cockpit-section-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+    }
+
+    .board-column:hover .cockpit-section-actions {
+      opacity: 1;
+    }
+
+    .btn-icon {
+      padding: 1px 4px;
+      border: none;
+      background: transparent;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      font-size: 11px;
+      border-radius: 3px;
+      line-height: 1.4;
+    }
+
+    .btn-icon:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .todo-editor-shell {
+      display: grid;
+      gap: 12px;
+    }
+
+    .todo-editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
+      );
+    }
+
+    .todo-editor-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .todo-editor-card {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .todo-editor-card .section-title {
+      margin-bottom: 0;
+    }
+
+    .todo-editor-comments {
+      max-height: 34vh;
+      overflow: auto;
+      padding-right: 4px;
     }
 
     .history-toolbar {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-wrap: wrap;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .history-toolbar label {
@@ -2508,7 +3089,7 @@ export class SchedulerWebview {
     .jobs-layout {
       display: grid;
       grid-template-columns: 280px minmax(0, 1fr);
-      gap: 16px;
+      gap: 12px;
       align-items: start;
     }
 
@@ -2526,6 +3107,22 @@ export class SchedulerWebview {
       border-radius: 8px;
       background-color: var(--vscode-editor-background);
       padding: 12px;
+    }
+
+    .jobs-overview-main {
+      display: grid;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+    }
+
+    .jobs-overview-card {
+      display: grid;
+      gap: 8px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      background-color: var(--vscode-sideBar-background);
     }
 
     .jobs-toolbar,
@@ -2712,7 +3309,12 @@ export class SchedulerWebview {
 
     .jobs-editor-grid {
       display: grid;
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+      gap: 12px;
+    }
+
+    .jobs-editor-card.is-wide {
+      grid-column: 1 / -1;
     }
 
     .jobs-editor-card {
@@ -2759,7 +3361,7 @@ export class SchedulerWebview {
     .jobs-action-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 10px;
     }
 
     .jobs-action-card {
@@ -2939,8 +3541,8 @@ export class SchedulerWebview {
 
     .research-layout {
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
-      gap: 16px;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 12px;
       align-items: start;
     }
 
@@ -2950,19 +3552,26 @@ export class SchedulerWebview {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 8px;
       background-color: var(--vscode-editor-background);
-      padding: 12px;
+      padding: 10px;
     }
 
     .research-sidebar {
       display: grid;
-      gap: 12px;
+      gap: 10px;
+    }
+
+    .research-panel-header,
+    .settings-card-header {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 8px;
     }
 
     .research-profile-list,
     .research-run-list,
     .research-attempt-list {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
 
     .research-card,
@@ -2970,7 +3579,7 @@ export class SchedulerWebview {
     .research-attempt-card {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 10px;
+      padding: 8px 9px;
       background-color: var(--vscode-sideBar-background);
     }
 
@@ -3002,21 +3611,21 @@ export class SchedulerWebview {
     .research-meta,
     .research-run-meta,
     .research-attempt-meta {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--vscode-descriptionForeground);
-      margin-top: 4px;
+      margin-top: 3px;
       white-space: pre-wrap;
     }
 
     .research-main {
       display: grid;
-      gap: 16px;
+      gap: 12px;
     }
 
     .research-form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+      gap: 10px;
     }
 
     .research-form-grid .form-group.wide {
@@ -3026,20 +3635,20 @@ export class SchedulerWebview {
     .research-toolbar,
     .research-run-toolbar {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       align-items: center;
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
     .research-form-error {
       display: none;
-      margin-bottom: 12px;
-      padding: 8px 12px;
+      margin-bottom: 10px;
+      padding: 7px 10px;
       border-radius: 6px;
       background: var(--vscode-inputValidation-errorBackground);
       color: var(--vscode-inputValidation-errorForeground);
-      font-size: 12px;
+      font-size: 11px;
       white-space: pre-wrap;
     }
 
@@ -3047,7 +3656,7 @@ export class SchedulerWebview {
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
-      margin-top: 8px;
+      margin-top: 6px;
     }
 
     .research-chip {
@@ -3062,7 +3671,7 @@ export class SchedulerWebview {
 
     .research-attempt-card {
       display: grid;
-      gap: 8px;
+      gap: 6px;
     }
 
     .research-attempt-paths {
@@ -3074,7 +3683,7 @@ export class SchedulerWebview {
     .research-output details {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 8px;
+      padding: 7px 8px;
       background: var(--vscode-editorWidget-background);
     }
 
@@ -3085,19 +3694,19 @@ export class SchedulerWebview {
     }
 
     .research-output pre {
-      margin: 8px 0 0 0;
+      margin: 6px 0 0 0;
       white-space: pre-wrap;
       word-break: break-word;
       font-size: 11px;
       color: var(--vscode-editor-foreground);
-      max-height: 220px;
+      max-height: 180px;
       overflow: auto;
     }
 
     .telegram-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr) minmax(240px, 0.85fr);
+      gap: 12px;
       align-items: start;
     }
 
@@ -3106,40 +3715,41 @@ export class SchedulerWebview {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 8px;
       background-color: var(--vscode-editor-background);
-      padding: 14px;
+      padding: 10px;
     }
 
     .telegram-status-grid {
       display: grid;
-      gap: 8px;
-      margin-top: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
     }
 
     .telegram-status-item {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
       background-color: var(--vscode-sideBar-background);
-      padding: 10px;
+      padding: 8px;
     }
 
     .telegram-status-label {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .telegram-status-value {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
       word-break: break-word;
     }
 
     .telegram-feedback {
       display: none;
-      margin-bottom: 12px;
-      padding: 8px 12px;
+      margin-bottom: 10px;
+      padding: 7px 10px;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: 11px;
       white-space: pre-wrap;
       background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorInfo-background));
       color: var(--vscode-foreground);
@@ -3154,25 +3764,25 @@ export class SchedulerWebview {
     .research-stat-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: 10px;
+      gap: 6px;
+      margin-top: 8px;
     }
 
     .research-stat {
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 10px;
+      padding: 8px;
       background-color: var(--vscode-sideBar-background);
     }
 
     .research-stat-label {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .research-stat-value {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
     }
 
@@ -3189,16 +3799,38 @@ export class SchedulerWebview {
       .telegram-layout {
         grid-template-columns: 1fr;
       }
+
+      .help-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .help-section.is-featured {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .telegram-status-grid,
+      .research-stat-grid,
+      .research-form-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 980px) {
       .tab-bar {
-        gap: 8px;
-        padding: 10px 12px 8px 12px;
+        gap: 6px;
+        padding: 8px 10px 6px 10px;
         margin: -20px -20px 16px -20px;
       }
 
       .jobs-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-editor-grid,
+      .jobs-editor-grid,
+      .task-editor-grid {
         grid-template-columns: 1fr;
       }
 
@@ -3209,18 +3841,22 @@ export class SchedulerWebview {
       .jobs-job-grid-overview,
       .jobs-schedule-grid,
       .jobs-action-grid,
-      .jobs-new-step-form {
+      .jobs-new-step-form,
+      .task-editor-options-grid {
         grid-template-columns: 1fr;
       }
 
       .jobs-action-card-wide,
       .jobs-new-step-actions,
       .jobs-schedule-grid .wide,
-      .jobs-new-step-form .wide {
+      .jobs-new-step-form .wide,
+      .task-editor-options-grid .form-group.wide,
+      .task-editor-card.is-wide {
         grid-column: 1 / -1;
       }
 
-      .jobs-editor-header {
+      .jobs-editor-header,
+      .task-editor-header {
         flex-direction: column;
       }
 
@@ -3247,7 +3883,7 @@ export class SchedulerWebview {
       }
 
       .tab-button {
-        padding: 10px 14px;
+        padding: 8px 10px;
       }
 
       .jobs-step-list {
@@ -3264,207 +3900,327 @@ export class SchedulerWebview {
 </head>
 <body>
   <div class="tab-bar">
+    <button type="button" class="tab-button tab-help-button active" data-tab="help" title="${escapeHtmlAttr(strings.tabHowTo)}">${escapeHtml(strings.tabHelpGlyph)}</button>
     <div class="tabs">
-      <button type="button" class="tab-button active" data-tab="help">${escapeHtml(strings.tabHowTo)}</button>
-      <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabCreate)}</button>
+      <button type="button" class="tab-button" data-tab="todo-edit">${escapeHtml(strings.tabTodoEditor)}</button>
+      <button type="button" class="tab-button" data-tab="board">${escapeHtml(strings.tabBoard)}</button>
+      <span class="tab-group-sep"></span>
+      <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabTaskEditor)}</button>
       <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
+      <span class="tab-group-sep"></span>
+      <button type="button" class="tab-button" data-tab="jobs-edit">${escapeHtml(strings.tabJobsEditor)}</button>
       <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
-      <button type="button" class="tab-button" data-tab="telegram">${escapeHtml(strings.tabTelegram)}</button>
+      <span class="tab-group-sep"></span>
       <button type="button" class="tab-button" data-tab="research">${escapeHtml(strings.tabResearch)}</button>
     </div>
     <div class="tab-actions">
       <button type="button" class="btn-secondary" id="jobs-toggle-sidebar-btn" style="display:none;">${escapeHtml(strings.jobsHideSidebar)}</button>
+      <button type="button" class="tab-button tab-settings-button" data-tab="settings" title="${escapeHtmlAttr(strings.tabTelegram)}">&#9881;</button>
+    </div>
+  </div>
+
+  <div id="todo-edit-tab" class="tab-content">
+    <div class="todo-editor-shell">
+      <div class="todo-editor-header">
+        <div>
+          <div class="section-title" id="todo-detail-title">${escapeHtml(strings.boardDetailTitleCreate)}</div>
+          <p class="note" id="todo-detail-mode-note">${escapeHtml(strings.boardDetailModeCreate)}</p>
+          <div id="todo-detail-status" class="note"></div>
+        </div>
+        <div class="button-group" style="margin:0;">
+          <button type="button" class="btn-secondary" id="todo-back-btn">${escapeHtml(strings.boardBackToCockpit)}</button>
+        </div>
+      </div>
+
+      <form id="todo-detail-form">
+        <input type="hidden" id="todo-detail-id">
+        <div class="todo-editor-grid">
+          <section class="todo-editor-card">
+            <div class="form-group" style="margin:0;">
+              <label for="todo-title-input">${escapeHtml(strings.boardFieldTitle)}</label>
+              <input type="text" id="todo-title-input">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label for="todo-description-input">${escapeHtml(strings.boardFieldDescription)}</label>
+              <textarea id="todo-description-input" style="min-height:180px;"></textarea>
+            </div>
+            <div>
+              <div class="section-title" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
+              <div id="todo-comment-list" class="todo-editor-comments" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+              <div class="form-group" style="margin:0;">
+                <label for="todo-comment-input">${escapeHtml(strings.boardAddComment)}</label>
+                <textarea id="todo-comment-input" placeholder="${escapeHtmlAttr(strings.boardCommentPlaceholder)}" style="min-height:90px;"></textarea>
+              </div>
+              <div class="button-group" style="margin:8px 0 0 0;justify-content:flex-end;">
+                <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="todo-editor-card">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+              <div class="form-group" style="margin:0;">
+                <label for="todo-due-input">${escapeHtml(strings.boardFieldDueAt)}</label>
+                <input type="datetime-local" id="todo-due-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label for="todo-priority-input">${escapeHtml(strings.boardFieldPriority)}</label>
+                <select id="todo-priority-input"></select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label for="todo-section-input">${escapeHtml(strings.boardFieldSection)}</label>
+                <select id="todo-section-input"></select>
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label for="todo-linked-task-select">${escapeHtml(strings.boardFieldLinkedTask)}</label>
+                <select id="todo-linked-task-select"></select>
+              </div>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label for="todo-labels-input">${escapeHtml(strings.boardFieldLabels)}</label>
+              <div id="todo-label-chip-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
+                <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}" style="width:42px;padding:4px;">
+                <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
+                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">${escapeHtml(strings.boardLabelSaveColor)}</button>
+              </div>
+              <div id="todo-label-suggestions" class="label-suggestion-list"></div>
+              <div class="note" id="todo-label-note">${escapeHtml(strings.boardLabelHint)}</div>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label for="todo-flags-input">${escapeHtml(strings.boardFieldFlags)}</label>
+              <input type="text" id="todo-flags-input" placeholder="needs-user-review, scheduled-task">
+            </div>
+            <div id="todo-linked-task-note" class="note">${escapeHtml(strings.boardTaskDraftNote)}</div>
+            <div class="button-group" style="margin:0;">
+              <button type="submit" class="btn-primary" id="todo-save-btn">${escapeHtml(strings.boardSaveCreate)}</button>
+              <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
+              <button type="button" class="btn-secondary" id="todo-approve-btn">${escapeHtml(strings.boardApproveTodo)}</button>
+              <button type="button" class="btn-secondary" id="todo-finalize-btn">${escapeHtml(strings.boardFinalizeTodo)}</button>
+              <button type="button" class="btn-secondary" id="todo-delete-btn">${escapeHtml(strings.boardDeleteTodo)}</button>
+            </div>
+          </section>
+        </div>
+      </form>
     </div>
   </div>
   
   <div id="create-tab" class="tab-content">
-    <form id="task-form">
-      <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
-      <input type="hidden" id="edit-task-id" value="">
-      
-      <div class="form-group">
-        <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
-        <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
-      </div>
-
-      <div class="form-group">
-        <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
-        <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-      </div>
-      
-      <div class="form-group">
-        <label>${escapeHtml(strings.labelPromptType)}</label>
-        <div class="radio-group">
-          <label>
-            <input type="radio" name="prompt-source" value="inline" checked>
-            ${escapeHtml(strings.labelPromptInline)}
-          </label>
-          <label>
-            <input type="radio" name="prompt-source" value="local">
-            ${escapeHtml(strings.labelPromptLocal)}
-          </label>
-          <label>
-            <input type="radio" name="prompt-source" value="global">
-            ${escapeHtml(strings.labelPromptGlobal)}
-          </label>
-        </div>
-      </div>
-      
-      <div class="form-group" id="template-select-group" style="display: none;">
-        <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
-        <div class="template-row">
-          <select id="template-select">
-            <option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option>
-          </select>
-          <button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
-        </div>
-      </div>
-      
-      <div class="form-group" id="prompt-group">
-        <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
-        <textarea id="prompt-text" placeholder="${escapeHtmlAttr(strings.placeholderPrompt)}" required></textarea>
-      </div>
-
-      <div class="form-group" id="skill-select-group">
-        <label for="skill-select">${escapeHtml(strings.labelSkills)}</label>
-        <div class="template-row">
-          <select id="skill-select">
-            <option value="">${escapeHtml(strings.placeholderSelectSkill)}</option>
-          </select>
-          <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
-        </div>
-        <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
-      </div>
-      
-      <div class="form-group">
-        <label>${escapeHtml(strings.labelSchedule)}</label>
-        <div class="preset-select">
-          <select id="cron-preset">
-            <option value="">${escapeHtml(strings.labelCustom)}</option>
-            ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-          </select>
-        </div>
-        <input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>
-        <div class="cron-preview">
-          <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-          <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-          <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-        </div>
-        <div class="friendly-cron" id="friendly-builder">
-          <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-          <div class="friendly-grid">
-            <div class="form-group">
-              <label for="friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-              <select id="friendly-frequency">
-                <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-              </select>
-            </div>
-            <div class="form-group friendly-field" data-field="interval">
-              <label for="friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-              <input type="number" id="friendly-interval" min="1" max="59" value="5">
-            </div>
-            <div class="form-group friendly-field" data-field="minute">
-              <label for="friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-              <input type="number" id="friendly-minute" min="0" max="59" value="0">
-            </div>
-            <div class="form-group friendly-field" data-field="hour">
-              <label for="friendly-hour">${escapeHtml(strings.labelHour)}</label>
-              <input type="number" id="friendly-hour" min="0" max="23" value="9">
-            </div>
-            <div class="form-group friendly-field" data-field="dow">
-              <label for="friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-              <select id="friendly-dow">
-                <option value="0">${escapeHtml(strings.daySun)}</option>
-                <option value="1">${escapeHtml(strings.dayMon)}</option>
-                <option value="2">${escapeHtml(strings.dayTue)}</option>
-                <option value="3">${escapeHtml(strings.dayWed)}</option>
-                <option value="4">${escapeHtml(strings.dayThu)}</option>
-                <option value="5">${escapeHtml(strings.dayFri)}</option>
-                <option value="6">${escapeHtml(strings.daySat)}</option>
-              </select>
-            </div>
-            <div class="form-group friendly-field" data-field="dom">
-              <label for="friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-              <input type="number" id="friendly-dom" min="1" max="31" value="1">
-            </div>
-          </div>
-          <div class="friendly-actions">
-            <button type="button" class="btn-secondary" id="friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-          </div>
-        </div>
-      </div>
-      
-      <div class="inline-group">
-        <div class="form-group">
-          <label for="agent-select">${escapeHtml(strings.labelAgent)}</label>
-          <select id="agent-select">
-            ${initialAgents.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectAgent)}</option>` + initialAgents.map((a) => `<option value="${escapeHtmlAttr(a.id || "")}">${escapeHtml(a.name || "")}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoAgents)}</option>`}
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="model-select">${escapeHtml(strings.labelModel)}</label>
-          <select id="model-select">
-            ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(SchedulerWebview.formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
-          </select>
-          <p class="note">${escapeHtml(strings.labelModelNote)}</p>
-        </div>
-      </div>
-      
-      <div class="form-group">
-        <label>${escapeHtml(strings.labelScope)}</label>
-        <div class="radio-group">
-          <label>
-            <input type="radio" name="scope" value="workspace" ${defaultScope === "workspace" ? "checked" : ""}>
-            ${escapeHtml(strings.labelScopeWorkspace)}
-          </label>
-          <label>
-            <input type="radio" name="scope" value="global" ${defaultScope === "global" ? "checked" : ""}>
-            ${escapeHtml(strings.labelScopeGlobal)}
-          </label>
-        </div>
-      </div>
-      
-      <div class="form-group">
-        <div class="checkbox-group">
-          <input type="checkbox" id="run-first">
-          <label for="run-first">${escapeHtml(strings.labelRunFirstInOneMinute)}</label>
+    <div class="task-editor-shell">
+      <div class="task-editor-header">
+        <div class="task-editor-header-copy">
+          <div class="section-title">${escapeHtml(strings.taskEditorTitle)}</div>
+          <p class="note">${escapeHtml(strings.taskEditorDescription)}</p>
         </div>
       </div>
 
-      <div class="form-group">
-        <div class="checkbox-group">
-          <input type="checkbox" id="one-time">
-          <label for="one-time">${escapeHtml(strings.labelOneTime)}</label>
+      <form id="task-form">
+        <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
+        <input type="hidden" id="edit-task-id" value="">
+
+        <div class="task-editor-grid">
+          <section class="task-editor-card">
+            <div class="section-title">${escapeHtml(strings.taskEditorPromptTitle)}</div>
+
+            <div class="form-group" style="margin:0;">
+              <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
+              <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+              <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
+              <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
+            </div>
+
+            <div class="form-group" style="margin:0;">
+              <label>${escapeHtml(strings.labelPromptType)}</label>
+              <div class="radio-group">
+                <label>
+                  <input type="radio" name="prompt-source" value="inline" checked>
+                  ${escapeHtml(strings.labelPromptInline)}
+                </label>
+                <label>
+                  <input type="radio" name="prompt-source" value="local">
+                  ${escapeHtml(strings.labelPromptLocal)}
+                </label>
+                <label>
+                  <input type="radio" name="prompt-source" value="global">
+                  ${escapeHtml(strings.labelPromptGlobal)}
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group" id="template-select-group" style="display: none; margin:0;">
+              <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
+              <div class="template-row">
+                <select id="template-select">
+                  <option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option>
+                </select>
+                <button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
+              </div>
+            </div>
+
+            <div class="form-group" id="prompt-group" style="margin:0;">
+              <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
+              <textarea id="prompt-text" placeholder="${escapeHtmlAttr(strings.placeholderPrompt)}" required style="min-height:220px;"></textarea>
+            </div>
+
+            <div class="form-group" id="skill-select-group" style="margin:0;">
+              <label for="skill-select">${escapeHtml(strings.labelSkills)}</label>
+              <div class="template-row">
+                <select id="skill-select">
+                  <option value="">${escapeHtml(strings.placeholderSelectSkill)}</option>
+                </select>
+                <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
+              </div>
+              <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
+            </div>
+          </section>
+
+          <section class="task-editor-card">
+            <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
+
+            <div class="form-group" style="margin:0;">
+              <label>${escapeHtml(strings.labelSchedule)}</label>
+              <div class="preset-select">
+                <select id="cron-preset">
+                  <option value="">${escapeHtml(strings.labelCustom)}</option>
+                  ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
+                </select>
+              </div>
+              <input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>
+              <div class="cron-preview">
+                <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
+                <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
+                <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+              </div>
+            </div>
+
+            <div class="friendly-cron" id="friendly-builder">
+              <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
+              <div class="friendly-grid">
+                <div class="form-group">
+                  <label for="friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
+                  <select id="friendly-frequency">
+                    <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
+                    <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
+                    <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
+                    <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
+                    <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
+                    <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
+                  </select>
+                </div>
+                <div class="form-group friendly-field" data-field="interval">
+                  <label for="friendly-interval">${escapeHtml(strings.labelInterval)}</label>
+                  <input type="number" id="friendly-interval" min="1" max="59" value="5">
+                </div>
+                <div class="form-group friendly-field" data-field="minute">
+                  <label for="friendly-minute">${escapeHtml(strings.labelMinute)}</label>
+                  <input type="number" id="friendly-minute" min="0" max="59" value="0">
+                </div>
+                <div class="form-group friendly-field" data-field="hour">
+                  <label for="friendly-hour">${escapeHtml(strings.labelHour)}</label>
+                  <input type="number" id="friendly-hour" min="0" max="23" value="9">
+                </div>
+                <div class="form-group friendly-field" data-field="dow">
+                  <label for="friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
+                  <select id="friendly-dow">
+                    <option value="0">${escapeHtml(strings.daySun)}</option>
+                    <option value="1">${escapeHtml(strings.dayMon)}</option>
+                    <option value="2">${escapeHtml(strings.dayTue)}</option>
+                    <option value="3">${escapeHtml(strings.dayWed)}</option>
+                    <option value="4">${escapeHtml(strings.dayThu)}</option>
+                    <option value="5">${escapeHtml(strings.dayFri)}</option>
+                    <option value="6">${escapeHtml(strings.daySat)}</option>
+                  </select>
+                </div>
+                <div class="form-group friendly-field" data-field="dom">
+                  <label for="friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
+                  <input type="number" id="friendly-dom" min="1" max="31" value="1">
+                </div>
+              </div>
+              <div class="friendly-actions">
+                <button type="button" class="btn-secondary" id="friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
+              </div>
+            </div>
+
+            <div class="section-title">${escapeHtml(strings.taskEditorRuntimeTitle)}</div>
+            <div class="inline-group">
+              <div class="form-group" style="margin:0;">
+                <label for="agent-select">${escapeHtml(strings.labelAgent)}</label>
+                <select id="agent-select">
+                  ${initialAgents.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectAgent)}</option>` + initialAgents.map((a) => `<option value="${escapeHtmlAttr(a.id || "")}">${escapeHtml(a.name || "")}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoAgents)}</option>`}
+                </select>
+              </div>
+
+              <div class="form-group" style="margin:0;">
+                <label for="model-select">${escapeHtml(strings.labelModel)}</label>
+                <select id="model-select">
+                  ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(SchedulerWebview.formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
+                </select>
+                <p class="note">${escapeHtml(strings.labelModelNote)}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="task-editor-card is-wide">
+            <div class="section-title">${escapeHtml(strings.taskEditorOptionsTitle)}</div>
+            <div class="task-editor-options-grid">
+              <div class="form-group" style="margin:0;">
+                <label>${escapeHtml(strings.labelScope)}</label>
+                <div class="radio-group">
+                  <label>
+                    <input type="radio" name="scope" value="workspace" ${defaultScope === "workspace" ? "checked" : ""}>
+                    ${escapeHtml(strings.labelScopeWorkspace)}
+                  </label>
+                  <label>
+                    <input type="radio" name="scope" value="global" ${defaultScope === "global" ? "checked" : ""}>
+                    ${escapeHtml(strings.labelScopeGlobal)}
+                  </label>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin:0;">
+                <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
+                <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
+                <p class="note">${escapeHtml(strings.webviewJitterNote)}</p>
+              </div>
+
+              <div class="form-group" style="margin:0;">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="run-first">
+                  <span>${escapeHtml(strings.labelRunFirstInOneMinute)}</span>
+                </label>
+              </div>
+
+              <div class="form-group" style="margin:0;">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="one-time">
+                  <span>${escapeHtml(strings.labelOneTime)}</span>
+                </label>
+              </div>
+
+              <div class="form-group wide" id="chat-session-group" style="margin:0;">
+                <label for="chat-session">${escapeHtml(strings.labelChatSession)}</label>
+                <select id="chat-session">
+                  <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
+                  <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
+                </select>
+                <p class="note">${escapeHtml(strings.labelChatSessionRecurringOnly)}</p>
+              </div>
+            </div>
+
+            <div class="section-title">${escapeHtml(strings.taskEditorActionsTitle)}</div>
+            <div class="button-group" style="margin:0;">
+              <button type="submit" class="btn-primary" id="submit-btn">${escapeHtml(strings.actionCreate)}</button>
+              <button type="button" class="btn-secondary" id="new-task-btn" style="display:none;">${escapeHtml(strings.actionNewTask)}</button>
+              <button type="button" class="btn-secondary" id="test-btn">${escapeHtml(strings.taskEditorTestPrompt)}</button>
+            </div>
+          </section>
         </div>
-      </div>
-
-      <div class="form-group" id="chat-session-group">
-        <label for="chat-session">${escapeHtml(strings.labelChatSession)}</label>
-        <select id="chat-session">
-          <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
-          <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
-        </select>
-        <p class="note">${escapeHtml(strings.labelChatSessionRecurringOnly)}</p>
-      </div>
-
-      <div class="form-group">
-        <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
-        <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
-        <p class="note">${escapeHtml(strings.webviewJitterNote)}</p>
-      </div>
-      
-      <div class="button-group">
-        <button type="submit" class="btn-primary" id="submit-btn">${escapeHtml(strings.actionCreate)}</button>
-        <button type="button" class="btn-secondary" id="new-task-btn" style="display:none;">${escapeHtml(strings.actionNewTask)}</button>
-        <button type="button" class="btn-secondary" id="test-btn">${escapeHtml(strings.actionTestRun)}</button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
   
   <div id="list-tab" class="tab-content">
@@ -3494,6 +4250,66 @@ export class SchedulerWebview {
     </div>
   </div>
 
+  <div id="board-tab" class="tab-content">
+    <div class="section-title">${escapeHtml(strings.boardTitle)}</div>
+    <p class="note">${escapeHtml(strings.boardDescription)}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:12px;">
+      <div class="form-group" style="margin:0;min-width:220px;flex:1 1 220px;">
+        <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
+        <input type="text" id="todo-search-input" placeholder="${escapeHtmlAttr(strings.boardSearchPlaceholder)}">
+      </div>
+      <div class="form-group" style="margin:0;min-width:150px;">
+        <label for="todo-section-filter">${escapeHtml(strings.boardSectionFilterLabel)}</label>
+        <select id="todo-section-filter"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:150px;">
+        <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
+        <select id="todo-label-filter"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:150px;">
+        <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
+        <select id="todo-priority-filter"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:150px;">
+        <label for="todo-status-filter">${escapeHtml(strings.boardStatusFilterLabel)}</label>
+        <select id="todo-status-filter"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:170px;">
+        <label for="todo-archive-outcome-filter">${escapeHtml(strings.boardArchiveOutcomeFilterLabel)}</label>
+        <select id="todo-archive-outcome-filter"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:150px;">
+        <label for="todo-sort-by">${escapeHtml(strings.boardSortLabel)}</label>
+        <select id="todo-sort-by"></select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:130px;">
+        <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
+        <select id="todo-sort-direction"></select>
+      </div>
+      <div class="form-group" style="margin:0;display:flex;align-items:center;gap:8px;min-height:64px;">
+        <input type="checkbox" id="todo-show-archived">
+        <label for="todo-show-archived" style="margin:0;">${escapeHtml(strings.boardShowArchived)}</label>
+      </div>
+      <div class="button-group" style="margin:0 0 0 auto;justify-content:flex-end;align-items:center;">
+        <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
+        <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
+      </div>
+    </div>
+    <div id="board-summary" class="note"></div>
+    <div class="note" style="margin-bottom:12px;">${escapeHtml(strings.boardDropHint)}</div>
+    <div class="board-toolbar">
+      <button type="button" class="btn-secondary" id="board-add-section-btn">+ Add Section</button>
+      <div class="board-col-width-group">
+        <label for="cockpit-col-slider">Column width</label>
+        <input type="range" id="cockpit-col-slider" min="180" max="520" value="300" step="10">
+      </div>
+    </div>
+    <div class="board-columns-shell">
+      <div id="board-columns"></div>
+    </div>
+    <p class="note">${escapeHtml(strings.boardPrivacyNote)}</p>
+  </div>
+
   <div id="jobs-tab" class="tab-content">
     <div class="jobs-layout" id="jobs-layout">
       <aside class="jobs-sidebar">
@@ -3515,200 +4331,218 @@ export class SchedulerWebview {
       </aside>
 
       <section class="jobs-main">
-        <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
-        <div id="jobs-details" style="display:none;">
-          <div class="jobs-editor-shell">
-            <div class="jobs-editor-header">
-              <div class="jobs-editor-intro">
-                <div class="section-title">${escapeHtml(strings.jobsTitle)}</div>
-                <div class="jobs-editor-subtitle">${escapeHtml(strings.jobsSelectJob)}</div>
-              </div>
-              <div class="jobs-job-toolbar">
-                <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
-                <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
-                <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
-                <button type="button" class="btn-secondary" id="jobs-compile-btn">${escapeHtml(strings.jobsCompile)}</button>
-                <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
-              </div>
+        <div class="jobs-overview-main">
+          <div class="jobs-overview-card">
+            <div class="section-title">${escapeHtml(strings.jobsOverviewTitle)}</div>
+            <p class="note">${escapeHtml(strings.jobsOverviewNote)}</p>
+            <div class="button-group" style="margin:0;">
+              <button type="button" class="btn-primary" id="jobs-open-editor-btn">${escapeHtml(strings.jobsOpenEditor)}</button>
             </div>
-
-            <div class="jobs-editor-grid">
-              <section class="jobs-main-section jobs-editor-card">
-                <div class="section-title">Job details</div>
-                <p class="note">Name the job, place it in a folder, and toggle whether it is active.</p>
-                <div class="jobs-job-grid jobs-job-grid-overview">
-                  <div class="form-group">
-                    <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
-                    <input type="text" id="jobs-name-input">
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
-                    <select id="jobs-folder-select"></select>
-                  </div>
-                  <div class="form-group">
-                    <label>${escapeHtml(strings.labelStatus)}</label>
-                    <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
-                  </div>
-                </div>
-              </section>
-
-              <section class="jobs-main-section jobs-editor-card">
-                <div class="section-title">Schedule</div>
-                <p class="note">Choose a preset, edit the cron expression, or use the friendly builder.</p>
-                <div class="jobs-schedule-grid">
-                  <div class="form-group">
-                    <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
-                    <div class="preset-select">
-                      <select id="jobs-cron-preset">
-                        <option value="">${escapeHtml(strings.labelCustom)}</option>
-                        ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-                      </select>
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
-                    <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
-                  </div>
-                  <div class="form-group wide">
-                    <div class="cron-preview">
-                      <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-                      <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-                      <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-                    </div>
-                  </div>
-                  <div class="form-group wide">
-                    <div class="friendly-cron" id="jobs-friendly-builder">
-                      <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-                      <div class="friendly-grid">
-                        <div class="form-group">
-                          <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-                          <select id="jobs-friendly-frequency">
-                            <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                            <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                            <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                            <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                            <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                            <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-                          </select>
-                        </div>
-                        <div class="form-group friendly-field" data-field="interval">
-                          <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-                          <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
-                        </div>
-                        <div class="form-group friendly-field" data-field="minute">
-                          <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-                          <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
-                        </div>
-                        <div class="form-group friendly-field" data-field="hour">
-                          <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
-                          <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
-                        </div>
-                        <div class="form-group friendly-field" data-field="dow">
-                          <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-                          <select id="jobs-friendly-dow">
-                            <option value="0">${escapeHtml(strings.daySun)}</option>
-                            <option value="1">${escapeHtml(strings.dayMon)}</option>
-                            <option value="2">${escapeHtml(strings.dayTue)}</option>
-                            <option value="3">${escapeHtml(strings.dayWed)}</option>
-                            <option value="4">${escapeHtml(strings.dayThu)}</option>
-                            <option value="5">${escapeHtml(strings.dayFri)}</option>
-                            <option value="6">${escapeHtml(strings.daySat)}</option>
-                          </select>
-                        </div>
-                        <div class="form-group friendly-field" data-field="dom">
-                          <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-                          <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
-                        </div>
-                      </div>
-                      <div class="friendly-actions">
-                        <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section class="jobs-main-section jobs-editor-card">
-                <div class="section-title">Workflow</div>
-                <p class="note">Steps run in order. Pause checkpoints stop the job until you approve the previous result.</p>
-                <div class="form-group wide">
-                  <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
-                  <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
-                </div>
-                <div class="form-group wide">
-                  <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
-                  <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
-                  <div id="jobs-step-list" class="jobs-step-list"></div>
-                </div>
-              </section>
-
-              <section class="jobs-main-section jobs-editor-card">
-                <div class="section-title">Add to workflow</div>
-                <p class="note">Use these quick actions to insert pause checkpoints, attach existing tasks, or create a brand new step.</p>
-                <div class="jobs-action-grid">
-                  <div class="jobs-action-card">
-                    <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
-                    <div class="jobs-inline-form">
-                      <div class="form-group">
-                        <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
-                        <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
-                      </div>
-                      <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
-                    </div>
-                  </div>
-
-                  <div class="jobs-action-card">
-                    <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
-                    <div class="jobs-inline-form">
-                      <div class="form-group">
-                        <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
-                        <select id="jobs-existing-task-select"></select>
-                      </div>
-                      <div class="form-group">
-                        <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                        <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
-                      </div>
-                      <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
-                    </div>
-                  </div>
-
-                  <div class="jobs-action-card jobs-action-card-wide">
-                    <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
-                    <div class="jobs-inline-form jobs-new-step-form">
-                      <div class="form-group">
-                        <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
-                        <input type="text" id="jobs-step-name-input">
-                      </div>
-                      <div class="form-group">
-                        <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                        <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
-                      </div>
-                      <div class="form-group wide">
-                        <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
-                        <textarea id="jobs-step-prompt-input"></textarea>
-                      </div>
-                      <div class="form-group">
-                        <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
-                        <select id="jobs-step-agent-select"></select>
-                      </div>
-                      <div class="form-group">
-                        <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
-                        <select id="jobs-step-model-select"></select>
-                      </div>
-                      <div class="form-group">
-                        <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
-                        <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-                      </div>
-                      <div class="jobs-new-step-actions">
-                        <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
+          </div>
+          <div class="jobs-overview-card">
+            <div class="section-title">${escapeHtml(strings.jobsCurrentFolderLabel)}</div>
+            <p class="note">${escapeHtml(strings.jobsSelectJob)}</p>
+          </div>
         </div>
       </section>
+    </div>
+  </div>
+
+  <div id="jobs-edit-tab" class="tab-content">
+    <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
+    <div id="jobs-details" style="display:none;">
+      <div class="jobs-editor-shell">
+        <div class="jobs-editor-header">
+          <div class="jobs-editor-intro">
+            <div class="section-title">${escapeHtml(strings.jobsTitle)}</div>
+            <div class="jobs-editor-subtitle">${escapeHtml(strings.jobsSelectJob)}</div>
+          </div>
+          <div class="jobs-job-toolbar">
+            <button type="button" class="btn-secondary" id="jobs-back-btn">${escapeHtml(strings.jobsBackToJobs)}</button>
+            <button type="button" class="btn-primary" id="jobs-save-btn">${escapeHtml(strings.jobsSave)}</button>
+            <button type="button" class="btn-secondary" id="jobs-duplicate-btn">${escapeHtml(strings.jobsDuplicate)}</button>
+            <button type="button" class="btn-secondary" id="jobs-pause-btn">${escapeHtml(strings.jobsPause)}</button>
+            <button type="button" class="btn-secondary" id="jobs-compile-btn">${escapeHtml(strings.jobsCompile)}</button>
+            <button type="button" class="btn-danger" id="jobs-delete-btn">${escapeHtml(strings.jobsDelete)}</button>
+          </div>
+        </div>
+
+        <div class="jobs-editor-grid">
+          <section class="jobs-main-section jobs-editor-card">
+            <div class="section-title">Job details</div>
+            <p class="note">Name the job, place it in a folder, and toggle whether it is active.</p>
+            <div class="jobs-job-grid jobs-job-grid-overview">
+              <div class="form-group">
+                <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
+                <input type="text" id="jobs-name-input">
+              </div>
+              <div class="form-group">
+                <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
+                <select id="jobs-folder-select"></select>
+              </div>
+              <div class="form-group">
+                <label>${escapeHtml(strings.labelStatus)}</label>
+                <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="jobs-main-section jobs-editor-card">
+            <div class="section-title">Schedule</div>
+            <p class="note">Choose a preset, edit the cron expression, or use the friendly builder.</p>
+            <div class="jobs-schedule-grid">
+              <div class="form-group">
+                <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
+                <div class="preset-select">
+                  <select id="jobs-cron-preset">
+                    <option value="">${escapeHtml(strings.labelCustom)}</option>
+                    ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
+                <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
+              </div>
+              <div class="form-group wide">
+                <div class="cron-preview">
+                  <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
+                  <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
+                  <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+                </div>
+              </div>
+              <div class="form-group wide">
+                <div class="friendly-cron" id="jobs-friendly-builder">
+                  <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
+                  <div class="friendly-grid">
+                    <div class="form-group">
+                      <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
+                      <select id="jobs-friendly-frequency">
+                        <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
+                        <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
+                        <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
+                        <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
+                        <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
+                        <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
+                      </select>
+                    </div>
+                    <div class="form-group friendly-field" data-field="interval">
+                      <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
+                      <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
+                    </div>
+                    <div class="form-group friendly-field" data-field="minute">
+                      <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
+                      <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
+                    </div>
+                    <div class="form-group friendly-field" data-field="hour">
+                      <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
+                      <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
+                    </div>
+                    <div class="form-group friendly-field" data-field="dow">
+                      <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
+                      <select id="jobs-friendly-dow">
+                        <option value="0">${escapeHtml(strings.daySun)}</option>
+                        <option value="1">${escapeHtml(strings.dayMon)}</option>
+                        <option value="2">${escapeHtml(strings.dayTue)}</option>
+                        <option value="3">${escapeHtml(strings.dayWed)}</option>
+                        <option value="4">${escapeHtml(strings.dayThu)}</option>
+                        <option value="5">${escapeHtml(strings.dayFri)}</option>
+                        <option value="6">${escapeHtml(strings.daySat)}</option>
+                      </select>
+                    </div>
+                    <div class="form-group friendly-field" data-field="dom">
+                      <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
+                      <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
+                    </div>
+                  </div>
+                  <div class="friendly-actions">
+                    <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="jobs-main-section jobs-editor-card is-wide">
+            <div class="section-title">Workflow</div>
+            <p class="note">Steps run in order. Pause checkpoints stop the job until you approve the previous result.</p>
+            <div class="form-group wide">
+              <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
+              <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
+            </div>
+            <div class="form-group wide">
+              <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
+              <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+              <div id="jobs-step-list" class="jobs-step-list"></div>
+            </div>
+          </section>
+
+          <section class="jobs-main-section jobs-editor-card is-wide">
+            <div class="section-title">Add to workflow</div>
+            <p class="note">Use these quick actions to insert pause checkpoints, attach existing tasks, or create a brand new step.</p>
+            <div class="jobs-action-grid">
+              <div class="jobs-action-card">
+                <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
+                <div class="jobs-inline-form">
+                  <div class="form-group">
+                    <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
+                    <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
+                  </div>
+                  <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
+                </div>
+              </div>
+
+              <div class="jobs-action-card">
+                <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
+                <div class="jobs-inline-form">
+                  <div class="form-group">
+                    <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
+                    <select id="jobs-existing-task-select"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                    <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
+                  </div>
+                  <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
+                </div>
+              </div>
+
+              <div class="jobs-action-card jobs-action-card-wide">
+                <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
+                <div class="jobs-inline-form jobs-new-step-form">
+                  <div class="form-group">
+                    <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
+                    <input type="text" id="jobs-step-name-input">
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                    <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
+                  </div>
+                  <div class="form-group wide">
+                    <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
+                    <textarea id="jobs-step-prompt-input"></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
+                    <select id="jobs-step-agent-select"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
+                    <select id="jobs-step-model-select"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
+                    <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
+                  </div>
+                  <div class="jobs-new-step-actions">
+                    <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3716,22 +4550,29 @@ export class SchedulerWebview {
     <div class="research-layout">
       <aside class="research-sidebar">
         <section class="research-panel">
-          <div class="section-title">${escapeHtml(strings.researchProfilesTitle)}</div>
-          <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+          <div class="research-panel-header">
+            <div class="section-title">${escapeHtml(strings.researchProfilesTitle)}</div>
+            <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+          </div>
           <div class="research-toolbar">
             <button type="button" class="btn-secondary" id="research-new-btn">${escapeHtml(strings.researchNewProfile)}</button>
           </div>
           <div id="research-profile-list" class="research-profile-list"></div>
         </section>
         <section class="research-panel">
-          <div class="section-title">${escapeHtml(strings.researchHistoryTitle)}</div>
+          <div class="research-panel-header">
+            <div class="section-title">${escapeHtml(strings.researchHistoryTitle)}</div>
+          </div>
           <div id="research-run-list" class="research-run-list"></div>
         </section>
       </aside>
 
       <section class="research-main">
         <section class="research-panel">
-          <div class="section-title">${escapeHtml(strings.researchTitle)}</div>
+          <div class="research-panel-header">
+            <div class="section-title">${escapeHtml(strings.researchTitle)}</div>
+            <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+          </div>
           <div id="research-form-error" class="research-form-error"></div>
           <input type="hidden" id="research-edit-id" value="">
           <div class="research-form-grid">
@@ -3801,7 +4642,9 @@ export class SchedulerWebview {
         </section>
 
         <section class="research-panel">
-          <div class="section-title" id="research-run-title">${escapeHtml(strings.researchActiveRunTitle)}</div>
+          <div class="research-panel-header">
+            <div class="section-title" id="research-run-title">${escapeHtml(strings.researchActiveRunTitle)}</div>
+          </div>
           <div id="research-active-empty" class="jobs-empty">${escapeHtml(strings.researchNoRunSelected)}</div>
           <div id="research-active-details" style="display:none;">
             <div class="research-stat-grid">
@@ -3831,14 +4674,16 @@ export class SchedulerWebview {
     </div>
   </div>
 
-  <div id="telegram-tab" class="tab-content">
+  <div id="settings-tab" class="tab-content">
     <div class="telegram-layout">
       <section class="telegram-card">
-        <div class="section-title">${escapeHtml(strings.telegramTitle)}</div>
-        <p class="note">${escapeHtml(strings.telegramDescription)}</p>
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.telegramTitle)}</div>
+          <p class="note">${escapeHtml(strings.telegramDescription)}</p>
+        </div>
         <div id="telegram-feedback" class="telegram-feedback"></div>
 
-        <div class="form-group" style="margin-top:16px;">
+        <div class="form-group" style="margin-top:8px;">
           <label class="checkbox-group">
             <input type="checkbox" id="telegram-enabled">
             <span>${escapeHtml(strings.telegramEnable)}</span>
@@ -3868,8 +4713,10 @@ export class SchedulerWebview {
       </section>
 
       <aside class="telegram-status-card">
-        <div class="section-title">${escapeHtml(strings.tabTelegram)}</div>
-        <p class="note">${escapeHtml(strings.telegramWorkspaceNote)}</p>
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.tabTelegram)}</div>
+          <p class="note">${escapeHtml(strings.telegramWorkspaceNote)}</p>
+        </div>
         <div class="telegram-status-grid">
           <div class="telegram-status-item">
             <div class="telegram-status-label">${escapeHtml(strings.telegramBotToken)}</div>
@@ -3892,10 +4739,12 @@ export class SchedulerWebview {
       </aside>
 
       <section class="telegram-card">
-        <div class="section-title">${escapeHtml(strings.executionDefaultsTitle)}</div>
-        <p class="note">${escapeHtml(strings.executionDefaultsDescription)}</p>
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.executionDefaultsTitle)}</div>
+          <p class="note">${escapeHtml(strings.executionDefaultsDescription)}</p>
+        </div>
 
-        <div class="form-group" style="margin-top:16px;">
+        <div class="form-group" style="margin-top:8px;">
           <label for="default-agent-select">${escapeHtml(strings.executionDefaultsAgent)}</label>
           <select id="default-agent-select"></select>
         </div>
@@ -3915,96 +4764,98 @@ export class SchedulerWebview {
 
   <div id="help-tab" class="tab-content active">
     <div class="help-panel">
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpIntroTitle)}</h3>
-        <p>${escapeHtml(strings.helpIntroBody)}</p>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpCreateTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpCreateItemName)}</li>
-          <li>${escapeHtml(strings.helpCreateItemTemplates)}</li>
-          <li>${escapeHtml(strings.helpCreateItemSkills)}</li>
-          <li>${escapeHtml(strings.helpCreateItemAgentModel)}</li>
-          <li>${escapeHtml(strings.helpCreateItemRunFirst)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpListTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpListItemSections)}</li>
-          <li>${escapeHtml(strings.helpListItemActions)}</li>
-          <li>${escapeHtml(strings.helpListItemStartup)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
-          <li>${escapeHtml(strings.helpJobsItemPause)}</li>
-          <li>${escapeHtml(strings.helpJobsItemCompile)}</li>
-          <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
-          <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
-          <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
-          <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
-          <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
-          <li>${escapeHtml(strings.helpStorageItemBackups)}</li>
-          <li>${escapeHtml(strings.helpStorageItemIsolation)}</li>
-          <li>${escapeHtml(strings.helpStorageItemGlobal)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpOverdueTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpOverdueItemReview)}</li>
-          <li>${escapeHtml(strings.helpOverdueItemRecurring)}</li>
-          <li>${escapeHtml(strings.helpOverdueItemOneTime)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpSessionTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpSessionItemPerTask)}</li>
-          <li>${escapeHtml(strings.helpSessionItemNewChat)}</li>
-          <li>${escapeHtml(strings.helpSessionItemCareful)}</li>
-          <li>${escapeHtml(strings.helpSessionItemSeparate)}</li>
-        </ul>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
-          <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
-          <li>${escapeHtml(strings.helpMcpItemAutoConfig)}</li>
-          <li>${escapeHtml(strings.helpMcpItemDanger)}</li>
-          <li>${escapeHtml(strings.helpMcpItemInspect)}</li>
-          <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
-          <li>${escapeHtml(strings.helpMcpItemTools)}</li>
-        </ul>
-        <div class="button-group" style="margin-top:12px;">
-          <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
-        </div>
-      </section>
-      <section class="help-section">
-        <h3>${escapeHtml(strings.helpTipsTitle)}</h3>
-        <ul>
-          <li>${escapeHtml(strings.helpTipsItem1)}</li>
-          <li>${escapeHtml(strings.helpTipsItem2)}</li>
-          <li>${escapeHtml(strings.helpTipsItem3)}</li>
-        </ul>
-      </section>
+      <div class="help-intro">
+        <h2 class="help-intro-title">${escapeHtml(strings.helpIntroTitle)}</h2>
+        <p class="help-intro-body">${escapeHtml(strings.helpIntroBody)}</p>
+      </div>
+      <div class="help-grid">
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpCreateTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpCreateItemName)}</li>
+            <li>${escapeHtml(strings.helpCreateItemTemplates)}</li>
+            <li>${escapeHtml(strings.helpCreateItemSkills)}</li>
+            <li>${escapeHtml(strings.helpCreateItemAgentModel)}</li>
+            <li>${escapeHtml(strings.helpCreateItemRunFirst)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpListTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpListItemSections)}</li>
+            <li>${escapeHtml(strings.helpListItemActions)}</li>
+            <li>${escapeHtml(strings.helpListItemStartup)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
+            <li>${escapeHtml(strings.helpJobsItemPause)}</li>
+            <li>${escapeHtml(strings.helpJobsItemCompile)}</li>
+            <li>${escapeHtml(strings.helpJobsItemLabels)}</li>
+            <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
+            <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
+            <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
+            <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
+            <li>${escapeHtml(strings.helpStorageItemBackups)}</li>
+            <li>${escapeHtml(strings.helpStorageItemIsolation)}</li>
+            <li>${escapeHtml(strings.helpStorageItemGlobal)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpOverdueTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpOverdueItemReview)}</li>
+            <li>${escapeHtml(strings.helpOverdueItemRecurring)}</li>
+            <li>${escapeHtml(strings.helpOverdueItemOneTime)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpSessionTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpSessionItemPerTask)}</li>
+            <li>${escapeHtml(strings.helpSessionItemNewChat)}</li>
+            <li>${escapeHtml(strings.helpSessionItemCareful)}</li>
+            <li>${escapeHtml(strings.helpSessionItemSeparate)}</li>
+          </ul>
+        </section>
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpTipsTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpTipsItem1)}</li>
+            <li>${escapeHtml(strings.helpTipsItem2)}</li>
+            <li>${escapeHtml(strings.helpTipsItem3)}</li>
+          </ul>
+        </section>
+        <section class="help-section is-featured">
+          <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
+          <ul>
+            <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
+            <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
+            <li>${escapeHtml(strings.helpMcpItemAutoConfig)}</li>
+            <li>${escapeHtml(strings.helpMcpItemDanger)}</li>
+            <li>${escapeHtml(strings.helpMcpItemInspect)}</li>
+            <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
+            <li>${escapeHtml(strings.helpMcpItemTools)}</li>
+          </ul>
+          <div class="button-group" style="margin-top:8px;">
+            <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
   
