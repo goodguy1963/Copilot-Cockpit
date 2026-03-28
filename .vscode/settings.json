@@ -1,4 +1,4 @@
 {
     "copilotScheduler.autoShowOnStartup": true,
-    "copilotCockpit.language": "en"
+    "copilotCockpit.language": "auto"
 }

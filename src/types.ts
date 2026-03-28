@@ -201,6 +201,8 @@ export type CockpitTodoSortBy =
 
 export type CockpitTodoSortDirection = "asc" | "desc";
 
+export type CockpitTodoViewMode = "board" | "list";
+
 export type CockpitTodoStatus =
   | "active"
   | "ready"
@@ -370,6 +372,9 @@ export interface CockpitBoardFilters {
   /** Active sort direction */
   sortDirection: CockpitTodoSortDirection;
 
+  /** Active cockpit view mode */
+  viewMode: CockpitTodoViewMode;
+
   /** Whether archived cards should remain visible */
   showArchived: boolean;
 }
@@ -538,6 +543,9 @@ export interface UpdateCockpitBoardFiltersInput {
 
   /** Active sort direction */
   sortDirection?: CockpitTodoSortDirection;
+
+  /** Active cockpit view mode */
+  viewMode?: CockpitTodoViewMode;
 }
 
 export interface UpsertCockpitLabelDefinitionInput {
@@ -1417,7 +1425,10 @@ export type WebviewToExtensionMessage =
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }
-  | { type: "webviewReady" };
+  | { type: "webviewReady" }
+  | { type: "introTutorial" }
+  | { type: "planIntegration" }
+  | { type: "restoreBackup" };
 
 /**
  * TreeView context values
@@ -1431,3 +1442,5 @@ export type TreeContextValue =
   | "disabledWorkspaceTask"
   | "enabledOtherWorkspaceTask"
   | "disabledOtherWorkspaceTask";
+
+

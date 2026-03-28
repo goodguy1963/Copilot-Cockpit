@@ -83,6 +83,7 @@ export class SchedulerWebview {
       flags: [],
       sortBy: "manual",
       sortDirection: "asc",
+      viewMode: "board",
       showArchived: false,
     },
     updatedAt: "",
@@ -106,6 +107,25 @@ export class SchedulerWebview {
   private static resetWebviewReadyState(): void {
     this.webviewReady = false;
     this.pendingMessages = [];
+  }
+
+  private static getHelpChatLanguageInstruction(): string {
+    switch (getCurrentLanguage()) {
+      case "de":
+        return "Answer in Deutsch.";
+      case "ja":
+        return "Answer in Japanese.";
+      default:
+        return "Answer in English.";
+    }
+  }
+
+  private static async launchHelpChat(prompt: string): Promise<void> {
+    const fullPrompt = `${this.getHelpChatLanguageInstruction()}\n\n${prompt}`;
+
+    await new CopilotExecutor().executePrompt(fullPrompt, {
+      chatSession: "new",
+    });
   }
 
   /**
@@ -806,6 +826,79 @@ export class SchedulerWebview {
         );
         break;
       }
+      case "introTutorial": {
+        await this.launchHelpChat(
+          "Please use the copilot-scheduler-intro skill to give me a guided tour of how this plugin works.",
+        );
+        break;
+      }
+      case "planIntegration": {
+          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (!root) {
+            vscode.window.showErrorMessage("Please open a workspace folder first.");
+            break;
+          }
+          const answer = await vscode.window.showInformationMessage(
+            "Before starting the agent integration planner, would you like to build a backup of your .github folder?",
+            "Yes, Backup",
+            "No"
+          );
+          if (answer === "Yes, Backup") {
+            const gitFolder = vscode.Uri.file(path.join(root, ".github"));
+            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const backupFolder = vscode.Uri.file(path.join(root, ".github-backup_" + stamp));
+            try {
+              if (fs.existsSync(gitFolder.fsPath)) {
+                await vscode.workspace.fs.copy(gitFolder, backupFolder);
+                const gitignorePath = path.join(root, ".gitignore");
+                let gitignoreContent = "";
+                if (fs.existsSync(gitignorePath)) {
+                  gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
+                }
+                if (!gitignoreContent.includes(".github-backup_*")) {
+                  const sep = gitignoreContent.length > 0 && !gitignoreContent.endsWith("\n") ? "\n" : "";
+                  fs.writeFileSync(gitignorePath, gitignoreContent + sep + ".github-backup_*\n");
+                }
+                vscode.window.showInformationMessage("Backup successfully built at: " + path.basename(backupFolder.fsPath));
+              } else {
+                vscode.window.showWarningMessage("No .github folder exists to backup.");
+              }
+            } catch (err) {
+              vscode.window.showErrorMessage("Backup failed: " + (err instanceof Error ? err.message : String(err)));
+            }
+          }
+          await this.launchHelpChat(
+            "Please use the copilot-scheduler-setup skill to plan a complete agent ecosystem integration for my workspace.",
+          );
+          break;
+        }
+      case "restoreBackup": {
+          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (!root) break;
+          try {
+            const children = await fs.promises.readdir(root);
+            const backups = children.filter(c => c.startsWith(".github-backup_"));
+            if (backups.length === 0) {
+               vscode.window.showInformationMessage("No backups found in the root directory.");
+               break;
+            }
+            const pick = await vscode.window.showQuickPick(backups, { placeHolder: "Select a backup to restore to your .github folder" });
+            if (pick) {
+              const gitFolder = vscode.Uri.file(path.join(root, ".github"));
+              const backupSource = vscode.Uri.file(path.join(root, pick));
+              try {
+                if (fs.existsSync(gitFolder.fsPath)) {
+                  await vscode.workspace.fs.delete(gitFolder, { recursive: true, useTrash: false });
+                }
+                await vscode.workspace.fs.copy(backupSource, gitFolder);
+                vscode.window.showInformationMessage("Successfully restored " + pick + " over .github");
+              } catch (e) {
+                vscode.window.showErrorMessage("Restore failed: " + (e instanceof Error ? e.message : String(e)));
+              }
+            }
+          } catch (e) {}
+          break;
+        }
 
       case "requestCreateJob":
         await this.handleCreateJobRequest(message.folderId);
@@ -1859,7 +1952,11 @@ export class SchedulerWebview {
     const strings = {
       title: messages.webviewTitle(),
       tabTodoEditor: localize("Create Todo", "Todo を作成", "Todo erstellen"),
+      tabTodoEditorCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
+      tabTodoEditorEdit: localize("Edit Todo", "Todo を編集", "Todo bearbeiten"),
       tabTaskEditor: localize("Create Task", "タスクを作成", "Task erstellen"),
+      tabTaskEditorCreate: localize("Create Task", "タスクを作成", "Task erstellen"),
+      tabTaskEditorEdit: localize("Edit Task", "タスクを編集", "Task bearbeiten"),
       tabCreate: messages.tabCreate(),
       tabEdit: messages.tabEdit(),
       tabList: messages.tabList(),
@@ -1872,12 +1969,39 @@ export class SchedulerWebview {
         "Hier können Sie die Sprache des Cockpit ändern. Dadurch wird dieselbe Workspace-Einstellung aktualisiert, die auch in den VS Code-Einstellungen verwendet wird.",
       ),
       helpLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
+      settingsLanguageTitle: localize("Language", "言語", "Sprache"),
+      settingsLanguageBody: localize(
+        "Change the cockpit language from Settings. This selector stays in sync with the one in How To.",
+        "Settings から Cockpit の言語を変更できます。このセレクターは How To の言語設定と同期されます。",
+        "Hier können Sie die Sprache des Cockpit in den Einstellungen ändern. Dieser Selektor bleibt mit dem im How To-Tab synchron.",
+      ),
+      settingsLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
       helpLanguageAuto: localize("Auto-detect from VS Code", "VS Codeから自動検出", "Automatisch aus VS Code erkennen"),
       helpLanguageEnglish: "English",
       helpLanguageJapanese: "日本語",
       helpLanguageGerman: "Deutsch",
       helpIntroTitle: messages.helpIntroTitle(),
       helpIntroBody: messages.helpIntroBody(),
+      helpTodoTitle: messages.helpTodoTitle(),
+      helpTodoBody: messages.helpTodoBody(),
+      helpSwitchTabSettingsBtn: messages.helpSwitchTabSettingsBtn(),
+      helpSwitchTabTodoBtn: messages.helpSwitchTabTodoBtn(),
+      helpSwitchTabCreateBtn: messages.helpSwitchTabCreateBtn(),
+      helpSwitchTabListBtn: messages.helpSwitchTabListBtn(),
+      helpSwitchTabJobsBtn: messages.helpSwitchTabJobsBtn(),
+      helpSwitchTabResearchBtn: messages.helpSwitchTabResearchBtn(),
+      helpAgentEcosystemTitle: localize(
+        "11. Agent Ecosystem Integration",
+        "11. エージェントエコシステム連携",
+        "11. Agenten-Ökosystem-Integration",
+      ),
+      helpAgentEcosystemBody: localize(
+        "Use the intro tutorial to learn the plugin first, then use plan integration to design repo-local skills, prompts, and agent roles around the Todo communication hub and scheduler MCP tools.",
+        "まず Intro Tutorial でプラグインの全体像を理解し、その後 Plan Integration で Todo コミュニケーションハブと scheduler MCP ツールを中心に repo-local のスキル、プロンプト、エージェント役割を設計します。",
+        "Verwenden Sie zuerst das Intro Tutorial, um das Plugin kennenzulernen. Nutzen Sie danach Plan Integration, um repo-lokale Skills, Prompts und Agentenrollen rund um den Todo-Kommunikations-Hub und die Scheduler-MCP-Tools zu entwerfen.",
+      ),
+      helpIntroTutorialBtn: localize("Intro Tutorial", "Intro Tutorial", "Intro Tutorial"),
+      helpPlanIntegrationBtn: localize("Plan Integration", "Plan Integration", "Integration planen"),
       helpCreateTitle: messages.helpCreateTitle(),
       helpCreateItemName: messages.helpCreateItemName(),
       helpCreateItemTemplates: messages.helpCreateItemTemplates(),
@@ -1988,9 +2112,11 @@ export class SchedulerWebview {
       ),
       boardToolbarNew: localize("New Todo", "新しい Todo", "Neues Todo"),
       boardToolbarClear: localize("Clear Selection", "選択をクリア", "Auswahl aufheben"),
+      boardToolbarClearFilters: localize("Clear Filters", "フィルターをクリア", "Filter löschen"),
       boardSearchLabel: localize("Search", "検索", "Suche"),
       boardSearchPlaceholder: localize("Search title, description, labels, comments", "タイトル、説明、ラベル、コメントを検索", "Titel, Beschreibung, Labels und Kommentare durchsuchen"),
       boardSortLabel: localize("Sort", "並び替え", "Sortieren"),
+      boardViewLabel: localize("View", "表示", "Ansicht"),
       boardSectionFilterLabel: localize("Section", "セクション", "Bereich"),
       boardLabelFilterLabel: localize("Label", "ラベル", "Label"),
       boardPriorityFilterLabel: localize("Priority", "優先度", "Priorität"),
@@ -2009,6 +2135,10 @@ export class SchedulerWebview {
       boardSortCreatedAt: localize("Created date", "作成日", "Erstellt am"),
       boardSortAsc: localize("Ascending", "昇順", "Aufsteigend"),
       boardSortDesc: localize("Descending", "降順", "Absteigend"),
+      boardViewBoard: localize("Board", "ボード", "Board"),
+      boardViewList: localize("List", "リスト", "Liste"),
+      boardListEmptySection: localize("No todos in this section.", "このセクションには Todo がありません。", "Keine Todos in diesem Bereich."),
+      boardListRowEdited: localize("Updated", "更新", "Aktualisiert"),
       boardDetailTitleCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
       boardDetailTitleEdit: localize("Edit Todo", "Todo を編集", "Todo bearbeiten"),
       boardDetailModeCreate: localize("Fill the form to create a new Todo Cockpit item.", "フォームに入力して新しい Todo Cockpit 項目を作成します。", "Füllen Sie das Formular aus, um ein neues Todo Cockpit-Element zu erstellen."),
@@ -2094,7 +2224,9 @@ export class SchedulerWebview {
       helpTipsItem2: messages.helpTipsItem2(),
       helpTipsItem3: messages.helpTipsItem3(),
       labelTaskName: messages.labelTaskName(),
-      tabJobsEditor: localize("Create / Edit Job", "Job を作成 / 編集", "Job erstellen / bearbeiten"),
+      tabJobsEditor: localize("Create Job", "Job を作成", "Job erstellen"),
+      tabJobsEditorCreate: localize("Create Job", "Job を作成", "Job erstellen"),
+      tabJobsEditorEdit: localize("Edit Job", "Job を編集", "Job bearbeiten"),
       tabJobs: localize("Jobs", "Jobs", "Jobs"),
       labelTaskLabels: localize("Labels", "ラベル", "Labels"),
       placeholderTaskLabels: "marketing, finance, weekly",
@@ -2145,6 +2277,14 @@ export class SchedulerWebview {
       jobsCompile: localize("Compile To Task", "Compile To Task", "Zu Task kompilieren"),
       jobsHideSidebar: localize("Hide Sidebar", "サイドバーを隠す", "Sidebar ausblenden"),
       jobsShowSidebar: localize("Show Sidebar", "サイドバーを表示", "Sidebar anzeigen"),
+      jobsWorkflowTitle: localize("Workflow Studio", "workflow スタジオ", "Workflow-Studio"),
+      jobsWorkflowNote: localize("Shape the execution path, inspect pacing, and place human checkpoints before anything runs.", "実行前にフローを整え、進み方を確認し、人の承認ポイントを配置します。", "Gestalten Sie den Ablauf, prüfen Sie das Tempo und setzen Sie menschliche Checkpoints, bevor etwas ausgeführt wird."),
+      jobsWorkflowBadge: localize("Control deck", "コントロールデッキ", "Kontrollzentrum"),
+      jobsWorkflowCadence: localize("Cadence", "実行ペース", "Taktung"),
+      jobsWorkflowStatus: localize("Status", "ステータス", "Status"),
+      jobsWorkflowTaskCount: localize("Task steps", "task ステップ", "Task-Schritte"),
+      jobsWorkflowPauseCount: localize("Pause checkpoints", "pause checkpoints", "Pause-Checkpoints"),
+      jobsWorkflowTimelineNote: localize("Read the flow left to right. Pause nodes stop the run until you approve the previous result.", "左から右へ flow を確認します。pause node は前の結果を承認するまで実行を止めます。", "Lesen Sie den Ablauf von links nach rechts. Pause-Nodes stoppen den Lauf, bis Sie das vorherige Ergebnis freigeben."),
       jobsCompactTimeline: localize("Workflow timeline", "workflow タイムライン", "Workflow-Zeitleiste"),
       jobsTimelineEmpty: localize("No steps yet", "まだステップはありません", "Noch keine Schritte"),
       jobsToggleStatus: localize("Toggle active status", "アクティブ状態を切り替え", "Aktiv-Status umschalten"),
@@ -2400,6 +2540,7 @@ export class SchedulerWebview {
       defaultJitterSeconds,
       defaultChatSession,
       scheduleHistory: this.currentScheduleHistory,
+      initialTab: "help",
       autoShowOnStartup: vscode.workspace
         .getConfiguration(
           "copilotScheduler",
@@ -2410,6 +2551,10 @@ export class SchedulerWebview {
       locale: getCurrentLocaleTag(),
       strings,
     };
+    const helpIntroTitle = typeof strings.helpIntroTitle === "string"
+      ? strings.helpIntroTitle
+      : "";
+    const helpIntroTitleText = helpIntroTitle.replace(/^\s*🚀\s*/u, "").trim() || helpIntroTitle;
 
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, "media", "schedulerWebview.js"),
@@ -2442,9 +2587,9 @@ export class SchedulerWebview {
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
       margin: -12px -14px 10px -14px;
-      padding: 6px 12px 4px 12px;
+      padding: 8px 16px 6px 16px;
       background-color: var(--vscode-editor-background);
       background: linear-gradient(
         to bottom,
@@ -2481,13 +2626,27 @@ export class SchedulerWebview {
       flex: 0 0 auto;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+    }
+
+    .tab-button-content {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 1.2em;
+    }
+
+    .tab-button-symbol {
+      font-size: 1.1em;
+      line-height: 1;
+      opacity: 0.95;
     }
 
     .tab-help-button {
-      width: 28px;
-      min-width: 28px;
-      height: 28px;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
       padding: 0;
       border-radius: 999px;
       border: 1px solid var(--vscode-panel-border);
@@ -2495,32 +2654,34 @@ export class SchedulerWebview {
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      margin-right: 4px;
+      font-size: 16px;
+      margin-right: 2px;
     }
 
     .tab-settings-button {
-      width: 28px;
-      min-width: 28px;
-      height: 28px;
+      width: 40px;
+      min-width: 40px;
+      height: 40px;
       padding: 0;
       border-radius: 999px;
       border: 1px solid var(--vscode-panel-border);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
+      font-size: 20px;
       line-height: 1;
-      margin-left: 4px;
+      margin-left: 2px;
     }
     
     .tab-button {
-      padding: 6px 10px;
+      padding: 9px 14px;
       border: none;
       background: transparent;
       color: var(--vscode-foreground);
       cursor: pointer;
       border-bottom: 2px solid transparent;
-      font-size: 11px;
+      font-size: 15px;
+      font-weight: 600;
       line-height: 1.15;
       flex: 1 1 auto;
       text-align: center;
@@ -2541,7 +2702,7 @@ export class SchedulerWebview {
       width: 1px;
       align-self: stretch;
       background: var(--vscode-panel-border);
-      margin: 4px 3px;
+      margin: 6px 4px;
       opacity: 0.6;
     }
 
@@ -2599,8 +2760,95 @@ export class SchedulerWebview {
     }
 
     .help-panel {
+      position: relative;
       display: grid;
       gap: 10px;
+      isolation: isolate;
+      overflow: hidden;
+      padding: 6px;
+      border-radius: 16px;
+    }
+
+    .help-panel > :not(.help-warp-layer) {
+      position: relative;
+      z-index: 1;
+    }
+
+    .help-warp-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: 0;
+      overflow: hidden;
+      border-radius: 16px;
+      transition: opacity 0.6s ease;
+    }
+
+    .help-warp-layer::before {
+      content: "";
+      position: absolute;
+      inset: -15% -12%;
+      background:
+        radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--vscode-focusBorder) 34%, transparent) 0%, transparent 36%),
+        radial-gradient(circle at 30% 52%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 30%, transparent) 0%, transparent 22%),
+        linear-gradient(110deg, transparent 0%, color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) 38%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 18%, transparent) 52%, transparent 78%);
+      filter: blur(22px);
+      opacity: 0;
+      transform: scale(1.08);
+    }
+
+    .help-warp-layer::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 70%, transparent) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 22% 71%, color-mix(in srgb, var(--vscode-focusBorder) 72%, transparent) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 78% 36%, color-mix(in srgb, white 65%, transparent) 0 1px, transparent 1.7px),
+        radial-gradient(circle at 64% 82%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 55%, transparent) 0 1px, transparent 1.7px),
+        radial-gradient(circle at 90% 14%, color-mix(in srgb, white 58%, transparent) 0 1px, transparent 1.8px);
+      opacity: 0;
+    }
+
+    .help-warp-layer.is-active {
+      opacity: 1;
+    }
+
+    .help-warp-layer.is-active::before {
+      animation: helpWarpGlow 10s ease-out forwards;
+    }
+
+    .help-warp-layer.is-active::after {
+      animation: helpWarpStars 10s linear forwards;
+    }
+
+    .help-warp-layer.is-fading {
+      animation: helpWarpLayerFade 3.8s ease forwards;
+    }
+
+    .help-warp-streak {
+      position: absolute;
+      left: -28%;
+      top: var(--warp-top, 50%);
+      width: var(--warp-length, 180px);
+      height: var(--warp-thickness, 2px);
+      border-radius: 999px;
+      opacity: 0;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in srgb, white 14%, transparent) 12%,
+        color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 65%, white 35%) 55%,
+        transparent 100%
+      );
+      box-shadow:
+        0 0 8px color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 28%, transparent),
+        0 0 18px color-mix(in srgb, var(--vscode-focusBorder) 20%, transparent);
+      filter: blur(0.25px);
+      transform-origin: left center;
+      transform: translate3d(-12vw, 0, 0) scaleX(0.22) rotate(var(--warp-rotate, 0deg));
+      animation: helpWarpFlight var(--warp-duration, 1.6s) linear var(--warp-delay, 0s) infinite;
     }
 
     .help-intro {
@@ -2615,9 +2863,61 @@ export class SchedulerWebview {
 
     .help-intro-title {
       margin: 0 0 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: 14px;
       font-weight: 700;
       line-height: 1.2;
+    }
+
+    .help-intro-rocket {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 45%, var(--vscode-panel-border));
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 30% 30%, color-mix(in srgb, white 34%, transparent) 0%, transparent 52%),
+        linear-gradient(135deg, color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent), color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 24%, transparent));
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      box-shadow: 0 0 0 1px color-mix(in srgb, white 4%, transparent), 0 10px 24px color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+      flex: 0 0 auto;
+    }
+
+    .help-intro-rocket:hover {
+      transform: translateY(-1px) scale(1.04);
+      box-shadow: 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 12px 26px color-mix(in srgb, var(--vscode-focusBorder) 24%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 70%, white 30%);
+    }
+
+    .help-intro-rocket:focus-visible {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
+    .help-intro-rocket-icon {
+      display: inline-block;
+      font-size: 18px;
+      line-height: 1;
+      transform-origin: center center;
+    }
+
+    .help-intro-rocket.is-launching {
+      animation: helpRocketPadPulse 1.2s ease forwards;
+    }
+
+    .help-intro-rocket.is-launching .help-intro-rocket-icon {
+      animation: helpRocketFlyAway 1.2s cubic-bezier(0.18, 0.84, 0.24, 1) forwards;
+    }
+
+    .help-intro-title-text {
+      min-width: 0;
     }
 
     .help-intro-body {
@@ -2670,6 +2970,84 @@ export class SchedulerWebview {
 
     .help-section li + li {
       margin-top: 5px;
+    }
+
+    @keyframes helpWarpGlow {
+      0% {
+        opacity: 0;
+        transform: scale(1.12);
+      }
+      14% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.44;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes helpWarpStars {
+      0% {
+        opacity: 0;
+        transform: translateX(-5%) scale(1.08);
+      }
+      16% {
+        opacity: 0.9;
+      }
+      100% {
+        opacity: 0.2;
+        transform: translateX(18%) scale(1);
+      }
+    }
+
+    @keyframes helpWarpLayerFade {
+      0% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes helpWarpFlight {
+      0% {
+        opacity: 0;
+        transform: translate3d(-14vw, 0, 0) scaleX(0.18) rotate(var(--warp-rotate, 0deg));
+      }
+      10% {
+        opacity: 0.88;
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(126vw, 0, 0) scaleX(1.18) rotate(var(--warp-rotate, 0deg));
+      }
+    }
+
+    @keyframes helpRocketPadPulse {
+      0% {
+        transform: scale(1);
+      }
+      28% {
+        transform: scale(1.08);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    @keyframes helpRocketFlyAway {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) rotate(-12deg) scale(1);
+      }
+      18% {
+        opacity: 1;
+        transform: translate3d(6px, -4px, 0) rotate(4deg) scale(1.08);
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(190px, -150px, 0) rotate(22deg) scale(0.34);
+      }
     }
 
     .form-group {
@@ -3157,6 +3535,98 @@ export class SchedulerWebview {
     .board-col-width-group input[type="range"] {
       width: 100px;
       cursor: pointer;
+    }
+
+    .todo-list-view {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .todo-list-section {
+      border-radius: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editorWidget-background);
+      overflow: hidden;
+    }
+
+    .todo-list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 var(--cockpit-card-pad, 9px) var(--cockpit-card-pad, 9px);
+    }
+
+    .todo-list-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
+    }
+
+    .todo-list-row:active {
+      cursor: grabbing;
+    }
+
+    .todo-list-main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .todo-list-title-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .todo-list-title {
+      min-width: 0;
+      font-weight: 600;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1 1 220px;
+    }
+
+    .todo-list-summary {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 1;
+      overflow: hidden;
+      line-clamp: 1;
+      min-height: 1.2em;
+    }
+
+    .todo-list-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .todo-list-action-btn {
+      min-width: 30px;
+      padding: 2px 6px !important;
+      font-weight: 600;
+      cursor: pointer !important;
+    }
+
+    @media (max-width: 920px) {
+      .todo-list-row {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-list-actions {
+        justify-content: flex-start;
+      }
     }
 
     .cockpit-section-header {
@@ -3661,6 +4131,155 @@ export class SchedulerWebview {
       margin-top: -4px;
     }
 
+    .jobs-workflow-card {
+      position: relative;
+      overflow: hidden;
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 38%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 34%),
+        linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
+          color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 18%, var(--vscode-editor-background))
+        );
+      box-shadow: 0 16px 32px color-mix(in srgb, var(--vscode-editor-background) 76%, transparent);
+    }
+
+    .jobs-workflow-card::before {
+      content: "";
+      position: absolute;
+      top: -72px;
+      right: -56px;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .jobs-workflow-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+      gap: 14px;
+      align-items: stretch;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-copy {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .jobs-workflow-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 14%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
+      color: var(--vscode-foreground);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .jobs-workflow-title {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .jobs-workflow-note {
+      margin: 0;
+      max-width: 62ch;
+      color: var(--vscode-descriptionForeground);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .jobs-workflow-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-content: start;
+    }
+
+    .jobs-workflow-metric {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 88%, transparent);
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
+      min-height: 86px;
+    }
+
+    .jobs-workflow-metric.is-accent {
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric.is-waiting {
+      border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 44%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 13%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric.is-muted {
+      border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-descriptionForeground) 9%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric-label {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .jobs-workflow-metric-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--vscode-foreground);
+      word-break: break-word;
+    }
+
+    .jobs-workflow-panel {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 84%, transparent);
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .jobs-workflow-panel-copy {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .jobs-workflow-panel .note {
+      margin: 0;
+    }
+
     .jobs-job-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3823,6 +4442,25 @@ export class SchedulerWebview {
     .jobs-timeline-arrow {
       color: var(--vscode-descriptionForeground);
       flex: 0 0 auto;
+    }
+
+    .jobs-workflow-card .jobs-timeline-inline {
+      gap: 8px;
+      padding-bottom: 2px;
+    }
+
+    .jobs-workflow-card .jobs-timeline-node {
+      max-width: 280px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 20%, var(--vscode-panel-border));
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .jobs-workflow-card .jobs-timeline-arrow {
+      font-size: 16px;
     }
 
     .jobs-step-summary {
@@ -4187,6 +4825,10 @@ export class SchedulerWebview {
         flex-direction: column;
       }
 
+      .jobs-workflow-hero {
+        grid-template-columns: 1fr;
+      }
+
       .jobs-step-list {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
@@ -4210,7 +4852,8 @@ export class SchedulerWebview {
       }
 
       .tab-button {
-        padding: 8px 10px;
+        padding: 10px 12px;
+        font-size: 14px;
       }
 
       .jobs-step-list {
@@ -4227,21 +4870,21 @@ export class SchedulerWebview {
 </head>
 <body>
   <div class="tab-bar">
-    <button type="button" class="tab-button tab-help-button active" data-tab="help" title="${escapeHtmlAttr(strings.tabHowTo)}">${escapeHtml(strings.tabHelpGlyph)}</button>
     <div class="tabs">
-      <button type="button" class="tab-button" data-tab="todo-edit">${escapeHtml(strings.tabTodoEditor)}</button>
-      <button type="button" class="tab-button" data-tab="board">${escapeHtml(strings.tabBoard)}</button>
+      <button type="button" class="tab-button" data-tab="todo-edit"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">✎</span><span class="tab-button-label" data-tab-label="todo-edit">${escapeHtml(strings.tabTodoEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="board"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">▦</span><span>${escapeHtml(strings.tabBoard)}</span></span></button>
       <span class="tab-group-sep"></span>
-      <button type="button" class="tab-button" data-tab="create">${escapeHtml(strings.tabTaskEditor)}</button>
-      <button type="button" class="tab-button" data-tab="list">${escapeHtml(strings.tabList)}</button>
+      <button type="button" class="tab-button" data-tab="create"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">＋</span><span class="tab-button-label" data-tab-label="create">${escapeHtml(strings.tabTaskEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="list"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">☰</span><span>${escapeHtml(strings.tabList)}</span></span></button>
       <span class="tab-group-sep"></span>
-      <button type="button" class="tab-button" data-tab="jobs-edit">${escapeHtml(strings.tabJobsEditor)}</button>
-      <button type="button" class="tab-button" data-tab="jobs">${escapeHtml(strings.tabJobs)}</button>
+      <button type="button" class="tab-button" data-tab="jobs-edit"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">✐</span><span class="tab-button-label" data-tab-label="jobs-edit">${escapeHtml(strings.tabJobsEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="jobs"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">⛓</span><span>${escapeHtml(strings.tabJobs)}</span></span></button>
       <span class="tab-group-sep"></span>
-      <button type="button" class="tab-button" data-tab="research">${escapeHtml(strings.tabResearch)}</button>
+      <button type="button" class="tab-button" data-tab="research"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">⌕</span><span>${escapeHtml(strings.tabResearch)}</span></span></button>
     </div>
     <div class="tab-actions">
       <button type="button" class="btn-secondary" id="jobs-show-sidebar-btn" style="display:none;">${escapeHtml(strings.jobsShowSidebar)}</button>
+      <button type="button" class="tab-button tab-help-button active" data-tab="help" title="${escapeHtmlAttr(strings.tabHowTo)}">${escapeHtml(strings.tabHelpGlyph)}</button>
       <button type="button" class="tab-button tab-settings-button" data-tab="settings" title="${escapeHtmlAttr(strings.tabTelegram)}">&#9881;</button>
     </div>
   </div>
@@ -4628,16 +5271,27 @@ export class SchedulerWebview {
           <select id="todo-sort-direction"></select>
         </div>
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;max-width:1600px;">
-        <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
-        <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
-        <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
-          <input type="checkbox" id="todo-show-archived" style="margin:0;">
-          ${escapeHtml(strings.boardShowArchived)}
-        </label>
-        <div class="board-col-width-group" style="margin-left:auto;">
-          <label for="cockpit-col-slider">Column width</label>
-          <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:6px;max-width:1600px;">
+        <div style="display:flex;flex:1 1 340px;flex-wrap:wrap;gap:8px;align-items:center;">
+          <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
+          <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
+          <button type="button" class="btn-secondary" id="todo-clear-filters-btn">${escapeHtml(strings.boardToolbarClearFilters)}</button>
+        </div>
+        <div style="display:flex;justify-content:center;flex:0 1 160px;min-width:140px;">
+          <div class="form-group" style="margin:0;min-width:110px;width:100%;max-width:140px;">
+            <label for="todo-view-mode">${escapeHtml(strings.boardViewLabel)}</label>
+            <select id="todo-view-mode"></select>
+          </div>
+        </div>
+        <div style="display:flex;flex:1 1 340px;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
+            <input type="checkbox" id="todo-show-archived" style="margin:0;">
+            ${escapeHtml(strings.boardShowArchived)}
+          </label>
+          <div class="board-col-width-group" style="margin-left:auto;">
+            <label for="cockpit-col-slider">Column width</label>
+            <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
+          </div>
         </div>
       </div>
     </div>
@@ -4813,16 +5467,31 @@ export class SchedulerWebview {
             </div>
           </section>
 
-          <section class="jobs-main-section jobs-editor-card is-wide">
-            <div class="section-title">Workflow</div>
-            <p class="note">Steps run in order. Pause checkpoints stop the job until you approve the previous result.</p>
-            <div class="form-group wide">
-              <label>${escapeHtml(strings.jobsCompactTimeline)}</label>
+          <section class="jobs-main-section jobs-editor-card jobs-workflow-card is-wide">
+            <div class="jobs-workflow-hero">
+              <div class="jobs-workflow-copy">
+                <div class="jobs-workflow-badge">⛓ ${escapeHtml(strings.jobsWorkflowBadge)}</div>
+                <div class="section-title jobs-workflow-title">${escapeHtml(strings.jobsWorkflowTitle)}</div>
+                <p class="jobs-workflow-note">${escapeHtml(strings.jobsWorkflowNote)}</p>
+              </div>
+              <div id="jobs-workflow-metrics" class="jobs-workflow-metrics"></div>
+            </div>
+            <div class="jobs-workflow-panel">
+              <div class="jobs-workflow-panel-header">
+                <div class="jobs-workflow-panel-copy">
+                  <div class="section-title">${escapeHtml(strings.jobsCompactTimeline)}</div>
+                  <p class="note">${escapeHtml(strings.jobsWorkflowTimelineNote)}</p>
+                </div>
+              </div>
               <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
             </div>
-            <div class="form-group wide">
-              <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
-              <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+            <div class="jobs-workflow-panel">
+              <div class="jobs-workflow-panel-header">
+                <div class="jobs-workflow-panel-copy">
+                  <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
+                  <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+                </div>
+              </div>
               <div id="jobs-step-list" class="jobs-step-list"></div>
             </div>
           </section>
@@ -5109,13 +5778,34 @@ export class SchedulerWebview {
         </div>
         <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
       </section>
+      <section class="telegram-card">
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.settingsLanguageTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsLanguageBody)}</p>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label for="settings-language-select">${escapeHtml(strings.settingsLanguageLabel)}</label>
+          <select id="settings-language-select">
+            <option value="auto" ${configuredLanguage === "auto" ? "selected" : ""}>${escapeHtml(strings.helpLanguageAuto)}</option>
+            <option value="en" ${configuredLanguage === "en" ? "selected" : ""}>${escapeHtml(strings.helpLanguageEnglish)}</option>
+            <option value="ja" ${configuredLanguage === "ja" ? "selected" : ""}>${escapeHtml(strings.helpLanguageJapanese)}</option>
+            <option value="de" ${configuredLanguage === "de" ? "selected" : ""}>${escapeHtml(strings.helpLanguageGerman)}</option>
+          </select>
+        </div>
+      </section>
     </div>
   </div>
 
   <div id="help-tab" class="tab-content active">
     <div class="help-panel">
+      <div class="help-warp-layer" id="help-warp-layer" aria-hidden="true"></div>
       <div class="help-intro">
-        <h2 class="help-intro-title">${escapeHtml(strings.helpIntroTitle)}</h2>
+        <h2 class="help-intro-title">
+          <button type="button" class="help-intro-rocket" id="help-intro-rocket" title="${escapeHtmlAttr(strings.helpIntroTitle)}" aria-label="${escapeHtmlAttr(strings.helpIntroTitle)}">
+            <span class="help-intro-rocket-icon">🚀</span>
+          </button>
+          <span class="help-intro-title-text">${escapeHtml(helpIntroTitleText)}</span>
+        </h2>
         <p class="help-intro-body">${escapeHtml(strings.helpIntroBody)}</p>
       </div>
       <section class="help-section">
@@ -5130,8 +5820,18 @@ export class SchedulerWebview {
             <option value="de" ${configuredLanguage === "de" ? "selected" : ""}>${escapeHtml(strings.helpLanguageGerman)}</option>
           </select>
         </div>
+        <div class="form-actions" style="margin-top:0.5rem">
+          <button class="btn secondary" id="btn-help-switch-settings">${escapeHtml(strings.helpSwitchTabSettingsBtn)}</button>
+        </div>
       </section>
       <div class="help-grid">
+        <section class="help-section">
+          <h3>${escapeHtml(strings.helpTodoTitle)}</h3>
+          <p>${escapeHtml(strings.helpTodoBody)}</p>
+          <div class="form-actions" style="margin-top:0.5rem">
+            <button class="btn primary" id="btn-help-switch-board">${escapeHtml(strings.helpSwitchTabTodoBtn)}</button>
+          </div>
+        </section>
         <section class="help-section">
           <h3>${escapeHtml(strings.helpCreateTitle)}</h3>
           <ul>
@@ -5141,6 +5841,9 @@ export class SchedulerWebview {
             <li>${escapeHtml(strings.helpCreateItemAgentModel)}</li>
             <li>${escapeHtml(strings.helpCreateItemRunFirst)}</li>
           </ul>
+          <div class="form-actions" style="margin-top:0.5rem">
+            <button class="btn secondary" id="btn-help-switch-create">${escapeHtml(strings.helpSwitchTabCreateBtn)}</button>
+          </div>
         </section>
         <section class="help-section">
           <h3>${escapeHtml(strings.helpListTitle)}</h3>
@@ -5149,6 +5852,9 @@ export class SchedulerWebview {
             <li>${escapeHtml(strings.helpListItemActions)}</li>
             <li>${escapeHtml(strings.helpListItemStartup)}</li>
           </ul>
+          <div class="form-actions" style="margin-top:0.5rem">
+            <button class="btn secondary" id="btn-help-switch-list">${escapeHtml(strings.helpSwitchTabListBtn)}</button>
+          </div>
         </section>
         <section class="help-section">
           <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
@@ -5160,6 +5866,9 @@ export class SchedulerWebview {
             <li>${escapeHtml(strings.helpJobsItemFolders)}</li>
             <li>${escapeHtml(strings.helpJobsItemDelete)}</li>
           </ul>
+          <div class="form-actions" style="margin-top:0.5rem">
+            <button class="btn secondary" id="btn-help-switch-jobs">${escapeHtml(strings.helpSwitchTabJobsBtn)}</button>
+          </div>
         </section>
         <section class="help-section">
           <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
@@ -5168,6 +5877,9 @@ export class SchedulerWebview {
             <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
             <li>${escapeHtml(strings.helpResearchItemHistory)}</li>
           </ul>
+          <div class="form-actions" style="margin-top:0.5rem">
+            <button class="btn secondary" id="btn-help-switch-research">${escapeHtml(strings.helpSwitchTabResearchBtn)}</button>
+          </div>
         </section>
         <section class="help-section">
           <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
@@ -5218,6 +5930,14 @@ export class SchedulerWebview {
             <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
           </div>
         </section>
+        <section class="help-section is-featured">
+          <h3>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>
+          <p>${escapeHtml(strings.helpAgentEcosystemBody)}</p>
+          <div class="button-group" style="margin-top:8px;">
+            <button type="button" class="btn-secondary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>
+            <button type="button" class="btn-primary" id="btn-plan-integration">${escapeHtml(strings.helpPlanIntegrationBtn)}</button>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -5231,6 +5951,10 @@ export class SchedulerWebview {
     return rawHtml;
   }
 }
+
+
+
+
 
 
 

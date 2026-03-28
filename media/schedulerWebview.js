@@ -20,8 +20,7 @@
     var s = String(p);
     var i1 = s.lastIndexOf("\\");
     var i2 = s.lastIndexOf("/");
-    var i = i1 > i2 ? i1 : i2;
-    return i >= 0 ? s.slice(i + 1) : s;
+    return s.substring(Math.max(i1, i2) + 1);
   }
 
   function basenameFromPathLike(p) {
@@ -32,7 +31,6 @@
         var u = new URL(s);
         if (u.protocol === "file:") {
           s = decodeURIComponent(u.pathname || "");
-          s = s.replace(/^\/([A-Za-z]:[\\/])/, "$1");
         } else {
           s = s.replace(/^file:\/\/\/?/i, "");
         }
@@ -267,6 +265,17 @@
   var pendingTemplatePath = "";
   var editingTaskEnabled = true;
   var pendingSubmit = false;
+  var HELP_WARP_SEEN_KEY = "copilot-scheduler-help-warp-seen-v1";
+  var helpWarpIntroPending = (function () {
+    try {
+      return localStorage.getItem(HELP_WARP_SEEN_KEY) !== "1";
+    } catch (_e) {
+      return true;
+    }
+  })();
+  var helpWarpFadeTimeout = 0;
+  var helpWarpCleanupTimeout = 0;
+  var isCreatingJob = false;
 
   var defaultJitterSeconds = (function () {
     var raw = initialData.defaultJitterSeconds;
@@ -308,6 +317,9 @@
   var insertSkillBtn = document.getElementById("insert-skill-btn");
   var setupMcpBtn = document.getElementById("setup-mcp-btn");
   var helpLanguageSelect = document.getElementById("help-language-select");
+  var settingsLanguageSelect = document.getElementById("settings-language-select");
+  var helpWarpLayer = document.getElementById("help-warp-layer");
+  var helpIntroRocket = document.getElementById("help-intro-rocket");
   var promptGroup = document.getElementById("prompt-group");
   var jitterSecondsInput = document.getElementById("jitter-seconds");
   var friendlyFrequency = document.getElementById("friendly-frequency");
@@ -352,9 +364,11 @@
   var todoArchiveOutcomeFilter = document.getElementById("todo-archive-outcome-filter");
   var todoSortBy = document.getElementById("todo-sort-by");
   var todoSortDirection = document.getElementById("todo-sort-direction");
+  var todoViewMode = document.getElementById("todo-view-mode");
   var todoShowArchived = document.getElementById("todo-show-archived");
   var todoNewBtn = document.getElementById("todo-new-btn");
   var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
+  var todoClearFiltersBtn = document.getElementById("todo-clear-filters-btn");
   var todoBackBtn = document.getElementById("todo-back-btn");
   var todoDetailTitle = document.getElementById("todo-detail-title");
   var todoDetailModeNote = document.getElementById("todo-detail-mode-note");
@@ -403,6 +417,7 @@
   var jobsFolderSelect = document.getElementById("jobs-folder-select");
   var jobsStatusPill = document.getElementById("jobs-status-pill");
   var jobsTimelineInline = document.getElementById("jobs-timeline-inline");
+  var jobsWorkflowMetrics = document.getElementById("jobs-workflow-metrics");
   var jobsStepList = document.getElementById("jobs-step-list");
   var jobsPauseNameInput = document.getElementById("jobs-pause-name-input");
   var jobsCreatePauseBtn = document.getElementById("jobs-create-pause-btn");
@@ -752,6 +767,86 @@
         btn.classList.remove("active");
       }
     }
+  }
+
+  function buildHelpWarpStreaks() {
+    if (!helpWarpLayer) {
+      return;
+    }
+
+    helpWarpLayer.textContent = "";
+
+    for (var i = 0; i < 22; i += 1) {
+      var streak = document.createElement("span");
+      var top = 4 + ((i * 91) / 22) + (Math.random() * 3.5);
+      var delay = Math.random() * 0.95;
+      var duration = 1.05 + (Math.random() * 1.25);
+      var length = 110 + Math.round(Math.random() * 180);
+      var thickness = 1 + Math.round(Math.random() * 2);
+      var rotation = (-7 + (Math.random() * 14)).toFixed(2);
+
+      streak.className = "help-warp-streak";
+      streak.style.setProperty("--warp-top", top.toFixed(2) + "%");
+      streak.style.setProperty("--warp-delay", delay.toFixed(2) + "s");
+      streak.style.setProperty("--warp-duration", duration.toFixed(2) + "s");
+      streak.style.setProperty("--warp-length", String(length) + "px");
+      streak.style.setProperty("--warp-thickness", String(thickness) + "px");
+      streak.style.setProperty("--warp-rotate", rotation + "deg");
+      helpWarpLayer.appendChild(streak);
+    }
+  }
+
+  function triggerHelpWarpAnimation(options) {
+    if (!helpWarpLayer) {
+      return;
+    }
+
+    var settings = options || {};
+
+    window.clearTimeout(helpWarpFadeTimeout);
+    window.clearTimeout(helpWarpCleanupTimeout);
+    helpWarpLayer.classList.remove("is-active");
+    helpWarpLayer.classList.remove("is-fading");
+    buildHelpWarpStreaks();
+    void helpWarpLayer.offsetWidth;
+    helpWarpLayer.classList.add("is-active");
+
+    if (settings.animateRocket && helpIntroRocket) {
+      helpIntroRocket.classList.remove("is-launching");
+      void helpIntroRocket.offsetWidth;
+      helpIntroRocket.classList.add("is-launching");
+      window.setTimeout(function () {
+        if (helpIntroRocket) {
+          helpIntroRocket.classList.remove("is-launching");
+        }
+      }, 1250);
+    }
+
+    helpWarpFadeTimeout = window.setTimeout(function () {
+      if (helpWarpLayer) {
+        helpWarpLayer.classList.add("is-fading");
+      }
+    }, 10000);
+
+    helpWarpCleanupTimeout = window.setTimeout(function () {
+      if (helpWarpLayer) {
+        helpWarpLayer.classList.remove("is-active");
+        helpWarpLayer.classList.remove("is-fading");
+        helpWarpLayer.textContent = "";
+      }
+    }, 13800);
+  }
+
+  function maybePlayInitialHelpWarp(tabName) {
+    if (tabName !== "help" || !helpWarpIntroPending) {
+      return;
+    }
+
+    helpWarpIntroPending = false;
+    try {
+      localStorage.setItem(HELP_WARP_SEEN_KEY, "1");
+    } catch (_e) {}
+    triggerHelpWarpAnimation({ animateRocket: false });
   }
 
   function syncAutoShowOnStartupUi() {
@@ -1575,6 +1670,7 @@ syncTodoLabelSuggestions();
       sectionId: filters.sectionId || "",
       sortBy: filters.sortBy || "manual",
       sortDirection: filters.sortDirection || "asc",
+      viewMode: filters.viewMode === "list" ? "list" : "board",
       showArchived: filters.showArchived === true,
     };
   }
@@ -1594,6 +1690,33 @@ syncTodoLabelSuggestions();
     cockpitBoard.filters = next;
     renderCockpitBoard();
     vscode.postMessage({ type: "setTodoFilters", data: next });
+  }
+
+  function hasActiveTodoFilters(filters) {
+    var current = filters || getTodoFilters();
+    return Boolean(
+      (current.searchText && String(current.searchText).trim()) ||
+      (Array.isArray(current.labels) && current.labels.length > 0) ||
+      (Array.isArray(current.priorities) && current.priorities.length > 0) ||
+      (Array.isArray(current.statuses) && current.statuses.length > 0) ||
+      (Array.isArray(current.archiveOutcomes) && current.archiveOutcomes.length > 0) ||
+      (Array.isArray(current.flags) && current.flags.length > 0) ||
+      (current.sectionId && String(current.sectionId).trim()) ||
+      current.showArchived === true
+    );
+  }
+
+  function clearTodoFilters() {
+    updateTodoFilters({
+      searchText: "",
+      labels: [],
+      priorities: [],
+      statuses: [],
+      archiveOutcomes: [],
+      flags: [],
+      sectionId: "",
+      showArchived: false,
+    });
   }
 
   function getTodoSections() {
@@ -1694,6 +1817,106 @@ syncTodoLabelSuggestions();
     });
   }
 
+  function getLatestTodoComment(card) {
+    return Array.isArray(card.comments) && card.comments.length
+      ? card.comments[card.comments.length - 1]
+      : null;
+  }
+
+  function renderTodoCompactActions(card) {
+    var canApprove = !card.archived && (card.status || "active") !== "ready";
+    var canFinalize = !card.archived && (card.status || "active") === "ready";
+    var canDelete = !card.archived;
+
+    return '<div class="todo-list-actions">' +
+      '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || "Open Editor") + '">&#9998;</button>' +
+      (canApprove
+        ? '<button type="button" class="btn-secondary todo-card-approve todo-list-action-btn" data-todo-approve="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardApproveTodo || "Approve") + '">&#10003;</button>'
+        : '') +
+      (canFinalize
+        ? '<button type="button" class="btn-secondary todo-card-finalize todo-list-action-btn" data-todo-finalize="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardFinalizeTodo || "Final Accept") + '">&#10004;</button>'
+        : '') +
+      (canDelete
+        ? '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#10005;</button>'
+        : '') +
+      '</div>';
+  }
+
+  function renderTodoListRow(card, sectionId) {
+    var isSelected = card.id === selectedTodoId;
+    var latestComment = getLatestTodoComment(card);
+    var summary = card.description
+      ? getTodoDescriptionPreview(card.description)
+      : latestComment && latestComment.body
+        ? getTodoCommentSourceLabel(latestComment.source || "human-form") + ': ' + getTodoDescriptionPreview(latestComment.body)
+        : (card.taskId
+          ? (strings.boardTaskLinked || "Linked task")
+          : (strings.boardDescriptionPreviewEmpty || "No description yet."));
+    var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
+    var metaParts = [
+      '<span data-card-meta>' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>',
+      '<span data-card-meta>' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>'
+    ];
+    if (card.dueAt) {
+      metaParts.push('<span data-card-meta>' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>');
+    }
+    if (card.archived && card.archiveOutcome) {
+      metaParts.push('<span data-card-meta>' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>');
+    }
+    if (cardFlag) {
+      metaParts.push(renderFlagChip(cardFlag, false));
+    }
+    var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 2) : [];
+    if (visibleLabels.length) {
+      metaParts.push(visibleLabels.map(function (label) {
+        return renderLabelChip(label, false, false);
+      }).join(" "));
+    }
+
+    return '<article class="todo-list-row" draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" style="border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';padding:var(--cockpit-card-pad, 8px);cursor:' + (card.archived ? 'pointer' : 'grab') + ';">' +
+      '<div class="todo-list-main">' +
+        '<div class="todo-list-title-line">' +
+          '<strong class="todo-list-title">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + metaParts.join("") + '</div>' +
+        '</div>' +
+        '<div class="note todo-list-summary">' + escapeHtml(summary) + '</div>' +
+      '</div>' +
+      renderTodoCompactActions(card) +
+    '</article>';
+  }
+
+  function renderTodoListView(visibleSections, cards, filters) {
+    return '<div class="todo-list-view">' +
+      visibleSections.map(function (section) {
+        var sectionCards = sortTodoCards(cards.filter(function (card) {
+          return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
+        }), filters);
+        var isCollapsed = collapsedSections.has(section.id);
+        return '<section class="todo-list-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '">' +
+          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px);">' +
+            '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
+            '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ')</span></strong>' +
+            '<div class="cockpit-section-actions">' +
+              '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
+              '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="section-body-wrapper' + (isCollapsed ? ' collapsed' : '') + '">' +
+            '<div class="section-body-inner">' +
+              '<div class="todo-list-items">' +
+                (sectionCards.length
+                  ? sectionCards.map(function (card) {
+                    return renderTodoListRow(card, section.id);
+                  }).join("")
+                  : '<div class="note">' + escapeHtml(strings.boardListEmptySection || strings.boardEmpty || "No todos in this section.") + '</div>') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</section>';
+      }).join("") +
+    '</div>';
+  }
+
   function renderTodoFilterControls(filters, sections, cards) {
     var labels = dedupeStringList(
       getLabelCatalog().map(function (entry) {
@@ -1779,14 +2002,33 @@ syncTodoLabelSuggestions();
       }).join("");
       todoSortDirection.value = filters.sortDirection || "asc";
     }
+    if (todoViewMode) {
+      todoViewMode.innerHTML = [
+        { value: "board", label: strings.boardViewBoard || "Board" },
+        { value: "list", label: strings.boardViewList || "List" },
+      ].map(function (option) {
+        return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
+      }).join("");
+      todoViewMode.value = filters.viewMode || "board";
+    }
     if (todoShowArchived) {
       todoShowArchived.checked = filters.showArchived === true;
+    }
+    if (todoClearFiltersBtn) {
+      todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters);
+    }
+    if (cockpitColSlider) {
+      var widthGroup = cockpitColSlider.closest ? cockpitColSlider.closest(".board-col-width-group") : null;
+      if (widthGroup) {
+        widthGroup.style.display = filters.viewMode === "list" ? "none" : "flex";
+      }
     }
   }
 
   function renderTodoDetailPanel(selectedTodo, sections) {
     var isEditingTodo = !!selectedTodo;
     var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    syncEditorTabLabels();
     if (isEditingTodo) {
       setTodoEditorLabels(selectedTodo.labels || [], false);
     } else {
@@ -1968,9 +2210,12 @@ syncTodoLabelSuggestions();
       return;
     }
 
-    boardColumns.innerHTML =
-      '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' +
-      visibleSections.map(function (section) {
+    if (filters.viewMode === "list") {
+      boardColumns.innerHTML = renderTodoListView(visibleSections, cards, filters);
+    } else {
+      boardColumns.innerHTML =
+        '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' +
+        visibleSections.map(function (section) {
         var sectionCards = sortTodoCards(cards.filter(function (card) {
           return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
         }), filters);
@@ -2055,8 +2300,9 @@ syncTodoLabelSuggestions();
             '</div>' +
             '</section>'
         );
-      }).join("") +
-      '</div>';
+        }).join("") +
+        '</div>';
+    }
 
     renderTodoDetailPanel(selectedTodoId
       ? allCards.find(function (card) { return card.id === selectedTodoId; }) || null
@@ -2384,9 +2630,19 @@ syncTodoLabelSuggestions();
         updateTodoFilters({ sortDirection: todoSortDirection.value || "asc" });
       };
     }
+    if (todoViewMode) {
+      todoViewMode.onchange = function () {
+        updateTodoFilters({ viewMode: todoViewMode.value === "list" ? "list" : "board" });
+      };
+    }
     if (todoShowArchived) {
       todoShowArchived.onchange = function () {
         updateTodoFilters({ showArchived: todoShowArchived.checked === true });
+      };
+    }
+    if (todoClearFiltersBtn) {
+      todoClearFiltersBtn.onclick = function () {
+        clearTodoFilters();
       };
     }
     if (todoDetailForm) {
@@ -2711,23 +2967,41 @@ syncTodoLabelSuggestions();
     });
   }
 
-  function getCreateTabButton() {
-    return document.querySelector('.tab-button[data-tab="create"]');
+  function getEditorTabLabelNode(tabName) {
+    return document.querySelector('[data-tab-label="' + tabName + '"]');
   }
 
-  function setCreateTabLabel(isEditing) {
-    var btn = getCreateTabButton();
-    if (!btn) return;
-    var label = isEditing
-      ? strings.tabEdit || strings.tabCreate
-      : strings.tabCreate;
-    if (label) btn.textContent = label;
+  function setEditorTabLabel(tabName, label) {
+    var node = getEditorTabLabelNode(tabName);
+    if (!node || !label) return;
+    node.textContent = label;
+  }
+
+  function syncEditorTabLabels() {
+    setEditorTabLabel(
+      "create",
+      editingTaskId
+        ? (strings.tabTaskEditorEdit || strings.tabEdit || "Edit Task")
+        : (strings.tabTaskEditorCreate || strings.tabTaskEditor || "Create Task")
+    );
+    setEditorTabLabel(
+      "todo-edit",
+      selectedTodoId
+        ? (strings.tabTodoEditorEdit || strings.boardDetailTitleEdit || "Edit Todo")
+        : (strings.tabTodoEditorCreate || strings.tabTodoEditor || "Create Todo")
+    );
+    setEditorTabLabel(
+      "jobs-edit",
+      (isCreatingJob || !selectedJobId)
+        ? (strings.tabJobsEditorCreate || strings.tabJobsEditor || "Create Job")
+        : (strings.tabJobsEditorEdit || "Edit Job")
+    );
   }
 
   function setEditingMode(taskId) {
     editingTaskId = taskId || null;
     if (editTaskIdInput) editTaskIdInput.value = editingTaskId || "";
-    setCreateTabLabel(!!editingTaskId);
+    syncEditorTabLabels();
 
     if (submitBtn) {
       var label = editingTaskId ? strings.actionSave : strings.actionCreate;
@@ -2750,6 +3024,7 @@ syncTodoLabelSuggestions();
   }
 
   function openJobEditor(jobId) {
+    isCreatingJob = false;
     if (typeof jobId === "string") {
       selectedJobId = jobId;
     } else if (!selectedJobId) {
@@ -2780,6 +3055,27 @@ syncTodoLabelSuggestions();
     }
     if (jobsShowSidebarBtn) {
       jobsShowSidebarBtn.style.display = (tabName === "jobs" && jobsSidebarHidden) ? "inline-flex" : "none";
+    }
+    maybePlayInitialHelpWarp(tabName);
+  }
+
+  function getInitialTabName() {
+    var tabName = typeof initialData.initialTab === "string"
+      ? initialData.initialTab
+      : "help";
+    switch (tabName) {
+      case "help":
+      case "settings":
+      case "research":
+      case "jobs":
+      case "jobs-edit":
+      case "list":
+      case "create":
+      case "board":
+      case "todo-edit":
+        return tabName;
+      default:
+        return "help";
     }
   }
 
@@ -3358,6 +3654,8 @@ syncTodoLabelSuggestions();
 
   if (jobsNewJobBtn) {
     jobsNewJobBtn.addEventListener("click", function () {
+      isCreatingJob = true;
+      syncEditorTabLabels();
       vscode.postMessage({
         type: "requestCreateJob",
         folderId: selectedJobFolderId || undefined,
@@ -3738,15 +4036,90 @@ syncTodoLabelSuggestions();
     });
   }
 
-  if (helpLanguageSelect) {
-    if (typeof initialData.languageSetting === "string" && initialData.languageSetting) {
-      helpLanguageSelect.value = initialData.languageSetting;
+  function syncLanguageSelectors(value) {
+    var nextValue = value || "auto";
+    if (helpLanguageSelect) {
+      helpLanguageSelect.value = nextValue;
     }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.value = nextValue;
+    }
+  }
+
+  function saveLanguageSelection(value) {
+    var nextValue = value || "auto";
+    syncLanguageSelectors(nextValue);
+    vscode.postMessage({
+      type: "setLanguage",
+      language: nextValue,
+    });
+  }
+
+  syncLanguageSelectors(
+    typeof initialData.languageSetting === "string" && initialData.languageSetting
+      ? initialData.languageSetting
+      : "auto"
+  );
+
+  if (helpLanguageSelect) {
     helpLanguageSelect.addEventListener("change", function () {
-      vscode.postMessage({
-        type: "setLanguage",
-        language: helpLanguageSelect.value || "auto",
+      saveLanguageSelection(helpLanguageSelect.value);
+    });
+  }
+
+  if (settingsLanguageSelect) {
+    settingsLanguageSelect.addEventListener("change", function () {
+      saveLanguageSelection(settingsLanguageSelect.value);
+    });
+  }
+
+  var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
+  if (btnIntroTutorial) {
+    btnIntroTutorial.addEventListener("click", function () {
+      vscode.postMessage({ type: "introTutorial" });
+    });
+  }
+
+  var btnPlanIntegration = document.getElementById("btn-plan-integration");
+  if (btnPlanIntegration) {
+    btnPlanIntegration.addEventListener("click", function () {
+      vscode.postMessage({ type: "planIntegration" });
+    });
+  }
+
+  if (helpIntroRocket) {
+    helpIntroRocket.addEventListener("click", function () {
+      triggerHelpWarpAnimation({ animateRocket: true });
+    });
+  }
+
+  [
+    "btn-help-switch-settings",
+    "btn-help-switch-board",
+    "btn-help-switch-create",
+    "btn-help-switch-list",
+    "btn-help-switch-jobs",
+    "btn-help-switch-research"
+  ].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener("click", function () {
+        var targetTabMap = {
+          "btn-help-switch-settings": "settings",
+          "btn-help-switch-board": "board",
+          "btn-help-switch-create": "create",
+          "btn-help-switch-list": "list",
+          "btn-help-switch-jobs": "jobs",
+          "btn-help-switch-research": "research"
+        };
+        switchTab(targetTabMap[id]);
       });
+    }
+  });
+
+  if (document.getElementById("help-tab") && document.getElementById("help-tab").classList.contains("active")) {
+    window.requestAnimationFrame(function () {
+      maybePlayInitialHelpWarp("help");
     });
   }
 
@@ -3757,7 +4130,7 @@ syncTodoLabelSuggestions();
       if (
         el.hasAttribute &&
         el.hasAttribute("data-action") &&
-        el.hasAttribute("data-id")
+        (el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))
       ) {
         return el;
       }
@@ -5410,6 +5783,7 @@ syncTodoLabelSuggestions();
   function renderJobsTab() {
     ensureValidJobSelection();
     persistTaskFilter();
+    syncEditorTabLabels();
 
     if (jobsCurrentFolderBanner) {
       var selectedFolder = getSelectedJobFolder();
@@ -5526,16 +5900,62 @@ syncTodoLabelSuggestions();
     var selectedJob = getJobById(selectedJobId);
     applyJobsSidebarState();
     if (!selectedJob) {
+      if (jobsWorkflowMetrics) jobsWorkflowMetrics.innerHTML = "";
       if (jobsEmptyState) jobsEmptyState.style.display = "block";
       if (jobsDetails) jobsDetails.style.display = "none";
       return;
     }
+
+    isCreatingJob = false;
+    syncEditorTabLabels();
 
     if (jobsEmptyState) jobsEmptyState.style.display = "none";
     if (jobsDetails) jobsDetails.style.display = "block";
     var selectedNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
     var selectedWaitingPause = getWaitingPauseState(selectedJob);
     var approvedPauseIds = getApprovedPauseIds(selectedJob);
+    var pauseCount = selectedNodes.filter(function (node) {
+      return isPauseNode(node);
+    }).length;
+    var taskCount = Math.max(0, selectedNodes.length - pauseCount);
+    var cadenceText = getCronSummary(selectedJob.cronExpression || "");
+    if (!cadenceText || cadenceText === (strings.labelFriendlyFallback || "")) {
+      cadenceText = selectedJob.cronExpression || (strings.labelNever || "Never");
+    }
+
+    if (jobsWorkflowMetrics) {
+      jobsWorkflowMetrics.innerHTML = [
+        {
+          label: strings.jobsWorkflowStatus || "Status",
+          value: getJobStatusText(selectedJob),
+          tone: selectedWaitingPause ? "is-waiting" : (selectedJob.paused || selectedJob.archived ? "is-muted" : "is-accent")
+        },
+        {
+          label: strings.jobsWorkflowCadence || "Cadence",
+          value: cadenceText,
+          tone: "is-accent"
+        },
+        {
+          label: strings.jobsWorkflowTaskCount || "Task steps",
+          value: String(taskCount),
+          tone: ""
+        },
+        {
+          label: strings.jobsWorkflowPauseCount || "Pause checkpoints",
+          value: String(pauseCount),
+          tone: pauseCount > 0 ? "is-accent" : ""
+        }
+      ].map(function (metric) {
+        return (
+          '<div class="jobs-workflow-metric' +
+          (metric.tone ? ' ' + metric.tone : '') +
+          '" title="' + escapeAttr(metric.value) + '">' +
+          '<div class="jobs-workflow-metric-label">' + escapeHtml(metric.label) + '</div>' +
+          '<div class="jobs-workflow-metric-value">' + escapeHtml(metric.value) + '</div>' +
+          '</div>'
+        );
+      }).join("");
+    }
 
     if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
     if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
@@ -5673,6 +6093,7 @@ syncTodoLabelSuggestions();
   syncJobsFolderSelect("");
   syncJobsExistingTaskSelect();
   renderJobsTab();
+  syncEditorTabLabels();
 
   // Global functions for onclick handlers
   window.runTask = function (id) {
@@ -6115,6 +6536,8 @@ syncTodoLabelSuggestions();
   // Initial render
   renderTaskList(tasks);
 
+  switchTab(getInitialTabName());
+
   // Keep next-run countdown live in the list view.
   setInterval(function () {
     renderTaskList(tasks);
@@ -6123,6 +6546,7 @@ syncTodoLabelSuggestions();
   // Notify extension that webview is ready
   vscode.postMessage({ type: "webviewReady" });
 })();
+
 
 
 

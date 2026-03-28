@@ -577,6 +577,7 @@ export function setCockpitBoardFiltersInBoard(
     sectionId: input.sectionId !== undefined ? normalizeOptionalString(input.sectionId ?? undefined) : nextBoard.filters?.sectionId,
     sortBy: input.sortBy ?? nextBoard.filters?.sortBy ?? "manual",
     sortDirection: input.sortDirection ?? nextBoard.filters?.sortDirection ?? "asc",
+    viewMode: input.viewMode ?? nextBoard.filters?.viewMode ?? "board",
     showArchived: typeof input.showArchived === "boolean"
       ? input.showArchived
       : nextBoard.filters?.showArchived === true,

@@ -2,6 +2,7 @@ import type {
   CockpitArchiveOutcome,
   CockpitTodoSortBy,
   CockpitTodoSortDirection,
+  CockpitTodoViewMode,
   CockpitBoard,
   CockpitBoardFilters,
   CockpitBoardSection,
@@ -103,6 +104,10 @@ function normalizeSortBy(value: unknown): CockpitTodoSortBy {
 
 function normalizeSortDirection(value: unknown): CockpitTodoSortDirection {
   return value === "desc" ? "desc" : "asc";
+}
+
+function normalizeViewMode(value: unknown): CockpitTodoViewMode {
+  return value === "list" ? "list" : "board";
 }
 
 function normalizeOptionalIsoString(value: unknown): string | undefined {
@@ -413,6 +418,7 @@ function normalizeFilters(filters: unknown): CockpitBoardFilters {
     sectionId: normalizeOptionalIsoString(record.sectionId),
     sortBy: normalizeSortBy(record.sortBy),
     sortDirection: normalizeSortDirection(record.sortDirection),
+    viewMode: normalizeViewMode(record.viewMode),
     showArchived: record.showArchived === true,
   };
 }
@@ -438,6 +444,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
       flags: [],
       sortBy: "manual",
       sortDirection: "asc",
+      viewMode: "board",
       showArchived: false,
     },
     updatedAt: timestamp,

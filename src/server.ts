@@ -995,6 +995,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string" },
                 sortBy: { type: "string", description: "manual, dueAt, priority, updatedAt, or createdAt." },
                 sortDirection: { type: "string", description: "asc or desc." },
+                viewMode: { type: "string", description: "board or list." },
                 showArchived: { type: "boolean" },
             },
         },
@@ -2013,6 +2014,7 @@ export async function handleSchedulerToolCall(
                     sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
                     sortBy: typeof args.sortBy === "string" ? args.sortBy : undefined,
                     sortDirection: typeof args.sortDirection === "string" ? args.sortDirection : undefined,
+                    viewMode: typeof args.viewMode === "string" ? args.viewMode : undefined,
                     showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
                 });
                 config.cockpitBoard = board;
