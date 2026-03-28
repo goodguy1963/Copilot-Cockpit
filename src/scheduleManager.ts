@@ -1712,6 +1712,33 @@ export class ScheduleManager {
     return Array.from(this.tasks.values());
   }
 
+  async removeLabelFromAllTasks(labelName: string): Promise<number> {
+    const key = String(labelName || "").trim().toLowerCase();
+    if (!key) {
+      return 0;
+    }
+
+    let changedCount = 0;
+    const timestamp = new Date();
+    for (const task of this.tasks.values()) {
+      const existingLabels = Array.isArray(task.labels) ? task.labels : [];
+      const nextLabels = existingLabels.filter(
+        (label) => String(label || "").trim().toLowerCase() !== key,
+      );
+      if (nextLabels.length === existingLabels.length) {
+        continue;
+      }
+      task.labels = this.normalizeLabels(nextLabels);
+      task.updatedAt = timestamp;
+      changedCount += 1;
+    }
+
+    if (changedCount > 0) {
+      await this.saveTasks();
+    }
+    return changedCount;
+  }
+
   getJob(id: string): JobDefinition | undefined {
     return this.jobs.get(id);
   }

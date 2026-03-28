@@ -52,6 +52,38 @@ function normalizeLabelKey(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function stripLabelFromTodoCards(
+  cards: CockpitTodoCard[],
+  key: string,
+  timestamp: string,
+): void {
+  for (const card of cards) {
+    const nextLabels = normalizeStringList(card.labels).filter(
+      (label) => normalizeLabelKey(label) !== key,
+    );
+    if (nextLabels.length !== normalizeStringList(card.labels).length) {
+      card.labels = nextLabels;
+      card.updatedAt = timestamp;
+    }
+  }
+}
+
+function stripFlagFromTodoCards(
+  cards: CockpitTodoCard[],
+  key: string,
+  timestamp: string,
+): void {
+  for (const card of cards) {
+    const nextFlags = normalizeStringList(card.flags).filter(
+      (flag) => normalizeLabelKey(flag) !== key,
+    );
+    if (nextFlags.length !== normalizeStringList(card.flags).length) {
+      card.flags = nextFlags;
+      card.updatedAt = timestamp;
+    }
+  }
+}
+
 function ensureArchives(board: CockpitBoard): NonNullable<CockpitBoard["archives"]> {
   if (!board.archives) {
     board.archives = {
@@ -694,14 +726,23 @@ export function deleteCockpitTodoLabelDefinition(
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
   const key = normalizeLabelKey(name);
+  const timestamp = nowIso();
   nextBoard.labelCatalog = (nextBoard.labelCatalog ?? []).filter(
     (entry) => entry.key !== key,
   );
+  stripLabelFromTodoCards(nextBoard.cards, key, timestamp);
+  stripLabelFromTodoCards(ensureArchives(nextBoard).completedSuccessfully, key, timestamp);
+  stripLabelFromTodoCards(ensureArchives(nextBoard).rejected, key, timestamp);
+  if (nextBoard.filters) {
+    nextBoard.filters.labels = normalizeStringList(nextBoard.filters.labels).filter(
+      (label) => normalizeLabelKey(label) !== key,
+    );
+  }
   nextBoard.deletedLabelCatalogKeys = Array.from(new Set([
     ...(nextBoard.deletedLabelCatalogKeys ?? []),
     key,
   ]));
-  touchBoard(nextBoard);
+  touchBoard(nextBoard, timestamp);
   return persistBoard(workspaceRoot, nextBoard);
 }
 
@@ -722,14 +763,23 @@ export function deleteCockpitFlagDefinition(
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
   const key = normalizeLabelKey(name);
+  const timestamp = nowIso();
   nextBoard.flagCatalog = (nextBoard.flagCatalog ?? []).filter(
     (entry) => entry.key !== key,
   );
+  stripFlagFromTodoCards(nextBoard.cards, key, timestamp);
+  stripFlagFromTodoCards(ensureArchives(nextBoard).completedSuccessfully, key, timestamp);
+  stripFlagFromTodoCards(ensureArchives(nextBoard).rejected, key, timestamp);
+  if (nextBoard.filters) {
+    nextBoard.filters.flags = normalizeStringList(nextBoard.filters.flags).filter(
+      (flag) => normalizeLabelKey(flag) !== key,
+    );
+  }
   nextBoard.deletedFlagCatalogKeys = Array.from(new Set([
     ...(nextBoard.deletedFlagCatalogKeys ?? []),
     key,
   ]));
-  touchBoard(nextBoard);
+  touchBoard(nextBoard, timestamp);
   return persistBoard(workspaceRoot, nextBoard);
 }
 

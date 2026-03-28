@@ -260,6 +260,8 @@
   var currentTodoLabels = [];
   var selectedTodoLabelName = "";
   var currentTodoFlag = "";
+  var pendingDeleteLabelName = "";
+  var pendingDeleteFlagName = "";
   var pendingAgentValue = "";
   var pendingModelValue = "";
   var pendingTemplatePath = "";
@@ -375,6 +377,7 @@
   var todoFlagNameInput = document.getElementById("todo-flag-name-input");
   var todoFlagColorInput = document.getElementById("todo-flag-color-input");
   var todoFlagAddBtn = document.getElementById("todo-flag-add-btn");
+  var todoFlagColorSaveBtn = document.getElementById("todo-flag-color-save-btn");
   var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
   var todoSaveBtn = document.getElementById("todo-save-btn");
   var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
@@ -1168,7 +1171,36 @@
       : "var(--vscode-badge-background)";
   }
 
+  function clearCatalogDeleteState(kind) {
+    if (!kind || kind === "label") {
+      pendingDeleteLabelName = "";
+    }
+    if (!kind || kind === "flag") {
+      pendingDeleteFlagName = "";
+    }
+  }
+
+  function isPendingCatalogDelete(kind, name) {
+    var pendingName = kind === "flag" ? pendingDeleteFlagName : pendingDeleteLabelName;
+    return !!pendingName && normalizeTodoLabelKey(pendingName) === normalizeTodoLabelKey(name || "");
+  }
+
+  function removeLabelFromCurrentTodo(label) {
+    setTodoEditorLabels(
+      currentTodoLabels.filter(function (entry) {
+        return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+      }),
+      true,
+    );
+    if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(label)) {
+      selectedTodoLabelName = "";
+    }
+  }
+
   function reconcileTodoEditorCatalogState() {
+    currentTodoLabels = currentTodoLabels.filter(function (label) {
+      return !!getLabelDefinition(label);
+    });
     if (currentTodoFlag && !getFlagDefinition(currentTodoFlag)) {
       currentTodoFlag = "";
     }
@@ -1248,10 +1280,13 @@
       var bg = entry.color || "var(--vscode-badge-background)";
       var fg = getReadableTextColor(bg);
       var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
+      var pendingDelete = isPendingCatalogDelete("label", entry.name);
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
         + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
-        + '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
-        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
+        + (pendingDelete
+          ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
+          : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
+          + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>')
         + '</span>';
     }).join("");
   }
@@ -1273,10 +1308,12 @@
       return left.localeCompare(right);
     });
     if (inputValue) {
-      labels = labels.filter(function (label) {
-        return normalizeTodoLabelKey(label).indexOf(inputValue) >= 0;
-      });
-    }
+        labels = labels.filter(function (label) {
+          return normalizeTodoLabelKey(label).indexOf(inputValue) >= 0;
+        });
+      } else {
+        labels = [];
+      }
     if (labels.length === 0) {
       todoLabelSuggestions.style.display = "none";
       todoLabelSuggestions.innerHTML = "";
@@ -1320,10 +1357,8 @@
       // Always enabled — user can pick a color before clicking Add
       todoLabelColorInput.disabled = false;
     }
-    if (todoLabelColorSaveBtn) {
-      todoLabelColorSaveBtn.disabled = !selectedTodoLabelName;
-    }
-    syncTodoLabelSuggestions();
+      if (todoLabelColorSaveBtn) { todoLabelColorSaveBtn.disabled = !todoLabelsInput || !todoLabelsInput.value.trim(); }
+syncTodoLabelSuggestions();
     syncLabelCatalog();
   }
 
@@ -1331,6 +1366,7 @@
     if (!todoLabelsInput) {
       return;
     }
+    clearCatalogDeleteState("label");
     var label = normalizeTodoLabel(todoLabelsInput.value);
     if (!label) {
       return;
@@ -1365,6 +1401,7 @@
   }
 
   function removeEditorLabel(label) {
+    clearCatalogDeleteState("label");
     setTodoEditorLabels(
       currentTodoLabels.filter(function (entry) {
         return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
@@ -1394,10 +1431,13 @@
           var fg = getReadableTextColor(bg);
           var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
           var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
+          var pendingDelete = isPendingCatalogDelete("flag", entry.name);
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
             + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
-            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
-            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>'
+            + (pendingDelete
+              ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
+              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
+              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>')
             + '</span>';
         }).join("");
       }
@@ -1405,6 +1445,7 @@
   }
 
   function addFlagFromInput() {
+    clearCatalogDeleteState("flag");
     var todoFlagNameInput = document.getElementById("todo-flag-name-input");
     var todoFlagColorInput = document.getElementById("todo-flag-color-input");
     if (!todoFlagNameInput) return;
@@ -1944,7 +1985,8 @@
           '</div>' +
           '</div>' +
           '<div class="section-body-wrapper' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '">' +
-          '<div class="section-body-inner" style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);">'+
+          '<div class="section-body-inner">' +
+            '<div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);">'+
           '<div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">'  +
           (sectionCards.length
             ? sectionCards.map(function (card) {
@@ -2007,10 +2049,11 @@
               );
             }).join("")
             : '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>') +
-          '</div>' +
-          '</div>' +
-          '</div>' +
-          '</section>'
+            '</div>' +
+            '</div>' +
+            '</div>' +
+            '</div>' +
+            '</section>'
         );
       }).join("") +
       '</div>';
@@ -2241,14 +2284,17 @@
 
     if (todoNewBtn) {
       todoNewBtn.onclick = function () {
+        clearCatalogDeleteState();
         openTodoEditor("");
       };
     }
     if (todoClearSelectionBtn) {
       todoClearSelectionBtn.onclick = function () {
+        clearCatalogDeleteState();
         selectedTodoId = null;
         currentTodoLabels = [];
         selectedTodoLabelName = "";
+        currentTodoFlag = "";
         renderCockpitBoard();
         switchTab("board");
       };
@@ -2419,12 +2465,13 @@
             todoLabelColorInput.value = def.color;
           }
           if (todoLabelColorInput) todoLabelColorInput.disabled = false;
-        } else {
-          selectedTodoLabelName = "";
-          syncTodoLabelEditor();
-        }
-        syncTodoLabelSuggestions();
-      };
+          } else {
+            selectedTodoLabelName = "";
+            syncTodoLabelEditor();
+          }
+          if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !todoLabelsInput.value.trim();
+          syncTodoLabelSuggestions();
+        };
       todoLabelsInput.onfocus = function () {
         syncTodoLabelSuggestions();
       };
@@ -2451,25 +2498,39 @@
           return;
         }
         if (selectButton) {
-          selectedTodoLabelName = selectButton.getAttribute("data-label-chip-select") || "";
-          syncTodoLabelEditor();
-        }
+            clearCatalogDeleteState("label");
+            var lname = selectButton.getAttribute("data-label-chip-select") || "";
+            selectedTodoLabelName = lname;
+            if (todoLabelsInput) {
+              todoLabelsInput.value = lname;
+              editingLabelOriginalName = lname;
+              todoLabelsInput.focus();
+            }
+            syncTodoLabelEditor();
+          }
       };
     }
     if (todoLabelColorSaveBtn) {
-      todoLabelColorSaveBtn.onclick = function () {
-        if (!selectedTodoLabelName || !todoLabelColorInput) {
-          return;
-        }
-        vscode.postMessage({
-          type: "saveTodoLabelDefinition",
-          data: {
-            name: selectedTodoLabelName,
-            color: todoLabelColorInput.value,
-          },
-        });
-      };
-    }
+        todoLabelColorSaveBtn.onclick = function () {
+          var name = todoLabelsInput ? todoLabelsInput.value.trim() : "";
+          if (!name || !todoLabelColorInput) { return; }
+          var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, color: todoLabelColorInput.value } });
+          var prevName = editingLabelOriginalName;
+          if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });
+            var prevIdx = currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(prevName));
+            if (prevIdx >= 0) {
+              var newLabels = currentTodoLabels.slice();
+              newLabels.splice(prevIdx, 1, normalized);
+              setTodoEditorLabels(newLabels, true);
+            }
+          }
+          editingLabelOriginalName = "";
+          todoLabelsInput.value = "";
+          syncTodoLabelEditor();
+        };
+      }
     if (todoLabelSuggestions) {
       todoLabelSuggestions.onclick = function (event) {
         var btn = event.target && event.target.closest
@@ -2490,10 +2551,12 @@
       todoLabelCatalog.onclick = function (event) {
         var editBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-edit]") : null;
         var deleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-delete]") : null;
+        var confirmDeleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-confirm-delete]") : null;
         var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
         if (editBtn) {
           event.preventDefault();
           event.stopPropagation();
+          clearCatalogDeleteState("label");
           var eName = editBtn.getAttribute("data-label-catalog-edit") || "";
           var eCatalog = getLabelCatalog();
           var eEntry = null;
@@ -2506,17 +2569,30 @@
           if (todoLabelsInput) todoLabelsInput.focus();
           return;
         }
+        if (confirmDeleteBtn) {
+          event.preventDefault();
+          event.stopPropagation();
+          var confirmName = confirmDeleteBtn.getAttribute("data-label-catalog-confirm-delete") || "";
+          if (!confirmName) return;
+          clearCatalogDeleteState("label");
+          removeLabelFromCurrentTodo(confirmName);
+          syncTodoLabelEditor();
+          vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: confirmName } });
+          return;
+        }
         if (deleteBtn) {
           event.preventDefault();
           event.stopPropagation();
           var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
           if (!name) return;
-          vscode.postMessage({ type: "requestDeleteTodoLabelDefinition", data: { name: name } });
+          pendingDeleteLabelName = name;
+          syncTodoLabelEditor();
           return;
         }
         if (selectBtn) {
           event.preventDefault();
           event.stopPropagation();
+          clearCatalogDeleteState("label");
           var name = selectBtn.getAttribute("data-label-catalog-select") || "";
           if (!name) return;
           // Add the label to the current todo directly (catalog only shows un-applied labels)
@@ -2525,12 +2601,45 @@
         }
       };
     }
+    if (todoFlagColorSaveBtn) {
+      todoFlagColorSaveBtn.onclick = function () {
+        var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+        var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+        if (!todoFlagNameInputEl || !todoFlagColorInputEl) return;
+        var name = todoFlagNameInputEl.value.trim();
+        if (!name) return;
+        var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+        vscode.postMessage({
+          type: "saveTodoFlagDefinition",
+          data: {
+            name: normalized,
+            color: todoFlagColorInputEl.value,
+          },
+        });
+        
+        // Also update editor UI in case the flag was currently active
+        // But do not assign it if they aren't adding it. But wait, if they renamed it, and it was active:
+        var prevName = editingFlagOriginalName;
+        if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });
+          if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+            currentTodoFlag = normalized;
+            syncFlagEditor();
+          }
+        }
+        editingFlagOriginalName = "";
+        todoFlagNameInputEl.value = "";
+      };
+    }
     if (todoFlagAddBtn) {
       todoFlagAddBtn.onclick = function () {
         addFlagFromInput();
       };
     }
     if (todoFlagNameInput) {
+      todoFlagNameInput.oninput = function () {
+        if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !todoFlagNameInput.value.trim();
+      };
       todoFlagNameInput.onkeydown = function (event) {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -2550,6 +2659,7 @@
       if (catalogSelect) {
         event.preventDefault();
         event.stopPropagation();
+        clearCatalogDeleteState("flag");
         var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
         if (!flagName) return;
         currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
@@ -2560,6 +2670,7 @@
       if (catalogEdit) {
         event.preventDefault();
         event.stopPropagation();
+        clearCatalogDeleteState("flag");
         var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
         var feCatalog = getFlagCatalog();
         var feEntry = null;
@@ -2574,13 +2685,28 @@
         if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
         return;
       }
+      var catalogConfirmDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-confirm-delete]") : null;
+      if (catalogConfirmDelete) {
+        event.preventDefault();
+        event.stopPropagation();
+        var confirmFlagName = catalogConfirmDelete.getAttribute("data-flag-catalog-confirm-delete") || "";
+        if (!confirmFlagName) return;
+        clearCatalogDeleteState("flag");
+        if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
+          currentTodoFlag = "";
+        }
+        syncFlagEditor();
+        vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
+        return;
+      }
       var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
       if (catalogDelete) {
         event.preventDefault();
         event.stopPropagation();
         var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
         if (!flagName) return;
-        vscode.postMessage({ type: "requestDeleteTodoFlagDefinition", data: { name: flagName } });
+        pendingDeleteFlagName = flagName;
+        syncFlagEditor();
       }
     });
   }
@@ -2613,6 +2739,7 @@
   }
 
   function openTodoEditor(todoId) {
+    clearCatalogDeleteState();
     selectedTodoId = todoId || null;
     if (!selectedTodoId) {
       currentTodoLabels = [];
@@ -5741,6 +5868,7 @@
             filters: { labels: [], priorities: [], flags: [], sortBy: "manual", sortDirection: "asc", showArchived: false },
             updatedAt: "",
           };
+          clearCatalogDeleteState();
           renderCockpitBoard();
           reconcileTodoEditorCatalogState();
           syncFlagEditor();
@@ -5995,3 +6123,12 @@
   // Notify extension that webview is ready
   vscode.postMessage({ type: "webviewReady" });
 })();
+
+
+
+
+
+
+
+
+

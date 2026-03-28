@@ -1338,8 +1338,6 @@ export type WebviewToExtensionMessage =
   | { type: "requestDeleteJobTask"; jobId: string; nodeId: string }
   | { type: "requestRenameJobPause"; jobId: string; nodeId: string }
   | { type: "requestDeleteJobPause"; jobId: string; nodeId: string }
-  | { type: "requestDeleteTodoLabelDefinition"; data: { name: string } }
-  | { type: "requestDeleteTodoFlagDefinition"; data: { name: string } }
   | { type: "createJobPause"; jobId: string; data: CreateJobPauseInput }
   | {
     type: "createJobTask";
