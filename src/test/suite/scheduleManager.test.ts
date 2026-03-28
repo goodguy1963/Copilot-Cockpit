@@ -424,6 +424,61 @@ suite("ScheduleManager Jobs Tests", () => {
     }
   });
 
+  test("attaching an existing job task again creates a reusable copy for the workflow", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-step-repeat-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-job-step-repeat-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForJobTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Repeatable flow",
+        cronExpression: "0 10 * * *",
+      });
+      const step = await manager.createTaskInJob(job.id, {
+        name: "Review prompt",
+        cronExpression: "0 10 * * *",
+        prompt: "Review the generated output.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      assert.ok(step);
+
+      const updatedJob = await manager.attachTaskToJob(job.id, step?.id || "", 45);
+      assert.ok(updatedJob);
+      assert.strictEqual(updatedJob?.nodes.length, 2);
+
+      const firstNode = updatedJob?.nodes[0];
+      const secondNode = updatedJob?.nodes[1];
+      assert.ok(firstNode && secondNode && "taskId" in firstNode && "taskId" in secondNode);
+      assert.notStrictEqual((firstNode as any).taskId, (secondNode as any).taskId);
+
+      const clonedTask = manager.getTask((secondNode as any).taskId);
+      assert.ok(clonedTask);
+      assert.strictEqual(clonedTask?.name, step?.name);
+      assert.strictEqual(clonedTask?.jobId, job.id);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
   test("pause checkpoints block downstream steps until approval", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-job-pause-ws-"),

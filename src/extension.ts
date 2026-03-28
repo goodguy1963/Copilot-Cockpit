@@ -16,16 +16,14 @@ import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { createDefaultCockpitBoard } from "./cockpitBoard";
 import {
   addCockpitTodoComment,
-  approveCockpitTodo,
   addCockpitSection,
   createCockpitTodo,
   deleteCockpitSection,
-  deleteCockpitTodo,
   ensureTaskTodos,
   finalizeCockpitTodo,
-  getCockpitBoard,
   moveCockpitSection,
   moveCockpitTodo,
+  purgeCockpitTodo,
   rejectCockpitTodo,
   renameCockpitSection,
   reorderCockpitSection,
@@ -1353,9 +1351,8 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         }
         notifyInfo(`Job updated: ${job.name}`);
         refreshSchedulerUiState();
-        if (hasFolderUpdate) {
-          SchedulerWebview.focusJob(job.id, job.folderId);
-        }
+        SchedulerWebview.startCreateJob();
+        SchedulerWebview.switchToTab("jobs");
         break;
       }
 
@@ -1761,6 +1758,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           action.todoData as CreateCockpitTodoInput,
         );
         refreshSchedulerUiState();
+        SchedulerWebview.startCreateTodo();
         SchedulerWebview.switchToTab("board");
         notifyInfo("Todo Cockpit item created.");
         break;
@@ -1781,6 +1779,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         refreshSchedulerUiState();
+        SchedulerWebview.startCreateTodo();
         SchedulerWebview.switchToTab("board");
         notifyInfo(`Updated Todo Cockpit item: ${result.todo.title}`);
         break;
@@ -1791,8 +1790,8 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!workspaceRoot || !action.todoId) {
           break;
         }
-        const result = deleteCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.deleted) {
+        const result = rejectCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.todo) {
           notifyError("Todo Cockpit item not found.");
           break;
         }
@@ -1802,19 +1801,35 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "purgeTodo": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot || !action.todoId) {
+          break;
+        }
+        const result = purgeCockpitTodo(workspaceRoot, action.todoId);
+        if (!result.deleted) {
+          notifyError("Todo Cockpit item not found.");
+          break;
+        }
+        refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("board");
+        notifyInfo("Todo Cockpit item permanently deleted.");
+        break;
+      }
+
       case "approveTodo": {
         const workspaceRoot = getPrimaryWorkspaceRootPath();
         if (!workspaceRoot || !action.todoId) {
           break;
         }
-        const result = approveCockpitTodo(workspaceRoot, action.todoId);
+        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
         if (!result.todo) {
           notifyError("Todo Cockpit item not found.");
           break;
         }
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("board");
-        notifyInfo(`Approved Todo Cockpit item: ${result.todo.title}`);
+        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
         break;
       }
 

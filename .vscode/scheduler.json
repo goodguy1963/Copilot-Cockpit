@@ -1,28 +1,6 @@
 {
     "tasks": [
         {
-            "id": "task_1774382082310_88vcoq",
-            "name": "dffd12522",
-            "cron": "0 9 * * 1-5",
-            "prompt": "rfddf",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "",
-            "model": "",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774382082310_88vcoq.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-26T21:01:19.172Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-27T08:00:05.680Z",
-            "nextRun": "2026-03-30T07:00:00.000Z",
-            "createdAt": "2026-03-24T19:54:42.310Z",
-            "updatedAt": "2026-03-25T15:34:46.803Z"
-        },
-        {
             "id": "task_1774382099685_s6t8o5",
             "name": "dssd",
             "cron": "0 9 * * 1-5",
@@ -36,11 +14,13 @@
             "promptBackupUpdatedAt": "2026-03-26T21:01:19.416Z",
             "jitterSeconds": 0,
             "oneTime": false,
+            "jobId": "job_1774477345878_setxkt",
+            "jobNodeId": "jobnode_1774711625958_h2ii9k",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
             "lastRun": "2026-03-27T08:00:06.110Z",
             "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-24T19:54:59.685Z",
-            "updatedAt": "2026-03-25T15:34:45.711Z"
+            "updatedAt": "2026-03-28T15:27:05.958Z"
         }
     ],
     "jobs": [
@@ -50,9 +30,16 @@
             "cronExpression": "0 9 * * 1-5",
             "paused": false,
             "archived": false,
-            "nodes": [],
+            "nodes": [
+                {
+                    "id": "jobnode_1774711625958_h2ii9k",
+                    "type": "task",
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "windowMinutes": 30
+                }
+            ],
             "createdAt": "2026-03-25T22:22:25.878Z",
-            "updatedAt": "2026-03-25T22:23:25.113Z"
+            "updatedAt": "2026-03-28T15:31:55.292Z"
         }
     ],
     "jobFolders": []

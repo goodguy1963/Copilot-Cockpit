@@ -819,8 +819,20 @@ export const messages = {
     ),
   confirmDeleteJobStep: (name: string) =>
     t(
-      `Delete step "${name}"? This also deletes the task from the Task List.`,
-      `ステップ「${name}」を削除しますか？ この操作はタスクリストからも削除します。`,
+      `Delete step "${name}"? You can remove it only from this workflow or delete the task from the Task List too.`,
+      `ステップ「${name}」を削除しますか？ このワークフローからのみ外すか、タスクリストからも削除するかを選べます。`,
+    ),
+  confirmDeleteJobStepDetachOnly: () =>
+    t(
+      "Remove from workflow only",
+      "ワークフローからのみ削除",
+      "Nur aus Workflow entfernen",
+    ),
+  confirmDeleteJobStepDeleteTask: () =>
+    t(
+      "Delete task everywhere",
+      "タスク自体を完全に削除",
+      "Task komplett löschen",
     ),
   moveOnlyWorkspaceTasks: () =>
     t(

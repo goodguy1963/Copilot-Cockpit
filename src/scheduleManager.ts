@@ -2143,14 +2143,29 @@ export class ScheduleManager {
     windowMinutes = 30,
   ): Promise<JobDefinition | undefined> {
     const job = this.jobs.get(jobId);
-    const task = this.tasks.get(taskId);
+    let task = this.tasks.get(taskId);
     if (!job || !task) {
       return undefined;
     }
 
     const existing = this.findJobNodeByTaskId(taskId);
-    if (existing && existing.job.id !== jobId) {
-      await this.detachTaskFromJob(existing.job.id, existing.node.id);
+    if (existing) {
+      task = await this.createTask({
+        name: task.name,
+        cronExpression: task.cronExpression,
+        prompt: task.prompt,
+        enabled: task.enabled,
+        agent: task.agent,
+        model: task.model,
+        scope: task.scope,
+        oneTime: false,
+        chatSession: task.oneTime === true ? undefined : task.chatSession,
+        labels: task.labels,
+        promptSource: task.promptSource,
+        promptPath: task.promptPath,
+        jitterSeconds: task.jitterSeconds,
+      });
+      taskId = task.id;
     }
 
     if (!job.nodes.some((node) => this.isTaskNode(node) && node.taskId === taskId)) {
