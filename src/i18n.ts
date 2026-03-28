@@ -330,9 +330,9 @@ export const messages = {
 
   helpIntroTitle: () =>
     t(
-      "Schedule Copilot prompts to run automatically",
-      "Copilot プロンプトを自動実行するスケジューラ",
-      "Copilot-Prompts automatisch planen und ausführen",
+      "🚀 Schedule Copilot prompts to run automatically",
+      "🚀 Copilot プロンプトを自動実行するスケジューラ",
+      "🚀 Copilot-Prompts automatisch planen und ausführen",
     ),
   helpIntroBody: () =>
     t(
@@ -340,7 +340,25 @@ export const messages = {
       "プロンプトを書いてcronスケジュールを設定すれば、この拡張機能が毎回定刻にCopilotへ送信します。スケジュールはリポジトリごとに.vscodeへ保存されるため、gitで共有できます。Jobsでタスクを連結したり、レビュー用の一時停止チェックポイントを追加したり、自動終了するResearchループを実行できます。",
       "Schreiben Sie einen Prompt, legen Sie einen Cron-Zeitplan fest, und diese Erweiterung sendet ihn jedes Mal pünktlich an Copilot. Zeitpläne werden pro Repository in .vscode gespeichert, damit Teams sie über Git teilen können. Sie können Aufgaben zu Jobs für mehrstufige Abläufe verketten, Pause Checkpoints für menschliche Freigaben einfügen oder begrenzte Research-Schleifen ausführen, die sich selbst beenden.",
     ),
-  helpCreateTitle: () => t("1. Create a Task", "1. タスクを作成", "1. Einen Task erstellen"),
+  helpTodoTitle: () =>
+    t(
+      "1. 🧭 Todo (Cockpit) - Communication Hub",
+      "1. 🧭 Todo (Cockpit) - エージェントとの連携ハブ",
+      "1. 🧭 Todo (Cockpit) - Kommunikations-Hub"
+    ),
+  helpTodoBody: () =>
+    t(
+      "The Todo board acts as the central hub for user and AI communication. Copilot can create cards, update labels and flags, move cards across sections, and leave comments through MCP tools. Use it to review plans, give feedback, and approve work before an approved item becomes a scheduled task.",
+      "TodoボードはユーザーとAIのコミュニケーションの中心として機能します。CopilotはMCPツールを使ってカードの作成、ラベルやフラグの更新、セクション間の移動、コメント追加を行えます。承認済みの項目をスケジュールタスクへ変換する前に、計画のレビュー、フィードバック、承認をここで行います。",
+      "Das Todo-Board fungiert als zentraler Knotenpunkt für die Kommunikation zwischen Benutzer und KI. Copilot kann über MCP-Tools Karten erstellen, Labels und Flags aktualisieren, Karten zwischen Bereichen verschieben und Kommentare hinterlassen. Nutzen Sie es, um Pläne zu prüfen, Feedback zu geben und Arbeit freizugeben, bevor ein freigegebener Eintrag zu einem geplanten Task wird."
+    ),
+  helpSwitchTabSettingsBtn: () => t("Switch to Settings", "設定を表示", "Zu Einstellungen wechseln"),
+  helpSwitchTabTodoBtn: () => t("Switch to Todo Board", "Todoボードを表示", "Zum Todo-Board wechseln"),
+  helpSwitchTabCreateBtn: () => t("Switch to Create Task", "タスク作成を表示", "Zu Task erstellen wechseln"),
+  helpSwitchTabListBtn: () => t("Switch to Task List", "タスクリストを表示", "Zur Task-Liste wechseln"),
+  helpSwitchTabJobsBtn: () => t("Switch to Jobs", "Jobsを表示", "Zu Jobs wechseln"),
+  helpSwitchTabResearchBtn: () => t("Switch to Research", "Researchを表示", "Zu Research wechseln"),
+  helpCreateTitle: () => t("2. ✍️ Create a Task", "2. ✍️ タスクを作成", "2. ✍️ Einen Task erstellen"),
   helpCreateItemName: () =>
     t(
       "Open the Create Task tab. Enter a name, write your prompt, set a cron schedule (or use the friendly schedule builder), and choose a scope.",
@@ -371,7 +389,7 @@ export const messages = {
       "Run Firstにチェックすると保存から3分後に初回実行します。One-Timeにチェックすると1回成功後にタスクを自動削除します。",
       "Aktivieren Sie Run First, damit der Task 3 Minuten nach dem Speichern startet. Aktivieren Sie One-Time, damit der Task nach einer erfolgreichen Ausführung automatisch gelöscht wird.",
     ),
-  helpListTitle: () => t("2. Manage Your Tasks", "2. タスクを管理", "2. Ihre Tasks verwalten"),
+  helpListTitle: () => t("3. 📋 Manage Your Tasks", "3. 📋 タスクを管理", "3. 📋 Ihre Tasks verwalten"),
   helpListItemSections: () =>
     t(
       "The Task List shows recurring tasks and one-time tasks in separate sections, with a live countdown to the next scheduled run.",
@@ -390,7 +408,7 @@ export const messages = {
       "ツールバーからリストの更新や、このリポジトリを開いたときにSchedulerを自動表示するかの切り替えができます。",
       "Über die Toolbar können Sie die Liste aktualisieren oder umschalten, ob der Scheduler automatisch geöffnet wird, wenn dieses Repository in VS Code geöffnet wird.",
     ),
-  helpJobsTitle: () => t("3. Chain Tasks with Jobs", "3. Jobsでタスクを連結", "3. Tasks mit Jobs verketten"),
+  helpJobsTitle: () => t("4. 🔗 Chain Tasks with Jobs", "4. 🔗 Jobsでタスクを連結", "4. 🔗 Tasks mit Jobs verketten"),
   helpJobsItemBoard: () =>
     t(
       "Open the Jobs tab to build multi-step workflows. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
@@ -427,7 +445,7 @@ export const messages = {
       "JobからステップをDeleteするとTask Listからも削除されます。実行前に確認が表示されます。",
       "Wenn Sie einen Schritt aus einem Job löschen, wird dieser Task auch aus der Task List entfernt. Vorher erscheint eine Bestätigung.",
     ),
-  helpResearchTitle: () => t("4. Run Bounded Research", "4. 制限付きResearchを実行", "4. Begrenzte Research-Läufe ausführen"),
+  helpResearchTitle: () => t("5. 🔬 Run Bounded Research", "5. 🔬 制限付きResearchを実行", "5. 🔬 Begrenzte Research-Läufe ausführen"),
   helpResearchItemProfiles: () =>
     t(
       "Go to the Research tab and create a profile. Set your instructions, the file paths the agent may edit, a benchmark command, a metric pattern, and your agent/model choice.",
@@ -446,7 +464,7 @@ export const messages = {
       "実行後はHistoryを確認して、試行・スコア・変更ファイル・ベンチマーク出力を検証してから結果を採用するか判断できます。",
       "Prüfen Sie nach einem Lauf die History, um Versuche, Scores, geänderte Dateien und Benchmark-Ausgaben zu überprüfen, bevor Sie entscheiden, ob das Ergebnis behalten werden soll.",
     ),
-  helpStorageTitle: () => t("5. Where Files Are Saved", "5. ファイルの保存場所", "5. Wo Dateien gespeichert werden"),
+  helpStorageTitle: () => t("6. 💾 Where Files Are Saved", "6. 💾 ファイルの保存場所", "6. 💾 Wo Dateien gespeichert werden"),
   helpStorageItemRepo: () =>
     t(
       "Tasks are saved in .vscode/scheduler.json inside the open repo. Todo Cockpit items go to .vscode/scheduler.private.json and are never synced via git.",
@@ -471,7 +489,7 @@ export const messages = {
       "グローバルタスクは拡張ストレージにフォールバックとして保存されますが、開いているリポジトリの.vscodeファイルが常に優先されます。",
       "Globale Tasks werden als Fallback im Erweiterungsspeicher gehalten, aber die .vscode-Dateien im geöffneten Repository haben immer Vorrang.",
     ),
-  helpOverdueTitle: () => t("6. Handling Overdue Tasks", "6. 期限超過タスクの処理", "6. Überfällige Tasks behandeln"),
+  helpOverdueTitle: () => t("7. ⏰ Handling Overdue Tasks", "7. ⏰ 期限超過タスクの処理", "7. ⏰ Überfällige Tasks behandeln"),
   helpOverdueItemReview: () =>
     t(
       "If VS Code was closed while tasks were scheduled, they won't run automatically on restart. Instead, you'll be asked what to do with each overdue task one at a time.",
@@ -490,7 +508,7 @@ export const messages = {
       "一度きりの期限超過タスク：今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
       "Bei überfälligen einmaligen Tasks können Sie entscheiden, ob sie jetzt ausgeführt oder um eine bestimmte Anzahl Minuten verschoben werden sollen.",
     ),
-  helpSessionTitle: () => t("7. Chat Session Options", "7. チャットセッション設定", "7. Chat Session-Optionen"),
+  helpSessionTitle: () => t("8. 💬 Chat Session Options", "8. 💬 チャットセッション設定", "8. 💬 Chat Session-Optionen"),
   helpSessionItemPerTask: () =>
     t(
       "Each recurring task can override the global new-session setting. Find the option in the Create/Edit Task form.",
@@ -557,8 +575,8 @@ export const messages = {
       "アクションツール：タスクの即時実行・スナップショット復元・Jobsの一時停止チェックポイント管理・Researchプロファイル実行の開始と確認。",
       "Action tools: einen Task sofort ausführen, einen Scheduler-Snapshot wiederherstellen, Pause Checkpoints in Jobs verwalten und Läufe von Research-Profilen starten oder prüfen.",
     ),
-  helpMcpTitle: () => t("8. MCP Integration", "8. MCPインテグレーション", "8. MCP-Integration"),
-  helpTipsTitle: () => t("9. Tips", "9. ヒント", "9. Tipps"),
+  helpMcpTitle: () => t("9. 🧩 MCP Integration", "9. 🧩 MCPインテグレーション", "9. 🧩 MCP-Integration"),
+  helpTipsTitle: () => t("10. 💡 Tips", "10. 💡 ヒント", "10. 💡 Tipps"),
   helpTipsItem1: () =>
     t(
       "Enable auto-open only for repos where you want the Scheduler panel to appear every time the repo opens in VS Code.",

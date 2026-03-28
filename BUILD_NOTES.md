@@ -1,4 +1,4 @@
-# Custom Build Notes: Copilot Scheduler (Local Fork)
+# Custom Build Notes: Copilot Cockpit
 
 ## Current fork status
 
@@ -31,9 +31,9 @@
 ## Existing fork customizations retained
 
 1. Renamed Extension
-    - Changed `name` to `copilot-scheduler-local`.
+    - Changed `name` to `copilot-cockpit`.
     - Changed `publisher` to `local-dev`.
-    - Changed `displayName` to `Copilot Scheduler (Local Fork)`.
+    - Changed `displayName` to `Copilot Cockpit`.
     - Bumped the local fork onto the `99.0.x` version track to prevent auto-updates.
 
 2. MCP Integration

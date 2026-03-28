@@ -11,12 +11,12 @@ import type { ScheduledTask } from "../../types";
 
 suite("Extension Test Suite", () => {
   test("Extension should be present", () => {
-    assert.ok(vscode.extensions.getExtension("local-dev.copilot-scheduler-local"));
+    assert.ok(vscode.extensions.getExtension("local-dev.copilot-cockpit"));
   });
 
   test("Extension should activate", async () => {
     const extension = vscode.extensions.getExtension(
-      "local-dev.copilot-scheduler-local",
+      "local-dev.copilot-cockpit",
     );
     if (extension) {
       await extension.activate();
@@ -26,7 +26,7 @@ suite("Extension Test Suite", () => {
 
   test("Auto-show startup setting should be contributed", () => {
     const extension = vscode.extensions.getExtension(
-      "local-dev.copilot-scheduler-local",
+      "local-dev.copilot-cockpit",
     );
     assert.ok(extension);
 

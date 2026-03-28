@@ -162,7 +162,8 @@ export class CopilotExecutor {
 
       // Prepare options for workbench.action.chat.open
       const openOptions: any = {
-        query: query
+        query: query,
+        isPartialQuery: false,
       };
 
       if (mode) {
@@ -233,16 +234,18 @@ export class CopilotExecutor {
           throw new Error("Unable to submit prompt: chat submit command unavailable");
         }
       } else {
-        // If opened successfully with query, it usually auto-submits or puts text in.
-        // In newer VS Code, passing 'query' to chat.open does NOT auto submit unless isPartialQuery is false (default).
-        // However, we might want to ensure it submits.
-        // Based on research, `workbench.action.chat.open` with `query` usually just pre-fills.
-        // Wait, the documentation said: "submit it" isn't explicitly a param.
-        // Inspecting `chatActions.ts`: `if (!opts.isPartialQuery) { ... chatWidget.acceptInput(); }`
-        // So if we don't set isPartialQuery (false by default), it SHOULD accept input.
-
-        // We rely on that behavior.
+        // Some VS Code/Copilot builds only prefill the query, so explicitly try
+        // to submit after opening the chat.
         await this.delay(DELAY_AFTER_FOCUS_MS);
+        const submitted = await this.executeFirstAvailableCommand([
+          "workbench.action.chat.submit",
+          "chat.action.submit",
+        ]);
+        if (!submitted) {
+          logDebug(
+            "[CopilotScheduler] Chat open succeeded, but submit command was unavailable.",
+          );
+        }
       }
 
     } catch (error) {

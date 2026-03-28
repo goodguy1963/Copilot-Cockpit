@@ -1864,7 +1864,6 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         refreshSchedulerUiState();
-        notifyInfo(`Saved label palette entry: ${result.label.name}`);
         break;
       }
 
@@ -1893,7 +1892,6 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         refreshSchedulerUiState();
-        notifyInfo(`Saved flag palette entry: ${result.label.name}`);
         break;
       }
 
@@ -2743,7 +2741,7 @@ function registerOpenSettingsCommand(): vscode.Disposable {
       try {
         await vscode.commands.executeCommand(
           "workbench.action.openSettings",
-          "@ext:local-dev.copilot-scheduler-local",
+          "@ext:local-dev.copilot-cockpit",
         );
       } catch (error) {
         const errorMessage =

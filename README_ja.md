@@ -1,3 +1,30 @@
+# Source Scheduler
+
+このファイルは、日本語向けの Todo Cockpit / MCP / Skill まわりの要点をまとめた補足ガイドです。英語の詳細な全体ドキュメントは `README.md` を参照してください。
+
+## Todo (Cockpit) - コミュニケーションハブ
+
+- `Todo Cockpit` タブは、ユーザーと AI エージェントの中心的なコミュニケーションハブです。従来の外部 Todoist 連携の代わりに、リポジトリ内で計画と承認を完結させます。
+- Todo は計画と対話のオブジェクトです。スケジュールされた task は実行用の別オブジェクトであり、承認済み Todo から必要に応じて作成されます。
+- 既定のセクションは `Unsorted`、`Bugs`、`Features`、`Ops/DevOps`、`Marketing/Growth`、`Automation`、`Future` です。
+- コメントは `human-form`、`bot-mcp`、`bot-manual`、`system-event` などの出所情報を保持し、ユーザーと AI の会話ログとして機能します。
+- ラベルは複数付与できる共有パレット方式です。フラグは 1 枚のカードにつき 1 つの agent-state を表す単一値です。
+- Todo は `active`、`ready`、`completed`、`rejected` の状態を持ちます。`Approve` は `ready`、`Final Accept` は完了アーカイブ、`Delete` は拒否アーカイブとして扱われます。
+- `How To` タブの最初の項目は Todo Cockpit になっており、そこから Board / Create / List / Jobs / Research / Settings へ直接移動できるボタンを配置しています。
+
+## MCP 対応状況
+
+- Todo Cockpit は MCP から利用できます。AI はカードの作成、更新、コメント追加、状態遷移、セクション移動、フィルター更新を行えます。
+- 利用できる Todo 系ツール: `cockpit_get_board`、`cockpit_list_todos`、`cockpit_get_todo`、`cockpit_create_todo`、`cockpit_add_todo_comment`、`cockpit_update_todo`、`cockpit_delete_todo`、`cockpit_approve_todo`、`cockpit_finalize_todo`、`cockpit_reject_todo`、`cockpit_move_todo`、`cockpit_set_filters`、`cockpit_seed_todos_from_tasks`。
+- ラベル設定とフラグ設定も MCP から操作できます: `cockpit_save_label_definition`、`cockpit_delete_label_definition`、`cockpit_save_flag_definition`、`cockpit_delete_flag_definition`。
+- Todo Cockpit のデータは `.vscode/scheduler.private.json` のみに保存され、公開用の scheduler ファイルには混ざりません。
+
+## Skill 対応状況
+
+- `.github/skills/cockpit-todo-agent/SKILL.md` は、Todo Cockpit をユーザーと AI の正式な連携ハブとして扱うためのルールを定義します。
+- `.github/skills/cockpit-scheduler-agent/SKILL.md` は、task / jobs / research / label / flag など、どの MCP ツールを選ぶべきかを整理します。
+- `.github/skills/copilot-scheduler-intro/SKILL.md` は、プラグイン全体を説明する導入ガイドです。
+- `.github/skills/copilot-scheduler-setup/SKILL.md` は、既存の agent system や task 管理基盤から Todo Cockpit へ移行する場合の質問と設計フローを含みます。
 # ⏰ Copilot Scheduler
 
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/yamapan.copilot-scheduler?label=VS%20Code%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=yamapan.copilot-scheduler)

@@ -1,6 +1,6 @@
 {
-  "name": "copilot-scheduler-local",
-  "displayName": "Copilot Cockpit (Local Fork)",
+  "name": "copilot-cockpit",
+  "displayName": "Copilot Cockpit",
   "description": "Coordinate scheduled prompts, jobs, research, and repo-local AI planning",
   "version": "99.0.11",
   "publisher": "local-dev",

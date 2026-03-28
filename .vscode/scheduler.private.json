@@ -60,18 +60,18 @@
         "version": 2,
         "sections": [
             {
-                "id": "section_mn9hvobp_ttw2do",
-                "title": "Bugs",
-                "order": 0,
-                "createdAt": "2026-03-27T22:50:30.757Z",
-                "updatedAt": "2026-03-27T22:50:30.757Z"
-            },
-            {
                 "id": "unsorted",
                 "title": "Unsorted",
-                "order": 1,
+                "order": 0,
                 "createdAt": "2026-03-27T21:51:28.296Z",
                 "updatedAt": "2026-03-27T21:51:28.296Z"
+            },
+            {
+                "id": "section_mn9hvobp_ttw2do",
+                "title": "Bugs",
+                "order": 1,
+                "createdAt": "2026-03-27T22:50:30.757Z",
+                "updatedAt": "2026-03-27T22:50:30.757Z"
             }
         ],
         "cards": [
@@ -150,32 +150,26 @@
         ],
         "labelCatalog": [
             {
-                "name": "1",
-                "key": "1",
-                "color": "#4f8cff",
-                "createdAt": "2026-03-28T11:34:46.569Z",
-                "updatedAt": "2026-03-28T11:52:59.188Z"
-            },
-            {
                 "name": "3444",
                 "key": "3444",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-28T11:34:57.560Z",
-                "updatedAt": "2026-03-28T11:52:59.801Z"
+                "updatedAt": "2026-03-28T14:15:35.765Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-28T11:53:00.452Z"
+                "updatedAt": "2026-03-28T14:15:36.944Z"
             }
         ],
         "deletedLabelCatalogKeys": [
             "scheduled-task",
             "dfffd",
             "2",
-            "23"
+            "23",
+            "1"
         ],
         "flagCatalog": [
             {
@@ -223,8 +217,9 @@
             "flags": [],
             "sortBy": "manual",
             "sortDirection": "asc",
+            "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-03-28T11:53:12.563Z"
+        "updatedAt": "2026-03-28T14:15:36.944Z"
     }
 }
