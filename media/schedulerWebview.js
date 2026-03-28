@@ -1265,10 +1265,66 @@
       .concat(archives.rejected);
   }
 
+  function getTaskLabelCatalog() {
+    var catalog = [];
+    var seen = Object.create(null);
+    (Array.isArray(tasks) ? tasks : []).forEach(function (task) {
+      getEffectiveLabels(task).forEach(function (label) {
+        var normalizedName = normalizeTodoLabel(label);
+        var key = normalizeTodoLabelKey(normalizedName);
+        if (!normalizedName || !key || seen[key]) {
+          return;
+        }
+        seen[key] = true;
+        catalog.push({
+          key: key,
+          name: normalizedName,
+          color: "var(--vscode-badge-background)",
+          source: "task",
+        });
+      });
+    });
+    return catalog.sort(function (left, right) {
+      return String(left.name).localeCompare(String(right.name));
+    });
+  }
+
   function getLabelCatalog() {
-    return cockpitBoard && Array.isArray(cockpitBoard.labelCatalog)
+    var merged = [];
+    var byKey = Object.create(null);
+    var boardCatalog = cockpitBoard && Array.isArray(cockpitBoard.labelCatalog)
       ? cockpitBoard.labelCatalog.slice()
       : [];
+
+    boardCatalog.forEach(function (entry) {
+      var normalizedName = normalizeTodoLabel(entry && entry.name);
+      var key = normalizeTodoLabelKey(entry && (entry.key || entry.name || ""));
+      if (!normalizedName || !key) {
+        return;
+      }
+      byKey[key] = {
+        key: key,
+        name: normalizedName,
+        color: entry.color || "var(--vscode-badge-background)",
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+        source: "board",
+      };
+    });
+
+    getTaskLabelCatalog().forEach(function (entry) {
+      if (!byKey[entry.key]) {
+        byKey[entry.key] = entry;
+      }
+    });
+
+    Object.keys(byKey).forEach(function (key) {
+      merged.push(byKey[key]);
+    });
+
+    return merged.sort(function (left, right) {
+      return String(left.name).localeCompare(String(right.name));
+    });
   }
 
   function getFlagCatalog() {
@@ -1422,13 +1478,16 @@
       var bg = entry.color || "var(--vscode-badge-background)";
       var fg = getReadableTextColor(bg);
       var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
-      var pendingDelete = isPendingCatalogDelete("label", entry.name);
+      var canDelete = entry.source !== "task";
+      var pendingDelete = canDelete && isPendingCatalogDelete("label", entry.name);
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
         + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
         + (pendingDelete
           ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
           : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
-          + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>')
+          + (canDelete
+            ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
+            : ''))
         + '</span>';
     }).join("");
   }
