@@ -14,13 +14,11 @@
             "promptBackupUpdatedAt": "2026-03-26T21:01:19.416Z",
             "jitterSeconds": 0,
             "oneTime": false,
-            "jobId": "job_1774477345878_setxkt",
-            "jobNodeId": "jobnode_1774711625958_h2ii9k",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
             "lastRun": "2026-03-27T08:00:06.110Z",
             "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-24T19:54:59.685Z",
-            "updatedAt": "2026-03-28T15:27:05.958Z"
+            "updatedAt": "2026-03-28T16:49:27.159Z"
         }
     ],
     "jobs": [
@@ -30,16 +28,9 @@
             "cronExpression": "0 9 * * 1-5",
             "paused": false,
             "archived": false,
-            "nodes": [
-                {
-                    "id": "jobnode_1774711625958_h2ii9k",
-                    "type": "task",
-                    "taskId": "task_1774382099685_s6t8o5",
-                    "windowMinutes": 30
-                }
-            ],
+            "nodes": [],
             "createdAt": "2026-03-25T22:22:25.878Z",
-            "updatedAt": "2026-03-28T15:31:55.292Z"
+            "updatedAt": "2026-03-28T16:49:27.159Z"
         }
     ],
     "jobFolders": []
