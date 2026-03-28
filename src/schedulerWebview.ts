@@ -726,6 +726,74 @@ export class SchedulerWebview {
     });
   }
 
+  private static normalizeCatalogEntryName(name: string): string {
+    return name.trim().toLowerCase();
+  }
+
+  private static async handleDeleteTodoLabelDefinitionRequest(
+    name: string,
+  ): Promise<void> {
+    if (!name || !this.onTaskActionCallback) {
+      return;
+    }
+
+    const targetName = this.normalizeCatalogEntryName(name);
+    const entry = (this.currentCockpitBoard.labelCatalog || []).find((item) =>
+      this.normalizeCatalogEntryName(item.name || item.key || "") === targetName
+    );
+    if (!entry?.name) {
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      messages.confirmDeleteTodoLabelDefinition(entry.name),
+      { modal: true },
+      messages.confirmDeleteYes(),
+      messages.actionCancel(),
+    );
+    if (confirm !== messages.confirmDeleteYes()) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "deleteTodoLabelDefinition",
+      taskId: "__todo__",
+      todoLabelData: { name: entry.name },
+    });
+  }
+
+  private static async handleDeleteTodoFlagDefinitionRequest(
+    name: string,
+  ): Promise<void> {
+    if (!name || !this.onTaskActionCallback) {
+      return;
+    }
+
+    const targetName = this.normalizeCatalogEntryName(name);
+    const entry = (this.currentCockpitBoard.flagCatalog || []).find((item) =>
+      this.normalizeCatalogEntryName(item.name || item.key || "") === targetName
+    );
+    if (!entry?.name) {
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      messages.confirmDeleteTodoFlagDefinition(entry.name),
+      { modal: true },
+      messages.confirmDeleteYes(),
+      messages.actionCancel(),
+    );
+    if (confirm !== messages.confirmDeleteYes()) {
+      return;
+    }
+
+    this.onTaskActionCallback({
+      action: "deleteTodoFlagDefinition",
+      taskId: "__todo__",
+      todoFlagData: { name: entry.name },
+    });
+  }
+
   private static async handleRenameJobPauseRequest(
     jobId: string,
     nodeId: string,
@@ -833,6 +901,14 @@ export class SchedulerWebview {
 
       case "requestDeleteJobPause":
         await this.handleDeleteJobPauseRequest(message.jobId, message.nodeId);
+        break;
+
+      case "requestDeleteTodoLabelDefinition":
+        await this.handleDeleteTodoLabelDefinitionRequest(message.data.name);
+        break;
+
+      case "requestDeleteTodoFlagDefinition":
+        await this.handleDeleteTodoFlagDefinitionRequest(message.data.name);
         break;
 
       case "createTask":
@@ -1873,9 +1949,9 @@ export class SchedulerWebview {
       ),
       helpLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
       helpLanguageAuto: localize("Auto-detect from VS Code", "VS Codeから自動検出", "Automatisch aus VS Code erkennen"),
-      helpLanguageEnglish: localize("English", "英語", "Englisch"),
-      helpLanguageJapanese: localize("Japanese", "日本語", "Japanisch"),
-      helpLanguageGerman: localize("German", "ドイツ語", "Deutsch"),
+      helpLanguageEnglish: "English",
+      helpLanguageJapanese: "日本語",
+      helpLanguageGerman: "Deutsch",
       helpIntroTitle: messages.helpIntroTitle(),
       helpIntroBody: messages.helpIntroBody(),
       helpCreateTitle: messages.helpCreateTitle(),
@@ -2027,6 +2103,7 @@ export class SchedulerWebview {
       boardFlagCatalogSelectTitle: localize("Set as flag", "Flag として設定", "Als Flag setzen"),
       boardFlagCatalogEditTitle: localize("Edit flag", "Flag を編集", "Flag bearbeiten"),
       boardFlagCatalogDeleteTitle: localize("Delete flag", "Flag を削除", "Flag löschen"),
+      boardFlagCatalogDeleteConfirm: localize("Delete flag \"{name}\"?", "Flag「{name}」を削除しますか？", "Flag \"{name}\" löschen?"),
       boardFieldLinkedTask: localize("Linked scheduled task", "リンクされた scheduled task", "Verknüpfter scheduled task"),
       boardLinkedTaskNone: localize("No linked task", "リンクされた task はありません", "Kein verknüpfter task"),
       boardSaveCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
@@ -2061,7 +2138,9 @@ export class SchedulerWebview {
       boardLabelInputPlaceholder: localize("Type a label and press Enter", "ラベルを入力して Enter を押してください", "Label eingeben und Enter drücken"),
       boardLabelAdd: localize("Add", "追加", "Hinzufügen"),
       boardLabelCatalogAddTitle: localize("Add to todo", "Todo に追加", "Zum Todo hinzufügen"),
+      boardLabelCatalogEditTitle: localize("Edit label", "Label を編集", "Label bearbeiten"),
       boardLabelCatalogDeleteTitle: localize("Delete label", "Label を削除", "Label löschen"),
+      boardLabelCatalogDeleteConfirm: localize("Delete label \"{name}\"?", "Label「{name}」を削除しますか？", "Label \"{name}\" löschen?"),
       boardLabelSaveColor: localize("Save Color", "色を保存", "Farbe speichern"),
       boardLabelHint: localize("Click a chip to target its shared color. Press Enter to add more labels.", "チップをクリックすると共有色を対象にできます。Enter でラベルを追加します。", "Klicken Sie auf ein Chip, um seine gemeinsame Farbe auszuwählen. Mit Enter fügen Sie weitere Labels hinzu."),
       boardNoLinkedTask: localize("No linked task yet", "まだリンクされた task はありません", "Noch kein verknüpfter task"),

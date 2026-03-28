@@ -119,6 +119,17 @@ function normalizeLabelColor(value: unknown): string {
     : "var(--vscode-badge-background)";
 }
 
+function normalizeCatalogKeyList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => normalizeLabelKey(entry))
+    .filter((entry, index, values) => entry.length > 0 && values.indexOf(entry) === index);
+}
+
 function buildDefaultSections(timestamp: string): CockpitBoardSection[] {
   return DEFAULT_SECTIONS.map((section, index) => ({
     id: section.id,
@@ -220,19 +231,21 @@ function normalizeLabelDefinition(
 function buildLabelCatalog(
   cards: CockpitTodoCard[],
   existingCatalog: unknown,
+  deletedKeys: string[] = [],
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
+  const deletedKeySet = new Set(deletedKeys);
   const entries = Array.isArray(existingCatalog)
     ? existingCatalog
         .map((entry, index) => normalizeLabelDefinition(entry, index))
-        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
+        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry) && !deletedKeySet.has(entry.key))
     : [];
   const catalog = new Map(entries.map((entry) => [entry.key, entry]));
 
   for (const card of cards) {
     for (const label of card.labels) {
       const key = normalizeLabelKey(label);
-      if (!key || catalog.has(key)) {
+      if (!key || catalog.has(key) || deletedKeySet.has(key)) {
         continue;
       }
       catalog.set(key, {
@@ -260,12 +273,14 @@ const DEFAULT_FLAG_SEEDS: { name: string; color: string }[] = [
 function buildFlagCatalog(
   cards: CockpitTodoCard[],
   existingCatalog: unknown,
+  deletedKeys: string[] = [],
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
+  const deletedKeySet = new Set(deletedKeys);
   const entries = Array.isArray(existingCatalog)
     ? existingCatalog
         .map((entry, index) => normalizeLabelDefinition(entry, index))
-        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
+        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry) && !deletedKeySet.has(entry.key))
     : [];
   const catalog = new Map(entries.map((entry) => [entry.key, entry]));
 
@@ -275,7 +290,7 @@ function buildFlagCatalog(
       continue;
     }
     const key = normalizeLabelKey(flag);
-    if (!key || catalog.has(key)) {
+    if (!key || catalog.has(key) || deletedKeySet.has(key)) {
       continue;
     }
     catalog.set(key, {
@@ -289,7 +304,7 @@ function buildFlagCatalog(
 
   for (const seed of DEFAULT_FLAG_SEEDS) {
     const key = normalizeLabelKey(seed.name);
-    if (key && !catalog.has(key)) {
+    if (key && !catalog.has(key) && !deletedKeySet.has(key)) {
       catalog.set(key, {
         name: seed.name,
         key,
@@ -406,7 +421,9 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
     sections: buildDefaultSections(timestamp),
     cards: [],
     labelCatalog: [],
+    deletedLabelCatalogKeys: [],
     flagCatalog: [],
+    deletedFlagCatalogKeys: [],
     archives: {
       completedSuccessfully: [],
       rejected: [],
@@ -446,13 +463,17 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   );
   const archivedRejected = normalizeArchivedCards(archivesRecord?.rejected);
   const allCards = [...cards, ...archivedCompleted, ...archivedRejected];
+  const deletedLabelCatalogKeys = normalizeCatalogKeyList(record.deletedLabelCatalogKeys);
+  const deletedFlagCatalogKeys = normalizeCatalogKeyList(record.deletedFlagCatalogKeys);
 
   return {
     version: Number.isFinite(Number(record.version)) ? Math.max(2, Math.floor(Number(record.version))) : 2,
     sections: ensureUnsortedSection(sections, timestamp),
     cards,
-    labelCatalog: buildLabelCatalog(allCards, record.labelCatalog),
-    flagCatalog: buildFlagCatalog(allCards, record.flagCatalog),
+    labelCatalog: buildLabelCatalog(allCards, record.labelCatalog, deletedLabelCatalogKeys),
+    deletedLabelCatalogKeys,
+    flagCatalog: buildFlagCatalog(allCards, record.flagCatalog, deletedFlagCatalogKeys),
+    deletedFlagCatalogKeys,
     archives: {
       completedSuccessfully: archivedCompleted,
       rejected: archivedRejected,

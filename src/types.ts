@@ -387,8 +387,14 @@ export interface CockpitBoard {
   /** Shared label palette for autocomplete and consistent colors */
   labelCatalog?: CockpitLabelDefinition[];
 
+  /** Deleted label keys that should stay hidden even if older cards still reference them */
+  deletedLabelCatalogKeys?: string[];
+
   /** Flag palette for single-value agent-state chips */
   flagCatalog?: CockpitLabelDefinition[];
+
+  /** Deleted flag keys that should stay hidden even if older cards still reference them */
+  deletedFlagCatalogKeys?: string[];
 
   /** Archived cards grouped by outcome */
   archives?: {
@@ -1332,6 +1338,8 @@ export type WebviewToExtensionMessage =
   | { type: "requestDeleteJobTask"; jobId: string; nodeId: string }
   | { type: "requestRenameJobPause"; jobId: string; nodeId: string }
   | { type: "requestDeleteJobPause"; jobId: string; nodeId: string }
+  | { type: "requestDeleteTodoLabelDefinition"; data: { name: string } }
+  | { type: "requestDeleteTodoFlagDefinition"; data: { name: string } }
   | { type: "createJobPause"; jobId: string; data: CreateJobPauseInput }
   | {
     type: "createJobTask";

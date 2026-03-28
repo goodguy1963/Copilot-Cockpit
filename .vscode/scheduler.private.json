@@ -161,15 +161,15 @@
                 "name": "dfffd",
                 "key": "dfffd",
                 "color": "#4f8cff",
-                "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T23:07:57.963Z"
+                "createdAt": "2026-03-28T09:21:37.794Z",
+                "updatedAt": "2026-03-28T09:34:54.825Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
-                "color": "#f1a2a2",
+                "color": "#4f8cff",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-27T23:08:03.798Z"
+                "updatedAt": "2026-03-28T09:34:50.466Z"
             },
             {
                 "name": "scheduled-task",
@@ -179,6 +179,7 @@
                 "updatedAt": "2026-03-27T23:08:05.400Z"
             }
         ],
+        "deletedLabelCatalogKeys": [],
         "flagCatalog": [
             {
                 "name": "GO",
@@ -205,8 +206,8 @@
                 "name": "NEW",
                 "key": "new",
                 "color": "#a78bfa",
-                "createdAt": "2026-03-27T23:05:28.048Z",
-                "updatedAt": "2026-03-27T23:05:28.048Z"
+                "createdAt": "2026-03-28T09:21:44.331Z",
+                "updatedAt": "2026-03-28T09:21:44.331Z"
             },
             {
                 "name": "task-disabled",
@@ -223,6 +224,7 @@
                 "updatedAt": "2026-03-27T23:05:49.909Z"
             }
         ],
+        "deletedFlagCatalogKeys": [],
         "archives": {
             "completedSuccessfully": [],
             "rejected": []
@@ -237,6 +239,6 @@
             "sortDirection": "asc",
             "showArchived": false
         },
-        "updatedAt": "2026-03-27T23:42:14.813Z"
+        "updatedAt": "2026-03-28T09:34:54.825Z"
     }
 }

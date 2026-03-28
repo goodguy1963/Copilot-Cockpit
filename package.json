@@ -176,6 +176,7 @@
         "copilotCockpit.language": {
           "type": "string",
           "default": "auto",
+          "scope": "resource",
           "enum": [
             "auto",
             "en",

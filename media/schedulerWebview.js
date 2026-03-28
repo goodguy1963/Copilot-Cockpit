@@ -1168,6 +1168,15 @@
       : "var(--vscode-badge-background)";
   }
 
+  function reconcileTodoEditorCatalogState() {
+    if (currentTodoFlag && !getFlagDefinition(currentTodoFlag)) {
+      currentTodoFlag = "";
+    }
+    if (selectedTodoLabelName && !getLabelDefinition(selectedTodoLabelName)) {
+      selectedTodoLabelName = "";
+    }
+  }
+
   function getReadableTextColor(background) {
     var value = String(background || "").trim();
     if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
@@ -1241,7 +1250,8 @@
       var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
         + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
-        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
+        + '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
+        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
         + '</span>';
     }).join("");
   }
@@ -1386,8 +1396,8 @@
           var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
             + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
-            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;font-size:11px;opacity:0.55;line-height:1;padding:0 1px;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
-            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>'
+            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
+            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>'
             + '</span>';
         }).join("");
       }
@@ -2482,6 +2492,8 @@
         var deleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-delete]") : null;
         var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
         if (editBtn) {
+          event.preventDefault();
+          event.stopPropagation();
           var eName = editBtn.getAttribute("data-label-catalog-edit") || "";
           var eCatalog = getLabelCatalog();
           var eEntry = null;
@@ -2495,25 +2507,16 @@
           return;
         }
         if (deleteBtn) {
+          event.preventDefault();
+          event.stopPropagation();
           var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
           if (!name) return;
-          if (deleteBtn.getAttribute("data-confirming")) {
-            deleteBtn.removeAttribute("data-confirming");
-            deleteBtn.textContent = "×";
-            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: name } });
-          } else {
-            deleteBtn.setAttribute("data-confirming", "1");
-            deleteBtn.textContent = "?";
-            setTimeout(function () {
-              if (deleteBtn.getAttribute("data-confirming")) {
-                deleteBtn.removeAttribute("data-confirming");
-                deleteBtn.textContent = "×";
-              }
-            }, 2500);
-          }
+          vscode.postMessage({ type: "requestDeleteTodoLabelDefinition", data: { name: name } });
           return;
         }
         if (selectBtn) {
+          event.preventDefault();
+          event.stopPropagation();
           var name = selectBtn.getAttribute("data-label-catalog-select") || "";
           if (!name) return;
           // Add the label to the current todo directly (catalog only shows un-applied labels)
@@ -2545,6 +2548,8 @@
       }
       var catalogSelect = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-select]") : null;
       if (catalogSelect) {
+        event.preventDefault();
+        event.stopPropagation();
         var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
         if (!flagName) return;
         currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
@@ -2553,6 +2558,8 @@
       }
       var catalogEdit = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-edit]") : null;
       if (catalogEdit) {
+        event.preventDefault();
+        event.stopPropagation();
         var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
         var feCatalog = getFlagCatalog();
         var feEntry = null;
@@ -2569,25 +2576,11 @@
       }
       var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
       if (catalogDelete) {
+        event.preventDefault();
+        event.stopPropagation();
         var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
         if (!flagName) return;
-        if (catalogDelete.getAttribute("data-confirming")) {
-          catalogDelete.removeAttribute("data-confirming");
-          catalogDelete.textContent = "×";
-          if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(flagName)) {
-            currentTodoFlag = "";
-          }
-          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: flagName } });
-        } else {
-          catalogDelete.setAttribute("data-confirming", "1");
-          catalogDelete.textContent = "?";
-          setTimeout(function () {
-            if (catalogDelete.getAttribute("data-confirming")) {
-              catalogDelete.removeAttribute("data-confirming");
-              catalogDelete.textContent = "×";
-            }
-          }, 2500);
-        }
+        vscode.postMessage({ type: "requestDeleteTodoFlagDefinition", data: { name: flagName } });
       }
     });
   }
@@ -5749,7 +5742,9 @@
             updatedAt: "",
           };
           renderCockpitBoard();
+          reconcileTodoEditorCatalogState();
           syncFlagEditor();
+          syncTodoLabelEditor();
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)
