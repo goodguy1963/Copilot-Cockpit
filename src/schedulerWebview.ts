@@ -28,10 +28,19 @@ import type {
   WebviewToExtensionMessage,
 } from "./types";
 import { CopilotExecutor } from "./copilotExecutor";
-import { messages, isJapanese, getCronPresets } from "./i18n";
+import {
+  messages,
+  getConfiguredLanguage,
+  getCurrentLanguage,
+  getCurrentLocaleTag,
+  getCronPresets,
+} from "./i18n";
 import { logError } from "./logger";
 import { validateTemplateLoadRequest } from "./templateValidation";
-import { getCompatibleConfigurationValue } from "./extensionCompat";
+import {
+  getCompatibleConfigurationValue,
+  updateCompatibleConfigurationValue,
+} from "./extensionCompat";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
@@ -784,6 +793,20 @@ export class SchedulerWebview {
     message: WebviewToExtensionMessage,
   ): Promise<void> {
     switch (message.type) {
+      case "setLanguage": {
+        const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
+        const target = scope
+          ? vscode.ConfigurationTarget.WorkspaceFolder
+          : vscode.ConfigurationTarget.Global;
+        await updateCompatibleConfigurationValue(
+          "language",
+          message.language,
+          target,
+          scope,
+        );
+        break;
+      }
+
       case "requestCreateJob":
         await this.handleCreateJobRequest(message.folderId);
         break;
@@ -1790,7 +1813,18 @@ export class SchedulerWebview {
     promptTemplates: PromptTemplate[],
   ): string {
     const nonce = this.getNonce();
-    const isJa = isJapanese();
+    const uiLanguage = getCurrentLanguage();
+    const configuredLanguage = getConfiguredLanguage();
+    const localize = (en: string, ja: string, de = en): string => {
+      switch (uiLanguage) {
+        case "ja":
+          return ja;
+        case "de":
+          return de;
+        default:
+          return en;
+      }
+    };
     const presets = getCronPresets();
     const defaultScope = getCompatibleConfigurationValue<TaskScope>(
       "defaultScope",
@@ -1824,13 +1858,24 @@ export class SchedulerWebview {
     // Localized strings
     const strings = {
       title: messages.webviewTitle(),
-      tabTodoEditor: "Create Todo",
-      tabTaskEditor: "Create Task",
+      tabTodoEditor: localize("Create Todo", "Todo を作成", "Todo erstellen"),
+      tabTaskEditor: localize("Create Task", "タスクを作成", "Task erstellen"),
       tabCreate: messages.tabCreate(),
       tabEdit: messages.tabEdit(),
       tabList: messages.tabList(),
       tabHowTo: messages.tabHowTo(),
       tabHelpGlyph: "?",
+      helpLanguageTitle: localize("Language", "言語", "Sprache"),
+      helpLanguageBody: localize(
+        "Change the cockpit language here. This updates the same workspace setting used in VS Code Settings.",
+        "ここで Cockpit の言語を変更できます。VS Code の設定で使われる同じワークスペース設定を更新します。",
+        "Hier können Sie die Sprache des Cockpit ändern. Dadurch wird dieselbe Workspace-Einstellung aktualisiert, die auch in den VS Code-Einstellungen verwendet wird.",
+      ),
+      helpLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
+      helpLanguageAuto: localize("Auto-detect from VS Code", "VS Codeから自動検出", "Automatisch aus VS Code erkennen"),
+      helpLanguageEnglish: localize("English", "英語", "Englisch"),
+      helpLanguageJapanese: localize("Japanese", "日本語", "Japanisch"),
+      helpLanguageGerman: localize("German", "ドイツ語", "Deutsch"),
       helpIntroTitle: messages.helpIntroTitle(),
       helpIntroBody: messages.helpIntroBody(),
       helpCreateTitle: messages.helpCreateTitle(),
@@ -1866,8 +1911,8 @@ export class SchedulerWebview {
       helpMcpItemWrite: messages.helpMcpItemWrite(),
       helpMcpItemTools: messages.helpMcpItemTools(),
       helpJobsTitle: messages.helpJobsTitle(),
-      tabBoard: "Todo Cockpit",
-      tabResearch: "Research",
+      tabBoard: localize("Todo Cockpit", "Todo Cockpit", "Todo Cockpit"),
+      tabResearch: localize("Research", "Research", "Research"),
       helpJobsItemBoard: messages.helpJobsItemBoard(),
       helpJobsItemPause: messages.helpJobsItemPause(),
       helpJobsItemCompile: messages.helpJobsItemCompile(),
@@ -1878,139 +1923,177 @@ export class SchedulerWebview {
       helpResearchItemProfiles: messages.helpResearchItemProfiles(),
       helpResearchItemBounds: messages.helpResearchItemBounds(),
       helpResearchItemHistory: messages.helpResearchItemHistory(),
-      tabTelegram: "Settings",
-      telegramTitle: "Telegram Notifications",
-      telegramDescription:
+      tabTelegram: localize("Settings", "設定", "Einstellungen"),
+      telegramTitle: localize("Telegram Notifications", "Telegram 通知", "Telegram-Benachrichtigungen"),
+      telegramDescription: localize(
         "Configure a repo-local Stop hook that sends the last assistant reply to your Telegram bot.",
-      telegramEnable: "Enable Telegram Stop notification",
-      telegramBotToken: "Bot token",
+        "最後のアシスタント返信を Telegram bot へ送る、リポジトリローカルの Stop hook を設定します。",
+        "Konfigurieren Sie einen repository-lokalen Stop hook, der die letzte Assistant-Antwort an Ihren Telegram bot sendet.",
+      ),
+      telegramEnable: localize("Enable Telegram Stop notification", "Telegram Stop 通知を有効化", "Telegram-Stop-Benachrichtigung aktivieren"),
+      telegramBotToken: localize("Bot token", "Bot token", "Bot token"),
       telegramBotTokenPlaceholder: "123456:ABCDEF...",
-      telegramBotTokenHelp:
+      telegramBotTokenHelp: localize(
         "Stored only in .vscode/scheduler.private.json. Leave blank to keep the currently saved token.",
-      telegramChatId: "Chat ID",
+        ".vscode/scheduler.private.json にのみ保存されます。現在保存されている token を維持する場合は空欄のままにしてください。",
+        "Wird nur in .vscode/scheduler.private.json gespeichert. Leer lassen, um das aktuell gespeicherte token beizubehalten.",
+      ),
+      telegramChatId: localize("Chat ID", "Chat ID", "Chat-ID"),
       telegramChatIdPlaceholder: "123456789 or -100...",
-      telegramMessagePrefix: "Message prefix",
-      telegramMessagePrefixPlaceholder: "Optional short header shown above the last assistant reply.",
-      telegramSave: "Save Telegram Settings",
-      telegramTest: "Send Test Message",
-      telegramSavedToken: "Bot token stored privately",
-      telegramMissingToken: "No bot token saved yet",
-      telegramHookReady: "Stop hook configured",
-      telegramHookMissing: "Stop hook files not configured",
-      telegramUpdatedAt: "Last updated",
-      telegramWorkspaceNote:
+      telegramMessagePrefix: localize("Message prefix", "メッセージ接頭辞", "Nachrichtenpräfix"),
+      telegramMessagePrefixPlaceholder: localize("Optional short header shown above the last assistant reply.", "最後のアシスタント返信の上に表示される任意の短いヘッダーです。", "Optionaler kurzer Kopftext oberhalb der letzten Assistant-Antwort."),
+      telegramSave: localize("Save Telegram Settings", "Telegram 設定を保存", "Telegram-Einstellungen speichern"),
+      telegramTest: localize("Send Test Message", "テストメッセージを送信", "Testnachricht senden"),
+      telegramSavedToken: localize("Bot token stored privately", "Bot token は非公開で保存済み", "Bot token privat gespeichert"),
+      telegramMissingToken: localize("No bot token saved yet", "Bot token はまだ保存されていません", "Noch kein bot token gespeichert"),
+      telegramHookReady: localize("Stop hook configured", "Stop hook は設定済み", "Stop hook konfiguriert"),
+      telegramHookMissing: localize("Stop hook files not configured", "Stop hook ファイルは未設定", "Stop hook-Dateien nicht konfiguriert"),
+      telegramUpdatedAt: localize("Last updated", "最終更新", "Zuletzt aktualisiert"),
+      telegramWorkspaceNote: localize(
         "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.",
-      telegramValidationChatId: "Telegram chat ID is required.",
-      telegramValidationBotToken: "Telegram bot token is required.",
-      telegramStatusSaved:
+        "hook ファイルは .github/hooks 配下に生成され、秘密情報は .vscode/scheduler.private.json から読み取ります。",
+        "Die hook-Dateien werden unter .github/hooks erzeugt und lesen Geheimnisse aus .vscode/scheduler.private.json.",
+      ),
+      telegramValidationChatId: localize("Telegram chat ID is required.", "Telegram chat ID が必要です。", "Eine Telegram chat ID ist erforderlich."),
+      telegramValidationBotToken: localize("Telegram bot token is required.", "Telegram bot token が必要です。", "Ein Telegram bot token ist erforderlich."),
+      telegramStatusSaved: localize(
         "Settings are repo-local. Save after changing chat ID, prefix, or token.",
-      executionDefaultsTitle: "Execution Defaults",
-      executionDefaultsDescription:
+        "設定はリポジトリローカルです。chat ID、prefix、token を変更した後は保存してください。",
+        "Die Einstellungen sind repository-lokal. Speichern Sie nach Änderungen an chat ID, prefix oder token.",
+      ),
+      executionDefaultsTitle: localize("Execution Defaults", "実行デフォルト", "Ausführungsstandards"),
+      executionDefaultsDescription: localize(
         "These workspace settings apply when a task, job step, research profile, or test run leaves agent or model empty.",
-      executionDefaultsAgent: "Default agent",
-      executionDefaultsModel: "Default model",
-      executionDefaultsSave: "Save Defaults",
-      executionDefaultsSaved: "Workspace default agent and model settings.",
-      boardTitle: "Todo Cockpit",
-      boardDescription:
+        "これらのワークスペース設定は、task、job step、research profile、test run で agent または model が空欄のときに適用されます。",
+        "Diese Workspace-Einstellungen gelten, wenn ein task, job step, research profile oder test run agent oder model leer lässt.",
+      ),
+      executionDefaultsAgent: localize("Default agent", "デフォルト agent", "Standard-agent"),
+      executionDefaultsModel: localize("Default model", "デフォルト model", "Standard-model"),
+      executionDefaultsSave: localize("Save Defaults", "デフォルトを保存", "Defaults speichern"),
+      executionDefaultsSaved: localize("Workspace default agent and model settings.", "ワークスペースのデフォルト agent / model 設定です。", "Workspace-Standardeinstellungen für agent und model."),
+      boardTitle: localize("Todo Cockpit", "Todo Cockpit", "Todo Cockpit"),
+      boardDescription: localize(
         "Local-only planning and approval workspace. Todos stay distinct from scheduled tasks, while existing task drafts also surface here under Unsorted.",
-      boardEmpty: "No todos yet. Create one here or let existing scheduled tasks appear under Unsorted.",
-      boardSections: "Sections",
-      boardCards: "Cards",
-      boardComments: "Comments",
-      boardPrivacyNote:
+        "ローカル専用の計画・承認ワークスペースです。Todo は scheduled tasks と分離されたまま保持され、既存の task drafts も Unsorted に表示されます。",
+        "Ein lokaler Bereich für Planung und Freigabe. Todos bleiben von scheduled tasks getrennt, während vorhandene task drafts hier ebenfalls unter Unsorted erscheinen.",
+      ),
+      boardEmpty: localize("No todos yet. Create one here or let existing scheduled tasks appear under Unsorted.", "まだ Todo はありません。ここで作成するか、既存の scheduled tasks を Unsorted に表示させてください。", "Noch keine Todos. Erstellen Sie hier eins oder lassen Sie vorhandene scheduled tasks unter Unsorted erscheinen."),
+      boardSections: localize("Sections", "セクション", "Bereiche"),
+      boardCards: localize("Cards", "カード", "Karten"),
+      boardComments: localize("Comments", "コメント", "Kommentare"),
+      boardPrivacyNote: localize(
         "Todo Cockpit state is kept only in .vscode/scheduler.private.json so user-system planning stays local to this workspace.",
-      boardToolbarNew: "New Todo",
-      boardToolbarClear: "Clear Selection",
-      boardSearchLabel: "Search",
-      boardSearchPlaceholder: "Search title, description, labels, comments",
-      boardSortLabel: "Sort",
-      boardSectionFilterLabel: "Section",
-      boardLabelFilterLabel: "Label",
-      boardPriorityFilterLabel: "Priority",
-      boardStatusFilterLabel: "Status",
-      boardArchiveOutcomeFilterLabel: "Archive outcome",
-      boardShowArchived: "Show archived",
-      boardAllSections: "All sections",
-      boardAllLabels: "All labels",
-      boardAllPriorities: "All priorities",
-      boardAllStatuses: "All statuses",
-      boardAllArchiveOutcomes: "All outcomes",
-      boardSortManual: "Manual order",
-      boardSortDueAt: "Due date",
-      boardSortPriority: "Priority",
-      boardSortUpdatedAt: "Last updated",
-      boardSortCreatedAt: "Created date",
-      boardSortAsc: "Ascending",
-      boardSortDesc: "Descending",
-      boardDetailTitleCreate: "Create Todo",
-      boardDetailTitleEdit: "Edit Todo",
-      boardDetailModeCreate: "Fill the form to create a new Todo Cockpit item.",
-      boardDetailModeEdit: "Update fields, manage labels, and move the item through approval, completion, or rejection.",
-      boardFieldTitle: "Title",
-      boardFieldDescription: "Description",
-      boardFieldDueAt: "Due date",
-      boardFieldSection: "Section",
-      boardFieldPriority: "Priority",
-      boardFieldLabels: "Labels",
-      boardFieldFlags: "Flag (agent state)",
-      boardFlagAdd: "Add Flag",
-      boardFlagClear: "Clear",
-      boardFlagCatalogHint: "Click a flag to set it. Only one flag at a time.",
-      boardFieldLinkedTask: "Linked scheduled task",
-      boardLinkedTaskNone: "No linked task",
-      boardSaveCreate: "Create Todo",
-      boardSaveUpdate: "Save Todo",
-      boardAddComment: "Add Comment",
-      boardCreateTask: "Create Task Draft",
-      boardApproveTodo: "Approve",
-      boardFinalizeTodo: "Final Accept",
-      boardDeleteTodo: "Delete Todo",
-      boardDeleteTodoHelp: "Reject and archive this todo.",
-      boardReadOnlyArchived: "Archived items are read-only. Toggle archived visibility to review outcomes and history.",
-      boardReadyForTask: "Approved items can become scheduled task drafts or be final accepted.",
-      boardCommentsTitle: "Comments",
-      boardCommentsEmpty: "No comments yet.",
-      boardCommentPlaceholder: "Add a comment with context, provenance, or approval notes...",
-      boardCommentSourceHumanForm: "Human form",
-      boardCommentSourceBotMcp: "Bot MCP",
-      boardCommentSourceBotManual: "Bot manual",
-      boardCommentSourceSystemEvent: "System event",
-      boardTaskDraftNote: "Scheduled tasks are downstream execution artifacts. Creating a task draft here does not replace the todo.",
-      boardDueLabel: "Due",
-      boardTaskMissing: "Linked task not found in Task List.",
-      boardTaskLinked: "Linked task",
-      boardStatusLabel: "Status",
-      boardStatusActive: "Active",
-      boardStatusReady: "Ready",
-      boardStatusCompleted: "Completed",
-      boardStatusRejected: "Rejected",
-      boardArchiveCompletedSuccessfully: "Completed successfully",
-      boardArchiveRejected: "Rejected",
-      boardLatestComment: "Latest comment",
-      boardLabelInputPlaceholder: "Type a label and press Enter",
-      boardLabelAdd: "Add",
-      boardLabelSaveColor: "Save Color",
-      boardLabelHint: "Click a chip to target its shared color. Press Enter to add more labels.",
-      boardNoLinkedTask: "No linked task yet",
-      boardLinkedTaskShort: "Linked",
-      boardDescriptionPreviewEmpty: "No description yet.",
-      boardEditTodo: "Open Editor",
-      boardBackToCockpit: "Back to Cockpit",
-      boardPriorityNone: "None",
-      boardPriorityLow: "Low",
-      boardPriorityMedium: "Medium",
-      boardPriorityHigh: "High",
-      boardPriorityUrgent: "Urgent",
-      boardDropHint: "Drag between columns to reorder or move todos.",
+        "Todo Cockpit の状態は .vscode/scheduler.private.json にのみ保存され、ユーザーとシステムの計画情報はこのワークスペースにローカルなまま保持されます。",
+        "Der Zustand des Todo Cockpit wird nur in .vscode/scheduler.private.json gespeichert, damit die Planung zwischen Benutzer und System lokal in diesem Workspace bleibt.",
+      ),
+      boardToolbarNew: localize("New Todo", "新しい Todo", "Neues Todo"),
+      boardToolbarClear: localize("Clear Selection", "選択をクリア", "Auswahl aufheben"),
+      boardSearchLabel: localize("Search", "検索", "Suche"),
+      boardSearchPlaceholder: localize("Search title, description, labels, comments", "タイトル、説明、ラベル、コメントを検索", "Titel, Beschreibung, Labels und Kommentare durchsuchen"),
+      boardSortLabel: localize("Sort", "並び替え", "Sortieren"),
+      boardSectionFilterLabel: localize("Section", "セクション", "Bereich"),
+      boardLabelFilterLabel: localize("Label", "ラベル", "Label"),
+      boardPriorityFilterLabel: localize("Priority", "優先度", "Priorität"),
+      boardStatusFilterLabel: localize("Status", "ステータス", "Status"),
+      boardArchiveOutcomeFilterLabel: localize("Archive outcome", "アーカイブ結果", "Archiv-Ergebnis"),
+      boardShowArchived: localize("Show archived", "アーカイブを表示", "Archivierte anzeigen"),
+      boardAllSections: localize("All sections", "すべてのセクション", "Alle Bereiche"),
+      boardAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
+      boardAllPriorities: localize("All priorities", "すべての優先度", "Alle Prioritäten"),
+      boardAllStatuses: localize("All statuses", "すべてのステータス", "Alle Status"),
+      boardAllArchiveOutcomes: localize("All outcomes", "すべての結果", "Alle Ergebnisse"),
+      boardSortManual: localize("Manual order", "手動順", "Manuelle Reihenfolge"),
+      boardSortDueAt: localize("Due date", "期限", "Fälligkeitsdatum"),
+      boardSortPriority: localize("Priority", "優先度", "Priorität"),
+      boardSortUpdatedAt: localize("Last updated", "最終更新", "Zuletzt aktualisiert"),
+      boardSortCreatedAt: localize("Created date", "作成日", "Erstellt am"),
+      boardSortAsc: localize("Ascending", "昇順", "Aufsteigend"),
+      boardSortDesc: localize("Descending", "降順", "Absteigend"),
+      boardDetailTitleCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
+      boardDetailTitleEdit: localize("Edit Todo", "Todo を編集", "Todo bearbeiten"),
+      boardDetailModeCreate: localize("Fill the form to create a new Todo Cockpit item.", "フォームに入力して新しい Todo Cockpit 項目を作成します。", "Füllen Sie das Formular aus, um ein neues Todo Cockpit-Element zu erstellen."),
+      boardDetailModeEdit: localize("Update fields, manage labels, and move the item through approval, completion, or rejection.", "フィールドを更新し、ラベルを管理し、承認・完了・却下の流れで項目を進めます。", "Aktualisieren Sie Felder, verwalten Sie Labels und bewegen Sie das Element durch Freigabe, Abschluss oder Ablehnung."),
+      boardFieldTitle: localize("Title", "タイトル", "Titel"),
+      boardFieldDescription: localize("Description", "説明", "Beschreibung"),
+      boardFieldDueAt: localize("Due date", "期限", "Fälligkeitsdatum"),
+      boardFieldSection: localize("Section", "セクション", "Bereich"),
+      boardFieldPriority: localize("Priority", "優先度", "Priorität"),
+      boardFieldLabels: localize("Labels", "ラベル", "Labels"),
+      boardFieldFlags: localize("Flag (agent state)", "Flag（agent state）", "Flag (agent state)"),
+      boardFlagAdd: localize("Add Flag", "Flag を追加", "Flag hinzufügen"),
+      boardFlagClear: localize("Clear", "クリア", "Leeren"),
+      boardFlagClearTitle: localize("Clear flag", "Flag をクリア", "Flag entfernen"),
+      boardFlagCatalogHint: localize("Click a flag to set it. Only one flag at a time.", "Flag をクリックして設定します。一度に 1 つだけ設定できます。", "Klicken Sie auf ein Flag, um es zu setzen. Es kann jeweils nur ein Flag aktiv sein."),
+      boardFlagCatalogSelectTitle: localize("Set as flag", "Flag として設定", "Als Flag setzen"),
+      boardFlagCatalogEditTitle: localize("Edit flag", "Flag を編集", "Flag bearbeiten"),
+      boardFlagCatalogDeleteTitle: localize("Delete flag", "Flag を削除", "Flag löschen"),
+      boardFieldLinkedTask: localize("Linked scheduled task", "リンクされた scheduled task", "Verknüpfter scheduled task"),
+      boardLinkedTaskNone: localize("No linked task", "リンクされた task はありません", "Kein verknüpfter task"),
+      boardSaveCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
+      boardSaveUpdate: localize("Save Todo", "Todo を保存", "Todo speichern"),
+      boardAddComment: localize("Add Comment", "コメントを追加", "Kommentar hinzufügen"),
+      boardCreateTask: localize("Create Task Draft", "Task Draft を作成", "Task Draft erstellen"),
+      boardApproveTodo: localize("Approve", "承認", "Freigeben"),
+      boardFinalizeTodo: localize("Final Accept", "最終承認", "Final akzeptieren"),
+      boardDeleteTodo: localize("Delete Todo", "Todo を削除", "Todo löschen"),
+      boardDeleteTodoHelp: localize("Reject and archive this todo.", "この Todo を却下してアーカイブします。", "Dieses Todo ablehnen und archivieren."),
+      boardReadOnlyArchived: localize("Archived items are read-only. Toggle archived visibility to review outcomes and history.", "アーカイブ済み項目は読み取り専用です。アーカイブ表示を切り替えて結果と履歴を確認してください。", "Archivierte Elemente sind schreibgeschützt. Blenden Sie archivierte Elemente ein, um Ergebnisse und Verlauf zu prüfen."),
+      boardReadyForTask: localize("Approved items can become scheduled task drafts or be final accepted.", "承認済み項目は scheduled task drafts にするか、最終承認できます。", "Freigegebene Elemente können zu scheduled task drafts werden oder final akzeptiert werden."),
+      boardCommentsTitle: localize("Comments", "コメント", "Kommentare"),
+      boardCommentsEmpty: localize("No comments yet.", "まだコメントはありません。", "Noch keine Kommentare."),
+      boardCommentPlaceholder: localize("Add a comment with context, provenance, or approval notes...", "コンテキスト、provenance、承認メモを含むコメントを追加...", "Kommentar mit Kontext, provenance oder Freigabenotizen hinzufügen..."),
+      boardCommentSourceHumanForm: localize("Human form", "Human form", "Menschliches Formular"),
+      boardCommentSourceBotMcp: localize("Bot MCP", "Bot MCP", "Bot MCP"),
+      boardCommentSourceBotManual: localize("Bot manual", "Bot manual", "Bot manuell"),
+      boardCommentSourceSystemEvent: localize("System event", "System event", "Systemereignis"),
+      boardTaskDraftNote: localize("Scheduled tasks are downstream execution artifacts. Creating a task draft here does not replace the todo.", "Scheduled tasks は下流の実行成果物です。ここで task draft を作成しても todo 自体は置き換わりません。", "Scheduled tasks sind nachgelagerte Ausführungsartefakte. Wenn Sie hier einen task draft erstellen, ersetzt das nicht das Todo selbst."),
+      boardDueLabel: localize("Due", "期限", "Fällig"),
+      boardTaskMissing: localize("Linked task not found in Task List.", "リンクされた task は Task List に見つかりません。", "Verknüpfter task wurde in der Task List nicht gefunden."),
+      boardTaskLinked: localize("Linked task", "リンクされた task", "Verknüpfter task"),
+      boardStatusLabel: localize("Status", "ステータス", "Status"),
+      boardStatusActive: localize("Active", "アクティブ", "Aktiv"),
+      boardStatusReady: localize("Ready", "準備完了", "Bereit"),
+      boardStatusCompleted: localize("Completed", "完了", "Abgeschlossen"),
+      boardStatusRejected: localize("Rejected", "却下", "Abgelehnt"),
+      boardArchiveCompletedSuccessfully: localize("Completed successfully", "正常に完了", "Erfolgreich abgeschlossen"),
+      boardArchiveRejected: localize("Rejected", "却下", "Abgelehnt"),
+      boardLatestComment: localize("Latest comment", "最新コメント", "Neuester Kommentar"),
+      boardLabelInputPlaceholder: localize("Type a label and press Enter", "ラベルを入力して Enter を押してください", "Label eingeben und Enter drücken"),
+      boardLabelAdd: localize("Add", "追加", "Hinzufügen"),
+      boardLabelCatalogAddTitle: localize("Add to todo", "Todo に追加", "Zum Todo hinzufügen"),
+      boardLabelCatalogDeleteTitle: localize("Delete label", "Label を削除", "Label löschen"),
+      boardLabelSaveColor: localize("Save Color", "色を保存", "Farbe speichern"),
+      boardLabelHint: localize("Click a chip to target its shared color. Press Enter to add more labels.", "チップをクリックすると共有色を対象にできます。Enter でラベルを追加します。", "Klicken Sie auf ein Chip, um seine gemeinsame Farbe auszuwählen. Mit Enter fügen Sie weitere Labels hinzu."),
+      boardNoLinkedTask: localize("No linked task yet", "まだリンクされた task はありません", "Noch kein verknüpfter task"),
+      boardLinkedTaskShort: localize("Linked", "Linked", "Verknüpft"),
+      boardDescriptionPreviewEmpty: localize("No description yet.", "まだ説明はありません。", "Noch keine Beschreibung."),
+      boardSectionCollapse: localize("Collapse section", "セクションを折りたたむ", "Bereich einklappen"),
+      boardSectionExpand: localize("Expand section", "セクションを展開", "Bereich ausklappen"),
+      boardSectionUntitled: localize("Section", "セクション", "Bereich"),
+      boardSectionRename: localize("Rename section", "セクション名を変更", "Bereich umbenennen"),
+      boardSectionDelete: localize("Delete section", "セクションを削除", "Bereich löschen"),
+      boardDeleteConfirm: localize("Delete?", "削除しますか？", "Löschen?"),
+      boardCardUntitled: localize("Untitled", "無題", "Ohne Titel"),
+      boardEditTodo: localize("Open Editor", "エディターを開く", "Editor öffnen"),
+      boardBackToCockpit: localize("Back to Cockpit", "Cockpit に戻る", "Zurück zum Cockpit"),
+      boardPriorityNone: localize("None", "なし", "Keine"),
+      boardPriorityLow: localize("Low", "低", "Niedrig"),
+      boardPriorityMedium: localize("Medium", "中", "Mittel"),
+      boardPriorityHigh: localize("High", "高", "Hoch"),
+      boardPriorityUrgent: localize("Urgent", "緊急", "Dringend"),
+      boardDropHint: localize("Drag between columns to reorder or move todos.", "列の間でドラッグして todo を並べ替えたり移動したりできます。", "Zwischen Spalten ziehen, um Todos neu anzuordnen oder zu verschieben."),
+      boardAddSection: localize("+ Add Section", "+ セクションを追加", "+ Bereich hinzufügen"),
+      boardSectionNamePlaceholder: localize("Section name...", "セクション名...", "Bereichsname..."),
+      commonAdd: localize("Add", "追加", "Hinzufügen"),
+      commonCancel: localize("Cancel", "キャンセル", "Abbrechen"),
       helpTipsTitle: messages.helpTipsTitle(),
       helpTipsItem1: messages.helpTipsItem1(),
       helpTipsItem2: messages.helpTipsItem2(),
       helpTipsItem3: messages.helpTipsItem3(),
       labelTaskName: messages.labelTaskName(),
-      tabJobsEditor: "Create / Edit Job",
-      tabJobs: "Jobs",
-      labelTaskLabels: "Labels",
+      tabJobsEditor: localize("Create / Edit Job", "Job を作成 / 編集", "Job erstellen / bearbeiten"),
+      tabJobs: localize("Jobs", "Jobs", "Jobs"),
+      labelTaskLabels: localize("Labels", "ラベル", "Labels"),
       placeholderTaskLabels: "marketing, finance, weekly",
       labelSkills: messages.labelSkills(),
       placeholderSelectSkill: messages.placeholderSelectSkill(),
@@ -2018,141 +2101,146 @@ export class SchedulerWebview {
       skillInsertNote: messages.skillInsertNote(),
       skillSentenceTemplate: messages.skillSentenceTemplate("{skill}"),
       actionSetupMcp: messages.mcpSetupAction(),
-      labelFilterByLabel: "Filter by label",
-      labelAllLabels: "All labels",
-      jobsTitle: "Jobs",
-      jobsFoldersTitle: "Folders",
-      jobsRootFolder: "All jobs",
-      jobsCurrentFolderLabel: "Current folder",
-      jobsCurrentFolderBadge: "Current",
-      jobsArchiveFolder: "Bundled Jobs",
-      jobsCreateFolder: "New Folder",
-      jobsCreateJob: "New Job",
-      jobsOpenEditor: "Open Editor",
-      jobsBackToJobs: "Back to Jobs",
-      jobsOverviewTitle: "Jobs Overview",
-      jobsOverviewNote: "Keep folders and job selection here, then open the dedicated editor tab when you want to change workflow details.",
-      taskEditorTitle: "Create / Edit Task",
-      taskEditorDescription: "Configure the prompt, schedule, and runtime behavior in a single compact view.",
-      taskEditorPromptTitle: "Prompt",
-      taskEditorScheduleTitle: "Schedule",
-      taskEditorRuntimeTitle: "Runtime",
-      taskEditorOptionsTitle: "Options",
-      taskEditorActionsTitle: "Actions",
-      taskEditorTestPrompt: "Test Prompt",
-      jobsRenameFolder: "Rename Folder",
-      jobsDeleteFolder: "Delete Folder",
-      jobsSelectJob: "Select a job to edit its workflow.",
-      jobsName: "Job name",
-      jobsCron: "Job schedule",
-      jobsFolder: "Folder",
-      jobsPaused: "Inactive",
-      jobsRunning: "Active",
-      jobsSave: "Save Job",
-      jobsDuplicate: "Duplicate Job",
-      jobsDelete: "Delete Job",
-      jobsPause: "Deactivate Job",
-      jobsResume: "Activate Job",
-      jobsCompile: "Compile To Task",
-      jobsHideSidebar: "Hide Sidebar",
-      jobsShowSidebar: "Show Sidebar",
-      jobsCompactTimeline: "Workflow timeline",
-      jobsTimelineEmpty: "No steps yet",
-      jobsToggleStatus: "Toggle active status",
-      jobsSteps: "Workflow steps",
-      jobsPauseTitle: "Pause checkpoints",
-      jobsCreatePause: "Create Pause",
-      jobsPauseName: "Pause title",
-      jobsPauseHelpText: "This checkpoint blocks downstream steps until you approve the previous result.",
-      jobsPauseWaiting: "Waiting for approval",
-      jobsPauseApproved: "Approved",
-      jobsPauseApprove: "Approve",
-      jobsPauseReject: "Reject and edit previous step",
-      jobsPauseDefaultTitle: "Manual review",
-      jobsArchivedBadge: "Archived",
-      jobsPauseEdit: "Edit",
-      jobsPauseDelete: "Delete",
-      jobsArchiveFolderBadge: "Bundled jobs",
-      jobsWindowMinutes: "Window (minutes)",
-      jobsAddExistingTask: "Add Existing Task",
-      jobsAttach: "Attach Task",
-      jobsStandaloneTasks: "Standalone tasks",
-      jobsAddNewStep: "Add New Step",
-      jobsCreateStep: "Create Step",
-      jobsStepName: "Step name",
-      jobsStepPrompt: "Step prompt",
-      jobsNoJobs: "No jobs in this folder yet.",
-      jobsNoFolders: "No folders yet.",
-      jobsNoStandaloneTasks: "No standalone tasks available.",
-      jobsEmptySteps: "This job has no steps yet.",
-      jobsDropHint: "Drag steps to reorder the timeline.",
-      researchTitle: "Benchmark Research",
-      researchProfilesTitle: "Profiles",
-      researchActiveRunTitle: "Run details",
-      researchHistoryTitle: "Recent runs",
-      researchEmptyProfiles: "No research profiles yet.",
-      researchEmptyRuns: "No research runs yet.",
-      researchNewProfile: "New Profile",
-      researchCreateProfile: "Create Profile",
-      researchSaveProfile: "Save Profile",
-      researchDuplicateProfile: "Duplicate Profile",
-      researchDeleteProfile: "Delete Profile",
-      researchStartRun: "Start Run",
-      researchStopRun: "Stop Run",
-      researchName: "Profile name",
-      researchInstructions: "Instructions",
-      researchInstructionsPlaceholder: "Describe the goal and the kind of focused edits Copilot should attempt.",
-      researchEditablePaths: "Editable files",
+      labelFilterByLabel: localize("Filter by label", "ラベルでフィルター", "Nach Label filtern"),
+      labelAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
+      jobsTitle: localize("Jobs", "Jobs", "Jobs"),
+      jobsFoldersTitle: localize("Folders", "フォルダー", "Ordner"),
+      jobsRootFolder: localize("All jobs", "すべての Jobs", "Alle Jobs"),
+      jobsCurrentFolderLabel: localize("Current folder", "現在のフォルダー", "Aktueller Ordner"),
+      jobsCurrentFolderBadge: localize("Current", "現在", "Aktuell"),
+      jobsArchiveFolder: localize("Bundled Jobs", "Bundled Jobs", "Gebündelte Jobs"),
+      jobsCreateFolder: localize("New Folder", "新しいフォルダー", "Neuer Ordner"),
+      jobsCreateJob: localize("New Job", "新しい Job", "Neuer Job"),
+      jobsOpenEditor: localize("Open Editor", "エディターを開く", "Editor öffnen"),
+      jobsBackToJobs: localize("Back to Jobs", "Jobs に戻る", "Zurück zu Jobs"),
+      jobsOverviewTitle: localize("Jobs Overview", "Jobs 概要", "Jobs-Überblick"),
+      jobsOverviewNote: localize("Keep folders and job selection here, then open the dedicated editor tab when you want to change workflow details.", "ここではフォルダーと job 選択を管理し、ワークフロー詳細を変更したいときに専用エディタータブを開きます。", "Verwalten Sie hier Ordner und Job-Auswahl und öffnen Sie dann den dedizierten Editor-Tab, wenn Sie Workflow-Details ändern möchten."),
+      jobsEditorDetailsTitle: localize("Job details", "Job の詳細", "Job-Details"),
+      jobsEditorDetailsNote: localize("Name the job, place it in a folder, and toggle whether it is active.", "Job に名前を付け、フォルダーに配置し、アクティブにするかどうかを切り替えます。", "Benennen Sie den Job, ordnen Sie ihn einem Ordner zu und schalten Sie um, ob er aktiv ist."),
+      jobsEditorScheduleNote: localize("Choose a preset, edit the cron expression, or use the friendly builder.", "プリセットを選択し、cron 式を編集するか、friendly builder を使います。", "Wählen Sie ein Preset, bearbeiten Sie den Cron-Ausdruck oder verwenden Sie den Friendly Builder."),
+      taskEditorTitle: localize("Create / Edit Task", "Task を作成 / 編集", "Task erstellen / bearbeiten"),
+      taskEditorDescription: localize("Configure the prompt, schedule, and runtime behavior in a single compact view.", "prompt、schedule、runtime の動作を 1 つのコンパクトなビューで設定します。", "Konfigurieren Sie prompt, schedule und runtime-Verhalten in einer kompakten Ansicht."),
+      taskEditorPromptTitle: localize("Prompt", "Prompt", "Prompt"),
+      taskEditorScheduleTitle: localize("Schedule", "Schedule", "Zeitplan"),
+      taskEditorRuntimeTitle: localize("Runtime", "Runtime", "Laufzeit"),
+      taskEditorOptionsTitle: localize("Options", "オプション", "Optionen"),
+      taskEditorActionsTitle: localize("Actions", "アクション", "Aktionen"),
+      taskEditorTestPrompt: localize("Test Prompt", "Prompt をテスト", "Prompt testen"),
+      jobsRenameFolder: localize("Rename Folder", "フォルダー名を変更", "Ordner umbenennen"),
+      jobsDeleteFolder: localize("Delete Folder", "フォルダーを削除", "Ordner löschen"),
+      jobsSelectJob: localize("Select a job to edit its workflow.", "workflow を編集する Job を選択してください。", "Wählen Sie einen Job aus, um seinen Workflow zu bearbeiten."),
+      jobsName: localize("Job name", "Job 名", "Job-Name"),
+      jobsCron: localize("Job schedule", "Job schedule", "Job-Zeitplan"),
+      jobsFolder: localize("Folder", "フォルダー", "Ordner"),
+      jobsPaused: localize("Inactive", "非アクティブ", "Inaktiv"),
+      jobsRunning: localize("Active", "アクティブ", "Aktiv"),
+      jobsSave: localize("Save Job", "Job を保存", "Job speichern"),
+      jobsDuplicate: localize("Duplicate Job", "Job を複製", "Job duplizieren"),
+      jobsDelete: localize("Delete Job", "Job を削除", "Job löschen"),
+      jobsPause: localize("Deactivate Job", "Job を非アクティブ化", "Job deaktivieren"),
+      jobsResume: localize("Activate Job", "Job を有効化", "Job aktivieren"),
+      jobsCompile: localize("Compile To Task", "Compile To Task", "Zu Task kompilieren"),
+      jobsHideSidebar: localize("Hide Sidebar", "サイドバーを隠す", "Sidebar ausblenden"),
+      jobsShowSidebar: localize("Show Sidebar", "サイドバーを表示", "Sidebar anzeigen"),
+      jobsCompactTimeline: localize("Workflow timeline", "workflow タイムライン", "Workflow-Zeitleiste"),
+      jobsTimelineEmpty: localize("No steps yet", "まだステップはありません", "Noch keine Schritte"),
+      jobsToggleStatus: localize("Toggle active status", "アクティブ状態を切り替え", "Aktiv-Status umschalten"),
+      jobsSteps: localize("Workflow steps", "workflow ステップ", "Workflow-Schritte"),
+      jobsPauseTitle: localize("Pause checkpoints", "Pause checkpoints", "Pause Checkpoints"),
+      jobsCreatePause: localize("Create Pause", "Pause を作成", "Pause erstellen"),
+      jobsPauseName: localize("Pause title", "Pause タイトル", "Pause-Titel"),
+      jobsPauseHelpText: localize("This checkpoint blocks downstream steps until you approve the previous result.", "この checkpoint は、前の結果を承認するまで downstream steps をブロックします。", "Dieser checkpoint blockiert nachgelagerte Schritte, bis Sie das vorherige Ergebnis freigeben."),
+      jobsPauseWaiting: localize("Waiting for approval", "承認待ち", "Wartet auf Freigabe"),
+      jobsPauseApproved: localize("Approved", "承認済み", "Freigegeben"),
+      jobsPauseApprove: localize("Approve", "承認", "Freigeben"),
+      jobsPauseReject: localize("Reject and edit previous step", "却下して前のステップを編集", "Ablehnen und vorherigen Schritt bearbeiten"),
+      jobsPauseDefaultTitle: localize("Manual review", "手動レビュー", "Manuelle Prüfung"),
+      jobsPausePrefix: localize("Pause", "Pause", "Pause"),
+      jobsArchivedBadge: localize("Archived", "アーカイブ済み", "Archiviert"),
+      jobsPauseEdit: localize("Edit", "編集", "Bearbeiten"),
+      jobsPauseDelete: localize("Delete", "削除", "Löschen"),
+      jobsArchiveFolderBadge: localize("Bundled jobs", "Bundled jobs", "Gebündelte Jobs"),
+      jobsWindowMinutes: localize("Window (minutes)", "ウィンドウ（分）", "Fenster (Minuten)"),
+      jobsAddExistingTask: localize("Add Existing Task", "既存の Task を追加", "Vorhandenen Task hinzufügen"),
+      jobsAttach: localize("Attach Task", "Task を接続", "Task anhängen"),
+      jobsStandaloneTasks: localize("Standalone tasks", "単独の tasks", "Standalone-Tasks"),
+      jobsAddNewStep: localize("Add New Step", "新しいステップを追加", "Neuen Schritt hinzufügen"),
+      jobsCreateStep: localize("Create Step", "ステップを作成", "Schritt erstellen"),
+      jobsStepPrefix: localize("Step", "ステップ", "Schritt"),
+      jobsStepName: localize("Step name", "ステップ名", "Schrittname"),
+      jobsStepPrompt: localize("Step prompt", "ステップ prompt", "Schritt-Prompt"),
+      jobsNoJobs: localize("No jobs in this folder yet.", "このフォルダーにはまだ Jobs がありません。", "In diesem Ordner gibt es noch keine Jobs."),
+      jobsNoFolders: localize("No folders yet.", "まだフォルダーはありません。", "Noch keine Ordner."),
+      jobsNoStandaloneTasks: localize("No standalone tasks available.", "利用可能な standalone tasks はありません。", "Keine Standalone-Tasks verfügbar."),
+      jobsEmptySteps: localize("This job has no steps yet.", "この Job にはまだステップがありません。", "Dieser Job hat noch keine Schritte."),
+      jobsDropHint: localize("Drag steps to reorder the timeline.", "ステップをドラッグしてタイムラインを並べ替えます。", "Ziehen Sie Schritte, um die Zeitleiste neu anzuordnen."),
+      researchTitle: localize("Benchmark Research", "Benchmark Research", "Benchmark-Research"),
+      researchProfilesTitle: localize("Profiles", "プロファイル", "Profile"),
+      researchActiveRunTitle: localize("Run details", "実行詳細", "Laufdetails"),
+      researchHistoryTitle: localize("Recent runs", "最近の実行", "Letzte Läufe"),
+      researchEmptyProfiles: localize("No research profiles yet.", "まだ research profiles はありません。", "Noch keine Research-Profile."),
+      researchEmptyRuns: localize("No research runs yet.", "まだ research runs はありません。", "Noch keine Research-Läufe."),
+      researchNewProfile: localize("New Profile", "新しい Profile", "Neues Profil"),
+      researchCreateProfile: localize("Create Profile", "Profile を作成", "Profil erstellen"),
+      researchSaveProfile: localize("Save Profile", "Profile を保存", "Profil speichern"),
+      researchDuplicateProfile: localize("Duplicate Profile", "Profile を複製", "Profil duplizieren"),
+      researchDeleteProfile: localize("Delete Profile", "Profile を削除", "Profil löschen"),
+      researchStartRun: localize("Start Run", "実行を開始", "Lauf starten"),
+      researchStopRun: localize("Stop Run", "実行を停止", "Lauf stoppen"),
+      researchName: localize("Profile name", "Profile 名", "Profilname"),
+      researchInstructions: localize("Instructions", "Instructions", "Anweisungen"),
+      researchInstructionsPlaceholder: localize("Describe the goal and the kind of focused edits Copilot should attempt.", "目標と、Copilot に試してほしい集中的な編集の種類を説明してください。", "Beschreiben Sie das Ziel und die Art gezielter Änderungen, die Copilot versuchen soll."),
+      researchEditablePaths: localize("Editable files", "編集可能ファイル", "Editierbare Dateien"),
       researchEditablePathsPlaceholder: "src/file.ts\nsrc/other.ts",
-      researchBenchmarkCommand: "Benchmark command",
+      researchBenchmarkCommand: localize("Benchmark command", "Benchmark command", "Benchmark-Befehl"),
       researchBenchmarkPlaceholder: "npm test -- --runInBand",
-      researchMetricPattern: "Metric regex",
+      researchMetricPattern: localize("Metric regex", "Metric regex", "Metric-regex"),
       researchMetricPatternPlaceholder: "score:\\s*([0-9.]+)",
-      researchMetricDirection: "Metric direction",
-      researchDirectionMaximize: "Maximize",
-      researchDirectionMinimize: "Minimize",
-      researchMaxIterations: "Max iterations",
-      researchMaxMinutes: "Max minutes",
-      researchMaxFailures: "Max consecutive failures",
-      researchBenchmarkTimeout: "Benchmark timeout (seconds)",
-      researchEditWait: "Copilot edit settle time (seconds)",
-      researchCurrentBest: "Current best",
-      researchNoScore: "No score yet",
-      researchStatusIdle: "Idle",
-      researchStatusRunning: "Running",
-      researchStatusStopping: "Stopping",
-      researchStatusCompleted: "Completed",
-      researchStatusFailed: "Failed",
-      researchStatusStopped: "Stopped",
-      researchAttempts: "Attempts",
-      researchLastOutcome: "Last outcome",
-      researchStopReason: "Stop reason",
-      researchActiveRunEmpty: "No research run is active.",
-      researchAttemptTimeline: "Attempt timeline",
-      researchBaselineLabel: "Baseline",
-      researchIterationLabel: "Iteration",
-      researchStartedAt: "Started",
-      researchFinishedAt: "Finished",
-      researchDuration: "Duration",
-      researchBaselineScore: "Baseline score",
-      researchBestScore: "Best score",
-      researchCompletedIterations: "Completed iterations",
-      researchChangedFiles: "Changed files",
-      researchViolationFiles: "Policy violation files",
-      researchBenchmarkOutput: "Benchmark output",
-      researchExitCode: "Exit code",
-      researchSnapshot: "Snapshot",
-      researchMetricPatternShort: "Metric",
-      researchBudgetShort: "Budget",
-      researchEditableCount: "Editable files",
-      researchUnsavedNew: "New profile",
-      researchUnsavedChanges: "Unsaved changes",
-      researchNoRunSelected: "Select a recent run to inspect its attempts.",
-      researchProfileNameRequired: "Research profile name is required.",
-      researchBenchmarkRequired: "Benchmark command is required.",
-      researchMetricRequired: "Metric regex is required.",
-      researchEditableRequired: "Add at least one editable file path.",
-      researchHelpText: "This first implementation runs bounded benchmark iterations against a small allowlisted file set and records keep or revert outcomes in repo-local history.",
+      researchMetricDirection: localize("Metric direction", "Metric の方向", "Metric-Richtung"),
+      researchDirectionMaximize: localize("Maximize", "最大化", "Maximieren"),
+      researchDirectionMinimize: localize("Minimize", "最小化", "Minimieren"),
+      researchMaxIterations: localize("Max iterations", "最大反復回数", "Max. Iterationen"),
+      researchMaxMinutes: localize("Max minutes", "最大分数", "Max. Minuten"),
+      researchMaxFailures: localize("Max consecutive failures", "最大連続失敗回数", "Max. aufeinanderfolgende Fehler"),
+      researchBenchmarkTimeout: localize("Benchmark timeout (seconds)", "Benchmark timeout（秒）", "Benchmark-Timeout (Sekunden)"),
+      researchEditWait: localize("Copilot edit settle time (seconds)", "Copilot edit settle time（秒）", "Copilot-Edit-Beruhigungszeit (Sekunden)"),
+      researchCurrentBest: localize("Current best", "現在のベスト", "Aktuell bester Wert"),
+      researchNoScore: localize("No score yet", "まだスコアなし", "Noch kein Score"),
+      researchStatusIdle: localize("Idle", "待機中", "Leerlauf"),
+      researchStatusRunning: localize("Running", "実行中", "Läuft"),
+      researchStatusStopping: localize("Stopping", "停止中", "Wird gestoppt"),
+      researchStatusCompleted: localize("Completed", "完了", "Abgeschlossen"),
+      researchStatusFailed: localize("Failed", "失敗", "Fehlgeschlagen"),
+      researchStatusStopped: localize("Stopped", "停止済み", "Gestoppt"),
+      researchAttempts: localize("Attempts", "試行", "Versuche"),
+      researchLastOutcome: localize("Last outcome", "最後の結果", "Letztes Ergebnis"),
+      researchStopReason: localize("Stop reason", "停止理由", "Grund für das Stoppen"),
+      researchActiveRunEmpty: localize("No research run is active.", "アクティブな research run はありません。", "Kein aktiver Research-Lauf."),
+      researchAttemptTimeline: localize("Attempt timeline", "試行タイムライン", "Versuchszeitleiste"),
+      researchBaselineLabel: localize("Baseline", "Baseline", "Baseline"),
+      researchIterationLabel: localize("Iteration", "Iteration", "Iteration"),
+      researchStartedAt: localize("Started", "開始", "Gestartet"),
+      researchFinishedAt: localize("Finished", "終了", "Beendet"),
+      researchDuration: localize("Duration", "所要時間", "Dauer"),
+      researchBaselineScore: localize("Baseline score", "Baseline score", "Baseline-Score"),
+      researchBestScore: localize("Best score", "ベストスコア", "Bester Score"),
+      researchCompletedIterations: localize("Completed iterations", "完了した反復", "Abgeschlossene Iterationen"),
+      researchChangedFiles: localize("Changed files", "変更されたファイル", "Geänderte Dateien"),
+      researchViolationFiles: localize("Policy violation files", "ポリシー違反ファイル", "Dateien mit Richtlinienverstößen"),
+      researchBenchmarkOutput: localize("Benchmark output", "Benchmark 出力", "Benchmark-Ausgabe"),
+      researchExitCode: localize("Exit code", "終了コード", "Exit-Code"),
+      researchSnapshot: localize("Snapshot", "Snapshot", "Snapshot"),
+      researchMetricPatternShort: localize("Metric", "Metric", "Metric"),
+      researchBudgetShort: localize("Budget", "Budget", "Budget"),
+      researchEditableCount: localize("Editable files", "編集可能ファイル", "Editierbare Dateien"),
+      researchUnsavedNew: localize("New profile", "新しい Profile", "Neues Profil"),
+      researchUnsavedChanges: localize("Unsaved changes", "未保存の変更", "Ungespeicherte Änderungen"),
+      researchNoRunSelected: localize("Select a recent run to inspect its attempts.", "最近の実行を選んで試行内容を確認してください。", "Wählen Sie einen letzten Lauf aus, um seine Versuche zu prüfen."),
+      researchProfileNameRequired: localize("Research profile name is required.", "Research profile 名が必要です。", "Ein Research-Profilname ist erforderlich."),
+      researchBenchmarkRequired: localize("Benchmark command is required.", "Benchmark command が必要です。", "Ein Benchmark-Befehl ist erforderlich."),
+      researchMetricRequired: localize("Metric regex is required.", "Metric regex が必要です。", "Ein Metric-regex ist erforderlich."),
+      researchEditableRequired: localize("Add at least one editable file path.", "少なくとも 1 つの編集可能ファイルパスを追加してください。", "Fügen Sie mindestens einen editierbaren Dateipfad hinzu."),
+      researchHelpText: localize("This first implementation runs bounded benchmark iterations against a small allowlisted file set and records keep or revert outcomes in repo-local history.", "この最初の実装では、小さな allowlist のファイルセットに対して制限付き benchmark iterations を実行し、keep または revert の結果をリポジトリローカルの history に記録します。", "Diese erste Implementierung führt begrenzte Benchmark-Iterationen auf einem kleinen allowlisted-Dateisatz aus und protokolliert Keep- oder Revert-Ergebnisse in einer repository-lokalen History."),
       labelPromptType: messages.labelPromptType(),
       labelPromptInline: messages.labelPromptInline(),
       labelPromptLocal: messages.labelPromptLocal(),
@@ -2315,7 +2403,8 @@ export class SchedulerWebview {
           vscode.workspace.workspaceFolders?.[0]?.uri,
         )
         .get<boolean>("autoShowOnStartup", false),
-      locale: isJa ? "ja-JP" : "en-US",
+      languageSetting: configuredLanguage,
+      locale: getCurrentLocaleTag(),
       strings,
     };
 
@@ -2323,7 +2412,7 @@ export class SchedulerWebview {
       vscode.Uri.joinPath(this.extensionUri, "media", "schedulerWebview.js"),
     );
     const rawHtml = `<!DOCTYPE html>
-<html lang="${isJa ? "ja" : "en"}">
+<html lang="${uiLanguage}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3128,23 +3217,21 @@ export class SchedulerWebview {
       overflow: hidden;
     }
 
-    .card-labels [data-label-index]:not([data-label-index="0"]) {
+    .card-labels [data-label-slot]:not([data-label-slot="0"]) {
       display: none;
     }
 
-    @container (min-width: 300px) {
-      .card-labels [data-label-index="1"],
-      .card-labels [data-label-index="2"] {
-        display: inline-flex;
-      }
+    :root.labels-3 .card-labels [data-label-slot="1"],
+    :root.labels-3 .card-labels [data-label-slot="2"],
+    :root.labels-6 .card-labels [data-label-slot="1"],
+    :root.labels-6 .card-labels [data-label-slot="2"] {
+      display: inline;
     }
 
-    @container (min-width: 390px) {
-      .card-labels [data-label-index="3"],
-      .card-labels [data-label-index="4"],
-      .card-labels [data-label-index="5"] {
-        display: inline-flex;
-      }
+    :root.labels-6 .card-labels [data-label-slot="3"],
+    :root.labels-6 .card-labels [data-label-slot="4"],
+    :root.labels-6 .card-labels [data-label-slot="5"] {
+      display: inline;
     }
 
     section[data-section-id] {
@@ -4548,11 +4635,11 @@ export class SchedulerWebview {
     <div id="board-summary" class="note"></div>
     <div class="note" style="margin-bottom:12px;">${escapeHtml(strings.boardDropHint)}</div>
     <div class="board-toolbar">
-      <button type="button" class="btn-secondary" id="board-add-section-btn">+ Add Section</button>
+      <button type="button" class="btn-secondary" id="board-add-section-btn">${escapeHtml(strings.boardAddSection)}</button>
       <div id="board-section-inline-form" style="display:none;align-items:center;gap:6px;">
-        <input type="text" id="board-section-name-input" placeholder="Section name..." style="max-width:180px;">
-        <button type="button" class="btn-primary" id="board-section-save-btn">Add</button>
-        <button type="button" class="btn-secondary" id="board-section-cancel-btn">Cancel</button>
+        <input type="text" id="board-section-name-input" placeholder="${escapeHtmlAttr(strings.boardSectionNamePlaceholder)}" style="max-width:180px;">
+        <button type="button" class="btn-primary" id="board-section-save-btn">${escapeHtml(strings.commonAdd)}</button>
+        <button type="button" class="btn-secondary" id="board-section-cancel-btn">${escapeHtml(strings.commonCancel)}</button>
       </div>
     </div>
     <div class="board-columns-shell">
@@ -4623,8 +4710,8 @@ export class SchedulerWebview {
 
         <div class="jobs-editor-grid">
           <section class="jobs-main-section jobs-editor-card">
-            <div class="section-title">Job details</div>
-            <p class="note">Name the job, place it in a folder, and toggle whether it is active.</p>
+            <div class="section-title">${escapeHtml(strings.jobsEditorDetailsTitle)}</div>
+            <p class="note">${escapeHtml(strings.jobsEditorDetailsNote)}</p>
             <div class="jobs-job-grid jobs-job-grid-overview">
               <div class="form-group">
                 <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
@@ -4642,8 +4729,8 @@ export class SchedulerWebview {
           </section>
 
           <section class="jobs-main-section jobs-editor-card">
-            <div class="section-title">Schedule</div>
-            <p class="note">Choose a preset, edit the cron expression, or use the friendly builder.</p>
+            <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
+            <p class="note">${escapeHtml(strings.jobsEditorScheduleNote)}</p>
             <div class="jobs-schedule-grid">
               <div class="form-group">
                 <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
@@ -5022,6 +5109,19 @@ export class SchedulerWebview {
         <h2 class="help-intro-title">${escapeHtml(strings.helpIntroTitle)}</h2>
         <p class="help-intro-body">${escapeHtml(strings.helpIntroBody)}</p>
       </div>
+      <section class="help-section">
+        <h3>${escapeHtml(strings.helpLanguageTitle)}</h3>
+        <p>${escapeHtml(strings.helpLanguageBody)}</p>
+        <div class="form-group" style="margin:0;max-width:320px;">
+          <label for="help-language-select">${escapeHtml(strings.helpLanguageLabel)}</label>
+          <select id="help-language-select">
+            <option value="auto" ${configuredLanguage === "auto" ? "selected" : ""}>${escapeHtml(strings.helpLanguageAuto)}</option>
+            <option value="en" ${configuredLanguage === "en" ? "selected" : ""}>${escapeHtml(strings.helpLanguageEnglish)}</option>
+            <option value="ja" ${configuredLanguage === "ja" ? "selected" : ""}>${escapeHtml(strings.helpLanguageJapanese)}</option>
+            <option value="de" ${configuredLanguage === "de" ? "selected" : ""}>${escapeHtml(strings.helpLanguageGerman)}</option>
+          </select>
+        </div>
+      </section>
       <div class="help-grid">
         <section class="help-section">
           <h3>${escapeHtml(strings.helpCreateTitle)}</h3>

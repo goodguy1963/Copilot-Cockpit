@@ -179,12 +179,14 @@
           "enum": [
             "auto",
             "en",
-            "ja"
+            "ja",
+            "de"
           ],
           "enumDescriptions": [
             "%config.language.auto%",
             "%config.language.en%",
-            "%config.language.ja%"
+            "%config.language.ja%",
+            "%config.language.de%"
           ],
           "description": "%config.language%"
         },

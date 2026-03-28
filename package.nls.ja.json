@@ -31,6 +31,7 @@
   "config.language.auto": "VS Codeから自動検出",
   "config.language.en": "英語",
   "config.language.ja": "日本語",
+  "config.language.de": "ドイツ語",
   "config.timezone": "cronスケジューリングのタイムゾーン（例: 'Asia/Tokyo'）。空白でシステムデフォルト。",
   "config.chatSession": "チャットセッションの動作",
   "config.chatSession.new": "実行ごとに新しいチャットセッションを作成",

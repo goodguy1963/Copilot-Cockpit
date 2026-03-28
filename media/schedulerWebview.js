@@ -305,6 +305,7 @@
   var skillSelect = document.getElementById("skill-select");
   var insertSkillBtn = document.getElementById("insert-skill-btn");
   var setupMcpBtn = document.getElementById("setup-mcp-btn");
+  var helpLanguageSelect = document.getElementById("help-language-select");
   var promptGroup = document.getElementById("prompt-group");
   var jitterSecondsInput = document.getElementById("jitter-seconds");
   var friendlyFrequency = document.getElementById("friendly-frequency");
@@ -478,6 +479,7 @@
   var draggedJobNodeId = "";
   var draggedJobId = "";
   var draggingSectionId = null;
+  var lastDragOverSectionId = null;
   var jobsSidebarHidden = false;
 
   // Edit-mode tracking for flag and label catalog
@@ -496,6 +498,12 @@
     catch (e) {}
   }
 
+  function setLabelSlotsClass(w) {
+    var cls = w >= 390 ? 'labels-6' : w >= 300 ? 'labels-3' : 'labels-1';
+    document.documentElement.classList.remove('labels-1', 'labels-3', 'labels-6');
+    document.documentElement.classList.add(cls);
+  }
+
   // Always apply column CSS vars from saved width or slider default
   (function () {
     var saved = localStorage.getItem("cockpit-col-width");
@@ -505,6 +513,7 @@
       document.documentElement.style.setProperty("--cockpit-col-font", Math.round(10 + (w - 180) * 3 / 340) + "px");
       document.documentElement.style.setProperty("--cockpit-card-pad", Math.round(8 + (w - 180) * 6 / 340) + "px");
       document.documentElement.style.setProperty("--cockpit-card-gap", Math.round(4 + (w - 180) * 4 / 340) + "px");
+      setLabelSlotsClass(w);
       if (cockpitColSlider && !saved) cockpitColSlider.value = String(w);
     }
   })();
@@ -1198,7 +1207,7 @@
       '<span data-flag-chip="' + escapeAttr(flagName) + '" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-size:inherit;line-height:1.4;font-weight:600;">' +
       '<span>' + escapeHtml(flagName) + '</span>' +
       (removable
-        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="Clear flag">×</button>'
+        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">×</button>'
         : "") +
       '</span>'
     );
@@ -1231,8 +1240,8 @@
       var fg = getReadableTextColor(bg);
       var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
-        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Add to todo">' + escapeHtml(entry.name) + '</button>'
-        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="Delete label">×</button>'
+        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
+        + '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
         + '</span>';
     }).join("");
   }
@@ -1376,9 +1385,9 @@
           var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
           var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
-            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="Set as flag">' + escapeHtml(entry.name) + '</button>'
-            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;font-size:11px;opacity:0.55;line-height:1;padding:0 1px;" title="Edit flag">✎</button>'
-            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="Delete flag">×</button>'
+            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
+            + '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;font-size:11px;opacity:0.55;line-height:1;padding:0 1px;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
+            + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;font-size:14px;font-weight:700;opacity:0.55;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>'
             + '</span>';
         }).join("");
       }
@@ -1917,14 +1926,11 @@
         return (
           '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;">' +
           '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px)">' +
-          '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + (collapsedSections.has(section.id) ? 'Expand' : 'Collapse') + ' section">&#9660;</button>' +
-          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || "Section") + '</strong>' +
+          '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
+          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + '</strong>' +
           '<div class="cockpit-section-actions">' +
-          '<span class="note">' + String(sectionCards.length) + '</span>' +
-          '<button type="button" class="btn-icon" data-section-move="' + escapeAttr(section.id) + '" data-direction="left" title="Move left">&#8592;</button>' +
-          '<button type="button" class="btn-icon" data-section-move="' + escapeAttr(section.id) + '" data-direction="right" title="Move right">&#8594;</button>' +
-          '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="Rename section">&#9998;</button>' +
-          '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="Delete section">&#215;</button>' +
+          '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
+          '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
           '</div>' +
           '</div>' +
           '<div class="section-body-wrapper' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '">' +
@@ -1939,7 +1945,7 @@
                 : "";
               var labelMarkup = Array.isArray(card.labels) && card.labels.length
                 ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
-                  return renderLabelChip(label, false, false).replace('<span ', '<span data-label-index="' + idx + '" ');
+                  return '<span data-label-slot="' + idx + '">' + renderLabelChip(label, false, false) + '</span>';
                 }).join("") + '</div>'
                 : "";
               var latestComment = Array.isArray(card.comments) && card.comments.length
@@ -1967,10 +1973,10 @@
               return (
                 '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
                 '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
-                '<strong style="line-height:1.3;">' + escapeHtml(card.title || "Untitled") + '</strong>' +
+                '<strong style="line-height:1.3;">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
                 '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
                 '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + statusMarkup + archiveMarkup + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(linkedTaskText) + '</span></div>' +
+                (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + '</div>' : '') +
                 '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
                 flagMarkup +
                 labelMarkup +
@@ -2076,7 +2082,7 @@
             sectionDeleteBtn.setAttribute("data-confirming", "1");
             var origText = sectionDeleteBtn.textContent;
             var origColor = sectionDeleteBtn.style.color;
-            sectionDeleteBtn.textContent = "Delete?";
+            sectionDeleteBtn.textContent = strings.boardDeleteConfirm || "Delete?";
             sectionDeleteBtn.style.color = "var(--vscode-errorForeground)";
             sectionDeleteBtn.style.opacity = "1";
             setTimeout(function () {
@@ -2117,6 +2123,7 @@
         var sectionHeader = event.target && event.target.closest ? event.target.closest("[data-section-drag]") : null;
         if (sectionHeader) {
           draggingSectionId = sectionHeader.getAttribute("data-section-drag");
+          lastDragOverSectionId = null;
           if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = "move";
             event.dataTransfer.setData("text/plain", draggingSectionId || "");
@@ -2145,6 +2152,7 @@
             document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
             if (section.getAttribute("data-section-id") !== draggingSectionId) {
               section.classList.add("section-drag-over");
+              lastDragOverSectionId = section.getAttribute("data-section-id");
             }
           }
           return;
@@ -2171,23 +2179,26 @@
       };
       boardColumns.ondrop = function (event) {
         if (draggingSectionId) {
-          var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+          var dropSection = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
+          var dropSectionId = dropSection ? dropSection.getAttribute("data-section-id") : null;
+          if (!dropSectionId || dropSectionId === draggingSectionId) {
+            dropSectionId = lastDragOverSectionId;
+          }
           document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
           document.querySelectorAll("[data-section-id].section-dragging").forEach(function (el) { el.classList.remove("section-dragging"); });
-          if (!section) { draggingSectionId = null; return; }
           event.preventDefault();
-          var targetSectionId = section.getAttribute("data-section-id");
-          if (targetSectionId && targetSectionId !== draggingSectionId) {
+          if (dropSectionId && dropSectionId !== draggingSectionId) {
             var allSections = boardColumns.querySelectorAll("[data-section-id]");
             var targetIndex = -1;
             for (var i = 0; i < allSections.length; i++) {
-              if (allSections[i].getAttribute("data-section-id") === targetSectionId) { targetIndex = i; break; }
+              if (allSections[i].getAttribute("data-section-id") === dropSectionId) { targetIndex = i; break; }
             }
             if (targetIndex >= 0) {
               vscode.postMessage({ type: "reorderCockpitSection", sectionId: draggingSectionId, targetIndex: targetIndex });
             }
           }
           draggingSectionId = null;
+          lastDragOverSectionId = null;
           return;
         }
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
@@ -2214,6 +2225,7 @@
         document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
         draggingTodoId = null;
         draggingSectionId = null;
+        lastDragOverSectionId = null;
       };
     }
 
@@ -2267,6 +2279,7 @@
         document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
         var gap = Math.round(4 + (w - 180) * 4 / 340);
         document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
+        setLabelSlotsClass(w);
         try { localStorage.setItem("cockpit-col-width", w); } catch (e) {}
       };
     }
@@ -3602,6 +3615,18 @@
   if (setupMcpBtn) {
     setupMcpBtn.addEventListener("click", function () {
       vscode.postMessage({ type: "setupMcp" });
+    });
+  }
+
+  if (helpLanguageSelect) {
+    if (typeof initialData.languageSetting === "string" && initialData.languageSetting) {
+      helpLanguageSelect.value = initialData.languageSetting;
+    }
+    helpLanguageSelect.addEventListener("change", function () {
+      vscode.postMessage({
+        type: "setLanguage",
+        language: helpLanguageSelect.value || "auto",
+      });
     });
   }
 
@@ -5417,10 +5442,10 @@
         .map(function (node, index) {
           var taskName = "";
           if (isPauseNode(node)) {
-            taskName = "Pause: " + (node.title || (strings.jobsPauseDefaultTitle || "Manual review"));
+            taskName = (strings.jobsPausePrefix || "Pause") + ": " + (node.title || (strings.jobsPauseDefaultTitle || "Manual review"));
           } else {
             var task = getTaskById(node.taskId);
-            taskName = task && task.name ? task.name : ("Step " + String(index + 1));
+            taskName = task && task.name ? task.name : ((strings.jobsStepPrefix || "Step") + " " + String(index + 1));
           }
           return (
             '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' +
