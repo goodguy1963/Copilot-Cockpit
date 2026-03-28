@@ -7,112 +7,54 @@
 
 This repository is the active Copilot Cockpit codebase. It builds on the original scheduler foundation and is shipped here as the current Cockpit-focused VSIX for local, repo-scoped AI orchestration.
 
-## 🚀 Concept Overview
+## What Copilot Cockpit Adds
 
-Copilot Cockpit is designed as a local, always-available alternative to OpenCloak. The goal is not just to auto-run prompts on a schedule. The goal is to manage, refine, discuss, approve, and iterate on work before execution.
+Copilot Cockpit keeps the original scheduler foundation, but this repo is about the Cockpit layer on top of it: planning before execution, repo-local control, workflow editing, approvals, research loops, and optional MCP-driven orchestration.
 
-It is built for work such as:
+Use it when the work is more than “run this prompt on cron”:
 
-- tasks that need to be done
-- todos generated from discussions
-- ideas and plans researched with LLMs
-- workflows that still need refinement before execution
+- capture work as todos before turning it into execution
+- review and approve tasks before they run
+- build multi-step jobs with pauses and branching checkpoints
+- iterate on benchmarked research runs instead of doing blind automation
+- keep scheduler state, private notes, and workspace behavior local to the current repo
 
-The core idea is simple: avoid blindly running tasks. Use the cockpit to think, shape, review, and only then execute.
+## 🧱 Original Source
 
-## 🧱 Core Foundation
-
-Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). That project provided the scheduling and task-management foundation; Copilot Cockpit expands it into a broader local workflow system with planning, orchestration, approvals, and bounded iteration.
+Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The original upstream README is preserved unchanged later in this document; the section above it focuses only on the Cockpit-specific behavior in this repo.
 
 ## Mental Model
 
 At a high level, Copilot Cockpit models the way real work gets done:
 
 - Todos = planning, communication, and approval layer
-- Tasks = units of work
-- Workflows = processes
-- Agents = workers
+- Tasks = scheduled units of work
+- Jobs = multi-step workflows
+- Research = bounded iteration with measurement
+- Agents = workers executing or refining the work
 - Scheduler/orchestrator = management layer
 
-One useful framing behind the project is this: a company is essentially a collection of tasks executed at the right time. Copilot Cockpit turns that framing into a local operating surface for AI-assisted execution.
-
-## How The System Is Structured
+## Cockpit Surfaces
 
 | Surface | Purpose |
 | --- | --- |
-| `Todo Cockpit` | Planning, discussion, approvals, labels, flags, and execution handoff |
+| `Todo Cockpit` | Planning, comments, approvals, flags, labels, and execution handoff |
 | `Tasks` | Scheduled prompts and repeatable execution units |
-| `Jobs` | Multi-step workflows with pauses, sequencing, and compile-to-task flow |
-| `Research` | Bounded experimentation loops with benchmark-driven iteration |
-| `Settings` | Repo-scoped defaults, notifications, and runtime behavior |
+| `Jobs` | Ordered workflows with pause checkpoints and compile-to-task flow |
+| `Research` | Benchmark-driven iteration with guardrails |
+| `Settings` | Repo-scoped runtime defaults and notification behavior |
 | `MCP` | Optional tool exposure for agent-driven orchestration in the current repo |
 
-## ✨ Why Copilot Cockpit Exists
+## What Is Different In This Repo
 
-Copilot Cockpit turns the original scheduler foundation into a more complete cockpit for iterative AI work:
-
-- strict per-repo workspace scheduling, with each repo keeping its own state under `.vscode`
-- a repo-local `Todo Cockpit` for communication, approvals, and planning
-- a repo-local `Jobs` board for structured workflows and pause checkpoints
-- a repo-local `Research` tab for bounded benchmark-driven iteration
-- embedded MCP server support bundled with the extension
-- prompted MCP setup that can create or merge `.vscode/mcp.json`
-- repo-local schedule backup history under `.vscode/scheduler-history`
-- repo-scoped auto-open on startup
-- task-level agent and model selection with safer execution behavior
-- a built-in `How To Use` tab that now opens first
-
-## Workflow & Execution Model
-
-Copilot Cockpit is not limited to single scheduled prompts. It supports structured workflows where:
-
-- tasks can be arranged in a timeline
-- tasks execute sequentially
-- execution can be paused for manual intervention
-- tasks can be edited mid-process to improve outcomes
-- execution can be adapted while the workflow is in progress
-
-That makes it closer to a controlled orchestration environment than a simple task runner.
-
-The `Jobs` surface is the clearest expression of that model. You can build chained workflows, insert pause checkpoints, attach existing tasks, compile a workflow into one bundled task, and still keep the source workflow editable afterwards.
-
-## Iterative Development Approach
-
-The project also reflects an iterative way of working inspired by ideas associated with Andrej Karpathy:
-
-- small experiments instead of giant irreversible runs
-- continuous refinement of prompts, code, and workflow structure
-- gradual improvement over time instead of rigid all-at-once execution
-
-This is why the cockpit includes planning, research, review, approval, and bounded execution as separate layers instead of collapsing everything into one blind automation path.
-
-## Local-First Architecture
-
-A major design choice is that the system runs locally.
-
-- core functionality does not depend on an external platform
-- repositories, workflows, and execution stay under user control
-- users can integrate it with their own agent systems instead of being locked into one hosted stack
-
-Important boundaries:
-
-- schedules are not written to GitHub
-- Todo Cockpit state stays in `.vscode/scheduler.private.json`
-- the current design is intentionally single-user and repo-local
-
-This keeps the environment private, flexible, and easy to customize.
-
-## Agents & Orchestration
-
-Copilot Cockpit is designed to work with multiple agents and sub-agents coordinated by an orchestrator layer.
-
-That matches modern AI system design:
-
-- tasks are distributed across specialized agents
-- execution is coordinated centrally
-- workflows can pause, branch, or be refined before continuing
-
-The cockpit does not force one agent architecture. It provides the local control surface where those systems can be directed safely.
+- strict per-repo scheduling, with workspace state stored under `.vscode`
+- repo-local Todo Cockpit for approvals and communication
+- repo-local Jobs board for workflow composition
+- repo-local Research profiles and run history
+- embedded MCP server plus guided workspace MCP setup
+- backup and recovery history for workspace scheduler state
+- repo-scoped startup behavior and safer agent/model execution rules
+- a built-in `How To Use` tab that opens first
 
 ## 📦 Installation
 
@@ -151,18 +93,14 @@ Notes:
 ## ⚡ Quick Start
 
 1. Open the cockpit from the activity bar, from `Copilot Cockpit: Create Scheduled Prompt (GUI)`, or from the activation notification.
-2. Start in the `How To Use` tab. It opens first and explains the current flow across Todo Cockpit, Tasks, Jobs, Research, MCP, and Settings.
-3. Use `Todo Cockpit` to capture ideas, review work, add comments, set labels/flags, and approve or reject planned work.
-4. Turn approved work into scheduled tasks when it is ready to execute.
-5. Use `Jobs` when the work should run as a structured multi-step workflow instead of one standalone task.
-6. Use `Research` when the work should be improved through bounded benchmark-driven iteration.
-7. Use `Settings` for notifications plus repo-scoped default agent/model behavior.
+2. Start in the `How To Use` tab to see the current flow across Todo Cockpit, Tasks, Jobs, Research, MCP, and Settings.
+3. Capture work in `Todo Cockpit` first when it needs discussion, comments, labels, due dates, approval, or rejection.
+4. Turn ready work into scheduled `Tasks` when it should run on its own.
+5. Use `Jobs` when the work is multi-step, needs pauses, or should later be bundled into one compiled task.
+6. Use `Research` when you want bounded iteration against a benchmark or score.
+7. Configure `Settings` and optional `MCP` setup for repo-specific execution behavior.
 
-## Release Summary
-
-If you need the one-sentence description for release notes, use this:
-
-> Copilot Cockpit is a local-first AI orchestration workspace for planning, approval, iterative refinement, scheduled execution, and multi-step workflows inside VS Code.
+## Cockpit-Specific Details
 
 ### Prompt Sources
 
