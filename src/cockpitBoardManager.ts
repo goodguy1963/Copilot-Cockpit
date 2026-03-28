@@ -141,6 +141,8 @@ function upsertLabelDefinitionInBoard(
   nextBoard.labelCatalog = nextCatalog.sort((left, right) =>
     left.name.localeCompare(right.name),
   );
+  nextBoard.deletedLabelCatalogKeys = (nextBoard.deletedLabelCatalogKeys ?? [])
+    .filter((entry) => entry !== key);
   touchBoard(nextBoard, timestamp);
   return { board: nextBoard, label };
 }
@@ -189,6 +191,8 @@ function upsertFlagDefinitionInBoard(
   nextBoard.flagCatalog = nextCatalog.sort((left, right) =>
     left.name.localeCompare(right.name),
   );
+  nextBoard.deletedFlagCatalogKeys = (nextBoard.deletedFlagCatalogKeys ?? [])
+    .filter((entry) => entry !== key);
   touchBoard(nextBoard, timestamp);
   return { board: nextBoard, label };
 }
@@ -693,6 +697,10 @@ export function deleteCockpitTodoLabelDefinition(
   nextBoard.labelCatalog = (nextBoard.labelCatalog ?? []).filter(
     (entry) => entry.key !== key,
   );
+  nextBoard.deletedLabelCatalogKeys = Array.from(new Set([
+    ...(nextBoard.deletedLabelCatalogKeys ?? []),
+    key,
+  ]));
   touchBoard(nextBoard);
   return persistBoard(workspaceRoot, nextBoard);
 }
@@ -717,6 +725,10 @@ export function deleteCockpitFlagDefinition(
   nextBoard.flagCatalog = (nextBoard.flagCatalog ?? []).filter(
     (entry) => entry.key !== key,
   );
+  nextBoard.deletedFlagCatalogKeys = Array.from(new Set([
+    ...(nextBoard.deletedFlagCatalogKeys ?? []),
+    key,
+  ]));
   touchBoard(nextBoard);
   return persistBoard(workspaceRoot, nextBoard);
 }
