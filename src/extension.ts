@@ -1874,6 +1874,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         deleteCockpitTodoLabelDefinition(workspaceRoot, action.todoLabelData.name);
+        await scheduleManager.removeLabelFromAllTasks(action.todoLabelData.name);
         refreshSchedulerUiState();
         break;
       }

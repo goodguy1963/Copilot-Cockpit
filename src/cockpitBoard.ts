@@ -235,11 +235,12 @@ function buildLabelCatalog(
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
   const deletedKeySet = new Set(deletedKeys);
-  const entries = Array.isArray(existingCatalog)
+  const normalizedEntries = Array.isArray(existingCatalog)
     ? existingCatalog
         .map((entry, index) => normalizeLabelDefinition(entry, index))
-        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry) && !deletedKeySet.has(entry.key))
+        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
     : [];
+  const entries = normalizedEntries.filter((entry) => !deletedKeySet.has(entry.key));
   const catalog = new Map(entries.map((entry) => [entry.key, entry]));
 
   for (const card of cards) {
@@ -277,11 +278,12 @@ function buildFlagCatalog(
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
   const deletedKeySet = new Set(deletedKeys);
-  const entries = Array.isArray(existingCatalog)
+  const normalizedEntries = Array.isArray(existingCatalog)
     ? existingCatalog
         .map((entry, index) => normalizeLabelDefinition(entry, index))
-        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry) && !deletedKeySet.has(entry.key))
+        .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
     : [];
+  const entries = normalizedEntries.filter((entry) => !deletedKeySet.has(entry.key));
   const catalog = new Map(entries.map((entry) => [entry.key, entry]));
 
   for (const card of cards) {

@@ -726,74 +726,6 @@ export class SchedulerWebview {
     });
   }
 
-  private static normalizeCatalogEntryName(name: string): string {
-    return name.trim().toLowerCase();
-  }
-
-  private static async handleDeleteTodoLabelDefinitionRequest(
-    name: string,
-  ): Promise<void> {
-    if (!name || !this.onTaskActionCallback) {
-      return;
-    }
-
-    const targetName = this.normalizeCatalogEntryName(name);
-    const entry = (this.currentCockpitBoard.labelCatalog || []).find((item) =>
-      this.normalizeCatalogEntryName(item.name || item.key || "") === targetName
-    );
-    if (!entry?.name) {
-      return;
-    }
-
-    const confirm = await vscode.window.showWarningMessage(
-      messages.confirmDeleteTodoLabelDefinition(entry.name),
-      { modal: true },
-      messages.confirmDeleteYes(),
-      messages.actionCancel(),
-    );
-    if (confirm !== messages.confirmDeleteYes()) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "deleteTodoLabelDefinition",
-      taskId: "__todo__",
-      todoLabelData: { name: entry.name },
-    });
-  }
-
-  private static async handleDeleteTodoFlagDefinitionRequest(
-    name: string,
-  ): Promise<void> {
-    if (!name || !this.onTaskActionCallback) {
-      return;
-    }
-
-    const targetName = this.normalizeCatalogEntryName(name);
-    const entry = (this.currentCockpitBoard.flagCatalog || []).find((item) =>
-      this.normalizeCatalogEntryName(item.name || item.key || "") === targetName
-    );
-    if (!entry?.name) {
-      return;
-    }
-
-    const confirm = await vscode.window.showWarningMessage(
-      messages.confirmDeleteTodoFlagDefinition(entry.name),
-      { modal: true },
-      messages.confirmDeleteYes(),
-      messages.actionCancel(),
-    );
-    if (confirm !== messages.confirmDeleteYes()) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "deleteTodoFlagDefinition",
-      taskId: "__todo__",
-      todoFlagData: { name: entry.name },
-    });
-  }
-
   private static async handleRenameJobPauseRequest(
     jobId: string,
     nodeId: string,
@@ -901,14 +833,6 @@ export class SchedulerWebview {
 
       case "requestDeleteJobPause":
         await this.handleDeleteJobPauseRequest(message.jobId, message.nodeId);
-        break;
-
-      case "requestDeleteTodoLabelDefinition":
-        await this.handleDeleteTodoLabelDefinitionRequest(message.data.name);
-        break;
-
-      case "requestDeleteTodoFlagDefinition":
-        await this.handleDeleteTodoFlagDefinitionRequest(message.data.name);
         break;
 
       case "createTask":
@@ -3283,7 +3207,7 @@ export class SchedulerWebview {
     .section-body-wrapper {
       display: grid;
       grid-template-rows: 1fr;
-      transition: grid-template-rows 0.22s ease;
+      transition: grid-template-rows 0.22s ease, opacity 0.22s ease;
       overflow: hidden;
     }
 
@@ -4380,27 +4304,33 @@ export class SchedulerWebview {
               </div>
             </div>
             <div class="form-group" style="margin:0;">
-              <label for="todo-labels-input">${escapeHtml(strings.boardFieldLabels)}</label>
+              <label>${escapeHtml(strings.boardFieldLabels)}</label>
               <div id="todo-label-chip-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
-              <div style="display:flex;gap:8px;align-items:center;">
+              
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
                 <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
                 <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}" style="width:42px;padding:4px;">
                 <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
-                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">${escapeHtml(strings.boardLabelSaveColor)}</button>
+                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">Save Label</button>
               </div>
               <div id="todo-label-suggestions" class="label-suggestion-list"></div>
+              
               <div id="todo-label-catalog" class="label-catalog-section"></div>
             </div>
+            
             <div class="form-group" style="margin:0;">
               <label>${escapeHtml(strings.boardFieldFlags)}</label>
               <div id="todo-flag-current" style="min-height:24px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
+              
               <div style="display:flex;gap:6px;align-items:center;margin-top:4px;margin-bottom:8px;">
                 <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
                 <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color" style="width:42px;padding:4px;">
                 <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
+                <button type="button" class="btn-secondary" id="todo-flag-color-save-btn">Save Flag</button>
               </div>
+              
               <div id="todo-flag-picker" class="flag-catalog-section"></div>
-              <div class="note" style="margin-top:4px;">${escapeHtml(strings.boardFlagCatalogHint)}</div>
+              <div class="note" style="margin-top:4px;margin-bottom:8px;">${escapeHtml(strings.boardFlagCatalogHint)}</div>
             </div>
             <div id="todo-linked-task-note" class="note">${escapeHtml(strings.boardTaskDraftNote)}</div>
             <div class="button-group" style="margin:0;">
@@ -5301,3 +5231,7 @@ export class SchedulerWebview {
     return rawHtml;
   }
 }
+
+
+
+
