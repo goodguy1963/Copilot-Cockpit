@@ -260,6 +260,8 @@
   var currentTodoFlag = "";
   var pendingDeleteLabelName = "";
   var pendingDeleteFlagName = "";
+  var pendingTodoDeleteId = "";
+  var todoDeleteModalRoot = null;
   var pendingAgentValue = "";
   var pendingModelValue = "";
   var pendingTemplatePath = "";
@@ -354,11 +356,14 @@
   var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
   var jobsBackBtn = document.getElementById("jobs-back-btn");
   var jobsOpenEditorBtn = document.getElementById("jobs-open-editor-btn");
+  var boardFilterSticky = document.getElementById("board-filter-sticky");
   var boardSummary = document.getElementById("board-summary");
   var boardColumns = document.getElementById("board-columns");
+  var todoToggleFiltersBtn = document.getElementById("todo-toggle-filters-btn");
   var todoSearchInput = document.getElementById("todo-search-input");
   var todoSectionFilter = document.getElementById("todo-section-filter");
   var todoLabelFilter = document.getElementById("todo-label-filter");
+  var todoFlagFilter = document.getElementById("todo-flag-filter");
   var todoPriorityFilter = document.getElementById("todo-priority-filter");
   var todoStatusFilter = document.getElementById("todo-status-filter");
   var todoArchiveOutcomeFilter = document.getElementById("todo-archive-outcome-filter");
@@ -499,6 +504,7 @@
   var draggingSectionId = null;
   var lastDragOverSectionId = null;
   var jobsSidebarHidden = false;
+  var boardFiltersCollapsed = false;
 
   // Edit-mode tracking for flag and label catalog
   var editingFlagOriginalName = "";
@@ -563,6 +569,9 @@
       if (state && typeof state.jobsSidebarHidden === "boolean") {
         jobsSidebarHidden = state.jobsSidebarHidden;
       }
+      if (state && typeof state.boardFiltersCollapsed === "boolean") {
+        boardFiltersCollapsed = state.boardFiltersCollapsed;
+      }
       if (state && typeof state.selectedResearchId === "string") {
         selectedResearchId = state.selectedResearchId;
       }
@@ -592,6 +601,7 @@
       next.selectedJobFolderId = selectedJobFolderId;
       next.selectedJobId = selectedJobId;
       next.jobsSidebarHidden = jobsSidebarHidden;
+      next.boardFiltersCollapsed = boardFiltersCollapsed;
       next.selectedResearchId = selectedResearchId;
       next.selectedResearchRunId = selectedResearchRunId;
       vscode.setState(next);
@@ -605,6 +615,19 @@
     telegramFeedback.textContent = "";
     telegramFeedback.style.display = "none";
     telegramFeedback.classList.remove("error");
+  }
+
+  function applyBoardFilterCollapseState() {
+    if (boardFilterSticky && boardFilterSticky.classList) {
+      boardFilterSticky.classList.toggle("is-collapsed", !!boardFiltersCollapsed);
+    }
+    if (todoToggleFiltersBtn) {
+      var isCollapsed = !!boardFiltersCollapsed;
+      todoToggleFiltersBtn.textContent = isCollapsed
+        ? (strings.boardShowFilters || "Show Filters")
+        : (strings.boardHideFilters || "Hide Filters");
+      todoToggleFiltersBtn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    }
   }
 
   function showTelegramFeedback(message, isError) {
@@ -1076,9 +1099,28 @@
   function getStandaloneTasks() {
     return sortTasksByNextRun(
       (Array.isArray(tasks) ? tasks : []).filter(function (task) {
-        return task && !task.jobId && task.oneTime !== true;
+        return task && task.oneTime !== true;
       }),
     );
+  }
+
+  function getJobsCadenceText(expression) {
+    var cadenceText = getCronSummary(expression || "");
+    if (!cadenceText || cadenceText === (strings.labelFriendlyFallback || "")) {
+      cadenceText = expression || (strings.labelNever || "Never");
+    }
+    return cadenceText;
+  }
+
+  function updateJobsCadenceMetric() {
+    if (!jobsWorkflowMetrics) return;
+    var cadenceValue = jobsWorkflowMetrics.querySelector("[data-jobs-workflow-cadence]");
+    if (!cadenceValue) return;
+    var currentExpression = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+    cadenceValue.textContent = getJobsCadenceText(currentExpression);
+    if (cadenceValue.parentElement) {
+      cadenceValue.parentElement.setAttribute("title", cadenceValue.textContent || "");
+    }
   }
 
   function syncTaskLabelFilterOptions() {
@@ -1123,6 +1165,10 @@
     if (selectedJobFolderId && !getFolderById(selectedJobFolderId)) {
       selectedJobFolderId = "";
     }
+    if (isCreatingJob) {
+      selectedJobId = "";
+      return;
+    }
     var selectedJob = selectedJobId ? getJobById(selectedJobId) : null;
     if (selectedJob && (selectedJob.folderId || "") !== selectedJobFolderId) {
       selectedJobId = "";
@@ -1144,6 +1190,7 @@
   }
 
   restoreTaskFilter();
+  applyBoardFilterCollapseState();
   syncAutoShowOnStartupUi();
   syncScheduleHistoryOptions();
   updateJobsCronPreview();
@@ -1925,6 +1972,13 @@ syncTodoLabelSuggestions();
         return all.concat(card.labels || []);
       }, [])),
     ).sort();
+    var flags = dedupeStringList(
+      getFlagCatalog().map(function (entry) {
+        return entry.name;
+      }).concat((Array.isArray(cards) ? cards : []).reduce(function (all, card) {
+        return all.concat(card.flags || []);
+      }, [])),
+    ).sort();
 
     if (todoSearchInput) todoSearchInput.value = filters.searchText || "";
     if (todoSectionFilter) {
@@ -1942,6 +1996,14 @@ syncTodoLabelSuggestions();
           return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + '</option>';
         }).join("");
       todoLabelFilter.value = filters.labels[0] || "";
+    }
+    if (todoFlagFilter) {
+      todoFlagFilter.innerHTML =
+        '<option value="">' + escapeHtml(strings.boardAllFlags || "All flags") + '</option>' +
+        flags.map(function (flag) {
+          return '<option value="' + escapeAttr(flag) + '">' + escapeHtml(flag) + '</option>';
+        }).join("");
+      todoFlagFilter.value = filters.flags[0] || "";
     }
     if (todoPriorityFilter) {
       var PRIORITY_FILTER_STYLES = { "": "", none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
@@ -2237,14 +2299,16 @@ syncTodoLabelSuggestions();
             ? sectionCards.map(function (card) {
               var isSelected = card.id === selectedTodoId;
               var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
-              var flagMarkup = cardFlag
-                ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + renderFlagChip(cardFlag, false) + '</div>'
-                : "";
-              var labelMarkup = Array.isArray(card.labels) && card.labels.length
-                ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
-                  return '<span data-label-slot="' + idx + '">' + renderLabelChip(label, false, false) + '</span>';
-                }).join("") + '</div>'
-                : "";
+              var chipMarkup = (cardFlag || (Array.isArray(card.labels) && card.labels.length))
+                ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' +
+                  (cardFlag ? renderFlagChip(cardFlag, false) : '') +
+                  (Array.isArray(card.labels) && card.labels.length
+                    ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
+                        return '<span data-label-slot="' + idx + '">' + renderLabelChip(label, false, false) + '</span>';
+                      }).join("") + '</div>'
+                    : '') +
+                  '</div>'
+                : '';
               var latestComment = Array.isArray(card.comments) && card.comments.length
                 ? card.comments[card.comments.length - 1]
                 : null;
@@ -2274,12 +2338,11 @@ syncTodoLabelSuggestions();
                 '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
                 '</div>' +
                 (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + '</div>' : '') +
+                chipMarkup +
                 '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
-                flagMarkup +
-                labelMarkup +
                 latestCommentMarkup +
-                '<div style="display:flex;justify-content:flex-end;gap:4px;flex-wrap:wrap;">' +
-                '<button type="button" class="btn-secondary todo-card-edit" data-todo-edit="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardEditTodo || 'Edit') + '</button>' +
+                '<div class="todo-card-action-row">' +
+                '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || 'Open Editor') + '">&#9998;</button>' +
                 (canApprove
                   ? '<button type="button" class="btn-secondary todo-card-approve" data-todo-approve="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardApproveTodo || 'Approve') + '</button>'
                   : '') +
@@ -2409,7 +2472,7 @@ syncTodoLabelSuggestions();
           return;
         }
         if (deleteButton) {
-          vscode.postMessage({ type: "deleteTodo", todoId: deleteButton.getAttribute("data-todo-delete") });
+          openTodoDeleteModal(deleteButton.getAttribute("data-todo-delete") || "");
           return;
         }
         if (card) {
@@ -2605,6 +2668,11 @@ syncTodoLabelSuggestions();
         updateTodoFilters({ labels: todoLabelFilter.value ? [todoLabelFilter.value] : [] });
       };
     }
+    if (todoFlagFilter) {
+      todoFlagFilter.onchange = function () {
+        updateTodoFilters({ flags: todoFlagFilter.value ? [todoFlagFilter.value] : [] });
+      };
+    }
     if (todoPriorityFilter) {
       todoPriorityFilter.onchange = function () {
         updateTodoFilters({ priorities: todoPriorityFilter.value ? [todoPriorityFilter.value] : [] });
@@ -2638,6 +2706,13 @@ syncTodoLabelSuggestions();
     if (todoShowArchived) {
       todoShowArchived.onchange = function () {
         updateTodoFilters({ showArchived: todoShowArchived.checked === true });
+      };
+    }
+    if (todoToggleFiltersBtn) {
+      todoToggleFiltersBtn.onclick = function () {
+        boardFiltersCollapsed = !boardFiltersCollapsed;
+        applyBoardFilterCollapseState();
+        persistTaskFilter();
       };
     }
     if (todoClearFiltersBtn) {
@@ -2702,8 +2777,7 @@ syncTodoLabelSuggestions();
     if (todoDeleteBtn) {
       todoDeleteBtn.onclick = function () {
         if (!selectedTodoId) return;
-        vscode.postMessage({ type: "deleteTodo", todoId: selectedTodoId });
-        selectedTodoId = null;
+        openTodoDeleteModal(selectedTodoId);
       };
     }
     if (todoLabelAddBtn) {
@@ -3014,13 +3088,125 @@ syncTodoLabelSuggestions();
 
   function openTodoEditor(todoId) {
     clearCatalogDeleteState();
+    closeTodoDeleteModal();
     selectedTodoId = todoId || null;
     if (!selectedTodoId) {
       currentTodoLabels = [];
       selectedTodoLabelName = "";
+      currentTodoFlag = "";
     }
     renderCockpitBoard();
     switchTab("todo-edit");
+  }
+
+  function resetTodoEditor() {
+    clearCatalogDeleteState();
+    closeTodoDeleteModal();
+    selectedTodoId = null;
+    currentTodoLabels = [];
+    selectedTodoLabelName = "";
+    currentTodoFlag = "";
+    renderCockpitBoard();
+  }
+
+  function ensureTodoDeleteModal() {
+    if (todoDeleteModalRoot && document.body.contains(todoDeleteModalRoot)) {
+      return todoDeleteModalRoot;
+    }
+    todoDeleteModalRoot = document.createElement("div");
+    todoDeleteModalRoot.className = "cockpit-inline-modal";
+    todoDeleteModalRoot.setAttribute("hidden", "hidden");
+    todoDeleteModalRoot.innerHTML =
+      '<div class="cockpit-inline-modal-card" role="dialog" aria-modal="true" aria-labelledby="todo-delete-modal-title">' +
+      '<div class="cockpit-inline-modal-title" id="todo-delete-modal-title"></div>' +
+      '<div class="note" data-todo-delete-modal-message></div>' +
+      '<div class="cockpit-inline-modal-actions">' +
+      '<button type="button" class="btn-secondary" data-todo-delete-cancel>' + escapeHtml(strings.boardDeleteTodoCancel || "Cancel") + '</button>' +
+      '<button type="button" class="btn-secondary" data-todo-delete-reject>' + escapeHtml(strings.boardDeleteTodoReject || "Archive as Rejected") + '</button>' +
+      '<button type="button" class="btn-danger" data-todo-delete-permanent>' + escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + '</button>' +
+      '</div>' +
+      '</div>';
+    todoDeleteModalRoot.onclick = function (event) {
+      if (event.target === todoDeleteModalRoot) {
+        closeTodoDeleteModal();
+        return;
+      }
+      var cancelBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-cancel]") : null;
+      if (cancelBtn) {
+        closeTodoDeleteModal();
+        return;
+      }
+      var rejectBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-reject]") : null;
+      if (rejectBtn) {
+        submitTodoDeleteChoice("reject");
+        return;
+      }
+      var permanentBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-permanent]") : null;
+      if (permanentBtn) {
+        submitTodoDeleteChoice("permanent");
+      }
+    };
+    document.body.appendChild(todoDeleteModalRoot);
+    return todoDeleteModalRoot;
+  }
+
+  function closeTodoDeleteModal() {
+    pendingTodoDeleteId = "";
+    if (!todoDeleteModalRoot) {
+      return;
+    }
+    todoDeleteModalRoot.classList.remove("is-open");
+    todoDeleteModalRoot.setAttribute("hidden", "hidden");
+  }
+
+  function openTodoDeleteModal(todoId) {
+    if (!todoId) {
+      return;
+    }
+    var todo = cockpitBoard && Array.isArray(cockpitBoard.cards)
+      ? cockpitBoard.cards.find(function (card) { return card && card.id === todoId; })
+      : null;
+    var modal = ensureTodoDeleteModal();
+    pendingTodoDeleteId = todoId;
+    var titleEl = modal.querySelector("#todo-delete-modal-title");
+    var messageEl = modal.querySelector("[data-todo-delete-modal-message]");
+    if (titleEl) {
+      titleEl.textContent = strings.boardDeleteTodoTitle || "Delete Todo";
+    }
+    if (messageEl) {
+      var promptText = strings.boardDeleteTodoPrompt || "Choose whether this todo should be rejected into the archive or removed permanently.";
+      messageEl.textContent = todo && todo.title
+        ? '"' + String(todo.title || "") + '". ' + promptText
+        : promptText;
+    }
+    modal.removeAttribute("hidden");
+    modal.classList.add("is-open");
+    setTimeout(function () {
+      var defaultButton = modal.querySelector("[data-todo-delete-reject]");
+      if (defaultButton && typeof defaultButton.focus === "function") {
+        defaultButton.focus();
+      }
+    }, 0);
+  }
+
+  function submitTodoDeleteChoice(choice) {
+    if (!pendingTodoDeleteId) {
+      closeTodoDeleteModal();
+      return;
+    }
+    var todoId = pendingTodoDeleteId;
+    closeTodoDeleteModal();
+    if (selectedTodoId === todoId) {
+      selectedTodoId = null;
+      currentTodoLabels = [];
+      selectedTodoLabelName = "";
+      currentTodoFlag = "";
+      renderCockpitBoard();
+    }
+    vscode.postMessage({
+      type: choice === "permanent" ? "purgeTodo" : "rejectTodo",
+      todoId: todoId,
+    });
   }
 
   function openJobEditor(jobId) {
@@ -3034,6 +3220,13 @@ syncTodoLabelSuggestions();
     persistTaskFilter();
     renderJobsTab();
     switchTab("jobs-edit");
+  }
+
+  function resetJobEditor() {
+    isCreatingJob = true;
+    selectedJobId = "";
+    persistTaskFilter();
+    renderJobsTab();
   }
 
   // Tab switching function
@@ -4130,7 +4323,7 @@ syncTodoLabelSuggestions();
       if (
         el.hasAttribute &&
         el.hasAttribute("data-action") &&
-        (el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))
+        (el.hasAttribute("data-id") || el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))
       ) {
         return el;
       }
@@ -4707,6 +4900,7 @@ syncTodoLabelSuggestions();
   function updateJobsCronPreview() {
     if (!jobsCronPreviewText || !jobsCronInput) return;
     jobsCronPreviewText.textContent = getCronSummary(jobsCronInput.value || "");
+    updateJobsCadenceMetric();
   }
 
   function updateFriendlyVisibility() {
@@ -5276,7 +5470,16 @@ syncTodoLabelSuggestions();
         return task && task.id ? task.id : "";
       },
       function (task) {
-        return task && task.name ? task.name : "";
+        if (!task || !task.name) {
+          return "";
+        }
+        if (!task.jobId) {
+          return task.name;
+        }
+        var job = getJobById(task.jobId);
+        return job && job.name
+          ? task.name + " · " + job.name
+          : task.name;
       },
     );
     if (jobsAttachBtn) {
@@ -5918,10 +6121,7 @@ syncTodoLabelSuggestions();
       return isPauseNode(node);
     }).length;
     var taskCount = Math.max(0, selectedNodes.length - pauseCount);
-    var cadenceText = getCronSummary(selectedJob.cronExpression || "");
-    if (!cadenceText || cadenceText === (strings.labelFriendlyFallback || "")) {
-      cadenceText = selectedJob.cronExpression || (strings.labelNever || "Never");
-    }
+    var cadenceText = getJobsCadenceText(selectedJob.cronExpression || "");
 
     if (jobsWorkflowMetrics) {
       jobsWorkflowMetrics.innerHTML = [
@@ -5933,7 +6133,8 @@ syncTodoLabelSuggestions();
         {
           label: strings.jobsWorkflowCadence || "Cadence",
           value: cadenceText,
-          tone: "is-accent"
+          tone: "is-accent",
+          valueAttr: ' data-jobs-workflow-cadence="1"'
         },
         {
           label: strings.jobsWorkflowTaskCount || "Task steps",
@@ -5951,7 +6152,7 @@ syncTodoLabelSuggestions();
           (metric.tone ? ' ' + metric.tone : '') +
           '" title="' + escapeAttr(metric.value) + '">' +
           '<div class="jobs-workflow-metric-label">' + escapeHtml(metric.label) + '</div>' +
-          '<div class="jobs-workflow-metric-value">' + escapeHtml(metric.value) + '</div>' +
+          '<div class="jobs-workflow-metric-value"' + (metric.valueAttr || '') + '>' + escapeHtml(metric.value) + '</div>' +
           '</div>'
         );
       }).join("");
@@ -6289,6 +6490,7 @@ syncTodoLabelSuggestions();
             filters: { labels: [], priorities: [], flags: [], sortBy: "manual", sortDirection: "asc", showArchived: false },
             updatedAt: "",
           };
+          closeTodoDeleteModal();
           clearCatalogDeleteState();
           renderCockpitBoard();
           reconcileTodoEditorCatalogState();
@@ -6502,6 +6704,12 @@ syncTodoLabelSuggestions();
               // ignore
             }
           }, 0);
+          break;
+        case "startCreateTodo":
+          resetTodoEditor();
+          break;
+        case "startCreateJob":
+          resetJobEditor();
           break;
         case "showError":
           if (message.text) {

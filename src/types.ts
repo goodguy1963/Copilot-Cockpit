@@ -1191,6 +1191,7 @@ export interface TaskAction {
   | "createTodo"
   | "updateTodo"
   | "deleteTodo"
+  | "purgeTodo"
   | "approveTodo"
   | "rejectTodo"
   | "finalizeTodo"
@@ -1400,6 +1401,7 @@ export type WebviewToExtensionMessage =
   | { type: "createTodo"; data: CreateCockpitTodoInput }
   | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }
   | { type: "deleteTodo"; todoId: string }
+  | { type: "purgeTodo"; todoId: string }
   | { type: "approveTodo"; todoId: string }
   | { type: "rejectTodo"; todoId: string }
   | { type: "finalizeTodo"; todoId: string }

@@ -1,28 +1,6 @@
 {
     "tasks": [
         {
-            "id": "task_1774382082310_88vcoq",
-            "name": "dffd12522",
-            "cron": "0 9 * * 1-5",
-            "prompt": "rfddf",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "",
-            "model": "",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774382082310_88vcoq.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-26T21:01:19.172Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-27T08:00:05.680Z",
-            "nextRun": "2026-03-30T07:00:00.000Z",
-            "createdAt": "2026-03-24T19:54:42.310Z",
-            "updatedAt": "2026-03-25T15:34:46.803Z"
-        },
-        {
             "id": "task_1774382099685_s6t8o5",
             "name": "dssd",
             "cron": "0 9 * * 1-5",
@@ -36,11 +14,13 @@
             "promptBackupUpdatedAt": "2026-03-26T21:01:19.416Z",
             "jitterSeconds": 0,
             "oneTime": false,
+            "jobId": "job_1774477345878_setxkt",
+            "jobNodeId": "jobnode_1774711625958_h2ii9k",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
             "lastRun": "2026-03-27T08:00:06.110Z",
             "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-24T19:54:59.685Z",
-            "updatedAt": "2026-03-25T15:34:45.711Z"
+            "updatedAt": "2026-03-28T15:27:05.958Z"
         }
     ],
     "jobs": [
@@ -50,9 +30,16 @@
             "cronExpression": "0 9 * * 1-5",
             "paused": false,
             "archived": false,
-            "nodes": [],
+            "nodes": [
+                {
+                    "id": "jobnode_1774711625958_h2ii9k",
+                    "type": "task",
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "windowMinutes": 30
+                }
+            ],
             "createdAt": "2026-03-25T22:22:25.878Z",
-            "updatedAt": "2026-03-25T22:23:25.113Z"
+            "updatedAt": "2026-03-28T15:31:55.292Z"
         }
     ],
     "jobFolders": [],
@@ -76,28 +63,11 @@
         ],
         "cards": [
             {
-                "id": "todo_mn960jay_tzci0t",
-                "title": "dffd12522",
+                "id": "todo_mnaiiew4_fcvyw9",
+                "title": "Test Task One",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 2,
-                "priority": "low",
-                "status": "active",
-                "labels": [
-                    "dfffd"
-                ],
-                "flags": [],
-                "comments": [],
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:42.310Z",
-                "updatedAt": "2026-03-28T11:34:41.714Z"
-            },
-            {
-                "id": "todo_mn960jay_4ez2kv",
-                "title": "dssd",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 3,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 0,
                 "priority": "low",
                 "status": "active",
                 "labels": [
@@ -108,60 +78,23 @@
                 "taskId": "task_1774382099685_s6t8o5",
                 "archived": false,
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-03-28T11:34:41.714Z"
-            },
-            {
-                "id": "todo_mn975hbd_cjclva",
-                "title": "dffd12522",
-                "sectionId": "unsorted",
-                "order": 1,
-                "priority": "none",
-                "status": "active",
-                "labels": [
-                    "scheduled-task",
-                    "from-todo-cockpit",
-                    "scheduled-task"
-                ],
-                "flags": [],
-                "comments": [],
-                "taskId": "task_1774633812433_guuodn",
-                "archived": false,
-                "createdAt": "2026-03-27T17:50:12.433Z",
-                "updatedAt": "2026-03-28T11:34:40.166Z"
-            },
-            {
-                "id": "todo_mn975hc2_ae6w8w",
-                "title": "dffd12522",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 0,
-                "priority": "urgent",
-                "status": "active",
-                "labels": [
-                    "scheduled-task"
-                ],
-                "flags": [],
-                "comments": [],
-                "taskId": "task_1774382082310_88vcoq",
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:42.310Z",
-                "updatedAt": "2026-03-28T11:34:41.714Z"
+                "updatedAt": "2026-03-28T15:56:16.617Z"
             }
         ],
         "labelCatalog": [
             {
-                "name": "3444",
-                "key": "3444",
+                "name": "bug",
+                "key": "bug",
                 "color": "#4f8cff",
-                "createdAt": "2026-03-28T11:34:57.560Z",
-                "updatedAt": "2026-03-28T14:15:35.765Z"
+                "createdAt": "2026-03-28T15:55:50.597Z",
+                "updatedAt": "2026-03-28T15:55:50.597Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-28T14:15:36.944Z"
+                "updatedAt": "2026-03-28T14:54:28.558Z"
             }
         ],
         "deletedLabelCatalogKeys": [
@@ -169,7 +102,8 @@
             "dfffd",
             "2",
             "23",
-            "1"
+            "1",
+            "3444"
         ],
         "flagCatalog": [
             {
@@ -207,7 +141,73 @@
         ],
         "archives": {
             "completedSuccessfully": [],
-            "rejected": []
+            "rejected": [
+                {
+                    "id": "todo_mn975hc2_ae6w8w",
+                    "title": "dffd12522",
+                    "description": "Auto-generated from scheduler.json",
+                    "sectionId": "unsorted",
+                    "order": 0,
+                    "priority": "urgent",
+                    "status": "rejected",
+                    "labels": [
+                        "scheduled-task"
+                    ],
+                    "flags": [],
+                    "comments": [
+                        {
+                            "id": "comment_mnagcf97_pnyo7v",
+                            "author": "system",
+                            "body": "Rejected and archived.",
+                            "labels": [
+                                "rejected"
+                            ],
+                            "source": "system-event",
+                            "sequence": 1,
+                            "createdAt": "2026-03-28T14:55:19.099Z"
+                        }
+                    ],
+                    "taskId": "task_1774382082310_88vcoq",
+                    "archived": true,
+                    "archiveOutcome": "rejected",
+                    "rejectedAt": "2026-03-28T14:55:19.099Z",
+                    "archivedAt": "2026-03-28T14:55:19.099Z",
+                    "createdAt": "2026-03-24T19:54:42.310Z",
+                    "updatedAt": "2026-03-28T14:55:19.099Z"
+                },
+                {
+                    "id": "todo_mn975hbd_cjclva",
+                    "title": "dffd12522",
+                    "sectionId": "unsorted",
+                    "order": 0,
+                    "priority": "none",
+                    "status": "rejected",
+                    "labels": [
+                        "scheduled-task",
+                        "from-todo-cockpit"
+                    ],
+                    "flags": [],
+                    "comments": [
+                        {
+                            "id": "comment_mnagdpd8_e3d2u0",
+                            "author": "system",
+                            "body": "Rejected and archived.",
+                            "labels": [
+                                "rejected"
+                            ],
+                            "source": "system-event",
+                            "sequence": 1,
+                            "createdAt": "2026-03-28T14:56:18.860Z"
+                        }
+                    ],
+                    "archived": true,
+                    "archiveOutcome": "rejected",
+                    "rejectedAt": "2026-03-28T14:56:18.860Z",
+                    "archivedAt": "2026-03-28T14:56:18.860Z",
+                    "createdAt": "2026-03-27T17:50:12.433Z",
+                    "updatedAt": "2026-03-28T14:56:18.860Z"
+                }
+            ]
         },
         "filters": {
             "labels": [],
@@ -220,6 +220,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-03-28T14:15:36.944Z"
+        "updatedAt": "2026-03-28T15:56:16.617Z"
     }
 }

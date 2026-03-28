@@ -274,7 +274,7 @@
         {
           "id": "copilotCockpit",
           "title": "%extension.title%",
-          "icon": "images/scheduler-icon.svg"
+          "icon": "images/icon.svg"
         }
       ]
     },
@@ -283,7 +283,7 @@
         {
           "id": "copilotCockpitTasks",
           "name": "%view.tasks%",
-          "icon": "images/scheduler-icon.svg"
+          "icon": "images/icon.svg"
         }
       ]
     },

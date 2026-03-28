@@ -574,6 +574,14 @@ export class SchedulerWebview {
     this.postMessage({ type: "startCreateTask" });
   }
 
+  static startCreateTodo(): void {
+    this.postMessage({ type: "startCreateTodo" });
+  }
+
+  static startCreateJob(): void {
+    this.postMessage({ type: "startCreateJob" });
+  }
+
   /**
    * Focus on a specific task
    */
@@ -728,13 +736,26 @@ export class SchedulerWebview {
       return;
     }
 
+    const detachOnly = messages.confirmDeleteJobStepDetachOnly();
+    const deleteTask = messages.confirmDeleteJobStepDeleteTask();
     const confirm = await vscode.window.showWarningMessage(
       messages.confirmDeleteJobStep(task.name),
       { modal: true },
-      messages.confirmDeleteYes(),
+      detachOnly,
+      deleteTask,
       messages.actionCancel(),
     );
-    if (confirm !== messages.confirmDeleteYes()) {
+    if (confirm === detachOnly) {
+      this.onTaskActionCallback({
+        action: "detachTaskFromJob",
+        taskId: "__jobtask__",
+        jobId,
+        nodeId,
+      });
+      return;
+    }
+
+    if (confirm !== deleteTask) {
       return;
     }
 
@@ -1067,6 +1088,46 @@ export class SchedulerWebview {
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
             action: "deleteTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "purgeTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "purgeTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "approveTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "approveTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "rejectTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "rejectTodo",
+            taskId: "__todo__",
+            todoId: message.todoId,
+          });
+        }
+        break;
+
+      case "finalizeTodo":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "finalizeTodo",
             taskId: "__todo__",
             todoId: message.todoId,
           });
@@ -2113,15 +2174,20 @@ export class SchedulerWebview {
       boardToolbarNew: localize("New Todo", "新しい Todo", "Neues Todo"),
       boardToolbarClear: localize("Clear Selection", "選択をクリア", "Auswahl aufheben"),
       boardToolbarClearFilters: localize("Clear Filters", "フィルターをクリア", "Filter löschen"),
+      boardFiltersTitle: localize("Filters", "フィルター", "Filter"),
+      boardShowFilters: localize("Show Filters", "フィルターを表示", "Filter anzeigen"),
+      boardHideFilters: localize("Hide Filters", "フィルターを隠す", "Filter ausblenden"),
       boardSearchLabel: localize("Search", "検索", "Suche"),
       boardSearchPlaceholder: localize("Search title, description, labels, comments", "タイトル、説明、ラベル、コメントを検索", "Titel, Beschreibung, Labels und Kommentare durchsuchen"),
       boardSortLabel: localize("Sort", "並び替え", "Sortieren"),
       boardViewLabel: localize("View", "表示", "Ansicht"),
       boardSectionFilterLabel: localize("Section", "セクション", "Bereich"),
       boardLabelFilterLabel: localize("Label", "ラベル", "Label"),
+      boardFlagFilterLabel: localize("Flag", "Flag", "Flag"),
       boardPriorityFilterLabel: localize("Priority", "優先度", "Priorität"),
       boardStatusFilterLabel: localize("Status", "ステータス", "Status"),
       boardArchiveOutcomeFilterLabel: localize("Archive outcome", "アーカイブ結果", "Archiv-Ergebnis"),
+      boardAllFlags: localize("All flags", "すべての Flags", "Alle Flags"),
       boardShowArchived: localize("Show archived", "アーカイブを表示", "Archivierte anzeigen"),
       boardAllSections: localize("All sections", "すべてのセクション", "Alle Bereiche"),
       boardAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
@@ -2168,6 +2234,11 @@ export class SchedulerWebview {
       boardFinalizeTodo: localize("Final Accept", "最終承認", "Final akzeptieren"),
       boardDeleteTodo: localize("Delete Todo", "Todo を削除", "Todo löschen"),
       boardDeleteTodoHelp: localize("Reject and archive this todo.", "この Todo を却下してアーカイブします。", "Dieses Todo ablehnen und archivieren."),
+      boardDeleteTodoTitle: localize("Delete Todo", "Todo を削除", "Todo löschen"),
+      boardDeleteTodoPrompt: localize("Choose whether this todo should be rejected into the archive or removed permanently.", "この Todo を却下してアーカイブするか、完全に削除するかを選択してください。", "Wählen Sie, ob dieses Todo abgelehnt und archiviert oder dauerhaft gelöscht werden soll."),
+      boardDeleteTodoReject: localize("Archive as Rejected", "却下としてアーカイブ", "Als abgelehnt archivieren"),
+      boardDeleteTodoPermanent: localize("Delete Permanently", "完全に削除", "Dauerhaft löschen"),
+      boardDeleteTodoCancel: localize("Cancel", "キャンセル", "Abbrechen"),
       boardReadOnlyArchived: localize("Archived items are read-only. Toggle archived visibility to review outcomes and history.", "アーカイブ済み項目は読み取り専用です。アーカイブ表示を切り替えて結果と履歴を確認してください。", "Archivierte Elemente sind schreibgeschützt. Blenden Sie archivierte Elemente ein, um Ergebnisse und Verlauf zu prüfen."),
       boardReadyForTask: localize("Approved items can become scheduled task drafts or be final accepted.", "承認済み項目は scheduled task drafts にするか、最終承認できます。", "Freigegebene Elemente können zu scheduled task drafts werden oder final akzeptiert werden."),
       boardCommentsTitle: localize("Comments", "コメント", "Kommentare"),
@@ -3515,6 +3586,47 @@ export class SchedulerWebview {
       min-height: 200px;
     }
 
+    .board-filter-sticky {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      gap: 8px;
+      background: var(--vscode-sideBar-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding: 8px 0 6px;
+      margin-bottom: 8px;
+    }
+
+    .board-filter-sticky.is-collapsed {
+      padding-bottom: 4px;
+    }
+
+    .board-filter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      max-width: 1600px;
+    }
+
+    .board-filter-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .board-filter-body {
+      display: grid;
+      gap: 6px;
+    }
+
+    .board-filter-sticky.is-collapsed .board-filter-body {
+      display: none;
+    }
+
     .board-toolbar {
       display: flex;
       align-items: center;
@@ -3758,6 +3870,27 @@ export class SchedulerWebview {
       line-height: 1.3;
     }
 
+    .todo-card-action-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: stretch;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
+
+    .todo-card-action-row > button {
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .todo-card-action-row > .todo-card-edit {
+      flex: 0 0 auto;
+    }
+
+    .todo-card-action-row > button:not(.todo-card-edit) {
+      flex: 1 1 0;
+    }
+
     .todo-card-edit {
       background-color: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, transparent) !important;
     }
@@ -3775,6 +3908,47 @@ export class SchedulerWebview {
     .todo-card-delete {
       background-color: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground)) !important;
       color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .cockpit-inline-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.38);
+      z-index: 250;
+    }
+
+    .cockpit-inline-modal.is-open {
+      display: flex;
+    }
+
+    .cockpit-inline-modal-card {
+      width: min(460px, calc(100vw - 32px));
+      border-radius: 14px;
+      border: 1px solid var(--vscode-widget-border);
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-foreground);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cockpit-inline-modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .cockpit-inline-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .cockpit-section-actions {
@@ -4131,6 +4305,18 @@ export class SchedulerWebview {
       margin-top: -4px;
     }
 
+    .jobs-workflow-builder-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.34fr) minmax(340px, 0.92fr);
+      gap: 14px;
+      align-items: start;
+      grid-column: 1 / -1;
+    }
+
+    .jobs-workflow-builder-layout .jobs-main-section {
+      min-width: 0;
+    }
+
     .jobs-workflow-card {
       position: relative;
       overflow: hidden;
@@ -4145,6 +4331,21 @@ export class SchedulerWebview {
       box-shadow: 0 16px 32px color-mix(in srgb, var(--vscode-editor-background) 76%, transparent);
     }
 
+    .jobs-workflow-actions-card {
+      position: relative;
+      overflow: hidden;
+      gap: 12px;
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 34%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at bottom left, color-mix(in srgb, var(--vscode-focusBorder) 15%, transparent) 0%, transparent 42%),
+        linear-gradient(
+          160deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
+          color-mix(in srgb, var(--vscode-button-secondaryBackground) 38%, var(--vscode-editor-background))
+        );
+      box-shadow: 0 14px 28px color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);
+    }
+
     .jobs-workflow-card::before {
       content: "";
       position: absolute;
@@ -4154,6 +4355,18 @@ export class SchedulerWebview {
       height: 220px;
       border-radius: 999px;
       background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .jobs-workflow-actions-card::before {
+      content: "";
+      position: absolute;
+      bottom: -82px;
+      left: -58px;
+      width: 210px;
+      height: 210px;
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 72%);
       pointer-events: none;
     }
 
@@ -4280,6 +4493,43 @@ export class SchedulerWebview {
       margin: 0;
     }
 
+    .jobs-workflow-actions-header {
+      display: grid;
+      gap: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-actions-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-button-background) 16%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-button-background) 32%, var(--vscode-panel-border));
+      color: var(--vscode-foreground);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .jobs-workflow-actions-grid {
+      display: grid;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-quick-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
     .jobs-job-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4323,6 +4573,83 @@ export class SchedulerWebview {
       grid-column: 1 / -1;
     }
 
+    .jobs-workflow-actions-card .jobs-action-card {
+      gap: 8px;
+      padding: 10px;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 82%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
+    }
+
+    .jobs-workflow-actions-card .jobs-action-card .section-title {
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .jobs-action-title-with-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .jobs-action-title-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 16%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .jobs-action-title-icon.jobs-action-title-icon-pause {
+      gap: 2px;
+      font-size: 0;
+    }
+
+    .jobs-action-title-icon.jobs-action-title-icon-pause span {
+      display: block;
+      width: 2px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 0;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form .form-group {
+      margin-bottom: 0;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form button {
+      justify-self: end;
+    }
+
+    .jobs-workflow-actions-card label {
+      margin-bottom: 3px;
+      font-size: 11px;
+    }
+
+    .jobs-workflow-actions-card input[type="text"],
+    .jobs-workflow-actions-card input[type="number"],
+    .jobs-workflow-actions-card select,
+    .jobs-workflow-actions-card textarea {
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+
+    .jobs-workflow-actions-card textarea {
+      min-height: 68px;
+    }
+
     .jobs-new-step-form {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4338,6 +4665,10 @@ export class SchedulerWebview {
       grid-column: 1 / -1;
       display: flex;
       justify-content: flex-end;
+    }
+
+    .jobs-workflow-actions-card .jobs-new-step-form {
+      gap: 10px;
     }
 
     .jobs-step-list {
@@ -4811,6 +5142,11 @@ export class SchedulerWebview {
         grid-template-columns: 1fr;
       }
 
+      .jobs-workflow-builder-layout,
+      .jobs-workflow-quick-actions {
+        grid-template-columns: 1fr;
+      }
+
       .jobs-action-card-wide,
       .jobs-new-step-actions,
       .jobs-schedule-grid .wide,
@@ -5236,7 +5572,12 @@ export class SchedulerWebview {
   <div id="board-tab" class="tab-content">
     <div class="section-title">${escapeHtml(strings.boardTitle)}</div>
     <p class="note">${escapeHtml(strings.boardDescription)}</p>
-    <div id="board-filter-sticky" style="position:sticky;top:0;z-index:20;background:var(--vscode-sideBar-background);border-bottom:1px solid var(--vscode-panel-border);padding:8px 0 6px;margin-bottom:8px;">
+    <div id="board-filter-sticky" class="board-filter-sticky">
+      <div class="board-filter-header">
+        <div class="board-filter-title">${escapeHtml(strings.boardFiltersTitle)}</div>
+        <button type="button" class="btn-secondary" id="todo-toggle-filters-btn">${escapeHtml(strings.boardHideFilters)}</button>
+      </div>
+      <div id="board-filter-body" class="board-filter-body">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;max-width:1600px;">
         <div class="form-group" style="margin:0;min-width:220px;flex:1 1 220px;">
           <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
@@ -5249,6 +5590,10 @@ export class SchedulerWebview {
         <div class="form-group" style="margin:0;min-width:130px;">
           <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
           <select id="todo-label-filter"></select>
+        </div>
+        <div class="form-group" style="margin:0;min-width:130px;">
+          <label for="todo-flag-filter">${escapeHtml(strings.boardFlagFilterLabel)}</label>
+          <select id="todo-flag-filter"></select>
         </div>
         <div class="form-group" style="margin:0;min-width:120px;">
           <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
@@ -5293,6 +5638,7 @@ export class SchedulerWebview {
             <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
           </div>
         </div>
+      </div>
       </div>
     </div>
     <div id="board-summary" class="note"></div>
@@ -5467,99 +5813,106 @@ export class SchedulerWebview {
             </div>
           </section>
 
-          <section class="jobs-main-section jobs-editor-card jobs-workflow-card is-wide">
-            <div class="jobs-workflow-hero">
-              <div class="jobs-workflow-copy">
-                <div class="jobs-workflow-badge">⛓ ${escapeHtml(strings.jobsWorkflowBadge)}</div>
-                <div class="section-title jobs-workflow-title">${escapeHtml(strings.jobsWorkflowTitle)}</div>
-                <p class="jobs-workflow-note">${escapeHtml(strings.jobsWorkflowNote)}</p>
-              </div>
-              <div id="jobs-workflow-metrics" class="jobs-workflow-metrics"></div>
-            </div>
-            <div class="jobs-workflow-panel">
-              <div class="jobs-workflow-panel-header">
-                <div class="jobs-workflow-panel-copy">
-                  <div class="section-title">${escapeHtml(strings.jobsCompactTimeline)}</div>
-                  <p class="note">${escapeHtml(strings.jobsWorkflowTimelineNote)}</p>
+          <div class="jobs-workflow-builder-layout">
+            <section class="jobs-main-section jobs-editor-card jobs-workflow-card">
+              <div class="jobs-workflow-hero">
+                <div class="jobs-workflow-copy">
+                  <div class="jobs-workflow-badge">⛓ ${escapeHtml(strings.jobsWorkflowBadge)}</div>
+                  <div class="section-title jobs-workflow-title">${escapeHtml(strings.jobsWorkflowTitle)}</div>
+                  <p class="jobs-workflow-note">${escapeHtml(strings.jobsWorkflowNote)}</p>
                 </div>
+                <div id="jobs-workflow-metrics" class="jobs-workflow-metrics"></div>
               </div>
-              <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
-            </div>
-            <div class="jobs-workflow-panel">
-              <div class="jobs-workflow-panel-header">
-                <div class="jobs-workflow-panel-copy">
-                  <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
-                  <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+              <div class="jobs-workflow-panel">
+                <div class="jobs-workflow-panel-header">
+                  <div class="jobs-workflow-panel-copy">
+                    <div class="section-title">${escapeHtml(strings.jobsCompactTimeline)}</div>
+                    <p class="note">${escapeHtml(strings.jobsWorkflowTimelineNote)}</p>
+                  </div>
                 </div>
+                <div id="jobs-timeline-inline" class="jobs-timeline-inline">${escapeHtml(strings.jobsTimelineEmpty)}</div>
               </div>
-              <div id="jobs-step-list" class="jobs-step-list"></div>
-            </div>
-          </section>
+              <div class="jobs-workflow-panel">
+                <div class="jobs-workflow-panel-header">
+                  <div class="jobs-workflow-panel-copy">
+                    <div class="section-title">${escapeHtml(strings.jobsSteps)}</div>
+                    <p class="note">${escapeHtml(strings.jobsDropHint)}</p>
+                  </div>
+                </div>
+                <div id="jobs-step-list" class="jobs-step-list"></div>
+              </div>
+            </section>
 
-          <section class="jobs-main-section jobs-editor-card is-wide">
-            <div class="section-title">Add to workflow</div>
-            <p class="note">Use these quick actions to insert pause checkpoints, attach existing tasks, or create a brand new step.</p>
-            <div class="jobs-action-grid">
-              <div class="jobs-action-card">
-                <div class="section-title">${escapeHtml(strings.jobsPauseTitle)}</div>
-                <div class="jobs-inline-form">
-                  <div class="form-group">
-                    <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
-                    <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
-                  </div>
-                  <button type="button" class="btn-secondary" id="jobs-create-pause-btn">${escapeHtml(strings.jobsCreatePause)}</button>
-                </div>
+            <section class="jobs-main-section jobs-editor-card jobs-workflow-actions-card">
+              <div class="jobs-workflow-actions-header">
+                <div class="jobs-workflow-actions-badge">＋ Workflow Builder</div>
+                <div class="section-title">Add to workflow</div>
+                <p class="note">Use quick actions to insert pause checkpoints, attach existing tasks, and draft a new step without leaving the workflow canvas.</p>
               </div>
+              <div class="jobs-workflow-actions-grid">
+                <div class="jobs-workflow-quick-actions">
+                  <div class="jobs-action-card">
+                    <div class="section-title"><span class="jobs-action-title-with-icon"><span class="jobs-action-title-icon jobs-action-title-icon-pause"><span></span><span></span></span><span>${escapeHtml(strings.jobsPauseTitle)}</span></span></div>
+                    <div class="jobs-inline-form">
+                      <div class="form-group">
+                        <label for="jobs-pause-name-input">${escapeHtml(strings.jobsPauseName)}</label>
+                        <input type="text" id="jobs-pause-name-input" placeholder="${escapeHtmlAttr(strings.jobsPauseDefaultTitle)}">
+                      </div>
+                      <button type="button" class="btn-primary" id="jobs-create-pause-btn">⏸ ${escapeHtml(strings.jobsCreatePause)}</button>
+                    </div>
+                  </div>
 
-              <div class="jobs-action-card">
-                <div class="section-title">${escapeHtml(strings.jobsAddExistingTask)}</div>
-                <div class="jobs-inline-form">
-                  <div class="form-group">
-                    <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
-                    <select id="jobs-existing-task-select"></select>
+                  <div class="jobs-action-card">
+                    <div class="section-title"><span class="jobs-action-title-with-icon"><span class="jobs-action-title-icon">⛓</span><span>${escapeHtml(strings.jobsAddExistingTask)}</span></span></div>
+                    <div class="jobs-inline-form">
+                      <div class="form-group">
+                        <label for="jobs-existing-task-select">${escapeHtml(strings.jobsStandaloneTasks)}</label>
+                        <select id="jobs-existing-task-select"></select>
+                      </div>
+                      <div class="form-group">
+                        <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                        <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
+                      </div>
+                      <button type="button" class="btn-primary" id="jobs-attach-btn">⛓ ${escapeHtml(strings.jobsAttach)}</button>
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label for="jobs-existing-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                    <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
-                  </div>
-                  <button type="button" class="btn-secondary" id="jobs-attach-btn">${escapeHtml(strings.jobsAttach)}</button>
                 </div>
-              </div>
 
-              <div class="jobs-action-card jobs-action-card-wide">
-                <div class="section-title">${escapeHtml(strings.jobsAddNewStep)}</div>
-                <div class="jobs-inline-form jobs-new-step-form">
-                  <div class="form-group">
-                    <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
-                    <input type="text" id="jobs-step-name-input">
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
-                    <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
-                  </div>
-                  <div class="form-group wide">
-                    <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
-                    <textarea id="jobs-step-prompt-input"></textarea>
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
-                    <select id="jobs-step-agent-select"></select>
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
-                    <select id="jobs-step-model-select"></select>
-                  </div>
-                  <div class="form-group">
-                    <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
-                    <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-                  </div>
-                  <div class="jobs-new-step-actions">
-                    <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+                <div class="jobs-action-card jobs-action-card-wide">
+                  <div class="section-title"><span class="jobs-action-title-with-icon"><span class="jobs-action-title-icon">✦</span><span>${escapeHtml(strings.jobsAddNewStep)}</span></span></div>
+                  <div class="jobs-inline-form jobs-new-step-form">
+                    <div class="form-group">
+                      <label for="jobs-step-name-input">${escapeHtml(strings.jobsStepName)}</label>
+                      <input type="text" id="jobs-step-name-input">
+                    </div>
+                    <div class="form-group">
+                      <label for="jobs-step-window-input">${escapeHtml(strings.jobsWindowMinutes)}</label>
+                      <input type="number" id="jobs-step-window-input" min="1" max="1440" value="30">
+                    </div>
+                    <div class="form-group wide">
+                      <label for="jobs-step-prompt-input">${escapeHtml(strings.jobsStepPrompt)}</label>
+                      <textarea id="jobs-step-prompt-input"></textarea>
+                    </div>
+                    <div class="form-group">
+                      <label for="jobs-step-agent-select">${escapeHtml(strings.labelAgent)}</label>
+                      <select id="jobs-step-agent-select"></select>
+                    </div>
+                    <div class="form-group">
+                      <label for="jobs-step-model-select">${escapeHtml(strings.labelModel)}</label>
+                      <select id="jobs-step-model-select"></select>
+                    </div>
+                    <div class="form-group wide">
+                      <label for="jobs-step-labels-input">${escapeHtml(strings.labelTaskLabels)}</label>
+                      <input type="text" id="jobs-step-labels-input" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
+                    </div>
+                    <div class="jobs-new-step-actions">
+                      <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
       </div>
     </div>

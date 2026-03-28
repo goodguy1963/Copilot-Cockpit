@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import * as vm from "vm";
+import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../schedulerWebview";
 
 type WebviewLike = {
@@ -459,7 +460,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
     }
   });
 
-  test("requestDeleteJobTask confirms before dispatching deleteJobTask", async () => {
+  test("requestDeleteJobTask can detach from workflow without deleting the task", async () => {
     const wv = SchedulerWebview as unknown as {
       handleMessage?: (message: unknown) => Promise<void>;
       onTaskActionCallback?: ((action: unknown) => void) | undefined;
@@ -482,7 +483,54 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       };
       wv.currentJobs = [{ id: "job-1", nodes: [{ id: "node-1", taskId: "task-1" }] }];
       wv.currentTasks = [{ id: "task-1", name: "Review prompt" }];
-      (vscode.window as any).showWarningMessage = async () => "Yes, delete";
+      (vscode.window as any).showWarningMessage = async () => messages.confirmDeleteJobStepDetachOnly();
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestDeleteJobTask",
+        jobId: "job-1",
+        nodeId: "node-1",
+      });
+
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0], {
+        action: "detachTaskFromJob",
+        taskId: "__jobtask__",
+        jobId: "job-1",
+        nodeId: "node-1",
+      });
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentJobs = originalJobs;
+      wv.currentTasks = originalTasks;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
+  test("requestDeleteJobTask can delete the task entirely", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentJobs?: Array<{
+        id: string;
+        nodes: Array<{ id: string; taskId: string }>;
+      }>;
+      currentTasks?: Array<{ id: string; name: string }>;
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalJobs = wv.currentJobs;
+    const originalTasks = wv.currentTasks;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentJobs = [{ id: "job-1", nodes: [{ id: "node-1", taskId: "task-1" }] }];
+      wv.currentTasks = [{ id: "task-1", name: "Review prompt" }];
+      (vscode.window as any).showWarningMessage = async () => messages.confirmDeleteJobStepDeleteTask();
 
       assert.ok(typeof wv.handleMessage === "function");
       await wv.handleMessage!({

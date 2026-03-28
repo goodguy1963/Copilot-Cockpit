@@ -1,10 +1,13 @@
 # Copilot Cockpit
 
+<!-- markdownlint-disable-next-line MD033 -->
+<img src="images/icon.png" alt="Copilot Cockpit icon" width="84">
+
 > Plan before you run. Copilot Cockpit is a local-first orchestration workspace for AI tasks, approvals, workflows, and iterative execution inside VS Code.
 
-This repository is the maintained private fork used in the HBG workspace. It is intentionally separated from the upstream marketplace extension and is packaged as `local-dev.copilot-cockpit` on the `99.0.x` version line so it does not collide with upstream installs.
+This repository is the active Copilot Cockpit codebase. It builds on the original scheduler foundation and is shipped here as the current Cockpit-focused VSIX for local, repo-scoped AI orchestration.
 
-## Concept Overview
+## 🚀 Concept Overview
 
 Copilot Cockpit is designed as a local, always-available alternative to OpenCloak. The goal is not just to auto-run prompts on a schedule. The goal is to manage, refine, discuss, approve, and iterate on work before execution.
 
@@ -17,14 +20,15 @@ It is built for work such as:
 
 The core idea is simple: avoid blindly running tasks. Use the cockpit to think, shape, review, and only then execute.
 
-## Core Foundation
+## 🧱 Core Foundation
 
-Copilot Cockpit is built on top of the Copilot Scheduler (Japan) project because it already provided a strong base for scheduling and task management in Copilot-style systems. This fork extends that base into a broader local workflow system with planning, orchestration, approvals, and bounded iteration.
+Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). That project provided the scheduling and task-management foundation; Copilot Cockpit expands it into a broader local workflow system with planning, orchestration, approvals, and bounded iteration.
 
 ## Mental Model
 
 At a high level, Copilot Cockpit models the way real work gets done:
 
+- Todos = planning, communication, and approval layer
 - Tasks = units of work
 - Workflows = processes
 - Agents = workers
@@ -43,9 +47,9 @@ One useful framing behind the project is this: a company is essentially a collec
 | `Settings` | Repo-scoped defaults, notifications, and runtime behavior |
 | `MCP` | Optional tool exposure for agent-driven orchestration in the current repo |
 
-## Why This Fork Exists
+## ✨ Why Copilot Cockpit Exists
 
-This fork turns the original scheduler into a more complete cockpit for iterative AI work:
+Copilot Cockpit turns the original scheduler foundation into a more complete cockpit for iterative AI work:
 
 - strict per-repo workspace scheduling, with each repo keeping its own state under `.vscode`
 - a repo-local `Todo Cockpit` for communication, approvals, and planning
@@ -110,7 +114,7 @@ That matches modern AI system design:
 
 The cockpit does not force one agent architecture. It provides the local control surface where those systems can be directed safely.
 
-## Installation
+## 📦 Installation
 
 ### From a GitHub Release
 
@@ -120,11 +124,11 @@ Recommended for collaborators and normal use.
 2. In VS Code, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run **Extensions: Install from VSIX…**.
 3. Select the downloaded VSIX.
 4. Reload VS Code when prompted.
-5. Disable or uninstall `yamapan.copilot-scheduler` if it is installed so this fork remains the active implementation.
+5. Disable or uninstall `yamapan.copilot-scheduler` if it is installed so Copilot Cockpit remains the active implementation.
 
 ### From Source
 
-This fork is packaged as a normal VSIX and is intended to install on Windows, macOS, and Linux.
+Copilot Cockpit is packaged as a normal VSIX and is intended to install on Windows, macOS, and Linux.
 
 1. Build the VSIX with `npm run package:vsix`.
 2. Install it with one of these scripts:
@@ -137,14 +141,14 @@ This fork is packaged as a normal VSIX and is intended to install on Windows, ma
 
 1. If the VS Code shell command is unavailable on the machine, use **Extensions: Install from VSIX…** inside VS Code or VS Code Insiders and select the generated VSIX manually.
 2. Reload VS Code.
-3. Disable or uninstall `yamapan.copilot-scheduler` if it is installed so this fork remains the active implementation.
+3. Disable or uninstall `yamapan.copilot-scheduler` if it is installed so Copilot Cockpit remains the active implementation.
 
 Notes:
 
 - the `code` and `code-insiders` shell commands use the same names on Windows, macOS, and Linux, but they must be installed locally first
 - `npm run compile` builds both the extension bundle and the embedded MCP server bundle
 
-## Quick Start
+## ⚡ Quick Start
 
 1. Open the cockpit from the activity bar, from `Copilot Cockpit: Create Scheduled Prompt (GUI)`, or from the activation notification.
 2. Start in the `How To Use` tab. It opens first and explains the current flow across Todo Cockpit, Tasks, Jobs, Research, MCP, and Settings.
@@ -167,7 +171,7 @@ If you need the one-sentence description for release notes, use this:
 - Global templates from the VS Code prompts folder or the configured global prompts path.
 - Skill references can be inserted into the prompt with one click from discovered workspace/global skill markdown files such as `SKILL.md`.
 
-### Jobs Board
+### ⛓ Jobs Board
 
 - Jobs are repo-local workflows stored next to the workspace scheduler files.
 - A job owns one cron schedule and an ordered list of workflow items, so you can build it as columns of chained tasks with dedicated pause checkpoints between segments.
@@ -177,11 +181,12 @@ If you need the one-sentence description for release notes, use this:
 - Drag-drop reordering updates the workflow timeline and the derived next-run order.
 - Dedicated pause checkpoints block all downstream steps until you approve the previous result. Rejecting a waiting pause opens the previous task in the editor so it can be changed.
 - `Compile To Task` merges the full workflow into one combined prompt task, then moves the source job into the `Bundled Jobs` folder in an inactive state so it can still be edited or duplicated later.
-- Deleting a step from Jobs now confirms first and removes the underlying task from both the workflow and the Task List.
+- Deleting a step from Jobs now asks whether it should be removed only from the workflow or whether the underlying task should also be deleted from the Task List.
+- `Add Existing Task` can be used more than once in the same workflow. When needed, Copilot Cockpit creates a reusable copy so repeated steps stay unambiguous at runtime.
 - Pausing a job suppresses all child-task executions without changing each task's own enabled flag.
 - Effective labels combine manual task labels with the owning job name, so the Task List can be filtered by workflow.
 
-### Todo (Cockpit) - Communication Hub
+### ✅ Todo (Cockpit) - Communication Hub
 
 - The `Todo Cockpit` tab is the central communication hub between the user and the AI agent, replacing the old external Todoist coordination flow.
 - The seeded sections now start with `Unsorted`, followed by `Bugs`, `Features`, `Ops/DevOps`, `Marketing/Growth`, `Automation`, and `Future`.
@@ -189,11 +194,11 @@ If you need the one-sentence description for release notes, use this:
 - Existing scheduled tasks now surface in Todo Cockpit under `Unsorted` when they are not already linked to a planning todo.
 - Todo Cockpit cards are stored only in `.vscode/scheduler.private.json`, so comments, due dates, local planning notes, and task links do not leak into the public scheduler file.
 - Todos now move through explicit states: `active`, `ready`, `completed`, and `rejected`.
-- `Approve` marks a todo `ready`, `Final Accept` archives it as `completed-successfully`, and `Delete` rejects and archives it instead of hard-deleting history.
+- In the current Cockpit UI, `Approve` archives a todo as `completed-successfully`, `Final Accept` remains available for items already in `ready`, and `Delete` now opens a chooser so you can archive as `rejected` or remove the todo permanently.
 - Archived cards stay in `.vscode/scheduler.private.json` under outcome buckets so accepted and rejected work can still be reviewed later.
 - Comments now preserve ordering plus provenance such as `human-form`, `bot-mcp`, `bot-manual`, and `system-event`.
 - Labels use a shared repo-local palette so the same chip color can be reused across cards and filters, while flags provide a single active agent-state marker per card.
-- The current UI supports creating and editing todos, adding comments, setting due dates, filtering by label/priority/status/archive outcome, drag-drop movement between sections, linking tasks, and creating scheduled task drafts from approved todos.
+- The current UI supports creating and editing todos, adding comments, setting due dates, filtering by label/priority/status/archive outcome, collapsing the filter bar, drag-drop movement between sections, linking tasks, and creating scheduled task drafts from approved todos.
 - The `How To` tab now starts with Todo Cockpit as step 1 and includes quick-switch buttons so users can jump directly to the board, task editor, task list, jobs, research, or settings from the help view.
 - The repo-local Todo skill at `.github/skills/cockpit-todo-agent/SKILL.md` teaches agents to treat this board as the source of truth for communication, approvals, labels, flags, and execution handoff.
 
@@ -224,7 +229,7 @@ The global setting `copilotCockpit.chatSession` still provides the default sched
 - `continue` keeps using the currently active Copilot chat flow.
 - `new` tries to open a new Copilot chat session before sending the scheduled prompt.
 - Use `new` with absolute care. One scheduled AI run can intentionally open another AI session, which means an AI-driven chain can continue further than a single message.
-- VS Code does not currently expose a supported extension API to reopen a specific old Copilot conversation by saved session ID, so this fork can persist the recurring task mode but cannot force-restore an exact prior Copilot thread.
+- VS Code does not currently expose a supported extension API to reopen a specific old Copilot conversation by saved session ID, so Copilot Cockpit can persist the recurring task mode but cannot force-restore an exact prior Copilot thread.
 - MCP is a different launch path, but it can still trigger new sessions indirectly. Once the scheduler MCP tools are exposed to Copilot, a model can create, modify, or run tasks that use `new` chat-session mode, so one LLM can open another.
 
 ### Agent and Model Selection
@@ -371,7 +376,7 @@ Notes:
 - The automatic setup flow writes the same structure into `.vscode/mcp.json` in the repo where you want the scheduler MCP tools available.
 - On stable VS Code installs, the extension usually lives under `~/.vscode/extensions` on macOS/Linux or `%USERPROFILE%/.vscode/extensions` on Windows.
 - On VS Code Insiders, use the `.vscode-insiders/extensions` install root instead.
-- Replace the versioned extension folder name with the exact installed version of `local-dev.copilot-cockpit`.
+- Replace the versioned extension folder name with the exact installed version of Copilot Cockpit, for example `local-dev.copilot-cockpit-99.0.11`.
 - Reload the window after adding or changing `.vscode/mcp.json`.
 
 ### Cross-Platform Readiness
@@ -382,7 +387,8 @@ Notes:
 
 ### Key Differences From Upstream
 
-- Extension identity: `local-dev.copilot-cockpit`
+- VSIX/package name: `copilot-cockpit`
+- Local build extension ID: `local-dev.copilot-cockpit`
 - Private repo and local VSIX packaging flow
 - Embedded MCP server
 - Repo-local `.vscode` schedule files
@@ -441,40 +447,40 @@ Schedule automatic AI prompts with cron expressions in VS Code.
 
 ## 📋 Commands
 
-| Command                                             | Description                |
-| --------------------------------------------------- | -------------------------- |
-| `Copilot Cockpit: Create Scheduled Prompt`        | Create a new task (CLI)    |
-| `Copilot Cockpit: Create Scheduled Prompt (GUI)`  | Create a new task (GUI)    |
-| `Copilot Cockpit: List Scheduled Tasks`           | View all tasks             |
-| `Copilot Cockpit: Edit Task`                      | Edit an existing task      |
-| `Copilot Cockpit: Delete Task`                    | Delete a task              |
-| `Copilot Cockpit: Toggle Task (Enable/Disable)`   | Enable/disable a task      |
-| `Copilot Cockpit: Enable Task`                    | Enable a task              |
-| `Copilot Cockpit: Disable Task`                   | Disable a task             |
-| `Copilot Cockpit: Run Now`                        | Execute a task immediately |
-| `Copilot Cockpit: Copy Prompt to Clipboard`       | Copy prompt to clipboard   |
-| `Copilot Cockpit: Duplicate Task`                 | Duplicate a task           |
+| Command | Description |
+| --- | --- |
+| `Copilot Cockpit: Create Scheduled Prompt` | Create a new task (CLI) |
+| `Copilot Cockpit: Create Scheduled Prompt (GUI)` | Create a new task (GUI) |
+| `Copilot Cockpit: List Scheduled Tasks` | View all tasks |
+| `Copilot Cockpit: Edit Task` | Edit an existing task |
+| `Copilot Cockpit: Delete Task` | Delete a task |
+| `Copilot Cockpit: Toggle Task (Enable/Disable)` | Enable/disable a task |
+| `Copilot Cockpit: Enable Task` | Enable a task |
+| `Copilot Cockpit: Disable Task` | Disable a task |
+| `Copilot Cockpit: Run Now` | Execute a task immediately |
+| `Copilot Cockpit: Copy Prompt to Clipboard` | Copy prompt to clipboard |
+| `Copilot Cockpit: Duplicate Task` | Duplicate a task |
 | `Copilot Cockpit: Move Task to Current Workspace` | Move a workspace task here |
-| `Copilot Cockpit: Open Settings`                  | Open extension settings    |
-| `Copilot Cockpit: Show Version`                   | Show extension version     |
+| `Copilot Cockpit: Open Settings` | Open extension settings |
+| `Copilot Cockpit: Show Version` | Show extension version |
 
 ## ⚙️ Settings
 
-| Setting                                   | Default     | Description                                                                                             |
-| ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `copilotCockpit.enabled`                | `true`      | Enable/disable scheduled execution                                                                      |
-| `copilotCockpit.showNotifications`      | `true`      | Show notifications when tasks are executed                                                              |
-| `copilotCockpit.notificationMode`       | `sound`     | Notification mode (sound/silentToast/silentStatus)                                                      |
-| `copilotCockpit.logLevel`               | `info`      | Log level (none/error/info/debug)                                                                       |
-| `copilotCockpit.language`               | `auto`      | UI language (auto/en/ja)                                                                                |
-| `copilotCockpit.timezone`               | `""`        | Timezone for scheduling                                                                                 |
-| `copilotCockpit.chatSession`            | `new`       | Chat session (new/continue)                                                                             |
-| `copilotCockpit.defaultScope`           | `workspace` | Default scope                                                                                           |
-| `copilotCockpit.globalPromptsPath`      | `""`        | Custom global prompts folder path (default: VS Code user prompts folder)                                |
-| `copilotCockpit.globalAgentsPath`       | `""`        | Custom global agents folder path                                                                        |
-| `copilotCockpit.jitterSeconds`          | `600`       | Max random delay (seconds) before execution (0–1800, 0 = off). Each task can override it.               |
-| `copilotCockpit.maxDailyExecutions`     | `24`        | Daily execution limit across all tasks (0 = unlimited, 1–100). ⚠️ Unlimited may risk API rate-limiting. |
-| `copilotCockpit.minimumIntervalWarning` | `true`      | Warn when cron interval is shorter than 30 minutes                                                      |
+| Setting | Default | Description |
+| --- | --- | --- |
+| `copilotCockpit.enabled` | `true` | Enable/disable scheduled execution |
+| `copilotCockpit.showNotifications` | `true` | Show notifications when tasks are executed |
+| `copilotCockpit.notificationMode` | `sound` | Notification mode (sound/silentToast/silentStatus) |
+| `copilotCockpit.logLevel` | `info` | Log level (none/error/info/debug) |
+| `copilotCockpit.language` | `auto` | UI language (auto/en/ja) |
+| `copilotCockpit.timezone` | `""` | Timezone for scheduling |
+| `copilotCockpit.chatSession` | `new` | Chat session (new/continue) |
+| `copilotCockpit.defaultScope` | `workspace` | Default scope |
+| `copilotCockpit.globalPromptsPath` | `""` | Custom global prompts folder path (default: VS Code user prompts folder) |
+| `copilotCockpit.globalAgentsPath` | `""` | Custom global agents folder path |
+| `copilotCockpit.jitterSeconds` | `600` | Max random delay (seconds) before execution (0–1800, 0 = off). Each task can override it. |
+| `copilotCockpit.maxDailyExecutions` | `24` | Daily execution limit across all tasks (0 = unlimited, 1–100). ⚠️ Unlimited may risk API rate-limiting. |
+| `copilotCockpit.minimumIntervalWarning` | `true` | Warn when cron interval is shorter than 30 minutes |
 
 ## 📝 Prompt Placeholders
 

@@ -474,6 +474,22 @@ export function deleteTodoInBoard(
   return { board: result.board, deleted: Boolean(result.todo) };
 }
 
+export function purgeTodoInBoard(
+  board: CockpitBoard,
+  todoId: string,
+): { board: CockpitBoard; deleted: boolean } {
+  const nextBoard = cloneBoard(board);
+  const todoIndex = nextBoard.cards.findIndex((card) => card.id === todoId);
+  if (todoIndex < 0) {
+    return { board: nextBoard, deleted: false };
+  }
+
+  const [todo] = nextBoard.cards.splice(todoIndex, 1);
+  resequenceCards(nextBoard, todo.sectionId);
+  touchBoard(nextBoard, nowIso());
+  return { board: nextBoard, deleted: true };
+}
+
 export function approveTodoInBoard(
   board: CockpitBoard,
   todoId: string,
@@ -669,6 +685,17 @@ export function deleteCockpitTodo(
   todoId: string,
 ): { board: CockpitBoard; deleted: boolean } {
   const result = deleteTodoInBoard(getCockpitBoard(workspaceRoot), todoId);
+  return {
+    board: persistBoard(workspaceRoot, result.board),
+    deleted: result.deleted,
+  };
+}
+
+export function purgeCockpitTodo(
+  workspaceRoot: string,
+  todoId: string,
+): { board: CockpitBoard; deleted: boolean } {
+  const result = purgeTodoInBoard(getCockpitBoard(workspaceRoot), todoId);
   return {
     board: persistBoard(workspaceRoot, result.board),
     deleted: result.deleted,
