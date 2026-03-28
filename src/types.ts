@@ -1407,6 +1407,7 @@ export type WebviewToExtensionMessage =
   | { type: "deleteCockpitSection"; sectionId: string }
   | { type: "moveCockpitSection"; sectionId: string; direction: "left" | "right" }
   | { type: "reorderCockpitSection"; sectionId: string; targetIndex: number }
+  | { type: "setLanguage"; language: "auto" | "en" | "ja" | "de" }
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }

@@ -6,28 +6,62 @@ import * as vscode from "vscode";
 import type { CronPreset } from "./types";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
 
+export type ConfiguredUiLanguage = "auto" | "en" | "ja" | "de";
+export type UiLanguage = Exclude<ConfiguredUiLanguage, "auto">;
+
+export function getConfiguredLanguage(): ConfiguredUiLanguage {
+  const lang = getCompatibleConfigurationValue<string>("language", "auto");
+  return lang === "auto" || lang === "en" || lang === "ja" || lang === "de"
+    ? lang
+    : "auto";
+}
+
+export function getCurrentLanguage(): UiLanguage {
+  const configured = getConfiguredLanguage();
+  if (configured !== "auto") {
+    return configured;
+  }
+
+  const detected = vscode.env.language.toLowerCase();
+  if (detected.startsWith("ja")) {
+    return "ja";
+  }
+  if (detected.startsWith("de")) {
+    return "de";
+  }
+  return "en";
+}
+
+export function getCurrentLocaleTag(): string {
+  switch (getCurrentLanguage()) {
+    case "ja":
+      return "ja-JP";
+    case "de":
+      return "de-DE";
+    default:
+      return "en-US";
+  }
+}
+
 /**
  * Check if the current language is Japanese
  */
 export function isJapanese(): boolean {
-  const lang = getCompatibleConfigurationValue<string>("language", "auto");
-
-  if (lang === "ja") {
-    return true;
-  }
-  if (lang === "en") {
-    return false;
-  }
-
-  // Auto-detect from VS Code language
-  return vscode.env.language.startsWith("ja");
+  return getCurrentLanguage() === "ja";
 }
 
 /**
  * Get localized string helper
  */
-function t(en: string, ja: string): string {
-  return isJapanese() ? ja : en;
+function t(en: string, ja: string, de = en): string {
+  switch (getCurrentLanguage()) {
+    case "ja":
+      return ja;
+    case "de":
+      return de;
+    default:
+      return en;
+  }
 }
 
 /**
@@ -117,35 +151,36 @@ export const messages = {
     t(
       "Enter cron expression (e.g., '0 9 * * 1-5' for weekdays at 9am)",
       "cron式を入力（例: '0 9 * * 1-5' で平日9時）",
+      "Cron-Ausdruck eingeben (z. B. '0 9 * * 1-5' für werktags um 9 Uhr)",
     ),
-  selectAgent: () => t("Select agent", "エージェントを選択"),
-  selectModel: () => t("Select model", "モデルを選択"),
-  selectScope: () => t("Select scope", "スコープを選択"),
-  selectTask: () => t("Select a task", "タスクを選択"),
+  selectAgent: () => t("Select agent", "エージェントを選択", "agent auswählen"),
+  selectModel: () => t("Select model", "モデルを選択", "model auswählen"),
+  selectScope: () => t("Select scope", "スコープを選択", "Scope auswählen"),
+  selectTask: () => t("Select a task", "タスクを選択", "Task auswählen"),
   selectPromptTemplate: () =>
-    t("Select prompt template", "プロンプトテンプレートを選択"),
+    t("Select prompt template", "プロンプトテンプレートを選択", "Prompt-Template auswählen"),
 
   // ==================== Actions ====================
-  actionRun: () => t("Run", "実行"),
-  actionEdit: () => t("Edit", "編集"),
-  actionDelete: () => t("Delete", "削除"),
-  actionDuplicate: () => t("Duplicate", "複製"),
+  actionRun: () => t("Run", "実行", "Ausführen"),
+  actionEdit: () => t("Edit", "編集", "Bearbeiten"),
+  actionDelete: () => t("Delete", "削除", "Löschen"),
+  actionDuplicate: () => t("Duplicate", "複製", "Duplizieren"),
   actionMoveToCurrentWorkspace: () =>
-    t("Move to Current Workspace", "現在のワークスペースへ移動"),
-  actionEnable: () => t("Enable", "有効化"),
-  actionDisable: () => t("Disable", "無効化"),
-  actionCancel: () => t("Cancel", "キャンセル"),
-  actionOpenScheduler: () => t("Open Cockpit", "Cockpit を開く"),
-  actionReschedule: () => t("Reschedule", "再スケジュール"),
-  actionWaitNextCycle: () => t("Wait for Next Cycle", "次の周期まで待機"),
-  actionCopyPrompt: () => t("Copy Prompt", "プロンプトをコピー"),
-  actionTestRun: () => t("Test Run", "テスト実行"),
-  actionSave: () => t("Update", "更新"),
-  actionCreate: () => t("Create", "作成"),
-  actionNewTask: () => t("New Task", "新規タスク"),
-  actionRefresh: () => t("Refresh", "再読込"),
-  actionRestoreBackup: () => t("Restore Backup", "バックアップを復元"),
-  actionInsertSkill: () => t("Insert Skill", "スキルを挿入"),
+    t("Move to Current Workspace", "現在のワークスペースへ移動", "In aktuellen Workspace verschieben"),
+  actionEnable: () => t("Enable", "有効化", "Aktivieren"),
+  actionDisable: () => t("Disable", "無効化", "Deaktivieren"),
+  actionCancel: () => t("Cancel", "キャンセル", "Abbrechen"),
+  actionOpenScheduler: () => t("Open Cockpit", "Cockpit を開く", "Cockpit öffnen"),
+  actionReschedule: () => t("Reschedule", "再スケジュール", "Neu planen"),
+  actionWaitNextCycle: () => t("Wait for Next Cycle", "次の周期まで待機", "Auf nächsten Zyklus warten"),
+  actionCopyPrompt: () => t("Copy Prompt", "プロンプトをコピー", "Prompt kopieren"),
+  actionTestRun: () => t("Test Run", "テスト実行", "Testlauf"),
+  actionSave: () => t("Update", "更新", "Aktualisieren"),
+  actionCreate: () => t("Create", "作成", "Erstellen"),
+  actionNewTask: () => t("New Task", "新規タスク", "Neuer Task"),
+  actionRefresh: () => t("Refresh", "再読込", "Aktualisieren"),
+  actionRestoreBackup: () => t("Restore Backup", "バックアップを復元", "Backup wiederherstellen"),
+  actionInsertSkill: () => t("Insert Skill", "スキルを挿入", "Skill einfügen"),
 
   // Webview-only runtime strings (used in media/schedulerWebview.js)
   webviewScriptErrorPrefix: () => t("Script error: ", "スクリプトエラー: "),
@@ -164,15 +199,15 @@ export const messages = {
   webviewSuccessPrefix: () => t("✔ ", "✔ "),
 
   // ==================== Webview Placeholders ====================
-  webviewSelectAgentPlaceholder: () => t("Select agent", "エージェントを選択"),
+  webviewSelectAgentPlaceholder: () => t("Select agent", "エージェントを選択", "agent auswählen"),
   webviewNoAgentsAvailable: () =>
-    t("No agents available", "利用可能なエージェントがありません"),
-  webviewSelectModelPlaceholder: () => t("Select model", "モデルを選択"),
+    t("No agents available", "利用可能なエージェントがありません", "Keine agents verfügbar"),
+  webviewSelectModelPlaceholder: () => t("Select model", "モデルを選択", "model auswählen"),
   webviewNoModelsAvailable: () =>
-    t("No models available", "利用可能なモデルがありません"),
+    t("No models available", "利用可能なモデルがありません", "Keine models verfügbar"),
   webviewSelectTemplatePlaceholder: () =>
-    t("Select template", "テンプレートを選択"),
-  placeholderSelectSkill: () => t("Select skill", "スキルを選択"),
+    t("Select template", "テンプレートを選択", "Template auswählen"),
+  placeholderSelectSkill: () => t("Select skill", "スキルを選択", "Skill auswählen"),
 
   // ==================== Confirmations ====================
   confirmDelete: (name: string) =>
@@ -180,25 +215,25 @@ export const messages = {
       `Are you sure you want to delete task "${name}"?`,
       `タスク「${name}」を削除しますか？`,
     ),
-  confirmDeleteYes: () => t("Yes, delete", "はい、削除します"),
-  confirmDeleteNo: () => t("No, keep", "いいえ、残します"),
+  confirmDeleteYes: () => t("Yes, delete", "はい、削除します", "Ja, löschen"),
+  confirmDeleteNo: () => t("No, keep", "いいえ、残します", "Nein, behalten"),
 
   confirmMoveToCurrentWorkspace: (name: string) =>
     t(
       `Move task "${name}" to the current workspace?`,
       `タスク「${name}」を現在のワークスペースへ移動しますか？`,
     ),
-  confirmMoveYes: () => t("Move", "移動する"),
+  confirmMoveYes: () => t("Move", "移動する", "Verschieben"),
 
   confirmRunOutsideWorkspace: (name: string) =>
     t(
       `Task "${name}" is scoped to a different workspace. Run it here anyway?`,
       `タスク「${name}」は別のワークスペース用です。このワークスペースで実行しますか？`,
     ),
-  confirmRunAnyway: () => t("Run anyway", "実行する"),
+  confirmRunAnyway: () => t("Run anyway", "実行する", "Trotzdem ausführen"),
 
-  labelThisWorkspaceShort: () => t("This workspace", "このWS"),
-  labelOtherWorkspaceShort: () => t("Other workspace", "他のWS"),
+  labelThisWorkspaceShort: () => t("This workspace", "このWS", "Dieser Workspace"),
+  labelOtherWorkspaceShort: () => t("Other workspace", "他のWS", "Anderer Workspace"),
   autoShowOnStartupEnabled: () =>
     t("Auto-open on startup: On", "起動時に自動表示: オン"),
   autoShowOnStartupDisabled: () =>
@@ -217,7 +252,7 @@ export const messages = {
           "Scheduler auto-open on startup was disabled for this repo",
           "このリポジトリの起動時自動表示を無効化しました",
         ),
-  scheduleHistoryLabel: () => t("Backup History", "バックアップ履歴"),
+  scheduleHistoryLabel: () => t("Backup History", "バックアップ履歴", "Backup-Verlauf"),
   scheduleHistoryPlaceholder: () =>
     t("Select a backup version", "復元するバックアップを選択"),
   scheduleHistoryEmpty: () =>
@@ -293,210 +328,254 @@ export const messages = {
   tabList: () => t("Task List", "タスク一覧"),
   tabHowTo: () => t("How To Use", "使い方"),
 
-  helpIntroTitle: () => t("Schedule Copilot prompts to run automatically", "Copilot プロンプトを自動実行するスケジューラ"),
+  helpIntroTitle: () =>
+    t(
+      "Schedule Copilot prompts to run automatically",
+      "Copilot プロンプトを自動実行するスケジューラ",
+      "Copilot-Prompts automatisch planen und ausführen",
+    ),
   helpIntroBody: () =>
     t(
       "Write a prompt, set a cron schedule, and this extension sends it to Copilot on time — every time. Schedules are stored per repo in .vscode so teams can share them via git. Chain tasks into Jobs for multi-step workflows, add pause checkpoints for human review, or run bounded Research loops that stop themselves automatically.",
       "プロンプトを書いてcronスケジュールを設定すれば、この拡張機能が毎回定刻にCopilotへ送信します。スケジュールはリポジトリごとに.vscodeへ保存されるため、gitで共有できます。Jobsでタスクを連結したり、レビュー用の一時停止チェックポイントを追加したり、自動終了するResearchループを実行できます。",
+      "Schreiben Sie einen Prompt, legen Sie einen Cron-Zeitplan fest, und diese Erweiterung sendet ihn jedes Mal pünktlich an Copilot. Zeitpläne werden pro Repository in .vscode gespeichert, damit Teams sie über Git teilen können. Sie können Aufgaben zu Jobs für mehrstufige Abläufe verketten, Pause Checkpoints für menschliche Freigaben einfügen oder begrenzte Research-Schleifen ausführen, die sich selbst beenden.",
     ),
-  helpCreateTitle: () => t("1. Create a Task", "1. タスクを作成"),
+  helpCreateTitle: () => t("1. Create a Task", "1. タスクを作成", "1. Einen Task erstellen"),
   helpCreateItemName: () =>
     t(
       "Open the Create Task tab. Enter a name, write your prompt, set a cron schedule (or use the friendly schedule builder), and choose a scope.",
       "Create Task タブを開き、名前・プロンプト・cronスケジュール（またはフレンドリービルダー）・スコープを設定します。",
+      "Öffnen Sie den Tab Create Task. Geben Sie einen Namen ein, schreiben Sie Ihren Prompt, legen Sie einen Cron-Zeitplan fest oder verwenden Sie den Friendly Schedule Builder, und wählen Sie einen Scope.",
     ),
   helpCreateItemTemplates: () =>
     t(
       "For the prompt, choose Free Input to type directly, Local Template to load a file from .github/prompts/, or Global Template from your VS Code prompts folder.",
       "プロンプトは、直接入力のFree Input、.github/prompts/からのLocal Template、VS CodeプロンプトフォルダーのGlobal Templateから選べます。",
+      "Für den Prompt können Sie Free Input für direkte Eingabe, Local Template zum Laden einer Datei aus .github/prompts/ oder Global Template aus Ihrem VS Code prompts-Ordner verwenden.",
     ),
   helpCreateItemSkills: () =>
     t(
       "Click Insert Skill to append a skill instruction to the prompt. Skills are .md files in .github/skills/ — they are only available when that repo is open, and they are not used automatically just by being present.",
       "Insert Skillをクリックすると、スキル指示文をプロンプトへ追加できます。スキルは.github/skills/内の.mdファイルで、そのリポジトリが開いているときのみ有効です。ファイルがあるだけでは自動適用されません。",
+      "Klicken Sie auf Insert Skill, um eine Skill-Anweisung an den Prompt anzuhängen. Skills sind .md-Dateien in .github/skills/ und nur verfügbar, wenn dieses Repository geöffnet ist. Allein ihre Existenz aktiviert sie nicht automatisch.",
     ),
   helpCreateItemAgentModel: () =>
     t(
       "Leave agent and model blank to use your current VS Code defaults. Set them explicitly on a task to lock a specific agent and model for that task only.",
       "エージェントとモデルは空白のままにするとVS Codeのデフォルトが使われます。タスクごとに明示的に指定すると、そのタスク専用に固定できます。",
+      "Lassen Sie agent und model leer, um die aktuellen VS Code-Standardeinstellungen zu verwenden. Wenn Sie sie direkt am Task setzen, werden sie nur für diesen Task festgelegt.",
     ),
   helpCreateItemRunFirst: () =>
     t(
       "Check Run First to fire the task 3 minutes after saving. Check One-Time to delete the task automatically after it runs once successfully.",
       "Run Firstにチェックすると保存から3分後に初回実行します。One-Timeにチェックすると1回成功後にタスクを自動削除します。",
+      "Aktivieren Sie Run First, damit der Task 3 Minuten nach dem Speichern startet. Aktivieren Sie One-Time, damit der Task nach einer erfolgreichen Ausführung automatisch gelöscht wird.",
     ),
-  helpListTitle: () => t("2. Manage Your Tasks", "2. タスクを管理"),
+  helpListTitle: () => t("2. Manage Your Tasks", "2. タスクを管理", "2. Ihre Tasks verwalten"),
   helpListItemSections: () =>
     t(
       "The Task List shows recurring tasks and one-time tasks in separate sections, with a live countdown to the next scheduled run.",
       "Task Listでは繰り返しタスクと一度きりタスクを別セクションで表示し、次回実行までのカウントダウンも表示します。",
+      "Die Task List zeigt wiederkehrende und einmalige Tasks in getrennten Bereichen an, einschließlich eines Live-Countdowns bis zur nächsten geplanten Ausführung.",
     ),
   helpListItemActions: () =>
     t(
       "Click a task's action buttons to run it now, open it in the editor, duplicate it, enable or disable it, or delete it. You can also move a task to another open workspace.",
       "タスクのアクションボタンから、即時実行・エディターで開く・複製・有効化/無効化・削除ができます。別のワークスペースへの移動も可能です。",
+      "Über die Aktionsschaltflächen eines Tasks können Sie ihn sofort ausführen, im Editor öffnen, duplizieren, aktivieren oder deaktivieren oder löschen. Sie können einen Task auch in einen anderen geöffneten Workspace verschieben.",
     ),
   helpListItemStartup: () =>
     t(
       "Use the toolbar to refresh the list or toggle whether the Scheduler opens automatically whenever this repo opens in VS Code.",
       "ツールバーからリストの更新や、このリポジトリを開いたときにSchedulerを自動表示するかの切り替えができます。",
+      "Über die Toolbar können Sie die Liste aktualisieren oder umschalten, ob der Scheduler automatisch geöffnet wird, wenn dieses Repository in VS Code geöffnet wird.",
     ),
-  helpJobsTitle: () => t("3. Chain Tasks with Jobs", "3. Jobsでタスクを連結"),
+  helpJobsTitle: () => t("3. Chain Tasks with Jobs", "3. Jobsでタスクを連結", "3. Tasks mit Jobs verketten"),
   helpJobsItemBoard: () =>
     t(
       "Open the Jobs tab to build multi-step workflows. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
       "Jobs タブでマルチステップのワークフローを作成します。タスクをステップとして追加し、ドラッグで並べ替え、フォルダーで整理できます。",
+      "Öffnen Sie den Jobs-Tab, um mehrstufige Abläufe zu bauen. Fügen Sie Tasks als Schritte hinzu, ordnen Sie sie per Drag-and-Drop neu an und organisieren Sie Abläufe in Ordnern.",
     ),
   helpJobsItemPause: () =>
     t(
       "Add a Pause Checkpoint between steps to stop the workflow and wait for your approval before continuing. Reject to reopen the previous task in the editor for fixes.",
       "ステップ間にPause Checkpointを追加すると、次のステップへ進む前に承認を待ちます。却下すると直前のタスクがエディターで開きます。",
+      "Fügen Sie zwischen Schritten einen Pause Checkpoint ein, damit der Ablauf stoppt und auf Ihre Freigabe wartet. Mit Reject öffnen Sie den vorherigen Task zur Korrektur erneut im Editor.",
     ),
   helpJobsItemCompile: () =>
     t(
       "Use Compile To Task to collapse the entire Job into a single combined prompt task. The original Job moves to a Bundled Jobs folder and becomes inactive.",
       "Compile To Taskを使うとJob全体を1つのプロンプトタスクにまとめます。元のJobはBundled Jobsフォルダーへ移動し非アクティブになります。",
+      "Mit Compile To Task können Sie einen gesamten Job in einen einzigen kombinierten Prompt-Task umwandeln. Der ursprüngliche Job wird in den Ordner Bundled Jobs verschoben und inaktiv.",
     ),
   helpJobsItemLabels: () =>
     t(
       "A Job's name becomes a label on all its steps. Filter the Task List by that label to see only the tasks that belong to that workflow.",
       "Job名はすべてのステップのラベルになります。Task ListでそのラベルをフィルターするとそのJobのタスクだけを表示できます。",
+      "Der Name eines Jobs wird als Label auf alle Schritte angewendet. Filtern Sie die Task List nach diesem Label, um nur die Tasks dieses Ablaufs zu sehen.",
     ),
   helpJobsItemFolders: () =>
     t(
       "Drag jobs into folders to organize them. The banner at the top shows which folder you are currently viewing.",
       "ジョブをフォルダーへドラッグして整理できます。上部のバナーで現在どのフォルダーを表示しているか確認できます。",
+      "Ziehen Sie Jobs in Ordner, um sie zu organisieren. Das Banner oben zeigt, welchen Ordner Sie gerade ansehen.",
     ),
   helpJobsItemDelete: () =>
     t(
       "Deleting a step from a Job also removes that task from the Task List. A confirmation prompt appears first.",
       "JobからステップをDeleteするとTask Listからも削除されます。実行前に確認が表示されます。",
+      "Wenn Sie einen Schritt aus einem Job löschen, wird dieser Task auch aus der Task List entfernt. Vorher erscheint eine Bestätigung.",
     ),
-  helpResearchTitle: () => t("4. Run Bounded Research", "4. 制限付きResearchを実行"),
+  helpResearchTitle: () => t("4. Run Bounded Research", "4. 制限付きResearchを実行", "4. Begrenzte Research-Läufe ausführen"),
   helpResearchItemProfiles: () =>
     t(
       "Go to the Research tab and create a profile. Set your instructions, the file paths the agent may edit, a benchmark command, a metric pattern, and your agent/model choice.",
       "Researchタブでプロファイルを作成します。指示文・編集可能なファイルパス・ベンチマークコマンド・指標パターン・エージェント/モデルを設定します。",
+      "Gehen Sie zum Research-Tab und erstellen Sie ein Profil. Legen Sie die Anweisungen, die editierbaren Dateipfade, einen Benchmark-Befehl, ein Metric-Muster und agent/model fest.",
     ),
   helpResearchItemBounds: () =>
     t(
       "Set hard limits on how long a run can go: maximum iterations, maximum minutes, benchmark timeout, edit wait time, and consecutive failure limit.",
       "実行の上限を設定します：最大反復回数・最大分数・ベンチマークタイムアウト・編集待機時間・連続失敗上限。",
+      "Setzen Sie harte Grenzen dafür, wie lange ein Lauf dauern darf: maximale Iterationen, maximale Minuten, Benchmark-Timeout, Wartezeit für Edits und Limit für aufeinanderfolgende Fehler.",
     ),
   helpResearchItemHistory: () =>
     t(
       "After a run, check the history to review attempts, scores, which files changed, and the benchmark output — before deciding whether to keep the result.",
       "実行後はHistoryを確認して、試行・スコア・変更ファイル・ベンチマーク出力を検証してから結果を採用するか判断できます。",
+      "Prüfen Sie nach einem Lauf die History, um Versuche, Scores, geänderte Dateien und Benchmark-Ausgaben zu überprüfen, bevor Sie entscheiden, ob das Ergebnis behalten werden soll.",
     ),
-  helpStorageTitle: () => t("5. Where Files Are Saved", "5. ファイルの保存場所"),
+  helpStorageTitle: () => t("5. Where Files Are Saved", "5. ファイルの保存場所", "5. Wo Dateien gespeichert werden"),
   helpStorageItemRepo: () =>
     t(
       "Tasks are saved in .vscode/scheduler.json inside the open repo. Todo Cockpit items go to .vscode/scheduler.private.json and are never synced via git.",
       "タスクは開いているリポジトリの.vscode/scheduler.jsonに保存されます。Todo Cockpitは.vscode/scheduler.private.jsonに保存され、gitで同期されません。",
+      "Tasks werden in .vscode/scheduler.json im geöffneten Repository gespeichert. Elemente aus dem Todo Cockpit landen in .vscode/scheduler.private.json und werden niemals über Git synchronisiert.",
     ),
   helpStorageItemBackups: () =>
     t(
       "Inline prompts are backed up to .vscode/scheduler-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/scheduler-history/.",
       "インラインプロンプトは.vscode/scheduler-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/scheduler-history/に保存されます。",
+      "Inline-Prompts werden als Markdown-Dateien nach .vscode/scheduler-prompt-backups/ gesichert. Vollständige Snapshots des Scheduler-Zustands landen in .vscode/scheduler-history/.",
     ),
   helpStorageItemIsolation: () =>
     t(
       "Each repo keeps its own schedule. Opening a parent folder does not pull in schedules from nested repos inside it.",
       "各リポジトリは独自のスケジュールを持ちます。親フォルダーを開いても、内部のネストされたリポジトリのスケジュールは読み込まれません。",
+      "Jedes Repository behält seinen eigenen Zeitplan. Beim Öffnen eines übergeordneten Ordners werden keine Zeitpläne aus verschachtelten Repositories übernommen.",
     ),
   helpStorageItemGlobal: () =>
     t(
       "Global tasks are kept in extension storage as a fallback, but the .vscode files in the open repo always take priority.",
       "グローバルタスクは拡張ストレージにフォールバックとして保存されますが、開いているリポジトリの.vscodeファイルが常に優先されます。",
+      "Globale Tasks werden als Fallback im Erweiterungsspeicher gehalten, aber die .vscode-Dateien im geöffneten Repository haben immer Vorrang.",
     ),
-  helpOverdueTitle: () => t("6. Handling Overdue Tasks", "6. 期限超過タスクの処理"),
+  helpOverdueTitle: () => t("6. Handling Overdue Tasks", "6. 期限超過タスクの処理", "6. Überfällige Tasks behandeln"),
   helpOverdueItemReview: () =>
     t(
       "If VS Code was closed while tasks were scheduled, they won't run automatically on restart. Instead, you'll be asked what to do with each overdue task one at a time.",
       "VS Codeを閉じている間にスケジュールされたタスクは、再起動時に自動実行されません。代わりに、期限超過のタスクを1件ずつ確認するプロンプトが表示されます。",
+      "Wenn VS Code geschlossen war, während Tasks geplant waren, werden sie beim Neustart nicht automatisch ausgeführt. Stattdessen werden Sie nacheinander gefragt, was mit jedem überfälligen Task geschehen soll.",
     ),
   helpOverdueItemRecurring: () =>
     t(
       "For overdue recurring tasks: choose to run now or skip to the next scheduled cycle.",
       "繰り返しの期限超過タスク：今すぐ実行するか、次のcyclまで待機するかを選べます。",
+      "Bei überfälligen wiederkehrenden Tasks können Sie entscheiden, ob sie jetzt ausgeführt oder bis zum nächsten geplanten Zyklus übersprungen werden sollen.",
     ),
   helpOverdueItemOneTime: () =>
     t(
       "For overdue one-time tasks: choose to run now or enter a number of minutes from now to reschedule it.",
       "一度きりの期限超過タスク：今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
+      "Bei überfälligen einmaligen Tasks können Sie entscheiden, ob sie jetzt ausgeführt oder um eine bestimmte Anzahl Minuten verschoben werden sollen.",
     ),
-  helpSessionTitle: () => t("7. Chat Session Options", "7. チャットセッション設定"),
+  helpSessionTitle: () => t("7. Chat Session Options", "7. チャットセッション設定", "7. Chat Session-Optionen"),
   helpSessionItemPerTask: () =>
     t(
       "Each recurring task can override the global new-session setting. Find the option in the Create/Edit Task form.",
       "繰り返しタスクはCreate/Edit Taskフォームでグローバルのnew-session設定を上書きできます。",
+      "Jeder wiederkehrende Task kann die globale New Session-Einstellung überschreiben. Sie finden diese Option im Formular Create/Edit Task.",
     ),
   helpSessionItemNewChat: () =>
     t(
       "Enable New Chat Session on a task to start a fresh Copilot chat before each run, rather than continuing in the same conversation.",
       "タスクのNew Chat Sessionを有効にすると、毎回の実行前に新しいCopilotチャットを開きます（同じ会話を続けません）。",
+      "Aktivieren Sie New Chat Session für einen Task, wenn vor jeder Ausführung ein neuer Copilot-Chat gestartet werden soll, statt dieselbe Unterhaltung fortzusetzen.",
     ),
   helpSessionItemCareful: () =>
     t(
       "Use this carefully: a scheduled run in new-session mode can deliberately open another AI session and chain into it.",
       "注意して使用してください：new-sessionモードのスケジュール実行は意図的に別のAIセッションを開いて連鎖できます。",
+      "Verwenden Sie diese Option mit Bedacht: Eine geplante Ausführung im New Session-Modus kann absichtlich eine weitere AI-Sitzung öffnen und in sie weiterleiten.",
     ),
   helpSessionItemSeparate: () =>
     t(
       "If scheduler MCP tools are enabled, an AI model can create or trigger tasks that open new sessions — meaning one LLM can chain into another.",
       "scheduler MCPツールが有効な場合、AIモデルが新規セッションを開くタスクを作成・実行できます。つまり1つのLLMが別のLLMを連鎖起動できます。",
+      "Wenn scheduler MCP tools aktiviert sind, kann ein AI-Modell Tasks erstellen oder auslösen, die neue Sitzungen öffnen. Das bedeutet, dass sich ein LLM in ein anderes weiterverkettet.",
     ),
   helpMcpItemEmbedded: () =>
     t(
       "MCP is built in. The scheduler's MCP server starts alongside the extension — no separate install needed.",
       "MCPは組み込みです。SchedulerのMCPサーバーは拡張機能と一緒に起動します。別途インストールは不要です。",
+      "MCP ist integriert. Der MCP-Server des Scheduler startet zusammen mit der Erweiterung. Eine separate Installation ist nicht nötig.",
     ),
   helpMcpItemConfig: () =>
     t(
       "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the scheduler server in this workspace.",
       "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加してこのワークスペースに登録します。",
+      "MCP tools sind standardmäßig nicht aktiv. Fügen Sie einen Launcher-Eintrag hinzu, zum Beispiel in .vscode/mcp.json, um den Scheduler-Server in diesem Workspace zu registrieren.",
     ),
   helpMcpItemAutoConfig: () =>
     t(
       "Click the Setup MCP button below to automatically create or update .vscode/mcp.json for this repo.",
       "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonを自動的に作成または更新します。",
+      "Klicken Sie unten auf Setup MCP, um .vscode/mcp.json für dieses Repository automatisch zu erstellen oder zu aktualisieren.",
     ),
   helpMcpItemDanger: () =>
     t(
       "Warning: once Copilot can see these MCP tools, it can read your schedule, modify tasks, and trigger runs — including ones that open new AI sessions. Only enable this if you understand the risk.",
       "警告：CopilotがこれらのMCPツールを参照できると、スケジュールの読み取り・タスクの変更・実行のトリガー（新しいAIセッションを開くものも含む）が可能になります。リスクを理解した上で有効にしてください。",
+      "Warnung: Sobald Copilot diese MCP tools sehen kann, kann es Ihren Zeitplan lesen, Tasks ändern und Läufe auslösen, auch solche, die neue AI-Sitzungen öffnen. Aktivieren Sie das nur, wenn Sie das Risiko verstehen.",
     ),
   helpMcpItemInspect: () =>
     t(
       "Read tools: list all tasks, fetch a single task's details, get overdue tasks, and view run history.",
       "読み取りツール：全タスクの一覧・単一タスクの詳細取得・期限超過タスクの確認・実行履歴の表示。",
+      "Read tools: alle Tasks auflisten, Details zu einem einzelnen Task abrufen, überfällige Tasks anzeigen und die Run History einsehen.",
     ),
   helpMcpItemWrite: () =>
     t(
       "Write tools: add, update, duplicate, remove, or toggle tasks. Job tools create and edit workflows and their steps.",
       "書き込みツール：タスクの追加・更新・複製・削除・切り替え。JobツールはワークフローとそのステップをCRUD操作します。",
+      "Write tools: Tasks hinzufügen, aktualisieren, duplizieren, entfernen oder umschalten. Job tools erstellen und bearbeiten Workflows und deren Schritte.",
     ),
   helpMcpItemTools: () =>
     t(
       "Action tools: run a task immediately, restore a scheduler snapshot, manage pause checkpoints in Jobs, and start or review Research profile runs.",
       "アクションツール：タスクの即時実行・スナップショット復元・Jobsの一時停止チェックポイント管理・Researchプロファイル実行の開始と確認。",
+      "Action tools: einen Task sofort ausführen, einen Scheduler-Snapshot wiederherstellen, Pause Checkpoints in Jobs verwalten und Läufe von Research-Profilen starten oder prüfen.",
     ),
-  helpMcpTitle: () => t("8. MCP Integration", "8. MCPインテグレーション"),
-  helpTipsTitle: () => t("9. Tips", "9. ヒント"),
+  helpMcpTitle: () => t("8. MCP Integration", "8. MCPインテグレーション", "8. MCP-Integration"),
+  helpTipsTitle: () => t("9. Tips", "9. ヒント", "9. Tipps"),
   helpTipsItem1: () =>
     t(
       "Enable auto-open only for repos where you want the Scheduler panel to appear every time the repo opens in VS Code.",
       "VS Codeでリポジトリを開くたびにSchedulerパネルを表示したいリポジトリにだけ自動表示を有効にしてください。",
+      "Aktivieren Sie Auto-Open nur für Repositories, in denen das Scheduler-Panel jedes Mal beim Öffnen in VS Code erscheinen soll.",
     ),
   helpTipsItem2: () =>
     t(
       "Set reasonable cron intervals. Use jitter and daily run limits to avoid burning through your AI quota with runaway automation.",
       "無理のないcron間隔を設定し、ジッターと1日の実行上限を使って自動化のリスクとAIクォータの消費を抑えてください。",
+      "Wählen Sie sinnvolle Cron-Intervalle. Nutzen Sie Jitter und tägliche Ausführungslimits, damit eine außer Kontrolle geratene Automatisierung Ihre AI-Quote nicht aufbraucht.",
     ),
   helpTipsItem3: () =>
     t(
       "Use the restore dropdown to roll back schedule changes. Skills in .github/skills/ must be inserted into the prompt manually — they are not applied automatically. The Settings tab stores the default agent and model used when a task leaves those fields blank.",
       "復元ドロップダウンでスケジュール変更を巻き戻せます。.github/skills/のスキルは手動でプロンプトへ挿入する必要があり、自動適用されません。Settingsタブには、タスクでエージェント/モデルが未指定のときに使うデフォルト値を保存できます。",
+      "Mit dem Restore-Dropdown können Sie Zeitplanänderungen zurücksetzen. Skills in .github/skills/ müssen manuell in den Prompt eingefügt werden und werden nicht automatisch angewendet. Im Settings-Tab werden der Standard-Agent und das Standard-Modell gespeichert, die verwendet werden, wenn ein Task diese Felder leer lässt.",
     ),
 
   webviewMessageHandlingFailed: (error: string) =>
@@ -505,69 +584,70 @@ export const messages = {
       `操作の処理に失敗しました: ${error}`,
     ),
 
-  labelTaskName: () => t("Task Name", "タスク名"),
-  labelPromptType: () => t("Prompt Type", "プロンプト種別"),
-  labelPromptInline: () => t("Free Input", "自由入力"),
-  labelPromptLocal: () => t("Local Template", "ローカルテンプレート"),
-  labelPromptGlobal: () => t("Global Template", "グローバルテンプレート"),
-  labelPrompt: () => t("Prompt", "プロンプト"),
-  labelSchedule: () => t("Schedule", "スケジュール"),
-  labelCronExpression: () => t("Cron Expression", "Cron式"),
-  labelPreset: () => t("Preset", "プリセット"),
-  labelCustom: () => t("Custom", "カスタム"),
-  labelAdvanced: () => t("Advanced", "詳細設定"),
-  labelFrequency: () => t("Frequency", "頻度"),
-  labelFrequencyMinute: () => t("Every X minutes", "X分ごと"),
-  labelFrequencyHourly: () => t("Hourly", "毎時"),
-  labelFrequencyDaily: () => t("Daily", "毎日"),
-  labelFrequencyWeekly: () => t("Weekly", "毎週"),
-  labelFrequencyMonthly: () => t("Monthly", "毎月"),
-  labelSelectDays: () => t("Select days", "曜日を選択"),
-  labelSelectTime: () => t("Time", "時刻"),
-  labelSelectHour: () => t("Hour", "時"),
-  labelSelectMinute: () => t("Minute", "分"),
-  labelSelectDay: () => t("Day of month", "日"),
-  labelInterval: () => t("Interval", "間隔"),
-  labelAgent: () => t("Agent", "エージェント"),
-  labelModel: () => t("Model", "モデル"),
+  labelTaskName: () => t("Task Name", "タスク名", "Task-Name"),
+  labelPromptType: () => t("Prompt Type", "プロンプト種別", "Prompt-Typ"),
+  labelPromptInline: () => t("Free Input", "自由入力", "Freie Eingabe"),
+  labelPromptLocal: () => t("Local Template", "ローカルテンプレート", "Lokales Template"),
+  labelPromptGlobal: () => t("Global Template", "グローバルテンプレート", "Globales Template"),
+  labelPrompt: () => t("Prompt", "プロンプト", "Prompt"),
+  labelSchedule: () => t("Schedule", "スケジュール", "Zeitplan"),
+  labelCronExpression: () => t("Cron Expression", "Cron式", "Cron-Ausdruck"),
+  labelPreset: () => t("Preset", "プリセット", "Preset"),
+  labelCustom: () => t("Custom", "カスタム", "Benutzerdefiniert"),
+  labelAdvanced: () => t("Advanced", "詳細設定", "Erweitert"),
+  labelFrequency: () => t("Frequency", "頻度", "Häufigkeit"),
+  labelFrequencyMinute: () => t("Every X minutes", "X分ごと", "Alle X Minuten"),
+  labelFrequencyHourly: () => t("Hourly", "毎時", "Stündlich"),
+  labelFrequencyDaily: () => t("Daily", "毎日", "Täglich"),
+  labelFrequencyWeekly: () => t("Weekly", "毎週", "Wöchentlich"),
+  labelFrequencyMonthly: () => t("Monthly", "毎月", "Monatlich"),
+  labelSelectDays: () => t("Select days", "曜日を選択", "Tage auswählen"),
+  labelSelectTime: () => t("Time", "時刻", "Uhrzeit"),
+  labelSelectHour: () => t("Hour", "時", "Stunde"),
+  labelSelectMinute: () => t("Minute", "分", "Minute"),
+  labelSelectDay: () => t("Day of month", "日", "Tag des Monats"),
+  labelInterval: () => t("Interval", "間隔", "Intervall"),
+  labelAgent: () => t("Agent", "エージェント", "agent"),
+  labelModel: () => t("Model", "モデル", "model"),
   labelModelNote: () =>
     t(
       "Model selection is a preview feature and may not apply in all environments. The dropdown labels show the API source, such as Copilot or OpenRouter. If needed, pick the model directly in the Copilot Chat panel.",
       "モデルの選択はプレビュー機能で、環境によって反映されない場合があります。ドロップダウンのラベルには Copilot や OpenRouter などの API ソースが表示されます。必要に応じて Copilot Chat パネルでも確認してください。",
     ),
-  labelScope: () => t("Scope", "スコープ"),
+  labelScope: () => t("Scope", "スコープ", "Scope"),
   labelScopeGlobal: () =>
-    t("Global (All Workspaces)", "グローバル（全ワークスペース）"),
-  labelScopeWorkspace: () => t("Workspace Only", "ワークスペースのみ"),
-  labelEnabled: () => t("Enabled", "有効"),
-  labelDisabled: () => t("Disabled", "無効"),
-  labelStatus: () => t("Status", "ステータス"),
-  labelNextRun: () => t("Next Run", "次回実行"),
-  labelLastRun: () => t("Last Run", "前回実行"),
-  labelNever: () => t("Never", "なし"),
+    t("Global (All Workspaces)", "グローバル（全ワークスペース）", "Global (alle Workspaces)"),
+  labelScopeWorkspace: () => t("Workspace Only", "ワークスペースのみ", "Nur Workspace"),
+  labelEnabled: () => t("Enabled", "有効", "Aktiv"),
+  labelDisabled: () => t("Disabled", "無効", "Inaktiv"),
+  labelStatus: () => t("Status", "ステータス", "Status"),
+  labelNextRun: () => t("Next Run", "次回実行", "Nächster Lauf"),
+  labelLastRun: () => t("Last Run", "前回実行", "Letzter Lauf"),
+  labelNever: () => t("Never", "なし", "Nie"),
   labelRunFirstInOneMinute: () =>
-    t("Run first execution in 3 minutes", "3分後に初回実行する"),
-  labelOneTime: () => t("Run once and delete", "一度だけ実行して削除"),
+    t("Run first execution in 3 minutes", "3分後に初回実行する", "Erste Ausführung in 3 Minuten starten"),
+  labelOneTime: () => t("Run once and delete", "一度だけ実行して削除", "Einmal ausführen und löschen"),
   labelChatSession: () =>
-    t("Recurring chat session", "繰り返しタスクのチャットセッション"),
+    t("Recurring chat session", "繰り返しタスクのチャットセッション", "Wiederkehrende Chat-Session"),
   labelChatSessionNew: () =>
-    t("Start a new chat every run", "毎回新しいチャットを開始"),
+    t("Start a new chat every run", "毎回新しいチャットを開始", "Bei jedem Lauf einen neuen Chat starten"),
   labelChatSessionContinue: () =>
-    t("Continue the active chat", "現在のチャットを継続"),
+    t("Continue the active chat", "現在のチャットを継続", "Aktiven Chat fortsetzen"),
   labelChatSessionBadgeNew: () =>
-    t("Chat: New", "チャット: 新規"),
+    t("Chat: New", "チャット: 新規", "Chat: Neu"),
   labelChatSessionBadgeContinue: () =>
-    t("Chat: Continue", "チャット: 継続"),
+    t("Chat: Continue", "チャット: 継続", "Chat: Fortsetzen"),
   labelChatSessionRecurringOnly: () =>
     t(
       "Recurring tasks only. One-time tasks do not store a task-level chat session mode.",
       "繰り返しタスク専用です。一度きりタスクにはタスク単位のチャットセッション設定は保存されません。",
+      "Nur für wiederkehrende Tasks. Einmalige Tasks speichern keinen Chat-Session-Modus auf Task-Ebene.",
     ),
-  labelAllTasks: () => t("All", "すべて"),
-  labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク"),
-  labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク"),
+  labelAllTasks: () => t("All", "すべて", "Alle"),
+  labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク", "Wiederkehrende Tasks"),
+  labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク", "Einmalige Tasks"),
   labelJitterSeconds: () =>
-    t("Jitter (max seconds, 0=off)", "ジッター(最大秒数, 0=無効)"),
+    t("Jitter (max seconds, 0=off)", "ジッター(最大秒数, 0=無効)", "Jitter (max. Sekunden, 0=aus)"),
   webviewJitterNote: () =>
     t(
       "0 disables jitter. Adds a random delay between 0 and the specified seconds before execution.",
@@ -575,55 +655,58 @@ export const messages = {
     ),
 
   // Friendly cron builder / day labels
-  daySun: () => t("Sun", "日"),
-  dayMon: () => t("Mon", "月"),
-  dayTue: () => t("Tue", "火"),
-  dayWed: () => t("Wed", "水"),
-  dayThu: () => t("Thu", "木"),
-  dayFri: () => t("Fri", "金"),
-  daySat: () => t("Sat", "土"),
-  labelFriendlyBuilder: () => t("Friendly cron builder", "かんたんCron"),
-  labelFriendlyGenerate: () => t("Generate", "生成する"),
-  labelFriendlyPreview: () => t("Preview", "プレビュー"),
+  daySun: () => t("Sun", "日", "So"),
+  dayMon: () => t("Mon", "月", "Mo"),
+  dayTue: () => t("Tue", "火", "Di"),
+  dayWed: () => t("Wed", "水", "Mi"),
+  dayThu: () => t("Thu", "木", "Do"),
+  dayFri: () => t("Fri", "金", "Fr"),
+  daySat: () => t("Sat", "土", "Sa"),
+  labelFriendlyBuilder: () => t("Friendly cron builder", "かんたんCron", "Friendly Cron Builder"),
+  labelFriendlyGenerate: () => t("Generate", "生成する", "Generieren"),
+  labelFriendlyPreview: () => t("Preview", "プレビュー", "Vorschau"),
   labelFriendlyFallback: () =>
-    t("Preview unavailable for this expression", "このCronの説明はありません"),
-  labelFriendlySelect: () => t("Select frequency", "頻度を選択"),
-  labelEveryNMinutes: () => t("Every N minutes", "N分ごと"),
-  labelHourlyAtMinute: () => t("Hourly at minute", "毎時 指定分"),
-  labelDailyAtTime: () => t("Daily at time", "毎日 時刻"),
-  labelWeeklyAtTime: () => t("Weekly at day/time", "毎週 曜日+時刻"),
-  labelMonthlyAtTime: () => t("Monthly on day/time", "毎月 日付+時刻"),
-  labelMinute: () => t("Minute", "分"),
-  labelHour: () => t("Hour", "時"),
-  labelDayOfMonth: () => t("Day of month", "実行日"),
-  labelDayOfWeek: () => t("Day of week", "曜日"),
-  labelOpenInGuru: () => t("Open in crontab.guru", "crontab.guruを開く"),
+    t("Preview unavailable for this expression", "このCronの説明はありません", "Für diesen Ausdruck ist keine Vorschau verfügbar"),
+  labelFriendlySelect: () => t("Select frequency", "頻度を選択", "Häufigkeit auswählen"),
+  labelEveryNMinutes: () => t("Every N minutes", "N分ごと", "Alle N Minuten"),
+  labelHourlyAtMinute: () => t("Hourly at minute", "毎時 指定分", "Stündlich zur Minute"),
+  labelDailyAtTime: () => t("Daily at time", "毎日 時刻", "Täglich um"),
+  labelWeeklyAtTime: () => t("Weekly at day/time", "毎週 曜日+時刻", "Wöchentlich an Tag/Uhrzeit"),
+  labelMonthlyAtTime: () => t("Monthly on day/time", "毎月 日付+時刻", "Monatlich an Tag/Uhrzeit"),
+  labelMinute: () => t("Minute", "分", "Minute"),
+  labelHour: () => t("Hour", "時", "Stunde"),
+  labelDayOfMonth: () => t("Day of month", "実行日", "Tag des Monats"),
+  labelDayOfWeek: () => t("Day of week", "曜日", "Wochentag"),
+  labelOpenInGuru: () => t("Open in crontab.guru", "crontab.guruを開く", "In crontab.guru öffnen"),
 
   // Cron preview templates (used in media/schedulerWebview.js)
-  cronPreviewEveryNMinutes: () => t("Every {n} minutes", "{n}分ごと"),
-  cronPreviewHourlyAtMinute: () => t("Hourly at minute {m}", "毎時 {m}分"),
-  cronPreviewDailyAt: () => t("Daily at {t}", "毎日 {t}"),
-  cronPreviewWeekdaysAt: () => t("Weekdays at {t}", "平日 {t}"),
-  cronPreviewWeeklyOnAt: () => t("Weekly on {d} at {t}", "毎週 {d} {t}"),
+  cronPreviewEveryNMinutes: () => t("Every {n} minutes", "{n}分ごと", "Alle {n} Minuten"),
+  cronPreviewHourlyAtMinute: () => t("Hourly at minute {m}", "毎時 {m}分", "Stündlich zur Minute {m}"),
+  cronPreviewDailyAt: () => t("Daily at {t}", "毎日 {t}", "Täglich um {t}"),
+  cronPreviewWeekdaysAt: () => t("Weekdays at {t}", "平日 {t}", "Werktags um {t}"),
+  cronPreviewWeeklyOnAt: () => t("Weekly on {d} at {t}", "毎週 {d} {t}", "Wöchentlich am {d} um {t}"),
   cronPreviewMonthlyOnAt: () =>
-    t("Monthly on day {dom} at {t}", "毎月{dom}日 {t}"),
+    t("Monthly on day {dom} at {t}", "毎月{dom}日 {t}", "Monatlich am Tag {dom} um {t}"),
 
-  placeholderTaskName: () => t("Enter task name...", "タスク名を入力..."),
+  placeholderTaskName: () => t("Enter task name...", "タスク名を入力...", "Task-Namen eingeben..."),
   placeholderPrompt: () =>
     t(
       "Enter prompt to send to Copilot...",
       "Copilotに送信するプロンプトを入力...",
+      "Prompt eingeben, der an Copilot gesendet werden soll...",
     ),
-  labelSkills: () => t("Skills", "スキル"),
+  labelSkills: () => t("Skills", "スキル", "Skills"),
   skillInsertNote: () =>
     t(
       "Insert a skill reference sentence into the prompt with one click. This switches the prompt to inline mode so the inserted instruction is preserved.",
       "ワンクリックでスキル参照文をプロンプトへ挿入します。挿入した指示が保持されるよう、プロンプトは inline モードへ切り替わります。",
+      "Fügen Sie mit einem Klick einen Skill-Hinweissatz in den Prompt ein. Dadurch wechselt der Prompt in den Inline-Modus, damit die eingefügte Anweisung erhalten bleibt.",
     ),
   skillSentenceTemplate: (skill: string) =>
     t(
       `Use ${skill} to know how things must be done.`,
       `${skill} を使って、どのように進めるべきかを理解してください。`,
+      `Verwende ${skill}, um zu verstehen, wie Dinge erledigt werden sollen.`,
     ),
   placeholderCron: () => t("e.g., 0 9 * * 1-5", "例: 0 9 * * 1-5"),
 
@@ -654,7 +737,7 @@ export const messages = {
       hour: "2-digit",
       minute: "2-digit",
     };
-    return date.toLocaleString(isJapanese() ? "ja-JP" : "en-US", options);
+    return date.toLocaleString(getCurrentLocaleTag(), options);
   },
 
   // ==================== Cron Descriptions ====================
@@ -695,21 +778,22 @@ export const messages = {
       `Failed to update .vscode/mcp.json: ${reason}`,
       `.vscode/mcp.json の更新に失敗しました: ${reason}`,
     ),
-  jobCreateTitle: () => t("New Job", "新規ジョブ"),
-  jobNamePrompt: () => t("Enter job name", "ジョブ名を入力してください"),
-  jobScheduleTitle: () => t("Job schedule", "ジョブのスケジュール"),
+  jobCreateTitle: () => t("New Job", "新規ジョブ", "Neuer Job"),
+  jobNamePrompt: () => t("Enter job name", "ジョブ名を入力してください", "Job-Namen eingeben"),
+  jobScheduleTitle: () => t("Job schedule", "ジョブのスケジュール", "Job-Zeitplan"),
   jobSchedulePrompt: () =>
     t(
       "Enter a cron expression for this job",
       "このジョブの cron 式を入力してください",
+      "Cron-Ausdruck für diesen Job eingeben",
     ),
-  jobFolderCreateTitle: () => t("New Folder", "新規フォルダー"),
-  jobFolderRenameTitle: () => t("Rename Folder", "フォルダー名の変更"),
+  jobFolderCreateTitle: () => t("New Folder", "新規フォルダー", "Neuer Ordner"),
+  jobFolderRenameTitle: () => t("Rename Folder", "フォルダー名の変更", "Ordner umbenennen"),
   jobFolderNamePrompt: () =>
-    t("Enter folder name", "フォルダー名を入力してください"),
-  jobsPauseTitle: () => t("Pause checkpoints", "停止チェックポイント"),
-  jobsPauseName: () => t("Pause title", "停止タイトル"),
-  jobsPauseDefaultTitle: () => t("Manual review", "手動確認"),
+    t("Enter folder name", "フォルダー名を入力してください", "Ordnernamen eingeben"),
+  jobsPauseTitle: () => t("Pause checkpoints", "停止チェックポイント", "Pause Checkpoints"),
+  jobsPauseName: () => t("Pause title", "停止タイトル", "Pause-Titel"),
+  jobsPauseDefaultTitle: () => t("Manual review", "手動確認", "Manuelle Prüfung"),
   confirmDeleteJobFolder: (name: string) =>
     t(
       `Delete folder "${name}"? Jobs and subfolders inside it will move to the parent folder.`,
@@ -724,6 +808,7 @@ export const messages = {
     t(
       "Only workspace-scoped tasks can be moved",
       "移動できるのはワークスペーススコープのタスクのみです",
+      "Nur Tasks im Workspace-Scope können verschoben werden",
     ),
   // ==================== Tooltip ====================
   tooltipWorkspaceTarget: () => t("Target Workspace", "対象ワークスペース"),
@@ -794,87 +879,87 @@ export function getCronPresets(): CronPreset[] {
   return [
     {
       id: "every-3min",
-      name: t("Every 3 Minutes", "3分ごと"),
+      name: t("Every 3 Minutes", "3分ごと", "Alle 3 Minuten"),
       expression: "*/3 * * * *",
-      description: t("Every 3 minutes", "3分ごと"),
+      description: t("Every 3 minutes", "3分ごと", "Alle 3 Minuten"),
     },
     {
       id: "every-5min",
-      name: t("Every 5 Minutes", "5分ごと"),
+      name: t("Every 5 Minutes", "5分ごと", "Alle 5 Minuten"),
       expression: "*/5 * * * *",
-      description: t("Every 5 minutes", "5分ごと"),
+      description: t("Every 5 minutes", "5分ごと", "Alle 5 Minuten"),
     },
     {
       id: "every-10min",
-      name: t("Every 10 Minutes", "10分ごと"),
+      name: t("Every 10 Minutes", "10分ごと", "Alle 10 Minuten"),
       expression: "*/10 * * * *",
-      description: t("Every 10 minutes", "10分ごと"),
+      description: t("Every 10 minutes", "10分ごと", "Alle 10 Minuten"),
     },
     {
       id: "every-15min",
-      name: t("Every 15 Minutes", "15分ごと"),
+      name: t("Every 15 Minutes", "15分ごと", "Alle 15 Minuten"),
       expression: "*/15 * * * *",
-      description: t("Every 15 minutes", "15分ごと"),
+      description: t("Every 15 minutes", "15分ごと", "Alle 15 Minuten"),
     },
     {
       id: "every-30min",
-      name: t("Every 30 Minutes", "30分ごと"),
+      name: t("Every 30 Minutes", "30分ごと", "Alle 30 Minuten"),
       expression: "*/30 * * * *",
-      description: t("Every 30 minutes", "30分ごと"),
+      description: t("Every 30 minutes", "30分ごと", "Alle 30 Minuten"),
     },
     {
       id: "hourly",
-      name: t("Hourly", "毎時"),
+      name: t("Hourly", "毎時", "Stündlich"),
       expression: "0 * * * *",
-      description: t("Every hour at minute 0", "毎時0分"),
+      description: t("Every hour at minute 0", "毎時0分", "Zu jeder Stunde bei Minute 0"),
     },
     {
       id: "daily-9am",
-      name: t("Daily 9:00 AM", "毎日 9:00"),
+      name: t("Daily 9:00 AM", "毎日 9:00", "Täglich 9:00"),
       expression: "0 9 * * *",
-      description: t("Every day at 9:00 AM", "毎日9時"),
+      description: t("Every day at 9:00 AM", "毎日9時", "Jeden Tag um 9:00"),
     },
     {
       id: "daily-12pm",
-      name: t("Daily 12:00 PM", "毎日 12:00"),
+      name: t("Daily 12:00 PM", "毎日 12:00", "Täglich 12:00"),
       expression: "0 12 * * *",
-      description: t("Every day at 12:00 PM", "毎日12時"),
+      description: t("Every day at 12:00 PM", "毎日12時", "Jeden Tag um 12:00"),
     },
     {
       id: "daily-6pm",
-      name: t("Daily 6:00 PM", "毎日 18:00"),
+      name: t("Daily 6:00 PM", "毎日 18:00", "Täglich 18:00"),
       expression: "0 18 * * *",
-      description: t("Every day at 6:00 PM", "毎日18時"),
+      description: t("Every day at 6:00 PM", "毎日18時", "Jeden Tag um 18:00"),
     },
     {
       id: "weekday-9am",
-      name: t("Weekdays 9:00 AM", "平日 9:00"),
+      name: t("Weekdays 9:00 AM", "平日 9:00", "Werktags 9:00"),
       expression: "0 9 * * 1-5",
-      description: t("Monday to Friday at 9:00 AM", "月曜〜金曜の9時"),
+      description: t("Monday to Friday at 9:00 AM", "月曜〜金曜の9時", "Montag bis Freitag um 9:00"),
     },
     {
       id: "weekday-6pm",
-      name: t("Weekdays 6:00 PM", "平日 18:00"),
+      name: t("Weekdays 6:00 PM", "平日 18:00", "Werktags 18:00"),
       expression: "0 18 * * 1-5",
-      description: t("Monday to Friday at 6:00 PM", "月曜〜金曜の18時"),
+      description: t("Monday to Friday at 6:00 PM", "月曜〜金曜の18時", "Montag bis Freitag um 18:00"),
     },
     {
       id: "weekly-monday",
-      name: t("Every Monday 9:00 AM", "毎週月曜 9:00"),
+      name: t("Every Monday 9:00 AM", "毎週月曜 9:00", "Jeden Montag 9:00"),
       expression: "0 9 * * 1",
-      description: t("Every Monday at 9:00 AM", "毎週月曜日の9時"),
+      description: t("Every Monday at 9:00 AM", "毎週月曜日の9時", "Jeden Montag um 9:00"),
     },
     {
       id: "weekly-friday",
-      name: t("Every Friday 6:00 PM", "毎週金曜 18:00"),
+      name: t("Every Friday 6:00 PM", "毎週金曜 18:00", "Jeden Freitag 18:00"),
       expression: "0 18 * * 5",
-      description: t("Every Friday at 6:00 PM", "毎週金曜日の18時"),
+      description: t("Every Friday at 6:00 PM", "毎週金曜日の18時", "Jeden Freitag um 18:00"),
     },
     {
       id: "monthly-1st",
-      name: t("1st of Month 9:00 AM", "毎月1日 9:00"),
+      name: t("1st of Month 9:00 AM", "毎月1日 9:00", "Am 1. des Monats 9:00"),
       expression: "0 9 1 * *",
-      description: t("1st day of every month at 9:00 AM", "毎月1日の9時"),
+      description: t("1st day of every month at 9:00 AM", "毎月1日の9時", "Am 1. Tag jedes Monats um 9:00"),
     },
   ];
 }
