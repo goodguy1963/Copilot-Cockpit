@@ -1033,6 +1033,15 @@ export class SchedulerWebview {
         }
         break;
 
+      case "syncBundledSkills":
+        if (this.onTaskActionCallback) {
+          this.onTaskActionCallback({
+            action: "syncBundledSkills",
+            taskId: "__syncBundledSkills__",
+          });
+        }
+        break;
+
       case "saveTelegramNotification":
         if (this.onTaskActionCallback) {
           this.onTaskActionCallback({
@@ -2230,9 +2239,11 @@ export class SchedulerWebview {
       boardSaveUpdate: localize("Save Todo", "Todo を保存", "Todo speichern"),
       boardAddComment: localize("Add Comment", "コメントを追加", "Kommentar hinzufügen"),
       boardCreateTask: localize("Create Task Draft", "Task Draft を作成", "Task Draft erstellen"),
-      boardApproveTodo: localize("Approve", "承認", "Freigeben"),
+      boardCompleteTodo: localize("Complete & Archive", "完了してアーカイブ", "Abschließen und archivieren"),
       boardFinalizeTodo: localize("Final Accept", "最終承認", "Final akzeptieren"),
       boardDeleteTodo: localize("Delete Todo", "Todo を削除", "Todo löschen"),
+      boardDeleteTodoShort: localize("Delete", "削除", "Löschen"),
+      boardEditTodoShort: localize("Edit", "編集", "Bearbeiten"),
       boardDeleteTodoHelp: localize("Reject and archive this todo.", "この Todo を却下してアーカイブします。", "Dieses Todo ablehnen und archivieren."),
       boardDeleteTodoTitle: localize("Delete Todo", "Todo を削除", "Todo löschen"),
       boardDeleteTodoPrompt: localize("Choose whether this todo should be rejected into the archive or removed permanently.", "この Todo を却下してアーカイブするか、完全に削除するかを選択してください。", "Wählen Sie, ob dieses Todo abgelehnt und archiviert oder dauerhaft gelöscht werden soll."),
@@ -2307,6 +2318,13 @@ export class SchedulerWebview {
       skillInsertNote: messages.skillInsertNote(),
       skillSentenceTemplate: messages.skillSentenceTemplate("{skill}"),
       actionSetupMcp: messages.mcpSetupAction(),
+      actionSyncBundledSkills: localize("Sync Bundled Skills", "同梱スキルを同期", "Gebündelte Skills synchronisieren"),
+      settingsMaintenanceTitle: localize("Workspace Maintenance", "ワークスペース保守", "Workspace-Wartung"),
+      settingsMaintenanceBody: localize(
+        "Repair repo-local support files after plugin updates. Use this when a workspace was opened before new bundled skills were added.",
+        "プラグイン更新後に repo-local の補助ファイルを補修します。新しい同梱スキルが追加される前からワークスペースを開いていた場合に使います。",
+        "Repariert repo-lokale Unterstützungsdateien nach Plugin-Updates. Verwenden Sie dies, wenn ein Workspace bereits geöffnet war, bevor neue gebündelte Skills hinzugefügt wurden.",
+      ),
       labelFilterByLabel: localize("Filter by label", "ラベルでフィルター", "Nach Label filtern"),
       labelAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
       jobsTitle: localize("Jobs", "Jobs", "Jobs"),
@@ -5315,8 +5333,7 @@ export class SchedulerWebview {
             <div class="button-group" style="margin:0;">
               <button type="submit" class="btn-primary" id="todo-save-btn">${escapeHtml(strings.boardSaveCreate)}</button>
               <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
-              <button type="button" class="btn-secondary" id="todo-approve-btn">${escapeHtml(strings.boardApproveTodo)}</button>
-              <button type="button" class="btn-secondary" id="todo-finalize-btn">${escapeHtml(strings.boardFinalizeTodo)}</button>
+              <button type="button" class="btn-secondary" id="todo-complete-btn">${escapeHtml(strings.boardCompleteTodo)}</button>
               <button type="button" class="btn-secondary" id="todo-delete-btn">${escapeHtml(strings.boardDeleteTodo)}</button>
             </div>
           </section>
@@ -6144,6 +6161,15 @@ export class SchedulerWebview {
             <option value="ja" ${configuredLanguage === "ja" ? "selected" : ""}>${escapeHtml(strings.helpLanguageJapanese)}</option>
             <option value="de" ${configuredLanguage === "de" ? "selected" : ""}>${escapeHtml(strings.helpLanguageGerman)}</option>
           </select>
+        </div>
+      </section>
+      <section class="telegram-card">
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.settingsMaintenanceTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsMaintenanceBody)}</p>
+        </div>
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
         </div>
       </section>
     </div>

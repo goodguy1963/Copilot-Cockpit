@@ -77,7 +77,7 @@ suite("Scheduler Json Sanitizer Tests", () => {
       assert.ok(!publicContent.includes("Ship cockpit board"));
       assert.ok(privateContent.includes("cockpitBoard"));
       assert.ok(privateContent.includes("Ship cockpit board"));
-      assert.strictEqual(roundTripped.cockpitBoard?.sections.length, 7);
+      assert.strictEqual(roundTripped.cockpitBoard?.sections.length, 9);
       assert.strictEqual(roundTripped.cockpitBoard?.cards[0]?.title, "Ship cockpit board");
       assert.strictEqual(roundTripped.telegramNotification?.botToken, "123456:abcdefghijklmnopqrstuvwxyzABCDE");
     } finally {

@@ -1,6 +1,9 @@
 import {
+  DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
+  DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
   DEFAULT_UNSORTED_SECTION_ID,
   createDefaultCockpitBoard,
+  isArchiveSectionId,
   normalizeCockpitBoard,
 } from "./cockpitBoard";
 import {
@@ -84,15 +87,10 @@ function stripFlagFromTodoCards(
   }
 }
 
-function ensureArchives(board: CockpitBoard): NonNullable<CockpitBoard["archives"]> {
-  if (!board.archives) {
-    board.archives = {
-      completedSuccessfully: [],
-      rejected: [],
-    };
-  }
-
-  return board.archives;
+function getArchiveSectionId(outcome: CockpitArchiveOutcome): string {
+  return outcome === "completed-successfully"
+    ? DEFAULT_ARCHIVE_COMPLETED_SECTION_ID
+    : DEFAULT_ARCHIVE_REJECTED_SECTION_ID;
 }
 
 function appendTodoCommentRecord(
@@ -229,14 +227,6 @@ function upsertFlagDefinitionInBoard(
   return { board: nextBoard, label };
 }
 
-function archiveOutcomeToBucketKey(
-  outcome: CockpitArchiveOutcome,
-): keyof NonNullable<CockpitBoard["archives"]> {
-  return outcome === "completed-successfully"
-    ? "completedSuccessfully"
-    : "rejected";
-}
-
 function archiveTodoInBoardByOutcome(
   board: CockpitBoard,
   todoId: string,
@@ -253,20 +243,21 @@ function archiveTodoInBoardByOutcome(
   todo.archived = true;
   todo.archivedAt = timestamp;
   todo.archiveOutcome = outcome;
+  todo.sectionId = getArchiveSectionId(outcome);
   todo.updatedAt = timestamp;
 
   if (outcome === "completed-successfully") {
     todo.status = "completed";
     todo.completedAt = timestamp;
-    addSystemEventComment(todo, "Final accepted and archived as completed.", ["completed"], timestamp);
+    addSystemEventComment(todo, "Completed and moved to the completed archive.", ["completed"], timestamp);
   } else {
     todo.status = "rejected";
     todo.rejectedAt = timestamp;
-    addSystemEventComment(todo, "Rejected and archived.", ["rejected"], timestamp);
+    addSystemEventComment(todo, "Rejected and moved to the rejected archive.", ["rejected"], timestamp);
   }
 
-  ensureArchives(nextBoard)[archiveOutcomeToBucketKey(outcome)].push(todo);
   resequenceCards(nextBoard, todo.sectionId);
+  nextBoard.cards.unshift(todo);
   touchBoard(nextBoard, timestamp);
   return { board: nextBoard, todo };
 }
@@ -494,19 +485,7 @@ export function approveTodoInBoard(
   board: CockpitBoard,
   todoId: string,
 ): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
-  const nextBoard = cloneBoard(board);
-  const todo = nextBoard.cards.find((card) => card.id === todoId);
-  if (!todo) {
-    return { board: nextBoard, todo: undefined };
-  }
-
-  const timestamp = nowIso();
-  todo.status = "ready";
-  todo.approvedAt = timestamp;
-  todo.updatedAt = timestamp;
-  addSystemEventComment(todo, "Approved and marked ready for final acceptance.", ["approved"], timestamp);
-  touchBoard(nextBoard, timestamp);
-  return { board: nextBoard, todo };
+  return archiveTodoInBoardByOutcome(board, todoId, "completed-successfully");
 }
 
 export function finalizeTodoInBoard(
@@ -759,8 +738,6 @@ export function deleteCockpitTodoLabelDefinition(
     (entry) => entry.key !== key,
   );
   stripLabelFromTodoCards(nextBoard.cards, key, timestamp);
-  stripLabelFromTodoCards(ensureArchives(nextBoard).completedSuccessfully, key, timestamp);
-  stripLabelFromTodoCards(ensureArchives(nextBoard).rejected, key, timestamp);
   if (nextBoard.filters) {
     nextBoard.filters.labels = normalizeStringList(nextBoard.filters.labels).filter(
       (label) => normalizeLabelKey(label) !== key,
@@ -796,8 +773,6 @@ export function deleteCockpitFlagDefinition(
     (entry) => entry.key !== key,
   );
   stripFlagFromTodoCards(nextBoard.cards, key, timestamp);
-  stripFlagFromTodoCards(ensureArchives(nextBoard).completedSuccessfully, key, timestamp);
-  stripFlagFromTodoCards(ensureArchives(nextBoard).rejected, key, timestamp);
   if (nextBoard.filters) {
     nextBoard.filters.flags = normalizeStringList(nextBoard.filters.flags).filter(
       (flag) => normalizeLabelKey(flag) !== key,
@@ -879,6 +854,9 @@ export function renameCockpitSection(
   title: string,
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  if (isArchiveSectionId(sectionId)) {
+    return persistBoard(workspaceRoot, nextBoard);
+  }
   const section = nextBoard.sections.find((s) => s.id === sectionId);
   if (section && String(title || "").trim()) {
     section.title = String(title).trim();
@@ -893,6 +871,9 @@ export function deleteCockpitSection(
   sectionId: string,
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  if (isArchiveSectionId(sectionId)) {
+    return persistBoard(workspaceRoot, nextBoard);
+  }
   // Never remove the last section
   if (nextBoard.sections.length <= 1) return persistBoard(workspaceRoot, nextBoard);
   // Pick the fallback: prefer the default unsorted section; if that IS the one being deleted, use first other section
@@ -919,11 +900,15 @@ export function moveCockpitSection(
   direction: "left" | "right",
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  if (isArchiveSectionId(sectionId)) {
+    return persistBoard(workspaceRoot, nextBoard);
+  }
   const sorted = nextBoard.sections.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const idx = sorted.findIndex((s) => s.id === sectionId);
   if (idx === -1) return persistBoard(workspaceRoot, nextBoard);
   const swapIdx = direction === "left" ? idx - 1 : idx + 1;
   if (swapIdx < 0 || swapIdx >= sorted.length) return persistBoard(workspaceRoot, nextBoard);
+  if (isArchiveSectionId(sorted[swapIdx]?.id)) return persistBoard(workspaceRoot, nextBoard);
   const oa = sorted[idx].order;
   const ob = sorted[swapIdx].order;
   // Swap orders using map so both sections in nextBoard update
@@ -941,11 +926,18 @@ export function reorderCockpitSection(
   targetIndex: number,
 ): CockpitBoard {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  if (isArchiveSectionId(sectionId)) {
+    return persistBoard(workspaceRoot, nextBoard);
+  }
   const sorted = nextBoard.sections.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const fromIndex = sorted.findIndex((s) => s.id === sectionId);
   if (fromIndex === -1 || fromIndex === targetIndex) return persistBoard(workspaceRoot, nextBoard);
+  const clampedTargetIndex = Math.max(0, Math.min(targetIndex, sorted.length - 1));
+  if (isArchiveSectionId(sorted[clampedTargetIndex]?.id)) {
+    return persistBoard(workspaceRoot, nextBoard);
+  }
   const [moved] = sorted.splice(fromIndex, 1);
-  sorted.splice(targetIndex, 0, moved);
+  sorted.splice(clampedTargetIndex, 0, moved);
   sorted.forEach((s, i) => {
     const inBoard = nextBoard.sections.find((ns) => ns.id === s.id);
     if (inBoard) inBoard.order = i;

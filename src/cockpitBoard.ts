@@ -26,6 +26,31 @@ const DEFAULT_SECTIONS = [
 
 export const DEFAULT_UNSORTED_SECTION_ID = DEFAULT_SECTIONS[0].id;
 
+const ARCHIVE_SECTIONS = [
+  { id: "archive-completed", title: "Archive: Completed" },
+  { id: "archive-rejected", title: "Archive: Rejected" },
+] as const;
+
+export const DEFAULT_ARCHIVE_COMPLETED_SECTION_ID = ARCHIVE_SECTIONS[0].id;
+export const DEFAULT_ARCHIVE_REJECTED_SECTION_ID = ARCHIVE_SECTIONS[1].id;
+
+export function isArchiveSectionId(sectionId: string | undefined): boolean {
+  return sectionId === DEFAULT_ARCHIVE_COMPLETED_SECTION_ID
+    || sectionId === DEFAULT_ARCHIVE_REJECTED_SECTION_ID;
+}
+
+function getArchiveSectionDefinition(sectionId: string | undefined) {
+  return ARCHIVE_SECTIONS.find((section) => section.id === sectionId);
+}
+
+function getArchiveSectionIdForOutcome(
+  outcome: CockpitArchiveOutcome,
+): string {
+  return outcome === "completed-successfully"
+    ? DEFAULT_ARCHIVE_COMPLETED_SECTION_ID
+    : DEFAULT_ARCHIVE_REJECTED_SECTION_ID;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -180,6 +205,39 @@ function ensureUnsortedSection(
   ]);
 }
 
+function ensureArchiveSections(
+  sections: CockpitBoardSection[],
+  timestamp: string,
+): CockpitBoardSection[] {
+  const byId = new Map(
+    sections.map((section) => [section.id, section] as const),
+  );
+  const nonArchiveSections = sections
+    .filter((section) => !isArchiveSectionId(section.id))
+    .sort((left, right) => (left.order || 0) - (right.order || 0));
+
+  const archiveSections = ARCHIVE_SECTIONS.map((definition) => {
+    const existing = byId.get(definition.id);
+    return existing
+      ? {
+        ...existing,
+        title: definition.title,
+      }
+      : {
+        id: definition.id,
+        title: definition.title,
+        order: nonArchiveSections.length,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+  });
+
+  return [...nonArchiveSections, ...archiveSections].map((section, index) => ({
+    ...section,
+    order: index,
+  }));
+}
+
 function normalizeComment(comment: unknown, index: number): CockpitTodoComment {
   const record = comment && typeof comment === "object"
     ? comment as Partial<CockpitTodoComment>
@@ -327,9 +385,34 @@ function buildFlagCatalog(
   );
 }
 
-function normalizeArchivedCards(cards: unknown): CockpitTodoCard[] {
+function normalizeLegacyArchivedCards(
+  cards: unknown,
+  outcome: CockpitArchiveOutcome,
+): CockpitTodoCard[] {
+  const timestamp = nowIso();
+  const sectionId = getArchiveSectionIdForOutcome(outcome);
   return Array.isArray(cards)
-    ? cards.map((entry, index) => normalizeCard(entry, index))
+    ? cards.map((entry, index): CockpitTodoCard => {
+      const card = normalizeCard(entry, index);
+      const archivedAt = card.archivedAt
+        ?? card.completedAt
+        ?? card.rejectedAt
+        ?? timestamp;
+      return {
+        ...card,
+        sectionId,
+        archived: true,
+        archiveOutcome: outcome,
+        status: outcome === "completed-successfully" ? "completed" : "rejected",
+        completedAt: outcome === "completed-successfully"
+          ? card.completedAt ?? archivedAt
+          : undefined,
+        rejectedAt: outcome === "rejected"
+          ? card.rejectedAt ?? archivedAt
+          : undefined,
+        archivedAt,
+      };
+    })
     : [];
 }
 
@@ -378,13 +461,17 @@ function normalizeSection(section: unknown, index: number): CockpitBoardSection 
   const record = section && typeof section === "object"
     ? section as Partial<CockpitBoardSection>
     : {};
+  const explicitId = typeof record.id === "string" && record.id.trim()
+    ? record.id.trim()
+    : undefined;
+  const archiveSection = getArchiveSectionDefinition(explicitId);
   const title = typeof record.title === "string" && record.title.trim()
     ? record.title.trim()
-    : DEFAULT_SECTIONS[index]?.title ?? `Section ${index + 1}`;
+    : archiveSection?.title ?? DEFAULT_SECTIONS[index]?.title ?? `Section ${index + 1}`;
 
   return {
-    id: typeof record.id === "string" && record.id.trim()
-      ? record.id.trim()
+    id: explicitId
+      ? explicitId
       : DEFAULT_SECTIONS[index]?.id ?? createId("section", index),
     title,
     order: Number.isFinite(Number(record.order)) ? Math.max(0, Math.floor(Number(record.order))) : index,
@@ -425,17 +512,13 @@ function normalizeFilters(filters: unknown): CockpitBoardFilters {
 
 export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
   return {
-    version: 2,
-    sections: buildDefaultSections(timestamp),
+    version: 3,
+    sections: ensureArchiveSections(buildDefaultSections(timestamp), timestamp),
     cards: [],
     labelCatalog: [],
     deletedLabelCatalogKeys: [],
     flagCatalog: [],
     deletedFlagCatalogKeys: [],
-    archives: {
-      completedSuccessfully: [],
-      rejected: [],
-    },
     filters: {
       labels: [],
       priorities: [],
@@ -461,32 +544,66 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   const sections = Array.isArray(record.sections)
     ? record.sections.map((entry, index) => normalizeSection(entry, index))
     : buildDefaultSections(timestamp);
-  const cards = Array.isArray(record.cards)
+  const normalizedCards = Array.isArray(record.cards)
     ? record.cards.map((entry, index) => normalizeCard(entry, index))
     : [];
   const archivesRecord = record.archives && typeof record.archives === "object"
     ? record.archives as NonNullable<CockpitBoard["archives"]>
     : undefined;
-  const archivedCompleted = normalizeArchivedCards(
+  const archivedCompleted = normalizeLegacyArchivedCards(
     archivesRecord?.completedSuccessfully,
+    "completed-successfully",
   );
-  const archivedRejected = normalizeArchivedCards(archivesRecord?.rejected);
-  const allCards = [...cards, ...archivedCompleted, ...archivedRejected];
+  const archivedRejected = normalizeLegacyArchivedCards(
+    archivesRecord?.rejected,
+    "rejected",
+  );
+  const cards: CockpitTodoCard[] = normalizedCards.map((card): CockpitTodoCard => {
+    if (!card.archived && !card.archiveOutcome) {
+      return card;
+    }
+
+    const archiveOutcome = card.archiveOutcome
+      ?? (card.status === "completed" ? "completed-successfully" : "rejected");
+    const archivedAt = card.archivedAt
+      ?? card.completedAt
+      ?? card.rejectedAt
+      ?? timestamp;
+    return {
+      ...card,
+      sectionId: getArchiveSectionIdForOutcome(archiveOutcome),
+      archived: true,
+      archiveOutcome,
+      status: archiveOutcome === "completed-successfully" ? "completed" : "rejected",
+      completedAt: archiveOutcome === "completed-successfully"
+        ? card.completedAt ?? archivedAt
+        : undefined,
+      rejectedAt: archiveOutcome === "rejected"
+        ? card.rejectedAt ?? archivedAt
+        : undefined,
+      archivedAt,
+    };
+  });
+  const mergedCards = cards.slice();
+  const seenCardIds = new Set(cards.map((card) => card.id));
+  for (const archivedCard of [...archivedCompleted, ...archivedRejected]) {
+    if (seenCardIds.has(archivedCard.id)) {
+      continue;
+    }
+    mergedCards.push(archivedCard);
+    seenCardIds.add(archivedCard.id);
+  }
   const deletedLabelCatalogKeys = normalizeCatalogKeyList(record.deletedLabelCatalogKeys);
   const deletedFlagCatalogKeys = normalizeCatalogKeyList(record.deletedFlagCatalogKeys);
 
   return {
-    version: Number.isFinite(Number(record.version)) ? Math.max(2, Math.floor(Number(record.version))) : 2,
-    sections: ensureUnsortedSection(sections, timestamp),
-    cards,
-    labelCatalog: buildLabelCatalog(allCards, record.labelCatalog, deletedLabelCatalogKeys),
+    version: Number.isFinite(Number(record.version)) ? Math.max(3, Math.floor(Number(record.version))) : 3,
+    sections: ensureArchiveSections(ensureUnsortedSection(sections, timestamp), timestamp),
+    cards: mergedCards,
+    labelCatalog: buildLabelCatalog(mergedCards, record.labelCatalog, deletedLabelCatalogKeys),
     deletedLabelCatalogKeys,
-    flagCatalog: buildFlagCatalog(allCards, record.flagCatalog, deletedFlagCatalogKeys),
+    flagCatalog: buildFlagCatalog(mergedCards, record.flagCatalog, deletedFlagCatalogKeys),
     deletedFlagCatalogKeys,
-    archives: {
-      completedSuccessfully: archivedCompleted,
-      rejected: archivedRejected,
-    },
     filters: normalizeFilters(record.filters),
     updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim()
       ? record.updatedAt

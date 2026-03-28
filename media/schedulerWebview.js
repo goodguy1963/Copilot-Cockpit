@@ -318,6 +318,7 @@
   var skillSelect = document.getElementById("skill-select");
   var insertSkillBtn = document.getElementById("insert-skill-btn");
   var setupMcpBtn = document.getElementById("setup-mcp-btn");
+  var syncBundledSkillsBtn = document.getElementById("sync-bundled-skills-btn");
   var helpLanguageSelect = document.getElementById("help-language-select");
   var settingsLanguageSelect = document.getElementById("settings-language-select");
   var helpWarpLayer = document.getElementById("help-warp-layer");
@@ -400,8 +401,7 @@
   var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
   var todoSaveBtn = document.getElementById("todo-save-btn");
   var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
-  var todoApproveBtn = document.getElementById("todo-approve-btn");
-  var todoFinalizeBtn = document.getElementById("todo-finalize-btn");
+  var todoCompleteBtn = document.getElementById("todo-complete-btn");
   var todoDeleteBtn = document.getElementById("todo-delete-btn");
   var todoCommentList = document.getElementById("todo-comment-list");
   var todoCommentInput = document.getElementById("todo-comment-input");
@@ -1063,6 +1063,20 @@
     return !!folder && String(folder.name || "").toLowerCase() === String(strings.jobsArchiveFolder || "Archive").toLowerCase();
   }
 
+  function getLinkedTodoLabels(taskId) {
+    if (!taskId) {
+      return [];
+    }
+    var labels = [];
+    getAllTodoCards().forEach(function (card) {
+      if (!card || card.taskId !== taskId || !Array.isArray(card.labels)) {
+        return;
+      }
+      labels = labels.concat(card.labels);
+    });
+    return dedupeStringList(labels);
+  }
+
   function getEffectiveLabels(task) {
     var labels = [];
     if (task && Array.isArray(task.labels)) {
@@ -1074,9 +1088,10 @@
         labels.push(job.name);
       }
     }
-    return labels.filter(function (label, index, list) {
-      return label && list.indexOf(label) === index;
-    });
+    if (task && task.id) {
+      labels = labels.concat(getLinkedTodoLabels(task.id));
+    }
+    return dedupeStringList(labels);
   }
 
   function getComparableTime(value) {
@@ -1232,37 +1247,24 @@
       });
   }
 
-  function getTodoArchiveCollections() {
-    var archives = cockpitBoard && cockpitBoard.archives ? cockpitBoard.archives : {};
-    return {
-      completedSuccessfully: Array.isArray(archives.completedSuccessfully)
-        ? archives.completedSuccessfully
-        : [],
-      rejected: Array.isArray(archives.rejected) ? archives.rejected : [],
-    };
+  function isArchiveTodoSectionId(sectionId) {
+    return sectionId === "archive-completed" || sectionId === "archive-rejected";
   }
 
   function getAllTodoCards() {
-    var activeCards = cockpitBoard && Array.isArray(cockpitBoard.cards)
+    return cockpitBoard && Array.isArray(cockpitBoard.cards)
       ? cockpitBoard.cards.slice()
       : [];
-    var archives = getTodoArchiveCollections();
-    return activeCards
-      .concat(archives.completedSuccessfully)
-      .concat(archives.rejected);
   }
 
   function getVisibleTodoCards(filters) {
-    var activeCards = cockpitBoard && Array.isArray(cockpitBoard.cards)
-      ? cockpitBoard.cards.slice()
-      : [];
+    var allCards = getAllTodoCards();
     if (!filters || filters.showArchived !== true) {
-      return activeCards;
+      return allCards.filter(function (card) {
+        return !card.archived && !isArchiveTodoSectionId(card.sectionId);
+      });
     }
-    var archives = getTodoArchiveCollections();
-    return activeCards
-      .concat(archives.completedSuccessfully)
-      .concat(archives.rejected);
+    return allCards;
   }
 
   function getTaskLabelCatalog() {
@@ -1825,12 +1827,33 @@ syncTodoLabelSuggestions();
     });
   }
 
-  function getTodoSections() {
+  function getTodoSections(filters) {
     var sections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice() : [];
     sections.sort(function (left, right) {
       return (left.order || 0) - (right.order || 0);
     });
-    return sections;
+    return sections.filter(function (section) {
+      return filters && filters.showArchived === true
+        ? true
+        : !isArchiveTodoSectionId(section.id);
+    });
+  }
+
+  function getEditableTodoSections() {
+    return getTodoSections({ showArchived: true }).filter(function (section) {
+      return !isArchiveTodoSectionId(section.id);
+    });
+  }
+
+  function isTodoCompleted(card) {
+    return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
+  }
+
+  function renderTodoCompletionCheckbox(card) {
+    return '<input type="checkbox" class="todo-complete-checkbox" data-todo-complete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardCompleteTodo || "Complete and archive") + '" ' +
+      (isTodoCompleted(card) ? 'checked ' : '') +
+      (card.archived ? 'disabled ' : '') +
+      '/>';
   }
 
   function getLinkedTask(taskId) {
@@ -1930,20 +1953,16 @@ syncTodoLabelSuggestions();
   }
 
   function renderTodoCompactActions(card) {
-    var canApprove = !card.archived && (card.status || "active") !== "ready";
     var canFinalize = !card.archived && (card.status || "active") === "ready";
     var canDelete = !card.archived;
 
     return '<div class="todo-list-actions">' +
-      '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || "Open Editor") + '">&#9998;</button>' +
-      (canApprove
-        ? '<button type="button" class="btn-secondary todo-card-approve todo-list-action-btn" data-todo-approve="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardApproveTodo || "Approve") + '">&#10003;</button>'
-        : '') +
+      '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + escapeHtml(strings.boardEditTodoShort || "Edit") + '</button>' +
       (canFinalize
-        ? '<button type="button" class="btn-secondary todo-card-finalize todo-list-action-btn" data-todo-finalize="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardFinalizeTodo || "Final Accept") + '">&#10004;</button>'
+        ? '<span class="note" style="padding:4px 0;">' + escapeHtml(getTodoStatusLabel(card.status || "ready")) + '</span>'
         : '') +
       (canDelete
-        ? '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#10005;</button>'
+        ? '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + escapeHtml(strings.boardDeleteTodoShort || "Delete") + '</button>'
         : '') +
       '</div>';
   }
@@ -1982,7 +2001,10 @@ syncTodoLabelSuggestions();
     return '<article class="todo-list-row" draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" style="border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';padding:var(--cockpit-card-pad, 8px);cursor:' + (card.archived ? 'pointer' : 'grab') + ';">' +
       '<div class="todo-list-main">' +
         '<div class="todo-list-title-line">' +
-          '<strong class="todo-list-title">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+          '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
+            renderTodoCompletionCheckbox(card) +
+            '<strong class="todo-list-title">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+          '</div>' +
           '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + metaParts.join("") + '</div>' +
         '</div>' +
         '<div class="note todo-list-summary">' + escapeHtml(summary) + '</div>' +
@@ -1998,14 +2020,17 @@ syncTodoLabelSuggestions();
           return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
         }), filters);
         var isCollapsed = collapsedSections.has(section.id);
+        var isArchiveSection = isArchiveTodoSectionId(section.id);
         return '<section class="todo-list-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '">' +
-          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px);">' +
+          '<div class="cockpit-section-header" draggable="' + (isArchiveSection ? 'false' : 'true') + '" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px);">' +
             '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
             '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ')</span></strong>' +
-            '<div class="cockpit-section-actions">' +
-              '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
-              '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
-            '</div>' +
+            (isArchiveSection
+              ? ''
+              : '<div class="cockpit-section-actions">' +
+                '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
+                '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
+              '</div>') +
           '</div>' +
           '<div class="section-body-wrapper' + (isCollapsed ? ' collapsed' : '') + '">' +
             '<div class="section-body-inner">' +
@@ -2149,6 +2174,20 @@ syncTodoLabelSuggestions();
   function renderTodoDetailPanel(selectedTodo, sections) {
     var isEditingTodo = !!selectedTodo;
     var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    var sectionOptions = getEditableTodoSections();
+    if (isEditingTodo && selectedTodo && selectedTodo.sectionId) {
+      var hasCurrentSection = sectionOptions.some(function (section) {
+        return section.id === selectedTodo.sectionId;
+      });
+      if (!hasCurrentSection) {
+        var currentSection = (Array.isArray(sections) ? sections : []).find(function (section) {
+          return section.id === selectedTodo.sectionId;
+        });
+        if (currentSection) {
+          sectionOptions = sectionOptions.concat([currentSection]);
+        }
+      }
+    }
     syncEditorTabLabels();
     if (isEditingTodo) {
       setTodoEditorLabels(selectedTodo.labels || [], false);
@@ -2203,10 +2242,10 @@ syncTodoLabelSuggestions();
     }
 
     if (todoSectionInput) {
-      todoSectionInput.innerHTML = sections.map(function (section) {
+      todoSectionInput.innerHTML = sectionOptions.map(function (section) {
         return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + '</option>';
       }).join("");
-      todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : (sections[0] ? sections[0].id : "");
+      todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : (sectionOptions[0] ? sectionOptions[0].id : "");
     }
 
     if (todoLinkedTaskSelect) {
@@ -2225,13 +2264,10 @@ syncTodoLabelSuggestions();
       todoSaveBtn.disabled = isArchivedTodo;
     }
     if (todoCreateTaskBtn) {
-      todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") !== "ready";
+      todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo;
     }
-    if (todoApproveBtn) {
-      todoApproveBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") === "ready";
-    }
-    if (todoFinalizeBtn) {
-      todoFinalizeBtn.disabled = !isEditingTodo || isArchivedTodo || (selectedTodo.status || "active") !== "ready";
+    if (todoCompleteBtn) {
+      todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     }
     if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     if (todoAddCommentBtn) todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo;
@@ -2252,8 +2288,6 @@ syncTodoLabelSuggestions();
         todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";
       } else if (linkedTask) {
         todoLinkedTaskNote.textContent = (strings.boardTaskLinked || "Linked task") + ": " + (linkedTask.name || linkedTask.id);
-      } else if ((selectedTodo.status || "active") === "ready") {
-        todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
       } else {
         todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
       }
@@ -2280,8 +2314,11 @@ syncTodoLabelSuggestions();
   }
 
   function renderCockpitBoard() {
-    var sections = getTodoSections();
     var filters = getTodoFilters();
+    var sections = getTodoSections(filters);
+    var allSections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice().sort(function (left, right) {
+      return (left.order || 0) - (right.order || 0);
+    }) : [];
     var allCards = getAllTodoCards();
     var cards = getVisibleTodoCards(filters);
 
@@ -2303,14 +2340,13 @@ syncTodoLabelSuggestions();
     renderTodoFilterControls(filters, sections, cards);
 
     if (boardSummary) {
-      var activeCount = cockpitBoard && Array.isArray(cockpitBoard.cards)
-        ? cockpitBoard.cards.length
-        : 0;
+      var activeCount = allCards.filter(function (card) { return !card.archived; }).length;
+      var archivedCount = allCards.filter(function (card) { return card.archived; }).length;
       boardSummary.textContent =
         (strings.boardSections || "Sections") + ": " + sections.length +
         " • " +
         (strings.boardCards || "Cards") + ": " + activeCount +
-        " • Archived: " + String(Math.max(0, allCards.length - activeCount)) +
+        " • Archived: " + String(archivedCount) +
         " • " +
         (strings.boardComments || "Comments") + ": " + allCards.reduce(function (count, card) {
           return count + (Array.isArray(card.comments) ? card.comments.length : 0);
@@ -2340,15 +2376,18 @@ syncTodoLabelSuggestions();
         var sectionCards = sortTodoCards(cards.filter(function (card) {
           return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
         }), filters);
+        var isArchiveSection = isArchiveTodoSectionId(section.id);
         return (
           '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;">' +
-          '<div class="cockpit-section-header" draggable="true" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px)">' +
+          '<div class="cockpit-section-header" draggable="' + (isArchiveSection ? 'false' : 'true') + '" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px)">' +
           '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
           '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + '</strong>' +
-          '<div class="cockpit-section-actions">' +
-          '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
-          '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
-          '</div>' +
+          (isArchiveSection
+            ? ''
+            : '<div class="cockpit-section-actions">' +
+              '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
+              '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
+            '</div>') +
           '</div>' +
           '<div class="section-body-wrapper' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '">' +
           '<div class="section-body-inner">' +
@@ -2387,13 +2426,14 @@ syncTodoLabelSuggestions();
                   '<span data-card-meta>#' + escapeHtml(String(latestComment.sequence || 1)) + ' • ' + escapeHtml(getTodoCommentSourceLabel(latestComment.source || "human-form")) + ' • ' + escapeHtml(getTodoDescriptionPreview(latestComment.body || "")) + '</span>' +
                   '</div>'
                 : '';
-              var canApprove = !card.archived && (card.status || "active") !== "ready";
-              var canFinalize = !card.archived && (card.status || "active") === "ready";
               var canDelete = !card.archived;
               return (
                 '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
                 '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
-                '<strong style="line-height:1.3;">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+                '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
+                renderTodoCompletionCheckbox(card) +
+                '<strong style="line-height:1.3;min-width:0;">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+                '</div>' +
                 '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
                 '</div>' +
                 (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + '</div>' : '') +
@@ -2401,15 +2441,9 @@ syncTodoLabelSuggestions();
                 '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
                 latestCommentMarkup +
                 '<div class="todo-card-action-row">' +
-                '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || 'Open Editor') + '">&#9998;</button>' +
-                (canApprove
-                  ? '<button type="button" class="btn-secondary todo-card-approve" data-todo-approve="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardApproveTodo || 'Approve') + '</button>'
-                  : '') +
-                (canFinalize
-                  ? '<button type="button" class="btn-secondary todo-card-finalize" data-todo-finalize="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardFinalizeTodo || 'Final Accept') + '</button>'
-                  : '') +
+                '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || 'Open Editor') + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + escapeHtml(strings.boardEditTodoShort || 'Edit') + '</button>' +
                 (canDelete
-                  ? '<button type="button" class="btn-secondary todo-card-delete" data-todo-delete="' + escapeAttr(card.id) + '">' + escapeHtml(strings.boardDeleteTodo || 'Delete') + '</button>'
+                  ? '<button type="button" class="btn-secondary todo-card-delete" data-todo-delete="' + escapeAttr(card.id) + '">&#128465; ' + escapeHtml(strings.boardDeleteTodoShort || 'Delete') + '</button>'
                   : '') +
                 '</div>' +
                 '</article>'
@@ -2429,7 +2463,7 @@ syncTodoLabelSuggestions();
     renderTodoDetailPanel(selectedTodoId
       ? allCards.find(function (card) { return card.id === selectedTodoId; }) || null
       : null,
-    sections);
+    allSections);
 
     if (boardColumns) {
       boardColumns.onclick = function (event) {
@@ -2449,8 +2483,7 @@ syncTodoLabelSuggestions();
         }
 
         var editButton = event.target && event.target.closest ? event.target.closest("[data-todo-edit]") : null;
-        var approveButton = event.target && event.target.closest ? event.target.closest("[data-todo-approve]") : null;
-        var finalizeButton = event.target && event.target.closest ? event.target.closest("[data-todo-finalize]") : null;
+  var completeToggle = event.target && event.target.closest ? event.target.closest("[data-todo-complete]") : null;
         var deleteButton = event.target && event.target.closest ? event.target.closest("[data-todo-delete]") : null;
         var sectionMoveBtn = event.target && event.target.closest ? event.target.closest("[data-section-move]") : null;
         var sectionRenameBtn = event.target && event.target.closest ? event.target.closest("[data-section-rename]") : null;
@@ -2522,12 +2555,11 @@ syncTodoLabelSuggestions();
           openTodoEditor(editButton.getAttribute("data-todo-edit") || "");
           return;
         }
-        if (approveButton) {
-          vscode.postMessage({ type: "approveTodo", todoId: approveButton.getAttribute("data-todo-approve") });
-          return;
-        }
-        if (finalizeButton) {
-          vscode.postMessage({ type: "finalizeTodo", todoId: finalizeButton.getAttribute("data-todo-finalize") });
+        if (completeToggle) {
+          event.stopPropagation();
+          if (completeToggle.checked) {
+            vscode.postMessage({ type: "approveTodo", todoId: completeToggle.getAttribute("data-todo-complete") });
+          }
           return;
         }
         if (deleteButton) {
@@ -2568,7 +2600,7 @@ syncTodoLabelSuggestions();
       boardColumns.ondragover = function (event) {
         if (draggingSectionId) {
           var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-          if (section) {
+          if (section && !isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
             event.preventDefault();
             document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
             if (section.getAttribute("data-section-id") !== draggingSectionId) {
@@ -2579,7 +2611,7 @@ syncTodoLabelSuggestions();
           return;
         }
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-        if (section && draggingTodoId) {
+        if (section && draggingTodoId && !isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
           event.preventDefault();
           var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
           document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
@@ -2624,7 +2656,7 @@ syncTodoLabelSuggestions();
         }
         var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
         var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
-        if (!section || !draggingTodoId) {
+        if (!section || !draggingTodoId || isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
           return;
         }
         event.preventDefault();
@@ -2821,16 +2853,10 @@ syncTodoLabelSuggestions();
         vscode.postMessage({ type: "createTaskFromTodo", todoId: selectedTodoId });
       };
     }
-    if (todoApproveBtn) {
-      todoApproveBtn.onclick = function () {
+    if (todoCompleteBtn) {
+      todoCompleteBtn.onclick = function () {
         if (!selectedTodoId) return;
         vscode.postMessage({ type: "approveTodo", todoId: selectedTodoId });
-      };
-    }
-    if (todoFinalizeBtn) {
-      todoFinalizeBtn.onclick = function () {
-        if (!selectedTodoId) return;
-        vscode.postMessage({ type: "finalizeTodo", todoId: selectedTodoId });
       };
     }
     if (todoDeleteBtn) {
@@ -4285,6 +4311,12 @@ syncTodoLabelSuggestions();
   if (setupMcpBtn) {
     setupMcpBtn.addEventListener("click", function () {
       vscode.postMessage({ type: "setupMcp" });
+    });
+  }
+
+  if (syncBundledSkillsBtn) {
+    syncBundledSkillsBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "syncBundledSkills" });
     });
   }
 
@@ -6551,6 +6583,8 @@ syncTodoLabelSuggestions();
           };
           closeTodoDeleteModal();
           clearCatalogDeleteState();
+          syncTaskLabelFilterOptions();
+          renderTaskList(tasks);
           renderCockpitBoard();
           reconcileTodoEditorCatalogState();
           syncFlagEditor();

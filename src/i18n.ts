@@ -775,6 +775,28 @@ export const messages = {
   // ==================== Workspace ====================
   noWorkspaceOpen: () =>
     t("No workspace is open", "ワークスペースが開かれていません"),
+  bundledSkillsSyncWorkspaceRequired: () =>
+    t(
+      "Open a workspace folder before syncing bundled skills.",
+      "同梱スキルを同期する前に、ワークスペースフォルダーを開いてください。",
+      "Öffnen Sie einen Workspace-Ordner, bevor Sie gebündelte Skills synchronisieren.",
+    ),
+  bundledSkillsSyncNoChanges: () =>
+    t(
+      "Bundled skills are already present and up to date.",
+      "同梱スキルはすでに存在し、最新です。",
+      "Gebündelte Skills sind bereits vorhanden und aktuell.",
+    ),
+  bundledSkillsSyncCompleted: (
+    created: number,
+    updated: number,
+    skipped: number,
+  ) =>
+    t(
+      `Bundled skill sync finished. Created ${created}, updated ${updated}, skipped ${skipped} customized files.`,
+      `同梱スキルの同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
+      `Die Synchronisierung der gebündelten Skills ist abgeschlossen. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
+    ),
   mcpSetupWorkspaceRequired: () =>
     t(
       "Open a workspace folder before setting up the scheduler MCP config.",

@@ -37,8 +37,11 @@ import {
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
 import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
 import {
+  type BundledSkillSyncResult,
+  type BundledSkillSyncState,
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
+  syncBundledSkillsForWorkspaceRoots,
 } from "./skillBootstrap";
 import {
   affectsCompatibleConfiguration,
@@ -77,6 +80,8 @@ import type {
 } from "./types";
 
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
+
+const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
 
 const PROMPT_SYNC_DATE_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
@@ -245,14 +250,42 @@ async function ensureSchedulerSkillOnStartup(
 
   ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
 
-  await ensureSchedulerSkillForWorkspaceRoots(
+  const syncResult = await syncBundledSkills(context, workspaceRoots);
+  if (
+    syncResult.createdPaths.length > 0 ||
+    syncResult.updatedPaths.length > 0
+  ) {
+    void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => { });
+  }
+  if (
+    syncResult.createdPaths.length > 0 ||
+    syncResult.updatedPaths.length > 0 ||
+    syncResult.skippedPaths.length > 0
+  ) {
+    logDebug(
+      `[CopilotScheduler] Bundled skill sync created=${syncResult.createdPaths.length} updated=${syncResult.updatedPaths.length} skipped=${syncResult.skippedPaths.length}`,
+    );
+  }
+}
+
+async function syncBundledSkills(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<BundledSkillSyncResult> {
+  const syncState = context.globalState.get<BundledSkillSyncState>(
+    BUNDLED_SKILL_SYNC_STATE_KEY,
+    {},
+  );
+  const syncResult = await syncBundledSkillsForWorkspaceRoots(
     context.extensionUri.fsPath,
     workspaceRoots,
+    syncState,
   );
-  await ensureCockpitTodoSkillForWorkspaceRoots(
-    context.extensionUri.fsPath,
-    workspaceRoots,
+  await context.globalState.update(
+    BUNDLED_SKILL_SYNC_STATE_KEY,
+    syncResult.nextState,
   );
+  return syncResult;
 }
 
 export function notifyInfo(message: string, timeoutMs = 4000): void {
@@ -815,6 +848,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerOpenSettingsCommand(),
     registerShowVersionCommand(context),
     registerSetupMcpCommand(context),
+    registerSyncBundledSkillsCommand(context),
   ];
 
   const executeScheduledTask = async (task: ScheduledTask): Promise<void> => {
@@ -1697,6 +1731,13 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "syncBundledSkills": {
+        await vscode.commands.executeCommand(
+          getCockpitCommandId("syncBundledSkills"),
+        );
+        break;
+      }
+
       case "saveTelegramNotification": {
         const workspaceRoot = getPrimaryWorkspaceRootPath();
         if (!workspaceRoot) {
@@ -2235,6 +2276,56 @@ function registerSetupMcpCommand(
     "setupMcp",
     async () => {
       await setupWorkspaceMcpConfig(context);
+    },
+  );
+}
+
+function registerSyncBundledSkillsCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return registerSchedulerCommand(
+    "syncBundledSkills",
+    async () => {
+      const workspaceRoots = getResolvedWorkspaceRoots(
+        (vscode.workspace.workspaceFolders ?? []).map((folder) =>
+          folder.uri.fsPath
+        ),
+      );
+      if (workspaceRoots.length === 0) {
+        notifyError(messages.bundledSkillsSyncWorkspaceRequired());
+        return;
+      }
+
+      try {
+        ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+        const syncResult = await syncBundledSkills(context, workspaceRoots);
+        await SchedulerWebview.refreshCachesAndNotifyPanel(true);
+
+        if (
+          syncResult.createdPaths.length === 0 &&
+          syncResult.updatedPaths.length === 0 &&
+          syncResult.skippedPaths.length === 0
+        ) {
+          notifyInfo(messages.bundledSkillsSyncNoChanges());
+          return;
+        }
+
+        const summary = messages.bundledSkillsSyncCompleted(
+          syncResult.createdPaths.length,
+          syncResult.updatedPaths.length,
+          syncResult.skippedPaths.length,
+        );
+        if (syncResult.skippedPaths.length > 0) {
+          void vscode.window.showWarningMessage(summary);
+          return;
+        }
+
+        notifyInfo(summary);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        notifyError(errorMessage);
+      }
     },
   );
 }

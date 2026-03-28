@@ -78,6 +78,7 @@ suite("Extension Test Suite", () => {
       "copilotCockpit.openSettings",
       "copilotCockpit.showVersion",
       "copilotCockpit.setupMcp",
+      "copilotCockpit.syncBundledSkills",
       "copilotScheduler.createTask",
       "copilotScheduler.createTaskGui",
       "copilotScheduler.listTasks",
@@ -93,6 +94,7 @@ suite("Extension Test Suite", () => {
       "copilotScheduler.openSettings",
       "copilotScheduler.showVersion",
       "copilotScheduler.setupMcp",
+      "copilotScheduler.syncBundledSkills",
     ];
 
     for (const cmd of expectedCommands) {
@@ -104,8 +106,8 @@ suite("Extension Test Suite", () => {
     );
     assert.strictEqual(
       registeredCockpitCommands.length,
-      15,
-      `Expected 15 copilotCockpit commands but found ${registeredCockpitCommands.length}. Update expectedCommands when adding new commands.`,
+      16,
+      `Expected 16 copilotCockpit commands but found ${registeredCockpitCommands.length}. Update expectedCommands when adding new commands.`,
     );
 
     const registeredSchedulerCommands = commands.filter((cmd) =>
@@ -113,8 +115,8 @@ suite("Extension Test Suite", () => {
     );
     assert.strictEqual(
       registeredSchedulerCommands.length,
-      15,
-      `Expected 15 copilotScheduler alias commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
+      16,
+      `Expected 16 copilotScheduler alias commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
     );
   });
 });

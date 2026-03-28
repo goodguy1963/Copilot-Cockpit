@@ -401,7 +401,7 @@ export interface CockpitBoard {
   /** Deleted flag keys that should stay hidden even if older cards still reference them */
   deletedFlagCatalogKeys?: string[];
 
-  /** Archived cards grouped by outcome */
+  /** Legacy archive buckets preserved only for migration from older board data */
   archives?: {
     completedSuccessfully: CockpitTodoCard[];
     rejected: CockpitTodoCard[];
@@ -1179,6 +1179,7 @@ export interface TaskAction {
   | "updateJobNodeWindow"
   | "compileJob"
   | "setupMcp"
+  | "syncBundledSkills"
   | "createResearchProfile"
   | "updateResearchProfile"
   | "deleteResearchProfile"
@@ -1385,6 +1386,7 @@ export type WebviewToExtensionMessage =
   | { type: "refreshAgents" }
   | { type: "refreshPrompts" }
   | { type: "setupMcp" }
+  | { type: "syncBundledSkills" }
   | { type: "createResearchProfile"; data: CreateResearchProfileInput }
   | {
     type: "updateResearchProfile";
