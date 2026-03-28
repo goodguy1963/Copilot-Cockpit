@@ -1,4 +1,5 @@
 import * as assert from "assert";
+import { DEFAULT_ARCHIVE_REJECTED_SECTION_ID } from "../../cockpitBoard";
 import { MCP_TOOL_DEFINITIONS, handleSchedulerToolCall } from "../../server";
 
 function parseJsonText(result: any): any {
@@ -191,7 +192,10 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(filters.filters.sortBy, "dueAt");
     assert.strictEqual(filters.filters.sortDirection, "desc");
     assert.strictEqual(deleted.todoId, created.todo.id);
-    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 0);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 1);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].archived, true);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].archiveOutcome, "rejected");
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].sectionId, DEFAULT_ARCHIVE_REJECTED_SECTION_ID);
   });
 
   test("cockpit seed tool surfaces scheduled tasks inside Todo Cockpit", async () => {

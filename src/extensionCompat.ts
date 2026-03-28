@@ -22,6 +22,7 @@ export const SCHEDULER_COMMAND_NAMES = [
   "openSettings",
   "showVersion",
   "setupMcp",
+  "syncBundledSkills",
 ] as const;
 
 export type SchedulerCommandName = (typeof SCHEDULER_COMMAND_NAMES)[number];

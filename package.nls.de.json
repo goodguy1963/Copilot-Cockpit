@@ -15,6 +15,7 @@
   "command.openSettings": "Einstellungen öffnen",
   "command.showVersion": "Version anzeigen",
   "command.setupMcp": "Workspace-MCP einrichten",
+  "command.syncBundledSkills": "Gebündelte Skills synchronisieren",
   "config.enabled": "Geplante Ausführung aktivieren oder deaktivieren",
   "config.autoShowOnStartup": "Die Cockpit-Webview für dieses Repository beim VS Code-Start automatisch öffnen. In den Workspace-Einstellungen speichern, wenn dies nur hier aktiviert sein soll.",
   "config.showNotifications": "Benachrichtigungen anzeigen, wenn Aufgaben ausgeführt werden",

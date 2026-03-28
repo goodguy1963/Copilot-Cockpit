@@ -15,6 +15,7 @@
   "command.openSettings": "Open Settings",
   "command.showVersion": "Show Version",
   "command.setupMcp": "Set Up Workspace MCP",
+  "command.syncBundledSkills": "Sync Bundled Skills",
   "config.enabled": "Enable or disable scheduled execution",
   "config.autoShowOnStartup": "Automatically open the cockpit webview on VS Code startup for this repo. Set this in the repo workspace settings if you want it enabled only here.",
   "config.showNotifications": "Show notifications when tasks are executed",

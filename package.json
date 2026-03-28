@@ -120,6 +120,12 @@
         "title": "%command.setupMcp%",
         "category": "%extension.title%",
         "icon": "$(plug)"
+      },
+      {
+        "command": "copilotCockpit.syncBundledSkills",
+        "title": "%command.syncBundledSkills%",
+        "category": "%extension.title%",
+        "icon": "$(sync)"
       }
     ],
     "configuration": {

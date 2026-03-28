@@ -30,7 +30,7 @@
             "archived": false,
             "nodes": [],
             "createdAt": "2026-03-25T22:22:25.878Z",
-            "updatedAt": "2026-03-28T16:49:27.159Z"
+            "updatedAt": "2026-03-28T17:16:32.735Z"
         }
     ],
     "jobFolders": [],
@@ -54,22 +54,24 @@
         ],
         "cards": [
             {
-                "id": "todo_mnaiiew4_fcvyw9",
-                "title": "Test Task One",
+                "id": "todo_mnam08r9_95mmdu",
+                "title": "dssd",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
+                "sectionId": "unsorted",
                 "order": 0,
                 "priority": "low",
                 "status": "active",
                 "labels": [
                     "scheduled-task"
                 ],
-                "flags": [],
+                "flags": [
+                    "GO"
+                ],
                 "comments": [],
                 "taskId": "task_1774382099685_s6t8o5",
                 "archived": false,
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-03-28T15:56:16.617Z"
+                "updatedAt": "2026-03-28T17:57:18.420Z"
             }
         ],
         "labelCatalog": [
@@ -78,18 +80,24 @@
                 "key": "bug",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-28T15:55:50.597Z",
-                "updatedAt": "2026-03-28T15:55:50.597Z"
+                "updatedAt": "2026-03-28T17:30:20.909Z"
             },
             {
                 "name": "from-todo-cockpit",
                 "key": "from-todo-cockpit",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-27T18:34:25.285Z",
-                "updatedAt": "2026-03-28T14:54:28.558Z"
+                "updatedAt": "2026-03-28T17:30:17.563Z"
+            },
+            {
+                "name": "scheduled-task",
+                "key": "scheduled-task",
+                "color": "#4f8cff",
+                "createdAt": "2026-03-28T17:30:04.579Z",
+                "updatedAt": "2026-03-28T17:30:04.579Z"
             }
         ],
         "deletedLabelCatalogKeys": [
-            "scheduled-task",
             "dfffd",
             "2",
             "23",
@@ -107,16 +115,16 @@
             {
                 "name": "needs-bot-review",
                 "key": "needs-bot-review",
-                "color": "#f59e0b",
+                "color": "#8a8a8a",
                 "createdAt": "2026-03-27T23:05:28.048Z",
-                "updatedAt": "2026-03-27T23:05:28.048Z"
+                "updatedAt": "2026-03-28T17:13:23.583Z"
             },
             {
                 "name": "needs-user-review",
                 "key": "needs-user-review",
-                "color": "#3b82f6",
+                "color": "#f7ce3b",
                 "createdAt": "2026-03-27T23:05:28.048Z",
-                "updatedAt": "2026-03-27T23:05:28.048Z"
+                "updatedAt": "2026-03-28T17:13:31.362Z"
             },
             {
                 "name": "NEW",
@@ -131,7 +139,107 @@
             "task-enabled"
         ],
         "archives": {
-            "completedSuccessfully": [],
+            "completedSuccessfully": [
+                {
+                    "id": "todo_mnaiiew4_fcvyw9",
+                    "title": "Test Task One",
+                    "description": "Auto-generated from scheduler.json",
+                    "sectionId": "section_mn9hvobp_ttw2do",
+                    "order": 0,
+                    "priority": "low",
+                    "status": "completed",
+                    "labels": [
+                        "scheduled-task"
+                    ],
+                    "flags": [],
+                    "comments": [
+                        {
+                            "id": "comment_mnam06up_zczkmx",
+                            "author": "system",
+                            "body": "Final accepted and archived as completed.",
+                            "labels": [
+                                "completed"
+                            ],
+                            "source": "system-event",
+                            "sequence": 1,
+                            "createdAt": "2026-03-28T17:33:46.033Z"
+                        }
+                    ],
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "archived": true,
+                    "archiveOutcome": "completed-successfully",
+                    "completedAt": "2026-03-28T17:33:46.033Z",
+                    "archivedAt": "2026-03-28T17:33:46.033Z",
+                    "createdAt": "2026-03-24T19:54:59.685Z",
+                    "updatedAt": "2026-03-28T17:33:46.033Z"
+                },
+                {
+                    "id": "todo_mnam06v5_9hkvcj",
+                    "title": "dssd",
+                    "description": "Auto-generated from scheduler.json",
+                    "sectionId": "unsorted",
+                    "order": 0,
+                    "priority": "low",
+                    "status": "completed",
+                    "labels": [
+                        "scheduled-task"
+                    ],
+                    "flags": [],
+                    "comments": [
+                        {
+                            "id": "comment_mnam089k_l9womw",
+                            "author": "system",
+                            "body": "Final accepted and archived as completed.",
+                            "labels": [
+                                "completed"
+                            ],
+                            "source": "system-event",
+                            "sequence": 1,
+                            "createdAt": "2026-03-28T17:33:47.864Z"
+                        }
+                    ],
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "archived": true,
+                    "archiveOutcome": "completed-successfully",
+                    "completedAt": "2026-03-28T17:33:47.864Z",
+                    "archivedAt": "2026-03-28T17:33:47.864Z",
+                    "createdAt": "2026-03-24T19:54:59.685Z",
+                    "updatedAt": "2026-03-28T17:33:47.864Z"
+                },
+                {
+                    "id": "todo_mnam089y_zvmjrs",
+                    "title": "dssd",
+                    "description": "Auto-generated from scheduler.json",
+                    "sectionId": "unsorted",
+                    "order": 0,
+                    "priority": "low",
+                    "status": "completed",
+                    "labels": [
+                        "scheduled-task"
+                    ],
+                    "flags": [],
+                    "comments": [
+                        {
+                            "id": "comment_mnam08qw_guxc6o",
+                            "author": "system",
+                            "body": "Final accepted and archived as completed.",
+                            "labels": [
+                                "completed"
+                            ],
+                            "source": "system-event",
+                            "sequence": 1,
+                            "createdAt": "2026-03-28T17:33:48.488Z"
+                        }
+                    ],
+                    "taskId": "task_1774382099685_s6t8o5",
+                    "archived": true,
+                    "archiveOutcome": "completed-successfully",
+                    "completedAt": "2026-03-28T17:33:48.488Z",
+                    "archivedAt": "2026-03-28T17:33:48.488Z",
+                    "createdAt": "2026-03-24T19:54:59.685Z",
+                    "updatedAt": "2026-03-28T17:33:48.488Z"
+                }
+            ],
             "rejected": [
                 {
                     "id": "todo_mn975hc2_ae6w8w",
@@ -211,6 +319,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-03-28T15:56:16.617Z"
+        "updatedAt": "2026-03-28T17:57:18.420Z"
     }
 }
