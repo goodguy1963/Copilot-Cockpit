@@ -1,11 +1,5 @@
-# Copilot Cockpit
-
 <!-- markdownlint-disable-next-line MD033 -->
-<img src="images/icon.png" alt="Copilot Cockpit icon" width="84">
-
-> Plan before you run. Copilot Cockpit is a local-first orchestration workspace for AI tasks, approvals, workflows, and iterative execution inside VS Code.
-
-
+<h1><img src="images/icon.png" alt="Copilot Cockpit icon" width="32"> Copilot Cockpit</h1>
 
 Copilot Cockpit is a local orchestration layer for AI agents in VS Code, positioned as a controlled alternative to OpenClaw's autonomous systems and Paperclip's external coordination tools.
 
@@ -15,61 +9,34 @@ Copilot Cockpit is a local orchestration layer for AI agents in VS Code, positio
 
 It is a control system for AI task execution, not just an agent runner.
 
-## 🧱 Core Foundation
-
-This repository is the active Copilot Cockpit codebase. Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The scheduler remains the execution foundation; Copilot Cockpit adds a repo-local planning, approval, workflow, research, and orchestration layer around it.It builds on the original Copilot Scheduler and ships the Cockpit-focused VSIX for local, repo-scoped AI orchestration. The original upstream README is preserved below; this top section only covers what is specific to Copilot Cockpit.
-
-### Core Principles
-
-#### No Heartbeat Architecture
-
-No always-running loops. Agents only execute when triggered and approved.
-
-#### Human-in-the-Loop by Default
-
-Every task can be reviewed, paused, edited, and refined before and during execution.
-
-#### Workflow Over Autonomy
-
-Tasks are structured into timelines and workflows rather than handed off to autonomous agents.
-
-#### Local And Integrated
-
-Runs entirely inside VS Code with no external coordination layer like Paperclip.
-
-#### Iterative Execution
-
-Inspired by approaches like Andrej Karpathy's iterative style: small experiments, continuous refinement, and better outcomes over time.
-
-### What This Means
-
-Copilot Cockpit is not trying to replace developers with autonomous agents.
-
-- You define the plan.
-- You approve execution.
-- You can intervene at any time.
-- The system helps orchestrate rather than decide.
-
-## Mental Model
+## 🧠 Mental Model
 
 Copilot Cockpit separates planning from execution so work can be shaped before it runs:
 
-- Todos = planning, communication, and approval layer
-- Tasks = scheduled execution units
-- Jobs = multi-step workflows with pauses and bundling
+This model is not limited to software tasks. It can be used by a single agent, a team of agents, or a human-led team to handle the full chain of work in almost any company or role: planning, communication, approval, execution, multi-step operations, improvement loops, and tool-driven orchestration.
+
+The structure is generic. The same workflow can be handled by different agents, teams, models, or tools without changing the planning logic.
+
+Every layer in Copilot Cockpit can be used directly by a person, by AI working through the plugin, or by a mixed human-and-AI workflow. The point is not to hide work inside agents, but to keep the user-facing overview in one place while AI handles planning support, execution, iteration, and orchestration.
+
+- Todos = planning, communication, approval, and handoff layer
+- Tasks = scheduled execution units for concrete work steps
+- Jobs = multi-step workflows with pauses, reviews, and bundling
 - Research = bounded improvement loops with a benchmark
-- MCP = optional tool surface for agent-driven orchestration
+- MCP = tool surface for agent and team orchestration
 
 ## ✨ What Copilot Cockpit Adds
 
-| Surface | Purpose |
-| --- | --- |
-| `Todo Cockpit` | Repo-local planning board with comments, labels, flags, approvals, and task handoff |
-| `Tasks` | Scheduled prompts with repo-scoped storage, agent/model defaults, and overdue review |
-| `Jobs` | Multi-step workflows with pause checkpoints, reusable tasks, and compile-to-task flow |
-| `Research` | Bounded benchmark-driven iteration with editable-path allowlists |
-| `MCP` | Embedded server plus guided workspace setup for scheduler, jobs, research, and todo tools |
-| `Settings` | Repo-scoped defaults for execution, notifications, Telegram, and startup behavior |
+This is the high-level overview of how a user and an AI can work through the same system:
+
+| Surface | User Overview | How AI Can Use It |
+| --- | --- | --- |
+| `Todo Cockpit` | Repo-local planning board with comments, labels, flags, approvals, and task handoff | AI can read planning context, update linked work, move execution outcomes back into review, and keep the user-facing overview current. |
+| `Tasks` | Scheduled prompts with repo-scoped storage, agent/model defaults, and overdue review | AI can run one concrete scheduled execution step, either directly or as part of a larger workflow. |
+| `Jobs` | Multi-step workflows with pause checkpoints, reusable tasks, and compile-to-task flow | AI can follow ordered steps, stop at review points, and continue only inside the defined workflow structure. |
+| `Research` | Bounded benchmark-driven iteration with editable-path allowlists | AI can iterate toward a measured goal while staying inside explicit limits for files, time, and failures. |
+| `MCP` | Embedded server plus guided workspace setup for scheduler, jobs, research, and todo tools | AI can inspect state, create or update items, and trigger allowed operations through tool calls instead of hidden side effects. |
+| `Settings` | Repo-scoped defaults for execution, notifications, Telegram, and startup behavior | AI inherits the execution rules and defaults the user sets, rather than inventing its own environment. |
 
 ## ⚡ Quick Start
 
@@ -80,15 +47,21 @@ Copilot Cockpit separates planning from execution so work can be shaped before i
 5. Use `Research` when the goal is iterative improvement against a benchmark instead of one direct run.
 6. Open `Settings` to choose repo-scoped defaults for notifications, agent/model behavior, and startup.
 
+## 📹 Demo
+
+<video src="images/DEMO.mp4" controls muted playsinline width="100%"></video>
+
+If the embedded player does not render in your viewer, open the demo directly at [images/DEMO.mp4](images/DEMO.mp4).
+
 ## 📦 Installation
 
-### From a GitHub Release
+### 🚀 From a GitHub Release
 
-1. Download the latest `copilot-cockpit-X.X.X.vsix` from the [Releases page](https://github.com/goodguy1963/source-scheduler-private/releases).
+1. Download the latest `copilot-cockpit-X.X.X.vsix` from the [Releases page](https://github.com/goodguy1963/Copilot-Cockpit/releases).
 2. Run **Extensions: Install from VSIX…** in VS Code.
 3. Select the VSIX, reload VS Code, and disable or uninstall `yamapan.copilot-scheduler` if it is installed.
 
-### From Source
+### 🛠️ From Source
 
 1. Build the package with `npm run package:vsix`.
 2. Install it with one of these scripts:
@@ -113,6 +86,8 @@ Copilot Cockpit separates planning from execution so work can be shaped before i
 
 ## 🧭 Core Workflows
 
+Each workflow below can be driven manually, by AI, or by both together. Todo Cockpit is the overview layer; tasks, jobs, research, and MCP are the execution and orchestration layers under that overview.
+
 ### ✅ Todo Cockpit
 
 - `Todo Cockpit` is the repo-local communication and approval layer.
@@ -121,6 +96,14 @@ Copilot Cockpit separates planning from execution so work can be shaped before i
 - `Approve` marks a todo as `ready`, `Final Accept` or `Complete & Archive` archives it as `completed-successfully`, and `Delete` lets you reject/archive or remove it permanently.
 - Cards support comments, due dates, labels, flags, task links, archive review, drag-drop between sections, and a collapsible filter bar.
 - Existing scheduled tasks can be surfaced into `Unsorted` when they are not already linked to a planning todo.
+
+### 🗓 Tasks
+
+- Tasks are the core Copilot Scheduler execution unit and remain the foundation underneath Copilot Cockpit.
+- A task is one scheduled prompt run, either one-time or recurring, with repo-scoped storage and optional agent/model selection.
+- Tasks can be created directly for simple execution, linked back to a planning todo, or reused inside jobs.
+- Overdue tasks are reviewed on startup, and one-time tasks can be run immediately or rescheduled.
+- If you need one direct scheduled run without a multi-step workflow, use a task.
 
 ### ⛓ Jobs
 
@@ -171,13 +154,36 @@ Manual `.vscode/mcp.json` example:
 }
 ```
 
-## 📣 Telegram Notifications
+## 📣 Telegram Notifications (experimental)
 
 - Telegram configuration is handled in `Settings`.
 - The bot token is stored only in `.vscode/scheduler.private.json`.
 - `Send Test Message` verifies outbound delivery.
 - Stop-hook files are generated under `.github/hooks/` and read secrets from the private scheduler file.
 - Outbound notifications are implemented; inbound reply-driven continuation still depends on a future relay/webhook bridge.
+
+## 🧱 Core Foundation
+
+This repository is the active Copilot Cockpit codebase. Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The scheduler remains the execution foundation; Copilot Cockpit adds a repo-local planning, approval, workflow, research, and orchestration layer around it.It builds on the original Copilot Scheduler and ships the Cockpit-focused VSIX for local, repo-scoped AI orchestration. The original upstream README is preserved below; this top section only covers what is specific to Copilot Cockpit.
+
+### 🧩 Core Principles
+
+| Principle | Meaning |
+| --- | --- |
+| No Heartbeat Architecture | No always-running loops. Agents only execute when triggered and approved. |
+| Human-in-the-Loop by Default | Every task can be reviewed, paused, edited, and refined before and during execution. |
+| Workflow Over Autonomy | Tasks are structured into timelines and workflows rather than handed off to autonomous agents. |
+| Local And Integrated | Runs entirely inside VS Code with no external coordination layer like Paperclip. |
+| Iterative Execution | Inspired by approaches like Andrej Karpathy's iterative style: small experiments, continuous refinement, and better outcomes over time. |
+
+### 🎯 What This Means
+
+Copilot Cockpit is not trying to replace developers with autonomous agents.
+
+- You define the plan.
+- You approve execution.
+- You can intervene at any time.
+- The system helps orchestrate rather than decide.
 
 ## 🔎 Notes For This Fork
 
@@ -187,7 +193,7 @@ Manual `.vscode/mcp.json` example:
 - Embedded MCP server and guided workspace MCP setup
 - Repo-scoped startup behavior, overdue review, and workflow-oriented UI surfaces
 
-## Original Upstream README
+## 📜 Original Upstream README
 
 The original upstream README is preserved below for reference.
 
@@ -303,7 +309,9 @@ Store prompt templates for reuse:
 ## 📋 Requirements
 
 - VS Code 1.80.0 or higher
-- GitHub Copilot extension
+- GitHub Copilot with access to the integrated GitHub Copilot Chat in VS Code
+- An active Copilot subscription for the chat/model surface you want to use
+- Optional: OpenRouter-backed tools or models exposed in your VS Code chat environment
 
 ## ⚠️ Known Issues
 
@@ -318,7 +326,7 @@ Note: There are [reports](https://github.com/orgs/community/discussions/160013) 
 
 ## 📦 Release Notes
 
-### 0.1.0
+### 🏷️ 0.1.0
 
 Initial release:
 
