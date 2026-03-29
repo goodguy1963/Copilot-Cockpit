@@ -126,12 +126,57 @@ export class SchedulerWebview {
   private static currentActiveResearchRun: ResearchRun | undefined;
   private static currentRecentResearchRuns: ResearchRun[] = [];
   private static currentScheduleHistory: ScheduleHistoryEntry[] = [];
+  private static readonly batchedMessageTypes = new Set<string>([
+    "updateTasks",
+    "updateJobs",
+    "updateJobFolders",
+    "updateCockpitBoard",
+    "updateTelegramNotification",
+    "updateExecutionDefaults",
+    "updateResearchState",
+    "updateScheduleHistory",
+    "updateAgents",
+    "updateModels",
+    "updatePromptTemplates",
+    "updateSkills",
+  ]);
+  private static readonly messageBatchDelayMs = 25;
   private static webviewReady = false;
   private static pendingMessages: OutgoingWebviewMessage[] = [];
+  private static lastBatchedMessageSignatures = new Map<string, string>();
+  private static pendingMessageFlushTimer:
+    | ReturnType<typeof setTimeout>
+    | undefined;
 
   private static resetWebviewReadyState(): void {
+    if (this.pendingMessageFlushTimer) {
+      clearTimeout(this.pendingMessageFlushTimer);
+      this.pendingMessageFlushTimer = undefined;
+    }
     this.webviewReady = false;
     this.pendingMessages = [];
+    this.lastBatchedMessageSignatures.clear();
+  }
+
+  private static getMessageSignature(message: OutgoingWebviewMessage): string {
+    return JSON.stringify(message);
+  }
+
+  private static shouldSkipRedundantBatchedMessage(
+    message: OutgoingWebviewMessage,
+  ): boolean {
+    if (!this.shouldBatchMessage(message)) {
+      return false;
+    }
+
+    const signature = this.getMessageSignature(message);
+    const previousSignature = this.lastBatchedMessageSignatures.get(message.type);
+    if (previousSignature === signature) {
+      return true;
+    }
+
+    this.lastBatchedMessageSignatures.set(message.type, signature);
+    return false;
   }
 
   private static getHelpChatLanguageInstruction(): string {
@@ -194,23 +239,63 @@ export class SchedulerWebview {
     this.pendingMessages.push(message);
   }
 
+  private static shouldBatchMessage(message: OutgoingWebviewMessage): boolean {
+    return this.batchedMessageTypes.has(message.type);
+  }
+
+  private static sendMessageNow(message: OutgoingWebviewMessage): void {
+    if (!this.panel || !this.webviewReady) {
+      return;
+    }
+
+    void this.panel.webview.postMessage(message);
+  }
+
+  private static schedulePendingMessagesFlush(): void {
+    if (this.pendingMessageFlushTimer) {
+      return;
+    }
+
+    this.pendingMessageFlushTimer = setTimeout(() => {
+      this.pendingMessageFlushTimer = undefined;
+      this.flushPendingMessages();
+    }, this.messageBatchDelayMs);
+  }
+
   private static postMessage(message: OutgoingWebviewMessage): void {
     if (!this.panel) return;
+
+    if (this.shouldSkipRedundantBatchedMessage(message)) {
+      return;
+    }
+
     if (!this.webviewReady) {
       this.enqueueMessage(message);
       return;
     }
-    void this.panel.webview.postMessage(message);
+
+    if (this.shouldBatchMessage(message)) {
+      this.enqueueMessage(message);
+      this.schedulePendingMessagesFlush();
+      return;
+    }
+
+    this.sendMessageNow(message);
   }
 
   private static flushPendingMessages(): void {
     if (!this.panel || !this.webviewReady) return;
+
+    if (this.pendingMessageFlushTimer) {
+      clearTimeout(this.pendingMessageFlushTimer);
+      this.pendingMessageFlushTimer = undefined;
+    }
+
     if (this.pendingMessages.length === 0) return;
     const queue = this.pendingMessages;
     this.pendingMessages = [];
     for (const message of queue) {
-      // Route through the wrapper to keep all sending logic consistent (U2).
-      this.postMessage(message);
+      this.sendMessageNow(message);
     }
   }
 
@@ -901,12 +986,11 @@ export class SchedulerWebview {
       defaultJitterSeconds,
       defaultChatSession,
       currentScheduleHistory: this.currentScheduleHistory,
-      autoShowOnStartup: vscode.workspace
-        .getConfiguration(
-          "copilotScheduler",
-          vscode.workspace.workspaceFolders?.[0]?.uri,
-        )
-        .get<boolean>("autoShowOnStartup", false),
+      autoShowOnStartup: getCompatibleConfigurationValue<boolean>(
+        "autoShowOnStartup",
+        false,
+        vscode.workspace.workspaceFolders?.[0]?.uri,
+      ),
       currentLogLevel: getConfiguredLogLevel(),
       currentLogDirectory: getLogDirectoryPath(),
       configuredLanguage,
@@ -3705,11 +3789,11 @@ export class SchedulerWebview {
               
               <div class="todo-inline-actions-row">
                 <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
+                <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
+                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">Save Label</button>
                 <span class="todo-color-input-shell">
                   <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}">
                 </span>
-                <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
-                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">Save Label</button>
               </div>
               <div id="todo-label-suggestions" class="label-suggestion-list"></div>
               
@@ -3722,11 +3806,11 @@ export class SchedulerWebview {
               
               <div class="todo-inline-actions-row" style="margin-top:4px;">
                 <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
+                <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
+                <button type="button" class="btn-secondary" id="todo-flag-color-save-btn">Save Flag</button>
                 <span class="todo-color-input-shell">
                   <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color">
                 </span>
-                <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
-                <button type="button" class="btn-secondary" id="todo-flag-color-save-btn">Save Flag</button>
               </div>
               
               <div id="todo-flag-picker" class="flag-catalog-section"></div>

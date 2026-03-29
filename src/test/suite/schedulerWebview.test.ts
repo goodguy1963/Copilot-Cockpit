@@ -65,6 +65,77 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("todo editor click handlers use normalized event target lookups", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const selectors = [
+      "[data-flag-chip-remove]",
+      "[data-flag-catalog-select]",
+      "[data-flag-catalog-edit]",
+      "[data-flag-catalog-confirm-delete]",
+      "[data-flag-catalog-delete]",
+      "[data-label-chip-remove]",
+      "[data-label-chip-select]",
+      "[data-label-suggestion]",
+      "[data-label-catalog-edit]",
+      "[data-label-catalog-delete]",
+      "[data-label-catalog-confirm-delete]",
+      "[data-label-catalog-select]",
+      "[data-todo-delete-cancel]",
+      "[data-todo-delete-reject]",
+      "[data-todo-delete-permanent]",
+    ];
+
+    selectors.forEach((selector) => {
+      assert.ok(
+        scriptSource.includes(`getClosestEventTarget(event, "${selector}")`),
+        `expected normalized event targeting for ${selector}`,
+      );
+      assert.strictEqual(
+        scriptSource.includes(`event.target.closest("${selector}")`),
+        false,
+        `unexpected raw event.target.closest usage for ${selector}`,
+      );
+    });
+  });
+
+  test("todo create draft keeps transient label and flag editor fields", () => {
+    const debugScriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebviewDebug.js",
+    );
+    const debugScriptSource = fs.readFileSync(debugScriptPath, "utf8");
+
+    ["labelInput", "labelColor", "flagInput", "flagColor"].forEach((field) => {
+      assert.ok(
+        debugScriptSource.includes(`${field}:`),
+        `expected createEmptyTodoDraft to include ${field}`,
+      );
+    });
+
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "todoDraft.labelInput || \"\"",
+      "todoDraft.labelColor",
+      "todoDraft.flagInput || \"\"",
+      "todoDraft.flagColor",
+      "syncTodoEditorTransientDraft();",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected transient draft restoration snippet ${snippet}`,
+      );
+    });
+  });
+
   test("Queues messages until ready and flushes (dedup by type)", () => {
     const wv = SchedulerWebview as unknown as {
       panel?: WebviewPanelLike;
@@ -185,6 +256,141 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.panel = originalPanel;
       wv.webviewReady = originalReady;
       wv.pendingMessages = originalPending;
+    }
+  });
+
+  test("Batches repeated update messages while ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      lastBatchedMessageSignatures?: Map<string, string>;
+      pendingMessages?: unknown[];
+      pendingMessageFlushTimer?: ReturnType<typeof setTimeout> | undefined;
+      postMessage?: (message: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalSignatures = wv.lastBatchedMessageSignatures;
+    const originalPending = wv.pendingMessages;
+    const originalTimer = wv.pendingMessageFlushTimer;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = true;
+      wv.lastBatchedMessageSignatures = new Map();
+      wv.pendingMessages = [];
+      wv.pendingMessageFlushTimer = undefined;
+
+      assert.ok(typeof wv.postMessage === "function");
+      assert.ok(typeof wv.flushPendingMessages === "function");
+
+      wv.postMessage!({ type: "updateTasks", tasks: [1] });
+      wv.postMessage!({ type: "updateTasks", tasks: [2] });
+      wv.postMessage!({
+        type: "updateExecutionDefaults",
+        executionDefaults: { agent: "agent", model: "gpt" },
+      });
+
+      const queued = wv.pendingMessages as Array<{
+        type?: unknown;
+        [k: string]: unknown;
+      }>;
+      assert.strictEqual(sent.length, 0);
+      assert.strictEqual(queued.length, 2);
+
+      const queuedTasks = queued.find((m) => m.type === "updateTasks") as
+        | { tasks?: unknown }
+        | undefined;
+      assert.deepStrictEqual(queuedTasks?.tasks, [2]);
+
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 2);
+      const sentMessages = sent as Array<{
+        type?: unknown;
+        [k: string]: unknown;
+      }>;
+      const sentTasks = sentMessages.find((m) => m.type === "updateTasks") as
+        | { tasks?: unknown }
+        | undefined;
+      assert.deepStrictEqual(sentTasks?.tasks, [2]);
+      assert.strictEqual((wv.pendingMessages ?? []).length, 0);
+      assert.strictEqual(wv.pendingMessageFlushTimer, undefined);
+    } finally {
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+      }
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+      wv.lastBatchedMessageSignatures = originalSignatures;
+      wv.pendingMessageFlushTimer = originalTimer;
+    }
+  });
+
+  test("Skips identical batched update payloads after they were already sent", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      lastBatchedMessageSignatures?: Map<string, string>;
+      pendingMessages?: unknown[];
+      pendingMessageFlushTimer?: ReturnType<typeof setTimeout> | undefined;
+      postMessage?: (message: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalSignatures = wv.lastBatchedMessageSignatures;
+    const originalPending = wv.pendingMessages;
+    const originalTimer = wv.pendingMessageFlushTimer;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = true;
+      wv.lastBatchedMessageSignatures = new Map();
+      wv.pendingMessages = [];
+      wv.pendingMessageFlushTimer = undefined;
+
+      assert.ok(typeof wv.postMessage === "function");
+      assert.ok(typeof wv.flushPendingMessages === "function");
+
+      wv.postMessage!({ type: "updateTasks", tasks: [{ id: "task-1" }] });
+      wv.flushPendingMessages!();
+      assert.strictEqual(sent.length, 1);
+
+      wv.postMessage!({ type: "updateTasks", tasks: [{ id: "task-1" }] });
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      assert.strictEqual((wv.pendingMessages ?? []).length, 0);
+    } finally {
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+      }
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.lastBatchedMessageSignatures = originalSignatures;
+      wv.pendingMessages = originalPending;
+      wv.pendingMessageFlushTimer = originalTimer;
     }
   });
 
@@ -1594,6 +1800,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       panel?: WebviewPanelLike;
       webviewReady?: boolean;
       pendingMessages?: unknown[];
+      flushPendingMessages?: () => void;
       cachedAgents?: unknown[];
       cachedModels?: unknown[];
       cachedPromptTemplates?: unknown[];
@@ -1642,8 +1849,10 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       };
 
       assert.ok(typeof wv.handleMessage === "function");
+      assert.ok(typeof wv.flushPendingMessages === "function");
       await wv.handleMessage!({ type: "refreshAgents" });
       await wv.handleMessage!({ type: "refreshPrompts" });
+      wv.flushPendingMessages!();
 
       assert.deepStrictEqual(sent, [
         { type: "updateAgents", agents: [{ id: "agent" }] },
@@ -1683,7 +1892,7 @@ suite("SchedulerWebview settings target Tests", () => {
     };
   }
 
-  test("uses workspace target for resource-scoped settings when a folder is open", () => {
+  test("uses workspace-folder target for resource-scoped settings when a folder is open", () => {
     const restore = setWorkspaceFolders([
       { uri: vscode.Uri.file(path.join(process.cwd(), "test-workspace")) },
     ]);
@@ -1691,7 +1900,7 @@ suite("SchedulerWebview settings target Tests", () => {
     try {
       assert.strictEqual(
         getResourceScopedSettingsTarget(),
-        vscode.ConfigurationTarget.Workspace,
+        vscode.ConfigurationTarget.WorkspaceFolder,
       );
     } finally {
       restore();

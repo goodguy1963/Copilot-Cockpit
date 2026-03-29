@@ -89,4 +89,44 @@ suite("MCP Config Manager Tests", () => {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
+
+  test("repairs invalid mcp config by backing it up and rewriting a valid scheduler entry", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-mcp-repair-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+    const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+    fs.writeFileSync(
+      configPath,
+      '{\n  "servers": {\n    "broken": {\n      "type": "stdio"\n    },\n  }\n}\n',
+      "utf8",
+    );
+
+    try {
+      const stateBefore = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      assert.strictEqual(stateBefore.status, "invalid");
+
+      const result = upsertSchedulerMcpConfig(workspaceRoot, extensionRoot);
+      assert.strictEqual(result.createdFile, false);
+      assert.strictEqual(result.repairedInvalidFile, true);
+      assert.ok(result.backupPath);
+      assert.strictEqual(fs.existsSync(result.backupPath!), true);
+
+      const repaired = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        servers?: Record<string, { command?: string; args?: string[] }>;
+      };
+      assert.strictEqual(repaired.servers?.scheduler?.command, "node");
+      assert.strictEqual(
+        repaired.servers?.scheduler?.args?.[0],
+        path.join(extensionRoot, "out", "server.js"),
+      );
+
+      const stateAfter = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      assert.strictEqual(stateAfter.status, "configured");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });

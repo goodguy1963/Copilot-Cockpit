@@ -16,17 +16,142 @@ import {
   saveCockpitFlagDefinition,
   saveCockpitTodoLabelDefinition,
   setCockpitBoardFilters,
+  setCockpitBoardFiltersInBoard,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
 import { SchedulerWebview } from "./schedulerWebview";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
+  CockpitBoardFilters,
+  CockpitTodoCard,
   CreateCockpitTodoInput,
   CreateTaskInput,
   TaskAction,
   UpdateCockpitBoardFiltersInput,
 } from "./types";
+
+function normalizeTodoFilterValue(value: string | undefined): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function matchesTodoSearchFilter(
+  todo: Pick<CockpitTodoCard, "title" | "description" | "labels" | "flags">,
+  searchText: string | undefined,
+): boolean {
+  const needle = String(searchText || "").trim().toLowerCase();
+  if (!needle) {
+    return true;
+  }
+
+  const haystack = [
+    todo.title || "",
+    todo.description || "",
+    ...(todo.labels || []),
+    ...(todo.flags || []),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(needle);
+}
+
+function getRevealFiltersForCreatedTodo(
+  filters: CockpitBoardFilters | undefined,
+  todo: CockpitTodoCard,
+): UpdateCockpitBoardFiltersInput | undefined {
+  if (!filters) {
+    return undefined;
+  }
+
+  const updates: UpdateCockpitBoardFiltersInput = {};
+  let changed = false;
+
+  if (!matchesTodoSearchFilter(todo, filters.searchText)) {
+    updates.searchText = "";
+    changed = true;
+  }
+
+  if (filters.sectionId && filters.sectionId !== todo.sectionId) {
+    updates.sectionId = "";
+    changed = true;
+  }
+
+  if (
+    filters.labels.length > 0
+    && !filters.labels.some((label) =>
+      todo.labels.some(
+        (todoLabel) =>
+          normalizeTodoFilterValue(todoLabel) === normalizeTodoFilterValue(label),
+      ),
+    )
+  ) {
+    updates.labels = [];
+    changed = true;
+  }
+
+  if (
+    filters.priorities.length > 0
+    && !filters.priorities.includes(todo.priority)
+  ) {
+    updates.priorities = [];
+    changed = true;
+  }
+
+  if (
+    filters.statuses.length > 0
+    && !filters.statuses.includes(todo.status)
+  ) {
+    updates.statuses = [];
+    changed = true;
+  }
+
+  if (filters.archiveOutcomes.length > 0) {
+    updates.archiveOutcomes = [];
+    changed = true;
+  }
+
+  if (
+    filters.flags.length > 0
+    && !filters.flags.some((flag) =>
+      todo.flags.some(
+        (todoFlag) =>
+          normalizeTodoFilterValue(todoFlag) === normalizeTodoFilterValue(flag),
+      ),
+    )
+  ) {
+    updates.flags = [];
+    changed = true;
+  }
+
+  return changed ? updates : undefined;
+}
+
+function areStringListsEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
+function areCockpitBoardFiltersEqual(
+  left: CockpitBoardFilters | undefined,
+  right: CockpitBoardFilters | undefined,
+): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return (left.searchText ?? "") === (right.searchText ?? "")
+    && areStringListsEqual(left.labels, right.labels)
+    && areStringListsEqual(left.priorities, right.priorities)
+    && areStringListsEqual(left.statuses, right.statuses)
+    && areStringListsEqual(left.archiveOutcomes, right.archiveOutcomes)
+    && areStringListsEqual(left.flags, right.flags)
+    && (left.sectionId ?? "") === (right.sectionId ?? "")
+    && left.sortBy === right.sortBy
+    && left.sortDirection === right.sortDirection
+    && left.viewMode === right.viewMode
+    && left.showArchived === right.showArchived;
+}
 
 type TodoCockpitTaskAction = Extract<
   TaskAction["action"],
@@ -121,10 +246,18 @@ export async function handleTodoCockpitAction(
         deps.showError(deps.noWorkspaceOpenMessage);
         return true;
       }
-      createCockpitTodo(
+      const currentBoard = deps.getCurrentCockpitBoard();
+      const result = createCockpitTodo(
         workspaceRoot,
         action.todoData as CreateCockpitTodoInput,
       );
+      const revealFilters = getRevealFiltersForCreatedTodo(
+        currentBoard.filters,
+        result.todo,
+      );
+      if (revealFilters) {
+        setCockpitBoardFilters(workspaceRoot, revealFilters);
+      }
       deps.refreshSchedulerUiState();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
@@ -328,9 +461,16 @@ export async function handleTodoCockpitAction(
       if (!workspaceRoot) {
         return true;
       }
+      const filterUpdates =
+        (action.todoFilters ?? {}) as UpdateCockpitBoardFiltersInput;
+      const currentBoard = deps.getCurrentCockpitBoard();
+      const nextBoard = setCockpitBoardFiltersInBoard(currentBoard, filterUpdates);
+      if (areCockpitBoardFiltersEqual(currentBoard.filters, nextBoard.filters)) {
+        return true;
+      }
       setCockpitBoardFilters(
         workspaceRoot,
-        (action.todoFilters ?? {}) as UpdateCockpitBoardFiltersInput,
+        filterUpdates,
       );
       deps.refreshSchedulerUiState();
       SchedulerWebview.switchToTab("board");

@@ -6,6 +6,7 @@ import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import {
   getPrivateSchedulerConfigPath,
   readSchedulerConfig,
+  wasSchedulerConfigWrittenRecently,
   writeSchedulerConfig,
 } from "../../schedulerJsonSanitizer";
 
@@ -80,6 +81,29 @@ suite("Scheduler Json Sanitizer Tests", () => {
       assert.strictEqual(roundTripped.cockpitBoard?.sections.length, 9);
       assert.strictEqual(roundTripped.cockpitBoard?.cards[0]?.title, "Ship cockpit board");
       assert.strictEqual(roundTripped.telegramNotification?.botToken, "123456:abcdefghijklmnopqrstuvwxyzABCDE");
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("tracks recent scheduler config writes for watcher suppression", () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const result = writeSchedulerConfig(workspaceRoot, {
+        tasks: [],
+      });
+
+      assert.strictEqual(result.publicChanged, true);
+      assert.strictEqual(result.privateChanged, true);
+      assert.strictEqual(
+        wasSchedulerConfigWrittenRecently(result.publicPath),
+        true,
+      );
+      assert.strictEqual(
+        wasSchedulerConfigWrittenRecently(result.privatePath),
+        true,
+      );
     } finally {
       cleanup(workspaceRoot);
     }

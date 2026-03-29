@@ -119,6 +119,33 @@ suite("Extension Test Suite", () => {
       `Expected 16 copilotScheduler alias commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
     );
   });
+
+  test("UI refresh queue coalesces rapid refresh requests", async () => {
+    const { __testOnly } = await import("../../extension");
+    const calls: number[] = [];
+    const queue = __testOnly.createUiRefreshQueue(() => {
+      calls.push(Date.now());
+    }, 15) as {
+      schedule: (immediate?: boolean) => void;
+      hasPending: () => boolean;
+    };
+
+    queue.schedule();
+    queue.schedule();
+    queue.schedule();
+    assert.strictEqual(queue.hasPending(), true);
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(queue.hasPending(), false);
+
+    queue.schedule();
+    queue.schedule(true);
+
+    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(queue.hasPending(), false);
+  });
 });
 
 suite("Cron Expression Tests", () => {

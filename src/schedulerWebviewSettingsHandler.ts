@@ -26,7 +26,7 @@ export interface SettingsHandlerContext {
 
 export function getResourceScopedSettingsTarget(): vscode.ConfigurationTarget {
   return vscode.workspace.workspaceFolders?.length
-    ? vscode.ConfigurationTarget.Workspace
+    ? vscode.ConfigurationTarget.WorkspaceFolder
     : vscode.ConfigurationTarget.Global;
 }
 
