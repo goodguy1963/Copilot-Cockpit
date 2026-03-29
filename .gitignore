@@ -32,3 +32,5 @@ FULL_SPECIFICATION.md
 .vscode/scheduler.private.json
 .vscode/scheduler-prompt-backups/
 .vscode/mcp.json
+.vscode/scheduler.json
+.vscode/scheduler.private.json
