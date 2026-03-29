@@ -51,8 +51,12 @@ export function createWebviewDebugTools(options) {
       title: "",
       description: "",
       dueAt: "",
+      flagColor: "#f59e0b",
+      flagInput: "",
       priority: "none",
       flag: "",
+      labelColor: "#4f8cff",
+      labelInput: "",
       sectionId: "",
       taskId: "",
     };

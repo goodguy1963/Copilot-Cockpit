@@ -22,6 +22,8 @@ export type SchedulerMcpWriteResult = {
   createdFile: boolean;
   createdDirectory: boolean;
   updated: boolean;
+  repairedInvalidFile: boolean;
+  backupPath?: string;
 };
 
 function stripBom(text: string): string {
@@ -30,6 +32,12 @@ function stripBom(text: string): string {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function getInvalidMcpBackupPath(configPath: string): string {
+  const parsed = path.parse(configPath);
+  const timestamp = new Date().toISOString().replace(/[.:]/g, "-");
+  return path.join(parsed.dir, `${parsed.name}.invalid-${timestamp}${parsed.ext}`);
 }
 
 export function getWorkspaceMcpConfigPath(workspaceRoot: string): string {
@@ -116,9 +124,18 @@ export function upsertSchedulerMcpConfig(
 
   let existing: McpWorkspaceConfig = {};
   const createdFile = !fs.existsSync(configPath);
+  let repairedInvalidFile = false;
+  let backupPath: string | undefined;
   if (!createdFile) {
-    const parsed = readWorkspaceMcpConfig(workspaceRoot);
-    existing = parsed.config ?? {};
+    try {
+      const parsed = readWorkspaceMcpConfig(workspaceRoot);
+      existing = parsed.config ?? {};
+    } catch {
+      backupPath = getInvalidMcpBackupPath(configPath);
+      fs.copyFileSync(configPath, backupPath);
+      existing = {};
+      repairedInvalidFile = true;
+    }
   }
 
   const nextConfig: McpWorkspaceConfig = {
@@ -133,7 +150,7 @@ export function upsertSchedulerMcpConfig(
   const currentContent = createdFile
     ? undefined
     : stripBom(fs.readFileSync(configPath, "utf8"));
-  const updated = currentContent !== nextContent;
+  const updated = repairedInvalidFile || currentContent !== nextContent;
 
   if (updated) {
     fs.writeFileSync(configPath, nextContent, "utf8");
@@ -144,5 +161,7 @@ export function upsertSchedulerMcpConfig(
     createdFile,
     createdDirectory,
     updated,
+    repairedInvalidFile,
+    backupPath,
   };
 }

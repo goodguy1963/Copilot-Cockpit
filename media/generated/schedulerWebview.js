@@ -617,8 +617,12 @@
         title: "",
         description: "",
         dueAt: "",
+        flagColor: "#f59e0b",
+        flagInput: "",
         priority: "none",
         flag: "",
+        labelColor: "#4f8cff",
+        labelInput: "",
         sectionId: "",
         taskId: ""
       };
@@ -1187,6 +1191,16 @@
         return;
       }
       currentTodoDraft.flag = currentTodoFlag || "";
+    }
+    function syncTodoEditorTransientDraft() {
+      if (selectedTodoId || !currentTodoDraft) {
+        return;
+      }
+      currentTodoDraft.flag = currentTodoFlag || "";
+      currentTodoDraft.labelInput = todoLabelsInput ? String(todoLabelsInput.value || "") : currentTodoDraft.labelInput || "";
+      currentTodoDraft.labelColor = todoLabelColorInput ? String(todoLabelColorInput.value || "") : currentTodoDraft.labelColor || "#4f8cff";
+      currentTodoDraft.flagInput = todoFlagNameInput ? String(todoFlagNameInput.value || "") : currentTodoDraft.flagInput || "";
+      currentTodoDraft.flagColor = todoFlagColorInput ? String(todoFlagColorInput.value || "") : currentTodoDraft.flagColor || "#f59e0b";
     }
     var defaultJitterSeconds = (function() {
       var raw = initialData.defaultJitterSeconds;
@@ -2314,12 +2328,14 @@
           vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, color: pendingColor } });
         }
         if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+        syncTodoEditorTransientDraft();
         syncTodoLabelEditor();
         return;
       }
       setTodoEditorLabels(currentTodoLabels.concat([label]), true);
       selectedTodoLabelName = label;
       if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+      syncTodoEditorTransientDraft();
       syncTodoLabelEditor();
       if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
         vscode.postMessage({
@@ -2431,14 +2447,14 @@
         eventName: "todoDetailClickAttempt"
       });
       document.addEventListener("click", function(event) {
-        var removeBtn = event.target && event.target.closest ? event.target.closest("[data-flag-chip-remove]") : null;
+        var removeBtn = getClosestEventTarget(event, "[data-flag-chip-remove]");
         if (removeBtn) {
           currentTodoFlag = "";
           syncTodoFlagDraft();
           syncFlagEditor();
           return;
         }
-        var catalogSelect = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-select]") : null;
+        var catalogSelect = getClosestEventTarget(event, "[data-flag-catalog-select]");
         if (catalogSelect) {
           event.preventDefault();
           event.stopPropagation();
@@ -2450,7 +2466,7 @@
           syncFlagEditor();
           return;
         }
-        var catalogEdit = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-edit]") : null;
+        var catalogEdit = getClosestEventTarget(event, "[data-flag-catalog-edit]");
         if (catalogEdit) {
           event.preventDefault();
           event.stopPropagation();
@@ -2469,10 +2485,11 @@
           if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
           if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
           editingFlagOriginalName = feName;
+          syncTodoEditorTransientDraft();
           if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
           return;
         }
-        var catalogConfirmDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-confirm-delete]") : null;
+        var catalogConfirmDelete = getClosestEventTarget(event, "[data-flag-catalog-confirm-delete]");
         if (catalogConfirmDelete) {
           event.preventDefault();
           event.stopPropagation();
@@ -2487,7 +2504,7 @@
           vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
           return;
         }
-        var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
+        var catalogDelete = getClosestEventTarget(event, "[data-flag-catalog-delete]");
         if (catalogDelete) {
           event.preventDefault();
           event.stopPropagation();
@@ -2560,6 +2577,7 @@
         currentTodoFlag = name;
       }
       syncTodoFlagDraft();
+      syncTodoEditorTransientDraft();
       syncFlagEditor();
     }
     function toLocalDateTimeInput(value) {
@@ -3005,12 +3023,22 @@
         if (todoTitleInput) todoTitleInput.value = isEditingTodo ? selectedTodo.title || "" : todoDraft.title || "";
         if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? selectedTodo.description || "" : todoDraft.description || "";
         if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : todoDraft.dueAt || "";
-        if (todoLabelsInput) todoLabelsInput.value = "";
+        if (todoLabelsInput) todoLabelsInput.value = isEditingTodo ? "" : todoDraft.labelInput || "";
+        if (todoLabelColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.labelColor || "")) {
+          todoLabelColorInput.value = todoDraft.labelColor;
+        }
         currentTodoFlag = isEditingTodo ? (selectedTodo.flags || [])[0] || "" : todoDraft.flag || "";
+        if (todoFlagNameInput) todoFlagNameInput.value = isEditingTodo ? "" : todoDraft.flagInput || "";
+        if (todoFlagColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.flagColor || "")) {
+          todoFlagColorInput.value = todoDraft.flagColor;
+        }
       }
       syncTodoFlagDraft();
       syncFlagEditor();
       syncTodoLabelEditor();
+      if (todoFlagColorSaveBtn) {
+        todoFlagColorSaveBtn.disabled = !todoFlagNameInput || !todoFlagNameInput.value.trim();
+      }
       if (todoDetailStatus) {
         if (!isEditingTodo) {
           todoDetailStatus.textContent = strings.boardStatusLabel ? strings.boardStatusLabel + ": " + (strings.boardStatusActive || "Active") : "Status: Active";
@@ -3436,6 +3464,7 @@
             syncTodoLabelEditor();
           }
           if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !todoLabelsInput.value.trim();
+          syncTodoEditorTransientDraft();
           syncTodoLabelSuggestions();
         };
         todoLabelsInput.onfocus = function() {
@@ -3455,10 +3484,18 @@
           }
         };
       }
+      if (todoLabelColorInput) {
+        todoLabelColorInput.oninput = function() {
+          syncTodoEditorTransientDraft();
+        };
+        todoLabelColorInput.onchange = function() {
+          syncTodoEditorTransientDraft();
+        };
+      }
       if (todoLabelChipList) {
         todoLabelChipList.onclick = function(event) {
-          var removeButton = event.target && event.target.closest ? event.target.closest("[data-label-chip-remove]") : null;
-          var selectButton = event.target && event.target.closest ? event.target.closest("[data-label-chip-select]") : null;
+          var removeButton = getClosestEventTarget(event, "[data-label-chip-remove]");
+          var selectButton = getClosestEventTarget(event, "[data-label-chip-select]");
           if (removeButton) {
             removeEditorLabel(removeButton.getAttribute("data-label-chip-remove") || "");
             return;
@@ -3471,6 +3508,7 @@
               todoLabelsInput.value = lname;
               todoLabelsInput.focus();
             }
+            syncTodoEditorTransientDraft();
             syncTodoLabelEditor();
           }
         };
@@ -3508,12 +3546,13 @@
           }
           editingLabelOriginalName = "";
           todoLabelsInput.value = "";
+          syncTodoEditorTransientDraft();
           syncTodoLabelEditor();
         };
       }
       if (todoLabelSuggestions) {
         todoLabelSuggestions.onclick = function(event) {
-          var btn = event.target && event.target.closest ? event.target.closest("[data-label-suggestion]") : null;
+          var btn = getClosestEventTarget(event, "[data-label-suggestion]");
           if (btn) {
             var pickedLabel = btn.getAttribute("data-label-suggestion") || "";
             var def = getLabelDefinition(pickedLabel);
@@ -3522,16 +3561,17 @@
               todoLabelColorInput.value = def.color;
             }
             if (todoLabelsInput) todoLabelsInput.value = pickedLabel;
+            syncTodoEditorTransientDraft();
             addEditorLabelFromInput();
           }
         };
       }
       if (todoLabelCatalog) {
         todoLabelCatalog.onclick = function(event) {
-          var editBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-edit]") : null;
-          var deleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-delete]") : null;
-          var confirmDeleteBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-confirm-delete]") : null;
-          var selectBtn = event.target && event.target.closest ? event.target.closest("[data-label-catalog-select]") : null;
+          var editBtn = getClosestEventTarget(event, "[data-label-catalog-edit]");
+          var deleteBtn = getClosestEventTarget(event, "[data-label-catalog-delete]");
+          var confirmDeleteBtn = getClosestEventTarget(event, "[data-label-catalog-confirm-delete]");
+          var selectBtn = getClosestEventTarget(event, "[data-label-catalog-select]");
           if (editBtn) {
             event.preventDefault();
             event.stopPropagation();
@@ -3548,6 +3588,7 @@
             if (todoLabelsInput) todoLabelsInput.value = eEntry ? eEntry.name : eName;
             if (todoLabelColorInput && eEntry && eEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(eEntry.color)) todoLabelColorInput.value = eEntry.color;
             editingLabelOriginalName = eName;
+            syncTodoEditorTransientDraft();
             if (todoLabelsInput) todoLabelsInput.focus();
             return;
           }
@@ -3579,6 +3620,7 @@
             if (!name) return;
             editingLabelOriginalName = "";
             if (todoLabelsInput) todoLabelsInput.value = name;
+            syncTodoEditorTransientDraft();
             addEditorLabelFromInput();
           }
         };
@@ -3625,6 +3667,7 @@
           }
           editingFlagOriginalName = "";
           todoFlagNameInputEl.value = "";
+          syncTodoEditorTransientDraft();
         };
       }
       if (todoFlagAddBtn) {
@@ -3639,12 +3682,21 @@
       if (todoFlagNameInput) {
         todoFlagNameInput.oninput = function() {
           if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !todoFlagNameInput.value.trim();
+          syncTodoEditorTransientDraft();
         };
         todoFlagNameInput.onkeydown = function(event) {
           if (event.key === "Enter") {
             event.preventDefault();
             addFlagFromInput();
           }
+        };
+      }
+      if (todoFlagColorInput) {
+        todoFlagColorInput.oninput = function() {
+          syncTodoEditorTransientDraft();
+        };
+        todoFlagColorInput.onchange = function() {
+          syncTodoEditorTransientDraft();
         };
       }
     }
@@ -3721,17 +3773,17 @@
           closeTodoDeleteModal();
           return;
         }
-        var cancelBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-cancel]") : null;
+        var cancelBtn = getClosestEventTarget(event, "[data-todo-delete-cancel]");
         if (cancelBtn) {
           closeTodoDeleteModal();
           return;
         }
-        var rejectBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-reject]") : null;
+        var rejectBtn = getClosestEventTarget(event, "[data-todo-delete-reject]");
         if (rejectBtn) {
           submitTodoDeleteChoice("reject");
           return;
         }
-        var permanentBtn = event.target && event.target.closest ? event.target.closest("[data-todo-delete-permanent]") : null;
+        var permanentBtn = getClosestEventTarget(event, "[data-todo-delete-permanent]");
         if (permanentBtn) {
           submitTodoDeleteChoice("permanent");
         }

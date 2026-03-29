@@ -79,7 +79,7 @@ Copilot Cockpit separates planning from execution so work can be shaped before i
 - `Todo Cockpit` is the repo-local communication and approval layer.
 - Seeded sections start with `Unsorted`, then `Bugs`, `Features`, `Ops/DevOps`, `Marketing/Growth`, `Automation`, and `Future`.
 - Todos move through `active`, `ready`, `completed`, and `rejected` states.
-- `Approve` archives a todo as `completed-successfully`, `Final Accept` remains available for already-ready items, and `Delete` lets you reject/archive or remove permanently.
+- `Approve` marks a todo as `ready`, `Final Accept` or `Complete & Archive` archives it as `completed-successfully`, and `Delete` lets you reject/archive or remove it permanently.
 - Cards support comments, due dates, labels, flags, task links, archive review, drag-drop between sections, and a collapsible filter bar.
 - Existing scheduled tasks can be surfaced into `Unsorted` when they are not already linked to a planning todo.
 

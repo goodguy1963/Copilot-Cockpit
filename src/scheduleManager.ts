@@ -385,15 +385,17 @@ export class ScheduleManager {
   async ensureRecurringPromptBackups(): Promise<number> {
     const changed = await this.syncRecurringPromptBackupsInPlace();
 
-    if (changed > 0) {
+    if (changed.metadataChanged > 0) {
       await this.saveTasks({ bumpRevision: false });
     }
 
-    return changed;
+    return changed.metadataChanged;
   }
 
-  private async syncRecurringPromptBackupsInPlace(): Promise<number> {
-    let changed = 0;
+  private async syncRecurringPromptBackupsInPlace(): Promise<{
+    metadataChanged: number;
+  }> {
+    let metadataChanged = 0;
 
     for (const task of this.tasks.values()) {
       if (!isRecurringPromptBackupCandidate(task)) {
@@ -471,12 +473,12 @@ export class ScheduleManager {
           "utf8",
         );
         task.promptBackupUpdatedAt = syncedAt;
-        changed++;
+        metadataChanged++;
       }
 
       if (task.promptBackupPath !== relativeBackupPath) {
         task.promptBackupPath = relativeBackupPath;
-        changed++;
+        metadataChanged++;
       }
 
       if (
@@ -486,14 +488,13 @@ export class ScheduleManager {
       ) {
         try {
           await fs.promises.rm(resolvedExistingBackupPath, { force: true });
-          changed++;
         } catch {
           // ignore best-effort legacy cleanup failures
         }
       }
     }
 
-    return changed;
+    return { metadataChanged };
   }
 
   /**
@@ -912,11 +913,17 @@ export class ScheduleManager {
     return op;
   }
 
+  private async saveTasksAndSyncRecurringPromptBackups(options?: {
+    bumpRevision?: boolean;
+  }): Promise<void> {
+    await this.saveTasks(options);
+    await this.ensureRecurringPromptBackups();
+  }
+
   private async saveTasksInternal(options?: {
     bumpRevision?: boolean;
   }): Promise<void> {
     const bumpRevision = options?.bumpRevision !== false;
-    await this.syncRecurringPromptBackupsInPlace();
     const tasksArray: ScheduledTask[] = Array.from(this.tasks.values());
 
     /* --- HBG CUSTOM: Write tasks to .vscode/scheduler.json --- */
@@ -1629,7 +1636,7 @@ export class ScheduleManager {
     };
 
     this.tasks.set(id, task);
-    await this.saveTasks();
+    await this.saveTasksAndSyncRecurringPromptBackups();
 
     return task;
   }
@@ -2037,7 +2044,7 @@ export class ScheduleManager {
     this.clearJobRuntime(job);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
-    await this.saveTasks();
+    await this.saveTasksAndSyncRecurringPromptBackups();
     return job;
   }
 
@@ -2631,7 +2638,7 @@ export class ScheduleManager {
     task.updatedAt = now;
   this.suppressedOverdueTaskIds.delete(id);
 
-    await this.saveTasks();
+    await this.saveTasksAndSyncRecurringPromptBackups();
 
     return task;
   }
@@ -2762,7 +2769,7 @@ export class ScheduleManager {
     task.workspacePath = workspaceRoot;
     task.updatedAt = new Date();
   this.suppressedOverdueTaskIds.delete(id);
-    await this.saveTasks();
+    await this.saveTasksAndSyncRecurringPromptBackups();
     return task;
   }
 

@@ -18,6 +18,62 @@ export const REDACTED_TELEGRAM_BOT_URL =
 export const REDACTED_TELEGRAM_BOT_TOKEN =
     "[REDACTED_TELEGRAM_BOT_TOKEN]";
 
+const RECENT_SCHEDULER_CONFIG_WRITE_WINDOW_MS = 1500;
+const recentSchedulerConfigWrites = new Map<string, number>();
+
+function normalizeSchedulerConfigPath(filePath: string): string {
+    const normalized = path.normalize(String(filePath || ""));
+    return process.platform === "win32"
+        ? normalized.toLowerCase()
+        : normalized;
+}
+
+function recordRecentSchedulerConfigWrite(filePath: string, writtenAt: number): void {
+    if (!filePath) {
+        return;
+    }
+
+    recentSchedulerConfigWrites.set(
+        normalizeSchedulerConfigPath(filePath),
+        writtenAt,
+    );
+
+    for (const [trackedPath, trackedAt] of recentSchedulerConfigWrites.entries()) {
+        if (writtenAt - trackedAt > RECENT_SCHEDULER_CONFIG_WRITE_WINDOW_MS) {
+            recentSchedulerConfigWrites.delete(trackedPath);
+        }
+    }
+}
+
+export function wasSchedulerConfigWrittenRecently(
+    filePath: string,
+    withinMs = RECENT_SCHEDULER_CONFIG_WRITE_WINDOW_MS,
+): boolean {
+    if (!filePath) {
+        return false;
+    }
+
+    const normalizedPath = normalizeSchedulerConfigPath(filePath);
+    const writtenAt = recentSchedulerConfigWrites.get(normalizedPath);
+    if (typeof writtenAt !== "number") {
+        return false;
+    }
+
+    const isRecent = Date.now() - writtenAt <= withinMs;
+    if (!isRecent) {
+        recentSchedulerConfigWrites.delete(normalizedPath);
+    }
+
+    return isRecent;
+}
+
+export type SchedulerConfigWriteResult = {
+    publicChanged: boolean;
+    privateChanged: boolean;
+    publicPath: string;
+    privatePath: string;
+};
+
 export function redactDiscordWebhookUrls(value: string): string {
     return value.replace(
         DISCORD_WEBHOOK_URL_PATTERN,
@@ -177,7 +233,10 @@ export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceCo
     }
 }
 
-export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWorkspaceConfig): void {
+export function writeSchedulerConfig(
+    workspaceRoot: string,
+    config: SchedulerWorkspaceConfig,
+): SchedulerConfigWriteResult {
     const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
     const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
 
@@ -228,6 +287,14 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
         fs.writeFileSync(privateConfigPath, nextPrivateContent);
     }
 
+    const writeRecordedAt = Date.now();
+    if (publicChanged) {
+        recordRecentSchedulerConfigWrite(configPath, writeRecordedAt);
+    }
+    if (privateChanged) {
+        recordRecentSchedulerConfigWrite(privateConfigPath, writeRecordedAt);
+    }
+
     const readBack = readSchedulerConfig(workspaceRoot);
     if (!readBack || !Array.isArray(readBack.tasks) || readBack.tasks.length !== normalizedConfig.tasks.length) {
         throw new Error("Persistence verification failed: read-back config length mismatch.");
@@ -243,4 +310,11 @@ export function writeSchedulerConfig(workspaceRoot: string, config: SchedulerWor
     if (publicChanged || privateChanged) {
         createScheduleHistorySnapshot(workspaceRoot, publicConfig, normalizedConfig);
     }
+
+    return {
+        publicChanged,
+        privateChanged,
+        publicPath: configPath,
+        privatePath: privateConfigPath,
+    };
 }

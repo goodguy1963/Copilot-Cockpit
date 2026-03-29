@@ -35,7 +35,10 @@ import {
   setCockpitBoardFilters,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
-import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
+import {
+  getResolvedWorkspaceRoots,
+  wasSchedulerConfigWrittenRecently,
+} from "./schedulerJsonSanitizer";
 import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
 import {
   type BundledSkillSyncResult,
@@ -87,6 +90,9 @@ import type {
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
+const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
+const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
+const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
 
 const PROMPT_SYNC_DATE_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
@@ -343,7 +349,52 @@ let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let hasPromptedForMcpSetupThisSession = false;
 
-function refreshSchedulerUiState(): void {
+function createUiRefreshQueue(
+  flush: () => void,
+  delayMs = SCHEDULER_UI_REFRESH_DEBOUNCE_MS,
+): {
+  schedule: (immediate?: boolean) => void;
+  hasPending: () => boolean;
+} {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let pending = false;
+
+  const flushPending = () => {
+    pending = false;
+    timer = undefined;
+    flush();
+  };
+
+  return {
+    schedule: (immediate = false) => {
+      pending = true;
+
+      if (immediate) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+        flushPending();
+        return;
+      }
+
+      if (timer) {
+        return;
+      }
+
+      timer = setTimeout(() => {
+        if (!pending) {
+          timer = undefined;
+          return;
+        }
+        flushPending();
+      }, delayMs);
+    },
+    hasPending: () => pending || timer !== undefined,
+  };
+}
+
+const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
   SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
@@ -358,6 +409,10 @@ function refreshSchedulerUiState(): void {
   SchedulerWebview.updateScheduleHistory(
     scheduleManager.getWorkspaceScheduleHistory(),
   );
+});
+
+function refreshSchedulerUiState(immediate = false): void {
+  schedulerUiRefreshQueue.schedule(immediate);
 }
 
 async function showSchedulerWebview(
@@ -412,7 +467,7 @@ async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
 
 async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> {
   await showSchedulerWebview(context);
-  refreshSchedulerUiState();
+  refreshSchedulerUiState(true);
   SchedulerWebview.switchToTab("help");
   void maybePromptToSetupWorkspaceMcp(context);
 }
@@ -541,9 +596,7 @@ function shouldAutoShowSchedulerOnStartup(): boolean {
   }
 
   return workspaceFolders.some((folder) =>
-    vscode.workspace
-      .getConfiguration("copilotScheduler", folder.uri)
-      .get<boolean>("autoShowOnStartup", false),
+    getSchedulerSetting<boolean>("autoShowOnStartup", false, folder.uri),
   );
 }
 
@@ -758,26 +811,67 @@ export function activate(context: vscode.ExtensionContext): void {
       new vscode.RelativePattern(folder, '.vscode/scheduler.private.json')
     );
 
-    const reloadHandler = () => {
-      console.log('[Scheduler] Reloading tasks from .vscode/scheduler.json or .vscode/scheduler.private.json');
-      scheduleManager.reloadTasks();
-      void syncRecurringPromptBackupsIfNeeded(context, true).catch((error) =>
+    let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+    let reloadQueued = false;
+    let reloadInFlight = false;
+
+    const flushReloadQueue = async () => {
+      if (!reloadQueued || reloadInFlight) {
+        return;
+      }
+
+      reloadQueued = false;
+      reloadInFlight = true;
+
+      try {
+        console.log('[Scheduler] Reloading tasks from .vscode/scheduler.json or .vscode/scheduler.private.json');
+        scheduleManager.reloadTasks();
+        await syncRecurringPromptBackupsIfNeeded(context, true);
+      } catch (error) {
         logError(
           "[CopilotScheduler] Prompt backup sync after scheduler reload failed:",
           sanitizeErrorDetailsForLog(
             error instanceof Error ? error.message : String(error ?? ""),
           ),
-        ),
-      );
+        );
+      } finally {
+        reloadInFlight = false;
+        if (reloadQueued) {
+          queueReload();
+        }
+      }
     };
 
-    watcher.onDidChange(reloadHandler);
-    watcher.onDidCreate(reloadHandler);
-    watcher.onDidDelete(reloadHandler);
+    const queueReload = (uri?: vscode.Uri) => {
+      if (
+        uri?.fsPath
+        && wasSchedulerConfigWrittenRecently(
+          uri.fsPath,
+          SCHEDULER_WATCHER_SUPPRESSION_MS,
+        )
+      ) {
+        return;
+      }
 
-    privateWatcher.onDidChange(reloadHandler);
-    privateWatcher.onDidCreate(reloadHandler);
-    privateWatcher.onDidDelete(reloadHandler);
+      reloadQueued = true;
+
+      if (reloadTimer) {
+        clearTimeout(reloadTimer);
+      }
+
+      reloadTimer = setTimeout(() => {
+        reloadTimer = undefined;
+        void flushReloadQueue();
+      }, SCHEDULER_WATCHER_DEBOUNCE_MS);
+    };
+
+    watcher.onDidChange((uri) => queueReload(uri));
+    watcher.onDidCreate((uri) => queueReload(uri));
+    watcher.onDidDelete((uri) => queueReload(uri));
+
+    privateWatcher.onDidChange((uri) => queueReload(uri));
+    privateWatcher.onDidCreate((uri) => queueReload(uri));
+    privateWatcher.onDidDelete((uri) => queueReload(uri));
 
     context.subscriptions.push(watcher, privateWatcher);
 
@@ -1115,6 +1209,7 @@ async function resolvePromptText(
 }
 
 export const __testOnly = {
+  createUiRefreshQueue,
   resolvePromptText,
   sanitizeErrorDetailsForLog,
   ensureSchedulerSkillOnStartup,

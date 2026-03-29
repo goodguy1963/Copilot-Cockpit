@@ -1257,10 +1257,12 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       liveTask!.promptBackupPath = legacyRelativePath;
 
       const changed = await manager.ensureRecurringPromptBackups();
+      const stabilized = await manager.ensureRecurringPromptBackups();
       const migratedTask = manager.getTask(createdTask.id);
       const nextBackupPath = path.join(workspaceRoot, nextRelativePath);
 
       assert.ok(changed > 0);
+      assert.strictEqual(stabilized, 0);
       assert.strictEqual(migratedTask?.promptBackupPath, nextRelativePath);
       assert.ok(fs.existsSync(nextBackupPath));
       assert.strictEqual(fs.existsSync(legacyBackupPath), false);
