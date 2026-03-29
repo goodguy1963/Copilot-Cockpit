@@ -5,7 +5,7 @@
 
 > Plan before you run. Copilot Cockpit is a local-first orchestration workspace for AI tasks, approvals, workflows, and iterative execution inside VS Code.
 
-This repository is the active Copilot Cockpit codebase. It builds on the original scheduler foundation and ships the Cockpit-focused VSIX for local, repo-scoped AI orchestration. The original upstream README is preserved below; this top section only covers what is specific to Copilot Cockpit.
+
 
 Copilot Cockpit is a local orchestration layer for AI agents in VS Code, positioned as a controlled alternative to OpenClaw's autonomous systems and Paperclip's external coordination tools.
 
@@ -17,19 +17,7 @@ It is a control system for AI task execution, not just an agent runner.
 
 ## 🧱 Core Foundation
 
-Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The scheduler remains the execution foundation; Copilot Cockpit adds a repo-local planning, approval, workflow, research, and orchestration layer around it.
-
-## TL;DR (Extended Version)
-
-Copilot Cockpit is a VS Code-native orchestration layer for AI agents, designed as a controlled alternative to OpenClaw's autonomous systems and Paperclip's external tooling.
-
-Unlike systems that rely on continuous, self-running agents, Copilot Cockpit follows a no-heartbeat design:
-
-- Agents do not run continuously in the background.
-- Nothing executes unless the user explicitly defines and approves the task.
-- Execution is intentional, scheduled, and controlled.
-
-This shifts the model from agent-driven autonomy toward user-approved execution, and from continuous automation toward discrete, controlled workflows.
+This repository is the active Copilot Cockpit codebase. Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The scheduler remains the execution foundation; Copilot Cockpit adds a repo-local planning, approval, workflow, research, and orchestration layer around it.It builds on the original Copilot Scheduler and ships the Cockpit-focused VSIX for local, repo-scoped AI orchestration. The original upstream README is preserved below; this top section only covers what is specific to Copilot Cockpit.
 
 ### Core Principles
 
