@@ -485,7 +485,28 @@ export function approveTodoInBoard(
   board: CockpitBoard,
   todoId: string,
 ): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
-  return archiveTodoInBoardByOutcome(board, todoId, "completed-successfully");
+  const nextBoard = cloneBoard(board);
+  const todo = nextBoard.cards.find((card) => card.id === todoId);
+  if (!todo) {
+    return { board: nextBoard, todo: undefined };
+  }
+
+  if (todo.archived || todo.status === "ready") {
+    return { board: nextBoard, todo };
+  }
+
+  const timestamp = nowIso();
+  todo.status = "ready";
+  todo.approvedAt = timestamp;
+  todo.updatedAt = timestamp;
+  addSystemEventComment(
+    todo,
+    "Approved and marked ready for follow-up.",
+    ["ready"],
+    timestamp,
+  );
+  touchBoard(nextBoard, timestamp);
+  return { board: nextBoard, todo };
 }
 
 export function finalizeTodoInBoard(

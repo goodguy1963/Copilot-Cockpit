@@ -29,3 +29,4 @@ FULL_SPECIFICATION.md
 /output_sessions/
 .vscode/scheduler-history/
 .vscode/scheduler.private.json
+.vscode/mcp.json

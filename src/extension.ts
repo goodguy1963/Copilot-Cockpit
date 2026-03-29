@@ -17,6 +17,7 @@ import { createDefaultCockpitBoard } from "./cockpitBoard";
 import {
   addCockpitTodoComment,
   addCockpitSection,
+  approveCockpitTodo,
   createCockpitTodo,
   deleteCockpitSection,
   ensureTaskTodos,
@@ -67,6 +68,10 @@ import {
   resolveLocalPromptPath,
   resolveGlobalPromptsRoot,
 } from "./promptResolver";
+import {
+  handleTodoCockpitAction,
+  isTodoCockpitAction,
+} from "./todoCockpitActionHandler";
 import type {
   AddCockpitTodoCommentInput,
   CreateCockpitTodoInput,
@@ -385,31 +390,6 @@ function getCurrentCockpitBoard() {
     workspaceRoot,
     scheduleManager?.getAllTasks?.() ?? [],
   ).board;
-}
-
-function buildTaskPromptFromTodo(taskSource: {
-  title: string;
-  description?: string;
-  comments?: Array<{ author?: string; body?: string }>;
-}): string {
-  const sections: string[] = [
-    `Task goal: ${taskSource.title}`,
-  ];
-
-  if (taskSource.description?.trim()) {
-    sections.push(`Context:\n${taskSource.description.trim()}`);
-  }
-
-  const commentLines = (taskSource.comments ?? [])
-    .filter((comment) => comment?.body)
-    .slice(-5)
-    .map((comment) => `- ${comment.author || "system"}: ${comment.body}`);
-  if (commentLines.length > 0) {
-    sections.push(`Recent coordination:\n${commentLines.join("\n")}`);
-  }
-
-  sections.push("Produce the approved execution artifact for this todo and keep any unresolved questions explicit.");
-  return sections.join("\n\n");
 }
 
 function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
@@ -1189,6 +1169,22 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       return;
     }
 
+    if (isTodoCockpitAction(action.action)) {
+      await handleTodoCockpitAction(action, {
+        getPrimaryWorkspaceRootPath,
+        getCurrentCockpitBoard,
+        createTask: (input) => scheduleManager.createTask(input),
+        removeLabelFromAllTasks: (labelName) =>
+          scheduleManager.removeLabelFromAllTasks(labelName),
+        refreshSchedulerUiState,
+        notifyError,
+        notifyInfo,
+        showError: SchedulerWebview.showError,
+        noWorkspaceOpenMessage: messages.noWorkspaceOpen(),
+      });
+      return;
+    }
+
     switch (action.action) {
       case "run": {
         const runTask = scheduleManager.getTask(action.taskId);
@@ -1385,8 +1381,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         }
         notifyInfo(`Job updated: ${job.name}`);
         refreshSchedulerUiState();
-        SchedulerWebview.startCreateJob();
-        SchedulerWebview.switchToTab("jobs");
+        SchedulerWebview.focusJob(job.id, hasFolderUpdate ? job.folderId : undefined);
         break;
       }
 
@@ -1783,343 +1778,6 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         SchedulerWebview.updateExecutionDefaults(defaults);
         notifyInfo("Default agent and model updated.");
         SchedulerWebview.switchToTab("settings");
-        break;
-      }
-
-      case "createTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoData?.title) {
-          const msg = messages.noWorkspaceOpen();
-          notifyError(msg);
-          SchedulerWebview.showError(msg);
-          break;
-        }
-        createCockpitTodo(
-          workspaceRoot,
-          action.todoData as CreateCockpitTodoInput,
-        );
-        refreshSchedulerUiState();
-        SchedulerWebview.startCreateTodo();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo("Todo Cockpit item created.");
-        break;
-      }
-
-      case "updateTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = updateCockpitTodo(
-          workspaceRoot,
-          action.todoId,
-          action.todoData ?? {},
-        );
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.startCreateTodo();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo(`Updated Todo Cockpit item: ${result.todo.title}`);
-        break;
-      }
-
-      case "deleteTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = rejectCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo("Todo Cockpit item rejected and archived.");
-        break;
-      }
-
-      case "purgeTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = purgeCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.deleted) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo("Todo Cockpit item permanently deleted.");
-        break;
-      }
-
-      case "approveTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
-        break;
-      }
-
-      case "rejectTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = rejectCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo(`Rejected Todo Cockpit item: ${result.todo.title}`);
-        break;
-      }
-
-      case "finalizeTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
-        break;
-      }
-
-      case "saveTodoLabelDefinition": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoLabelData?.name) {
-          break;
-        }
-        const result = saveCockpitTodoLabelDefinition(
-          workspaceRoot,
-          action.todoLabelData,
-        );
-        if (!result.label) {
-          notifyError("Todo Cockpit label could not be saved.");
-          break;
-        }
-        refreshSchedulerUiState();
-        break;
-      }
-
-      case "deleteTodoLabelDefinition": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoLabelData?.name) {
-          break;
-        }
-        deleteCockpitTodoLabelDefinition(workspaceRoot, action.todoLabelData.name);
-        await scheduleManager.removeLabelFromAllTasks(action.todoLabelData.name);
-        refreshSchedulerUiState();
-        break;
-      }
-
-      case "saveTodoFlagDefinition": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoFlagData?.name) {
-          break;
-        }
-        const result = saveCockpitFlagDefinition(
-          workspaceRoot,
-          action.todoFlagData,
-        );
-        if (!result.label) {
-          notifyError("Todo Cockpit flag could not be saved.");
-          break;
-        }
-        refreshSchedulerUiState();
-        break;
-      }
-
-      case "deleteTodoFlagDefinition": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoFlagData?.name) {
-          break;
-        }
-        deleteCockpitFlagDefinition(workspaceRoot, action.todoFlagData.name);
-        refreshSchedulerUiState();
-        break;
-      }
-
-      case "archiveTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = finalizeCockpitTodo(workspaceRoot, action.todoId);
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
-        break;
-      }
-
-      case "moveTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = moveCockpitTodo(
-          workspaceRoot,
-          action.todoId,
-          action.targetSectionId,
-          action.targetOrder ?? 0,
-        );
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "addCockpitSection": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.sectionTitle) break;
-        addCockpitSection(workspaceRoot, action.sectionTitle);
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "renameCockpitSection": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.sectionId || !action.sectionTitle) break;
-        renameCockpitSection(workspaceRoot, action.sectionId, action.sectionTitle);
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "deleteCockpitSection": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.sectionId) break;
-        deleteCockpitSection(workspaceRoot, action.sectionId);
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "moveCockpitSection": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.sectionId || !action.sectionDirection) break;
-        moveCockpitSection(workspaceRoot, action.sectionId, action.sectionDirection);
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "reorderCockpitSection": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.sectionId || action.targetIndex == null) break;
-        reorderCockpitSection(workspaceRoot, action.sectionId, action.targetIndex);
-        refreshSchedulerUiState();
-        break;
-      }
-
-      case "addTodoComment": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId || !action.todoCommentData?.body) {
-          break;
-        }
-        const result = addCockpitTodoComment(
-          workspaceRoot,
-          action.todoId,
-          action.todoCommentData as AddCockpitTodoCommentInput,
-        );
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "setTodoFilters": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot) {
-          break;
-        }
-        setCockpitBoardFilters(
-          workspaceRoot,
-          (action.todoFilters ?? {}) as UpdateCockpitBoardFiltersInput,
-        );
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "linkTodoTask": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const result = updateCockpitTodo(
-          workspaceRoot,
-          action.todoId,
-          { taskId: action.linkedTaskId ?? null },
-        );
-        if (!result.todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("board");
-        break;
-      }
-
-      case "createTaskFromTodo": {
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (!workspaceRoot || !action.todoId) {
-          break;
-        }
-        const board = getCurrentCockpitBoard();
-        const todo = board.cards.find((entry) => entry.id === action.todoId);
-        if (!todo) {
-          notifyError("Todo Cockpit item not found.");
-          break;
-        }
-
-        const createdTask = await scheduleManager.createTask({
-          name: todo.title,
-          description: todo.description,
-          cronExpression: "0 9 * * 1-5",
-          prompt: buildTaskPromptFromTodo(todo),
-          enabled: false,
-          labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
-          scope: "workspace",
-          promptSource: "inline",
-        });
-        updateCockpitTodo(workspaceRoot, todo.id, { taskId: createdTask.id });
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("list");
-        SchedulerWebview.focusTask(createdTask.id);
-        notifyInfo(`Created scheduled task draft from Todo Cockpit: ${createdTask.name}`);
         break;
       }
 

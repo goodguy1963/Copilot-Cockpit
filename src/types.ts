@@ -1426,9 +1426,12 @@ export type WebviewToExtensionMessage =
   | { type: "moveCockpitSection"; sectionId: string; direction: "left" | "right" }
   | { type: "reorderCockpitSection"; sectionId: string; targetIndex: number }
   | { type: "setLanguage"; language: "auto" | "en" | "ja" | "de" }
+  | { type: "setLogLevel"; logLevel: LogLevel }
+  | { type: "openLogFolder" }
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }
+  | { type: "debugWebview"; event: string; detail?: unknown }
   | { type: "webviewReady" }
   | { type: "introTutorial" }
   | { type: "planIntegration" }

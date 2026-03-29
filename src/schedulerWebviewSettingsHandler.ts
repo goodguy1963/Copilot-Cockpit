@@ -1,0 +1,131 @@
+/**
+ * Settings & help message handler extracted from SchedulerWebview.handleMessage().
+ * Covers: setLanguage, setLogLevel, openLogFolder, introTutorial, debugWebview,
+ * planIntegration.
+ */
+
+import * as vscode from "vscode";
+import * as path from "path";
+import * as fs from "fs";
+import { notifyError } from "./extension";
+import type { WebviewToExtensionMessage } from "./types";
+import { messages } from "./i18n";
+import { logDebug, logError, revealLogDirectory } from "./logger";
+import { updateCompatibleConfigurationValue } from "./extensionCompat";
+
+type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
+type PostMessageFn = (message: OutgoingWebviewMessage) => void;
+type LaunchHelpChatFn = (prompt: string) => Promise<void>;
+type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefined>;
+
+export interface SettingsHandlerContext {
+  postMessage: PostMessageFn;
+  launchHelpChat: LaunchHelpChatFn;
+  backupGithubFolder: BackupGithubFolderFn;
+}
+
+/**
+ * Handle settings / help messages.
+ * Returns `true` if the message was handled, `false` otherwise.
+ */
+export async function handleSettingsWebviewMessage(
+  message: WebviewToExtensionMessage,
+  ctx: SettingsHandlerContext,
+): Promise<boolean> {
+  switch (message.type) {
+    case "setLanguage": {
+      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
+      const target = scope
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : vscode.ConfigurationTarget.Global;
+      await updateCompatibleConfigurationValue(
+        "language",
+        message.language,
+        target,
+        scope,
+      );
+      return true;
+    }
+    case "setLogLevel": {
+      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
+      const target = scope
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : vscode.ConfigurationTarget.Global;
+      await updateCompatibleConfigurationValue(
+        "logLevel",
+        message.logLevel,
+        target,
+        scope,
+      );
+      ctx.postMessage({
+        type: "updateLogLevel",
+        logLevel: message.logLevel,
+      });
+      return true;
+    }
+    case "openLogFolder": {
+      await revealLogDirectory();
+      return true;
+    }
+    case "introTutorial": {
+      await ctx.launchHelpChat(
+        "Please use the copilot-scheduler-intro skill to give me a guided tour of how this plugin works.",
+      );
+      return true;
+    }
+    case "debugWebview": {
+      logDebug("[SchedulerWebviewDebug]", message.event, message.detail);
+      return true;
+    }
+    case "planIntegration": {
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!root) {
+        vscode.window.showErrorMessage("Please open a workspace folder first.");
+        return true;
+      }
+
+      const answer = await vscode.window.showInformationMessage(
+        "Before starting the agent integration planner, would you like to build a backup of your .github folder?",
+        "Yes, Backup",
+        "No",
+      );
+
+      let backupPath: string | undefined;
+      if (answer === "Yes, Backup") {
+        try {
+          backupPath = await ctx.backupGithubFolder(root);
+          if (backupPath) {
+            vscode.window.showInformationMessage(
+              `Backed up .github to ${path.relative(root, backupPath)}`,
+            );
+          } else {
+            vscode.window.showWarningMessage(
+              "No .github folder was found to back up.",
+            );
+          }
+        } catch (error) {
+          logError(
+            "[SchedulerWebview] Failed to create a .github backup before planning integration.",
+            error,
+          );
+          notifyError(
+            "Failed to create a .github backup before planning integration.",
+          );
+          return true;
+        }
+      }
+
+      const backupInstruction = backupPath
+        ? `A backup of .github was created at ${path.relative(root, backupPath)}.`
+        : answer === "Yes, Backup"
+          ? "No .github folder existed to back up."
+          : "Do not create a backup unless I ask for one. When proposing changes, mention that I chose to skip the backup.";
+      await ctx.launchHelpChat(
+        `Please use the copilot-scheduler-setup skill to evaluate this workspace and plan a structured scheduler integration. Start by summarizing the current .github state, ask 2-3 concrete setup questions plus one Todo Cockpit approval/workflow question, and wait for my answer before proposing a final plan. Workspace root: ${root}. ${backupInstruction}`,
+      );
+      return true;
+    }
+    default:
+      return false;
+  }
+}
