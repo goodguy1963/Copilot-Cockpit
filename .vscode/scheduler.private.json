@@ -17,6 +17,7 @@
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "lastRun": "2026-03-29T23:07:03.153Z",
             "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-29T18:59:02.815Z",
             "updatedAt": "2026-03-29T21:43:07.299Z"
@@ -27,6 +28,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Research windows",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "chatSession": "new",
@@ -49,6 +51,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Research windows",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "promptSource": "inline",
@@ -68,6 +71,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "do somthing: 1+ 2 ",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "chatSession": "new",
@@ -89,6 +93,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Filter csv",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "",
             "chatSession": "new",
@@ -101,6 +106,7 @@
             "jobId": "job_1774810756188_5bn3xr",
             "jobNodeId": "jobnode_1774820991174_sjtdkg",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-03-30T07:30:00.000Z",
             "createdAt": "2026-03-29T21:49:51.131Z",
             "updatedAt": "2026-03-29T21:50:17.032Z"
         }
@@ -120,6 +126,12 @@
                     "windowMinutes": 30
                 },
                 {
+                    "id": "jobnode_1774820991174_sjtdkg",
+                    "type": "task",
+                    "taskId": "task_1774820991131_24potb",
+                    "windowMinutes": 30
+                },
+                {
                     "id": "jobnode_1774820631235_4mkln3",
                     "type": "pause",
                     "title": "Manual review"
@@ -129,16 +141,10 @@
                     "type": "task",
                     "taskId": "task_1774820637468_uatpgj",
                     "windowMinutes": 30
-                },
-                {
-                    "id": "jobnode_1774820991174_sjtdkg",
-                    "type": "task",
-                    "taskId": "task_1774820991131_24potb",
-                    "windowMinutes": 30
                 }
             ],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-03-29T21:50:25.877Z"
+            "updatedAt": "2026-03-29T23:07:11.139Z"
         }
     ],
     "jobFolders": [],
@@ -182,6 +188,112 @@
             }
         ],
         "cards": [
+            {
+                "id": "todo_mnam06v5_9hkvcj",
+                "title": "dssd",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-rejected",
+                "order": 1,
+                "priority": "low",
+                "status": "rejected",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnam089k_l9womw",
+                        "author": "system",
+                        "body": "Final accepted and archived as completed.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T17:33:47.864Z"
+                    },
+                    {
+                        "id": "comment_mncai9qp_zt4ds7",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T21:47:26.545Z"
+                    },
+                    {
+                        "id": "comment_mncd99rj_1bmde7",
+                        "author": "system",
+                        "body": "Rejected and moved to the rejected archive.",
+                        "labels": [
+                            "rejected"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-29T23:04:25.519Z"
+                    }
+                ],
+                "taskId": "task_1774382099685_s6t8o5",
+                "archived": true,
+                "archiveOutcome": "rejected",
+                "rejectedAt": "2026-03-29T23:04:25.519Z",
+                "archivedAt": "2026-03-29T23:04:25.519Z",
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-03-29T23:04:25.519Z"
+            },
+            {
+                "id": "todo_mnaiiew4_fcvyw9",
+                "title": "Test Task One",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-completed",
+                "order": 0,
+                "priority": "low",
+                "status": "completed",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnam06up_zczkmx",
+                        "author": "system",
+                        "body": "Final accepted and archived as completed.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T17:33:46.033Z"
+                    },
+                    {
+                        "id": "comment_mncaiban_rezufn",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T21:47:28.559Z"
+                    },
+                    {
+                        "id": "comment_mncd950l_oynyfo",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-29T23:04:19.364Z"
+                    }
+                ],
+                "taskId": "task_1774382099685_s6t8o5",
+                "archived": true,
+                "archiveOutcome": "completed-successfully",
+                "completedAt": "2026-03-29T23:04:19.364Z",
+                "archivedAt": "2026-03-29T23:04:19.364Z",
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-03-29T23:04:19.364Z"
+            },
             {
                 "id": "todo_mnc4b5uh_i97iwz",
                 "title": "a",
@@ -879,84 +991,6 @@
                 "updatedAt": "2026-03-29T21:38:31.999Z"
             },
             {
-                "id": "todo_mnaiiew4_fcvyw9",
-                "title": "Test Task One",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 2,
-                "priority": "low",
-                "status": "ready",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnam06up_zczkmx",
-                        "author": "system",
-                        "body": "Final accepted and archived as completed.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T17:33:46.033Z"
-                    },
-                    {
-                        "id": "comment_mncaiban_rezufn",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T21:47:28.559Z"
-                    }
-                ],
-                "taskId": "task_1774382099685_s6t8o5",
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-03-29T21:47:28.559Z"
-            },
-            {
-                "id": "todo_mnam06v5_9hkvcj",
-                "title": "dssd",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 1,
-                "priority": "low",
-                "status": "ready",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnam089k_l9womw",
-                        "author": "system",
-                        "body": "Final accepted and archived as completed.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T17:33:47.864Z"
-                    },
-                    {
-                        "id": "comment_mncai9qp_zt4ds7",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T21:47:26.545Z"
-                    }
-                ],
-                "taskId": "task_1774382099685_s6t8o5",
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-03-29T21:47:26.545Z"
-            },
-            {
                 "id": "todo_mnam089y_zvmjrs",
                 "title": "Fix Layout of Readme",
                 "description": "Auto-generated from scheduler.json",
@@ -1029,7 +1063,7 @@
                 "id": "todo_mn975hbd_cjclva",
                 "title": "dffd12522",
                 "sectionId": "archive-rejected",
-                "order": 0,
+                "order": 1,
                 "priority": "none",
                 "status": "rejected",
                 "labels": [],
@@ -1060,16 +1094,29 @@
                 "sectionId": "unsorted",
                 "order": 0,
                 "priority": "medium",
-                "status": "active",
+                "status": "ready",
                 "labels": [
                     "scheduled-task"
                 ],
                 "flags": [],
-                "comments": [],
+                "comments": [
+                    {
+                        "id": "comment_mncd9diz_ct0995",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T23:04:30.395Z"
+                    }
+                ],
                 "taskId": "task_1774820624347_er6ssw",
                 "archived": false,
+                "approvedAt": "2026-03-29T23:04:30.395Z",
                 "createdAt": "2026-03-29T21:43:44.347Z",
-                "updatedAt": "2026-03-29T21:46:25.674Z"
+                "updatedAt": "2026-03-29T23:04:30.395Z"
             },
             {
                 "id": "todo_mncadsha_oflulp",
@@ -1102,27 +1149,10 @@
                 "updatedAt": "2026-03-29T21:47:07.961Z"
             },
             {
-                "id": "todo_mncajf00_84l7qa",
-                "title": "assa",
-                "sectionId": "unsorted",
-                "order": 3,
-                "priority": "medium",
-                "status": "active",
-                "labels": [
-                    "scheduled-task"
-                ],
-                "flags": [],
-                "comments": [],
-                "taskId": "task_1774820899929_ua1d8h",
-                "archived": false,
-                "createdAt": "2026-03-29T21:48:19.929Z",
-                "updatedAt": "2026-03-29T21:48:19.929Z"
-            },
-            {
                 "id": "todo_mncaldd4_cm0n69",
                 "title": "Do Filter",
-                "sectionId": "unsorted",
-                "order": 4,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 0,
                 "priority": "none",
                 "status": "active",
                 "labels": [
@@ -1133,7 +1163,25 @@
                 "taskId": "task_1774820991131_24potb",
                 "archived": false,
                 "createdAt": "2026-03-29T21:49:51.131Z",
-                "updatedAt": "2026-03-29T21:49:51.174Z"
+                "updatedAt": "2026-03-29T23:04:16.294Z"
+            },
+            {
+                "id": "todo_mncda6f2_9y5ib4",
+                "title": "assa",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 1,
+                "priority": "medium",
+                "status": "active",
+                "labels": [
+                    "scheduled-task"
+                ],
+                "flags": [],
+                "comments": [],
+                "taskId": "task_1774820899929_ua1d8h",
+                "archived": false,
+                "createdAt": "2026-03-29T21:48:19.929Z",
+                "updatedAt": "2026-03-29T23:06:52.633Z"
             }
         ],
         "labelCatalog": [
@@ -1214,6 +1262,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-03-29T21:49:51.208Z"
+        "updatedAt": "2026-03-29T23:06:52.633Z"
     }
 }

@@ -17,6 +17,7 @@
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "lastRun": "2026-03-29T23:07:03.153Z",
             "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-29T18:59:02.815Z",
             "updatedAt": "2026-03-29T21:43:07.299Z"
@@ -27,6 +28,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Research windows",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "chatSession": "new",
@@ -49,6 +51,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Research windows",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "promptSource": "inline",
@@ -68,6 +71,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "do somthing: 1+ 2 ",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "gpt-5-mini",
             "chatSession": "new",
@@ -89,6 +93,7 @@
             "cron": "0 9 * * 1-5",
             "prompt": "Filter csv",
             "enabled": true,
+            "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "",
             "chatSession": "new",
@@ -101,6 +106,7 @@
             "jobId": "job_1774810756188_5bn3xr",
             "jobNodeId": "jobnode_1774820991174_sjtdkg",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-03-30T07:30:00.000Z",
             "createdAt": "2026-03-29T21:49:51.131Z",
             "updatedAt": "2026-03-29T21:50:17.032Z"
         }
@@ -120,6 +126,12 @@
                     "windowMinutes": 30
                 },
                 {
+                    "id": "jobnode_1774820991174_sjtdkg",
+                    "type": "task",
+                    "taskId": "task_1774820991131_24potb",
+                    "windowMinutes": 30
+                },
+                {
                     "id": "jobnode_1774820631235_4mkln3",
                     "type": "pause",
                     "title": "Manual review"
@@ -129,16 +141,10 @@
                     "type": "task",
                     "taskId": "task_1774820637468_uatpgj",
                     "windowMinutes": 30
-                },
-                {
-                    "id": "jobnode_1774820991174_sjtdkg",
-                    "type": "task",
-                    "taskId": "task_1774820991131_24potb",
-                    "windowMinutes": 30
                 }
             ],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-03-29T21:50:25.877Z"
+            "updatedAt": "2026-03-29T23:07:11.139Z"
         }
     ],
     "jobFolders": []
