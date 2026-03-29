@@ -29,6 +29,14 @@ import {
   }
 
   strings = initialData.strings || {};
+  var currentLogLevel =
+    typeof initialData.logLevel === "string" && initialData.logLevel
+      ? initialData.logLevel
+      : "info";
+  var currentLogDirectory =
+    typeof initialData.logDirectory === "string"
+      ? initialData.logDirectory
+      : "";
 
   function basenameAny(p) {
     if (!p) return "";
@@ -118,6 +126,31 @@ import {
     return parts.join(" ");
   }
 
+  function getNextRunCountdownText(enabled, nextRunMs) {
+    if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
+      return "";
+    }
+    var diffMs = nextRunMs - Date.now();
+    if (diffMs > 0) {
+      return " (in " + formatCountdown(Math.floor(diffMs / 1000)) + ")";
+    }
+    return " (due now)";
+  }
+
+  function refreshTaskCountdowns() {
+    if (!taskList || !taskList.isConnected) {
+      taskList = document.getElementById("task-list");
+    }
+    if (!taskList) {
+      return;
+    }
+    taskList.querySelectorAll(".task-next-run-countdown").forEach(function (node) {
+      var nextRunMs = Number(node.getAttribute("data-next-run-ms") || "");
+      var enabled = node.getAttribute("data-enabled") === "true";
+      node.textContent = getNextRunCountdownText(enabled, nextRunMs);
+    });
+  }
+
   function sanitizeAbsolutePaths(text) {
     if (!text) return "";
     var s = String(text);
@@ -162,25 +195,70 @@ import {
     );
   }
 
+  var globalErrorHideTimer = 0;
+
+  function hideGlobalError() {
+    var errorBanner = document.getElementById("global-error-banner");
+    var errorText = document.getElementById("global-error-text");
+    if (globalErrorHideTimer) {
+      clearTimeout(globalErrorHideTimer);
+      globalErrorHideTimer = 0;
+    }
+    if (errorText) {
+      errorText.textContent = "";
+    }
+    if (errorBanner) {
+      errorBanner.classList.remove("is-visible");
+    }
+  }
+
+  function showGlobalError(message, options) {
+    var errorBanner = document.getElementById("global-error-banner");
+    var errorText = document.getElementById("global-error-text");
+    if (!errorBanner) {
+      return;
+    }
+    var normalized = sanitizeAbsolutePaths(String(message || "")).trim();
+    if (!normalized) {
+      hideGlobalError();
+      return;
+    }
+    if (globalErrorHideTimer) {
+      clearTimeout(globalErrorHideTimer);
+      globalErrorHideTimer = 0;
+    }
+    if (errorText) {
+      errorText.textContent = normalized;
+    } else {
+      errorBanner.textContent = normalized;
+    }
+    errorBanner.classList.add("is-visible");
+    var durationMs =
+      options && typeof options.durationMs === "number"
+        ? options.durationMs
+        : 8000;
+    if (durationMs > 0) {
+      globalErrorHideTimer = setTimeout(function () {
+        hideGlobalError();
+      }, durationMs);
+    }
+  }
+
   // Global error handler for debugging (kept minimal to avoid breaking the UI)
   window.onerror = function (msg, url, line, col, error) {
-    var errDiv = document.getElementById("form-error");
-    if (!errDiv) return;
     var prefix = strings.webviewScriptErrorPrefix || "";
     var linePrefix = strings.webviewLinePrefix || "";
     var lineSuffix = strings.webviewLineSuffix || "";
-    errDiv.textContent =
+    showGlobalError(
       prefix +
       sanitizeAbsolutePaths(String(msg)) +
       linePrefix +
       String(line) +
-      lineSuffix;
-    errDiv.style.display = "block";
+      lineSuffix,
+    );
   };
 
   window.onunhandledrejection = function (ev) {
-    var errDiv = document.getElementById("form-error");
-    if (!errDiv) return;
     var prefix = strings.webviewUnhandledErrorPrefix || "";
     var unknown = strings.webviewUnknown || "";
     var reason = ev && ev.reason ? ev.reason : null;
@@ -196,8 +274,7 @@ import {
     }
     // Avoid showing multi-line stack traces in UI; keep only the first line.
     raw = String(raw).split(/\r?\n/)[0];
-    errDiv.textContent = prefix + sanitizeAbsolutePaths(raw);
-    errDiv.style.display = "block";
+    showGlobalError(prefix + sanitizeAbsolutePaths(raw));
   };
 
   if (typeof acquireVsCodeApi === "function") {
@@ -205,11 +282,7 @@ import {
   } else {
     // Keep UI usable even if VS Code API is unavailable
     vscode = { postMessage: function () { } };
-    var errDiv = document.getElementById("form-error");
-    if (errDiv) {
-      errDiv.textContent = strings.webviewApiUnavailable || "";
-      errDiv.style.display = "block";
-    }
+    showGlobalError(strings.webviewApiUnavailable || "", { durationMs: 0 });
   }
 
   var debugTools = createWebviewDebugTools({
@@ -295,14 +368,6 @@ import {
   var defaultChatSession =
     initialData.defaultChatSession === "continue" ? "continue" : "new";
   var autoShowOnStartup = !!initialData.autoShowOnStartup;
-  var currentLogLevel =
-    typeof initialData.logLevel === "string" && initialData.logLevel
-      ? initialData.logLevel
-      : "info";
-  var currentLogDirectory =
-    typeof initialData.logDirectory === "string"
-      ? initialData.logDirectory
-      : "";
   var workspacePaths = Array.isArray(initialData.workspacePaths)
     ? initialData.workspacePaths
     : [];
@@ -364,6 +429,7 @@ import {
   var helpWarpFadeTimeout = 0;
   var helpWarpCleanupTimeout = 0;
   var isCreatingJob = false;
+  var todoEditorListenersBound = false;
 
   function resetTodoDraft(reason) {
     currentTodoDraft = debugTools.resetTodoDraft(reason);
@@ -1825,6 +1891,101 @@ syncTodoLabelSuggestions();
     });
   }
 
+  function ensureTodoEditorListenersBound() {
+    if (todoEditorListenersBound) {
+      return;
+    }
+    todoEditorListenersBound = true;
+
+    [todoTitleInput, todoDescriptionInput, todoDueInput].forEach(function (element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", function () {
+        syncTodoDraftFromInputs("input");
+      });
+    });
+
+    [todoPriorityInput, todoSectionInput, todoLinkedTaskSelect].forEach(function (element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("change", function () {
+        syncTodoDraftFromInputs("change");
+      });
+    });
+
+    bindDebugClickAttempts(todoDetailForm, {
+      selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
+      eventName: "todoDetailClickAttempt",
+    });
+
+    document.addEventListener("click", function (event) {
+      var removeBtn = event.target && event.target.closest ? event.target.closest("[data-flag-chip-remove]") : null;
+      if (removeBtn) {
+        currentTodoFlag = "";
+        syncTodoFlagDraft();
+        syncFlagEditor();
+        return;
+      }
+      var catalogSelect = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-select]") : null;
+      if (catalogSelect) {
+        event.preventDefault();
+        event.stopPropagation();
+        clearCatalogDeleteState("flag");
+        var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
+        if (!flagName) return;
+        currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
+        syncTodoFlagDraft();
+        syncFlagEditor();
+        return;
+      }
+      var catalogEdit = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-edit]") : null;
+      if (catalogEdit) {
+        event.preventDefault();
+        event.stopPropagation();
+        clearCatalogDeleteState("flag");
+        var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
+        var feCatalog = getFlagCatalog();
+        var feEntry = null;
+        for (var fei = 0; fei < feCatalog.length; fei++) {
+          if (normalizeTodoLabelKey(feCatalog[fei].name) === normalizeTodoLabelKey(feName)) { feEntry = feCatalog[fei]; break; }
+        }
+        var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+        var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+        if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
+        if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
+        editingFlagOriginalName = feName;
+        if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
+        return;
+      }
+      var catalogConfirmDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-confirm-delete]") : null;
+      if (catalogConfirmDelete) {
+        event.preventDefault();
+        event.stopPropagation();
+        var confirmFlagName = catalogConfirmDelete.getAttribute("data-flag-catalog-confirm-delete") || "";
+        if (!confirmFlagName) return;
+        clearCatalogDeleteState("flag");
+        if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
+          currentTodoFlag = "";
+          syncTodoFlagDraft();
+        }
+        syncFlagEditor();
+        vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
+        return;
+      }
+      var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
+      if (catalogDelete) {
+        event.preventDefault();
+        event.stopPropagation();
+        var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
+        if (!flagName) return;
+        pendingDeleteFlagName = flagName;
+        syncFlagEditor();
+      }
+    });
+  }
+
 
 
   function syncFlagEditor() {
@@ -2530,6 +2691,8 @@ syncTodoLabelSuggestions();
   }
 
   function renderCockpitBoard() {
+    ensureTodoEditorListenersBound();
+
     var filters = getTodoFilters();
     var sections = getTodoSections(filters);
     var allSections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice().sort(function (left, right) {
@@ -2779,22 +2942,6 @@ syncTodoLabelSuggestions();
         }
       };
     }
-    [todoTitleInput, todoDescriptionInput, todoDueInput].forEach(function (element) {
-      if (!element || typeof element.addEventListener !== "function") {
-        return;
-      }
-      element.addEventListener("input", function () {
-        syncTodoDraftFromInputs("input");
-      });
-    });
-    [todoPriorityInput, todoSectionInput, todoLinkedTaskSelect].forEach(function (element) {
-      if (!element || typeof element.addEventListener !== "function") {
-        return;
-      }
-      element.addEventListener("change", function () {
-        syncTodoDraftFromInputs("change");
-      });
-    });
     if (todoAddCommentBtn) {
       todoAddCommentBtn.onclick = function () {
         if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
@@ -2826,11 +2973,6 @@ syncTodoLabelSuggestions();
         });
       };
     }
-    bindDebugClickAttempts(todoDetailForm, {
-      selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
-      eventName: "todoDetailClickAttempt",
-    });
-
     if (todoDeleteBtn) {
       todoDeleteBtn.onclick = function () {
         if (!selectedTodoId) return;
@@ -3075,71 +3217,6 @@ syncTodoLabelSuggestions();
         }
       };
     }
-    // Flag current chip click (clear)
-    document.addEventListener("click", function (event) {
-      var removeBtn = event.target && event.target.closest ? event.target.closest("[data-flag-chip-remove]") : null;
-      if (removeBtn) {
-        currentTodoFlag = "";
-        syncTodoFlagDraft();
-        syncFlagEditor();
-        return;
-      }
-      var catalogSelect = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-select]") : null;
-      if (catalogSelect) {
-        event.preventDefault();
-        event.stopPropagation();
-        clearCatalogDeleteState("flag");
-        var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
-        if (!flagName) return;
-        currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
-        syncTodoFlagDraft();
-        syncFlagEditor();
-        return;
-      }
-      var catalogEdit = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-edit]") : null;
-      if (catalogEdit) {
-        event.preventDefault();
-        event.stopPropagation();
-        clearCatalogDeleteState("flag");
-        var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
-        var feCatalog = getFlagCatalog();
-        var feEntry = null;
-        for (var fei = 0; fei < feCatalog.length; fei++) {
-          if (normalizeTodoLabelKey(feCatalog[fei].name) === normalizeTodoLabelKey(feName)) { feEntry = feCatalog[fei]; break; }
-        }
-        var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
-        var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
-        if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
-        if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
-        editingFlagOriginalName = feName;
-        if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
-        return;
-      }
-      var catalogConfirmDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-confirm-delete]") : null;
-      if (catalogConfirmDelete) {
-        event.preventDefault();
-        event.stopPropagation();
-        var confirmFlagName = catalogConfirmDelete.getAttribute("data-flag-catalog-confirm-delete") || "";
-        if (!confirmFlagName) return;
-        clearCatalogDeleteState("flag");
-        if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
-          currentTodoFlag = "";
-          syncTodoFlagDraft();
-        }
-        syncFlagEditor();
-        vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
-        return;
-      }
-      var catalogDelete = event.target && event.target.closest ? event.target.closest("[data-flag-catalog-delete]") : null;
-      if (catalogDelete) {
-        event.preventDefault();
-        event.stopPropagation();
-        var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
-        if (!flagName) return;
-        pendingDeleteFlagName = flagName;
-        syncFlagEditor();
-      }
-    });
   }
 
   function getEditorTabLabelNode(tabName) {
@@ -3336,6 +3413,11 @@ syncTodoLabelSuggestions();
     switchTab("jobs-edit");
   }
 
+  function isTabActive(tabName) {
+    var targetContent = document.getElementById(tabName + "-tab");
+    return !!(targetContent && targetContent.classList.contains("active"));
+  }
+
   // Tab switching function
   function switchTab(tabName) {
     document.querySelectorAll(".tab-button").forEach(function (b) {
@@ -3355,6 +3437,9 @@ syncTodoLabelSuggestions();
     }
     if (jobsShowSidebarBtn) {
       jobsShowSidebarBtn.style.display = (tabName === "jobs" && jobsSidebarHidden) ? "inline-flex" : "none";
+    }
+    if (tabName === "list") {
+      refreshTaskCountdowns();
     }
     maybePlayInitialHelpWarp(tabName);
   }
@@ -3645,6 +3730,7 @@ syncTodoLabelSuggestions();
   if (taskForm) {
     taskForm.addEventListener("submit", function (e) {
       e.preventDefault();
+      hideGlobalError();
 
       var formErr = document.getElementById("form-error");
       if (formErr) {
@@ -4577,20 +4663,14 @@ syncTodoLabelSuggestions();
         ? strings.actionDisable
         : strings.actionEnable;
       var nextRunDate = task.nextRun ? new Date(task.nextRun) : null;
+      var nextRunMs =
+        nextRunDate && !isNaN(nextRunDate.getTime())
+          ? nextRunDate.getTime()
+          : 0;
       var nextRun =
         nextRunDate && !isNaN(nextRunDate.getTime())
           ? nextRunDate.toLocaleString(locale)
           : strings.labelNever;
-      var nextRunCountdown = "";
-      if (enabled && nextRunDate && !isNaN(nextRunDate.getTime())) {
-        var diffMs = nextRunDate.getTime() - Date.now();
-        if (diffMs > 0) {
-          var totalSec = Math.floor(diffMs / 1000);
-          nextRunCountdown = " (in " + formatCountdown(totalSec) + ")";
-        } else {
-          nextRunCountdown = " (due now)";
-        }
-      }
       var promptText = typeof task.prompt === "string" ? task.prompt : "";
       var promptPreview =
         promptText.length > 100
@@ -4768,8 +4848,13 @@ syncTodoLabelSuggestions();
         "</span>" +
         "<span>" +
         escapeHtml(strings.labelNextRun) +
-        ": " +
-        escapeHtml(nextRun + nextRunCountdown) +
+        ': <span class="task-next-run-label">' +
+        escapeHtml(nextRun) +
+        '</span><span class="task-next-run-countdown" data-enabled="' +
+        (enabled ? "true" : "false") +
+        '" data-next-run-ms="' +
+        escapeAttr(nextRunMs > 0 ? String(nextRunMs) : "") +
+        '"></span>' +
         "</span>" +
         "<span>" +
         scopeInfo +
@@ -4863,14 +4948,15 @@ syncTodoLabelSuggestions();
       return;
     }
 
-    // The list refreshes every second for countdowns. Avoid replacing an open
-    // inline select while the user is choosing an agent or model.
+    // Avoid replacing an open inline select while the user is choosing an
+    // agent or model.
     if (isInlineTaskSelectActive()) {
       return;
     }
 
     lastRenderedTasksHtml = renderedTasks;
     taskList.innerHTML = renderedTasks;
+    refreshTaskCountdowns();
   }
 
   // Helper functions
@@ -6789,6 +6875,7 @@ syncTodoLabelSuggestions();
         case "switchToList":
           pendingSubmit = false;
           if (submitBtn) submitBtn.disabled = false;
+          hideGlobalError();
           resetForm();
           switchTab("list");
           if (message.successMessage) {
@@ -6856,6 +6943,7 @@ syncTodoLabelSuggestions();
         case "startCreateTask":
           pendingSubmit = false;
           if (submitBtn) submitBtn.disabled = false;
+          hideGlobalError();
           resetForm();
           switchTab("create");
           setTimeout(function () {
@@ -6879,29 +6967,17 @@ syncTodoLabelSuggestions();
           break;
         case "showError":
           if (message.text) {
-            var errDiv = document.getElementById("form-error");
-            if (errDiv) {
-              errDiv.textContent = message.text;
-              errDiv.style.display = "block";
-              pendingSubmit = false;
-              if (submitBtn) submitBtn.disabled = false;
-              switchTab("create");
-              setTimeout(function () {
-                errDiv.style.display = "none";
-              }, 8000);
-            }
+            showGlobalError(message.text);
+            pendingSubmit = false;
+            if (submitBtn) submitBtn.disabled = false;
           }
           break;
       }
     } catch (e) {
-      var errDiv = document.getElementById("form-error");
-      if (errDiv) {
-        var prefix = strings.webviewClientErrorPrefix || "";
-        var rawError = e && e.message ? e.message : e;
-        rawError = String(rawError).split(/\r?\n/)[0];
-        errDiv.textContent = prefix + sanitizeAbsolutePaths(rawError);
-        errDiv.style.display = "block";
-      }
+      var prefix = strings.webviewClientErrorPrefix || "";
+      var rawError = e && e.message ? e.message : e;
+      rawError = String(rawError).split(/\r?\n/)[0];
+      showGlobalError(prefix + sanitizeAbsolutePaths(rawError));
       pendingSubmit = false;
       if (submitBtn) submitBtn.disabled = false;
     }
@@ -6912,9 +6988,11 @@ syncTodoLabelSuggestions();
 
   switchTab(getInitialTabName());
 
-  // Keep next-run countdown live in the list view.
+  // Keep next-run countdown live in the list view without rebuilding the list.
   setInterval(function () {
-    renderTaskList(tasks);
+    if (isTabActive("list")) {
+      refreshTaskCountdowns();
+    }
   }, 1000);
 
   // Notify extension that webview is ready

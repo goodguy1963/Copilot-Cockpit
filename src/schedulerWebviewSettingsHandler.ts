@@ -24,6 +24,12 @@ export interface SettingsHandlerContext {
   backupGithubFolder: BackupGithubFolderFn;
 }
 
+export function getResourceScopedSettingsTarget(): vscode.ConfigurationTarget {
+  return vscode.workspace.workspaceFolders?.length
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+}
+
 /**
  * Handle settings / help messages.
  * Returns `true` if the message was handled, `false` otherwise.
@@ -35,9 +41,7 @@ export async function handleSettingsWebviewMessage(
   switch (message.type) {
     case "setLanguage": {
       const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
-      const target = scope
-        ? vscode.ConfigurationTarget.WorkspaceFolder
-        : vscode.ConfigurationTarget.Global;
+      const target = getResourceScopedSettingsTarget();
       await updateCompatibleConfigurationValue(
         "language",
         message.language,
@@ -48,9 +52,7 @@ export async function handleSettingsWebviewMessage(
     }
     case "setLogLevel": {
       const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
-      const target = scope
-        ? vscode.ConfigurationTarget.WorkspaceFolder
-        : vscode.ConfigurationTarget.Global;
+      const target = getResourceScopedSettingsTarget();
       await updateCompatibleConfigurationValue(
         "logLevel",
         message.logLevel,

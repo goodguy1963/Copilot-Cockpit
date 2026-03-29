@@ -1187,6 +1187,29 @@ export class SchedulerWebview {
       display: block;
     }
 
+    .global-error-banner {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 12px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--vscode-inputValidation-errorBorder);
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .global-error-banner.is-visible {
+      display: flex;
+    }
+
+    .global-error-banner span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
     .help-panel {
       position: relative;
       display: grid;
@@ -1488,6 +1511,10 @@ export class SchedulerWebview {
       font-weight: 500;
       font-size: 12px;
     }
+
+    .form-group label[for] {
+      cursor: pointer;
+    }
     
     input[type="text"],
     input[type="number"],
@@ -1519,10 +1546,16 @@ export class SchedulerWebview {
       display: flex;
       align-items: center;
       gap: 6px;
+      cursor: pointer;
+      user-select: none;
     }
     
     .checkbox-group input[type="checkbox"] {
       width: auto;
+    }
+
+    .checkbox-group span {
+      cursor: pointer;
     }
     
     .button-group {
@@ -1782,6 +1815,9 @@ export class SchedulerWebview {
       align-items: center;
       gap: 6px;
       font-weight: normal;
+      cursor: pointer;
+      user-select: none;
+      min-height: 28px;
     }
     
     .preset-select {
@@ -3596,6 +3632,16 @@ export class SchedulerWebview {
     </div>
   </div>
 
+  <div
+    id="global-error-banner"
+    class="global-error-banner"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <span id="global-error-text"></span>
+  </div>
+
   <div id="todo-edit-tab" class="tab-content">
     <div class="todo-editor-shell">
       <div class="todo-editor-header">
@@ -4717,9 +4763,6 @@ export class SchedulerWebview {
     });
   }
 }
-
-
-
 
 
 

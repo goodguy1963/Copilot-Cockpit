@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import * as vm from "vm";
 import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../schedulerWebview";
+import { getResourceScopedSettingsTarget } from "../../schedulerWebviewSettingsHandler";
 
 type WebviewLike = {
   postMessage: (message: unknown) => Thenable<boolean>;
@@ -442,7 +443,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
         if (selector === "[data-todo-drag-handle], [data-section-drag-handle]") {
           return dragHandle;
         }
-        if (selector === "input, button, select, textarea, a, label, [data-no-drag]") {
+        if (selector.includes("[data-no-drag]")) {
           return dragHandle;
         }
         return null;
@@ -455,6 +456,20 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     assert.strictEqual(helpers.isBoardDragHandleTarget(textNode), true);
     assert.strictEqual(helpers.isTodoInteractiveTarget(textNode), true);
+  });
+
+  test("board target helpers treat custom todo action controls as interactive", () => {
+    const helpers = loadBoardInteractionModule();
+    const actionControl = {
+      closest: (selector: string) => {
+        if (selector.includes("[data-todo-delete]")) {
+          return actionControl;
+        }
+        return null;
+      },
+    };
+
+    assert.strictEqual(helpers.isTodoInteractiveTarget(actionControl), true);
   });
 
   test("board target helpers ignore plain non-interactive text nodes", () => {
@@ -949,7 +964,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
     const editButton = {
       closest: (selector: string) => {
-        if (selector === "input, button, select, textarea, a, label, [data-no-drag]") return editButton;
+        if (selector.includes("button") || selector.includes("[data-todo-edit]")) return editButton;
         if (selector === "[data-todo-id]") return draggedCard;
         return null;
       },
@@ -1647,6 +1662,52 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       wv.refreshAgentsAndModelsCache = originalRefreshAgents;
       wv.refreshPromptTemplatesCache = originalRefreshPrompts;
       wv.refreshSkillReferencesCache = originalRefreshSkills;
+    }
+  });
+});
+
+suite("SchedulerWebview settings target Tests", () => {
+  function setWorkspaceFolders(
+    folders: Array<{ uri: vscode.Uri }> | undefined,
+  ): () => void {
+    const original = vscode.workspace.workspaceFolders;
+    Object.defineProperty(vscode.workspace, "workspaceFolders", {
+      value: folders,
+      configurable: true,
+    });
+    return () => {
+      Object.defineProperty(vscode.workspace, "workspaceFolders", {
+        value: original,
+        configurable: true,
+      });
+    };
+  }
+
+  test("uses workspace target for resource-scoped settings when a folder is open", () => {
+    const restore = setWorkspaceFolders([
+      { uri: vscode.Uri.file(path.join(process.cwd(), "test-workspace")) },
+    ]);
+
+    try {
+      assert.strictEqual(
+        getResourceScopedSettingsTarget(),
+        vscode.ConfigurationTarget.Workspace,
+      );
+    } finally {
+      restore();
+    }
+  });
+
+  test("falls back to global target when no workspace folder is open", () => {
+    const restore = setWorkspaceFolders(undefined);
+
+    try {
+      assert.strictEqual(
+        getResourceScopedSettingsTarget(),
+        vscode.ConfigurationTarget.Global,
+      );
+    } finally {
+      restore();
     }
   });
 });

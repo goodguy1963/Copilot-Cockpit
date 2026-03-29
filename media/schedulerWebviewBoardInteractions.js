@@ -16,7 +16,26 @@ export function isBoardDragHandleTarget(target) {
 }
 
 export function isTodoInteractiveTarget(target) {
-  return !!getClosestEventTarget(target, "input, button, select, textarea, a, label, [data-no-drag]");
+  return !!getClosestEventTarget(
+    target,
+    [
+      "input",
+      "button",
+      "select",
+      "textarea",
+      "a",
+      "label",
+      "[role=\"button\"]",
+      "[contenteditable=\"true\"]",
+      "[data-no-drag]",
+      "[data-todo-edit]",
+      "[data-todo-delete]",
+      "[data-todo-complete]",
+      "[data-section-collapse]",
+      "[data-section-rename]",
+      "[data-section-delete]",
+    ].join(", "),
+  );
 }
 
 function scheduleBoardTimeout(options, callback, delay) {
