@@ -136,6 +136,162 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("editor tabs use symbol states and dirty badges", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    ["todo-edit", "create", "jobs-edit"].forEach((tabName) => {
+      assert.ok(
+        templateSource.includes(`data-tab-symbol="${tabName}"`),
+        `expected tab symbol anchor for ${tabName}`,
+      );
+    });
+
+    [
+      'var EDITOR_CREATE_SYMBOL = "+";',
+      'var EDITOR_EDIT_SYMBOL = "⚙";',
+      'labelNode.classList.toggle("is-dirty", options.dirty === true);',
+      'function isTaskEditorDirty()',
+      'function isTodoEditorDirty()',
+      'function isJobsEditorDirty()',
+      'hookEditorTabDirtyTracking();',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected editor tab state snippet ${snippet}`,
+      );
+    });
+  });
+
+  test("job focus resets jobs editor state and keeps editor tabs compact", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      '.tab-button[data-tab="todo-edit"]',
+      '.tab-button[data-tab="create"]',
+      '.tab-button[data-tab="jobs-edit"]',
+      'flex: 0 0 auto;',
+      'id="jobs-save-deck-btn"',
+      '.jobs-workflow-metric.is-compact .jobs-workflow-metric-value',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected compact editor tab styling snippet ${snippet}`,
+      );
+    });
+
+    const focusJobCaseStart = scriptSource.indexOf('case "focusJob":');
+    const editTaskCaseStart = scriptSource.indexOf('case "editTask":');
+    assert.ok(focusJobCaseStart >= 0, "expected focusJob message handler");
+    assert.ok(editTaskCaseStart > focusJobCaseStart, "expected editTask after focusJob");
+
+    const focusJobCase = scriptSource.slice(focusJobCaseStart, editTaskCaseStart);
+    assert.ok(
+      focusJobCase.includes('renderJobsTab();'),
+      "expected focusJob to rerender the jobs list",
+    );
+    assert.ok(
+      focusJobCase.includes('switchTab("jobs");'),
+      "expected focusJob to switch back to the jobs tab",
+    );
+    assert.ok(
+      focusJobCase.includes('isCreatingJob = true;'),
+      "expected focusJob to reset the jobs editor into create mode",
+    );
+    assert.ok(
+      focusJobCase.includes('selectedJobId = "";'),
+      "expected focusJob to clear the current editor job selection",
+    );
+    assert.strictEqual(
+      focusJobCase.includes('openJobEditor(selectedJobId);'),
+      false,
+      "did not expect focusJob to reopen the jobs editor",
+    );
+
+    assert.ok(
+      scriptSource.includes('function submitJobEditor()'),
+      "expected shared job submit handler",
+    );
+    assert.ok(
+      scriptSource.includes('jobsSaveDeckBtn.addEventListener("click", submitJobEditor);'),
+      "expected control deck save button to use the shared job submit handler",
+    );
+    assert.ok(
+      scriptSource.includes('(String(metric.value || "").length > 18 ? \' is-compact\' : \'\')'),
+      "expected long workflow metric values to opt into compact text styling",
+    );
+  });
+
+  test("todo comments style human form input separately and todo saves reset to create mode", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const actionHandlerPath = path.resolve(
+      __dirname,
+      "../../../src/todoCockpitActionHandler.ts",
+    );
+    const actionHandlerSource = fs.readFileSync(actionHandlerPath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      '.todo-comment-card.is-user-form .todo-comment-author,',
+      '.todo-comment-card.is-user-form .todo-comment-body {',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected user comment styling snippet ${snippet}`,
+      );
+    });
+
+    [
+      'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
+      `'<article class="todo-comment-card' + userFormClass + '">'`,
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected todo comment rendering snippet ${snippet}`,
+      );
+    });
+
+    const updateTodoCaseStart = actionHandlerSource.indexOf('case "updateTodo": {');
+    const deleteTodoCaseStart = actionHandlerSource.indexOf('case "deleteTodo": {');
+    assert.ok(updateTodoCaseStart >= 0, "expected updateTodo action handler");
+    assert.ok(deleteTodoCaseStart > updateTodoCaseStart, "expected deleteTodo after updateTodo");
+
+    const updateTodoCase = actionHandlerSource.slice(updateTodoCaseStart, deleteTodoCaseStart);
+    assert.ok(
+      updateTodoCase.includes('SchedulerWebview.startCreateTodo();'),
+      "expected updated todo saves to reset the todo editor",
+    );
+    assert.ok(
+      updateTodoCase.includes('SchedulerWebview.switchToTab("board");'),
+      "expected updated todo saves to return to the board",
+    );
+  });
+
   test("Queues messages until ready and flushes (dedup by type)", () => {
     const wv = SchedulerWebview as unknown as {
       panel?: WebviewPanelLike;
@@ -809,6 +965,68 @@ suite("SchedulerWebview Message Queue Tests", () => {
       preventDefault: () => undefined,
     });
     assert.deepStrictEqual(calls, ["complete"]);
+  });
+
+  test("board interaction binding routes reject and restore clicks", () => {
+    const helpers = loadBoardInteractionModule();
+    const calls: string[] = [];
+    const rejectButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-reject" ? "todo-ready" : ""),
+      closest: (selector: string) => (selector === "[data-todo-reject]" ? rejectButton : null),
+    });
+    const restoreButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-restore" ? "todo-archived" : ""),
+      closest: (selector: string) => (selector === "[data-todo-restore]" ? restoreButton : null),
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === rejectButton || value === restoreButton,
+      querySelectorAll: () => [],
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {},
+      window: {
+        addEventListener: () => undefined,
+      },
+      vscode: { postMessage: () => undefined },
+      renderCockpitBoard: () => calls.push("render"),
+      openTodoEditor: () => calls.push("edit"),
+      openTodoDeleteModal: () => calls.push("delete"),
+      handleSectionCollapse: () => calls.push("collapse"),
+      handleSectionRename: () => calls.push("rename"),
+      handleSectionDelete: () => calls.push("section-delete"),
+      handleTodoCompletion: () => calls.push("complete"),
+      handleTodoReject: () => calls.push("reject"),
+      handleTodoRestore: () => calls.push("restore"),
+      setSelectedTodoId: () => calls.push("select"),
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => null,
+      setDraggingTodoId: () => undefined,
+      setIsBoardDragging: () => undefined,
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => undefined,
+      isArchiveTodoSectionId: () => false,
+    });
+
+    assert.ok(typeof boardColumns.listeners.click === "function");
+
+    boardColumns.listeners.click({
+      target: rejectButton,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+    boardColumns.listeners.click({
+      target: restoreButton,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    assert.deepStrictEqual(calls, ["reject", "restore"]);
   });
 
   test("board todo completion approves active cards and finalizes ready cards", () => {

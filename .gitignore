@@ -27,6 +27,8 @@ FULL_SPECIFICATION.md
 /research/
 /.github/skills/
 /output_sessions/
+.copilot-cockpit-logs/
 .vscode/scheduler-history/
 .vscode/scheduler.private.json
+.vscode/scheduler-prompt-backups/
 .vscode/mcp.json

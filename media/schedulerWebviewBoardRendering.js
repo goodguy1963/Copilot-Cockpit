@@ -20,14 +20,27 @@ function getLatestTodoComment(card) {
 function renderTodoCompactActions(card, options) {
   var strings = options.strings;
   var helpers = options.helpers;
-  var canDelete = !card.archived;
-  var actionClassName = canDelete ? "todo-list-actions" : "todo-list-actions has-single-action";
+  var actions = [
+    '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + helpers.escapeHtml(strings.boardEditTodoShort || "Edit") + '</button>'
+  ];
 
-  return '<div class="' + actionClassName + '">' +
-    '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + helpers.escapeHtml(strings.boardEditTodoShort || "Edit") + '</button>' +
-    (canDelete
-      ? '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoShort || "Delete") + '</button>'
-      : "") +
+  if (card.archived) {
+    actions.push(
+      '<button type="button" class="btn-secondary todo-card-restore todo-list-action-btn" data-todo-restore="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardRestoreTodo || "Restore") + '">&#8634; ' + helpers.escapeHtml(strings.boardRestoreTodo || "Restore") + '</button>'
+    );
+  } else {
+    if (card.status === "ready") {
+      actions.push(
+        '<button type="button" class="btn-secondary todo-card-reject todo-list-action-btn" data-todo-reject="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeclineTodo || "Decline") + '">&#8601; ' + helpers.escapeHtml(strings.boardDeclineTodo || "Decline") + '</button>'
+      );
+    }
+    actions.push(
+      '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoShort || "Delete") + '</button>'
+    );
+  }
+
+  return '<div class="todo-list-actions' + (actions.length === 1 ? ' has-single-action' : '') + '">' +
+    actions.join("") +
     '</div>';
 }
 

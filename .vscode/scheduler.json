@@ -1,5 +1,54 @@
 {
-    "tasks": [],
-    "jobs": [],
+    "tasks": [
+        {
+            "id": "task_1774810742815_ntq7vy",
+            "name": "aa",
+            "cron": "0 9 * * *",
+            "prompt": "s",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "agent",
+            "model": "gpt-5.3-codex",
+            "chatSession": "new",
+            "promptSource": "inline",
+            "promptPath": "",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-29T18:59:02.838Z",
+            "jitterSeconds": 0,
+            "oneTime": false,
+            "labels": [
+                "as"
+            ],
+            "jobId": "job_1774810756188_5bn3xr",
+            "jobNodeId": "jobnode_1774810769141_utffh7",
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "createdAt": "2026-03-29T18:59:02.815Z",
+            "updatedAt": "2026-03-29T18:59:29.141Z"
+        }
+    ],
+    "jobs": [
+        {
+            "id": "job_1774810756188_5bn3xr",
+            "name": "Test",
+            "cronExpression": "0 9 * * 1-5",
+            "paused": false,
+            "archived": false,
+            "nodes": [
+                {
+                    "id": "jobnode_1774810762171_bptpyi",
+                    "type": "pause",
+                    "title": "Manual review"
+                },
+                {
+                    "id": "jobnode_1774810769141_utffh7",
+                    "type": "task",
+                    "taskId": "task_1774810742815_ntq7vy",
+                    "windowMinutes": 30
+                }
+            ],
+            "createdAt": "2026-03-29T18:59:16.188Z",
+            "updatedAt": "2026-03-29T19:56:30.858Z"
+        }
+    ],
     "jobFolders": []
 }

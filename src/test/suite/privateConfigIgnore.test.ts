@@ -27,34 +27,46 @@ suite("Private Config Ignore Tests", () => {
     }
   }
 
-  test("creates a .vscode/.gitignore that ignores scheduler.private.json", () => {
+  test("creates ignore files for private config, prompt backups, and logs", () => {
     const workspaceRoot = createWorkspaceRoot();
+    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
+    const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
 
     try {
       const ignorePath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(ignorePath, path.join(workspaceRoot, ".vscode", ".gitignore"));
+      assert.strictEqual(ignorePath, vscodeIgnorePath);
       assert.strictEqual(
-        fs.readFileSync(ignorePath!, "utf8"),
-        "# Copilot Cockpit private config\nscheduler.private.json\n",
+        fs.readFileSync(vscodeIgnorePath, "utf8"),
+        "# Copilot Cockpit private config\nscheduler.private.json\nscheduler-prompt-backups/\n",
+      );
+      assert.strictEqual(
+        fs.readFileSync(rootIgnorePath, "utf8"),
+        "# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
       );
     } finally {
       cleanup(workspaceRoot);
     }
   });
 
-  test("appends the ignore entry without clobbering existing .vscode/.gitignore content", () => {
+  test("appends missing ignore entries without clobbering existing content", () => {
     const workspaceRoot = createWorkspaceRoot();
-    const ignorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
+    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
+    const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
 
     try {
-      fs.mkdirSync(path.dirname(ignorePath), { recursive: true });
-      fs.writeFileSync(ignorePath, "history/\nresearch-history/\n", "utf8");
+      fs.mkdirSync(path.dirname(vscodeIgnorePath), { recursive: true });
+      fs.writeFileSync(vscodeIgnorePath, "history/\nresearch-history/\n", "utf8");
+      fs.writeFileSync(rootIgnorePath, "node_modules/\nout/\n", "utf8");
 
       const updatedPath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(updatedPath, ignorePath);
+      assert.strictEqual(updatedPath, vscodeIgnorePath);
       assert.strictEqual(
-        fs.readFileSync(ignorePath, "utf8"),
-        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\n",
+        fs.readFileSync(vscodeIgnorePath, "utf8"),
+        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\nscheduler-prompt-backups/\n",
+      );
+      assert.strictEqual(
+        fs.readFileSync(rootIgnorePath, "utf8"),
+        "node_modules/\nout/\n\n# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
       );
 
       const secondResult = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
@@ -75,7 +87,9 @@ suite("Private Config Ignore Tests", () => {
       ]);
 
       assert.deepStrictEqual(updated.sort(), [
+        path.join(workspaceRootA, ".gitignore"),
         path.join(workspaceRootA, ".vscode", ".gitignore"),
+        path.join(workspaceRootB, ".gitignore"),
         path.join(workspaceRootB, ".vscode", ".gitignore"),
       ].sort());
     } finally {

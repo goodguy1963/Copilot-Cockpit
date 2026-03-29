@@ -46,7 +46,7 @@ suite("Todo Cockpit Action Handler", () => {
     };
   }
 
-  test("updateTodo keeps the active todo editor context", async () => {
+  test("updateTodo returns to the board and resets the todo editor", async () => {
     const workspaceRoot = createWorkspaceRoot();
     const webview = SchedulerWebview as unknown as {
       startCreateTodo: () => void;
@@ -82,8 +82,8 @@ suite("Todo Cockpit Action Handler", () => {
       );
 
       assert.strictEqual(handled, true);
-      assert.strictEqual(startCreateTodoCalls, 0);
-      assert.deepStrictEqual(switchedTabs, []);
+      assert.strictEqual(startCreateTodoCalls, 1);
+      assert.deepStrictEqual(switchedTabs, ["board"]);
     } finally {
       webview.startCreateTodo = originalStartCreateTodo;
       webview.switchToTab = originalSwitchToTab;
@@ -242,6 +242,60 @@ suite("Todo Cockpit Action Handler", () => {
       assert.strictEqual(handled, true);
       assert.strictEqual(refreshCalls, 0);
       assert.deepStrictEqual(switchedTabs, []);
+    } finally {
+      webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("archiveTodo with archived false restores an archived card", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const webview = SchedulerWebview as unknown as {
+      switchToTab: (tab: string) => void;
+    };
+    const originalSwitchToTab = webview.switchToTab;
+    const switchedTabs: string[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Restore me",
+        sectionId: "",
+        priority: "low",
+      });
+
+      await handleTodoCockpitAction(
+        {
+          action: "rejectTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        createDeps(workspaceRoot),
+      );
+
+      webview.switchToTab = (tab: string) => {
+        switchedTabs.push(tab);
+      };
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "archiveTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { archived: false },
+        },
+        createDeps(workspaceRoot),
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(switchedTabs, ["board"]);
+
+      const restored = readSchedulerConfig(workspaceRoot).cockpitBoard?.cards.find(
+        (card) => card.id === created.todo.id,
+      );
+      assert.ok(restored);
+      assert.strictEqual(restored?.archived, false);
+      assert.strictEqual(restored?.status, "active");
+      assert.strictEqual(restored?.archiveOutcome, undefined);
     } finally {
       webview.switchToTab = originalSwitchToTab;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
