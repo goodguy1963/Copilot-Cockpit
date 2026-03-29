@@ -451,8 +451,8 @@ export class SchedulerWebview {
 
       // Set icon
       this.panel.iconPath = {
-        light: vscode.Uri.joinPath(extensionUri, "images", "sidebar-icon.svg"),
-        dark: vscode.Uri.joinPath(extensionUri, "images", "sidebar-icon.svg"),
+        light: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
+        dark: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
       };
 
       // Set HTML content
@@ -1095,6 +1095,23 @@ export class SchedulerWebview {
       opacity: 0.95;
     }
 
+    .tab-button-label {
+      min-width: 0;
+    }
+
+    .tab-button-label:empty {
+      display: none;
+    }
+
+    .tab-button-label.is-dirty {
+      display: inline-flex;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #d97706));
+      box-shadow: 0 0 0 1px var(--vscode-editor-background);
+    }
+
     .tab-help-button {
       width: 40px;
       min-width: 40px;
@@ -1138,6 +1155,14 @@ export class SchedulerWebview {
       flex: 1 1 auto;
       text-align: center;
       min-width: max-content;
+    }
+
+    .tab-button[data-tab="todo-edit"],
+    .tab-button[data-tab="create"],
+    .tab-button[data-tab="jobs-edit"] {
+      flex: 0 0 auto;
+      padding-left: 10px;
+      padding-right: 10px;
     }
     
     .tab-button:hover {
@@ -1694,6 +1719,8 @@ export class SchedulerWebview {
     
     .task-list {
       display: block;
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     .task-filter-bar {
@@ -1739,7 +1766,7 @@ export class SchedulerWebview {
     }
 
     .task-section-title {
-      font-size: 10px;
+      font-size: 12px;
       font-weight: 600;
       margin-bottom: 3px;
       color: var(--vscode-descriptionForeground);
@@ -1784,8 +1811,8 @@ export class SchedulerWebview {
     
     .task-name {
       font-weight: 600;
-      font-size: 11px;
-      line-height: 1.25;
+      font-size: 12px;
+      line-height: 1.35;
     }
     
     .task-name.clickable, .task-status, .task-badge.clickable {
@@ -1800,8 +1827,8 @@ export class SchedulerWebview {
     .task-status {
       padding: 1px 6px;
       border-radius: 10px;
-      font-size: 9px;
-      line-height: 1.25;
+      font-size: 11px;
+      line-height: 1.3;
     }
     
     .task-status.enabled {
@@ -1818,7 +1845,8 @@ export class SchedulerWebview {
       display: flex;
       flex-wrap: wrap;
       gap: 3px 8px;
-      font-size: 9px;
+      font-size: 11px;
+      line-height: 1.4;
       color: var(--vscode-descriptionForeground);
       margin-bottom: 1px;
     }
@@ -1831,7 +1859,7 @@ export class SchedulerWebview {
       display: inline-block;
       padding: 1px 6px;
       border-radius: 10px;
-      font-size: 9px;
+      font-size: 11px;
       background-color: var(--vscode-badge-background);
       color: var(--vscode-badge-foreground);
       margin-right: 0;
@@ -1854,8 +1882,8 @@ export class SchedulerWebview {
       padding: 4px 5px;
       background-color: var(--vscode-textBlockQuote-background);
       border-radius: 4px;
-      font-size: 9px;
-      line-height: 1.3;
+      font-size: 11px;
+      line-height: 1.4;
       white-space: pre-wrap;
       max-height: 28px;
       overflow: hidden;
@@ -1871,15 +1899,15 @@ export class SchedulerWebview {
 
     .task-actions button {
       padding: 3px 6px;
-      font-size: 10px;
-      line-height: 1.1;
+      font-size: 11px;
+      line-height: 1.2;
     }
     
     .empty-state {
       text-align: center;
       padding: 10px;
       color: var(--vscode-descriptionForeground);
-      font-size: 11px;
+      font-size: 12px;
     }
 
     @media (max-width: 920px) {
@@ -2529,6 +2557,34 @@ export class SchedulerWebview {
       padding-right: 4px;
     }
 
+    .todo-comment-card {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-sideBar-background);
+    }
+
+    .todo-comment-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .todo-comment-author {
+      margin-bottom: 6px;
+    }
+
+    .todo-comment-body {
+      white-space: pre-wrap;
+    }
+
+    .todo-comment-card.is-user-form .todo-comment-author,
+    .todo-comment-card.is-user-form .todo-comment-body {
+      color: var(--vscode-descriptionForeground);
+    }
+
     .history-toolbar {
       display: flex;
       gap: 6px;
@@ -2882,6 +2938,7 @@ export class SchedulerWebview {
       align-items: center;
       gap: 8px;
       width: fit-content;
+      max-width: 100%;
       padding: 5px 11px;
       border-radius: 999px;
       background: color-mix(in srgb, var(--vscode-focusBorder) 14%, var(--vscode-editorWidget-background));
@@ -2891,6 +2948,8 @@ export class SchedulerWebview {
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      line-height: 1.25;
+      white-space: normal;
     }
 
     .jobs-workflow-title {
@@ -2953,6 +3012,11 @@ export class SchedulerWebview {
       line-height: 1.15;
       color: var(--vscode-foreground);
       word-break: break-word;
+    }
+
+    .jobs-workflow-metric.is-compact .jobs-workflow-metric-value {
+      font-size: 15px;
+      line-height: 1.25;
     }
 
     .jobs-workflow-panel {
@@ -3122,6 +3186,19 @@ export class SchedulerWebview {
 
     .jobs-workflow-actions-card .jobs-inline-form button {
       justify-self: end;
+    }
+
+    .jobs-workflow-save-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .jobs-workflow-save-row .btn-primary,
+    .jobs-workflow-save-row .btn-secondary {
+      min-width: 0;
     }
 
     .jobs-workflow-actions-card label {
@@ -3698,13 +3775,13 @@ export class SchedulerWebview {
 <body>
   <div class="tab-bar">
     <div class="tabs">
-      <button type="button" class="tab-button" data-tab="todo-edit"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">✎</span><span class="tab-button-label" data-tab-label="todo-edit">${escapeHtml(strings.tabTodoEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="todo-edit" title="${escapeHtmlAttr(strings.tabTodoEditorCreate)}" aria-label="${escapeHtmlAttr(strings.tabTodoEditorCreate)}"><span class="tab-button-content"><span class="tab-button-symbol" data-tab-symbol="todo-edit" aria-hidden="true">+</span><span class="tab-button-label" data-tab-label="todo-edit" aria-hidden="true"></span></span></button>
       <button type="button" class="tab-button" data-tab="board"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">▦</span><span>${escapeHtml(strings.tabBoard)}</span></span></button>
       <span class="tab-group-sep"></span>
-      <button type="button" class="tab-button" data-tab="create"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">＋</span><span class="tab-button-label" data-tab-label="create">${escapeHtml(strings.tabTaskEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="create" title="${escapeHtmlAttr(strings.tabTaskEditorCreate)}" aria-label="${escapeHtmlAttr(strings.tabTaskEditorCreate)}"><span class="tab-button-content"><span class="tab-button-symbol" data-tab-symbol="create" aria-hidden="true">+</span><span class="tab-button-label" data-tab-label="create" aria-hidden="true"></span></span></button>
       <button type="button" class="tab-button" data-tab="list"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">☰</span><span>${escapeHtml(strings.tabList)}</span></span></button>
       <span class="tab-group-sep"></span>
-      <button type="button" class="tab-button" data-tab="jobs-edit"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">✐</span><span class="tab-button-label" data-tab-label="jobs-edit">${escapeHtml(strings.tabJobsEditorCreate)}</span></span></button>
+      <button type="button" class="tab-button" data-tab="jobs-edit" title="${escapeHtmlAttr(strings.tabJobsEditorCreate)}" aria-label="${escapeHtmlAttr(strings.tabJobsEditorCreate)}"><span class="tab-button-content"><span class="tab-button-symbol" data-tab-symbol="jobs-edit" aria-hidden="true">+</span><span class="tab-button-label" data-tab-label="jobs-edit" aria-hidden="true"></span></span></button>
       <button type="button" class="tab-button" data-tab="jobs"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">⛓</span><span>${escapeHtml(strings.tabJobs)}</span></span></button>
       <span class="tab-group-sep"></span>
       <button type="button" class="tab-button" data-tab="research"><span class="tab-button-content"><span class="tab-button-symbol" aria-hidden="true">⌕</span><span>${escapeHtml(strings.tabResearch)}</span></span></button>
@@ -4327,6 +4404,9 @@ export class SchedulerWebview {
                   <div class="jobs-workflow-badge">⛓ ${escapeHtml(strings.jobsWorkflowBadge)}</div>
                   <div class="section-title jobs-workflow-title">${escapeHtml(strings.jobsWorkflowTitle)}</div>
                   <p class="jobs-workflow-note">${escapeHtml(strings.jobsWorkflowNote)}</p>
+                  <div class="jobs-workflow-save-row">
+                    <button type="button" class="btn-primary" id="jobs-save-deck-btn">${escapeHtml(strings.jobsSave)}</button>
+                  </div>
                 </div>
                 <div id="jobs-workflow-metrics" class="jobs-workflow-metrics"></div>
               </div>

@@ -375,6 +375,8 @@ import {
   var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
   var editingTaskId = null;
   var selectedTodoId = null;
+  var EDITOR_CREATE_SYMBOL = "+";
+  var EDITOR_EDIT_SYMBOL = "⚙";
   var draggingTodoId = null;
   var isBoardDragging = false;
   var pendingBoardRender = false;
@@ -548,6 +550,7 @@ import {
   var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
   var jobsNewJobBtn = document.getElementById("jobs-new-job-btn");
   var jobsSaveBtn = document.getElementById("jobs-save-btn");
+  var jobsSaveDeckBtn = document.getElementById("jobs-save-deck-btn");
   var jobsDuplicateBtn = document.getElementById("jobs-duplicate-btn");
   var jobsPauseBtn = document.getElementById("jobs-pause-btn");
   var jobsCompileBtn = document.getElementById("jobs-compile-btn");
@@ -1422,6 +1425,7 @@ import {
   updateJobsFriendlyVisibility();
   syncResearchSelectors();
   hookResearchFormDirtyTracking();
+  hookEditorTabDirtyTracking();
   renderResearchTab();
   renderTelegramTab();
   renderCockpitBoard();
@@ -1675,6 +1679,7 @@ import {
     ) {
       selectedTodoLabelName = currentTodoLabels[0] || "";
     }
+    syncEditorTabLabels();
   }
 
   function syncLabelCatalog() {
@@ -1883,6 +1888,20 @@ syncTodoLabelSuggestions();
           vscode: vscode,
         });
       },
+      handleTodoReject: function (rejectBtn) {
+        var todoId = rejectBtn.getAttribute("data-todo-reject") || "";
+        if (!todoId) {
+          return;
+        }
+        vscode.postMessage({ type: "rejectTodo", todoId: todoId });
+      },
+      handleTodoRestore: function (restoreBtn) {
+        var todoId = restoreBtn.getAttribute("data-todo-restore") || "";
+        if (!todoId) {
+          return;
+        }
+        vscode.postMessage({ type: "archiveTodo", todoId: todoId, archived: false });
+      },
       setSelectedTodoId: function (todoId) {
         selectedTodoId = todoId;
       },
@@ -2042,6 +2061,7 @@ syncTodoLabelSuggestions();
         }).join("");
       }
     }
+    syncEditorTabLabels();
   }
 
   function addFlagFromInput() {
@@ -2674,6 +2694,7 @@ syncTodoLabelSuggestions();
         todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
       }
     }
+    syncEditorTabLabels();
 
     if (todoCommentList) {
       var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
@@ -2682,13 +2703,16 @@ syncTodoLabelSuggestions();
           var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
           var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
           var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
-          return '<article style="padding:10px;border-radius:8px;border:1px solid var(--vscode-panel-border);background:var(--vscode-sideBar-background);">' +
-            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px;">' +
+          var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"
+            ? " is-user-form"
+            : "";
+          return '<article class="todo-comment-card' + userFormClass + '">' +
+            '<div class="todo-comment-header">' +
             '<strong>#' + escapeHtml(String(sequence)) + ' • ' + escapeHtml(sourceLabel) + '</strong>' +
             '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
             '</div>' +
-            '<div class="note" style="margin-bottom:6px;">' + escapeHtml(comment.author || "system") + '</div>' +
-            '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(comment.body || "") + '</div>' +
+            '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
+            '<div class="note todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
             '</article>';
         }).join("")
         : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + '</div>';
@@ -3279,31 +3303,233 @@ syncTodoLabelSuggestions();
     return document.querySelector('[data-tab-label="' + tabName + '"]');
   }
 
-  function setEditorTabLabel(tabName, label) {
-    var node = getEditorTabLabelNode(tabName);
-    if (!node || !label) return;
-    node.textContent = label;
+  function getEditorTabSymbolNode(tabName) {
+    return document.querySelector('[data-tab-symbol="' + tabName + '"]');
+  }
+
+  function getEditorTabButton(tabName) {
+    return document.querySelector('.tab-button[data-tab="' + tabName + '"]');
+  }
+
+  function getTaskByIdLocal(taskId) {
+    if (!taskId) {
+      return null;
+    }
+    var taskListArray = Array.isArray(tasks) ? tasks : [];
+    for (var i = 0; i < taskListArray.length; i += 1) {
+      if (taskListArray[i] && taskListArray[i].id === taskId) {
+        return taskListArray[i];
+      }
+    }
+    return null;
+  }
+
+  function normalizeTaskLabelsValue(raw) {
+    return parseLabels(raw || "").join(",");
+  }
+
+  function getCurrentTaskEditorState() {
+    var taskNameEl = document.getElementById("task-name");
+    var promptTextEl = document.getElementById("prompt-text");
+    var scopeEl = document.querySelector('input[name="scope"]:checked');
+    var promptSourceEl = document.querySelector('input[name="prompt-source"]:checked');
+    var oneTimeEl = document.getElementById("one-time");
+    var promptSourceValue = promptSourceEl ? String(promptSourceEl.value || "inline") : "inline";
+    var promptPathValue = templateSelect ? String(templateSelect.value || "") : "";
+    if (promptSourceValue !== "inline" && !promptPathValue && pendingTemplatePath) {
+      promptPathValue = pendingTemplatePath;
+    }
+    var agentValue = agentSelect ? String(agentSelect.value || "") : "";
+    if (!agentValue && pendingAgentValue) {
+      agentValue = pendingAgentValue;
+    }
+    var modelValue = modelSelect ? String(modelSelect.value || "") : "";
+    if (!modelValue && pendingModelValue) {
+      modelValue = pendingModelValue;
+    }
+    var oneTime = !!(oneTimeEl && oneTimeEl.checked);
+    return {
+      name: taskNameEl ? String(taskNameEl.value || "") : "",
+      prompt: promptTextEl ? String(promptTextEl.value || "") : "",
+      cronExpression: cronExpression ? String(cronExpression.value || "") : "",
+      labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
+      agent: agentValue,
+      model: modelValue,
+      scope: scopeEl ? String(scopeEl.value || "workspace") : "workspace",
+      promptSource: promptSourceValue,
+      promptPath: promptPathValue,
+      oneTime: oneTime,
+      chatSession: oneTime ? "" : (chatSessionSelect ? String(chatSessionSelect.value || "") : ""),
+      jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0,
+    };
+  }
+
+  function getSavedTaskEditorState(task) {
+    if (!task) {
+      return null;
+    }
+    return {
+      name: String(task.name || ""),
+      prompt: typeof task.prompt === "string" ? task.prompt : "",
+      cronExpression: String(task.cronExpression || ""),
+      labels: normalizeTaskLabelsValue(toLabelString(task.labels)),
+      agent: String(task.agent || ""),
+      model: String(task.model || ""),
+      scope: String(task.scope || "workspace"),
+      promptSource: String(task.promptSource || "inline"),
+      promptPath: String(task.promptPath || ""),
+      oneTime: task.oneTime === true,
+      chatSession: task.oneTime === true ? "" : String(task.chatSession || defaultChatSession || "new"),
+      jitterSeconds: Number(task.jitterSeconds != null ? task.jitterSeconds : defaultJitterSeconds),
+    };
+  }
+
+  function getCurrentTodoEditorState() {
+    return {
+      title: todoTitleInput ? String(todoTitleInput.value || "") : "",
+      description: todoDescriptionInput ? String(todoDescriptionInput.value || "") : "",
+      dueAt: todoDueInput ? String(todoDueInput.value || "") : "",
+      priority: todoPriorityInput ? String(todoPriorityInput.value || "none") : "none",
+      sectionId: todoSectionInput ? String(todoSectionInput.value || "") : "",
+      taskId: todoLinkedTaskSelect ? String(todoLinkedTaskSelect.value || "") : "",
+      labels: dedupeStringList(currentTodoLabels).map(normalizeTodoLabelKey).join(","),
+      flag: normalizeTodoLabelKey(currentTodoFlag || ""),
+    };
+  }
+
+  function getSavedTodoEditorState(card) {
+    if (!card) {
+      return null;
+    }
+    return {
+      title: String(card.title || ""),
+      description: String(card.description || ""),
+      dueAt: toLocalDateTimeInput(card.dueAt),
+      priority: String(card.priority || "none"),
+      sectionId: String(card.sectionId || ""),
+      taskId: String(card.taskId || ""),
+      labels: dedupeStringList(card.labels || []).map(normalizeTodoLabelKey).join(","),
+      flag: normalizeTodoLabelKey(((card.flags || [])[0] || "")),
+    };
+  }
+
+  function getCurrentJobEditorState() {
+    return {
+      name: jobsNameInput ? String(jobsNameInput.value || "") : "",
+      cronExpression: jobsCronInput ? String(jobsCronInput.value || "") : "",
+      folderId: jobsFolderSelect ? String(jobsFolderSelect.value || "") : "",
+    };
+  }
+
+  function getSavedJobEditorState(job) {
+    if (!job) {
+      return null;
+    }
+    return {
+      name: String(job.name || ""),
+      cronExpression: String(job.cronExpression || ""),
+      folderId: String(job.folderId || ""),
+    };
+  }
+
+  function areEditorStatesEqual(left, right) {
+    if (!left || !right) {
+      return left === right;
+    }
+    var leftKeys = Object.keys(left);
+    var rightKeys = Object.keys(right);
+    if (leftKeys.length !== rightKeys.length) {
+      return false;
+    }
+    for (var i = 0; i < leftKeys.length; i += 1) {
+      var key = leftKeys[i];
+      if (left[key] !== right[key]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function isTaskEditorDirty() {
+    if (!editingTaskId) {
+      return false;
+    }
+    return !areEditorStatesEqual(
+      getCurrentTaskEditorState(),
+      getSavedTaskEditorState(getTaskByIdLocal(editingTaskId))
+    );
+  }
+
+  function isTodoEditorDirty() {
+    if (!selectedTodoId) {
+      return false;
+    }
+    var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards)
+      ? cockpitBoard.cards.find(function (card) {
+        return card && card.id === selectedTodoId;
+      })
+      : null;
+    return !areEditorStatesEqual(
+      getCurrentTodoEditorState(),
+      getSavedTodoEditorState(selectedTodo)
+    );
+  }
+
+  function isJobsEditorDirty() {
+    if (isCreatingJob || !selectedJobId) {
+      return false;
+    }
+    return !areEditorStatesEqual(
+      getCurrentJobEditorState(),
+      getSavedJobEditorState(getJobById(selectedJobId))
+    );
+  }
+
+  function setEditorTabState(tabName, options) {
+    var button = getEditorTabButton(tabName);
+    var symbolNode = getEditorTabSymbolNode(tabName);
+    var labelNode = getEditorTabLabelNode(tabName);
+    if (symbolNode) {
+      symbolNode.textContent = options.symbol || EDITOR_CREATE_SYMBOL;
+    }
+    if (labelNode) {
+      labelNode.textContent = "";
+      if (labelNode.classList) {
+        labelNode.classList.toggle("is-dirty", options.dirty === true);
+      }
+    }
+    if (button) {
+      var title = options.title || "";
+      if (options.dirty) {
+        title = title + " • " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+      }
+      button.title = title;
+      button.setAttribute("aria-label", title || tabName);
+    }
   }
 
   function syncEditorTabLabels() {
-    setEditorTabLabel(
-      "create",
-      editingTaskId
+    setEditorTabState("create", {
+      symbol: editingTaskId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+      dirty: isTaskEditorDirty(),
+      title: editingTaskId
         ? (strings.tabTaskEditorEdit || strings.tabEdit || "Edit Task")
         : (strings.tabTaskEditorCreate || strings.tabTaskEditor || "Create Task")
-    );
-    setEditorTabLabel(
-      "todo-edit",
-      selectedTodoId
+    });
+    setEditorTabState("todo-edit", {
+      symbol: selectedTodoId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+      dirty: isTodoEditorDirty(),
+      title: selectedTodoId
         ? (strings.tabTodoEditorEdit || strings.boardDetailTitleEdit || "Edit Todo")
         : (strings.tabTodoEditorCreate || strings.tabTodoEditor || "Create Todo")
-    );
-    setEditorTabLabel(
-      "jobs-edit",
-      (isCreatingJob || !selectedJobId)
+    });
+    setEditorTabState("jobs-edit", {
+      symbol: (isCreatingJob || !selectedJobId) ? EDITOR_CREATE_SYMBOL : EDITOR_EDIT_SYMBOL,
+      dirty: isJobsEditorDirty(),
+      title: (isCreatingJob || !selectedJobId)
         ? (strings.tabJobsEditorCreate || strings.tabJobsEditor || "Create Job")
         : (strings.tabJobsEditorEdit || "Edit Job")
-    );
+    });
   }
 
   function setEditingMode(taskId) {
@@ -3469,6 +3695,43 @@ syncTodoLabelSuggestions();
     switchTab("jobs-edit");
   }
 
+  function submitJobEditor() {
+    var jobName = jobsNameInput ? String(jobsNameInput.value || "").trim() : "";
+    var cronExpressionValue = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+    if (!jobName || !cronExpressionValue) {
+      emitWebviewDebug("jobSaveBlocked", {
+        isCreatingJob: isCreatingJob,
+        hasName: !!jobName,
+        hasCron: !!cronExpressionValue,
+      });
+      return;
+    }
+    if (isCreatingJob || !selectedJobId) {
+      emitWebviewDebug("jobCreateSubmit", {
+        name: jobName,
+        folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : "",
+      });
+      vscode.postMessage({
+        type: "createJob",
+        data: {
+          name: jobName,
+          cronExpression: cronExpressionValue,
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
+        },
+      });
+      return;
+    }
+    vscode.postMessage({
+      type: "updateJob",
+      jobId: selectedJobId,
+      data: {
+        name: jobsNameInput ? jobsNameInput.value : "",
+        cronExpression: jobsCronInput ? jobsCronInput.value : "",
+        folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
+      },
+    });
+  }
+
   function isTabActive(tabName) {
     var targetContent = document.getElementById(tabName + "-tab");
     return !!(targetContent && targetContent.classList.contains("active"));
@@ -3618,11 +3881,13 @@ syncTodoLabelSuggestions();
         jobsCronInput.value = jobsCronPreset.value;
       }
       updateJobsCronPreview();
+      syncEditorTabLabels();
     });
 
     jobsCronInput.addEventListener("input", function () {
       jobsCronPreset.value = "";
       updateJobsCronPreview();
+      syncEditorTabLabels();
     });
   }
 
@@ -3635,6 +3900,7 @@ syncTodoLabelSuggestions();
   if (jobsFriendlyFrequency) {
     jobsFriendlyFrequency.addEventListener("change", function () {
       updateJobsFriendlyVisibility();
+      syncEditorTabLabels();
     });
   }
 
@@ -3715,6 +3981,7 @@ syncTodoLabelSuggestions();
   if (jobsFriendlyGenerate) {
     jobsFriendlyGenerate.addEventListener("click", function () {
       generateJobsCronFromFriendly();
+      syncEditorTabLabels();
     });
   }
 
@@ -4139,42 +4406,11 @@ syncTodoLabelSuggestions();
   }
 
   if (jobsSaveBtn) {
-    jobsSaveBtn.addEventListener("click", function () {
-      var jobName = jobsNameInput ? String(jobsNameInput.value || "").trim() : "";
-      var cronExpressionValue = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
-      if (!jobName || !cronExpressionValue) {
-        emitWebviewDebug("jobSaveBlocked", {
-          isCreatingJob: isCreatingJob,
-          hasName: !!jobName,
-          hasCron: !!cronExpressionValue,
-        });
-        return;
-      }
-      if (isCreatingJob || !selectedJobId) {
-        emitWebviewDebug("jobCreateSubmit", {
-          name: jobName,
-          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : "",
-        });
-        vscode.postMessage({
-          type: "createJob",
-          data: {
-            name: jobName,
-            cronExpression: cronExpressionValue,
-            folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
-          },
-        });
-        return;
-      }
-      vscode.postMessage({
-        type: "updateJob",
-        jobId: selectedJobId,
-        data: {
-          name: jobsNameInput ? jobsNameInput.value : "",
-          cronExpression: jobsCronInput ? jobsCronInput.value : "",
-          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
-        },
-      });
-    });
+    jobsSaveBtn.addEventListener("click", submitJobEditor);
+  }
+
+  if (jobsSaveDeckBtn) {
+    jobsSaveDeckBtn.addEventListener("click", submitJobEditor);
   }
 
   if (jobsDuplicateBtn) {
@@ -6229,6 +6465,49 @@ syncTodoLabelSuggestions();
     });
   }
 
+  function hookEditorTabDirtyTracking() {
+    var selector = [
+      "#task-name",
+      "#prompt-text",
+      "#cron-expression",
+      "#task-labels",
+      "#agent-select",
+      "#model-select",
+      "#template-select",
+      "#jitter-seconds",
+      "#chat-session",
+      "#run-first",
+      "#one-time",
+      'input[name="scope"]',
+      'input[name="prompt-source"]',
+      "#todo-title-input",
+      "#todo-description-input",
+      "#todo-due-input",
+      "#todo-priority-input",
+      "#todo-section-input",
+      "#todo-linked-task-select",
+      "#todo-labels-input",
+      "#todo-label-color-input",
+      "#todo-flag-name-input",
+      "#todo-flag-color-input",
+      "#jobs-name-input",
+      "#jobs-cron-input",
+      "#jobs-folder-select"
+    ].join(", ");
+
+    ["input", "change"].forEach(function (eventName) {
+      document.addEventListener(eventName, function (event) {
+        var target = event && event.target;
+        if (!target || typeof target.matches !== "function") {
+          return;
+        }
+        if (target.matches(selector)) {
+          syncEditorTabLabels();
+        }
+      });
+    });
+  }
+
   function renderJobsTab() {
     ensureValidJobSelection();
     persistTaskFilter();
@@ -6398,6 +6677,7 @@ syncTodoLabelSuggestions();
       ].map(function (metric) {
         return (
           '<div class="jobs-workflow-metric' +
+          (String(metric.value || "").length > 18 ? ' is-compact' : '') +
           (metric.tone ? ' ' + metric.tone : '') +
           '" title="' + escapeAttr(metric.value) + '">' +
           '<div class="jobs-workflow-metric-label">' + escapeHtml(metric.label) + '</div>' +
@@ -6979,12 +7259,15 @@ syncTodoLabelSuggestions();
           selectedJobFolderId = typeof message.folderId === "string"
             ? message.folderId
             : "";
-          selectedJobId = message.jobId || "";
+          var focusedJobId = message.jobId || "";
+          isCreatingJob = true;
+          selectedJobId = "";
           persistTaskFilter();
-          openJobEditor(selectedJobId);
+          renderJobsTab();
+          switchTab("jobs");
           setTimeout(function () {
-            var jobCard = selectedJobId
-              ? document.querySelector('[data-job-id="' + selectedJobId + '"]')
+            var jobCard = focusedJobId
+              ? document.querySelector('[data-job-id="' + focusedJobId + '"]')
               : null;
             if (jobCard && typeof jobCard.scrollIntoView === "function") {
               jobCard.scrollIntoView({ behavior: "smooth", block: "nearest" });

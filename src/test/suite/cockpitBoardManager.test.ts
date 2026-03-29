@@ -9,6 +9,7 @@ import {
   approveTodoInBoard,
   deleteTodoInBoard,
   finalizeTodoInBoard,
+  restoreArchivedTodoInBoard,
 } from "../../cockpitBoardManager";
 
 suite("Cockpit Board Manager Tests", () => {
@@ -169,5 +170,65 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(archived?.archived, true);
     assert.strictEqual(archived?.sectionId, DEFAULT_ARCHIVE_REJECTED_SECTION_ID);
     assert.ok(archived?.comments.some((comment) => comment.body.includes("rejected archive")));
+  });
+
+  test("restoring a rejected archived todo reopens it as active in unsorted", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-3",
+      title: "Retry change",
+      sectionId: DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
+      order: 0,
+      priority: "medium",
+      status: "rejected",
+      labels: [],
+      flags: [],
+      comments: [],
+      archived: true,
+      archivedAt: "2026-03-28T10:03:00.000Z",
+      archiveOutcome: "rejected",
+      rejectedAt: "2026-03-28T10:03:00.000Z",
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:03:00.000Z",
+    });
+
+    const result = restoreArchivedTodoInBoard(board, "todo-3");
+
+    assert.ok(result.todo);
+    assert.strictEqual(result.todo?.archived, false);
+    assert.strictEqual(result.todo?.archiveOutcome, undefined);
+    assert.strictEqual(result.todo?.status, "active");
+    assert.strictEqual(result.todo?.sectionId, "unsorted");
+    assert.ok(result.todo?.comments.some((comment) => comment.body.includes("reopened for follow-up")));
+  });
+
+  test("restoring a completed archived todo brings it back as ready", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-4",
+      title: "Reopen complete",
+      sectionId: DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
+      order: 0,
+      priority: "high",
+      status: "completed",
+      labels: [],
+      flags: [],
+      comments: [],
+      archived: true,
+      archivedAt: "2026-03-28T10:05:00.000Z",
+      archiveOutcome: "completed-successfully",
+      approvedAt: "2026-03-28T10:02:00.000Z",
+      completedAt: "2026-03-28T10:05:00.000Z",
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:05:00.000Z",
+    });
+
+    const result = restoreArchivedTodoInBoard(board, "todo-4");
+
+    assert.ok(result.todo);
+    assert.strictEqual(result.todo?.archived, false);
+    assert.strictEqual(result.todo?.status, "ready");
+    assert.strictEqual(result.todo?.sectionId, "unsorted");
+    assert.ok(result.todo?.comments.some((comment) => comment.body.includes("marked ready again")));
   });
 });

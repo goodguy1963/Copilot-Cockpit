@@ -7,12 +7,14 @@ import {
   deleteCockpitSection,
   deleteCockpitTodoLabelDefinition,
   finalizeCockpitTodo,
+  getCockpitBoard,
   moveCockpitSection,
   moveCockpitTodo,
   purgeCockpitTodo,
   rejectCockpitTodo,
   renameCockpitSection,
   reorderCockpitSection,
+  restoreCockpitTodo,
   saveCockpitFlagDefinition,
   saveCockpitTodoLabelDefinition,
   setCockpitBoardFilters,
@@ -280,6 +282,8 @@ export async function handleTodoCockpitAction(
         return true;
       }
       deps.refreshSchedulerUiState();
+      SchedulerWebview.startCreateTodo();
+      SchedulerWebview.switchToTab("board");
       deps.notifyInfo(`Updated Todo Cockpit item: ${result.todo.title}`);
       return true;
     }
@@ -348,8 +352,44 @@ export async function handleTodoCockpitAction(
       return true;
     }
 
-    case "finalizeTodo":
     case "archiveTodo": {
+      const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
+      if (!workspaceRoot || !action.todoId) {
+        return true;
+      }
+      const currentTodo = getCockpitBoard(workspaceRoot).cards.find((card) =>
+        card.id === action.todoId,
+      );
+      if (!currentTodo) {
+        deps.notifyError("Todo Cockpit item not found.");
+        return true;
+      }
+
+      const restoreRequested = (
+        action.todoData as { archived?: boolean } | undefined
+      )?.archived === false;
+      const result = restoreRequested
+        ? restoreCockpitTodo(workspaceRoot, action.todoId)
+        : (currentTodo.status === "ready"
+          ? finalizeCockpitTodo(workspaceRoot, action.todoId)
+          : rejectCockpitTodo(workspaceRoot, action.todoId));
+      if (!result.todo) {
+        deps.notifyError("Todo Cockpit item not found.");
+        return true;
+      }
+      deps.refreshSchedulerUiState();
+      SchedulerWebview.switchToTab("board");
+      deps.notifyInfo(
+        restoreRequested
+          ? `Restored Todo Cockpit item: ${result.todo.title}`
+          : (currentTodo.status === "ready"
+            ? `Completed Todo Cockpit item: ${result.todo.title}`
+            : `Archived Todo Cockpit item: ${result.todo.title}`),
+      );
+      return true;
+    }
+
+    case "finalizeTodo": {
       const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
       if (!workspaceRoot || !action.todoId) {
         return true;

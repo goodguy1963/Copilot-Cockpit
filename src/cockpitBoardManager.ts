@@ -262,6 +262,53 @@ function archiveTodoInBoardByOutcome(
   return { board: nextBoard, todo };
 }
 
+export function restoreArchivedTodoInBoard(
+  board: CockpitBoard,
+  todoId: string,
+): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
+  const nextBoard = cloneBoard(board);
+  const todo = nextBoard.cards.find((card) => card.id === todoId);
+  if (!todo) {
+    return { board: nextBoard, todo: undefined };
+  }
+
+  if (!todo.archived && !isArchiveSectionId(todo.sectionId)) {
+    return { board: nextBoard, todo };
+  }
+
+  const timestamp = nowIso();
+  const previousSectionId = todo.sectionId;
+  const restoredSectionId = getSectionOrFallback(nextBoard, DEFAULT_UNSORTED_SECTION_ID);
+  const wasCompleted = todo.archiveOutcome === "completed-successfully"
+    || todo.status === "completed";
+
+  todo.archived = false;
+  todo.archivedAt = undefined;
+  todo.archiveOutcome = undefined;
+  todo.sectionId = restoredSectionId;
+  todo.order = nextBoard.cards.filter((card) =>
+    card.id !== todo.id && card.sectionId === restoredSectionId,
+  ).length;
+  todo.status = wasCompleted ? "ready" : "active";
+  todo.completedAt = undefined;
+  todo.rejectedAt = undefined;
+  todo.updatedAt = timestamp;
+
+  addSystemEventComment(
+    todo,
+    wasCompleted
+      ? "Restored from archive and marked ready again."
+      : "Restored from archive and reopened for follow-up.",
+    [wasCompleted ? "ready" : "active"],
+    timestamp,
+  );
+
+  resequenceCards(nextBoard, previousSectionId);
+  resequenceCards(nextBoard, restoredSectionId);
+  touchBoard(nextBoard, timestamp);
+  return { board: nextBoard, todo };
+}
+
 function getSectionOrFallback(board: CockpitBoard, sectionId?: string): string {
   const sections = Array.isArray(board.sections) ? board.sections : [];
   const requested = normalizeOptionalString(sectionId);
@@ -845,6 +892,17 @@ export function rejectCockpitTodo(
   todoId: string,
 ): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
   const result = rejectTodoInBoard(getCockpitBoard(workspaceRoot), todoId);
+  return {
+    board: persistBoard(workspaceRoot, result.board),
+    todo: result.todo,
+  };
+}
+
+export function restoreCockpitTodo(
+  workspaceRoot: string,
+  todoId: string,
+): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
+  const result = restoreArchivedTodoInBoard(getCockpitBoard(workspaceRoot), todoId);
   return {
     board: persistBoard(workspaceRoot, result.board),
     todo: result.todo,
