@@ -49,9 +49,9 @@ This is the high-level overview of how a user and an AI can work through the sam
 
 ## 📹 Demo
 
-<video src="images/DEMO.mp4" controls muted playsinline width="100%"></video>
+<img src="images/DEMO.gif" alt="Copilot Cockpit demo" width="100%" />
 
-If the embedded player does not render in your viewer, open the demo directly at [images/DEMO.mp4](images/DEMO.mp4).
+If the embedded image does not render in your viewer, open the demo directly at [images/DEMO.gif](images/DEMO.gif).
 
 ## 📦 Installation
 
