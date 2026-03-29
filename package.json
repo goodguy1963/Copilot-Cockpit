@@ -1,7 +1,7 @@
 {
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
-  "description": "Coordinate scheduled prompts, jobs, research, and repo-local AI planning",
+  "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
   "version": "99.0.36",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",

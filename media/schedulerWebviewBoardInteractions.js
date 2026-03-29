@@ -30,6 +30,7 @@ export function isTodoInteractiveTarget(target) {
       "[data-no-drag]",
       "[data-todo-edit]",
       "[data-todo-delete]",
+      "[data-todo-purge]",
       "[data-todo-reject]",
       "[data-todo-restore]",
       "[data-todo-complete]",
@@ -461,6 +462,13 @@ function installBoardClickDelegation(boardColumns) {
     if (deleteBtn) {
       stopBoardEvent(event);
       options.openTodoDeleteModal(deleteBtn.getAttribute("data-todo-delete") || "");
+      return;
+    }
+
+    var purgeBtn = target.closest("[data-todo-purge]");
+    if (purgeBtn) {
+      stopBoardEvent(event);
+      options.openTodoDeleteModal(purgeBtn.getAttribute("data-todo-purge") || "", { permanentOnly: true });
       return;
     }
 

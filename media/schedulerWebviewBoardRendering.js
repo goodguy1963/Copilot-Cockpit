@@ -28,6 +28,9 @@ function renderTodoCompactActions(card, options) {
     actions.push(
       '<button type="button" class="btn-secondary todo-card-restore todo-list-action-btn" data-todo-restore="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardRestoreTodo || "Restore") + '">&#8634; ' + helpers.escapeHtml(strings.boardRestoreTodo || "Restore") + '</button>'
     );
+    actions.push(
+      '<button type="button" class="btn-danger todo-card-purge todo-list-action-btn" data-todo-purge="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodoPermanent || "Delete Permanently") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + '</button>'
+    );
   } else {
     if (card.status === "ready") {
       actions.push(
