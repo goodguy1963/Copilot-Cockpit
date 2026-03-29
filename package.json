@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "Coordinate scheduled prompts, jobs, research, and repo-local AI planning",
-  "version": "99.0.11",
+  "version": "99.0.23",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",
@@ -134,6 +134,7 @@
         "copilotCockpit.enabled": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "%config.enabled%"
         },
         "copilotCockpit.autoShowOnStartup": {
@@ -145,11 +146,13 @@
         "copilotCockpit.showNotifications": {
           "type": "boolean",
           "default": true,
+          "scope": "resource",
           "description": "%config.showNotifications%"
         },
         "copilotCockpit.notificationMode": {
           "type": "string",
           "default": "sound",
+          "scope": "resource",
           "enum": [
             "sound",
             "silentToast",
@@ -164,6 +167,7 @@
         },
         "copilotCockpit.logLevel": {
           "type": "string",
+          "scope": "resource",
           "default": "info",
           "enum": [
             "none",
@@ -381,17 +385,19 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-server -- --minify",
+    "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --platform=node --format=cjs",
-    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap",
+    "esbuild-webview": "esbuild ./media/schedulerWebview.entry.js --bundle --outfile=media/generated/schedulerWebview.js --format=iife --platform=browser",
+    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "watch:server": "npm run esbuild-server -- --sourcemap --watch",
+    "watch:webview": "npm run esbuild-webview -- --sourcemap --watch",
     "package:vsix": "node ./scripts/package-vsix.js",
     "install:vsix": "node ./scripts/install-vsix.js stable",
     "install:vsix:insiders": "node ./scripts/install-vsix.js insiders",
     "install:vsix:both": "node ./scripts/install-vsix.js both",
-    "pretest": "tsc -p ./",
+    "pretest": "npm run esbuild-webview && tsc -p ./",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts"
   },

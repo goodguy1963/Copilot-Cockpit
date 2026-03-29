@@ -6,12 +6,10 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { notifyError } from "./extension";
 import type {
   CockpitBoard,
   ScheduledTask,
   ScheduleHistoryEntry,
-  CreateTaskInput,
   JobDefinition,
   JobFolder,
   TaskAction,
@@ -35,15 +33,42 @@ import {
   getCurrentLocaleTag,
   getCronPresets,
 } from "./i18n";
-import { logError } from "./logger";
-import { validateTemplateLoadRequest } from "./templateValidation";
+import {
+  getConfiguredLogLevel,
+  getLogDirectoryPath,
+  logError,
+} from "./logger";
 import {
   getCompatibleConfigurationValue,
-  updateCompatibleConfigurationValue,
 } from "./extensionCompat";
-import { resolveGlobalPromptsRoot } from "./promptResolver";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
-import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
+import {
+  buildSchedulerWebviewInitialData,
+  escapeHtml,
+  escapeHtmlAttr,
+  formatModelLabel,
+  getWebviewNonce,
+  serializeForWebview,
+} from "./schedulerWebviewContentUtils";
+import { renderSchedulerWebviewDocument } from "./schedulerWebviewDocument";
+import { buildSchedulerWebviewStrings } from "./schedulerWebviewStrings";
+import {
+  createStartCreateTodoMessage,
+  createUpdateCockpitBoardMessage,
+  handleTodoCockpitWebviewMessage,
+} from "./schedulerWebviewCockpitBridge";
+import { handleSettingsWebviewMessage } from "./schedulerWebviewSettingsHandler";
+import { handleTaskWebviewMessage } from "./schedulerWebviewTaskHandler";
+import { handleJobWebviewMessage } from "./schedulerWebviewJobHandler";
+import { handleResearchWebviewMessage } from "./schedulerWebviewResearchHandler";
+import {
+  getResolvedWorkspaceRootPaths,
+  getGlobalPromptsPath,
+  refreshAgentsAndModels,
+  refreshPromptTemplates,
+  refreshSkillReferences,
+  loadPromptTemplateContent,
+} from "./schedulerWebviewTemplateCache";
 
 type OutgoingWebviewMessage = { type: string;[key: string]: unknown };
 
@@ -128,6 +153,26 @@ export class SchedulerWebview {
     });
   }
 
+  private static async backupGithubFolder(
+    workspaceRoot: string,
+  ): Promise<string | undefined> {
+    const sourceDir = path.join(workspaceRoot, ".github");
+    if (!fs.existsSync(sourceDir)) {
+      return undefined;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupDir = path.join(
+      workspaceRoot,
+      ".github-scheduler-backups",
+      timestamp,
+    );
+
+    fs.mkdirSync(path.dirname(backupDir), { recursive: true });
+    fs.cpSync(sourceDir, backupDir, { recursive: true });
+    return backupDir;
+  }
+
   /**
    * Dispose the webview panel (e.g., on extension deactivation)
    */
@@ -208,7 +253,7 @@ export class SchedulerWebview {
     }
 
     const refreshInBackground = (): void => {
-      void this.refreshAgentsAndModels(true)
+      void this.refreshAgentsAndModelsCache(true)
         .then(() => {
           this.postMessage({
             type: "updateAgents",
@@ -228,7 +273,7 @@ export class SchedulerWebview {
           );
         });
 
-      void this.refreshPromptTemplates(true)
+      void this.refreshPromptTemplatesCache(true)
         .then(() => {
           this.postMessage({
             type: "updatePromptTemplates",
@@ -244,7 +289,7 @@ export class SchedulerWebview {
           );
         });
 
-      void this.refreshSkillReferences(true)
+      void this.refreshSkillReferencesCache(true)
         .then(() => {
           this.postMessage({
             type: "updateSkills",
@@ -262,7 +307,16 @@ export class SchedulerWebview {
     };
 
     if (this.panel) {
-      // Reveal existing panel — send cached data only (no heavy re-scan)
+      // Rebuild the webview when reopening an existing panel so updated bundled
+      // scripts/styles are applied instead of relying on a retained stale context.
+      this.resetWebviewReadyState();
+      this.panel.webview.html = this.getWebviewContent(
+        this.panel.webview,
+        tasks,
+        this.cachedAgents,
+        this.cachedModels,
+        this.cachedPromptTemplates,
+      );
       this.panel.reveal(vscode.ViewColumn.One);
       this.updateTasks(tasks);
       this.updateJobs(jobs);
@@ -300,7 +354,6 @@ export class SchedulerWebview {
         vscode.ViewColumn.One,
         {
           enableScripts: true,
-          retainContextWhenHidden: true,
           localResourceRoots: [
             vscode.Uri.joinPath(extensionUri, "media"),
             vscode.Uri.joinPath(extensionUri, "images"),
@@ -395,10 +448,7 @@ export class SchedulerWebview {
 
   static updateCockpitBoard(cockpitBoard: CockpitBoard): void {
     this.currentCockpitBoard = cockpitBoard;
-    this.postMessage({
-      type: "updateCockpitBoard",
-      cockpitBoard,
-    });
+    this.postMessage(createUpdateCockpitBoardMessage(cockpitBoard));
   }
 
   static updateTelegramNotification(
@@ -511,20 +561,20 @@ export class SchedulerWebview {
    */
   static async refreshCachesAndNotifyPanel(force = true): Promise<void> {
     try {
-      await this.refreshAgentsAndModels(force);
+      await this.refreshAgentsAndModelsCache(force);
     } catch {
       this.cachedAgents = CopilotExecutor.getBuiltInAgents();
       this.cachedModels = CopilotExecutor.getFallbackModels();
     }
 
     try {
-      await this.refreshPromptTemplates(force);
+      await this.refreshPromptTemplatesCache(force);
     } catch {
       this.cachedPromptTemplates = [];
     }
 
     try {
-      await this.refreshSkillReferences(force);
+      await this.refreshSkillReferencesCache(force);
     } catch {
       this.cachedSkillReferences = [];
     }
@@ -575,7 +625,7 @@ export class SchedulerWebview {
   }
 
   static startCreateTodo(): void {
-    this.postMessage({ type: "startCreateTodo" });
+    this.postMessage(createStartCreateTodoMessage());
   }
 
   static startCreateJob(): void {
@@ -613,218 +663,13 @@ export class SchedulerWebview {
     });
   }
 
-  private static async promptForJobFolderName(
-    title: string,
-    value = "",
-  ): Promise<string | undefined> {
-    const result = await vscode.window.showInputBox({
-      title,
-      prompt: messages.jobFolderNamePrompt(),
-      value,
-      ignoreFocusOut: true,
-      validateInput: (input) =>
-        input.trim() ? undefined : messages.taskNameRequired(),
-    });
-    const trimmed = result?.trim();
-    return trimmed ? trimmed : undefined;
-  }
-
-  private static async handleCreateJobRequest(folderId?: string): Promise<void> {
-    const name = await vscode.window.showInputBox({
-      title: messages.jobCreateTitle(),
-      prompt: messages.jobNamePrompt(),
-      ignoreFocusOut: true,
-      validateInput: (input) =>
-        input.trim() ? undefined : messages.taskNameRequired(),
-    });
-    const trimmedName = name?.trim();
-    if (!trimmedName || !this.onTaskActionCallback) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "createJob",
-      taskId: "__job__",
-      jobData: {
-        name: trimmedName,
-        cronExpression: "0 9 * * 1-5",
-        folderId,
-      },
-    });
-  }
-
-  private static async handleCreateJobFolderRequest(
-    parentFolderId?: string,
-  ): Promise<void> {
-    const name = await this.promptForJobFolderName(
-      messages.jobFolderCreateTitle(),
-    );
-    if (!name || !this.onTaskActionCallback) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "createJobFolder",
-      taskId: "__jobfolder__",
-      folderData: {
-        name,
-        parentId: parentFolderId,
-      },
-    });
-  }
-
-  private static async handleRenameJobFolderRequest(
-    folderId: string,
-  ): Promise<void> {
-    const folder = this.currentJobFolders.find((entry) => entry.id === folderId);
-    if (!folder) {
-      return;
-    }
-
-    const name = await this.promptForJobFolderName(
-      messages.jobFolderRenameTitle(),
-      folder.name,
-    );
-    if (!name || !this.onTaskActionCallback) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "renameJobFolder",
-      taskId: "__jobfolder__",
-      folderId,
-      folderData: { name },
-    });
-  }
-
-  private static async handleDeleteJobFolderRequest(
-    folderId: string,
-  ): Promise<void> {
-    const folder = this.currentJobFolders.find((entry) => entry.id === folderId);
-    if (!folder || !this.onTaskActionCallback) {
-      return;
-    }
-
-    const confirm = await vscode.window.showWarningMessage(
-      messages.confirmDeleteJobFolder(folder.name),
-      { modal: true },
-      messages.confirmDeleteYes(),
-      messages.actionCancel(),
-    );
-    if (confirm !== messages.confirmDeleteYes()) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "deleteJobFolder",
-      taskId: "__jobfolder__",
-      folderId,
-    });
-  }
-
-  private static async handleDeleteJobTaskRequest(
-    jobId: string,
-    nodeId: string,
-  ): Promise<void> {
-    const job = this.currentJobs.find((entry) => entry.id === jobId);
-    const node = job?.nodes.find((entry) => entry.id === nodeId);
-    const task = node && "taskId" in node
-      ? this.currentTasks.find((entry) => entry.id === node.taskId)
-      : undefined;
-
-    if (!job || !node || !task || !this.onTaskActionCallback) {
-      return;
-    }
-
-    const detachOnly = messages.confirmDeleteJobStepDetachOnly();
-    const deleteTask = messages.confirmDeleteJobStepDeleteTask();
-    const confirm = await vscode.window.showWarningMessage(
-      messages.confirmDeleteJobStep(task.name),
-      { modal: true },
-      detachOnly,
-      deleteTask,
-      messages.actionCancel(),
-    );
-    if (confirm === detachOnly) {
-      this.onTaskActionCallback({
-        action: "detachTaskFromJob",
-        taskId: "__jobtask__",
-        jobId,
-        nodeId,
-      });
-      return;
-    }
-
-    if (confirm !== deleteTask) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "deleteJobTask",
-      taskId: "__jobtask__",
-      jobId,
-      nodeId,
-    });
-  }
-
-  private static async handleRenameJobPauseRequest(
-    jobId: string,
-    nodeId: string,
-  ): Promise<void> {
-    const job = this.currentJobs.find((entry) => entry.id === jobId);
-    const node = job?.nodes.find((entry) => entry.id === nodeId);
-    if (!job || !node || !this.onTaskActionCallback || node.type !== "pause") {
-      return;
-    }
-
-    const title = await vscode.window.showInputBox({
-      title: messages.jobsPauseTitle(),
-      prompt: messages.jobsPauseName(),
-      value: node.title || messages.jobsPauseDefaultTitle(),
-      ignoreFocusOut: true,
-      validateInput: (input) =>
-        input.trim() ? undefined : messages.taskNameRequired(),
-    });
-    const trimmed = title?.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "updateJobPause",
-      taskId: "__jobpause__",
-      jobId,
-      nodeId,
-      pauseUpdateData: { title: trimmed },
-    });
-  }
-
-  private static async handleDeleteJobPauseRequest(
-    jobId: string,
-    nodeId: string,
-  ): Promise<void> {
-    const job = this.currentJobs.find((entry) => entry.id === jobId);
-    const node = job?.nodes.find((entry) => entry.id === nodeId);
-    if (!job || !node || !this.onTaskActionCallback || node.type !== "pause") {
-      return;
-    }
-
-    const confirm = await vscode.window.showWarningMessage(
-      `Delete pause checkpoint "${node.title || messages.jobsPauseDefaultTitle()}"? Downstream steps will no longer wait here.`,
-      { modal: true },
-      messages.confirmDeleteYes(),
-      messages.actionCancel(),
-    );
-    if (confirm !== messages.confirmDeleteYes()) {
-      return;
-    }
-
-    this.onTaskActionCallback({
-      action: "deleteJobPause",
-      taskId: "__jobpause__",
-      jobId,
-      nodeId,
-    });
+  private static getJobDialogContext() {
+    return {
+      currentJobs: this.currentJobs,
+      currentJobFolders: this.currentJobFolders,
+      currentTasks: this.currentTasks,
+      onTaskActionCallback: this.onTaskActionCallback,
+    };
   }
 
   /**
@@ -833,174 +678,58 @@ export class SchedulerWebview {
   private static async handleMessage(
     message: WebviewToExtensionMessage,
   ): Promise<void> {
+    // Delegate to extracted tab handlers (order matches original precedence)
+    if (handleTodoCockpitWebviewMessage(message, this.onTaskActionCallback)) {
+      return;
+    }
+
+    if (await handleSettingsWebviewMessage(message, {
+      postMessage: (m) => this.postMessage(m),
+      launchHelpChat: (p) => this.launchHelpChat(p),
+      backupGithubFolder: (r) => this.backupGithubFolder(r),
+    })) {
+      return;
+    }
+
+    if (handleTaskWebviewMessage(message, this.onTaskActionCallback)) {
+      return;
+    }
+
+    if (await handleJobWebviewMessage(message, this.onTaskActionCallback, this.getJobDialogContext())) {
+      return;
+    }
+
+    if (handleResearchWebviewMessage(message, this.onTaskActionCallback)) {
+      return;
+    }
+
     switch (message.type) {
-      case "setLanguage": {
-        const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
-        const target = scope
-          ? vscode.ConfigurationTarget.WorkspaceFolder
-          : vscode.ConfigurationTarget.Global;
-        await updateCompatibleConfigurationValue(
-          "language",
-          message.language,
-          target,
-          scope,
-        );
-        break;
-      }
-      case "introTutorial": {
-        await this.launchHelpChat(
-          "Please use the copilot-scheduler-intro skill to give me a guided tour of how this plugin works.",
-        );
-        break;
-      }
-      case "planIntegration": {
-          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          if (!root) {
-            vscode.window.showErrorMessage("Please open a workspace folder first.");
-            break;
-          }
-          const answer = await vscode.window.showInformationMessage(
-            "Before starting the agent integration planner, would you like to build a backup of your .github folder?",
-            "Yes, Backup",
-            "No"
-          );
-          if (answer === "Yes, Backup") {
-            const gitFolder = vscode.Uri.file(path.join(root, ".github"));
-            const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const backupFolder = vscode.Uri.file(path.join(root, ".github-backup_" + stamp));
-            try {
-              if (fs.existsSync(gitFolder.fsPath)) {
-                await vscode.workspace.fs.copy(gitFolder, backupFolder);
-                const gitignorePath = path.join(root, ".gitignore");
-                let gitignoreContent = "";
-                if (fs.existsSync(gitignorePath)) {
-                  gitignoreContent = fs.readFileSync(gitignorePath, "utf-8");
-                }
-                if (!gitignoreContent.includes(".github-backup_*")) {
-                  const sep = gitignoreContent.length > 0 && !gitignoreContent.endsWith("\n") ? "\n" : "";
-                  fs.writeFileSync(gitignorePath, gitignoreContent + sep + ".github-backup_*\n");
-                }
-                vscode.window.showInformationMessage("Backup successfully built at: " + path.basename(backupFolder.fsPath));
-              } else {
-                vscode.window.showWarningMessage("No .github folder exists to backup.");
-              }
-            } catch (err) {
-              vscode.window.showErrorMessage("Backup failed: " + (err instanceof Error ? err.message : String(err)));
-            }
-          }
-          await this.launchHelpChat(
-            "Please use the copilot-scheduler-setup skill to plan a complete agent ecosystem integration for my workspace.",
-          );
-          break;
-        }
-      case "restoreBackup": {
-          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          if (!root) break;
-          try {
-            const children = await fs.promises.readdir(root);
-            const backups = children.filter(c => c.startsWith(".github-backup_"));
-            if (backups.length === 0) {
-               vscode.window.showInformationMessage("No backups found in the root directory.");
-               break;
-            }
-            const pick = await vscode.window.showQuickPick(backups, { placeHolder: "Select a backup to restore to your .github folder" });
-            if (pick) {
-              const gitFolder = vscode.Uri.file(path.join(root, ".github"));
-              const backupSource = vscode.Uri.file(path.join(root, pick));
-              try {
-                if (fs.existsSync(gitFolder.fsPath)) {
-                  await vscode.workspace.fs.delete(gitFolder, { recursive: true, useTrash: false });
-                }
-                await vscode.workspace.fs.copy(backupSource, gitFolder);
-                vscode.window.showInformationMessage("Successfully restored " + pick + " over .github");
-              } catch (e) {
-                vscode.window.showErrorMessage("Restore failed: " + (e instanceof Error ? e.message : String(e)));
-              }
-            }
-          } catch (e) {}
-          break;
-        }
-
-      case "requestCreateJob":
-        await this.handleCreateJobRequest(message.folderId);
-        break;
-
-      case "requestCreateJobFolder":
-        await this.handleCreateJobFolderRequest(message.parentFolderId);
-        break;
-
-      case "requestRenameJobFolder":
-        await this.handleRenameJobFolderRequest(message.folderId);
-        break;
-
-      case "requestDeleteJobFolder":
-        await this.handleDeleteJobFolderRequest(message.folderId);
-        break;
-
-      case "requestDeleteJobTask":
-        await this.handleDeleteJobTaskRequest(message.jobId, message.nodeId);
-        break;
-
-      case "requestRenameJobPause":
-        await this.handleRenameJobPauseRequest(message.jobId, message.nodeId);
-        break;
-
-      case "requestDeleteJobPause":
-        await this.handleDeleteJobPauseRequest(message.jobId, message.nodeId);
-        break;
-
       case "createTask":
-        if (this.onTaskActionCallback) {
-          // Use a special action for create
-          this.onTaskActionCallback({
-            action: "edit",
-            taskId: "__create__",
-            data: message.data,
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "edit",
+          taskId: "__create__",
+          data: message.data,
+        });
         break;
 
       case "updateTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "edit",
-            taskId: message.taskId,
-            data: message.data,
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "edit",
+          taskId: message.taskId,
+          data: message.data,
+        });
         break;
 
       case "testPrompt":
-        if (this.onTestPromptCallback) {
-          this.onTestPromptCallback(
-            message.prompt,
-            message.agent,
-            message.model,
-          );
-        }
-        break;
-
-      case "toggleAutoShowOnStartup":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "refresh",
-            taskId: "__toggleAutoShowOnStartup__",
-          });
-        }
-        break;
-
-      case "restoreScheduleHistory":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "restoreHistory",
-            taskId: "__restoreScheduleHistory__",
-            historyId: message.snapshotId,
-          });
-        }
+        this.onTestPromptCallback?.(
+          message.prompt,
+          message.agent,
+          message.model,
+        );
         break;
 
       case "refreshAgents":
-        await this.refreshAgentsAndModels(true);
+        await this.refreshAgentsAndModelsCache(true);
         this.postMessage({
           type: "updateAgents",
           agents: this.cachedAgents,
@@ -1012,959 +741,101 @@ export class SchedulerWebview {
         break;
 
       case "refreshPrompts":
-        await this.refreshPromptTemplates(true);
+        await this.refreshPromptTemplatesCache(true);
+        await this.refreshSkillReferencesCache(true);
         this.postMessage({
           type: "updatePromptTemplates",
           templates: this.cachedPromptTemplates,
         });
-        await this.refreshSkillReferences(true);
         this.postMessage({
           type: "updateSkills",
           skills: this.cachedSkillReferences,
         });
         break;
 
+      case "restoreScheduleHistory":
+        this.onTaskActionCallback?.({
+          action: "restoreHistory",
+          taskId: "__history__",
+          historyId: message.snapshotId,
+        });
+        break;
+
+      case "toggleAutoShowOnStartup":
+        this.onTaskActionCallback?.({
+          action: "refresh",
+          taskId: "__toggleAutoShowOnStartup__",
+        });
+        break;
+
       case "setupMcp":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "setupMcp",
-            taskId: "__setupMcp__",
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "setupMcp",
+          taskId: "__settings__",
+        });
         break;
 
       case "syncBundledSkills":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "syncBundledSkills",
-            taskId: "__syncBundledSkills__",
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "syncBundledSkills",
+          taskId: "__settings__",
+        });
         break;
 
       case "saveTelegramNotification":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "saveTelegramNotification",
-            taskId: "__telegram__",
-            telegramData: message.data,
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "saveTelegramNotification",
+          taskId: "__settings__",
+          telegramData: message.data,
+        });
         break;
 
       case "testTelegramNotification":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "testTelegramNotification",
-            taskId: "__telegram__",
-            telegramData: message.data,
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "testTelegramNotification",
+          taskId: "__settings__",
+          telegramData: message.data,
+        });
         break;
 
       case "saveExecutionDefaults":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "saveExecutionDefaults",
-            taskId: "__defaults__",
-            executionDefaults: message.data,
-          });
-        }
-        break;
-
-      case "createTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createTodo",
-            taskId: "__todo__",
-            todoData: message.data,
-          });
-        }
-        break;
-
-      case "updateTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "updateTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-            todoData: message.data,
-          });
-        }
-        break;
-
-      case "deleteTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "purgeTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "purgeTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "approveTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "approveTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "rejectTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "rejectTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "finalizeTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "finalizeTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "archiveTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "archiveTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-            todoData: {
-              archived: message.archived !== false,
-            },
-          });
-        }
-        break;
-
-      case "moveTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "moveTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-            targetSectionId: message.sectionId,
-            targetOrder: message.targetIndex,
-          });
-        }
-        break;
-
-      case "addTodoComment":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "addTodoComment",
-            taskId: "__todo__",
-            todoId: message.todoId,
-            todoCommentData: message.data,
-          });
-        }
-        break;
-
-      case "setTodoFilters":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "setTodoFilters",
-            taskId: "__todo__",
-            todoFilters: message.data,
-          });
-        }
-        break;
-
-      case "saveTodoLabelDefinition":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "saveTodoLabelDefinition",
-            taskId: "__todo__",
-            todoLabelData: message.data,
-          });
-        }
-        break;
-
-      case "deleteTodoLabelDefinition":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteTodoLabelDefinition",
-            taskId: "__todo__",
-            todoLabelData: { name: message.data.name },
-          });
-        }
-        break;
-
-      case "saveTodoFlagDefinition":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "saveTodoFlagDefinition",
-            taskId: "__todo__",
-            todoFlagData: message.data,
-          });
-        }
-        break;
-
-      case "deleteTodoFlagDefinition":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteTodoFlagDefinition",
-            taskId: "__todo__",
-            todoFlagData: { name: message.data.name },
-          });
-        }
-        break;
-
-      case "linkTodoTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "linkTodoTask",
-            taskId: "__todo__",
-            todoId: message.todoId,
-            linkedTaskId: message.taskId,
-          });
-        }
-        break;
-
-      case "createTaskFromTodo":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createTaskFromTodo",
-            taskId: "__todo__",
-            todoId: message.todoId,
-          });
-        }
-        break;
-
-      case "addCockpitSection":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "addCockpitSection",
-            taskId: "__section__",
-            sectionTitle: message.title,
-          });
-        }
-        break;
-
-      case "renameCockpitSection":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "renameCockpitSection",
-            taskId: "__section__",
-            sectionId: message.sectionId,
-            sectionTitle: message.title,
-          });
-        }
-        break;
-
-      case "deleteCockpitSection":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteCockpitSection",
-            taskId: "__section__",
-            sectionId: message.sectionId,
-          });
-        }
-        break;
-
-      case "moveCockpitSection":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "moveCockpitSection",
-            taskId: "__section__",
-            sectionId: message.sectionId,
-            sectionDirection: message.direction,
-          });
-        }
-        break;
-
-      case "reorderCockpitSection":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "reorderCockpitSection",
-            taskId: "__section__",
-            sectionId: message.sectionId,
-            targetIndex: message.targetIndex,
-          });
-        }
-        break;
-
-      case "refreshTasks":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "refresh",
-            taskId: "__refresh__",
-          });
-        }
-        break;
-
-      case "runTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "run",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "toggleTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "toggle",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "deleteTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "delete",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "duplicateTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "duplicate",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "createJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createJob",
-            taskId: "__job__",
-            jobData: message.data,
-          });
-        }
-        break;
-
-      case "updateJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "updateJob",
-            taskId: "__job__",
-            jobId: message.jobId,
-            jobData: message.data,
-          });
-        }
-        break;
-
-      case "deleteJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteJob",
-            taskId: "__job__",
-            jobId: message.jobId,
-          });
-        }
-        break;
-
-      case "duplicateJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "duplicateJob",
-            taskId: "__job__",
-            jobId: message.jobId,
-          });
-        }
-        break;
-
-      case "toggleJobPaused":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "toggleJobPaused",
-            taskId: "__job__",
-            jobId: message.jobId,
-          });
-        }
-        break;
-
-      case "createJobFolder":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createJobFolder",
-            taskId: "__jobfolder__",
-            folderData: message.data,
-          });
-        }
-        break;
-
-      case "renameJobFolder":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "renameJobFolder",
-            taskId: "__jobfolder__",
-            folderId: message.folderId,
-            folderData: message.data,
-          });
-        }
-        break;
-
-      case "deleteJobFolder":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteJobFolder",
-            taskId: "__jobfolder__",
-            folderId: message.folderId,
-          });
-        }
-        break;
-
-      case "createJobTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createJobTask",
-            taskId: "__jobtask__",
-            jobId: message.jobId,
-            data: message.data,
-            windowMinutes: message.windowMinutes,
-          });
-        }
-        break;
-
-      case "attachTaskToJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "attachTaskToJob",
-            taskId: message.taskId,
-            jobId: message.jobId,
-            windowMinutes: message.windowMinutes,
-          });
-        }
-        break;
-
-      case "detachTaskFromJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "detachTaskFromJob",
-            taskId: "__jobtask__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-          });
-        }
-        break;
-
-      case "deleteJobTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteJobTask",
-            taskId: "__jobtask__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-          });
-        }
-        break;
-
-      case "createJobPause":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createJobPause",
-            taskId: "__jobpause__",
-            jobId: message.jobId,
-            pauseData: message.data,
-          });
-        }
-        break;
-
-      case "approveJobPause":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "approveJobPause",
-            taskId: "__jobpause__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-          });
-        }
-        break;
-
-      case "rejectJobPause":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "rejectJobPause",
-            taskId: "__jobpause__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-          });
-        }
-        break;
-
-      case "reorderJobNode":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "reorderJobNode",
-            taskId: "__jobtask__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-            targetIndex: message.targetIndex,
-          });
-        }
-        break;
-
-      case "updateJobNodeWindow":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "updateJobNodeWindow",
-            taskId: "__jobtask__",
-            jobId: message.jobId,
-            nodeId: message.nodeId,
-            windowMinutes: message.windowMinutes,
-          });
-        }
-        break;
-
-      case "compileJob":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "compileJob",
-            taskId: "__job__",
-            jobId: message.jobId,
-          });
-        }
-        break;
-
-      case "moveTaskToCurrentWorkspace":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "moveToCurrentWorkspace",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "copyTask":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "copy",
-            taskId: message.taskId,
-          });
-        }
-        break;
-
-      case "createResearchProfile":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "createResearchProfile",
-            taskId: "__research__",
-            researchData: message.data,
-          });
-        }
-        break;
-
-      case "updateResearchProfile":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "updateResearchProfile",
-            taskId: "__research__",
-            researchId: message.researchId,
-            researchData: message.data,
-          });
-        }
-        break;
-
-      case "deleteResearchProfile":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "deleteResearchProfile",
-            taskId: "__research__",
-            researchId: message.researchId,
-          });
-        }
-        break;
-
-      case "duplicateResearchProfile":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "duplicateResearchProfile",
-            taskId: "__research__",
-            researchId: message.researchId,
-          });
-        }
-        break;
-
-      case "startResearchRun":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "startResearchRun",
-            taskId: "__research__",
-            researchId: message.researchId,
-          });
-        }
-        break;
-
-      case "stopResearchRun":
-        if (this.onTaskActionCallback) {
-          this.onTaskActionCallback({
-            action: "stopResearchRun",
-            taskId: "__research__",
-          });
-        }
+        this.onTaskActionCallback?.({
+          action: "saveExecutionDefaults",
+          taskId: "__settings__",
+          executionDefaults: message.data,
+        });
         break;
 
       case "loadPromptTemplate":
-        await this.loadPromptTemplateContent(message.path, message.source);
+        await loadPromptTemplateContent(
+          message.path,
+          message.source,
+          this.cachedPromptTemplates,
+          (m) => this.postMessage(m),
+        );
         break;
 
       case "webviewReady":
         this.webviewReady = true;
-        // Flush any messages that were queued while the webview was not ready.
-        // Cached agents/models/templates are already enqueued by refreshLanguage
-        // or show(), so we only need to flush here to avoid duplicates.
         this.flushPendingMessages();
         break;
     }
   }
 
-  /**
-   * Refresh agents and models cache
-   */
-  private static async refreshAgentsAndModels(force = false): Promise<void> {
-    if (
-      !force &&
-      this.cachedAgents.length > 0 &&
-      this.cachedModels.length > 0
-    ) {
-      return;
-    }
-
-    try {
-      this.cachedAgents = await CopilotExecutor.getAllAgents();
-    } catch {
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-    }
-
-    try {
-      this.cachedModels = await CopilotExecutor.getAvailableModels();
-    } catch {
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-    }
-
-    // Ensure we always have at least fallback data
-    if (this.cachedAgents.length === 0) {
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-    }
-    if (this.cachedModels.length === 0) {
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-    }
+  private static async refreshAgentsAndModelsCache(force = false): Promise<void> {
+    const result = await refreshAgentsAndModels(this.cachedAgents, this.cachedModels, force);
+    this.cachedAgents = result.agents;
+    this.cachedModels = result.models;
   }
 
-  /**
-   * Refresh prompt templates cache
-   */
-  private static async refreshPromptTemplates(force = false): Promise<void> {
-    if (!force && this.cachedPromptTemplates.length > 0) {
-      return;
-    }
-
-    this.cachedPromptTemplates = await this.getPromptTemplates();
+  private static async refreshPromptTemplatesCache(force = false): Promise<void> {
+    this.cachedPromptTemplates = await refreshPromptTemplates(this.cachedPromptTemplates, force);
   }
 
-  private static getResolvedWorkspaceRootPaths(): string[] {
-    const startPaths = (vscode.workspace.workspaceFolders ?? [])
-      .map((folder) => folder.uri.fsPath)
-      .filter(
-        (folderPath): folderPath is string =>
-          typeof folderPath === "string" && folderPath.trim().length > 0,
-      );
-
-    return getResolvedWorkspaceRoots(startPaths);
+  private static async refreshSkillReferencesCache(force = false): Promise<void> {
+    this.cachedSkillReferences = await refreshSkillReferences(this.cachedSkillReferences, force);
   }
 
-  /**
-   * Get prompt templates from local and global locations
-   */
-  private static async getPromptTemplates(): Promise<PromptTemplate[]> {
-    const templates: PromptTemplate[] = [];
-
-    // Get local templates (.github/prompts/*.md)
-    const workspaceRoots = this.getResolvedWorkspaceRootPaths();
-    for (const workspaceRoot of workspaceRoots) {
-      const localPromptDir = path.join(workspaceRoot, ".github", "prompts");
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(
-          vscode.Uri.file(localPromptDir),
-        );
-        for (const [file, fileType] of entries) {
-          if (fileType !== vscode.FileType.File) continue;
-          const lower = file.toLowerCase();
-          if (!lower.endsWith(".md")) continue;
-          if (lower.endsWith(".agent.md")) continue;
-          templates.push({
-            path: path.join(localPromptDir, file),
-            name: path.basename(file, ".md"),
-            source: "local",
-          });
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-
-    // Get global templates
-    const globalPath = this.getGlobalPromptsPath();
-    if (globalPath) {
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(
-          vscode.Uri.file(globalPath),
-        );
-        for (const [file, fileType] of entries) {
-          if (fileType !== vscode.FileType.File) continue;
-          const lower = file.toLowerCase();
-          if (!lower.endsWith(".md")) continue;
-          if (lower.endsWith(".agent.md")) continue;
-          templates.push({
-            path: path.join(globalPath, file),
-            name: path.basename(file, ".md"),
-            source: "global",
-          });
-        }
-      } catch {
-        // Ignore errors
-      }
-    }
-
-    templates.sort((a, b) => a.name.localeCompare(b.name));
-    return templates;
-  }
-
-  private static async refreshSkillReferences(force = false): Promise<void> {
-    if (!force && this.cachedSkillReferences.length > 0) {
-      return;
-    }
-
-    this.cachedSkillReferences = await this.getSkillReferences();
-  }
-
-  private static async getSkillReferences(): Promise<SkillReference[]> {
-    const results: SkillReference[] = [];
-    const seen = new Set<string>();
-    const workspaceRoots = this.getResolvedWorkspaceRootPaths();
-
-    const addSkill = (
-      filePath: string,
-      source: "workspace" | "global",
-      basePath?: string,
-    ): void => {
-      const resolved = path.resolve(filePath);
-      const key = process.platform === "win32"
-        ? resolved.toLowerCase()
-        : resolved;
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-      const reference = basePath
-        ? path.relative(basePath, resolved) || path.basename(resolved)
-        : path.basename(resolved);
-      results.push({
-        path: resolved,
-        name: path.basename(resolved),
-        reference,
-        source,
-      });
-    };
-
-    const workspaceSkills = await vscode.workspace.findFiles(
-      "**/{SKILL.md,*.skill.md}",
-      "**/{node_modules,.git,out,dist,build,.next}/**",
-      200,
-    );
-    for (const uri of workspaceSkills) {
-      if (uri.scheme !== "file") {
-        continue;
-      }
-      const matchedRoot = workspaceRoots.find((candidate) => {
-        const resolvedRoot = path.resolve(candidate);
-        const lhs = process.platform === "win32"
-          ? uri.fsPath.toLowerCase()
-          : uri.fsPath;
-        const rhs = process.platform === "win32"
-          ? resolvedRoot.toLowerCase()
-          : resolvedRoot;
-        return lhs === rhs || lhs.startsWith(`${rhs}${path.sep}`);
-      });
-      addSkill(uri.fsPath, "workspace", matchedRoot);
-    }
-
-    const globalRoot = this.getGlobalPromptsPath();
-    if (globalRoot && fs.existsSync(globalRoot)) {
-      const stack = [globalRoot];
-      while (stack.length > 0 && results.length < 250) {
-        const current = stack.pop();
-        if (!current) {
-          continue;
-        }
-        let entries: fs.Dirent[] = [];
-        try {
-          entries = fs.readdirSync(current, { withFileTypes: true });
-        } catch {
-          continue;
-        }
-        for (const entry of entries) {
-          const entryPath = path.join(current, entry.name);
-          if (entry.isDirectory()) {
-            if (["node_modules", ".git", "out", "dist", "build"].includes(entry.name)) {
-              continue;
-            }
-            stack.push(entryPath);
-            continue;
-          }
-          const lower = entry.name.toLowerCase();
-          if (lower !== "skill.md" && !lower.endsWith(".skill.md")) {
-            continue;
-          }
-          addSkill(entryPath, "global", globalRoot);
-        }
-      }
-    }
-
-    results.sort((a, b) => a.reference.localeCompare(b.reference));
-    return results;
-  }
-
-  /**
-   * Get global prompts path
-   */
-  private static getGlobalPromptsPath(): string | undefined {
-    return resolveGlobalPromptsRoot(
-      getCompatibleConfigurationValue<string>("globalPromptsPath", ""),
-    );
-  }
-
-  /**
-   * Load prompt template content
-   */
-  private static async loadPromptTemplateContent(
-    templatePath: string,
-    source: "local" | "global",
-  ): Promise<void> {
-    try {
-      const validation = validateTemplateLoadRequest({
-        templatePath,
-        source,
-        cachedTemplates: this.cachedPromptTemplates,
-        workspaceFolderPaths: this.getResolvedWorkspaceRootPaths(),
-        globalPromptsPath: this.getGlobalPromptsPath(),
-      });
-
-      if (!validation.ok) {
-        throw new Error(`Template load rejected: ${validation.reason}`);
-      }
-
-      const resolvedPath = path.resolve(templatePath);
-      const bytes = await vscode.workspace.fs.readFile(
-        vscode.Uri.file(resolvedPath),
-      );
-      const content = Buffer.from(bytes).toString("utf8");
-      this.postMessage({
-        type: "promptTemplateLoaded",
-        content: content,
-        path: templatePath,
-      });
-    } catch (error) {
-      const templateFile = path.basename(templatePath);
-      const rawError =
-        error instanceof Error ? error.message : String(error ?? "");
-      const safeError =
-        this.sanitizeErrorDetailsForUser(rawError) || messages.webviewUnknown();
-      logError("[CopilotScheduler] Template load failed:", {
-        templateFile,
-        source,
-        error: safeError,
-      });
-      notifyError(messages.templateLoadError());
-    }
-  }
-
-  /**
-   * Generate nonce for CSP
-   */
-  private static getNonce(): string {
-    let text = "";
-    const possible =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    for (let i = 0; i < 32; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
-  }
-
-  private static serializeForWebview(value: unknown): string {
-    const json = JSON.stringify(value ?? null) ?? "null";
-    // Escape < and U+2028/U+2029 to avoid breaking the surrounding <script>
-    return json
-      .replace(/</g, "\\u003c")
-      .replace(/\u2028/g, "\\u2028")
-      .replace(/\u2029/g, "\\u2029");
-  }
-
-  private static escapeHtmlAttr(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
-
-  private static escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-  }
-
-  private static getModelSourceLabel(model: ModelInfo): string {
-    const id = String(model.id || "").trim();
-    const name = String(model.name || "").trim();
-    const vendor = String(model.vendor || "").trim();
-    const description = String(model.description || "").trim();
-    const normalized = [id, name, vendor, description].join(" ").toLowerCase();
-
-    if (normalized.includes("openrouter")) {
-      return "OpenRouter";
-    }
-
-    if (
-      normalized.includes("copilot") ||
-      normalized.includes("codex") ||
-      normalized.includes("github") ||
-      normalized.includes("microsoft")
-    ) {
-      return "Copilot";
-    }
-
-    return vendor;
-  }
-
-  private static formatModelLabel(model: ModelInfo): string {
-    const name = String(model.name || model.id || "").trim();
-    const source = this.getModelSourceLabel(model);
-    if (!source || source.toLowerCase() === name.toLowerCase()) {
-      return name;
-    }
-
-    return `${name} • ${source}`;
-  }
   /**
    * Generate webview HTML content
    */
@@ -1975,19 +846,9 @@ export class SchedulerWebview {
     models: ModelInfo[],
     promptTemplates: PromptTemplate[],
   ): string {
-    const nonce = this.getNonce();
+    const nonce = getWebviewNonce();
     const uiLanguage = getCurrentLanguage();
     const configuredLanguage = getConfiguredLanguage();
-    const localize = (en: string, ja: string, de = en): string => {
-      switch (uiLanguage) {
-        case "ja":
-          return ja;
-        case "de":
-          return de;
-        default:
-          return en;
-      }
-    };
     const presets = getCronPresets();
     const defaultScope = getCompatibleConfigurationValue<TaskScope>(
       "defaultScope",
@@ -2018,644 +879,62 @@ export class SchedulerWebview {
       ? promptTemplates
       : [];
 
-    // Localized strings
-    const strings = {
-      title: messages.webviewTitle(),
-      tabTodoEditor: localize("Create Todo", "Todo を作成", "Todo erstellen"),
-      tabTodoEditorCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
-      tabTodoEditorEdit: localize("Edit Todo", "Todo を編集", "Todo bearbeiten"),
-      tabTaskEditor: localize("Create Task", "タスクを作成", "Task erstellen"),
-      tabTaskEditorCreate: localize("Create Task", "タスクを作成", "Task erstellen"),
-      tabTaskEditorEdit: localize("Edit Task", "タスクを編集", "Task bearbeiten"),
-      tabCreate: messages.tabCreate(),
-      tabEdit: messages.tabEdit(),
-      tabList: messages.tabList(),
-      tabHowTo: messages.tabHowTo(),
-      tabHelpGlyph: "?",
-      helpLanguageTitle: localize("Language", "言語", "Sprache"),
-      helpLanguageBody: localize(
-        "Change the cockpit language here. This updates the same workspace setting used in VS Code Settings.",
-        "ここで Cockpit の言語を変更できます。VS Code の設定で使われる同じワークスペース設定を更新します。",
-        "Hier können Sie die Sprache des Cockpit ändern. Dadurch wird dieselbe Workspace-Einstellung aktualisiert, die auch in den VS Code-Einstellungen verwendet wird.",
-      ),
-      helpLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
-      settingsLanguageTitle: localize("Language", "言語", "Sprache"),
-      settingsLanguageBody: localize(
-        "Change the cockpit language from Settings. This selector stays in sync with the one in How To.",
-        "Settings から Cockpit の言語を変更できます。このセレクターは How To の言語設定と同期されます。",
-        "Hier können Sie die Sprache des Cockpit in den Einstellungen ändern. Dieser Selektor bleibt mit dem im How To-Tab synchron.",
-      ),
-      settingsLanguageLabel: localize("UI language", "UI言語", "UI-Sprache"),
-      helpLanguageAuto: localize("Auto-detect from VS Code", "VS Codeから自動検出", "Automatisch aus VS Code erkennen"),
-      helpLanguageEnglish: "English",
-      helpLanguageJapanese: "日本語",
-      helpLanguageGerman: "Deutsch",
-      helpIntroTitle: messages.helpIntroTitle(),
-      helpIntroBody: messages.helpIntroBody(),
-      helpTodoTitle: messages.helpTodoTitle(),
-      helpTodoBody: messages.helpTodoBody(),
-      helpSwitchTabSettingsBtn: messages.helpSwitchTabSettingsBtn(),
-      helpSwitchTabTodoBtn: messages.helpSwitchTabTodoBtn(),
-      helpSwitchTabCreateBtn: messages.helpSwitchTabCreateBtn(),
-      helpSwitchTabListBtn: messages.helpSwitchTabListBtn(),
-      helpSwitchTabJobsBtn: messages.helpSwitchTabJobsBtn(),
-      helpSwitchTabResearchBtn: messages.helpSwitchTabResearchBtn(),
-      helpAgentEcosystemTitle: localize(
-        "11. Agent Ecosystem Integration",
-        "11. エージェントエコシステム連携",
-        "11. Agenten-Ökosystem-Integration",
-      ),
-      helpAgentEcosystemBody: localize(
-        "Use the intro tutorial to learn the plugin first, then use plan integration to design repo-local skills, prompts, and agent roles around the Todo communication hub and scheduler MCP tools.",
-        "まず Intro Tutorial でプラグインの全体像を理解し、その後 Plan Integration で Todo コミュニケーションハブと scheduler MCP ツールを中心に repo-local のスキル、プロンプト、エージェント役割を設計します。",
-        "Verwenden Sie zuerst das Intro Tutorial, um das Plugin kennenzulernen. Nutzen Sie danach Plan Integration, um repo-lokale Skills, Prompts und Agentenrollen rund um den Todo-Kommunikations-Hub und die Scheduler-MCP-Tools zu entwerfen.",
-      ),
-      helpIntroTutorialBtn: localize("Intro Tutorial", "Intro Tutorial", "Intro Tutorial"),
-      helpPlanIntegrationBtn: localize("Plan Integration", "Plan Integration", "Integration planen"),
-      helpCreateTitle: messages.helpCreateTitle(),
-      helpCreateItemName: messages.helpCreateItemName(),
-      helpCreateItemTemplates: messages.helpCreateItemTemplates(),
-      helpCreateItemSkills: messages.helpCreateItemSkills(),
-      helpCreateItemAgentModel: messages.helpCreateItemAgentModel(),
-      helpCreateItemRunFirst: messages.helpCreateItemRunFirst(),
-      helpListTitle: messages.helpListTitle(),
-      helpListItemSections: messages.helpListItemSections(),
-      helpListItemActions: messages.helpListItemActions(),
-      helpListItemStartup: messages.helpListItemStartup(),
-      helpStorageTitle: messages.helpStorageTitle(),
-      helpStorageItemRepo: messages.helpStorageItemRepo(),
-      helpStorageItemBackups: messages.helpStorageItemBackups(),
-      helpStorageItemIsolation: messages.helpStorageItemIsolation(),
-      helpStorageItemGlobal: messages.helpStorageItemGlobal(),
-      helpOverdueTitle: messages.helpOverdueTitle(),
-      helpOverdueItemReview: messages.helpOverdueItemReview(),
-      helpOverdueItemRecurring: messages.helpOverdueItemRecurring(),
-      helpOverdueItemOneTime: messages.helpOverdueItemOneTime(),
-      helpSessionTitle: messages.helpSessionTitle(),
-      helpSessionItemPerTask: messages.helpSessionItemPerTask(),
-      helpSessionItemNewChat: messages.helpSessionItemNewChat(),
-      helpSessionItemCareful: messages.helpSessionItemCareful(),
-      helpSessionItemSeparate: messages.helpSessionItemSeparate(),
-      helpMcpTitle: messages.helpMcpTitle(),
-      helpMcpItemEmbedded: messages.helpMcpItemEmbedded(),
-      helpMcpItemConfig: messages.helpMcpItemConfig(),
-      helpMcpItemAutoConfig: messages.helpMcpItemAutoConfig(),
-      helpMcpItemDanger: messages.helpMcpItemDanger(),
-      helpMcpItemInspect: messages.helpMcpItemInspect(),
-      helpMcpItemWrite: messages.helpMcpItemWrite(),
-      helpMcpItemTools: messages.helpMcpItemTools(),
-      helpJobsTitle: messages.helpJobsTitle(),
-      tabBoard: localize("Todo Cockpit", "Todo Cockpit", "Todo Cockpit"),
-      tabResearch: localize("Research", "Research", "Research"),
-      helpJobsItemBoard: messages.helpJobsItemBoard(),
-      helpJobsItemPause: messages.helpJobsItemPause(),
-      helpJobsItemCompile: messages.helpJobsItemCompile(),
-      helpJobsItemLabels: messages.helpJobsItemLabels(),
-      helpJobsItemFolders: messages.helpJobsItemFolders(),
-      helpJobsItemDelete: messages.helpJobsItemDelete(),
-      helpResearchTitle: messages.helpResearchTitle(),
-      helpResearchItemProfiles: messages.helpResearchItemProfiles(),
-      helpResearchItemBounds: messages.helpResearchItemBounds(),
-      helpResearchItemHistory: messages.helpResearchItemHistory(),
-      tabTelegram: localize("Settings", "設定", "Einstellungen"),
-      telegramTitle: localize("Telegram Notifications", "Telegram 通知", "Telegram-Benachrichtigungen"),
-      telegramDescription: localize(
-        "Configure a repo-local Stop hook that sends the last assistant reply to your Telegram bot.",
-        "最後のアシスタント返信を Telegram bot へ送る、リポジトリローカルの Stop hook を設定します。",
-        "Konfigurieren Sie einen repository-lokalen Stop hook, der die letzte Assistant-Antwort an Ihren Telegram bot sendet.",
-      ),
-      telegramEnable: localize("Enable Telegram Stop notification", "Telegram Stop 通知を有効化", "Telegram-Stop-Benachrichtigung aktivieren"),
-      telegramBotToken: localize("Bot token", "Bot token", "Bot token"),
-      telegramBotTokenPlaceholder: "123456:ABCDEF...",
-      telegramBotTokenHelp: localize(
-        "Stored only in .vscode/scheduler.private.json. Leave blank to keep the currently saved token.",
-        ".vscode/scheduler.private.json にのみ保存されます。現在保存されている token を維持する場合は空欄のままにしてください。",
-        "Wird nur in .vscode/scheduler.private.json gespeichert. Leer lassen, um das aktuell gespeicherte token beizubehalten.",
-      ),
-      telegramChatId: localize("Chat ID", "Chat ID", "Chat-ID"),
-      telegramChatIdPlaceholder: "123456789 or -100...",
-      telegramMessagePrefix: localize("Message prefix", "メッセージ接頭辞", "Nachrichtenpräfix"),
-      telegramMessagePrefixPlaceholder: localize("Optional short header shown above the last assistant reply.", "最後のアシスタント返信の上に表示される任意の短いヘッダーです。", "Optionaler kurzer Kopftext oberhalb der letzten Assistant-Antwort."),
-      telegramSave: localize("Save Telegram Settings", "Telegram 設定を保存", "Telegram-Einstellungen speichern"),
-      telegramTest: localize("Send Test Message", "テストメッセージを送信", "Testnachricht senden"),
-      telegramSavedToken: localize("Bot token stored privately", "Bot token は非公開で保存済み", "Bot token privat gespeichert"),
-      telegramMissingToken: localize("No bot token saved yet", "Bot token はまだ保存されていません", "Noch kein bot token gespeichert"),
-      telegramHookReady: localize("Stop hook configured", "Stop hook は設定済み", "Stop hook konfiguriert"),
-      telegramHookMissing: localize("Stop hook files not configured", "Stop hook ファイルは未設定", "Stop hook-Dateien nicht konfiguriert"),
-      telegramUpdatedAt: localize("Last updated", "最終更新", "Zuletzt aktualisiert"),
-      telegramWorkspaceNote: localize(
-        "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.",
-        "hook ファイルは .github/hooks 配下に生成され、秘密情報は .vscode/scheduler.private.json から読み取ります。",
-        "Die hook-Dateien werden unter .github/hooks erzeugt und lesen Geheimnisse aus .vscode/scheduler.private.json.",
-      ),
-      telegramValidationChatId: localize("Telegram chat ID is required.", "Telegram chat ID が必要です。", "Eine Telegram chat ID ist erforderlich."),
-      telegramValidationBotToken: localize("Telegram bot token is required.", "Telegram bot token が必要です。", "Ein Telegram bot token ist erforderlich."),
-      telegramStatusSaved: localize(
-        "Settings are repo-local. Save after changing chat ID, prefix, or token.",
-        "設定はリポジトリローカルです。chat ID、prefix、token を変更した後は保存してください。",
-        "Die Einstellungen sind repository-lokal. Speichern Sie nach Änderungen an chat ID, prefix oder token.",
-      ),
-      executionDefaultsTitle: localize("Execution Defaults", "実行デフォルト", "Ausführungsstandards"),
-      executionDefaultsDescription: localize(
-        "These workspace settings apply when a task, job step, research profile, or test run leaves agent or model empty.",
-        "これらのワークスペース設定は、task、job step、research profile、test run で agent または model が空欄のときに適用されます。",
-        "Diese Workspace-Einstellungen gelten, wenn ein task, job step, research profile oder test run agent oder model leer lässt.",
-      ),
-      executionDefaultsAgent: localize("Default agent", "デフォルト agent", "Standard-agent"),
-      executionDefaultsModel: localize("Default model", "デフォルト model", "Standard-model"),
-      executionDefaultsSave: localize("Save Defaults", "デフォルトを保存", "Defaults speichern"),
-      executionDefaultsSaved: localize("Workspace default agent and model settings.", "ワークスペースのデフォルト agent / model 設定です。", "Workspace-Standardeinstellungen für agent und model."),
-      boardTitle: localize("Todo Cockpit", "Todo Cockpit", "Todo Cockpit"),
-      boardDescription: localize(
-        "Local-only planning and approval workspace. Todos stay distinct from scheduled tasks, while existing task drafts also surface here under Unsorted.",
-        "ローカル専用の計画・承認ワークスペースです。Todo は scheduled tasks と分離されたまま保持され、既存の task drafts も Unsorted に表示されます。",
-        "Ein lokaler Bereich für Planung und Freigabe. Todos bleiben von scheduled tasks getrennt, während vorhandene task drafts hier ebenfalls unter Unsorted erscheinen.",
-      ),
-      boardEmpty: localize("No todos yet. Create one here or let existing scheduled tasks appear under Unsorted.", "まだ Todo はありません。ここで作成するか、既存の scheduled tasks を Unsorted に表示させてください。", "Noch keine Todos. Erstellen Sie hier eins oder lassen Sie vorhandene scheduled tasks unter Unsorted erscheinen."),
-      boardSections: localize("Sections", "セクション", "Bereiche"),
-      boardCards: localize("Cards", "カード", "Karten"),
-      boardComments: localize("Comments", "コメント", "Kommentare"),
-      boardPrivacyNote: localize(
-        "Todo Cockpit state is kept only in .vscode/scheduler.private.json so user-system planning stays local to this workspace.",
-        "Todo Cockpit の状態は .vscode/scheduler.private.json にのみ保存され、ユーザーとシステムの計画情報はこのワークスペースにローカルなまま保持されます。",
-        "Der Zustand des Todo Cockpit wird nur in .vscode/scheduler.private.json gespeichert, damit die Planung zwischen Benutzer und System lokal in diesem Workspace bleibt.",
-      ),
-      boardToolbarNew: localize("New Todo", "新しい Todo", "Neues Todo"),
-      boardToolbarClear: localize("Clear Selection", "選択をクリア", "Auswahl aufheben"),
-      boardToolbarClearFilters: localize("Clear Filters", "フィルターをクリア", "Filter löschen"),
-      boardFiltersTitle: localize("Filters", "フィルター", "Filter"),
-      boardShowFilters: localize("Show Filters", "フィルターを表示", "Filter anzeigen"),
-      boardHideFilters: localize("Hide Filters", "フィルターを隠す", "Filter ausblenden"),
-      boardSearchLabel: localize("Search", "検索", "Suche"),
-      boardSearchPlaceholder: localize("Search title, description, labels, comments", "タイトル、説明、ラベル、コメントを検索", "Titel, Beschreibung, Labels und Kommentare durchsuchen"),
-      boardSortLabel: localize("Sort", "並び替え", "Sortieren"),
-      boardViewLabel: localize("View", "表示", "Ansicht"),
-      boardSectionFilterLabel: localize("Section", "セクション", "Bereich"),
-      boardLabelFilterLabel: localize("Label", "ラベル", "Label"),
-      boardFlagFilterLabel: localize("Flag", "Flag", "Flag"),
-      boardPriorityFilterLabel: localize("Priority", "優先度", "Priorität"),
-      boardStatusFilterLabel: localize("Status", "ステータス", "Status"),
-      boardArchiveOutcomeFilterLabel: localize("Archive outcome", "アーカイブ結果", "Archiv-Ergebnis"),
-      boardAllFlags: localize("All flags", "すべての Flags", "Alle Flags"),
-      boardShowArchived: localize("Show archived", "アーカイブを表示", "Archivierte anzeigen"),
-      boardAllSections: localize("All sections", "すべてのセクション", "Alle Bereiche"),
-      boardAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
-      boardAllPriorities: localize("All priorities", "すべての優先度", "Alle Prioritäten"),
-      boardAllStatuses: localize("All statuses", "すべてのステータス", "Alle Status"),
-      boardAllArchiveOutcomes: localize("All outcomes", "すべての結果", "Alle Ergebnisse"),
-      boardSortManual: localize("Manual order", "手動順", "Manuelle Reihenfolge"),
-      boardSortDueAt: localize("Due date", "期限", "Fälligkeitsdatum"),
-      boardSortPriority: localize("Priority", "優先度", "Priorität"),
-      boardSortUpdatedAt: localize("Last updated", "最終更新", "Zuletzt aktualisiert"),
-      boardSortCreatedAt: localize("Created date", "作成日", "Erstellt am"),
-      boardSortAsc: localize("Ascending", "昇順", "Aufsteigend"),
-      boardSortDesc: localize("Descending", "降順", "Absteigend"),
-      boardViewBoard: localize("Board", "ボード", "Board"),
-      boardViewList: localize("List", "リスト", "Liste"),
-      boardListEmptySection: localize("No todos in this section.", "このセクションには Todo がありません。", "Keine Todos in diesem Bereich."),
-      boardListRowEdited: localize("Updated", "更新", "Aktualisiert"),
-      boardDetailTitleCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
-      boardDetailTitleEdit: localize("Edit Todo", "Todo を編集", "Todo bearbeiten"),
-      boardDetailModeCreate: localize("Fill the form to create a new Todo Cockpit item.", "フォームに入力して新しい Todo Cockpit 項目を作成します。", "Füllen Sie das Formular aus, um ein neues Todo Cockpit-Element zu erstellen."),
-      boardDetailModeEdit: localize("Update fields, manage labels, and move the item through approval, completion, or rejection.", "フィールドを更新し、ラベルを管理し、承認・完了・却下の流れで項目を進めます。", "Aktualisieren Sie Felder, verwalten Sie Labels und bewegen Sie das Element durch Freigabe, Abschluss oder Ablehnung."),
-      boardFieldTitle: localize("Title", "タイトル", "Titel"),
-      boardFieldDescription: localize("Description", "説明", "Beschreibung"),
-      boardFieldDueAt: localize("Due date", "期限", "Fälligkeitsdatum"),
-      boardFieldSection: localize("Section", "セクション", "Bereich"),
-      boardFieldPriority: localize("Priority", "優先度", "Priorität"),
-      boardFieldLabels: localize("Labels", "ラベル", "Labels"),
-      boardFieldFlags: localize("Flag (agent state)", "Flag（agent state）", "Flag (agent state)"),
-      boardFlagAdd: localize("Add Flag", "Flag を追加", "Flag hinzufügen"),
-      boardFlagClear: localize("Clear", "クリア", "Leeren"),
-      boardFlagClearTitle: localize("Clear flag", "Flag をクリア", "Flag entfernen"),
-      boardFlagCatalogHint: localize("Click a flag to set it. Only one flag at a time.", "Flag をクリックして設定します。一度に 1 つだけ設定できます。", "Klicken Sie auf ein Flag, um es zu setzen. Es kann jeweils nur ein Flag aktiv sein."),
-      boardFlagCatalogSelectTitle: localize("Set as flag", "Flag として設定", "Als Flag setzen"),
-      boardFlagCatalogEditTitle: localize("Edit flag", "Flag を編集", "Flag bearbeiten"),
-      boardFlagCatalogDeleteTitle: localize("Delete flag", "Flag を削除", "Flag löschen"),
-      boardFlagCatalogDeleteConfirm: localize("Delete flag \"{name}\"?", "Flag「{name}」を削除しますか？", "Flag \"{name}\" löschen?"),
-      boardFieldLinkedTask: localize("Linked scheduled task", "リンクされた scheduled task", "Verknüpfter scheduled task"),
-      boardLinkedTaskNone: localize("No linked task", "リンクされた task はありません", "Kein verknüpfter task"),
-      boardSaveCreate: localize("Create Todo", "Todo を作成", "Todo erstellen"),
-      boardSaveUpdate: localize("Save Todo", "Todo を保存", "Todo speichern"),
-      boardAddComment: localize("Add Comment", "コメントを追加", "Kommentar hinzufügen"),
-      boardCreateTask: localize("Create Task Draft", "Task Draft を作成", "Task Draft erstellen"),
-      boardCompleteTodo: localize("Complete & Archive", "完了してアーカイブ", "Abschließen und archivieren"),
-      boardFinalizeTodo: localize("Final Accept", "最終承認", "Final akzeptieren"),
-      boardDeleteTodo: localize("Delete Todo", "Todo を削除", "Todo löschen"),
-      boardDeleteTodoShort: localize("Delete", "削除", "Löschen"),
-      boardEditTodoShort: localize("Edit", "編集", "Bearbeiten"),
-      boardDeleteTodoHelp: localize("Reject and archive this todo.", "この Todo を却下してアーカイブします。", "Dieses Todo ablehnen und archivieren."),
-      boardDeleteTodoTitle: localize("Delete Todo", "Todo を削除", "Todo löschen"),
-      boardDeleteTodoPrompt: localize("Choose whether this todo should be rejected into the archive or removed permanently.", "この Todo を却下してアーカイブするか、完全に削除するかを選択してください。", "Wählen Sie, ob dieses Todo abgelehnt und archiviert oder dauerhaft gelöscht werden soll."),
-      boardDeleteTodoReject: localize("Archive as Rejected", "却下としてアーカイブ", "Als abgelehnt archivieren"),
-      boardDeleteTodoPermanent: localize("Delete Permanently", "完全に削除", "Dauerhaft löschen"),
-      boardDeleteTodoCancel: localize("Cancel", "キャンセル", "Abbrechen"),
-      boardReadOnlyArchived: localize("Archived items are read-only. Toggle archived visibility to review outcomes and history.", "アーカイブ済み項目は読み取り専用です。アーカイブ表示を切り替えて結果と履歴を確認してください。", "Archivierte Elemente sind schreibgeschützt. Blenden Sie archivierte Elemente ein, um Ergebnisse und Verlauf zu prüfen."),
-      boardReadyForTask: localize("Approved items can become scheduled task drafts or be final accepted.", "承認済み項目は scheduled task drafts にするか、最終承認できます。", "Freigegebene Elemente können zu scheduled task drafts werden oder final akzeptiert werden."),
-      boardCommentsTitle: localize("Comments", "コメント", "Kommentare"),
-      boardCommentsEmpty: localize("No comments yet.", "まだコメントはありません。", "Noch keine Kommentare."),
-      boardCommentPlaceholder: localize("Add a comment with context, provenance, or approval notes...", "コンテキスト、provenance、承認メモを含むコメントを追加...", "Kommentar mit Kontext, provenance oder Freigabenotizen hinzufügen..."),
-      boardCommentSourceHumanForm: localize("Human form", "Human form", "Menschliches Formular"),
-      boardCommentSourceBotMcp: localize("Bot MCP", "Bot MCP", "Bot MCP"),
-      boardCommentSourceBotManual: localize("Bot manual", "Bot manual", "Bot manuell"),
-      boardCommentSourceSystemEvent: localize("System event", "System event", "Systemereignis"),
-      boardTaskDraftNote: localize("Scheduled tasks are downstream execution artifacts. Creating a task draft here does not replace the todo.", "Scheduled tasks は下流の実行成果物です。ここで task draft を作成しても todo 自体は置き換わりません。", "Scheduled tasks sind nachgelagerte Ausführungsartefakte. Wenn Sie hier einen task draft erstellen, ersetzt das nicht das Todo selbst."),
-      boardDueLabel: localize("Due", "期限", "Fällig"),
-      boardTaskMissing: localize("Linked task not found in Task List.", "リンクされた task は Task List に見つかりません。", "Verknüpfter task wurde in der Task List nicht gefunden."),
-      boardTaskLinked: localize("Linked task", "リンクされた task", "Verknüpfter task"),
-      boardStatusLabel: localize("Status", "ステータス", "Status"),
-      boardStatusActive: localize("Active", "アクティブ", "Aktiv"),
-      boardStatusReady: localize("Ready", "準備完了", "Bereit"),
-      boardStatusCompleted: localize("Completed", "完了", "Abgeschlossen"),
-      boardStatusRejected: localize("Rejected", "却下", "Abgelehnt"),
-      boardArchiveCompletedSuccessfully: localize("Completed successfully", "正常に完了", "Erfolgreich abgeschlossen"),
-      boardArchiveRejected: localize("Rejected", "却下", "Abgelehnt"),
-      boardLatestComment: localize("Latest comment", "最新コメント", "Neuester Kommentar"),
-      boardLabelInputPlaceholder: localize("Type a label and press Enter", "ラベルを入力して Enter を押してください", "Label eingeben und Enter drücken"),
-      boardLabelAdd: localize("Add", "追加", "Hinzufügen"),
-      boardLabelCatalogAddTitle: localize("Add to todo", "Todo に追加", "Zum Todo hinzufügen"),
-      boardLabelCatalogEditTitle: localize("Edit label", "Label を編集", "Label bearbeiten"),
-      boardLabelCatalogDeleteTitle: localize("Delete label", "Label を削除", "Label löschen"),
-      boardLabelCatalogDeleteConfirm: localize("Delete label \"{name}\"?", "Label「{name}」を削除しますか？", "Label \"{name}\" löschen?"),
-      boardLabelSaveColor: localize("Save Color", "色を保存", "Farbe speichern"),
-      boardLabelHint: localize("Click a chip to target its shared color. Press Enter to add more labels.", "チップをクリックすると共有色を対象にできます。Enter でラベルを追加します。", "Klicken Sie auf ein Chip, um seine gemeinsame Farbe auszuwählen. Mit Enter fügen Sie weitere Labels hinzu."),
-      boardNoLinkedTask: localize("No linked task yet", "まだリンクされた task はありません", "Noch kein verknüpfter task"),
-      boardLinkedTaskShort: localize("Linked", "Linked", "Verknüpft"),
-      boardDescriptionPreviewEmpty: localize("No description yet.", "まだ説明はありません。", "Noch keine Beschreibung."),
-      boardSectionCollapse: localize("Collapse section", "セクションを折りたたむ", "Bereich einklappen"),
-      boardSectionExpand: localize("Expand section", "セクションを展開", "Bereich ausklappen"),
-      boardSectionUntitled: localize("Section", "セクション", "Bereich"),
-      boardSectionRename: localize("Rename section", "セクション名を変更", "Bereich umbenennen"),
-      boardSectionDelete: localize("Delete section", "セクションを削除", "Bereich löschen"),
-      boardDeleteConfirm: localize("Delete?", "削除しますか？", "Löschen?"),
-      boardCardUntitled: localize("Untitled", "無題", "Ohne Titel"),
-      boardEditTodo: localize("Open Editor", "エディターを開く", "Editor öffnen"),
-      boardBackToCockpit: localize("Back to Cockpit", "Cockpit に戻る", "Zurück zum Cockpit"),
-      boardPriorityNone: localize("None", "なし", "Keine"),
-      boardPriorityLow: localize("Low", "低", "Niedrig"),
-      boardPriorityMedium: localize("Medium", "中", "Mittel"),
-      boardPriorityHigh: localize("High", "高", "Hoch"),
-      boardPriorityUrgent: localize("Urgent", "緊急", "Dringend"),
-      boardDropHint: localize("Drag between columns to reorder or move todos.", "列の間でドラッグして todo を並べ替えたり移動したりできます。", "Zwischen Spalten ziehen, um Todos neu anzuordnen oder zu verschieben."),
-      boardAddSection: localize("+ Add Section", "+ セクションを追加", "+ Bereich hinzufügen"),
-      boardSectionNamePlaceholder: localize("Section name...", "セクション名...", "Bereichsname..."),
-      commonAdd: localize("Add", "追加", "Hinzufügen"),
-      commonCancel: localize("Cancel", "キャンセル", "Abbrechen"),
-      helpTipsTitle: messages.helpTipsTitle(),
-      helpTipsItem1: messages.helpTipsItem1(),
-      helpTipsItem2: messages.helpTipsItem2(),
-      helpTipsItem3: messages.helpTipsItem3(),
-      labelTaskName: messages.labelTaskName(),
-      tabJobsEditor: localize("Create Job", "Job を作成", "Job erstellen"),
-      tabJobsEditorCreate: localize("Create Job", "Job を作成", "Job erstellen"),
-      tabJobsEditorEdit: localize("Edit Job", "Job を編集", "Job bearbeiten"),
-      tabJobs: localize("Jobs", "Jobs", "Jobs"),
-      labelTaskLabels: localize("Labels", "ラベル", "Labels"),
-      placeholderTaskLabels: "marketing, finance, weekly",
-      labelSkills: messages.labelSkills(),
-      placeholderSelectSkill: messages.placeholderSelectSkill(),
-      actionInsertSkill: messages.actionInsertSkill(),
-      skillInsertNote: messages.skillInsertNote(),
-      skillSentenceTemplate: messages.skillSentenceTemplate("{skill}"),
-      actionSetupMcp: messages.mcpSetupAction(),
-      actionSyncBundledSkills: localize("Sync Bundled Skills", "同梱スキルを同期", "Gebündelte Skills synchronisieren"),
-      settingsMaintenanceTitle: localize("Workspace Maintenance", "ワークスペース保守", "Workspace-Wartung"),
-      settingsMaintenanceBody: localize(
-        "Repair repo-local support files after plugin updates. Use this when a workspace was opened before new bundled skills were added.",
-        "プラグイン更新後に repo-local の補助ファイルを補修します。新しい同梱スキルが追加される前からワークスペースを開いていた場合に使います。",
-        "Repariert repo-lokale Unterstützungsdateien nach Plugin-Updates. Verwenden Sie dies, wenn ein Workspace bereits geöffnet war, bevor neue gebündelte Skills hinzugefügt wurden.",
-      ),
-      labelFilterByLabel: localize("Filter by label", "ラベルでフィルター", "Nach Label filtern"),
-      labelAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
-      jobsTitle: localize("Jobs", "Jobs", "Jobs"),
-      jobsFoldersTitle: localize("Folders", "フォルダー", "Ordner"),
-      jobsRootFolder: localize("All jobs", "すべての Jobs", "Alle Jobs"),
-      jobsCurrentFolderLabel: localize("Current folder", "現在のフォルダー", "Aktueller Ordner"),
-      jobsCurrentFolderBadge: localize("Current", "現在", "Aktuell"),
-      jobsArchiveFolder: localize("Bundled Jobs", "Bundled Jobs", "Gebündelte Jobs"),
-      jobsCreateFolder: localize("New Folder", "新しいフォルダー", "Neuer Ordner"),
-      jobsCreateJob: localize("New Job", "新しい Job", "Neuer Job"),
-      jobsOpenEditor: localize("Open Editor", "エディターを開く", "Editor öffnen"),
-      jobsBackToJobs: localize("Back to Jobs", "Jobs に戻る", "Zurück zu Jobs"),
-      jobsOverviewTitle: localize("Jobs Overview", "Jobs 概要", "Jobs-Überblick"),
-      jobsOverviewNote: localize("Keep folders and job selection here, then open the dedicated editor tab when you want to change workflow details.", "ここではフォルダーと job 選択を管理し、ワークフロー詳細を変更したいときに専用エディタータブを開きます。", "Verwalten Sie hier Ordner und Job-Auswahl und öffnen Sie dann den dedizierten Editor-Tab, wenn Sie Workflow-Details ändern möchten."),
-      jobsEditorDetailsTitle: localize("Job details", "Job の詳細", "Job-Details"),
-      jobsEditorDetailsNote: localize("Name the job, place it in a folder, and toggle whether it is active.", "Job に名前を付け、フォルダーに配置し、アクティブにするかどうかを切り替えます。", "Benennen Sie den Job, ordnen Sie ihn einem Ordner zu und schalten Sie um, ob er aktiv ist."),
-      jobsEditorScheduleNote: localize("Choose a preset, edit the cron expression, or use the friendly builder.", "プリセットを選択し、cron 式を編集するか、friendly builder を使います。", "Wählen Sie ein Preset, bearbeiten Sie den Cron-Ausdruck oder verwenden Sie den Friendly Builder."),
-      taskEditorTitle: localize("Create / Edit Task", "Task を作成 / 編集", "Task erstellen / bearbeiten"),
-      taskEditorDescription: localize("Configure the prompt, schedule, and runtime behavior in a single compact view.", "prompt、schedule、runtime の動作を 1 つのコンパクトなビューで設定します。", "Konfigurieren Sie prompt, schedule und runtime-Verhalten in einer kompakten Ansicht."),
-      taskEditorPromptTitle: localize("Prompt", "Prompt", "Prompt"),
-      taskEditorScheduleTitle: localize("Schedule", "Schedule", "Zeitplan"),
-      taskEditorRuntimeTitle: localize("Runtime", "Runtime", "Laufzeit"),
-      taskEditorOptionsTitle: localize("Options", "オプション", "Optionen"),
-      taskEditorActionsTitle: localize("Actions", "アクション", "Aktionen"),
-      taskEditorTestPrompt: localize("Test Prompt", "Prompt をテスト", "Prompt testen"),
-      jobsRenameFolder: localize("Rename Folder", "フォルダー名を変更", "Ordner umbenennen"),
-      jobsDeleteFolder: localize("Delete Folder", "フォルダーを削除", "Ordner löschen"),
-      jobsSelectJob: localize("Select a job to edit its workflow.", "workflow を編集する Job を選択してください。", "Wählen Sie einen Job aus, um seinen Workflow zu bearbeiten."),
-      jobsName: localize("Job name", "Job 名", "Job-Name"),
-      jobsCron: localize("Job schedule", "Job schedule", "Job-Zeitplan"),
-      jobsFolder: localize("Folder", "フォルダー", "Ordner"),
-      jobsPaused: localize("Inactive", "非アクティブ", "Inaktiv"),
-      jobsRunning: localize("Active", "アクティブ", "Aktiv"),
-      jobsSave: localize("Save Job", "Job を保存", "Job speichern"),
-      jobsDuplicate: localize("Duplicate Job", "Job を複製", "Job duplizieren"),
-      jobsDelete: localize("Delete Job", "Job を削除", "Job löschen"),
-      jobsPause: localize("Deactivate Job", "Job を非アクティブ化", "Job deaktivieren"),
-      jobsResume: localize("Activate Job", "Job を有効化", "Job aktivieren"),
-      jobsCompile: localize("Compile To Task", "Compile To Task", "Zu Task kompilieren"),
-      jobsHideSidebar: localize("Hide Sidebar", "サイドバーを隠す", "Sidebar ausblenden"),
-      jobsShowSidebar: localize("Show Sidebar", "サイドバーを表示", "Sidebar anzeigen"),
-      jobsWorkflowTitle: localize("Workflow Studio", "workflow スタジオ", "Workflow-Studio"),
-      jobsWorkflowNote: localize("Shape the execution path, inspect pacing, and place human checkpoints before anything runs.", "実行前にフローを整え、進み方を確認し、人の承認ポイントを配置します。", "Gestalten Sie den Ablauf, prüfen Sie das Tempo und setzen Sie menschliche Checkpoints, bevor etwas ausgeführt wird."),
-      jobsWorkflowBadge: localize("Control deck", "コントロールデッキ", "Kontrollzentrum"),
-      jobsWorkflowCadence: localize("Cadence", "実行ペース", "Taktung"),
-      jobsWorkflowStatus: localize("Status", "ステータス", "Status"),
-      jobsWorkflowTaskCount: localize("Task steps", "task ステップ", "Task-Schritte"),
-      jobsWorkflowPauseCount: localize("Pause checkpoints", "pause checkpoints", "Pause-Checkpoints"),
-      jobsWorkflowTimelineNote: localize("Read the flow left to right. Pause nodes stop the run until you approve the previous result.", "左から右へ flow を確認します。pause node は前の結果を承認するまで実行を止めます。", "Lesen Sie den Ablauf von links nach rechts. Pause-Nodes stoppen den Lauf, bis Sie das vorherige Ergebnis freigeben."),
-      jobsCompactTimeline: localize("Workflow timeline", "workflow タイムライン", "Workflow-Zeitleiste"),
-      jobsTimelineEmpty: localize("No steps yet", "まだステップはありません", "Noch keine Schritte"),
-      jobsToggleStatus: localize("Toggle active status", "アクティブ状態を切り替え", "Aktiv-Status umschalten"),
-      jobsSteps: localize("Workflow steps", "workflow ステップ", "Workflow-Schritte"),
-      jobsPauseTitle: localize("Pause checkpoints", "Pause checkpoints", "Pause Checkpoints"),
-      jobsCreatePause: localize("Create Pause", "Pause を作成", "Pause erstellen"),
-      jobsPauseName: localize("Pause title", "Pause タイトル", "Pause-Titel"),
-      jobsPauseHelpText: localize("This checkpoint blocks downstream steps until you approve the previous result.", "この checkpoint は、前の結果を承認するまで downstream steps をブロックします。", "Dieser checkpoint blockiert nachgelagerte Schritte, bis Sie das vorherige Ergebnis freigeben."),
-      jobsPauseWaiting: localize("Waiting for approval", "承認待ち", "Wartet auf Freigabe"),
-      jobsPauseApproved: localize("Approved", "承認済み", "Freigegeben"),
-      jobsPauseApprove: localize("Approve", "承認", "Freigeben"),
-      jobsPauseReject: localize("Reject and edit previous step", "却下して前のステップを編集", "Ablehnen und vorherigen Schritt bearbeiten"),
-      jobsPauseDefaultTitle: localize("Manual review", "手動レビュー", "Manuelle Prüfung"),
-      jobsPausePrefix: localize("Pause", "Pause", "Pause"),
-      jobsArchivedBadge: localize("Archived", "アーカイブ済み", "Archiviert"),
-      jobsPauseEdit: localize("Edit", "編集", "Bearbeiten"),
-      jobsPauseDelete: localize("Delete", "削除", "Löschen"),
-      jobsArchiveFolderBadge: localize("Bundled jobs", "Bundled jobs", "Gebündelte Jobs"),
-      jobsWindowMinutes: localize("Window (minutes)", "ウィンドウ（分）", "Fenster (Minuten)"),
-      jobsAddExistingTask: localize("Add Existing Task", "既存の Task を追加", "Vorhandenen Task hinzufügen"),
-      jobsAttach: localize("Attach Task", "Task を接続", "Task anhängen"),
-      jobsStandaloneTasks: localize("Standalone tasks", "単独の tasks", "Standalone-Tasks"),
-      jobsAddNewStep: localize("Add New Step", "新しいステップを追加", "Neuen Schritt hinzufügen"),
-      jobsCreateStep: localize("Create Step", "ステップを作成", "Schritt erstellen"),
-      jobsStepPrefix: localize("Step", "ステップ", "Schritt"),
-      jobsStepName: localize("Step name", "ステップ名", "Schrittname"),
-      jobsStepPrompt: localize("Step prompt", "ステップ prompt", "Schritt-Prompt"),
-      jobsNoJobs: localize("No jobs in this folder yet.", "このフォルダーにはまだ Jobs がありません。", "In diesem Ordner gibt es noch keine Jobs."),
-      jobsNoFolders: localize("No folders yet.", "まだフォルダーはありません。", "Noch keine Ordner."),
-      jobsNoStandaloneTasks: localize("No standalone tasks available.", "利用可能な standalone tasks はありません。", "Keine Standalone-Tasks verfügbar."),
-      jobsEmptySteps: localize("This job has no steps yet.", "この Job にはまだステップがありません。", "Dieser Job hat noch keine Schritte."),
-      jobsDropHint: localize("Drag steps to reorder the timeline.", "ステップをドラッグしてタイムラインを並べ替えます。", "Ziehen Sie Schritte, um die Zeitleiste neu anzuordnen."),
-      researchTitle: localize("Benchmark Research", "Benchmark Research", "Benchmark-Research"),
-      researchProfilesTitle: localize("Profiles", "プロファイル", "Profile"),
-      researchActiveRunTitle: localize("Run details", "実行詳細", "Laufdetails"),
-      researchHistoryTitle: localize("Recent runs", "最近の実行", "Letzte Läufe"),
-      researchEmptyProfiles: localize("No research profiles yet.", "まだ research profiles はありません。", "Noch keine Research-Profile."),
-      researchEmptyRuns: localize("No research runs yet.", "まだ research runs はありません。", "Noch keine Research-Läufe."),
-      researchNewProfile: localize("New Profile", "新しい Profile", "Neues Profil"),
-      researchCreateProfile: localize("Create Profile", "Profile を作成", "Profil erstellen"),
-      researchSaveProfile: localize("Save Profile", "Profile を保存", "Profil speichern"),
-      researchDuplicateProfile: localize("Duplicate Profile", "Profile を複製", "Profil duplizieren"),
-      researchDeleteProfile: localize("Delete Profile", "Profile を削除", "Profil löschen"),
-      researchStartRun: localize("Start Run", "実行を開始", "Lauf starten"),
-      researchStopRun: localize("Stop Run", "実行を停止", "Lauf stoppen"),
-      researchName: localize("Profile name", "Profile 名", "Profilname"),
-      researchInstructions: localize("Instructions", "Instructions", "Anweisungen"),
-      researchInstructionsPlaceholder: localize("Describe the goal and the kind of focused edits Copilot should attempt.", "目標と、Copilot に試してほしい集中的な編集の種類を説明してください。", "Beschreiben Sie das Ziel und die Art gezielter Änderungen, die Copilot versuchen soll."),
-      researchEditablePaths: localize("Editable files", "編集可能ファイル", "Editierbare Dateien"),
-      researchEditablePathsPlaceholder: "src/file.ts\nsrc/other.ts",
-      researchBenchmarkCommand: localize("Benchmark command", "Benchmark command", "Benchmark-Befehl"),
-      researchBenchmarkPlaceholder: "npm test -- --runInBand",
-      researchMetricPattern: localize("Metric regex", "Metric regex", "Metric-regex"),
-      researchMetricPatternPlaceholder: "score:\\s*([0-9.]+)",
-      researchMetricDirection: localize("Metric direction", "Metric の方向", "Metric-Richtung"),
-      researchDirectionMaximize: localize("Maximize", "最大化", "Maximieren"),
-      researchDirectionMinimize: localize("Minimize", "最小化", "Minimieren"),
-      researchMaxIterations: localize("Max iterations", "最大反復回数", "Max. Iterationen"),
-      researchMaxMinutes: localize("Max minutes", "最大分数", "Max. Minuten"),
-      researchMaxFailures: localize("Max consecutive failures", "最大連続失敗回数", "Max. aufeinanderfolgende Fehler"),
-      researchBenchmarkTimeout: localize("Benchmark timeout (seconds)", "Benchmark timeout（秒）", "Benchmark-Timeout (Sekunden)"),
-      researchEditWait: localize("Copilot edit settle time (seconds)", "Copilot edit settle time（秒）", "Copilot-Edit-Beruhigungszeit (Sekunden)"),
-      researchCurrentBest: localize("Current best", "現在のベスト", "Aktuell bester Wert"),
-      researchNoScore: localize("No score yet", "まだスコアなし", "Noch kein Score"),
-      researchStatusIdle: localize("Idle", "待機中", "Leerlauf"),
-      researchStatusRunning: localize("Running", "実行中", "Läuft"),
-      researchStatusStopping: localize("Stopping", "停止中", "Wird gestoppt"),
-      researchStatusCompleted: localize("Completed", "完了", "Abgeschlossen"),
-      researchStatusFailed: localize("Failed", "失敗", "Fehlgeschlagen"),
-      researchStatusStopped: localize("Stopped", "停止済み", "Gestoppt"),
-      researchAttempts: localize("Attempts", "試行", "Versuche"),
-      researchLastOutcome: localize("Last outcome", "最後の結果", "Letztes Ergebnis"),
-      researchStopReason: localize("Stop reason", "停止理由", "Grund für das Stoppen"),
-      researchActiveRunEmpty: localize("No research run is active.", "アクティブな research run はありません。", "Kein aktiver Research-Lauf."),
-      researchAttemptTimeline: localize("Attempt timeline", "試行タイムライン", "Versuchszeitleiste"),
-      researchBaselineLabel: localize("Baseline", "Baseline", "Baseline"),
-      researchIterationLabel: localize("Iteration", "Iteration", "Iteration"),
-      researchStartedAt: localize("Started", "開始", "Gestartet"),
-      researchFinishedAt: localize("Finished", "終了", "Beendet"),
-      researchDuration: localize("Duration", "所要時間", "Dauer"),
-      researchBaselineScore: localize("Baseline score", "Baseline score", "Baseline-Score"),
-      researchBestScore: localize("Best score", "ベストスコア", "Bester Score"),
-      researchCompletedIterations: localize("Completed iterations", "完了した反復", "Abgeschlossene Iterationen"),
-      researchChangedFiles: localize("Changed files", "変更されたファイル", "Geänderte Dateien"),
-      researchViolationFiles: localize("Policy violation files", "ポリシー違反ファイル", "Dateien mit Richtlinienverstößen"),
-      researchBenchmarkOutput: localize("Benchmark output", "Benchmark 出力", "Benchmark-Ausgabe"),
-      researchExitCode: localize("Exit code", "終了コード", "Exit-Code"),
-      researchSnapshot: localize("Snapshot", "Snapshot", "Snapshot"),
-      researchMetricPatternShort: localize("Metric", "Metric", "Metric"),
-      researchBudgetShort: localize("Budget", "Budget", "Budget"),
-      researchEditableCount: localize("Editable files", "編集可能ファイル", "Editierbare Dateien"),
-      researchUnsavedNew: localize("New profile", "新しい Profile", "Neues Profil"),
-      researchUnsavedChanges: localize("Unsaved changes", "未保存の変更", "Ungespeicherte Änderungen"),
-      researchNoRunSelected: localize("Select a recent run to inspect its attempts.", "最近の実行を選んで試行内容を確認してください。", "Wählen Sie einen letzten Lauf aus, um seine Versuche zu prüfen."),
-      researchProfileNameRequired: localize("Research profile name is required.", "Research profile 名が必要です。", "Ein Research-Profilname ist erforderlich."),
-      researchBenchmarkRequired: localize("Benchmark command is required.", "Benchmark command が必要です。", "Ein Benchmark-Befehl ist erforderlich."),
-      researchMetricRequired: localize("Metric regex is required.", "Metric regex が必要です。", "Ein Metric-regex ist erforderlich."),
-      researchEditableRequired: localize("Add at least one editable file path.", "少なくとも 1 つの編集可能ファイルパスを追加してください。", "Fügen Sie mindestens einen editierbaren Dateipfad hinzu."),
-      researchHelpText: localize("This first implementation runs bounded benchmark iterations against a small allowlisted file set and records keep or revert outcomes in repo-local history.", "この最初の実装では、小さな allowlist のファイルセットに対して制限付き benchmark iterations を実行し、keep または revert の結果をリポジトリローカルの history に記録します。", "Diese erste Implementierung führt begrenzte Benchmark-Iterationen auf einem kleinen allowlisted-Dateisatz aus und protokolliert Keep- oder Revert-Ergebnisse in einer repository-lokalen History."),
-      labelPromptType: messages.labelPromptType(),
-      labelPromptInline: messages.labelPromptInline(),
-      labelPromptLocal: messages.labelPromptLocal(),
-      labelPromptGlobal: messages.labelPromptGlobal(),
-      labelPrompt: messages.labelPrompt(),
-      labelSchedule: messages.labelSchedule(),
-      labelCronExpression: messages.labelCronExpression(),
-      labelPreset: messages.labelPreset(),
-      labelCustom: messages.labelCustom(),
-      labelAgent: messages.labelAgent(),
-      labelModel: messages.labelModel(),
-      labelModelNote: messages.labelModelNote(),
-      labelScope: messages.labelScope(),
-      labelScopeGlobal: messages.labelScopeGlobal(),
-      labelScopeWorkspace: messages.labelScopeWorkspace(),
-      labelEnabled: messages.labelEnabled(),
-      labelDisabled: messages.labelDisabled(),
-      labelStatus: messages.labelStatus(),
-      labelNextRun: messages.labelNextRun(),
-      labelLastRun: messages.labelLastRun(),
-      labelNever: messages.labelNever(),
-      labelRunFirstInOneMinute: messages.labelRunFirstInOneMinute(),
-      labelOneTime: messages.labelOneTime(),
-      labelChatSession: messages.labelChatSession(),
-      labelChatSessionNew: messages.labelChatSessionNew(),
-      labelChatSessionContinue: messages.labelChatSessionContinue(),
-      labelChatSessionBadgeNew: messages.labelChatSessionBadgeNew(),
-      labelChatSessionBadgeContinue: messages.labelChatSessionBadgeContinue(),
-      labelChatSessionRecurringOnly: messages.labelChatSessionRecurringOnly(),
-      labelAllTasks: messages.labelAllTasks(),
-      labelRecurringTasks: messages.labelRecurringTasks(),
-      labelOneTimeTasks: messages.labelOneTimeTasks(),
-      labelJitterSeconds: messages.labelJitterSeconds(),
-      placeholderTaskName: messages.placeholderTaskName(),
-      placeholderPrompt: messages.placeholderPrompt(),
-      placeholderCron: messages.placeholderCron(),
-      invalidCronExpression: messages.invalidCronExpression(),
-      taskNameRequired: messages.taskNameRequired(),
-      promptRequired: messages.promptRequired(),
-      templateRequired: messages.templateRequired(),
-      cronExpressionRequired: messages.cronExpressionRequired(),
-      actionCreate: messages.actionCreate(),
-      actionSave: messages.actionSave(),
-      actionNewTask: messages.actionNewTask(),
-      actionTestRun: messages.actionTestRun(),
-      actionRun: messages.actionRun(),
-      actionEdit: messages.actionEdit(),
-      actionDelete: messages.actionDelete(),
-      actionRefresh: messages.actionRefresh(),
-      actionCopyPrompt: messages.actionCopyPrompt(),
-      actionDuplicate: messages.actionDuplicate(),
-      actionMoveToCurrentWorkspace: messages.actionMoveToCurrentWorkspace(),
-      actionEnable: messages.actionEnable(),
-      actionDisable: messages.actionDisable(),
-      noTasksFound: messages.noTasksFound(),
-      labelAdvanced: messages.labelAdvanced(),
-      labelFrequency: messages.labelFrequency(),
-      labelFrequencyMinute: messages.labelFrequencyMinute(),
-      labelFrequencyHourly: messages.labelFrequencyHourly(),
-      labelFrequencyDaily: messages.labelFrequencyDaily(),
-      labelFrequencyWeekly: messages.labelFrequencyWeekly(),
-      labelFrequencyMonthly: messages.labelFrequencyMonthly(),
-      labelSelectDays: messages.labelSelectDays(),
-      labelSelectTime: messages.labelSelectTime(),
-      labelInterval: messages.labelInterval(),
-      daySun: messages.daySun(),
-      dayMon: messages.dayMon(),
-      dayTue: messages.dayTue(),
-      dayWed: messages.dayWed(),
-      dayThu: messages.dayThu(),
-      dayFri: messages.dayFri(),
-      daySat: messages.daySat(),
-      labelFriendlyBuilder: messages.labelFriendlyBuilder(),
-      labelFriendlyGenerate: messages.labelFriendlyGenerate(),
-      labelFriendlyPreview: messages.labelFriendlyPreview(),
-      labelFriendlyFallback: messages.labelFriendlyFallback(),
-      labelFriendlySelect: messages.labelFriendlySelect(),
-      labelEveryNMinutes: messages.labelEveryNMinutes(),
-      labelHourlyAtMinute: messages.labelHourlyAtMinute(),
-      labelDailyAtTime: messages.labelDailyAtTime(),
-      labelWeeklyAtTime: messages.labelWeeklyAtTime(),
-      labelMonthlyAtTime: messages.labelMonthlyAtTime(),
-      labelMinute: messages.labelMinute(),
-      labelHour: messages.labelHour(),
-      labelDayOfMonth: messages.labelDayOfMonth(),
-      labelDayOfWeek: messages.labelDayOfWeek(),
-      labelOpenInGuru: messages.labelOpenInGuru(),
-
-      cronPreviewEveryNMinutes: messages.cronPreviewEveryNMinutes(),
-      cronPreviewHourlyAtMinute: messages.cronPreviewHourlyAtMinute(),
-      cronPreviewDailyAt: messages.cronPreviewDailyAt(),
-      cronPreviewWeekdaysAt: messages.cronPreviewWeekdaysAt(),
-      cronPreviewWeeklyOnAt: messages.cronPreviewWeeklyOnAt(),
-      cronPreviewMonthlyOnAt: messages.cronPreviewMonthlyOnAt(),
-      placeholderSelectAgent: messages.webviewSelectAgentPlaceholder(),
-      placeholderNoAgents: messages.webviewNoAgentsAvailable(),
-      placeholderSelectModel: messages.webviewSelectModelPlaceholder(),
-      placeholderNoModels: messages.webviewNoModelsAvailable(),
-      placeholderSelectTemplate: messages.webviewSelectTemplatePlaceholder(),
-
-      // Webview JS error text
-      webviewScriptErrorPrefix: messages.webviewScriptErrorPrefix(),
-      webviewUnhandledErrorPrefix: messages.webviewUnhandledErrorPrefix(),
-      webviewLinePrefix: messages.webviewLinePrefix(),
-      webviewLineSuffix: messages.webviewLineSuffix(),
-      webviewUnknown: messages.webviewUnknown(),
-      webviewApiUnavailable: messages.webviewApiUnavailable(),
-      webviewClientErrorPrefix: messages.webviewClientErrorPrefix(),
-      webviewSuccessPrefix: messages.webviewSuccessPrefix(),
-
-      // Webview notes
-      webviewJitterNote: messages.webviewJitterNote(),
-
-      labelThisWorkspaceShort: messages.labelThisWorkspaceShort(),
-      labelOtherWorkspaceShort: messages.labelOtherWorkspaceShort(),
-      autoShowOnStartupEnabled: messages.autoShowOnStartupEnabled(),
-      autoShowOnStartupDisabled: messages.autoShowOnStartupDisabled(),
-      autoShowOnStartupToggleEnabled: messages.autoShowOnStartupToggleEnabled(),
-      autoShowOnStartupToggleDisabled: messages.autoShowOnStartupToggleDisabled(),
-      scheduleHistoryLabel: messages.scheduleHistoryLabel(),
-      scheduleHistoryPlaceholder: messages.scheduleHistoryPlaceholder(),
-      scheduleHistoryEmpty: messages.scheduleHistoryEmpty(),
-      scheduleHistoryNote: messages.scheduleHistoryNote(),
-      scheduleHistoryRestoreConfirm: messages.scheduleHistoryRestoreConfirm(
-        "{createdAt}",
-      ),
-      scheduleHistoryRestoreSelectRequired:
-        messages.scheduleHistoryRestoreSelectRequired(),
-      actionRestoreBackup: messages.actionRestoreBackup(),
-    };
+    const strings = buildSchedulerWebviewStrings(uiLanguage);
 
     const allPresets = presets;
 
-    const serializeForWebview = this.serializeForWebview;
-    const escapeHtmlAttr = this.escapeHtmlAttr;
-    const escapeHtml = this.escapeHtml;
-
-    const initialData = {
-      tasks: initialTasks,
-      jobs: this.currentJobs,
-      jobFolders: this.currentJobFolders,
-      cockpitBoard: this.currentCockpitBoard,
-      telegramNotification: this.currentTelegramNotification,
-      executionDefaults: this.currentExecutionDefaults,
-      researchProfiles: this.currentResearchProfiles,
-      activeResearchRun: this.currentActiveResearchRun,
-      recentResearchRuns: this.currentRecentResearchRuns,
-      agents: initialAgents,
-      models: initialModels,
-      promptTemplates: initialTemplates,
-      skills: this.cachedSkillReferences,
-      workspacePaths: this.getResolvedWorkspaceRootPaths(),
-      caseInsensitivePaths: process.platform === "win32",
+    const initialData = buildSchedulerWebviewInitialData({
+      initialTasks,
+      currentJobs: this.currentJobs,
+      currentJobFolders: this.currentJobFolders,
+      currentCockpitBoard: this.currentCockpitBoard,
+      currentTelegramNotification: this.currentTelegramNotification,
+      currentExecutionDefaults: this.currentExecutionDefaults,
+      currentResearchProfiles: this.currentResearchProfiles,
+      currentActiveResearchRun: this.currentActiveResearchRun,
+      currentRecentResearchRuns: this.currentRecentResearchRuns,
+      initialAgents,
+      initialModels,
+      initialTemplates,
+      cachedSkillReferences: this.cachedSkillReferences,
+      workspacePaths: getResolvedWorkspaceRootPaths(),
       defaultJitterSeconds,
       defaultChatSession,
-      scheduleHistory: this.currentScheduleHistory,
-      initialTab: "help",
+      currentScheduleHistory: this.currentScheduleHistory,
       autoShowOnStartup: vscode.workspace
         .getConfiguration(
           "copilotScheduler",
           vscode.workspace.workspaceFolders?.[0]?.uri,
         )
         .get<boolean>("autoShowOnStartup", false),
-      languageSetting: configuredLanguage,
+      currentLogLevel: getConfiguredLogLevel(),
+      currentLogDirectory: getLogDirectoryPath(),
+      configuredLanguage,
       locale: getCurrentLocaleTag(),
       strings,
-    };
+    });
     const helpIntroTitle = typeof strings.helpIntroTitle === "string"
       ? strings.helpIntroTitle
       : "";
     const helpIntroTitleText = helpIntroTitle.replace(/^\s*🚀\s*/u, "").trim() || helpIntroTitle;
 
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, "media", "schedulerWebview.js"),
+    const scriptPath = vscode.Uri.joinPath(
+      this.extensionUri,
+      "media",
+      "generated",
+      "schedulerWebview.js",
     );
-    const rawHtml = `<!DOCTYPE html>
-<html lang="${uiLanguage}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource}; font-src ${webview.cspSource};">
-  <title>${escapeHtmlAttr(strings.title)}</title>
-  <style>
+    let scriptCacheToken = "static";
+    try {
+      const scriptStats = fs.statSync(scriptPath.fsPath);
+      scriptCacheToken = `${scriptStats.mtimeMs}-${scriptStats.size}`;
+    } catch {
+      // Fall back to a stable token if the bundled file isn't readable.
+    }
+    const scriptUri = webview.asWebviewUri(scriptPath).with({
+      query: `v=${encodeURIComponent(scriptCacheToken)}`,
+    });
+    const documentContent = `  <style>
     * {
       box-sizing: border-box;
     }
@@ -2838,6 +1117,66 @@ export class SchedulerWebview {
 
     .flag-catalog-section:empty {
       display: none;
+    }
+
+    .todo-inline-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .todo-inline-actions-row > input[type="text"] {
+      flex: 1 1 200px;
+      min-width: 180px;
+    }
+
+    .todo-inline-actions-row > button {
+      position: relative;
+      z-index: 1;
+      flex: 0 0 auto;
+    }
+
+    .todo-color-input-shell {
+      position: relative;
+      z-index: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 42px;
+      width: 42px;
+      min-width: 42px;
+      height: 30px;
+      overflow: hidden;
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      background: var(--vscode-input-background);
+      box-sizing: border-box;
+    }
+
+    .todo-color-input-shell input[type="color"] {
+      appearance: none;
+      -webkit-appearance: none;
+      display: block;
+      width: 100%;
+      min-width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    .todo-color-input-shell input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+
+    .todo-color-input-shell input[type="color"]::-webkit-color-swatch {
+      border: 0;
+      border-radius: 3px;
     }
     
     .tab-content {
@@ -3689,10 +2028,10 @@ export class SchedulerWebview {
     }
 
     .todo-list-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
-      align-items: start;
+      align-items: stretch;
       transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
     }
 
@@ -3701,6 +2040,7 @@ export class SchedulerWebview {
     }
 
     .todo-list-main {
+      width: 100%;
       min-width: 0;
       display: flex;
       flex-direction: column;
@@ -3735,27 +2075,32 @@ export class SchedulerWebview {
     }
 
     .todo-list-actions {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: 4px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      width: 100%;
       min-width: 0;
     }
 
+    .todo-list-actions.has-single-action {
+      grid-template-columns: 1fr;
+    }
+
     .todo-list-action-btn {
-      min-width: 30px;
-      padding: 2px 6px !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-width: 0;
+      padding: 4px 8px !important;
       font-weight: 600;
+      text-align: center;
       cursor: pointer !important;
     }
 
     @media (max-width: 920px) {
-      .todo-list-row {
-        grid-template-columns: 1fr;
-      }
-
       .todo-list-actions {
-        justify-content: flex-start;
+        grid-template-columns: 1fr;
       }
     }
 
@@ -3838,7 +2183,7 @@ export class SchedulerWebview {
     }
 
     section[data-section-id] {
-      transition: opacity 0.15s ease, outline-color 0.1s ease;
+      transition: none;
     }
 
     section[data-section-id].section-dragging {
@@ -3849,6 +2194,13 @@ export class SchedulerWebview {
       outline: 2px solid var(--vscode-focusBorder);
       outline-offset: 2px;
       background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) !important;
+    }
+
+    body.cockpit-board-dragging,
+    body.cockpit-board-dragging * {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: grabbing !important;
     }
 
     article[data-todo-id] {
@@ -3884,29 +2236,33 @@ export class SchedulerWebview {
 
     article[data-todo-id] button {
       font-size: inherit !important;
-      padding: 2px 6px !important;
+      padding: 4px 8px !important;
       line-height: 1.3;
+      min-height: 26px;
     }
 
     .todo-card-action-row {
-      display: flex;
-      justify-content: flex-end;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: stretch;
-      gap: 4px;
-      flex-wrap: nowrap;
+      gap: 6px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .todo-card-action-row.has-single-action {
+      grid-template-columns: 1fr;
     }
 
     .todo-card-action-row > button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
       min-width: 0;
       white-space: nowrap;
-    }
-
-    .todo-card-action-row > .todo-card-edit {
-      flex: 0 0 auto;
-    }
-
-    .todo-card-action-row > button:not(.todo-card-edit) {
-      flex: 1 1 0;
+      text-align: center;
     }
 
     .todo-card-edit {
@@ -3973,15 +2329,12 @@ export class SchedulerWebview {
       display: flex;
       align-items: center;
       gap: 2px;
-      opacity: 0.45;
-      transition: opacity 0.15s;
+      opacity: 0.55;
+      transition: opacity 0.12s ease;
     }
 
-    .board-column {
-      container-type: inline-size;
-    }
-
-    .board-column:hover .cockpit-section-actions {
+    .cockpit-section-header:hover .cockpit-section-actions,
+    .cockpit-section-header:focus-within .cockpit-section-actions {
       opacity: 1;
     }
 
@@ -5304,9 +3657,11 @@ export class SchedulerWebview {
               <label>${escapeHtml(strings.boardFieldLabels)}</label>
               <div id="todo-label-chip-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
               
-              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <div class="todo-inline-actions-row">
                 <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
-                <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}" style="width:42px;padding:4px;">
+                <span class="todo-color-input-shell">
+                  <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}">
+                </span>
                 <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
                 <button type="button" class="btn-secondary" id="todo-label-color-save-btn">Save Label</button>
               </div>
@@ -5319,9 +3674,11 @@ export class SchedulerWebview {
               <label>${escapeHtml(strings.boardFieldFlags)}</label>
               <div id="todo-flag-current" style="min-height:24px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
               
-              <div style="display:flex;gap:6px;align-items:center;margin-top:4px;margin-bottom:8px;">
+              <div class="todo-inline-actions-row" style="margin-top:4px;">
                 <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
-                <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color" style="width:42px;padding:4px;">
+                <span class="todo-color-input-shell">
+                  <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color">
+                </span>
                 <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
                 <button type="button" class="btn-secondary" id="todo-flag-color-save-btn">Save Flag</button>
               </div>
@@ -5493,7 +3850,7 @@ export class SchedulerWebview {
               <div class="form-group" style="margin:0;">
                 <label for="model-select">${escapeHtml(strings.labelModel)}</label>
                 <select id="model-select">
-                  ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(SchedulerWebview.formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
+                  ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
                 </select>
                 <p class="note">${escapeHtml(strings.labelModelNote)}</p>
               </div>
@@ -5716,7 +4073,10 @@ export class SchedulerWebview {
   </div>
 
   <div id="jobs-edit-tab" class="tab-content">
-    <div id="jobs-empty-state" class="jobs-empty">${escapeHtml(strings.jobsSelectJob)}</div>
+    <div id="jobs-empty-state" class="jobs-empty">
+      <p>${escapeHtml(strings.jobsSelectJob)}</p>
+      <button type="button" class="btn-primary" id="jobs-empty-new-btn">${escapeHtml(strings.jobsCreateJob)}</button>
+    </div>
     <div id="jobs-details" style="display:none;">
       <div class="jobs-editor-shell">
         <div class="jobs-editor-header">
@@ -6150,6 +4510,29 @@ export class SchedulerWebview {
       </section>
       <section class="telegram-card">
         <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.settingsLoggingTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsLoggingBody)}</p>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label for="settings-log-level-select">${escapeHtml(strings.settingsLoggingLevelLabel)}</label>
+          <select id="settings-log-level-select">
+            <option value="none">${escapeHtml(strings.settingsLoggingLevelNone)}</option>
+            <option value="error">${escapeHtml(strings.settingsLoggingLevelError)}</option>
+            <option value="info">${escapeHtml(strings.settingsLoggingLevelInfo)}</option>
+            <option value="debug">${escapeHtml(strings.settingsLoggingLevelDebug)}</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="settings-log-directory">${escapeHtml(strings.settingsLoggingDirectoryLabel)}</label>
+          <input type="text" id="settings-log-directory" readonly>
+          <p class="note">${escapeHtml(strings.settingsLoggingDirectoryHint)}</p>
+        </div>
+        <div class="button-group">
+          <button type="button" class="btn-secondary" id="settings-open-log-folder-btn">${escapeHtml(strings.settingsLoggingOpenFolder)}</button>
+        </div>
+      </section>
+      <section class="telegram-card">
+        <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.settingsLanguageTitle)}</div>
           <p class="note">${escapeHtml(strings.settingsLanguageBody)}</p>
         </div>
@@ -6321,16 +4704,19 @@ export class SchedulerWebview {
     </div>
   </div>
   
-  <script nonce="${nonce}" id="initial-data" type="application/json">${serializeForWebview(initialData)}</script>
+`;
 
-  <script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
-
-    return rawHtml;
+    return renderSchedulerWebviewDocument({
+      uiLanguage,
+      cspSource: webview.cspSource,
+      nonce,
+      title: strings.title,
+      documentContent,
+      initialDataJson: serializeForWebview(initialData),
+      scriptUri: scriptUri.toString(),
+    });
   }
 }
-
 
 
 

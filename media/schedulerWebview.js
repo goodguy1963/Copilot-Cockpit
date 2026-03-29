@@ -1,3 +1,18 @@
+import {
+  bindBoardColumnInteractions,
+  handleBoardSectionCollapse,
+  handleBoardSectionDelete,
+  handleBoardSectionRename,
+  handleBoardTodoCompletion,
+} from "./schedulerWebviewBoardInteractions.js";
+import { createWebviewDebugTools } from "./schedulerWebviewDebug.js";
+import { renderTodoBoardMarkup } from "./schedulerWebviewBoardRendering.js";
+import {
+  selectHasOptionValue,
+  updateAgentOptions as updateTaskAgentOptions,
+  updateModelOptions as updateTaskModelOptions,
+} from "./schedulerWebviewTaskSelectState.js";
+
 (function () {
   var vscode = null;
   var strings = {};
@@ -197,6 +212,38 @@
     }
   }
 
+  var debugTools = createWebviewDebugTools({
+    console: console,
+    initialLogLevel: currentLogLevel,
+    vscode: vscode,
+  });
+  var createEmptyTodoDraft = debugTools.createEmptyTodoDraft;
+  var emitWebviewDebug = debugTools.emitWebviewDebug;
+
+  function bindDebugClickAttempts(element, config) {
+    if (!element || typeof element.addEventListener !== "function") {
+      return;
+    }
+    element.addEventListener("click", function (event) {
+      var target = event && event.target && event.target.nodeType === 3
+        ? event.target.parentElement
+        : event.target;
+      if (!target || typeof target.closest !== "function") {
+        return;
+      }
+      var actionTarget = target.closest(config.selector);
+      if (!actionTarget) {
+        return;
+      }
+      emitWebviewDebug(config.eventName, {
+        controlId: actionTarget.id || "",
+        tagName: actionTarget.tagName ? String(actionTarget.tagName).toLowerCase() : "",
+        disabled: !!actionTarget.disabled,
+        selectedTodoId: selectedTodoId || "",
+      });
+    }, true);
+  }
+
   var tasks = Array.isArray(initialData.tasks) ? initialData.tasks : [];
   var jobs = Array.isArray(initialData.jobs) ? initialData.jobs : [];
   var jobFolders = Array.isArray(initialData.jobFolders)
@@ -248,6 +295,14 @@
   var defaultChatSession =
     initialData.defaultChatSession === "continue" ? "continue" : "new";
   var autoShowOnStartup = !!initialData.autoShowOnStartup;
+  var currentLogLevel =
+    typeof initialData.logLevel === "string" && initialData.logLevel
+      ? initialData.logLevel
+      : "info";
+  var currentLogDirectory =
+    typeof initialData.logDirectory === "string"
+      ? initialData.logDirectory
+      : "";
   var workspacePaths = Array.isArray(initialData.workspacePaths)
     ? initialData.workspacePaths
     : [];
@@ -255,7 +310,38 @@
   var editingTaskId = null;
   var selectedTodoId = null;
   var draggingTodoId = null;
+  var isBoardDragging = false;
+  var pendingBoardRender = false;
+  var scheduledBoardRenderFrame = 0;
+  function requestCockpitBoardRender() {
+    if (isBoardDragging) {
+      pendingBoardRender = true;
+      return;
+    }
+    if (scheduledBoardRenderFrame) {
+      return;
+    }
+    scheduledBoardRenderFrame = requestAnimationFrame(function () {
+      scheduledBoardRenderFrame = 0;
+      if (isBoardDragging) {
+        pendingBoardRender = true;
+        return;
+      }
+      renderCockpitBoard();
+    });
+  }
+  function finishBoardDragState() {
+    draggingTodoId = null;
+    draggingSectionId = null;
+    lastDragOverSectionId = null;
+    isBoardDragging = false;
+    if (pendingBoardRender) {
+      pendingBoardRender = false;
+      requestCockpitBoardRender();
+    }
+  }
   var currentTodoLabels = [];
+  var currentTodoDraft = createEmptyTodoDraft();
   var selectedTodoLabelName = "";
   var currentTodoFlag = "";
   var pendingDeleteLabelName = "";
@@ -278,6 +364,31 @@
   var helpWarpFadeTimeout = 0;
   var helpWarpCleanupTimeout = 0;
   var isCreatingJob = false;
+
+  function resetTodoDraft(reason) {
+    currentTodoDraft = debugTools.resetTodoDraft(reason);
+  }
+
+  function syncTodoDraftFromInputs(reason) {
+    currentTodoDraft = debugTools.syncTodoDraftFromInputs({
+      currentTodoDraft: currentTodoDraft,
+      reason: reason,
+      selectedTodoId: selectedTodoId,
+      todoDescriptionInput: todoDescriptionInput,
+      todoDueInput: todoDueInput,
+      todoLinkedTaskSelect: todoLinkedTaskSelect,
+      todoPriorityInput: todoPriorityInput,
+      todoSectionInput: todoSectionInput,
+      todoTitleInput: todoTitleInput,
+    });
+  }
+
+  function syncTodoFlagDraft() {
+    if (selectedTodoId || !currentTodoDraft) {
+      return;
+    }
+    currentTodoDraft.flag = currentTodoFlag || "";
+  }
 
   var defaultJitterSeconds = (function () {
     var raw = initialData.defaultJitterSeconds;
@@ -484,6 +595,9 @@
   var defaultModelSelect = document.getElementById("default-model-select");
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
+  var settingsLogLevelSelect = document.getElementById("settings-log-level-select");
+  var settingsLogDirectoryInput = document.getElementById("settings-log-directory");
+  var settingsOpenLogFolderBtn = document.getElementById("settings-open-log-folder-btn");
   var boardAddSectionBtn = document.getElementById("board-add-section-btn");
   var boardSectionInlineForm = document.getElementById("board-section-inline-form");
   var boardSectionNameInput = document.getElementById("board-section-name-input");
@@ -754,6 +868,16 @@
     if (executionDefaultsNote) {
       executionDefaultsNote.textContent = strings.executionDefaultsSaved
         || "Workspace default agent and model settings.";
+    }
+  }
+
+  function renderLoggingControls() {
+    if (settingsLogLevelSelect) {
+      settingsLogLevelSelect.value = currentLogLevel || "info";
+    }
+    if (settingsLogDirectoryInput) {
+      settingsLogDirectoryInput.value = currentLogDirectory || "";
+      settingsLogDirectoryInput.title = currentLogDirectory || "";
     }
   }
 
@@ -1216,6 +1340,7 @@
   renderTelegramTab();
   renderCockpitBoard();
   renderExecutionDefaultsControls();
+  renderLoggingControls();
 
   function parseTagList(text) {
     if (!text) return [];
@@ -1483,12 +1608,12 @@
       var canDelete = entry.source !== "task";
       var pendingDelete = canDelete && isPendingCatalogDelete("label", entry.name);
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
-        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
+        + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
         + (pendingDelete
           ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
-          : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
+          : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
           + (canDelete
-            ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
+            ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
             : ''))
         + '</span>';
     }).join("");
@@ -1567,21 +1692,39 @@ syncTodoLabelSuggestions();
 
   function addEditorLabelFromInput() {
     if (!todoLabelsInput) {
+      emitWebviewDebug("todoLabelAddIgnored", { reason: "missingInput" });
       return;
     }
     clearCatalogDeleteState("label");
     var label = normalizeTodoLabel(todoLabelsInput.value);
     if (!label) {
+      emitWebviewDebug("todoLabelAddIgnored", {
+        reason: "emptyLabel",
+        rawValue: String(todoLabelsInput.value || ""),
+      });
       return;
     }
+    emitWebviewDebug("todoLabelAddAccepted", {
+      label: label,
+      editingExisting: !!editingLabelOriginalName,
+      color: todoLabelColorInput ? todoLabelColorInput.value : "",
+    });
     var prevName = editingLabelOriginalName;
     editingLabelOriginalName = "";
     var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
     todoLabelsInput.value = "";
     if (prevName) {
-      // Edit mode: update catalog definition only, don't add to current todo
+      var prevKey = normalizeTodoLabelKey(prevName);
+      var currentLabelKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+      var prevIndex = currentLabelKeys.indexOf(prevKey);
       if (normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(label)) {
         vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });
+      }
+      if (prevIndex >= 0) {
+        var renamedLabels = currentTodoLabels.slice();
+        renamedLabels.splice(prevIndex, 1, label);
+        setTodoEditorLabels(renamedLabels, true);
+        selectedTodoLabelName = label;
       }
       if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
         vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, color: pendingColor } });
@@ -1614,6 +1757,76 @@ syncTodoLabelSuggestions();
     syncTodoLabelEditor();
   }
 
+  function bindRenderedCockpitBoardInteractions() {
+    bindBoardColumnInteractions({
+      boardColumns: boardColumns,
+      getBoardColumns: function () {
+        return boardColumns;
+      },
+      document: document,
+      window: window,
+      vscode: vscode,
+      renderCockpitBoard: renderCockpitBoard,
+      openTodoEditor: openTodoEditor,
+      openTodoDeleteModal: openTodoDeleteModal,
+      handleSectionCollapse: function (collapseBtn) {
+        handleBoardSectionCollapse(collapseBtn, {
+          toggleSectionCollapsed: toggleSectionCollapsed,
+          collapsedSections: collapsedSections,
+        });
+      },
+      handleSectionRename: function (sectionRenameBtn) {
+        handleBoardSectionRename(sectionRenameBtn, {
+          document: document,
+          vscode: vscode,
+          setTimeout: setTimeout,
+        });
+      },
+      handleSectionDelete: function (sectionDeleteBtn) {
+        handleBoardSectionDelete(sectionDeleteBtn, {
+          strings: strings,
+          vscode: vscode,
+          setTimeout: setTimeout,
+        });
+      },
+      handleTodoCompletion: function (completeToggle) {
+        handleBoardTodoCompletion(completeToggle, {
+          cockpitBoard: cockpitBoard,
+          vscode: vscode,
+        });
+      },
+      setSelectedTodoId: function (todoId) {
+        selectedTodoId = todoId;
+      },
+      getDraggingSectionId: function () {
+        return draggingSectionId;
+      },
+      setDraggingSectionId: function (value) {
+        draggingSectionId = value;
+      },
+      getLastDragOverSectionId: function () {
+        return lastDragOverSectionId;
+      },
+      setLastDragOverSectionId: function (value) {
+        lastDragOverSectionId = value;
+      },
+      getDraggingTodoId: function () {
+        return draggingTodoId;
+      },
+      setDraggingTodoId: function (value) {
+        draggingTodoId = value;
+      },
+      setIsBoardDragging: function (value) {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: requestAnimationFrame,
+      finishBoardDragState: finishBoardDragState,
+      isArchiveTodoSectionId: isArchiveTodoSectionId,
+    });
+  }
+
+
+
   function syncFlagEditor() {
     var todoflagCurrentEl = document.getElementById("todo-flag-current");
     var todoFlagPickerEl = document.getElementById("todo-flag-picker");
@@ -1636,11 +1849,11 @@ syncTodoLabelSuggestions();
           var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
           var pendingDelete = isPendingCatalogDelete("flag", entry.name);
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
-            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
+            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
             + (pendingDelete
               ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
-              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
-              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:18px;min-height:18px;padding:0 2px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>')
+              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
+              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>')
             + '</span>';
         }).join("");
       }
@@ -1651,10 +1864,24 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState("flag");
     var todoFlagNameInput = document.getElementById("todo-flag-name-input");
     var todoFlagColorInput = document.getElementById("todo-flag-color-input");
-    if (!todoFlagNameInput) return;
+    if (!todoFlagNameInput) {
+      emitWebviewDebug("todoFlagAddIgnored", { reason: "missingInput" });
+      return;
+    }
     var name = normalizeTodoLabel(todoFlagNameInput.value);
-    if (!name) return;
+    if (!name) {
+      emitWebviewDebug("todoFlagAddIgnored", {
+        reason: "emptyFlag",
+        rawValue: String(todoFlagNameInput.value || ""),
+      });
+      return;
+    }
     var color = todoFlagColorInput ? todoFlagColorInput.value : "#f59e0b";
+    emitWebviewDebug("todoFlagAddAccepted", {
+      flag: name,
+      editingExisting: !!editingFlagOriginalName,
+      color: color,
+    });
     var prevName = editingFlagOriginalName;
     editingFlagOriginalName = "";
     todoFlagNameInput.value = "";
@@ -1666,6 +1893,7 @@ syncTodoLabelSuggestions();
     }
     vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name: name, color: color } });
     if (!prevName) { currentTodoFlag = name; }
+    syncTodoFlagDraft();
     syncFlagEditor();
   }
 
@@ -1845,15 +2073,49 @@ syncTodoLabelSuggestions();
     });
   }
 
+  function isTodoReadyForFinalize(card) {
+    return !!(card && !card.archived && card.status === "ready");
+  }
+
+  function getTodoCompletionActionType(card) {
+    return isTodoReadyForFinalize(card) ? "finalizeTodo" : "approveTodo";
+  }
+
+  function getTodoCompletionActionLabel(card) {
+    return isTodoReadyForFinalize(card)
+      ? (strings.boardFinalizeTodo || "Final Accept")
+      : (strings.boardApproveTodo || "Approve");
+  }
+
   function isTodoCompleted(card) {
     return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
   }
 
-  function renderTodoCompletionCheckbox(card) {
-    return '<input type="checkbox" class="todo-complete-checkbox" data-todo-complete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardCompleteTodo || "Complete and archive") + '" ' +
-      (isTodoCompleted(card) ? 'checked ' : '') +
+  function renderTodoCompletionButton(card) {
+    var title = card && card.archived
+      ? (strings.boardCompleteTodo || "Complete and archive")
+      : getTodoCompletionActionLabel(card);
+    var icon = isTodoCompleted(card)
+      ? "✓"
+      : (isTodoReadyForFinalize(card) ? "✓✓" : "○");
+    return '<button type="button" class="todo-complete-button" data-todo-complete="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '" ' +
       (card.archived ? 'disabled ' : '') +
-      '/>';
+      'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? 'var(--vscode-button-background)' : 'var(--vscode-input-background)') + ';color:' + (isTodoCompleted(card) ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)') + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;">' +
+      '<span aria-hidden="true">' + escapeHtml(icon) + '</span></button>';
+  }
+
+  function renderTodoDragHandle(card) {
+    if (!card || card.archived) {
+      return '';
+    }
+    return '<span class="cockpit-drag-handle" data-todo-drag-handle="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderTodo || 'Drag todo') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+  }
+
+  function renderSectionDragHandle(section, isArchiveSection) {
+    if (!section || isArchiveSection) {
+      return '';
+    }
+    return '<span class="cockpit-drag-handle" data-section-drag-handle="' + escapeAttr(section.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderSection || 'Drag section') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
   }
 
   function getLinkedTask(taskId) {
@@ -1944,108 +2206,6 @@ syncTodoLabelSuggestions();
       }
       return result * direction;
     });
-  }
-
-  function getLatestTodoComment(card) {
-    return Array.isArray(card.comments) && card.comments.length
-      ? card.comments[card.comments.length - 1]
-      : null;
-  }
-
-  function renderTodoCompactActions(card) {
-    var canFinalize = !card.archived && (card.status || "active") === "ready";
-    var canDelete = !card.archived;
-
-    return '<div class="todo-list-actions">' +
-      '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + escapeHtml(strings.boardEditTodoShort || "Edit") + '</button>' +
-      (canFinalize
-        ? '<span class="note" style="padding:4px 0;">' + escapeHtml(getTodoStatusLabel(card.status || "ready")) + '</span>'
-        : '') +
-      (canDelete
-        ? '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + escapeHtml(strings.boardDeleteTodoShort || "Delete") + '</button>'
-        : '') +
-      '</div>';
-  }
-
-  function renderTodoListRow(card, sectionId) {
-    var isSelected = card.id === selectedTodoId;
-    var latestComment = getLatestTodoComment(card);
-    var summary = card.description
-      ? getTodoDescriptionPreview(card.description)
-      : latestComment && latestComment.body
-        ? getTodoCommentSourceLabel(latestComment.source || "human-form") + ': ' + getTodoDescriptionPreview(latestComment.body)
-        : (card.taskId
-          ? (strings.boardTaskLinked || "Linked task")
-          : (strings.boardDescriptionPreviewEmpty || "No description yet."));
-    var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
-    var metaParts = [
-      '<span data-card-meta>' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>',
-      '<span data-card-meta>' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>'
-    ];
-    if (card.dueAt) {
-      metaParts.push('<span data-card-meta>' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>');
-    }
-    if (card.archived && card.archiveOutcome) {
-      metaParts.push('<span data-card-meta>' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>');
-    }
-    if (cardFlag) {
-      metaParts.push(renderFlagChip(cardFlag, false));
-    }
-    var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 2) : [];
-    if (visibleLabels.length) {
-      metaParts.push(visibleLabels.map(function (label) {
-        return renderLabelChip(label, false, false);
-      }).join(" "));
-    }
-
-    return '<article class="todo-list-row" draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" style="border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';padding:var(--cockpit-card-pad, 8px);cursor:' + (card.archived ? 'pointer' : 'grab') + ';">' +
-      '<div class="todo-list-main">' +
-        '<div class="todo-list-title-line">' +
-          '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
-            renderTodoCompletionCheckbox(card) +
-            '<strong class="todo-list-title">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
-          '</div>' +
-          '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + metaParts.join("") + '</div>' +
-        '</div>' +
-        '<div class="note todo-list-summary">' + escapeHtml(summary) + '</div>' +
-      '</div>' +
-      renderTodoCompactActions(card) +
-    '</article>';
-  }
-
-  function renderTodoListView(visibleSections, cards, filters) {
-    return '<div class="todo-list-view">' +
-      visibleSections.map(function (section) {
-        var sectionCards = sortTodoCards(cards.filter(function (card) {
-          return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
-        }), filters);
-        var isCollapsed = collapsedSections.has(section.id);
-        var isArchiveSection = isArchiveTodoSectionId(section.id);
-        return '<section class="todo-list-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '">' +
-          '<div class="cockpit-section-header" draggable="' + (isArchiveSection ? 'false' : 'true') + '" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px);">' +
-            '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
-            '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ')</span></strong>' +
-            (isArchiveSection
-              ? ''
-              : '<div class="cockpit-section-actions">' +
-                '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
-                '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
-              '</div>') +
-          '</div>' +
-          '<div class="section-body-wrapper' + (isCollapsed ? ' collapsed' : '') + '">' +
-            '<div class="section-body-inner">' +
-              '<div class="todo-list-items">' +
-                (sectionCards.length
-                  ? sectionCards.map(function (card) {
-                    return renderTodoListRow(card, section.id);
-                  }).join("")
-                  : '<div class="note">' + escapeHtml(strings.boardListEmptySection || strings.boardEmpty || "No todos in this section.") + '</div>') +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-        '</section>';
-      }).join("") +
-    '</div>';
   }
 
   function renderTodoFilterControls(filters, sections, cards) {
@@ -2174,6 +2334,11 @@ syncTodoLabelSuggestions();
   function renderTodoDetailPanel(selectedTodo, sections) {
     var isEditingTodo = !!selectedTodo;
     var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    var todoDraft = isEditingTodo ? null : currentTodoDraft;
+    // Detect passive re-render of the same todo already being edited.
+    // When true, preserve unsaved form state (labels, flag, inputs) so that
+    // catalog saves or unrelated board updates don't wipe user edits.
+    var isRefreshingSameTodo = isEditingTodo && todoDetailId && todoDetailId.value === selectedTodo.id;
     var sectionOptions = getEditableTodoSections();
     if (isEditingTodo && selectedTodo && selectedTodo.sectionId) {
       var hasCurrentSection = sectionOptions.some(function (section) {
@@ -2189,10 +2354,12 @@ syncTodoLabelSuggestions();
       }
     }
     syncEditorTabLabels();
-    if (isEditingTodo) {
-      setTodoEditorLabels(selectedTodo.labels || [], false);
-    } else {
-      setTodoEditorLabels(currentTodoLabels, true);
+    if (!isRefreshingSameTodo) {
+      if (isEditingTodo) {
+        setTodoEditorLabels(selectedTodo.labels || [], false);
+      } else {
+        setTodoEditorLabels(currentTodoLabels, true);
+      }
     }
     if (todoDetailTitle) {
       todoDetailTitle.textContent = isEditingTodo
@@ -2205,11 +2372,16 @@ syncTodoLabelSuggestions();
         : (strings.boardDetailModeCreate || "Fill the form to create a new todo.");
     }
     if (todoDetailId) todoDetailId.value = isEditingTodo ? selectedTodo.id : "";
-    if (todoTitleInput) todoTitleInput.value = isEditingTodo ? (selectedTodo.title || "") : "";
-    if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? (selectedTodo.description || "") : "";
-    if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : "";
-    if (todoLabelsInput) todoLabelsInput.value = "";
-    currentTodoFlag = isEditingTodo ? ((selectedTodo.flags || [])[0] || "") : "";
+    if (!isRefreshingSameTodo) {
+      if (todoTitleInput) todoTitleInput.value = isEditingTodo ? (selectedTodo.title || "") : (todoDraft.title || "");
+      if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? (selectedTodo.description || "") : (todoDraft.description || "");
+      if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : (todoDraft.dueAt || "");
+      if (todoLabelsInput) todoLabelsInput.value = "";
+      currentTodoFlag = isEditingTodo
+        ? ((selectedTodo.flags || [])[0] || "")
+        : (todoDraft.flag || "");
+    }
+    syncTodoFlagDraft();
     syncFlagEditor();
     syncTodoLabelEditor();
 
@@ -2232,29 +2404,39 @@ syncTodoLabelSuggestions();
     }
 
     if (todoPriorityInput) {
+      var prevPriority = isRefreshingSameTodo ? todoPriorityInput.value : "";
       var PRIORITY_EDIT_STYLES = { none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
       todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function (priority) {
         var optStyle = PRIORITY_EDIT_STYLES[priority] || "";
         var style = optStyle ? ' style="' + optStyle + '"' : "";
         return '<option value="' + escapeAttr(priority) + '"' + style + '>' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
       }).join("");
-      todoPriorityInput.value = isEditingTodo ? (selectedTodo.priority || "none") : "none";
+      todoPriorityInput.value = isRefreshingSameTodo ? prevPriority : (isEditingTodo ? (selectedTodo.priority || "none") : (todoDraft.priority || "none"));
     }
 
     if (todoSectionInput) {
+      var prevSection = isRefreshingSameTodo ? todoSectionInput.value : "";
       todoSectionInput.innerHTML = sectionOptions.map(function (section) {
         return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + '</option>';
       }).join("");
-      todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : (sectionOptions[0] ? sectionOptions[0].id : "");
+      if (isRefreshingSameTodo && selectHasOptionValue(todoSectionInput, prevSection)) {
+        todoSectionInput.value = prevSection;
+      } else {
+        todoSectionInput.value = isEditingTodo
+          ? selectedTodo.sectionId
+          : ((todoDraft.sectionId && selectHasOptionValue(todoSectionInput, todoDraft.sectionId))
+            ? todoDraft.sectionId
+            : (sectionOptions[0] ? sectionOptions[0].id : ""));
+      }
     }
 
-    if (todoLinkedTaskSelect) {
-      todoLinkedTaskSelect.innerHTML =
-        '<option value="">' + escapeHtml(strings.boardLinkedTaskNone || "No linked task") + '</option>' +
-        tasks.map(function (task) {
-          return '<option value="' + escapeAttr(task.id) + '">' + escapeHtml(task.name || task.id) + '</option>';
-        }).join("");
-      todoLinkedTaskSelect.value = isEditingTodo && selectedTodo.taskId ? selectedTodo.taskId : "";
+    if (!isRefreshingSameTodo) {
+      syncTodoLinkedTaskOptions(isEditingTodo && selectedTodo ? (selectedTodo.taskId || "") : (todoDraft.taskId || ""));
+    }
+    if (!isEditingTodo) {
+      currentTodoDraft.priority = todoPriorityInput ? (todoPriorityInput.value || "none") : "none";
+      currentTodoDraft.sectionId = todoSectionInput ? (todoSectionInput.value || "") : "";
+      currentTodoDraft.dueAt = todoDueInput ? (todoDueInput.value || "") : "";
     }
 
     if (todoSaveBtn) {
@@ -2267,6 +2449,9 @@ syncTodoLabelSuggestions();
       todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo;
     }
     if (todoCompleteBtn) {
+      todoCompleteBtn.textContent = isEditingTodo
+        ? getTodoCompletionActionLabel(selectedTodo)
+        : (strings.boardApproveTodo || "Approve");
       todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     }
     if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
@@ -2284,6 +2469,8 @@ syncTodoLabelSuggestions();
         todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
       } else if (selectedTodo.archived) {
         todoLinkedTaskNote.textContent = strings.boardReadOnlyArchived || "Archived items are read-only.";
+      } else if (selectedTodo.status === "ready") {
+        todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
       } else if (selectedTodo.taskId && !linkedTask) {
         todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";
       } else if (linkedTask) {
@@ -2310,6 +2497,35 @@ syncTodoLabelSuggestions();
             '</article>';
         }).join("")
         : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + '</div>';
+    }
+  }
+
+  function syncTodoLinkedTaskOptions(preferredTaskId) {
+    if (!todoLinkedTaskSelect) {
+      return;
+    }
+    var currentValue = todoLinkedTaskSelect.value || "";
+    var nextValue = preferredTaskId || currentValue;
+    todoLinkedTaskSelect.innerHTML =
+      '<option value="">' + escapeHtml(strings.boardLinkedTaskNone || "No linked task") + '</option>' +
+      tasks.map(function (task) {
+        return '<option value="' + escapeAttr(task.id) + '">' + escapeHtml(task.name || task.id) + '</option>';
+      }).join("");
+
+    if (!nextValue) {
+      todoLinkedTaskSelect.value = "";
+      if (!selectedTodoId) {
+        currentTodoDraft.taskId = "";
+      }
+      return;
+    }
+
+    var hasTaskOption = tasks.some(function (task) {
+      return task && task.id === nextValue;
+    });
+    todoLinkedTaskSelect.value = hasTaskOption ? nextValue : "";
+    if (!selectedTodoId) {
+      currentTodoDraft.taskId = todoLinkedTaskSelect.value || "";
     }
   }
 
@@ -2367,98 +2583,33 @@ syncTodoLabelSuggestions();
       return;
     }
 
-    if (filters.viewMode === "list") {
-      boardColumns.innerHTML = renderTodoListView(visibleSections, cards, filters);
-    } else {
-      boardColumns.innerHTML =
-        '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' +
-        visibleSections.map(function (section) {
-        var sectionCards = sortTodoCards(cards.filter(function (card) {
-          return card.sectionId === section.id && cardMatchesTodoFilters(card, filters);
-        }), filters);
-        var isArchiveSection = isArchiveTodoSectionId(section.id);
-        return (
-          '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;">' +
-          '<div class="cockpit-section-header" draggable="' + (isArchiveSection ? 'false' : 'true') + '" data-section-drag="' + escapeAttr(section.id) + '" style="padding:var(--cockpit-card-pad,9px)">' +
-          '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + escapeAttr(section.id) + '" title="' + escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
-          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + '</strong>' +
-          (isArchiveSection
-            ? ''
-            : '<div class="cockpit-section-actions">' +
-              '<button type="button" class="btn-icon" data-section-rename="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
-              '<button type="button" class="btn-icon" data-section-delete="' + escapeAttr(section.id) + '" title="' + escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button>' +
-            '</div>') +
-          '</div>' +
-          '<div class="section-body-wrapper' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '">' +
-          '<div class="section-body-inner">' +
-            '<div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);">'+
-          '<div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">'  +
-          (sectionCards.length
-            ? sectionCards.map(function (card) {
-              var isSelected = card.id === selectedTodoId;
-              var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
-              var chipMarkup = (cardFlag || (Array.isArray(card.labels) && card.labels.length))
-                ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' +
-                  (cardFlag ? renderFlagChip(cardFlag, false) : '') +
-                  (Array.isArray(card.labels) && card.labels.length
-                    ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
-                        return '<span data-label-slot="' + idx + '">' + renderLabelChip(label, false, false) + '</span>';
-                      }).join("") + '</div>'
-                    : '') +
-                  '</div>'
-                : '';
-              var latestComment = Array.isArray(card.comments) && card.comments.length
-                ? card.comments[card.comments.length - 1]
-                : null;
-              var linkedTaskText = card.taskId
-                ? (strings.boardLinkedTaskShort || "Linked")
-                : (strings.boardNoLinkedTask || "No linked task yet");
-              var dueMarkup = card.dueAt
-                ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml((strings.boardDueLabel || "Due") + ': ' + formatTodoDate(card.dueAt)) + '</span>'
-                : '';
-              var statusMarkup = '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoStatusLabel(card.status || "active")) + '</span>';
-              var archiveMarkup = card.archived && card.archiveOutcome
-                ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>'
-                : '';
-              var latestCommentMarkup = latestComment && latestComment.body
-                ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;">' +
-                  '<strong data-card-meta>' + escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
-                  '<span data-card-meta>#' + escapeHtml(String(latestComment.sequence || 1)) + ' • ' + escapeHtml(getTodoCommentSourceLabel(latestComment.source || "human-form")) + ' • ' + escapeHtml(getTodoDescriptionPreview(latestComment.body || "")) + '</span>' +
-                  '</div>'
-                : '';
-              var canDelete = !card.archived;
-              return (
-                '<article draggable="' + (card.archived ? 'false' : 'true') + '" data-todo-id="' + escapeAttr(card.id) + '" data-section-id="' + escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;background:' + getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
-                '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
-                '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
-                renderTodoCompletionCheckbox(card) +
-                '<strong style="line-height:1.3;min-width:0;">' + escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
-                '</div>' +
-                '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + escapeHtml(getTodoPriorityLabel(card.priority || "none")) + '</span>' +
-                '</div>' +
-                (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + '</div>' : '') +
-                chipMarkup +
-                '<div class="note" style="white-space:pre-wrap;">' + escapeHtml(getTodoDescriptionPreview(card.description || "")) + '</div>' +
-                latestCommentMarkup +
-                '<div class="todo-card-action-row">' +
-                '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + escapeAttr(card.id) + '" title="' + escapeAttr(strings.boardEditTodo || 'Open Editor') + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + escapeHtml(strings.boardEditTodoShort || 'Edit') + '</button>' +
-                (canDelete
-                  ? '<button type="button" class="btn-secondary todo-card-delete" data-todo-delete="' + escapeAttr(card.id) + '">&#128465; ' + escapeHtml(strings.boardDeleteTodoShort || 'Delete') + '</button>'
-                  : '') +
-                '</div>' +
-                '</article>'
-              );
-            }).join("")
-            : '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>') +
-            '</div>' +
-            '</div>' +
-            '</div>' +
-            '</div>' +
-            '</section>'
-        );
-        }).join("") +
-        '</div>';
-    }
+    boardColumns.innerHTML = renderTodoBoardMarkup({
+      visibleSections: visibleSections,
+      cards: cards,
+      filters: filters,
+      strings: strings,
+      selectedTodoId: selectedTodoId,
+      collapsedSections: collapsedSections,
+      helpers: {
+        escapeAttr: escapeAttr,
+        escapeHtml: escapeHtml,
+        sortTodoCards: sortTodoCards,
+        cardMatchesTodoFilters: cardMatchesTodoFilters,
+        isArchiveTodoSectionId: isArchiveTodoSectionId,
+        renderSectionDragHandle: renderSectionDragHandle,
+        renderTodoCompletionCheckbox: renderTodoCompletionButton,
+        renderTodoDragHandle: renderTodoDragHandle,
+        renderFlagChip: renderFlagChip,
+        renderLabelChip: renderLabelChip,
+        getTodoPriorityLabel: getTodoPriorityLabel,
+        getTodoStatusLabel: getTodoStatusLabel,
+        getTodoDescriptionPreview: getTodoDescriptionPreview,
+        getTodoCommentSourceLabel: getTodoCommentSourceLabel,
+        getTodoArchiveOutcomeLabel: getTodoArchiveOutcomeLabel,
+        getTodoPriorityCardBg: getTodoPriorityCardBg,
+        formatTodoDate: formatTodoDate,
+      },
+    });
 
     renderTodoDetailPanel(selectedTodoId
       ? allCards.find(function (card) { return card.id === selectedTodoId; }) || null
@@ -2466,220 +2617,7 @@ syncTodoLabelSuggestions();
     allSections);
 
     if (boardColumns) {
-      boardColumns.onclick = function (event) {
-        var collapseBtn = event.target && event.target.closest ? event.target.closest("[data-section-collapse]") : null;
-        if (collapseBtn) {
-          event.stopPropagation();
-          var sectionId = collapseBtn.getAttribute("data-section-collapse");
-          toggleSectionCollapsed(sectionId);
-          var sectionEl = collapseBtn.closest ? collapseBtn.closest("[data-section-id]") : null;
-          var bodyWrapper = sectionEl ? sectionEl.querySelector(".section-body-wrapper") : null;
-          var isNowCollapsed = collapsedSections.has(sectionId);
-          collapseBtn.classList.toggle("collapsed", isNowCollapsed);
-          collapseBtn.title = isNowCollapsed ? "Expand section" : "Collapse section";
-          if (bodyWrapper) { bodyWrapper.classList.toggle("collapsed", isNowCollapsed); }
-          if (sectionEl) { sectionEl.classList.toggle("is-collapsed", isNowCollapsed); }
-          return;
-        }
-
-        var editButton = event.target && event.target.closest ? event.target.closest("[data-todo-edit]") : null;
-  var completeToggle = event.target && event.target.closest ? event.target.closest("[data-todo-complete]") : null;
-        var deleteButton = event.target && event.target.closest ? event.target.closest("[data-todo-delete]") : null;
-        var sectionMoveBtn = event.target && event.target.closest ? event.target.closest("[data-section-move]") : null;
-        var sectionRenameBtn = event.target && event.target.closest ? event.target.closest("[data-section-rename]") : null;
-        var sectionDeleteBtn = event.target && event.target.closest ? event.target.closest("[data-section-delete]") : null;
-        var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
-
-        if (sectionMoveBtn) {
-          vscode.postMessage({ type: "moveCockpitSection", sectionId: sectionMoveBtn.getAttribute("data-section-move"), direction: sectionMoveBtn.getAttribute("data-direction") });
-          return;
-        }
-        if (sectionRenameBtn) {
-          var sectionId = sectionRenameBtn.getAttribute("data-section-rename");
-          var sectionEl = event.target.closest ? event.target.closest("[data-section-id]") : null;
-          var sectionHeader = sectionEl ? sectionEl.querySelector(".cockpit-section-header") : null;
-          var strongEl = sectionHeader ? sectionHeader.querySelector("strong") : null;
-          if (!strongEl) return;
-          var currentTitle = strongEl.textContent || "";
-          var inputEl = document.createElement("input");
-          inputEl.type = "text";
-          inputEl.value = currentTitle;
-          inputEl.style.cssText = "font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";
-          var committed = false;
-          var saveRename = function () {
-            if (committed) return;
-            committed = true;
-            var newTitle = inputEl.value.trim();
-            if (newTitle && newTitle !== currentTitle) {
-              vscode.postMessage({ type: "renameCockpitSection", sectionId: sectionId, title: newTitle });
-            } else {
-              strongEl.style.display = "";
-              if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
-            }
-          };
-          inputEl.onkeydown = function (e) {
-            if (e.key === "Enter") { e.preventDefault(); saveRename(); }
-            if (e.key === "Escape") { committed = true; strongEl.style.display = ""; if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl); }
-          };
-          inputEl.onblur = function () { setTimeout(saveRename, 120); };
-          strongEl.style.display = "none";
-          strongEl.parentNode.insertBefore(inputEl, strongEl);
-          inputEl.select();
-          return;
-        }
-        if (sectionDeleteBtn) {
-          var sectionId = sectionDeleteBtn.getAttribute("data-section-delete");
-          if (sectionDeleteBtn.getAttribute("data-confirming")) {
-            vscode.postMessage({ type: "deleteCockpitSection", sectionId: sectionId });
-            sectionDeleteBtn.removeAttribute("data-confirming");
-          } else {
-            sectionDeleteBtn.setAttribute("data-confirming", "1");
-            var origText = sectionDeleteBtn.textContent;
-            var origColor = sectionDeleteBtn.style.color;
-            sectionDeleteBtn.textContent = strings.boardDeleteConfirm || "Delete?";
-            sectionDeleteBtn.style.color = "var(--vscode-errorForeground)";
-            sectionDeleteBtn.style.opacity = "1";
-            setTimeout(function () {
-              if (sectionDeleteBtn.getAttribute("data-confirming")) {
-                sectionDeleteBtn.removeAttribute("data-confirming");
-                sectionDeleteBtn.textContent = origText;
-                sectionDeleteBtn.style.color = origColor;
-                sectionDeleteBtn.style.opacity = "";
-              }
-            }, 2500);
-          }
-          return;
-        }
-
-        if (editButton) {
-          openTodoEditor(editButton.getAttribute("data-todo-edit") || "");
-          return;
-        }
-        if (completeToggle) {
-          event.stopPropagation();
-          if (completeToggle.checked) {
-            vscode.postMessage({ type: "approveTodo", todoId: completeToggle.getAttribute("data-todo-complete") });
-          }
-          return;
-        }
-        if (deleteButton) {
-          openTodoDeleteModal(deleteButton.getAttribute("data-todo-delete") || "");
-          return;
-        }
-        if (card) {
-          selectedTodoId = card.getAttribute("data-todo-id");
-          renderCockpitBoard();
-        }
-      };
-      boardColumns.ondragstart = function (event) {
-        // Section header drag takes priority over card drag
-        var sectionHeader = event.target && event.target.closest ? event.target.closest("[data-section-drag]") : null;
-        if (sectionHeader) {
-          draggingSectionId = sectionHeader.getAttribute("data-section-drag");
-          lastDragOverSectionId = null;
-          if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = "move";
-            event.dataTransfer.setData("text/plain", draggingSectionId || "");
-          }
-          var sectionEl = sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null;
-          if (sectionEl) { requestAnimationFrame(function () { sectionEl.classList.add("section-dragging"); }); }
-          return;
-        }
-        var card = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
-        if (!card) return;
-        if (card.getAttribute("draggable") === "false") {
-          return;
-        }
-        draggingTodoId = card.getAttribute("data-todo-id");
-        if (event.dataTransfer) {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", draggingTodoId || "");
-        }
-        requestAnimationFrame(function () { card.classList.add("todo-dragging"); });
-      };
-      boardColumns.ondragover = function (event) {
-        if (draggingSectionId) {
-          var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-          if (section && !isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
-            event.preventDefault();
-            document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
-            if (section.getAttribute("data-section-id") !== draggingSectionId) {
-              section.classList.add("section-drag-over");
-              lastDragOverSectionId = section.getAttribute("data-section-id");
-            }
-          }
-          return;
-        }
-        var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-        if (section && draggingTodoId && !isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
-          event.preventDefault();
-          var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
-          document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
-          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
-          if (targetCard && targetCard.getAttribute("data-todo-id") !== draggingTodoId) {
-            targetCard.classList.add("todo-drop-target");
-          } else if (!targetCard) {
-            section.classList.add("section-drag-over");
-          }
-        }
-      };
-      boardColumns.ondragleave = function (event) {
-        var related = event.relatedTarget;
-        if (!related || !boardColumns.contains(related)) {
-          document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
-          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
-        }
-      };
-      boardColumns.ondrop = function (event) {
-        if (draggingSectionId) {
-          var dropSection = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-          var dropSectionId = dropSection ? dropSection.getAttribute("data-section-id") : null;
-          if (!dropSectionId || dropSectionId === draggingSectionId) {
-            dropSectionId = lastDragOverSectionId;
-          }
-          document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
-          document.querySelectorAll("[data-section-id].section-dragging").forEach(function (el) { el.classList.remove("section-dragging"); });
-          event.preventDefault();
-          if (dropSectionId && dropSectionId !== draggingSectionId) {
-            var allSections = boardColumns.querySelectorAll("[data-section-id]");
-            var targetIndex = -1;
-            for (var i = 0; i < allSections.length; i++) {
-              if (allSections[i].getAttribute("data-section-id") === dropSectionId) { targetIndex = i; break; }
-            }
-            if (targetIndex >= 0) {
-              vscode.postMessage({ type: "reorderCockpitSection", sectionId: draggingSectionId, targetIndex: targetIndex });
-            }
-          }
-          draggingSectionId = null;
-          lastDragOverSectionId = null;
-          return;
-        }
-        var section = event.target && event.target.closest ? event.target.closest("[data-section-id]") : null;
-        var targetCard = event.target && event.target.closest ? event.target.closest("[data-todo-id]") : null;
-        if (!section || !draggingTodoId || isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
-          return;
-        }
-        event.preventDefault();
-        var targetIndex = targetCard ? Number(targetCard.getAttribute("data-order") || 0) : Number(section.getAttribute("data-card-count") || 0);
-        document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
-        document.querySelectorAll("[data-todo-id].todo-dragging").forEach(function (el) { el.classList.remove("todo-dragging"); });
-        vscode.postMessage({
-          type: "moveTodo",
-          todoId: draggingTodoId,
-          sectionId: section.getAttribute("data-section-id"),
-          targetIndex: targetIndex,
-        });
-        draggingTodoId = null;
-      };
-      boardColumns.ondragend = function () {
-        document.querySelectorAll("[data-section-id].section-drag-over").forEach(function (el) { el.classList.remove("section-drag-over"); });
-        document.querySelectorAll("[data-section-id].section-dragging").forEach(function (el) { el.classList.remove("section-dragging"); });
-        document.querySelectorAll("[data-todo-id].todo-dragging").forEach(function (el) { el.classList.remove("todo-dragging"); });
-        document.querySelectorAll("[data-todo-id].todo-drop-target").forEach(function (el) { el.classList.remove("todo-drop-target"); });
-        draggingTodoId = null;
-        draggingSectionId = null;
-        lastDragOverSectionId = null;
-      };
+      bindRenderedCockpitBoardInteractions();
     }
 
     if (todoNewBtn) {
@@ -2695,6 +2633,7 @@ syncTodoLabelSuggestions();
         currentTodoLabels = [];
         selectedTodoLabelName = "";
         currentTodoFlag = "";
+        syncTodoFlagDraft();
         renderCockpitBoard();
         switchTab("board");
       };
@@ -2817,6 +2756,7 @@ syncTodoLabelSuggestions();
         if (!todoTitleInput || !todoSectionInput || !todoPriorityInput) {
           return;
         }
+        syncTodoDraftFromInputs("submit");
         var payload = {
           title: todoTitleInput.value || "",
           description: todoDescriptionInput ? todoDescriptionInput.value : "",
@@ -2830,10 +2770,31 @@ syncTodoLabelSuggestions();
         if (selectedTodoId) {
           vscode.postMessage({ type: "updateTodo", todoId: selectedTodoId, data: payload });
         } else {
+          emitWebviewDebug("todoCreateSubmit", {
+            titleLength: payload.title.length,
+            sectionId: payload.sectionId,
+            taskId: payload.taskId || "",
+          });
           vscode.postMessage({ type: "createTodo", data: payload });
         }
       };
     }
+    [todoTitleInput, todoDescriptionInput, todoDueInput].forEach(function (element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", function () {
+        syncTodoDraftFromInputs("input");
+      });
+    });
+    [todoPriorityInput, todoSectionInput, todoLinkedTaskSelect].forEach(function (element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("change", function () {
+        syncTodoDraftFromInputs("change");
+      });
+    });
     if (todoAddCommentBtn) {
       todoAddCommentBtn.onclick = function () {
         if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
@@ -2856,9 +2817,20 @@ syncTodoLabelSuggestions();
     if (todoCompleteBtn) {
       todoCompleteBtn.onclick = function () {
         if (!selectedTodoId) return;
-        vscode.postMessage({ type: "approveTodo", todoId: selectedTodoId });
+        var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards)
+          ? cockpitBoard.cards.find(function (card) { return card && card.id === selectedTodoId; })
+          : null;
+        vscode.postMessage({
+          type: getTodoCompletionActionType(selectedTodo),
+          todoId: selectedTodoId,
+        });
       };
     }
+    bindDebugClickAttempts(todoDetailForm, {
+      selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
+      eventName: "todoDetailClickAttempt",
+    });
+
     if (todoDeleteBtn) {
       todoDeleteBtn.onclick = function () {
         if (!selectedTodoId) return;
@@ -2867,6 +2839,10 @@ syncTodoLabelSuggestions();
     }
     if (todoLabelAddBtn) {
       todoLabelAddBtn.onclick = function () {
+        emitWebviewDebug("todoLabelAddButtonClick", {
+          disabled: !!todoLabelAddBtn.disabled,
+          inputValue: todoLabelsInput ? String(todoLabelsInput.value || "") : "",
+        });
         addEditorLabelFromInput();
       };
     }
@@ -2918,7 +2894,6 @@ syncTodoLabelSuggestions();
             selectedTodoLabelName = lname;
             if (todoLabelsInput) {
               todoLabelsInput.value = lname;
-              editingLabelOriginalName = lname;
               todoLabelsInput.focus();
             }
             syncTodoLabelEditor();
@@ -2928,8 +2903,23 @@ syncTodoLabelSuggestions();
     if (todoLabelColorSaveBtn) {
         todoLabelColorSaveBtn.onclick = function () {
           var name = todoLabelsInput ? todoLabelsInput.value.trim() : "";
-          if (!name || !todoLabelColorInput) { return; }
+          emitWebviewDebug("todoLabelSaveButtonClick", {
+            disabled: !!todoLabelColorSaveBtn.disabled,
+            inputValue: name,
+            hasColorInput: !!todoLabelColorInput,
+          });
+          if (!name || !todoLabelColorInput) {
+            emitWebviewDebug("todoLabelSaveIgnored", {
+              reason: !name ? "emptyLabel" : "missingColorInput",
+            });
+            return;
+          }
           var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          emitWebviewDebug("todoLabelSaveAccepted", {
+            label: normalized,
+            color: todoLabelColorInput.value,
+            editingExisting: !!editingLabelOriginalName,
+          });
           vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, color: todoLabelColorInput.value } });
           var prevName = editingLabelOriginalName;
           if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
@@ -2954,6 +2944,7 @@ syncTodoLabelSuggestions();
         if (btn) {
           var pickedLabel = btn.getAttribute("data-label-suggestion") || "";
           var def = getLabelDefinition(pickedLabel);
+          editingLabelOriginalName = "";
           if (def && def.color && todoLabelColorInput) {
             todoLabelColorInput.value = def.color;
           }
@@ -3011,6 +3002,7 @@ syncTodoLabelSuggestions();
           var name = selectBtn.getAttribute("data-label-catalog-select") || "";
           if (!name) return;
           // Add the label to the current todo directly (catalog only shows un-applied labels)
+          editingLabelOriginalName = "";
           if (todoLabelsInput) todoLabelsInput.value = name;
           addEditorLabelFromInput();
         }
@@ -3020,10 +3012,26 @@ syncTodoLabelSuggestions();
       todoFlagColorSaveBtn.onclick = function () {
         var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
         var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
-        if (!todoFlagNameInputEl || !todoFlagColorInputEl) return;
+        emitWebviewDebug("todoFlagSaveButtonClick", {
+          disabled: !!todoFlagColorSaveBtn.disabled,
+          hasNameInput: !!todoFlagNameInputEl,
+          hasColorInput: !!todoFlagColorInputEl,
+        });
+        if (!todoFlagNameInputEl || !todoFlagColorInputEl) {
+          emitWebviewDebug("todoFlagSaveIgnored", { reason: "missingInputs" });
+          return;
+        }
         var name = todoFlagNameInputEl.value.trim();
-        if (!name) return;
+        if (!name) {
+          emitWebviewDebug("todoFlagSaveIgnored", { reason: "emptyFlag" });
+          return;
+        }
         var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+        emitWebviewDebug("todoFlagSaveAccepted", {
+          flag: normalized,
+          color: todoFlagColorInputEl.value,
+          editingExisting: !!editingFlagOriginalName,
+        });
         vscode.postMessage({
           type: "saveTodoFlagDefinition",
           data: {
@@ -3039,6 +3047,7 @@ syncTodoLabelSuggestions();
           vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });
           if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
             currentTodoFlag = normalized;
+            syncTodoFlagDraft();
             syncFlagEditor();
           }
         }
@@ -3048,6 +3057,10 @@ syncTodoLabelSuggestions();
     }
     if (todoFlagAddBtn) {
       todoFlagAddBtn.onclick = function () {
+        emitWebviewDebug("todoFlagAddButtonClick", {
+          disabled: !!todoFlagAddBtn.disabled,
+          inputValue: todoFlagNameInput ? String(todoFlagNameInput.value || "") : "",
+        });
         addFlagFromInput();
       };
     }
@@ -3067,6 +3080,7 @@ syncTodoLabelSuggestions();
       var removeBtn = event.target && event.target.closest ? event.target.closest("[data-flag-chip-remove]") : null;
       if (removeBtn) {
         currentTodoFlag = "";
+        syncTodoFlagDraft();
         syncFlagEditor();
         return;
       }
@@ -3078,6 +3092,7 @@ syncTodoLabelSuggestions();
         var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
         if (!flagName) return;
         currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
+        syncTodoFlagDraft();
         syncFlagEditor();
         return;
       }
@@ -3109,6 +3124,7 @@ syncTodoLabelSuggestions();
         clearCatalogDeleteState("flag");
         if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
           currentTodoFlag = "";
+          syncTodoFlagDraft();
         }
         syncFlagEditor();
         vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
@@ -3176,9 +3192,13 @@ syncTodoLabelSuggestions();
     closeTodoDeleteModal();
     selectedTodoId = todoId || null;
     if (!selectedTodoId) {
+      resetTodoDraft("open-create");
       currentTodoLabels = [];
       selectedTodoLabelName = "";
       currentTodoFlag = "";
+      emitWebviewDebug("openTodoEditor", { mode: "create" });
+    } else {
+      emitWebviewDebug("openTodoEditor", { mode: "edit", todoId: selectedTodoId });
     }
     renderCockpitBoard();
     switchTab("todo-edit");
@@ -3188,6 +3208,7 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState();
     closeTodoDeleteModal();
     selectedTodoId = null;
+    resetTodoDraft("reset-editor");
     currentTodoLabels = [];
     selectedTodoLabelName = "";
     currentTodoFlag = "";
@@ -3312,6 +3333,7 @@ syncTodoLabelSuggestions();
     selectedJobId = "";
     persistTaskFilter();
     renderJobsTab();
+    switchTab("jobs-edit");
   }
 
   // Tab switching function
@@ -3360,12 +3382,14 @@ syncTodoLabelSuggestions();
   // Keep pending values in sync when the user explicitly changes selection
   if (agentSelect) {
     agentSelect.addEventListener("change", function () {
-      pendingAgentValue = "";
+      pendingAgentValue = agentSelect ? String(agentSelect.value || "") : "";
+      emitWebviewDebug("taskAgentChanged", { value: pendingAgentValue });
     });
   }
   if (modelSelect) {
     modelSelect.addEventListener("change", function () {
-      pendingModelValue = "";
+      pendingModelValue = modelSelect ? String(modelSelect.value || "") : "";
+      emitWebviewDebug("taskModelChanged", { value: pendingModelValue });
     });
   }
   if (templateSelect) {
@@ -3381,27 +3405,15 @@ syncTodoLabelSuggestions();
     });
   }
 
-  // Use event delegation for tab buttons (works even when clicking text/child nodes)
-  function resolveTabButton(node) {
-    var el = node && node.nodeType === 3 ? node.parentElement : node;
-    while (el && el !== document.body) {
-      if (el.classList && el.classList.contains("tab-button")) {
-        return el;
+  Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function (button) {
+    button.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var tabName = button.getAttribute("data-tab");
+      if (tabName) {
+        switchTab(tabName);
       }
-      el = el.parentElement;
-    }
-    return null;
-  }
-
-  document.addEventListener("click", function (e) {
-    var button = resolveTabButton(e.target);
-    if (!button) return;
-    e.preventDefault();
-    e.stopPropagation();
-    var tabName = button.getAttribute("data-tab");
-    if (tabName) {
-      switchTab(tabName);
-    }
+    });
   });
 
   if (taskFilterBar) {
@@ -3511,6 +3523,24 @@ syncTodoLabelSuggestions();
         type: "saveExecutionDefaults",
         data: collectExecutionDefaultsFormData(),
       });
+    });
+  }
+
+  if (settingsLogLevelSelect) {
+    settingsLogLevelSelect.addEventListener("change", function () {
+      currentLogLevel = settingsLogLevelSelect.value || "info";
+      debugTools.setLogLevel(currentLogLevel);
+      renderLoggingControls();
+      vscode.postMessage({
+        type: "setLogLevel",
+        logLevel: currentLogLevel,
+      });
+    });
+  }
+
+  if (settingsOpenLogFolderBtn) {
+    settingsOpenLogFolderBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "openLogFolder" });
     });
   }
 
@@ -3634,11 +3664,11 @@ syncTodoLabelSuggestions();
 
       // Preserve values if dropdown options are not loaded yet
       var agentValue = agentSelect ? agentSelect.value : "";
-      if (editingTaskId && !agentValue && pendingAgentValue) {
+      if (!agentValue && pendingAgentValue) {
         agentValue = pendingAgentValue;
       }
       var modelValue = modelSelect ? modelSelect.value : "";
-      if (editingTaskId && !modelValue && pendingModelValue) {
+      if (!modelValue && pendingModelValue) {
         modelValue = pendingModelValue;
       }
       var promptPathValue = templateSelect ? templateSelect.value : "";
@@ -3942,6 +3972,18 @@ syncTodoLabelSuggestions();
     });
   }
 
+  var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
+  if (jobsEmptyNewBtn) {
+    jobsEmptyNewBtn.addEventListener("click", function () {
+      isCreatingJob = true;
+      syncEditorTabLabels();
+      vscode.postMessage({
+        type: "requestCreateJob",
+        folderId: selectedJobFolderId || undefined,
+      });
+    });
+  }
+
   if (jobsBackBtn) {
     jobsBackBtn.addEventListener("click", function () {
       switchTab("jobs");
@@ -3956,7 +3998,31 @@ syncTodoLabelSuggestions();
 
   if (jobsSaveBtn) {
     jobsSaveBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
+      var jobName = jobsNameInput ? String(jobsNameInput.value || "").trim() : "";
+      var cronExpressionValue = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+      if (!jobName || !cronExpressionValue) {
+        emitWebviewDebug("jobSaveBlocked", {
+          isCreatingJob: isCreatingJob,
+          hasName: !!jobName,
+          hasCron: !!cronExpressionValue,
+        });
+        return;
+      }
+      if (isCreatingJob || !selectedJobId) {
+        emitWebviewDebug("jobCreateSubmit", {
+          name: jobName,
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : "",
+        });
+        vscode.postMessage({
+          type: "createJob",
+          data: {
+            name: jobName,
+            cronExpression: cronExpressionValue,
+            folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : undefined,
+          },
+        });
+        return;
+      }
       vscode.postMessage({
         type: "updateJob",
         jobId: selectedJobId,
@@ -5293,79 +5359,26 @@ syncTodoLabelSuggestions();
   }
 
   function updateAgentOptions() {
-    if (!agentSelect) return;
-    var items = Array.isArray(agents) ? agents : [];
-    if (items.length === 0) {
-      var noText = strings.placeholderNoAgents || "";
-      agentSelect.innerHTML =
-        '<option value="">' + escapeHtml(noText) + "</option>";
-    } else {
-      var selectText = strings.placeholderSelectAgent || "";
-      var placeholder =
-        '<option value="">' + escapeHtml(selectText) + "</option>";
-      agentSelect.innerHTML =
-        placeholder +
-        items
-          .map(function (a) {
-            return (
-              '<option value="' +
-              escapeAttr(a.id) +
-              '">' +
-              escapeHtml(a.name) +
-              "</option>"
-            );
-          })
-          .join("");
-
-      // Apply configured default agent if available and no selection made
-      if (!agentSelect.value) {
-        var defaultAgentId = executionDefaults && typeof executionDefaults.agent === "string"
-          ? executionDefaults.agent
-          : "agent";
-        var hasDefaultAgent = items.find(function (a) { return a.id === defaultAgentId; });
-        if (hasDefaultAgent) {
-          agentSelect.value = defaultAgentId;
-        }
-      }
-    }
+    updateTaskAgentOptions({
+      agentSelect: agentSelect,
+      agents: agents,
+      escapeAttr: escapeAttr,
+      escapeHtml: escapeHtml,
+      executionDefaults: executionDefaults,
+      strings: strings,
+    });
   }
 
   function updateModelOptions() {
-    if (!modelSelect) return;
-    var items = Array.isArray(models) ? models : [];
-    if (items.length === 0) {
-      var noText = strings.placeholderNoModels || "";
-      modelSelect.innerHTML =
-        '<option value="">' + escapeHtml(noText) + "</option>";
-    } else {
-      var selectText = strings.placeholderSelectModel || "";
-      var placeholder =
-        '<option value="">' + escapeHtml(selectText) + "</option>";
-      modelSelect.innerHTML =
-        placeholder +
-        items
-          .map(function (m) {
-            return (
-              '<option value="' +
-              escapeAttr(m.id) +
-              '">' +
-              escapeHtml(formatModelLabel(m)) +
-              "</option>"
-            );
-          })
-          .join("");
-
-      // Apply configured default model if available and no selection made
-      if (!modelSelect.value) {
-        var defaultModelId = executionDefaults && typeof executionDefaults.model === "string"
-          ? executionDefaults.model
-          : "";
-        var hasDefault = items.find(function (m) { return m.id === defaultModelId; });
-        if (hasDefault) {
-          modelSelect.value = defaultModelId;
-        }
-      }
-    }
+    updateTaskModelOptions({
+      escapeAttr: escapeAttr,
+      escapeHtml: escapeHtml,
+      executionDefaults: executionDefaults,
+      formatModelLabel: formatModelLabel,
+      modelSelect: modelSelect,
+      models: models,
+      strings: strings,
+    });
   }
 
   function updateTemplateOptions(source, selectedPath) {
@@ -6192,40 +6205,43 @@ syncTodoLabelSuggestions();
     }
 
     var selectedJob = getJobById(selectedJobId);
+    var isJobCreateMode = !selectedJob && isCreatingJob;
     applyJobsSidebarState();
-    if (!selectedJob) {
+    if (!selectedJob && !isJobCreateMode) {
       if (jobsWorkflowMetrics) jobsWorkflowMetrics.innerHTML = "";
       if (jobsEmptyState) jobsEmptyState.style.display = "block";
       if (jobsDetails) jobsDetails.style.display = "none";
       return;
     }
 
-    isCreatingJob = false;
+    if (selectedJob) {
+      isCreatingJob = false;
+    }
     syncEditorTabLabels();
 
     if (jobsEmptyState) jobsEmptyState.style.display = "none";
     if (jobsDetails) jobsDetails.style.display = "block";
-    var selectedNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+    var selectedNodes = selectedJob && Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
     var selectedWaitingPause = getWaitingPauseState(selectedJob);
     var approvedPauseIds = getApprovedPauseIds(selectedJob);
     var pauseCount = selectedNodes.filter(function (node) {
       return isPauseNode(node);
     }).length;
     var taskCount = Math.max(0, selectedNodes.length - pauseCount);
-    var cadenceText = getJobsCadenceText(selectedJob.cronExpression || "");
+    var cadenceText = getJobsCadenceText(selectedJob ? (selectedJob.cronExpression || "") : "");
 
     if (jobsWorkflowMetrics) {
       jobsWorkflowMetrics.innerHTML = [
         {
           label: strings.jobsWorkflowStatus || "Status",
-          value: getJobStatusText(selectedJob),
-          tone: selectedWaitingPause ? "is-waiting" : (selectedJob.paused || selectedJob.archived ? "is-muted" : "is-accent")
+          value: selectedJob ? getJobStatusText(selectedJob) : (strings.jobsCreateJob || "New Job"),
+          tone: selectedWaitingPause ? "is-waiting" : ((selectedJob && (selectedJob.paused || selectedJob.archived)) ? "is-muted" : "is-accent")
         },
         {
           label: strings.jobsWorkflowCadence || "Cadence",
-          value: cadenceText,
+          value: selectedJob ? cadenceText : (strings.jobsEditorScheduleNote || "Define a schedule before saving."),
           tone: "is-accent",
-          valueAttr: ' data-jobs-workflow-cadence="1"'
+          valueAttr: selectedJob ? ' data-jobs-workflow-cadence="1"' : ""
         },
         {
           label: strings.jobsWorkflowTaskCount || "Task steps",
@@ -6249,24 +6265,39 @@ syncTodoLabelSuggestions();
       }).join("");
     }
 
-    if (jobsNameInput) jobsNameInput.value = selectedJob.name || "";
-    if (jobsCronInput) jobsCronInput.value = selectedJob.cronExpression || "";
+    if (jobsNameInput) jobsNameInput.value = selectedJob ? (selectedJob.name || "") : "";
+    if (jobsCronInput) jobsCronInput.value = selectedJob ? (selectedJob.cronExpression || "") : "0 9 * * 1-5";
     if (jobsCronPreset) jobsCronPreset.value = "";
-    syncJobsFolderSelect(selectedJob.folderId || "");
+    syncJobsFolderSelect(selectedJob ? (selectedJob.folderId || "") : (selectedJobFolderId || ""));
     if (jobsStatusPill) {
-      jobsStatusPill.textContent = getJobStatusText(selectedJob);
+      jobsStatusPill.textContent = selectedJob
+        ? getJobStatusText(selectedJob)
+        : (strings.jobsRunning || "Running");
       if (jobsStatusPill.classList) {
-        jobsStatusPill.classList.toggle("is-inactive", !!selectedJob.paused || !!selectedJob.archived);
+        jobsStatusPill.classList.toggle("is-inactive", !!(selectedJob && (selectedJob.paused || selectedJob.archived)));
         jobsStatusPill.classList.toggle("is-waiting", !!selectedWaitingPause);
       }
+      jobsStatusPill.disabled = !selectedJob;
     }
     if (jobsPauseBtn) {
-      jobsPauseBtn.textContent = selectedJob.paused
+      jobsPauseBtn.textContent = selectedJob && selectedJob.paused
         ? strings.jobsResume || "Resume Job"
         : strings.jobsPause || "Pause Job";
+      jobsPauseBtn.disabled = !selectedJob;
     }
     if (jobsCompileBtn) {
-      jobsCompileBtn.disabled = selectedNodes.length === 0;
+      jobsCompileBtn.disabled = !selectedJob || selectedNodes.length === 0;
+    }
+    if (jobsDuplicateBtn) {
+      jobsDuplicateBtn.disabled = !selectedJob;
+    }
+    if (jobsDeleteBtn) {
+      jobsDeleteBtn.disabled = !selectedJob;
+    }
+    if (jobsSaveBtn) {
+      jobsSaveBtn.textContent = selectedJob
+        ? (strings.jobsSave || "Save Job")
+        : (strings.jobsCreateJob || "New Job");
     }
 
     if (jobsTimelineInline) {
@@ -6289,7 +6320,9 @@ syncTodoLabelSuggestions();
           );
         })
         .join("");
-      jobsTimelineInline.innerHTML = timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
+      jobsTimelineInline.innerHTML = selectedJob
+        ? (timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet"))
+        : escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
     }
 
     syncJobsExistingTaskSelect();
@@ -6298,6 +6331,10 @@ syncTodoLabelSuggestions();
     updateJobsFriendlyVisibility();
 
     if (jobsStepList) {
+      if (!selectedJob) {
+        jobsStepList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsCreateJob || 'Create Job') + ': ' + escapeHtml(strings.jobsSave || 'Save Job') + '</div>';
+        return;
+      }
       var stepCards = selectedNodes
         .map(function (node, index) {
           if (isPauseNode(node)) {
@@ -6391,17 +6428,6 @@ syncTodoLabelSuggestions();
   window.runTask = function (id) {
     vscode.postMessage({ type: "runTask", taskId: id });
   };
-
-  function selectHasOptionValue(selectEl, value) {
-    if (!selectEl || !value) return false;
-    var opts = selectEl.options;
-    if (!opts || typeof opts.length !== "number") return false;
-    for (var i = 0; i < opts.length; i++) {
-      var opt = opts[i];
-      if (opt && opt.value === value) return true;
-    }
-    return false;
-  }
 
   window.editTask = function (id) {
     var taskListArray = Array.isArray(tasks) ? tasks : [];
@@ -6555,11 +6581,16 @@ syncTodoLabelSuggestions();
       switch (message.type) {
         case "updateTasks":
           tasks = Array.isArray(message.tasks) ? message.tasks : [];
+          emitWebviewDebug("updateTasks", {
+            taskCount: tasks.length,
+            selectedTodoId: selectedTodoId || "",
+            isCreatingJob: isCreatingJob,
+          });
           syncTaskLabelFilterOptions();
           syncJobsExistingTaskSelect();
           renderTaskList(message.tasks);
           renderJobsTab();
-          renderCockpitBoard();
+          syncTodoLinkedTaskOptions(selectedTodoId ? "" : (todoLinkedTaskSelect ? todoLinkedTaskSelect.value : ""));
           break;
         case "updateJobs":
           jobs = Array.isArray(message.jobs) ? message.jobs : [];
@@ -6581,11 +6612,24 @@ syncTodoLabelSuggestions();
             filters: { labels: [], priorities: [], flags: [], sortBy: "manual", sortDirection: "asc", showArchived: false },
             updatedAt: "",
           };
-          closeTodoDeleteModal();
+          emitWebviewDebug("updateCockpitBoard", {
+            sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
+            cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,
+            selectedTodoId: selectedTodoId || "",
+            draftTitleLength: currentTodoDraft.title.length,
+          });
+          if (
+            pendingTodoDeleteId &&
+            !cockpitBoard.cards.some(function (card) {
+              return card && card.id === pendingTodoDeleteId;
+            })
+          ) {
+            closeTodoDeleteModal();
+          }
           clearCatalogDeleteState();
           syncTaskLabelFilterOptions();
           renderTaskList(tasks);
-          renderCockpitBoard();
+          requestCockpitBoardRender();
           reconcileTodoEditorCatalogState();
           syncFlagEditor();
           syncTodoLabelEditor();
@@ -6619,21 +6663,44 @@ syncTodoLabelSuggestions();
           };
           renderTelegramTab();
           break;
+        case "updateLogLevel":
+          currentLogLevel =
+            typeof message.logLevel === "string" && message.logLevel
+              ? message.logLevel
+              : "info";
+          debugTools.setLogLevel(currentLogLevel);
+          renderLoggingControls();
+          break;
         case "updateExecutionDefaults":
           executionDefaults = message.executionDefaults || {
             agent: "agent",
             model: "",
           };
+          emitWebviewDebug("updateExecutionDefaults", {
+            agent: executionDefaults.agent || "",
+            model: executionDefaults.model || "",
+            editingTaskId: editingTaskId || "",
+            pendingAgentValue: pendingAgentValue,
+            pendingModelValue: pendingModelValue,
+          });
           renderExecutionDefaultsControls();
           if (!editingTaskId) {
-            if (agentSelect) agentSelect.value = executionDefaults.agent || "";
-            if (modelSelect) modelSelect.value = executionDefaults.model || "";
+            if (agentSelect && !pendingAgentValue && !agentSelect.value) {
+              agentSelect.value = executionDefaults.agent || "";
+            }
+            if (modelSelect && !pendingModelValue && !modelSelect.value) {
+              modelSelect.value = executionDefaults.model || "";
+            }
           }
           break;
         case "updateAgents":
           {
             var currentAgentValue =
               pendingAgentValue || (agentSelect ? agentSelect.value : "");
+            emitWebviewDebug("updateAgents", {
+              currentAgentValue: currentAgentValue,
+              agentCount: Array.isArray(message.agents) ? message.agents.length : 0,
+            });
             agents = Array.isArray(message.agents) ? message.agents : [];
             updateAgentOptions();
             renderExecutionDefaultsControls();
@@ -6653,6 +6720,10 @@ syncTodoLabelSuggestions();
           {
             var currentModelValue =
               pendingModelValue || (modelSelect ? modelSelect.value : "");
+            emitWebviewDebug("updateModels", {
+              currentModelValue: currentModelValue,
+              modelCount: Array.isArray(message.models) ? message.models.length : 0,
+            });
             models = Array.isArray(message.models) ? message.models : [];
             updateModelOptions();
             renderExecutionDefaultsControls();
@@ -6799,9 +6870,11 @@ syncTodoLabelSuggestions();
           }, 0);
           break;
         case "startCreateTodo":
+          emitWebviewDebug("startCreateTodo", { reason: "host" });
           resetTodoEditor();
           break;
         case "startCreateJob":
+          emitWebviewDebug("startCreateJob", { reason: "host" });
           resetJobEditor();
           break;
         case "showError":

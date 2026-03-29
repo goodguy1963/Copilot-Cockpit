@@ -1,6 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const {
+  getLatestVsixDirectory,
+  readJson,
+} = require("./release-utils");
 
 function fail(message) {
   console.error(message);
@@ -14,12 +18,13 @@ if (!fs.existsSync(packageJsonPath)) {
   fail("package.json was not found in the current working directory.");
 }
 
-const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+const pkg = readJson(packageJsonPath);
 const channel = (process.argv[2] || "stable").toLowerCase();
 const explicitVsixPath = process.argv[3];
+const latestVsixDirectory = getLatestVsixDirectory(workspaceRoot);
 const vsixPath = explicitVsixPath
   ? path.resolve(explicitVsixPath)
-  : path.join(workspaceRoot, `${pkg.name}-${pkg.version}.vsix`);
+  : path.join(latestVsixDirectory, `${pkg.name}-${pkg.version}.vsix`);
 
 if (!fs.existsSync(vsixPath)) {
   fail(`VSIX not found: ${vsixPath}. Run 'npm run package:vsix' first.`);

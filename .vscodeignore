@@ -25,6 +25,7 @@ AGENTS.md
 output_sessions/**
 session/**
 research/**
+.copilot-cockpit-logs/**
 
 # Large demo asset (use static PNG in README)
 images/demo-animated.gif

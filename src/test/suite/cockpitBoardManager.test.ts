@@ -8,6 +8,7 @@ import {
 import {
   approveTodoInBoard,
   deleteTodoInBoard,
+  finalizeTodoInBoard,
 } from "../../cockpitBoardManager";
 
 suite("Cockpit Board Manager Tests", () => {
@@ -88,7 +89,7 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(rejected?.archiveOutcome, "rejected");
   });
 
-  test("approving a todo archives it into the completed archive section", () => {
+  test("approving a todo marks it ready without archiving it", () => {
     const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
     board.cards.push({
       id: "todo-1",
@@ -106,6 +107,34 @@ suite("Cockpit Board Manager Tests", () => {
     });
 
     const result = approveTodoInBoard(board, "todo-1");
+
+    assert.ok(result.todo);
+    assert.strictEqual(result.todo?.status, "ready");
+    assert.strictEqual(result.todo?.archived, false);
+    assert.strictEqual(result.todo?.sectionId, "unsorted");
+    assert.ok(result.todo?.approvedAt);
+    assert.ok(result.todo?.comments.some((comment) => comment.body.includes("marked ready")));
+  });
+
+  test("finalizing a ready todo archives it into the completed archive section", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-1",
+      title: "Ship change",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "high",
+      status: "ready",
+      labels: [],
+      flags: [],
+      comments: [],
+      approvedAt: "2026-03-28T10:05:00.000Z",
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:05:00.000Z",
+    });
+
+    const result = finalizeTodoInBoard(board, "todo-1");
 
     assert.ok(result.todo);
     assert.strictEqual(result.todo?.status, "completed");
