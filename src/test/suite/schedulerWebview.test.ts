@@ -967,7 +967,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.deepStrictEqual(calls, ["complete"]);
   });
 
-  test("board interaction binding routes reject and restore clicks", () => {
+  test("board interaction binding routes reject, restore, and purge clicks", () => {
     const helpers = loadBoardInteractionModule();
     const calls: string[] = [];
     const rejectButton = createListenerTarget({
@@ -978,8 +978,12 @@ suite("SchedulerWebview Message Queue Tests", () => {
       getAttribute: (name: string) => (name === "data-todo-restore" ? "todo-archived" : ""),
       closest: (selector: string) => (selector === "[data-todo-restore]" ? restoreButton : null),
     });
+    const purgeButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-purge" ? "todo-purge" : ""),
+      closest: (selector: string) => (selector === "[data-todo-purge]" ? purgeButton : null),
+    });
     const boardColumns = createListenerTarget({
-      contains: (value: unknown) => value === rejectButton || value === restoreButton,
+      contains: (value: unknown) => value === rejectButton || value === restoreButton || value === purgeButton,
       querySelectorAll: () => [],
     });
 
@@ -1025,8 +1029,13 @@ suite("SchedulerWebview Message Queue Tests", () => {
       stopPropagation: () => undefined,
       preventDefault: () => undefined,
     });
+    boardColumns.listeners.click({
+      target: purgeButton,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
 
-    assert.deepStrictEqual(calls, ["reject", "restore"]);
+    assert.deepStrictEqual(calls, ["reject", "restore", "delete"]);
   });
 
   test("board todo completion approves active cards and finalizes ready cards", () => {
@@ -1084,6 +1093,35 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.strictEqual(readyToggle.disabled, true);
     assert.strictEqual(readyCardElement.style.opacity, "0.35");
     assert.strictEqual(readyCardElement.style.pointerEvents, "none");
+  });
+
+  test("archived todo completion button restores instead of completing again", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const boardRenderingPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebviewBoardRendering.js",
+    );
+    const boardRenderingSource = fs.readFileSync(boardRenderingPath, "utf8");
+
+    [
+      'var actionAttr = isArchivedCard ? \'data-todo-restore\' : \'data-todo-complete\';',
+      'strings.boardRestoreTodo || "Restore"',
+      'strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone."',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected archived completion or purge modal snippet ${snippet}`,
+      );
+    });
+
+    assert.ok(
+      boardRenderingSource.includes('data-todo-purge='),
+      "expected archived board actions to include a permanent delete button",
+    );
   });
 
   test("board interaction binding uses pointer drag for todo moves", () => {

@@ -7,9 +7,60 @@
 
 This repository is the active Copilot Cockpit codebase. It builds on the original scheduler foundation and ships the Cockpit-focused VSIX for local, repo-scoped AI orchestration. The original upstream README is preserved below; this top section only covers what is specific to Copilot Cockpit.
 
+Copilot Cockpit is a local orchestration layer for AI agents in VS Code, positioned as a controlled alternative to OpenClaw's autonomous systems and Paperclip's external coordination tools.
+
+- Workflow-based execution instead of agent-driven autonomy
+- Timeline scheduling with interruption and editing capabilities
+- Human-in-the-loop as a core constraint, not a fallback
+
+It is a control system for AI task execution, not just an agent runner.
+
 ## 🧱 Core Foundation
 
 Copilot Cockpit is built on top of the original Copilot Scheduler project by [aktsmm](https://github.com/aktsmm). The scheduler remains the execution foundation; Copilot Cockpit adds a repo-local planning, approval, workflow, research, and orchestration layer around it.
+
+## TL;DR (Extended Version)
+
+Copilot Cockpit is a VS Code-native orchestration layer for AI agents, designed as a controlled alternative to OpenClaw's autonomous systems and Paperclip's external tooling.
+
+Unlike systems that rely on continuous, self-running agents, Copilot Cockpit follows a no-heartbeat design:
+
+- Agents do not run continuously in the background.
+- Nothing executes unless the user explicitly defines and approves the task.
+- Execution is intentional, scheduled, and controlled.
+
+This shifts the model from agent-driven autonomy toward user-approved execution, and from continuous automation toward discrete, controlled workflows.
+
+### Core Principles
+
+#### No Heartbeat Architecture
+
+No always-running loops. Agents only execute when triggered and approved.
+
+#### Human-in-the-Loop by Default
+
+Every task can be reviewed, paused, edited, and refined before and during execution.
+
+#### Workflow Over Autonomy
+
+Tasks are structured into timelines and workflows rather than handed off to autonomous agents.
+
+#### Local And Integrated
+
+Runs entirely inside VS Code with no external coordination layer like Paperclip.
+
+#### Iterative Execution
+
+Inspired by approaches like Andrej Karpathy's iterative style: small experiments, continuous refinement, and better outcomes over time.
+
+### What This Means
+
+Copilot Cockpit is not trying to replace developers with autonomous agents.
+
+- You define the plan.
+- You approve execution.
+- You can intervene at any time.
+- The system helps orchestrate rather than decide.
 
 ## Mental Model
 

@@ -270,6 +270,7 @@ export function buildSchedulerWebviewStrings(
     boardDeleteTodoHelp: localize("Reject and archive this todo.", "この Todo を却下してアーカイブします。", "Dieses Todo ablehnen und archivieren."),
     boardDeleteTodoTitle: localize("Delete Todo", "Todo を削除", "Todo löschen"),
     boardDeleteTodoPrompt: localize("Choose whether this todo should be rejected into the archive or removed permanently.", "この Todo を却下してアーカイブするか、完全に削除するかを選択してください。", "Wählen Sie, ob dieses Todo abgelehnt und archiviert oder dauerhaft gelöscht werden soll."),
+    boardDeleteTodoPermanentPrompt: localize("Delete this archived todo permanently? This cannot be undone.", "このアーカイブ済み Todo を完全に削除しますか？この操作は元に戻せません。", "Dieses archivierte Todo dauerhaft löschen? Diese Aktion kann nicht rückgängig gemacht werden."),
     boardDeleteTodoReject: localize("Archive as Rejected", "却下としてアーカイブ", "Als abgelehnt archivieren"),
     boardDeleteTodoPermanent: localize("Delete Permanently", "完全に削除", "Dauerhaft löschen"),
     boardDeleteTodoCancel: localize("Cancel", "キャンセル", "Abbrechen"),

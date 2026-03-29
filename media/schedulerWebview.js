@@ -2297,14 +2297,15 @@ syncTodoLabelSuggestions();
   }
 
   function renderTodoCompletionButton(card) {
-    var title = card && card.archived
-      ? (strings.boardCompleteTodo || "Complete and archive")
+    var isArchivedCard = !!(card && card.archived);
+    var title = isArchivedCard
+      ? (strings.boardRestoreTodo || "Restore")
       : getTodoCompletionActionLabel(card);
     var icon = isTodoCompleted(card)
       ? "✓"
       : (isTodoReadyForFinalize(card) ? "✓✓" : "○");
-    return '<button type="button" class="todo-complete-button" data-todo-complete="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '" ' +
-      (card.archived ? 'disabled ' : '') +
+    var actionAttr = isArchivedCard ? 'data-todo-restore' : 'data-todo-complete';
+    return '<button type="button" class="todo-complete-button" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '" ' +
       'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? 'var(--vscode-button-background)' : 'var(--vscode-input-background)') + ';color:' + (isTodoCompleted(card) ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)') + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;">' +
       '<span aria-hidden="true">' + escapeHtml(icon) + '</span></button>';
   }
@@ -3624,10 +3625,11 @@ syncTodoLabelSuggestions();
     todoDeleteModalRoot.setAttribute("hidden", "hidden");
   }
 
-  function openTodoDeleteModal(todoId) {
+  function openTodoDeleteModal(todoId, options) {
     if (!todoId) {
       return;
     }
+    var permanentOnly = !!(options && options.permanentOnly);
     var todo = cockpitBoard && Array.isArray(cockpitBoard.cards)
       ? cockpitBoard.cards.find(function (card) { return card && card.id === todoId; })
       : null;
@@ -3635,19 +3637,27 @@ syncTodoLabelSuggestions();
     pendingTodoDeleteId = todoId;
     var titleEl = modal.querySelector("#todo-delete-modal-title");
     var messageEl = modal.querySelector("[data-todo-delete-modal-message]");
+    var rejectBtn = modal.querySelector("[data-todo-delete-reject]");
     if (titleEl) {
-      titleEl.textContent = strings.boardDeleteTodoTitle || "Delete Todo";
+      titleEl.textContent = permanentOnly
+        ? (strings.boardDeleteTodoPermanent || "Delete Permanently")
+        : (strings.boardDeleteTodoTitle || "Delete Todo");
     }
     if (messageEl) {
-      var promptText = strings.boardDeleteTodoPrompt || "Choose whether this todo should be rejected into the archive or removed permanently.";
+      var promptText = permanentOnly
+        ? (strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone.")
+        : (strings.boardDeleteTodoPrompt || "Choose whether this todo should be rejected into the archive or removed permanently.");
       messageEl.textContent = todo && todo.title
         ? '"' + String(todo.title || "") + '". ' + promptText
         : promptText;
     }
+    if (rejectBtn) {
+      rejectBtn.hidden = permanentOnly;
+    }
     modal.removeAttribute("hidden");
     modal.classList.add("is-open");
     setTimeout(function () {
-      var defaultButton = modal.querySelector("[data-todo-delete-reject]");
+      var defaultButton = modal.querySelector(permanentOnly ? "[data-todo-delete-permanent]" : "[data-todo-delete-reject]");
       if (defaultButton && typeof defaultButton.focus === "function") {
         defaultButton.focus();
       }
