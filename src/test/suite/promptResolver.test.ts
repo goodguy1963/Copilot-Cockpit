@@ -6,6 +6,7 @@ import {
   resolveAllowedPathInBaseDir,
   resolveLocalPromptPath,
   resolveGlobalPromptPath,
+  resolveGlobalPromptsRoot,
 } from "../../promptResolver";
 
 function norm(p: string | undefined): string {
@@ -43,6 +44,37 @@ suite("Prompt Resolver Tests", () => {
     const globalRoot = path.join("/tmp", "prompts");
     const p = resolveGlobalPromptPath(globalRoot, "x.agent.md");
     assert.strictEqual(p, undefined);
+  });
+
+  test("resolveGlobalPromptsRoot falls back to Code - Insiders on Windows", () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    const originalAppData = process.env.APPDATA;
+    const tempRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-global-prompts-"),
+    );
+    const insidersRoot = path.join(
+      tempRoot,
+      "Code - Insiders",
+      "User",
+      "prompts",
+    );
+    fs.mkdirSync(insidersRoot, { recursive: true });
+    process.env.APPDATA = tempRoot;
+
+    try {
+      assert.strictEqual(norm(resolveGlobalPromptsRoot()), norm(insidersRoot));
+    } finally {
+      process.env.APPDATA = originalAppData;
+      fs.rmSync(tempRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      });
+    }
   });
 
   test("resolveLocalPromptPath supports multi-root absolute paths", () => {

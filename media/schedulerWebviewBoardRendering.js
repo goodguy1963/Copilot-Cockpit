@@ -90,7 +90,9 @@ function renderTodoListRow(card, sectionId, options) {
         '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div>' +
       '</div>' +
-      '<div class="note todo-list-summary">' + helpers.escapeHtml(summary) + '</div>' +
+      '<div class="cockpit-card-details">' +
+        '<div class="note todo-list-summary">' + helpers.escapeHtml(summary) + '</div>' +
+      '</div>' +
     '</div>' +
     renderTodoCompactActions(card, options) +
   '</article>';
@@ -203,8 +205,10 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
               '</div>' +
               (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + '</div>' : '') +
               chipMarkup +
-              '<div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + '</div>' +
-              latestCommentMarkup +
+              '<div class="cockpit-card-details">' +
+                '<div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + '</div>' +
+                latestCommentMarkup +
+              '</div>' +
               renderTodoCompactActions(card, options).replace('todo-list-actions', 'todo-card-action-row') +
               '</article>'
             );

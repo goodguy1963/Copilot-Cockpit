@@ -136,6 +136,8 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - MCP exposure is powerful and high-risk: once tools are visible to Copilot, they can inspect state, modify saved items, and trigger runs.
 - The MCP surface includes scheduler, jobs, research, and Todo Cockpit tools.
 - Repo-local skills live in `.github/skills/cockpit-scheduler-agent/SKILL.md` and `.github/skills/cockpit-todo-agent/SKILL.md`.
+- Dispatcher agents should use `cockpit_list_routing_cards` first. It returns case-insensitive matches across labels, flags, and actionable comment labels so agents do not have to scan the full board payload.
+- In Todo Cockpit, `labels`, `flags`, and `comments[].labels` are distinct. `GO` is a flag here, not a label.
 - Skill files are available in this workspace, but they are only applied when explicitly inserted or referenced in prompts.
 
 Manual `.vscode/mcp.json` example:
@@ -305,6 +307,15 @@ Store prompt templates for reuse:
 
 - **Local**: `.github/prompts/*.md` in your workspace
 - **Global**: VS Code user prompts folder (or the folder set in `copilotCockpit.globalPromptsPath`)
+
+## 🚦 Dispatcher Routing
+
+For local dispatcher agents that operate on Todo Cockpit cards:
+
+- Use `cockpit_list_routing_cards` to find routed cards quickly.
+- Treat `labels`, `flags`, and comment labels as separate sources of truth.
+- Use the latest actionable user comment for intent, schedule overrides, and handoff decisions.
+- Do not rely on the raw board payload unless you are debugging the router itself.
 
 ## 📋 Requirements
 

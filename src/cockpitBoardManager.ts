@@ -1085,6 +1085,9 @@ export function setCockpitBoardFiltersInBoard(
     showRecurringTasks: typeof input.showRecurringTasks === "boolean"
       ? input.showRecurringTasks
       : nextBoard.filters?.showRecurringTasks === true,
+    hideCardDetails: typeof input.hideCardDetails === "boolean"
+      ? input.hideCardDetails
+      : nextBoard.filters?.hideCardDetails === true,
   };
   touchBoard(nextBoard);
   return nextBoard;

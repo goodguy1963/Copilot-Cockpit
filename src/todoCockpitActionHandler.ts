@@ -153,7 +153,8 @@ function areCockpitBoardFiltersEqual(
     && left.sortDirection === right.sortDirection
     && left.viewMode === right.viewMode
     && left.showArchived === right.showArchived
-    && left.showRecurringTasks === right.showRecurringTasks;
+    && left.showRecurringTasks === right.showRecurringTasks
+    && left.hideCardDetails === right.hideCardDetails;
 }
 
 type TodoCockpitTaskAction = Extract<

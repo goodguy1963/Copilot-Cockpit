@@ -122,6 +122,100 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].comments.length, 2);
   });
 
+  test("routing cards tool matches labels, flags, and actionable comment labels", async () => {
+    const server = createServerContext({
+      tasks: [],
+      jobs: [],
+      jobFolders: [],
+      cockpitBoard: {
+        version: 4,
+        sections: [
+          { id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+          { id: "features", title: "Features", order: 1, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+        ],
+        cards: [
+          {
+            id: "card-go-label",
+            title: "Label match",
+            sectionId: "unsorted",
+            order: 0,
+            priority: "medium",
+            status: "active",
+            labels: ["GO"],
+            flags: [],
+            comments: [
+              { id: "c1", author: "system", body: "Scheduled as task-1", labels: [], source: "system-event", sequence: 1, createdAt: "2026-03-30T01:00:00.000Z" },
+              { id: "c2", author: "user", body: "Please run this.", labels: ["needs-bot-review"], source: "human-form", sequence: 2, createdAt: "2026-03-30T02:00:00.000Z" },
+              { id: "c3", author: "system", body: "Done", labels: [], source: "system-event", sequence: 3, createdAt: "2026-03-30T03:00:00.000Z" },
+            ],
+            archived: false,
+            createdAt: "2026-03-30T00:00:00.000Z",
+            updatedAt: "2026-03-30T03:00:00.000Z",
+          },
+          {
+            id: "card-go-flag",
+            title: "Flag match",
+            sectionId: "features",
+            order: 0,
+            priority: "high",
+            status: "active",
+            labels: [],
+            flags: ["go"],
+            comments: [],
+            archived: false,
+            createdAt: "2026-03-30T00:00:00.000Z",
+            updatedAt: "2026-03-30T00:00:00.000Z",
+          },
+          {
+            id: "card-comment-label",
+            title: "Comment match",
+            sectionId: "features",
+            order: 1,
+            priority: "low",
+            status: "ready",
+            labels: [],
+            flags: [],
+            comments: [
+              { id: "c4", author: "user", body: "Needs review", labels: ["needs-bot-review"], source: "human-form", sequence: 1, createdAt: "2026-03-30T04:00:00.000Z" },
+            ],
+            archived: false,
+            createdAt: "2026-03-30T04:00:00.000Z",
+            updatedAt: "2026-03-30T04:00:00.000Z",
+          },
+        ],
+        filters: {
+          labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false,
+        },
+        updatedAt: "2026-03-30T00:00:00.000Z",
+      },
+    });
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_list_routing_cards",
+      {},
+      server.context as any,
+    );
+    const payload = parseJsonText(response);
+
+    assert.strictEqual(payload.cardCount, 3);
+    assert.deepStrictEqual(payload.cards.map((card: any) => card.id), [
+      "card-go-label",
+      "card-go-flag",
+      "card-comment-label",
+    ]);
+    const labelCard = payload.cards.find((card: any) => card.id === "card-go-label");
+    const flagCard = payload.cards.find((card: any) => card.id === "card-go-flag");
+    const commentCard = payload.cards.find((card: any) => card.id === "card-comment-label");
+    assert.deepStrictEqual(labelCard.matchedSignals, ["go"]);
+    assert.deepStrictEqual(flagCard.matchedSignals, ["go"]);
+    assert.deepStrictEqual(commentCard.matchedSignals, ["needs-bot-review"]);
+    assert.deepStrictEqual(labelCard.matchedSignals, ["go", "needs-bot-review"]);
+    assert.strictEqual(labelCard.latestActionableUserComment.body, "Please run this.");
+    assert.strictEqual(labelCard.comments[0].body, "Done");
+    assert.strictEqual(labelCard.comments[1].body, "Please run this.");
+    assert.strictEqual(labelCard.comments[2].body, "Scheduled as task-1");
+  });
+
   test("cockpit tools update move filter and delete todos", async () => {
     const server = createServerContext({ tasks: [], jobs: [], jobFolders: [] });
 

@@ -412,6 +412,9 @@ export interface CockpitBoardFilters {
 
   /** Whether recurring-task history cards should remain visible */
   showRecurringTasks: boolean;
+
+  /** Whether card descriptions and latest comments should remain hidden */
+  hideCardDetails: boolean;
 }
 
 export interface CockpitBoard {
@@ -447,6 +450,93 @@ export interface CockpitBoard {
 
   /** Last update timestamp */
   updatedAt: string;
+}
+
+export interface CockpitRoutingComment {
+  /** Unique comment identifier */
+  id: string;
+
+  /** User or system author */
+  author: CockpitCommentAuthor;
+
+  /** Comment body */
+  body: string;
+
+  /** Optional labels implied by the comment */
+  labels?: string[];
+
+  /** Whether the comment was added by a human form, MCP, bot edit, or system event */
+  source: CockpitCommentSource;
+
+  /** Stable chronological number inside a todo thread */
+  sequence: number;
+
+  /** Creation timestamp */
+  createdAt: string;
+
+  /** Optional last edit timestamp */
+  updatedAt?: string;
+
+  /** Optional edit timestamp if the text changed after creation */
+  editedAt?: string;
+}
+
+export interface CockpitRoutingCard {
+  /** Unique card identifier */
+  id: string;
+
+  /** Short card title */
+  title: string;
+
+  /** Section containing this card */
+  sectionId: string;
+
+  /** Human-readable section title */
+  sectionTitle?: string;
+
+  /** Explicit per-section ordering */
+  order: number;
+
+  /** Current planning workflow state */
+  status: CockpitTodoStatus;
+
+  /** Whether the card is archived */
+  archived: boolean;
+
+  /** Archive bucket outcome when archived */
+  archiveOutcome?: CockpitArchiveOutcome;
+
+  /** Optional linked scheduler task */
+  taskId?: string;
+
+  /** Free-form labels used for workflow routing */
+  labels: string[];
+
+  /** Additional free-form flags for board filtering */
+  flags: string[];
+
+  /** Comments sorted newest-first for routing inspection */
+  comments: CockpitRoutingComment[];
+
+  /** Newest comment, regardless of whether it is actionable */
+  latestComment?: CockpitRoutingComment;
+
+  /** Latest actionable user comment after filtering out status/system noise */
+  latestActionableUserComment?: CockpitRoutingComment;
+
+  /** Routing signals that matched this card */
+  matchedSignals: string[];
+
+  /** Stable comment count for quick inspection */
+  commentCount: number;
+}
+
+export interface CockpitRoutingQuery {
+  /** Routing signals to match; defaults to the standard dispatcher set */
+  signals?: string[];
+
+  /** Whether archived cards should remain visible */
+  includeArchived?: boolean;
 }
 
 export interface CreateCockpitTodoInput {
@@ -575,6 +665,9 @@ export interface UpdateCockpitBoardFiltersInput {
 
   /** Whether recurring-task history cards should stay visible */
   showRecurringTasks?: boolean;
+
+  /** Whether card descriptions and latest comments should stay hidden */
+  hideCardDetails?: boolean;
 
   /** Active sort mode */
   sortBy?: CockpitTodoSortBy;

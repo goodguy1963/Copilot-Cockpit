@@ -602,6 +602,7 @@ function normalizeFilters(filters: unknown): CockpitBoardFilters {
     viewMode: normalizeViewMode(record.viewMode),
     showArchived: record.showArchived === true,
     showRecurringTasks: record.showRecurringTasks === true,
+    hideCardDetails: record.hideCardDetails === true,
   };
 }
 
@@ -625,6 +626,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
       viewMode: "board",
       showArchived: false,
       showRecurringTasks: false,
+      hideCardDetails: false,
     },
     updatedAt: timestamp,
   };

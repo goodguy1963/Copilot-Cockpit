@@ -34,6 +34,7 @@ suite("Todo Cockpit Action Handler", () => {
           viewMode: "board",
           showArchived: false,
           showRecurringTasks: false,
+          hideCardDetails: false,
         },
         updatedAt: "",
       }) as CockpitBoard,
@@ -145,6 +146,7 @@ suite("Todo Cockpit Action Handler", () => {
       viewMode: seededBoard.filters?.viewMode ?? "board",
       showArchived: seededBoard.filters?.showArchived === true,
       showRecurringTasks: seededBoard.filters?.showRecurringTasks === true,
+      hideCardDetails: seededBoard.filters?.hideCardDetails === true,
     };
 
     const webview = SchedulerWebview as unknown as {
@@ -231,6 +233,7 @@ suite("Todo Cockpit Action Handler", () => {
             viewMode: "board",
             showArchived: false,
             showRecurringTasks: false,
+            hideCardDetails: false,
           },
         },
         {
@@ -277,6 +280,7 @@ suite("Todo Cockpit Action Handler", () => {
           taskId: "",
           todoFilters: {
             showRecurringTasks: true,
+            hideCardDetails: true,
           },
         },
         {
@@ -288,9 +292,14 @@ suite("Todo Cockpit Action Handler", () => {
       assert.strictEqual(handled, true);
       assert.strictEqual(updatedBoards.length, 1);
       assert.strictEqual(updatedBoards[0]?.filters?.showRecurringTasks, true);
+      assert.strictEqual(updatedBoards[0]?.filters?.hideCardDetails, true);
       assert.deepStrictEqual(switchedTabs, ["board"]);
       assert.strictEqual(
         readSchedulerConfig(workspaceRoot).cockpitBoard?.filters?.showRecurringTasks,
+        true,
+      );
+      assert.strictEqual(
+        readSchedulerConfig(workspaceRoot).cockpitBoard?.filters?.hideCardDetails,
         true,
       );
     } finally {

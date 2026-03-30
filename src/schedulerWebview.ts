@@ -113,6 +113,7 @@ export class SchedulerWebview {
       viewMode: "board",
       showArchived: false,
       showRecurringTasks: false,
+      hideCardDetails: false,
     },
     updatedAt: "",
   };
@@ -2195,6 +2196,15 @@ export class SchedulerWebview {
       min-height: 200px;
     }
 
+    .cockpit-card-details {
+      display: block;
+    }
+
+    .cockpit-board-hide-card-details .cockpit-card-details,
+    .cockpit-board-compact-details .cockpit-card-details {
+      display: none;
+    }
+
     .board-filter-sticky {
       position: sticky;
       top: var(--cockpit-tab-bar-sticky-top, 0px);
@@ -2458,7 +2468,9 @@ export class SchedulerWebview {
     }
 
     .board-column .cockpit-section-header {
-      position: static;
+      position: sticky;
+      top: var(--cockpit-board-sticky-top, 0px);
+      z-index: 8;
     }
 
     .cockpit-section-header:active {
@@ -4636,6 +4648,10 @@ export class SchedulerWebview {
               <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
                 <input type="checkbox" id="todo-show-archived" style="margin:0;">
                 ${escapeHtml(strings.boardShowArchived)}
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
+                <input type="checkbox" id="todo-hide-card-details" style="margin:0;">
+                ${escapeHtml(strings.boardHideCardDetails)}
               </label>
               <div class="board-col-width-group">
                 <label for="cockpit-col-slider">Column width</label>

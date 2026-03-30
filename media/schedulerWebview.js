@@ -577,6 +577,7 @@ import {
   var todoViewMode = document.getElementById("todo-view-mode");
   var todoShowRecurringTasks = document.getElementById("todo-show-recurring-tasks");
   var todoShowArchived = document.getElementById("todo-show-archived");
+  var todoHideCardDetails = document.getElementById("todo-hide-card-details");
   var todoNewBtn = document.getElementById("todo-new-btn");
   var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
   var todoClearFiltersBtn = document.getElementById("todo-clear-filters-btn");
@@ -762,6 +763,7 @@ import {
     document.documentElement.style.setProperty("--cockpit-flag-pad-y", flagPadY + "px");
     document.documentElement.style.setProperty("--cockpit-flag-pad-x", flagPadX + "px");
     setLabelSlotsClass(w);
+    document.documentElement.classList.toggle("cockpit-board-compact-details", w <= 280);
   }
 
   // Always apply column CSS vars from saved width or slider default
@@ -2422,6 +2424,7 @@ syncTodoLabelSuggestions();
       viewMode: filters.viewMode === "list" ? "list" : "board",
       showArchived: filters.showArchived === true,
       showRecurringTasks: filters.showRecurringTasks === true,
+      hideCardDetails: filters.hideCardDetails === true,
     };
   }
 
@@ -2453,7 +2456,8 @@ syncTodoLabelSuggestions();
       (Array.isArray(current.flags) && current.flags.length > 0) ||
       (current.sectionId && String(current.sectionId).trim()) ||
       current.showArchived === true ||
-      current.showRecurringTasks === true
+      current.showRecurringTasks === true ||
+      current.hideCardDetails === true
     );
   }
 
@@ -2468,6 +2472,7 @@ syncTodoLabelSuggestions();
       sectionId: "",
       showArchived: false,
       showRecurringTasks: false,
+      hideCardDetails: false,
     });
   }
 
@@ -2747,6 +2752,10 @@ syncTodoLabelSuggestions();
     if (todoShowRecurringTasks) {
       todoShowRecurringTasks.checked = filters.showRecurringTasks === true;
     }
+    if (todoHideCardDetails) {
+      todoHideCardDetails.checked = filters.hideCardDetails === true;
+    }
+    document.documentElement.classList.toggle("cockpit-board-hide-card-details", filters.hideCardDetails === true);
     if (todoClearFiltersBtn) {
       todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters);
     }
@@ -3184,6 +3193,11 @@ syncTodoLabelSuggestions();
     if (todoShowRecurringTasks) {
       todoShowRecurringTasks.onchange = function () {
         updateTodoFilters({ showRecurringTasks: todoShowRecurringTasks.checked === true });
+      };
+    }
+    if (todoHideCardDetails) {
+      todoHideCardDetails.onchange = function () {
+        updateTodoFilters({ hideCardDetails: todoHideCardDetails.checked === true });
       };
     }
     if (todoToggleFiltersBtn) {

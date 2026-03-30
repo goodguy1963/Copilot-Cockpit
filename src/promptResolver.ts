@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
+import * as vscode from "vscode";
 
 export function normalizeForCompare(p: string): string {
   if (!p) return "";
@@ -133,27 +134,52 @@ export function resolveLocalPromptPath(
 export function resolveGlobalPromptsRoot(
   customPath?: string,
 ): string | undefined {
-  let defaultRoot = "";
+  if (customPath) {
+    return fs.existsSync(customPath) ? customPath : undefined;
+  }
+
+  const productDirs = getPreferredProductDirs();
+  for (const root of productDirs) {
+    if (root && fs.existsSync(root)) {
+      return root;
+    }
+  }
+
+  return undefined;
+}
+
+function getPreferredProductDirs(): string[] {
+  const appName = vscode.env.appName.toLowerCase();
+  const productNames = appName.includes("insider")
+    ? ["Code - Insiders", "Code"]
+    : ["Code", "Code - Insiders"];
+
   if (process.env.APPDATA) {
-    // Windows
-    defaultRoot = path.join(process.env.APPDATA, "Code", "User", "prompts");
-  } else if (process.platform === "darwin" && process.env.HOME) {
-    // macOS
-    defaultRoot = path.join(
-      process.env.HOME,
-      "Library",
-      "Application Support",
-      "Code",
-      "User",
-      "prompts",
+    return productNames.map((productName) =>
+      path.join(process.env.APPDATA!, productName, "User", "prompts"),
     );
-  } else if (process.env.HOME) {
-    // Linux (XDG_CONFIG_HOME or ~/.config)
+  }
+
+  if (process.platform === "darwin" && process.env.HOME) {
+    return productNames.map((productName) =>
+      path.join(
+        process.env.HOME!,
+        "Library",
+        "Application Support",
+        productName,
+        "User",
+        "prompts",
+      ),
+    );
+  }
+
+  if (process.env.HOME) {
     const configBase =
       process.env.XDG_CONFIG_HOME || path.join(process.env.HOME, ".config");
-    defaultRoot = path.join(configBase, "Code", "User", "prompts");
+    return productNames.map((productName) =>
+      path.join(configBase, productName, "User", "prompts"),
+    );
   }
-  const globalRoot = customPath || defaultRoot;
-  if (!globalRoot) return undefined;
-  return fs.existsSync(globalRoot) ? globalRoot : undefined;
+
+  return [];
 }
