@@ -541,15 +541,15 @@ export const messages = {
     ),
   helpMcpItemConfig: () =>
     t(
-      "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the scheduler server in this workspace.",
-      "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加してこのワークスペースに登録します。",
-      "MCP tools sind standardmäßig nicht aktiv. Fügen Sie einen Launcher-Eintrag hinzu, zum Beispiel in .vscode/mcp.json, um den Scheduler-Server in diesem Workspace zu registrieren.",
+      "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the scheduler server in this workspace, and keep third-party secrets in top-level MCP inputs instead of inline tokens.",
+      "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加してこのワークスペースに登録し、外部サービスのシークレットはインラインで書かずにMCPのトップレベルinputsに保存します。",
+      "MCP tools sind standardmäßig nicht aktiv. Fügen Sie einen Launcher-Eintrag hinzu, zum Beispiel in .vscode/mcp.json, um den Scheduler-Server in diesem Workspace zu registrieren, und halten Sie Secrets externer Dienste in MCP-Inputs statt als Inline-Token.",
     ),
   helpMcpItemAutoConfig: () =>
     t(
-      "Click the Setup MCP button below to automatically create or update .vscode/mcp.json for this repo.",
-      "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonを自動的に作成または更新します。",
-      "Klicken Sie unten auf Setup MCP, um .vscode/mcp.json für dieses Repository automatisch zu erstellen oder zu aktualisieren.",
+      "Click the Setup MCP button below to automatically create or update the scheduler entry in .vscode/mcp.json for this repo without dropping other MCP servers.",
+      "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonにある他のMCPサーバーを消さずにschedulerエントリを自動で作成または更新します。",
+      "Klicken Sie unten auf Setup MCP, um den scheduler-Eintrag in .vscode/mcp.json für dieses Repository automatisch zu erstellen oder zu aktualisieren, ohne andere MCP-Server zu entfernen.",
     ),
   helpMcpItemDanger: () =>
     t(

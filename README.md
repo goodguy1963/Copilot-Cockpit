@@ -133,6 +133,8 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 
 - The extension bundles an embedded MCP server at `out/server.js`.
 - Use `Set Up MCP` from `How To Use` or `Copilot Cockpit: Set Up Workspace MCP` to create or merge `.vscode/mcp.json` safely.
+- `Set Up MCP` only inserts or repairs the local `scheduler` launcher entry. It preserves other MCP servers that are already in `.vscode/mcp.json`.
+- Do not store live third-party API keys or tokens directly in `.vscode/mcp.json`. Use top-level `inputs` with `"type": "promptString"` and `"password": true`, then reference them with `${input:NAME}` placeholders.
 - MCP exposure is powerful and high-risk: once tools are visible to Copilot, they can inspect state, modify saved items, and trigger runs.
 - The MCP surface includes scheduler, jobs, research, and Todo Cockpit tools.
 - Repo-local skills live in `.github/skills/cockpit-scheduler-agent/SKILL.md` and `.github/skills/cockpit-todo-agent/SKILL.md`.
@@ -144,6 +146,14 @@ Manual `.vscode/mcp.json` example:
 
 ```json
 {
+  "inputs": [
+    {
+      "id": "PERPLEXITY_API_KEY",
+      "type": "promptString",
+      "password": true,
+      "description": "Perplexity API Key"
+    }
+  ],
   "servers": {
     "scheduler": {
       "type": "stdio",
@@ -151,10 +161,23 @@ Manual `.vscode/mcp.json` example:
       "args": [
         "<absolute path to your installed extension>/out/server.js"
       ]
+    },
+    "perplexity": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@perplexity-ai/mcp-server"
+      ],
+      "env": {
+        "PERPLEXITY_API_KEY": "${input:PERPLEXITY_API_KEY}"
+      }
     }
   }
 }
 ```
+
+If a routed one-time execution card no longer has a real linked scheduler task, clear the stale `taskId` on the Cockpit card instead of leaving a broken link behind.
 
 ## 📣 Telegram Notifications (experimental)
 
