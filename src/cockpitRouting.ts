@@ -162,10 +162,12 @@ export function listCockpitRoutingCards(
 ): CockpitRoutingCard[] {
   const cards = Array.isArray(board.cards) ? board.cards : [];
   const includeArchived = query.includeArchived !== false;
-
-  return cards
+  const routingCards = cards
     .map((card) => buildCockpitRoutingCard(board, card, query))
-    .filter((card): card is CockpitRoutingCard => Boolean(card) && (includeArchived || card.archived !== true))
+    .filter((card): card is CockpitRoutingCard => Boolean(card));
+
+  return routingCards
+    .filter((card) => includeArchived || card.archived !== true)
     .sort((left, right) => {
       const leftSection = Array.isArray(board.sections)
         ? board.sections.find((section) => section.id === left.sectionId)

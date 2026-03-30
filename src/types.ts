@@ -60,9 +60,6 @@ export interface JobPauseNode {
   title: string;
 }
 
-/**
- * Job node within a multi-step workflow.
- */
 export type JobNode = JobTaskNode | JobPauseNode;
 
 /**
