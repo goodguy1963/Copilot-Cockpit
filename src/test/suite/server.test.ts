@@ -67,6 +67,7 @@ suite("Scheduler MCP Server Tests", () => {
     assert.ok(toolNames.includes("cockpit_create_todo"));
     assert.ok(toolNames.includes("cockpit_add_todo_comment"));
     assert.ok(toolNames.includes("cockpit_update_todo"));
+    assert.ok(toolNames.includes("cockpit_closeout_todo"));
     assert.ok(toolNames.includes("cockpit_delete_todo"));
     assert.ok(toolNames.includes("cockpit_move_todo"));
     assert.ok(toolNames.includes("cockpit_set_filters"));
@@ -289,6 +290,69 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].archived, true);
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].archiveOutcome, "rejected");
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].sectionId, DEFAULT_ARCHIVE_REJECTED_SECTION_ID);
+  });
+
+  test("closeout helper clears stale task links and keeps the current section when the requested section is missing", async () => {
+    const server = createServerContext({
+      tasks: [],
+      jobs: [],
+      jobFolders: [],
+      cockpitBoard: {
+        version: 4,
+        sections: [
+          { id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+          { id: "features", title: "Features", order: 1, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+        ],
+        cards: [
+          {
+            id: "card-closeout",
+            title: "Security remediation",
+            sectionId: "unsorted",
+            order: 0,
+            priority: "high",
+            status: "active",
+            labels: ["security"],
+            flags: [],
+            taskId: "task-missing",
+            comments: [],
+            archived: false,
+            createdAt: "2026-03-30T00:00:00.000Z",
+            updatedAt: "2026-03-30T00:00:00.000Z",
+          },
+        ],
+        filters: {
+          labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false,
+        },
+        updatedAt: "2026-03-30T00:00:00.000Z",
+      },
+    });
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_closeout_todo",
+      {
+        todoId: "card-closeout",
+        sectionId: "final-user-check",
+        flags: ["needs-user-review"],
+        labels: ["security", "remediated"],
+        clearTaskIdIfMissing: true,
+        summary: "Implementation is complete and ready for user review.",
+      },
+      server.context as any,
+    );
+    const payload = parseJsonText(response);
+
+    assert.strictEqual(payload.requestedSectionId, "final-user-check");
+    assert.strictEqual(payload.requestedSectionFound, false);
+    assert.strictEqual(payload.checkedTaskId, "task-missing");
+    assert.strictEqual(payload.linkedTaskExists, false);
+    assert.strictEqual(payload.staleTaskIdCleared, true);
+    assert.strictEqual(payload.commentAdded, true);
+    assert.strictEqual(payload.todo.sectionId, "unsorted");
+    assert.deepStrictEqual(payload.todo.flags, ["needs-user-review"]);
+    assert.deepStrictEqual(payload.todo.labels, ["security", "remediated"]);
+    assert.strictEqual(payload.todo.taskId, undefined);
+    assert.strictEqual(payload.todo.commentCount, 1);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].taskId, undefined);
   });
 
   test("cockpit seed tool surfaces scheduled tasks inside Todo Cockpit", async () => {

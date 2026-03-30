@@ -313,6 +313,95 @@ function summarizeCockpitTodo(board: any, todo: any): Record<string, unknown> {
     };
 }
 
+function closeoutCockpitTodo(config: SchedulerConfig, args: Record<string, unknown>) {
+    const board = getCockpitBoard(config);
+    const todoId = ensureString(args.todoId, "todoId");
+    const existingTodo = getCockpitTodo(board, todoId);
+    if (!existingTodo) {
+        return { error: `Cockpit todo '${todoId}' not found.` };
+    }
+
+    const requestedSectionId = typeof args.sectionId === "string" && args.sectionId.trim()
+        ? args.sectionId.trim()
+        : undefined;
+    const requestedSectionFound = requestedSectionId
+        ? Boolean(getCockpitSection(board, requestedSectionId))
+        : undefined;
+    const clearTaskIdIfMissing = args.clearTaskIdIfMissing === true;
+
+    const explicitTaskId = typeof args.taskId === "string" ? args.taskId.trim() : undefined;
+    const currentTaskId = typeof existingTodo.taskId === "string" && existingTodo.taskId.trim()
+        ? existingTodo.taskId.trim()
+        : undefined;
+    const checkedTaskId = explicitTaskId !== undefined
+        ? explicitTaskId || currentTaskId
+        : currentTaskId;
+    const linkedTaskExists = checkedTaskId
+        ? Boolean(getSchedulerTask(config, checkedTaskId))
+        : undefined;
+
+    let nextTaskId: string | undefined;
+    let staleTaskIdCleared = false;
+    if (explicitTaskId !== undefined) {
+        if (!explicitTaskId) {
+            nextTaskId = "";
+            staleTaskIdCleared = Boolean(currentTaskId);
+        } else if (linkedTaskExists) {
+            nextTaskId = explicitTaskId;
+        } else if (clearTaskIdIfMissing) {
+            nextTaskId = "";
+            staleTaskIdCleared = true;
+        }
+    } else if (currentTaskId && linkedTaskExists === false && clearTaskIdIfMissing) {
+        nextTaskId = "";
+        staleTaskIdCleared = true;
+    }
+
+    let result = updateTodoInBoard(board, todoId, {
+        sectionId: requestedSectionId,
+        priority: normalizeTodoPriority(args.priority),
+        status: typeof args.status === "string" ? args.status : undefined,
+        labels: normalizeStringList(args.labels),
+        flags: normalizeStringList(args.flags),
+        taskId: nextTaskId,
+        archived: typeof args.archived === "boolean" ? args.archived : undefined,
+        archiveOutcome: typeof args.archiveOutcome === "string" ? args.archiveOutcome : undefined,
+    });
+    if (!result.todo) {
+        return { error: `Cockpit todo '${todoId}' not found.` };
+    }
+
+    const summary = typeof args.summary === "string" ? args.summary.trim() : "";
+    let commentAdded = false;
+    if (summary) {
+        const commentResult = addTodoCommentInBoard(result.board, todoId, {
+            body: summary,
+            author: args.author === "user" ? "user" : "system",
+            source: typeof args.source === "string" && args.source.trim()
+                ? args.source.trim()
+                : "bot-mcp",
+            labels: normalizeStringList(args.commentLabels),
+        });
+        if (!commentResult.todo) {
+            return { error: `Cockpit todo '${todoId}' not found.` };
+        }
+        result = commentResult;
+        commentAdded = true;
+    }
+
+    return {
+        todoId,
+        board: result.board,
+        todo: result.todo,
+        requestedSectionId,
+        requestedSectionFound,
+        checkedTaskId,
+        linkedTaskExists,
+        staleTaskIdCleared,
+        commentAdded,
+    };
+}
+
 function normalizeResearchProfile(profile: any): any {
     return {
         ...profile,
@@ -966,6 +1055,30 @@ export const MCP_TOOL_DEFINITIONS = [
                 taskId: { type: "string" },
                 sessionId: { type: "string" },
                 archived: { type: "boolean" },
+                archiveOutcome: { type: "string", description: "completed-successfully or rejected." },
+            },
+            required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_closeout_todo",
+        description: "Apply an execution closeout update to a Cockpit todo, optionally add one summary comment, and clear a stale linked task when the scheduler task no longer exists.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                todoId: { type: "string", description: "Card ID to close out." },
+                summary: { type: "string", description: "Optional compact closeout summary comment." },
+                sectionId: { type: "string", description: "Optional preferred section ID. If it does not exist, the card stays in its current section." },
+                priority: { type: "string", description: "none, low, medium, high, or urgent." },
+                status: { type: "string", description: "active, ready, completed, or rejected." },
+                labels: { type: "array", items: { type: "string" }, description: "Optional replacement label list for the card." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional replacement flag list for the card. Only the first value is kept." },
+                taskId: { type: "string", description: "Optional linked task ID to set. Pass an empty string to clear the link explicitly." },
+                clearTaskIdIfMissing: { type: "boolean", description: "When true, clear the linked taskId if the checked scheduler task does not exist." },
+                commentLabels: { type: "array", items: { type: "string" }, description: "Optional labels to attach to the summary comment." },
+                author: { type: "string", description: "Summary comment author: user or system. Defaults to system." },
+                source: { type: "string", description: "Summary comment source: human-form, bot-mcp, bot-manual, or system-event. Defaults to bot-mcp." },
+                archived: { type: "boolean", description: "Optional archived state for the card." },
                 archiveOutcome: { type: "string", description: "completed-successfully or rejected." },
             },
             required: ["todoId"],
@@ -1994,6 +2107,25 @@ export async function handleSchedulerToolCall(
                 return textResponse({
                     message: `Cockpit todo '${todoId}' updated.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
+                });
+            }
+
+            case "cockpit_closeout_todo": {
+                const result = closeoutCockpitTodo(config, args);
+                if (result.error) {
+                    return errorResponse(result.error);
+                }
+                config.cockpitBoard = result.board;
+                context.writeConfig(config);
+                return textResponse({
+                    message: `Cockpit todo '${result.todoId}' closeout applied.`,
+                    todo: summarizeCockpitTodo(result.board, result.todo),
+                    requestedSectionId: result.requestedSectionId,
+                    requestedSectionFound: result.requestedSectionFound,
+                    checkedTaskId: result.checkedTaskId,
+                    linkedTaskExists: result.linkedTaskExists,
+                    staleTaskIdCleared: result.staleTaskIdCleared,
+                    commentAdded: result.commentAdded,
                 });
             }
 
