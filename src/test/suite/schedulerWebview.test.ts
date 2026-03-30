@@ -136,6 +136,67 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    assert.ok(
+      scriptSource.includes("previousName: prevName || undefined")
+      || scriptSource.includes("previousName: editingLabelOriginalName || undefined"),
+      "expected rename-aware previousName payloads for todo label and flag saves",
+    );
+    assert.strictEqual(
+      scriptSource.includes('vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });'),
+      false,
+      "unexpected delete-on-rename label flow",
+    );
+    assert.strictEqual(
+      scriptSource.includes('vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });'),
+      false,
+      "unexpected delete-on-rename flag flow",
+    );
+  });
+
+  test("todo editor keeps upload wiring and sticky filter footer anchors", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'id="todo-upload-files-btn"',
+      'id="todo-upload-files-note"',
+      'class="board-filter-grid-shell"',
+      'class="board-filter-footer"',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected upload/sticky template snippet ${snippet}`,
+      );
+    });
+
+    [
+      'type: "requestTodoFileUpload"',
+      'case "todoFileUploadResult":',
+      'function openTodoCommentModal(comment)',
+      'function updateBoardAutoCollapseFromScroll(forceExpand)',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected upload/sticky runtime snippet ${snippet}`,
+      );
+    });
+  });
+
   test("editor tabs use symbol states and dirty badges", () => {
     const templatePath = path.resolve(
       __dirname,
@@ -268,7 +329,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
-      `'<article class="todo-comment-card' + userFormClass + '">'`,
+      'var toneClass = getTodoCommentToneClass(comment);',
+      `'<article class="todo-comment-card' + toneClass + userFormClass + '"`,
     ].forEach((snippet) => {
       assert.ok(
         scriptSource.includes(snippet),
@@ -1041,23 +1103,77 @@ suite("SchedulerWebview Message Queue Tests", () => {
   test("board todo completion approves active cards and finalizes ready cards", () => {
     const helpers = loadBoardInteractionModule();
     const postedMessages: Array<Record<string, unknown>> = [];
-    const activeToggle = {
-      checked: true,
-      disabled: false,
-      getAttribute: (name: string) => (name === "data-todo-complete" ? "todo-active" : ""),
-      closest: () => null,
+    const createMockButton = (todoId: string, cardEl: any = null) => {
+      const attrs: Record<string, string> = {
+        "data-todo-complete": todoId,
+        title: "Approve",
+        "aria-label": "Approve",
+      };
+      const classes = new Set<string>();
+      return {
+        disabled: false,
+        innerHTML: "<span>○</span>",
+        parentNode: {
+          insertBefore: (_node: unknown) => undefined,
+        },
+        classList: {
+          add: (name: string) => classes.add(name),
+          remove: (name: string) => classes.delete(name),
+          contains: (name: string) => classes.has(name),
+        },
+        getAttribute: (name: string) => attrs[name] || "",
+        setAttribute: (name: string, value: string) => {
+          attrs[name] = String(value);
+        },
+        removeAttribute: (name: string) => {
+          delete attrs[name];
+        },
+        hasAttribute: (name: string) => Object.prototype.hasOwnProperty.call(attrs, name),
+        closest: (selector: string) => (selector === "[data-todo-id]" ? cardEl : null),
+      };
     };
+    const createMockDocument = () => ({
+      createElement: () => {
+        const attrs: Record<string, string> = {};
+        return {
+          type: "button",
+          className: "",
+          textContent: "",
+          style: {},
+          parentNode: {
+            removeChild: () => undefined,
+          },
+          setAttribute: (name: string, value: string) => {
+            attrs[name] = String(value);
+          },
+          getAttribute: (name: string) => attrs[name] || "",
+          onclick: undefined as undefined | ((event: unknown) => void),
+        };
+      },
+    });
+    const activeToggle = createMockButton("todo-active");
     const readyCardElement = {
       style: {
         opacity: "",
         pointerEvents: "",
       },
+      querySelector: () => null,
     };
-    const readyToggle = {
-      checked: true,
-      disabled: false,
-      getAttribute: (name: string) => (name === "data-todo-complete" ? "todo-ready" : ""),
-      closest: (selector: string) => (selector === "[data-todo-id]" ? readyCardElement : null),
+    const readyToggle = createMockButton("todo-ready", readyCardElement);
+
+    const interactionOptions = {
+      document: createMockDocument(),
+      setTimeout: () => 1,
+      strings: {
+        boardConfirmAction: "Confirm",
+        boardCancelAction: "Cancel",
+        boardConfirmApproveHint: "Click Confirm to continue.",
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          postedMessages.push(message);
+        },
+      },
     };
 
     helpers.handleBoardTodoCompletion(activeToggle, {
@@ -1066,11 +1182,27 @@ suite("SchedulerWebview Message Queue Tests", () => {
           { id: "todo-active", status: "active" },
         ],
       },
-      vscode: {
-        postMessage: (message: Record<string, unknown>) => {
-          postedMessages.push(message);
-        },
+      ...interactionOptions,
+    });
+    assert.strictEqual(postedMessages.length, 0);
+
+    helpers.handleBoardTodoCompletion(readyToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready", status: "ready" },
+        ],
       },
+      ...interactionOptions,
+    });
+    assert.strictEqual(postedMessages.length, 0);
+
+    helpers.handleBoardTodoCompletion(activeToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-active", status: "active" },
+        ],
+      },
+      ...interactionOptions,
     });
 
     helpers.handleBoardTodoCompletion(readyToggle, {
@@ -1079,11 +1211,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
           { id: "todo-ready", status: "ready" },
         ],
       },
-      vscode: {
-        postMessage: (message: Record<string, unknown>) => {
-          postedMessages.push(message);
-        },
-      },
+      ...interactionOptions,
     });
 
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [

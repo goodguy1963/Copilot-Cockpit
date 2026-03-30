@@ -10,6 +10,7 @@ import type {
   CockpitTodoComment,
   CockpitCommentSource,
   CockpitLabelDefinition,
+  CockpitTaskSnapshot,
   CockpitTodoPriority,
   CockpitTodoStatus,
 } from "./types";
@@ -26,6 +27,13 @@ const DEFAULT_SECTIONS = [
 
 export const DEFAULT_UNSORTED_SECTION_ID = DEFAULT_SECTIONS[0].id;
 
+const RECURRING_TASKS_SECTION = {
+  id: "recurring-tasks",
+  title: "Recurring Tasks",
+} as const;
+
+export const DEFAULT_RECURRING_TASKS_SECTION_ID = RECURRING_TASKS_SECTION.id;
+
 const ARCHIVE_SECTIONS = [
   { id: "archive-completed", title: "Archive: Completed" },
   { id: "archive-rejected", title: "Archive: Rejected" },
@@ -34,6 +42,10 @@ const ARCHIVE_SECTIONS = [
 export const DEFAULT_ARCHIVE_COMPLETED_SECTION_ID = ARCHIVE_SECTIONS[0].id;
 export const DEFAULT_ARCHIVE_REJECTED_SECTION_ID = ARCHIVE_SECTIONS[1].id;
 
+export function isRecurringTasksSectionId(sectionId: string | undefined): boolean {
+  return sectionId === DEFAULT_RECURRING_TASKS_SECTION_ID;
+}
+
 export function isArchiveSectionId(sectionId: string | undefined): boolean {
   return sectionId === DEFAULT_ARCHIVE_COMPLETED_SECTION_ID
     || sectionId === DEFAULT_ARCHIVE_REJECTED_SECTION_ID;
@@ -41,6 +53,12 @@ export function isArchiveSectionId(sectionId: string | undefined): boolean {
 
 function getArchiveSectionDefinition(sectionId: string | undefined) {
   return ARCHIVE_SECTIONS.find((section) => section.id === sectionId);
+}
+
+function getRecurringTasksSectionDefinition(sectionId: string | undefined) {
+  return sectionId === DEFAULT_RECURRING_TASKS_SECTION_ID
+    ? RECURRING_TASKS_SECTION
+    : undefined;
 }
 
 function getArchiveSectionIdForOutcome(
@@ -135,6 +153,10 @@ function normalizeViewMode(value: unknown): CockpitTodoViewMode {
   return value === "list" ? "list" : "board";
 }
 
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function normalizeOptionalIsoString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
@@ -158,6 +180,32 @@ function normalizeCatalogKeyList(value: unknown): string[] {
     .filter((entry): entry is string => typeof entry === "string")
     .map((entry) => normalizeLabelKey(entry))
     .filter((entry, index, values) => entry.length > 0 && values.indexOf(entry) === index);
+}
+
+function normalizeTaskSnapshot(value: unknown): CockpitTaskSnapshot | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Partial<CockpitTaskSnapshot>;
+  const name = normalizeOptionalString(record.name);
+  const cronExpression = normalizeOptionalString(record.cronExpression);
+  const promptHash = normalizeOptionalString(record.promptHash);
+  if (!name || !cronExpression || !promptHash) {
+    return undefined;
+  }
+
+  return {
+    name,
+    description: normalizeOptionalString(record.description),
+    cronExpression,
+    enabled: record.enabled !== false,
+    oneTime: record.oneTime === true,
+    agent: normalizeOptionalString(record.agent),
+    model: normalizeOptionalString(record.model),
+    labels: normalizeLabels(record.labels),
+    promptHash,
+  };
 }
 
 function buildDefaultSections(timestamp: string): CockpitBoardSection[] {
@@ -233,6 +281,50 @@ function ensureArchiveSections(
   });
 
   return [...nonArchiveSections, ...archiveSections].map((section, index) => ({
+    ...section,
+    order: index,
+  }));
+}
+
+function ensureSpecialSections(
+  sections: CockpitBoardSection[],
+  timestamp: string,
+): CockpitBoardSection[] {
+  const byId = new Map(
+    sections.map((section) => [section.id, section] as const),
+  );
+  const editableSections = sections
+    .filter((section) => !isRecurringTasksSectionId(section.id) && !isArchiveSectionId(section.id))
+    .sort((left, right) => (left.order || 0) - (right.order || 0));
+  const recurringSection = byId.get(DEFAULT_RECURRING_TASKS_SECTION_ID)
+    ? {
+      ...byId.get(DEFAULT_RECURRING_TASKS_SECTION_ID)!,
+      title: RECURRING_TASKS_SECTION.title,
+    }
+    : {
+      id: DEFAULT_RECURRING_TASKS_SECTION_ID,
+      title: RECURRING_TASKS_SECTION.title,
+      order: editableSections.length,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+  const archiveSections = ARCHIVE_SECTIONS.map((definition, index) => {
+    const existing = byId.get(definition.id);
+    return existing
+      ? {
+        ...existing,
+        title: definition.title,
+      }
+      : {
+        id: definition.id,
+        title: definition.title,
+        order: editableSections.length + 1 + index,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+  });
+
+  return [...editableSections, recurringSection, ...archiveSections].map((section, index) => ({
     ...section,
     order: index,
   }));
@@ -444,6 +536,7 @@ function normalizeCard(card: unknown, index: number): CockpitTodoCard {
     labels: normalizeLabels(record.labels),
     flags: normalizeLabels(record.flags),
     comments,
+    taskSnapshot: normalizeTaskSnapshot(record.taskSnapshot),
     taskId: typeof record.taskId === "string" && record.taskId.trim() ? record.taskId.trim() : undefined,
     sessionId: typeof record.sessionId === "string" && record.sessionId.trim() ? record.sessionId.trim() : undefined,
     archived: record.archived === true,
@@ -465,9 +558,10 @@ function normalizeSection(section: unknown, index: number): CockpitBoardSection 
     ? record.id.trim()
     : undefined;
   const archiveSection = getArchiveSectionDefinition(explicitId);
+  const recurringSection = getRecurringTasksSectionDefinition(explicitId);
   const title = typeof record.title === "string" && record.title.trim()
     ? record.title.trim()
-    : archiveSection?.title ?? DEFAULT_SECTIONS[index]?.title ?? `Section ${index + 1}`;
+    : recurringSection?.title ?? archiveSection?.title ?? DEFAULT_SECTIONS[index]?.title ?? `Section ${index + 1}`;
 
   return {
     id: explicitId
@@ -507,13 +601,14 @@ function normalizeFilters(filters: unknown): CockpitBoardFilters {
     sortDirection: normalizeSortDirection(record.sortDirection),
     viewMode: normalizeViewMode(record.viewMode),
     showArchived: record.showArchived === true,
+    showRecurringTasks: record.showRecurringTasks === true,
   };
 }
 
 export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
   return {
-    version: 3,
-    sections: ensureArchiveSections(buildDefaultSections(timestamp), timestamp),
+    version: 4,
+    sections: ensureSpecialSections(buildDefaultSections(timestamp), timestamp),
     cards: [],
     labelCatalog: [],
     deletedLabelCatalogKeys: [],
@@ -529,6 +624,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
       sortDirection: "asc",
       viewMode: "board",
       showArchived: false,
+      showRecurringTasks: false,
     },
     updatedAt: timestamp,
   };
@@ -597,8 +693,8 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   const deletedFlagCatalogKeys = normalizeCatalogKeyList(record.deletedFlagCatalogKeys);
 
   return {
-    version: Number.isFinite(Number(record.version)) ? Math.max(3, Math.floor(Number(record.version))) : 3,
-    sections: ensureArchiveSections(ensureUnsortedSection(sections, timestamp), timestamp),
+    version: Number.isFinite(Number(record.version)) ? Math.max(4, Math.floor(Number(record.version))) : 4,
+    sections: ensureSpecialSections(ensureUnsortedSection(sections, timestamp), timestamp),
     cards: mergedCards,
     labelCatalog: buildLabelCatalog(mergedCards, record.labelCatalog, deletedLabelCatalogKeys),
     deletedLabelCatalogKeys,

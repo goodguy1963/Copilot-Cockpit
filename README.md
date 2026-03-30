@@ -79,7 +79,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 
 - Workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
 - Todo Cockpit state, local planning notes, Telegram secrets, and approvals stay in `.vscode/scheduler.private.json`.
-- Backup history is stored in `.vscode/scheduler-history`, and inline prompt backups are stored in `.vscode/scheduler-prompt-backups`.
+- Backup history is stored in `.vscode/scheduler-history`, and inline prompt backups are stored in `.vscode/cockpit-prompt-backups`.
 - Nested repos no longer inherit scheduler data from a parent workspace.
 - The extension bootstraps `.vscode/.gitignore` so private cockpit state does not leak accidentally.
 - The design remains intentionally local-first, single-user, and repo-scoped.

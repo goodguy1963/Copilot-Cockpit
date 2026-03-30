@@ -324,7 +324,7 @@ import {
     ? initialData.jobFolders
     : [];
   var cockpitBoard = initialData.cockpitBoard || {
-    version: 2,
+    version: 4,
     sections: [],
     cards: [],
     labelCatalog: [],
@@ -337,7 +337,9 @@ import {
       flags: [],
       sortBy: "manual",
       sortDirection: "asc",
+      viewMode: "board",
       showArchived: false,
+      showRecurringTasks: false,
     },
     updatedAt: "",
   };
@@ -416,6 +418,7 @@ import {
   var pendingDeleteFlagName = "";
   var pendingTodoDeleteId = "";
   var todoDeleteModalRoot = null;
+  var todoCommentModalRoot = null;
   var pendingAgentValue = "";
   var pendingModelValue = "";
   var pendingTemplatePath = "";
@@ -557,6 +560,7 @@ import {
   var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
   var jobsBackBtn = document.getElementById("jobs-back-btn");
   var jobsOpenEditorBtn = document.getElementById("jobs-open-editor-btn");
+  var tabBar = document.querySelector(".tab-bar");
   var boardFilterSticky = document.getElementById("board-filter-sticky");
   var boardSummary = document.getElementById("board-summary");
   var boardColumns = document.getElementById("board-columns");
@@ -571,6 +575,7 @@ import {
   var todoSortBy = document.getElementById("todo-sort-by");
   var todoSortDirection = document.getElementById("todo-sort-direction");
   var todoViewMode = document.getElementById("todo-view-mode");
+  var todoShowRecurringTasks = document.getElementById("todo-show-recurring-tasks");
   var todoShowArchived = document.getElementById("todo-show-archived");
   var todoNewBtn = document.getElementById("todo-new-btn");
   var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
@@ -603,6 +608,8 @@ import {
   var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
   var todoCompleteBtn = document.getElementById("todo-complete-btn");
   var todoDeleteBtn = document.getElementById("todo-delete-btn");
+  var todoUploadFilesBtn = document.getElementById("todo-upload-files-btn");
+  var todoUploadFilesNote = document.getElementById("todo-upload-files-note");
   var todoCommentList = document.getElementById("todo-comment-list");
   var todoCommentInput = document.getElementById("todo-comment-input");
   var todoAddCommentBtn = document.getElementById("todo-add-comment-btn");
@@ -707,7 +714,10 @@ import {
   var draggingSectionId = null;
   var lastDragOverSectionId = null;
   var jobsSidebarHidden = false;
-  var boardFiltersCollapsed = false;
+  var boardFiltersManualCollapsed = false;
+  var boardFiltersAutoCollapsed = false;
+  var boardLastScrollY = 0;
+  var boardStickyMetricsFrame = 0;
 
   // Edit-mode tracking for flag and label catalog
   var editingFlagOriginalName = "";
@@ -731,16 +741,33 @@ import {
     document.documentElement.classList.add(cls);
   }
 
+  function applyCockpitColumnScale(w) {
+    var font = Math.round(10 + (w - 180) * 3 / 340);
+    var pad = Math.round(8 + (w - 180) * 6 / 340);
+    var gap = Math.round(4 + (w - 180) * 4 / 340);
+    var chipGap = Math.max(3, Math.round(3 + (w - 180) * 2 / 340));
+    var labelPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
+    var labelPadX = Math.max(5, Math.round(6 + (w - 180) * 3 / 340));
+    var flagPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
+    var flagPadX = Math.max(6, Math.round(7 + (w - 180) * 3 / 340));
+    document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+    document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
+    document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
+    document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
+    document.documentElement.style.setProperty("--cockpit-chip-gap", chipGap + "px");
+    document.documentElement.style.setProperty("--cockpit-label-pad-y", labelPadY + "px");
+    document.documentElement.style.setProperty("--cockpit-label-pad-x", labelPadX + "px");
+    document.documentElement.style.setProperty("--cockpit-flag-pad-y", flagPadY + "px");
+    document.documentElement.style.setProperty("--cockpit-flag-pad-x", flagPadX + "px");
+    setLabelSlotsClass(w);
+  }
+
   // Always apply column CSS vars from saved width or slider default
   (function () {
     var saved = localStorage.getItem("cockpit-col-width");
     var w = saved ? Number(saved) : (cockpitColSlider ? Number(cockpitColSlider.value) : 240);
     if (w >= 180 && w <= 520) {
-      document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
-      document.documentElement.style.setProperty("--cockpit-col-font", Math.round(10 + (w - 180) * 3 / 340) + "px");
-      document.documentElement.style.setProperty("--cockpit-card-pad", Math.round(8 + (w - 180) * 6 / 340) + "px");
-      document.documentElement.style.setProperty("--cockpit-card-gap", Math.round(4 + (w - 180) * 4 / 340) + "px");
-      setLabelSlotsClass(w);
+      applyCockpitColumnScale(w);
       if (cockpitColSlider && !saved) cockpitColSlider.value = String(w);
     }
   })();
@@ -773,7 +800,7 @@ import {
         jobsSidebarHidden = state.jobsSidebarHidden;
       }
       if (state && typeof state.boardFiltersCollapsed === "boolean") {
-        boardFiltersCollapsed = state.boardFiltersCollapsed;
+        boardFiltersManualCollapsed = state.boardFiltersCollapsed;
       }
       if (state && typeof state.selectedResearchId === "string") {
         selectedResearchId = state.selectedResearchId;
@@ -804,7 +831,7 @@ import {
       next.selectedJobFolderId = selectedJobFolderId;
       next.selectedJobId = selectedJobId;
       next.jobsSidebarHidden = jobsSidebarHidden;
-      next.boardFiltersCollapsed = boardFiltersCollapsed;
+      next.boardFiltersCollapsed = boardFiltersManualCollapsed;
       next.selectedResearchId = selectedResearchId;
       next.selectedResearchRunId = selectedResearchRunId;
       vscode.setState(next);
@@ -820,17 +847,150 @@ import {
     telegramFeedback.classList.remove("error");
   }
 
+  function isBoardFiltersCollapsed() {
+    return !!(boardFiltersManualCollapsed || boardFiltersAutoCollapsed);
+  }
+
+  function scheduleBoardStickyMetrics() {
+    if (boardStickyMetricsFrame) {
+      return;
+    }
+    boardStickyMetricsFrame = requestAnimationFrame(function () {
+      boardStickyMetricsFrame = 0;
+      updateBoardStickyMetrics();
+    });
+  }
+
+  function updateBoardStickyMetrics() {
+    var tabBarStickyTop = 0;
+    if (tabBar) {
+      tabBarStickyTop = Math.max(
+        0,
+        Math.ceil(tabBar.getBoundingClientRect().height),
+      );
+    }
+    var stickyTop = tabBarStickyTop;
+    if (boardFilterSticky && isTabActive("board")) {
+      stickyTop = Math.max(
+        tabBarStickyTop,
+        tabBarStickyTop + Math.ceil(boardFilterSticky.getBoundingClientRect().height + 8),
+      );
+    }
+    document.documentElement.style.setProperty(
+      "--cockpit-tab-bar-sticky-top",
+      tabBarStickyTop + "px",
+    );
+    document.documentElement.style.setProperty(
+      "--cockpit-board-sticky-top",
+      stickyTop + "px",
+    );
+  }
+
+  function updateBoardAutoCollapseFromScroll(forceExpand) {
+    var currentY = Math.max(
+      window.scrollY || 0,
+      document.documentElement ? document.documentElement.scrollTop || 0 : 0,
+    );
+    if (forceExpand || !isTabActive("board")) {
+      boardLastScrollY = currentY;
+      if (boardFiltersAutoCollapsed) {
+        boardFiltersAutoCollapsed = false;
+        applyBoardFilterCollapseState();
+      }
+      return;
+    }
+
+    var nextAutoCollapsed = boardFiltersAutoCollapsed;
+    if (currentY > boardLastScrollY + 18 && currentY > 140) {
+      nextAutoCollapsed = true;
+    } else if (currentY < boardLastScrollY - 14 || currentY < 72) {
+      nextAutoCollapsed = false;
+    }
+    boardLastScrollY = currentY;
+
+    if (nextAutoCollapsed !== boardFiltersAutoCollapsed) {
+      boardFiltersAutoCollapsed = nextAutoCollapsed;
+      applyBoardFilterCollapseState();
+    }
+  }
+
   function applyBoardFilterCollapseState() {
     if (boardFilterSticky && boardFilterSticky.classList) {
-      boardFilterSticky.classList.toggle("is-collapsed", !!boardFiltersCollapsed);
+      var collapsed = isBoardFiltersCollapsed();
+      boardFilterSticky.classList.toggle("is-collapsed", collapsed);
+      boardFilterSticky.setAttribute(
+        "data-auto-collapsed",
+        boardFiltersAutoCollapsed ? "true" : "false",
+      );
     }
     if (todoToggleFiltersBtn) {
-      var isCollapsed = !!boardFiltersCollapsed;
+      var isCollapsed = isBoardFiltersCollapsed();
       todoToggleFiltersBtn.textContent = isCollapsed
         ? (strings.boardShowFilters || "Show Filters")
         : (strings.boardHideFilters || "Hide Filters");
       todoToggleFiltersBtn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
     }
+    scheduleBoardStickyMetrics();
+  }
+
+  function findTodoById(todoId) {
+    if (!todoId || !cockpitBoard || !Array.isArray(cockpitBoard.cards)) {
+      return null;
+    }
+    for (var i = 0; i < cockpitBoard.cards.length; i += 1) {
+      var card = cockpitBoard.cards[i];
+      if (card && card.id === todoId) {
+        return card;
+      }
+    }
+    return null;
+  }
+
+  function setTodoUploadNote(text, state) {
+    if (!todoUploadFilesNote) {
+      return;
+    }
+    todoUploadFilesNote.textContent = text || (strings.boardUploadFilesHint || "");
+    todoUploadFilesNote.classList.remove("is-success", "is-error");
+    if (state === "success") {
+      todoUploadFilesNote.classList.add("is-success");
+    } else if (state === "error") {
+      todoUploadFilesNote.classList.add("is-error");
+    }
+  }
+
+  function appendTextToTodoDescription(insertedText) {
+    if (!todoDescriptionInput || !insertedText) {
+      return;
+    }
+    var currentValue = String(todoDescriptionInput.value || "");
+    var separator = currentValue ? (/\n\s*$/.test(currentValue) ? "\n" : "\n\n") : "";
+    todoDescriptionInput.value = currentValue + separator + insertedText;
+    syncTodoDraftFromInputs("upload");
+  }
+
+  function syncTodoPriorityInputTone() {
+    if (!todoPriorityInput) {
+      return;
+    }
+    todoPriorityInput.setAttribute(
+      "data-priority",
+      String(todoPriorityInput.value || "none"),
+    );
+  }
+
+  function getTodoCommentToneClass(comment) {
+    var source = comment && comment.source ? String(comment.source) : "human-form";
+    if (source === "bot-mcp") {
+      return " is-bot-mcp";
+    }
+    if (source === "bot-manual") {
+      return " is-bot-manual";
+    }
+    if (source === "system-event") {
+      return " is-system-event";
+    }
+    return " is-human-form";
   }
 
   function showTelegramFeedback(message, isError) {
@@ -1466,6 +1626,14 @@ import {
     return sectionId === "archive-completed" || sectionId === "archive-rejected";
   }
 
+  function isRecurringTodoSectionId(sectionId) {
+    return sectionId === "recurring-tasks";
+  }
+
+  function isSpecialTodoSectionId(sectionId) {
+    return isArchiveTodoSectionId(sectionId) || isRecurringTodoSectionId(sectionId);
+  }
+
   function getAllTodoCards() {
     return cockpitBoard && Array.isArray(cockpitBoard.cards)
       ? cockpitBoard.cards.slice()
@@ -1475,8 +1643,13 @@ import {
   function getVisibleTodoCards(filters) {
     var allCards = getAllTodoCards();
     if (!filters || filters.showArchived !== true) {
-      return allCards.filter(function (card) {
+      allCards = allCards.filter(function (card) {
         return !card.archived && !isArchiveTodoSectionId(card.sectionId);
+      });
+    }
+    if (!filters || filters.showRecurringTasks !== true) {
+      allCards = allCards.filter(function (card) {
+        return !isRecurringTodoSectionId(card.sectionId);
       });
     }
     return allCards;
@@ -1613,14 +1786,13 @@ import {
   }
 
   function reconcileTodoEditorCatalogState() {
-    currentTodoLabels = currentTodoLabels.filter(function (label) {
-      return !!getLabelDefinition(label);
-    });
-    if (currentTodoFlag && !getFlagDefinition(currentTodoFlag)) {
-      currentTodoFlag = "";
-    }
     if (selectedTodoLabelName && !getLabelDefinition(selectedTodoLabelName)) {
-      selectedTodoLabelName = "";
+      var stillApplied = currentTodoLabels.some(function (label) {
+        return normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName);
+      });
+      if (!stillApplied) {
+        selectedTodoLabelName = "";
+      }
     }
   }
 
@@ -1647,7 +1819,7 @@ import {
       ? "var(--vscode-focusBorder)"
       : "var(--vscode-panel-border)";
     return (
-      '<span data-label-chip="' + escapeAttr(label) + '" style="display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';font-size:inherit;line-height:1.4;">' +
+      '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';">' +
       '<button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + '</button>' +
       (removable
         ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">×</button>'
@@ -1660,7 +1832,7 @@ import {
     var color = getFlagColor(flagName);
     var textColor = getReadableTextColor(color);
     return (
-      '<span data-flag-chip="' + escapeAttr(flagName) + '" style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-size:inherit;line-height:1.4;font-weight:600;">' +
+      '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;">' +
       '<span>' + escapeHtml(flagName) + '</span>' +
       (removable
         ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">×</button>'
@@ -1808,9 +1980,6 @@ syncTodoLabelSuggestions();
       var prevKey = normalizeTodoLabelKey(prevName);
       var currentLabelKeys = currentTodoLabels.map(normalizeTodoLabelKey);
       var prevIndex = currentLabelKeys.indexOf(prevKey);
-      if (normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(label)) {
-        vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });
-      }
       if (prevIndex >= 0) {
         var renamedLabels = currentTodoLabels.slice();
         renamedLabels.splice(prevIndex, 1, label);
@@ -1818,7 +1987,7 @@ syncTodoLabelSuggestions();
         selectedTodoLabelName = label;
       }
       if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
-        vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, color: pendingColor } });
+        vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, previousName: prevName, color: pendingColor } });
       }
       if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
       syncTodoEditorTransientDraft();
@@ -1885,6 +2054,9 @@ syncTodoLabelSuggestions();
       handleTodoCompletion: function (completeToggle) {
         handleBoardTodoCompletion(completeToggle, {
           cockpitBoard: cockpitBoard,
+          document: document,
+          strings: strings,
+          setTimeout: setTimeout,
           vscode: vscode,
         });
       },
@@ -1929,6 +2101,7 @@ syncTodoLabelSuggestions();
       requestAnimationFrame: requestAnimationFrame,
       finishBoardDragState: finishBoardDragState,
       isArchiveTodoSectionId: isArchiveTodoSectionId,
+      isSpecialTodoSectionId: isSpecialTodoSectionId,
     });
   }
 
@@ -1953,6 +2126,9 @@ syncTodoLabelSuggestions();
       }
       element.addEventListener("change", function () {
         syncTodoDraftFromInputs("change");
+        if (element === todoPriorityInput) {
+          syncTodoPriorityInputTone();
+        }
       });
     });
 
@@ -2090,12 +2266,11 @@ syncTodoLabelSuggestions();
     editingFlagOriginalName = "";
     todoFlagNameInput.value = "";
     if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(name)) {
-      vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });
       if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
         currentTodoFlag = name;
       }
     }
-    vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name: name, color: color } });
+    vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name: name, previousName: prevName || undefined, color: color } });
     if (!prevName) { currentTodoFlag = name; }
     syncTodoFlagDraft();
     syncTodoEditorTransientDraft();
@@ -2213,6 +2388,7 @@ syncTodoLabelSuggestions();
       sortDirection: filters.sortDirection || "asc",
       viewMode: filters.viewMode === "list" ? "list" : "board",
       showArchived: filters.showArchived === true,
+      showRecurringTasks: filters.showRecurringTasks === true,
     };
   }
 
@@ -2243,7 +2419,8 @@ syncTodoLabelSuggestions();
       (Array.isArray(current.archiveOutcomes) && current.archiveOutcomes.length > 0) ||
       (Array.isArray(current.flags) && current.flags.length > 0) ||
       (current.sectionId && String(current.sectionId).trim()) ||
-      current.showArchived === true
+      current.showArchived === true ||
+      current.showRecurringTasks === true
     );
   }
 
@@ -2257,6 +2434,7 @@ syncTodoLabelSuggestions();
       flags: [],
       sectionId: "",
       showArchived: false,
+      showRecurringTasks: false,
     });
   }
 
@@ -2266,15 +2444,19 @@ syncTodoLabelSuggestions();
       return (left.order || 0) - (right.order || 0);
     });
     return sections.filter(function (section) {
-      return filters && filters.showArchived === true
-        ? true
-        : !isArchiveTodoSectionId(section.id);
+      if (!(filters && filters.showArchived === true) && isArchiveTodoSectionId(section.id)) {
+        return false;
+      }
+      if (!(filters && filters.showRecurringTasks === true) && isRecurringTodoSectionId(section.id)) {
+        return false;
+      }
+      return true;
     });
   }
 
   function getEditableTodoSections() {
-    return getTodoSections({ showArchived: true }).filter(function (section) {
-      return !isArchiveTodoSectionId(section.id);
+    return getTodoSections({ showArchived: true, showRecurringTasks: true }).filter(function (section) {
+      return !isSpecialTodoSectionId(section.id);
     });
   }
 
@@ -2336,6 +2518,9 @@ syncTodoLabelSuggestions();
 
   function cardMatchesTodoFilters(card, filters) {
     if (!filters.showArchived && card.archived) {
+      return false;
+    }
+    if (!filters.showRecurringTasks && isRecurringTodoSectionId(card.sectionId)) {
       return false;
     }
     if (filters.sectionId && card.sectionId !== filters.sectionId) {
@@ -2526,6 +2711,9 @@ syncTodoLabelSuggestions();
     if (todoShowArchived) {
       todoShowArchived.checked = filters.showArchived === true;
     }
+    if (todoShowRecurringTasks) {
+      todoShowRecurringTasks.checked = filters.showRecurringTasks === true;
+    }
     if (todoClearFiltersBtn) {
       todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters);
     }
@@ -2594,6 +2782,7 @@ syncTodoLabelSuggestions();
         todoFlagColorInput.value = todoDraft.flagColor;
       }
     }
+    setTodoUploadNote(strings.boardUploadFilesHint || "", "neutral");
     syncTodoFlagDraft();
     syncFlagEditor();
     syncTodoLabelEditor();
@@ -2621,13 +2810,11 @@ syncTodoLabelSuggestions();
 
     if (todoPriorityInput) {
       var prevPriority = isRefreshingSameTodo ? todoPriorityInput.value : "";
-      var PRIORITY_EDIT_STYLES = { none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
       todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function (priority) {
-        var optStyle = PRIORITY_EDIT_STYLES[priority] || "";
-        var style = optStyle ? ' style="' + optStyle + '"' : "";
-        return '<option value="' + escapeAttr(priority) + '"' + style + '>' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
+        return '<option value="' + escapeAttr(priority) + '">' + escapeHtml(getTodoPriorityLabel(priority)) + '</option>';
       }).join("");
       todoPriorityInput.value = isRefreshingSameTodo ? prevPriority : (isEditingTodo ? (selectedTodo.priority || "none") : (todoDraft.priority || "none"));
+      syncTodoPriorityInputTone();
     }
 
     if (todoSectionInput) {
@@ -2671,6 +2858,7 @@ syncTodoLabelSuggestions();
       todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     }
     if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+    if (todoUploadFilesBtn) todoUploadFilesBtn.disabled = !!isArchivedTodo;
     if (todoAddCommentBtn) todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo;
     if (todoCommentInput) {
       todoCommentInput.disabled = !isEditingTodo || isArchivedTodo;
@@ -2700,20 +2888,22 @@ syncTodoLabelSuggestions();
     if (todoCommentList) {
       var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
       todoCommentList.innerHTML = comments.length > 0
-        ? comments.map(function (comment) {
+        ? comments.map(function (comment, commentIndex) {
           var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
           var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
           var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+          var toneClass = getTodoCommentToneClass(comment);
           var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"
             ? " is-user-form"
             : "";
-          return '<article class="todo-comment-card' + userFormClass + '">' +
+          return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
             '<div class="todo-comment-header">' +
             '<strong>#' + escapeHtml(String(sequence)) + ' • ' + escapeHtml(sourceLabel) + '</strong>' +
             '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
             '</div>' +
             '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
             '<div class="note todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
+            '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + '</div>' +
             '</article>';
         }).join("")
         : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + '</div>';
@@ -2767,6 +2957,9 @@ syncTodoLabelSuggestions();
       if (selectedTodo && selectedTodo.archived && filters.showArchived !== true) {
         selectedTodoId = null;
       }
+      if (selectedTodo && isRecurringTodoSectionId(selectedTodo.sectionId) && filters.showRecurringTasks !== true) {
+        selectedTodoId = null;
+      }
       var hasSelectedTodo = allCards.some(function (card) {
         return card && card.id === selectedTodoId;
       });
@@ -2818,6 +3011,7 @@ syncTodoLabelSuggestions();
         sortTodoCards: sortTodoCards,
         cardMatchesTodoFilters: cardMatchesTodoFilters,
         isArchiveTodoSectionId: isArchiveTodoSectionId,
+        isSpecialTodoSectionId: isSpecialTodoSectionId,
         renderSectionDragHandle: renderSectionDragHandle,
         renderTodoCompletionCheckbox: renderTodoCompletionButton,
         renderTodoDragHandle: renderTodoDragHandle,
@@ -2841,6 +3035,7 @@ syncTodoLabelSuggestions();
     if (boardColumns) {
       bindRenderedCockpitBoardInteractions();
     }
+    scheduleBoardStickyMetrics();
 
     if (todoNewBtn) {
       todoNewBtn.onclick = function () {
@@ -2889,14 +3084,7 @@ syncTodoLabelSuggestions();
     if (cockpitColSlider) {
       cockpitColSlider.oninput = function () {
         var w = Number(cockpitColSlider.value);
-        document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
-        var font = Math.round(10 + (w - 180) * 3 / 340);
-        document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
-        var pad = Math.round(8 + (w - 180) * 6 / 340);
-        document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
-        var gap = Math.round(4 + (w - 180) * 4 / 340);
-        document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
-        setLabelSlotsClass(w);
+        applyCockpitColumnScale(w);
         try { localStorage.setItem("cockpit-col-width", w); } catch (e) {}
       };
     }
@@ -2960,9 +3148,19 @@ syncTodoLabelSuggestions();
         updateTodoFilters({ showArchived: todoShowArchived.checked === true });
       };
     }
+    if (todoShowRecurringTasks) {
+      todoShowRecurringTasks.onchange = function () {
+        updateTodoFilters({ showRecurringTasks: todoShowRecurringTasks.checked === true });
+      };
+    }
     if (todoToggleFiltersBtn) {
       todoToggleFiltersBtn.onclick = function () {
-        boardFiltersCollapsed = !boardFiltersCollapsed;
+        if (isBoardFiltersCollapsed()) {
+          boardFiltersManualCollapsed = false;
+          boardFiltersAutoCollapsed = false;
+        } else {
+          boardFiltersManualCollapsed = true;
+        }
         applyBoardFilterCollapseState();
         persistTaskFilter();
       };
@@ -3012,6 +3210,40 @@ syncTodoLabelSuggestions();
           data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" },
         });
         todoCommentInput.value = "";
+      };
+    }
+    if (todoCommentList) {
+      todoCommentList.onclick = function (event) {
+        var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+        if (!commentCard || !selectedTodoId) {
+          return;
+        }
+        var commentIndex = Number(commentCard.getAttribute("data-comment-index"));
+        var selectedTodo = findTodoById(selectedTodoId);
+        var comments = selectedTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+        if (commentIndex < 0 || commentIndex >= comments.length) {
+          return;
+        }
+        openTodoCommentModal(comments[commentIndex]);
+      };
+      todoCommentList.onkeydown = function (event) {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+        if (!commentCard) {
+          return;
+        }
+        event.preventDefault();
+        commentCard.click();
+      };
+    }
+    if (todoUploadFilesBtn) {
+      todoUploadFilesBtn.onclick = function () {
+        vscode.postMessage({
+          type: "requestTodoFileUpload",
+          todoId: selectedTodoId || undefined,
+        });
       };
     }
     if (todoCreateTaskBtn) {
@@ -3131,10 +3363,9 @@ syncTodoLabelSuggestions();
             color: todoLabelColorInput.value,
             editingExisting: !!editingLabelOriginalName,
           });
-          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, color: todoLabelColorInput.value } });
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: editingLabelOriginalName || undefined, color: todoLabelColorInput.value } });
           var prevName = editingLabelOriginalName;
           if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
-            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });
             var prevIdx = currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(prevName));
             if (prevIdx >= 0) {
               var newLabels = currentTodoLabels.slice();
@@ -3249,6 +3480,7 @@ syncTodoLabelSuggestions();
           type: "saveTodoFlagDefinition",
           data: {
             name: normalized,
+            previousName: editingFlagOriginalName || undefined,
             color: todoFlagColorInputEl.value,
           },
         });
@@ -3257,7 +3489,6 @@ syncTodoLabelSuggestions();
         // But do not assign it if they aren't adding it. But wait, if they renamed it, and it was active:
         var prevName = editingFlagOriginalName;
         if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
-          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });
           if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
             currentTodoFlag = normalized;
             syncTodoFlagDraft();
@@ -3625,6 +3856,70 @@ syncTodoLabelSuggestions();
     todoDeleteModalRoot.setAttribute("hidden", "hidden");
   }
 
+  function ensureTodoCommentModal() {
+    if (todoCommentModalRoot && document.body.contains(todoCommentModalRoot)) {
+      return todoCommentModalRoot;
+    }
+    todoCommentModalRoot = document.createElement("div");
+    todoCommentModalRoot.className = "cockpit-inline-modal";
+    todoCommentModalRoot.setAttribute("hidden", "hidden");
+    todoCommentModalRoot.innerHTML =
+      '<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title">' +
+      '<div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div>' +
+      '<div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div>' +
+      '<div class="todo-comment-modal-body" id="todo-comment-modal-body"></div>' +
+      '<div class="cockpit-inline-modal-actions">' +
+      '<button type="button" class="btn-secondary" data-comment-modal-close="1">' + escapeHtml(strings.boardCancelAction || "Cancel") + '</button>' +
+      '</div>' +
+      '</div>';
+    todoCommentModalRoot.onclick = function (event) {
+      if (event.target === todoCommentModalRoot) {
+        closeTodoCommentModal();
+        return;
+      }
+      var closeBtn = getClosestEventTarget(event, "[data-comment-modal-close]");
+      if (closeBtn) {
+        closeTodoCommentModal();
+      }
+    };
+    document.body.appendChild(todoCommentModalRoot);
+    return todoCommentModalRoot;
+  }
+
+  function closeTodoCommentModal() {
+    if (!todoCommentModalRoot) {
+      return;
+    }
+    todoCommentModalRoot.classList.remove("is-open");
+    todoCommentModalRoot.setAttribute("hidden", "hidden");
+  }
+
+  function openTodoCommentModal(comment) {
+    if (!comment) {
+      return;
+    }
+    var modal = ensureTodoCommentModal();
+    var titleEl = modal.querySelector("#todo-comment-modal-title");
+    var metaEl = modal.querySelector("#todo-comment-modal-meta");
+    var bodyEl = modal.querySelector("#todo-comment-modal-body");
+    var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+    var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+    if (titleEl) {
+      titleEl.textContent = strings.boardCommentModalTitle || "Comment Detail";
+    }
+    if (metaEl) {
+      metaEl.innerHTML =
+        '<span><strong>' + escapeHtml(sourceLabel) + '</strong></span>' +
+        '<span>' + escapeHtml(comment.author || "system") + '</span>' +
+        '<span>' + escapeHtml(formatTodoDate(displayDate)) + '</span>';
+    }
+    if (bodyEl) {
+      bodyEl.textContent = comment.body || "";
+    }
+    modal.removeAttribute("hidden");
+    modal.classList.add("is-open");
+  }
+
   function openTodoDeleteModal(todoId, options) {
     if (!todoId) {
       return;
@@ -3770,6 +4065,8 @@ syncTodoLabelSuggestions();
     if (tabName === "list") {
       refreshTaskCountdowns();
     }
+    updateBoardAutoCollapseFromScroll(true);
+    scheduleBoardStickyMetrics();
     maybePlayInitialHelpWarp(tabName);
   }
 
@@ -7038,10 +7335,10 @@ syncTodoLabelSuggestions();
           break;
         case "updateCockpitBoard":
           cockpitBoard = message.cockpitBoard || {
-            version: 1,
+            version: 4,
             sections: [],
             cards: [],
-            filters: { labels: [], priorities: [], flags: [], sortBy: "manual", sortDirection: "asc", showArchived: false },
+            filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
             updatedAt: "",
           };
           emitWebviewDebug("updateCockpitBoard", {
@@ -7065,6 +7362,7 @@ syncTodoLabelSuggestions();
           reconcileTodoEditorCatalogState();
           syncFlagEditor();
           syncTodoLabelEditor();
+          scheduleBoardStickyMetrics();
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)
@@ -7321,6 +7619,25 @@ syncTodoLabelSuggestions();
             if (submitBtn) submitBtn.disabled = false;
           }
           break;
+        case "todoFileUploadResult":
+          if (message.ok && message.insertedText) {
+            appendTextToTodoDescription(String(message.insertedText || ""));
+            setTodoUploadNote(
+              String(message.message || strings.boardUploadFilesSuccess || ""),
+              "success",
+            );
+          } else if (!message.cancelled) {
+            setTodoUploadNote(
+              String(message.message || strings.boardUploadFilesError || ""),
+              "error",
+            );
+          } else {
+            setTodoUploadNote(
+              String(message.message || strings.boardUploadFilesHint || ""),
+              "neutral",
+            );
+          }
+          break;
       }
     } catch (e) {
       var prefix = strings.webviewClientErrorPrefix || "";
@@ -7336,6 +7653,17 @@ syncTodoLabelSuggestions();
   renderTaskList(tasks);
 
   switchTab(getInitialTabName());
+  window.addEventListener("scroll", function () {
+    updateBoardAutoCollapseFromScroll(false);
+  }, { passive: true });
+  window.addEventListener("resize", scheduleBoardStickyMetrics);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      closeTodoDeleteModal();
+      closeTodoCommentModal();
+    }
+  });
+  scheduleBoardStickyMetrics();
 
   // Keep next-run countdown live in the list view without rebuilding the list.
   setInterval(function () {

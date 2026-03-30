@@ -123,6 +123,71 @@ export function handleBoardSectionDelete(sectionDeleteBtn, options) {
 export function handleBoardTodoCompletion(completeToggle, options) {
   var todoId = completeToggle.getAttribute("data-todo-complete");
   var cardEl = completeToggle.closest ? completeToggle.closest("[data-todo-id]") : null;
+  function clearCompletionConfirmState() {
+    completeToggle.removeAttribute("data-confirming");
+    completeToggle.classList.remove("is-confirming");
+    if (completeToggle.hasAttribute("data-confirm-label")) {
+      completeToggle.setAttribute(
+        "title",
+        completeToggle.getAttribute("data-confirm-label") || "",
+      );
+      completeToggle.setAttribute(
+        "aria-label",
+        completeToggle.getAttribute("data-confirm-label") || "",
+      );
+      completeToggle.removeAttribute("data-confirm-label");
+    }
+    if (completeToggle.hasAttribute("data-confirm-html")) {
+      completeToggle.innerHTML = completeToggle.getAttribute("data-confirm-html") || "";
+      completeToggle.removeAttribute("data-confirm-html");
+    }
+    var cancelBtn = cardEl && cardEl.querySelector
+      ? cardEl.querySelector('[data-todo-complete-cancel="' + todoId + '"]')
+      : null;
+    if (cancelBtn && cancelBtn.parentNode) {
+      cancelBtn.parentNode.removeChild(cancelBtn);
+    }
+  }
+
+  if (!todoId) {
+    return;
+  }
+  if (!completeToggle.getAttribute("data-confirming")) {
+    completeToggle.setAttribute("data-confirming", "1");
+    completeToggle.classList.add("is-confirming");
+    completeToggle.setAttribute(
+      "data-confirm-label",
+      completeToggle.getAttribute("title") || "",
+    );
+    completeToggle.setAttribute("data-confirm-html", completeToggle.innerHTML || "");
+    completeToggle.setAttribute(
+      "title",
+      options.strings.boardConfirmApproveHint || "Click Confirm to continue, or Cancel to keep the todo unchanged.",
+    );
+    completeToggle.setAttribute(
+      "aria-label",
+      options.strings.boardConfirmAction || "Confirm",
+    );
+    completeToggle.innerHTML = '<span aria-hidden="true">!</span>';
+    var cancelBtn = options.document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn-icon";
+    cancelBtn.setAttribute("data-todo-complete-cancel", todoId);
+    cancelBtn.setAttribute("data-no-drag", "1");
+    cancelBtn.textContent = options.strings.boardCancelAction || "Cancel";
+    cancelBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 8px;border-radius:999px;border:1px solid var(--vscode-panel-border);background:var(--vscode-input-background);color:var(--vscode-foreground);font-size:11px;font-weight:700;line-height:1;";
+    cancelBtn.onclick = function (event) {
+      stopBoardEvent(event);
+      clearCompletionConfirmState();
+    };
+    if (completeToggle.parentNode) {
+      completeToggle.parentNode.insertBefore(cancelBtn, completeToggle.nextSibling);
+    }
+    scheduleBoardTimeout(options, clearCompletionConfirmState, 2800);
+    return;
+  }
+
+  clearCompletionConfirmState();
   completeToggle.disabled = true;
   if (cardEl) {
     cardEl.style.opacity = "0.35";
@@ -541,6 +606,10 @@ function bindRenderedBoardListeners(boardColumns, options) {
     bindElementListener(sectionHandle, "pointerdown", handleBoardPointerDown);
   });
 
+  Array.prototype.forEach.call(boardColumns.querySelectorAll(".cockpit-section-header"), function (sectionHeader) {
+    bindElementListener(sectionHeader, "pointerdown", handleBoardPointerDown);
+  });
+
   Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id]"), function (card) {
     bindElementListener(card, "pointerdown", handleBoardPointerDown);
   });
@@ -560,16 +629,29 @@ function handleBoardPointerDown(event) {
     return;
   }
   var sectionHandle = getClosestEventTarget(target, "[data-section-drag-handle]");
+  var sectionHeader = getClosestEventTarget(target, ".cockpit-section-header");
   var todoHandle = getClosestEventTarget(target, "[data-todo-drag-handle]");
   var boardColumns = getBoardColumns(options);
   if (!boardColumns) {
     return;
   }
-  if (sectionHandle) {
+  var sectionEl = sectionHandle && sectionHandle.closest
+    ? sectionHandle.closest("[data-section-id]")
+    : (sectionHeader && sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null);
+  var sectionId = sectionHandle
+    ? sectionHandle.getAttribute("data-section-drag-handle")
+    : (sectionEl && sectionEl.getAttribute ? sectionEl.getAttribute("data-section-id") : "");
+  var allowHeaderSectionDrag = !!(
+    !sectionHandle &&
+    sectionHeader &&
+    sectionEl &&
+    sectionId &&
+    !(options.isSpecialTodoSectionId && options.isSpecialTodoSectionId(sectionId)) &&
+    !isTodoInteractiveTarget(target)
+  );
+  if (sectionHandle || allowHeaderSectionDrag) {
     stopBoardEvent(event);
     clearBoardDragClasses(boardColumns);
-    var sectionId = sectionHandle.getAttribute("data-section-drag-handle");
-    var sectionEl = sectionHandle.closest ? sectionHandle.closest("[data-section-id]") : null;
     pointerDragSession = {
       kind: "section",
       draggedId: sectionId,

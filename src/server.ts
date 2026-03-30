@@ -997,12 +997,13 @@ export const MCP_TOOL_DEFINITIONS = [
                 sortDirection: { type: "string", description: "asc or desc." },
                 viewMode: { type: "string", description: "board or list." },
                 showArchived: { type: "boolean" },
+                showRecurringTasks: { type: "boolean" },
             },
         },
     },
     {
         name: "cockpit_seed_todos_from_tasks",
-        description: "Ensure scheduled tasks also appear in Todo Cockpit as task-linked cards under Unsorted.",
+        description: "Ensure recurring scheduled tasks have linked history cards in Todo Cockpit and migrate older task-linked cards into the current model.",
         inputSchema: {
             type: "object",
             properties: {
@@ -2016,6 +2017,7 @@ export async function handleSchedulerToolCall(
                     sortDirection: typeof args.sortDirection === "string" ? args.sortDirection : undefined,
                     viewMode: typeof args.viewMode === "string" ? args.viewMode : undefined,
                     showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
+                    showRecurringTasks: typeof args.showRecurringTasks === "boolean" ? args.showRecurringTasks : undefined,
                 });
                 config.cockpitBoard = board;
                 context.writeConfig(config);

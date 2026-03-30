@@ -1,14 +1,21 @@
 import * as path from "path";
+import { createHash } from "crypto";
 import type { ScheduledTask } from "./types";
 import {
     isPathInsideBaseDir,
     resolveAllowedPathInBaseDir,
 } from "./promptResolver";
 
-const BACKUP_DIR_NAME = "scheduler-prompt-backups";
+const BACKUP_DIR_NAME = "cockpit-prompt-backups";
 const BACKUP_DIR_PARTS = [".vscode", BACKUP_DIR_NAME] as const;
-const LEGACY_BACKUP_DIR_PARTS = [".github", BACKUP_DIR_NAME] as const;
+const LEGACY_BACKUP_DIRS = [
+    [".vscode", "scheduler-prompt-backups"],
+    [".github", BACKUP_DIR_NAME],
+    [".github", "scheduler-prompt-backups"],
+] as const;
 const INVALID_BACKUP_FILE_CHARS = /[^a-zA-Z0-9._-]+/g;
+const MAX_BACKUP_BASE_NAME_LENGTH = 64;
+const BACKUP_HASH_LENGTH = 10;
 
 function normalizeBackupBaseName(taskId: string): string {
     const normalized = taskId
@@ -17,7 +24,23 @@ function normalizeBackupBaseName(taskId: string): string {
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
 
-    return normalized || "scheduled-task";
+    if (normalized.length <= MAX_BACKUP_BASE_NAME_LENGTH) {
+        return normalized || "scheduled-task";
+    }
+
+    const hash = createHash("sha1")
+        .update(taskId)
+        .digest("hex")
+        .slice(0, BACKUP_HASH_LENGTH);
+    const prefixLength = Math.max(
+        1,
+        MAX_BACKUP_BASE_NAME_LENGTH - BACKUP_HASH_LENGTH - 1,
+    );
+    const truncatedPrefix = normalized
+        .slice(0, prefixLength)
+        .replace(/-+$/g, "") || "scheduled-task";
+
+    return `${truncatedPrefix}-${hash}`;
 }
 
 function formatIsoDate(date: Date): string {
@@ -37,13 +60,13 @@ export function getPromptBackupRoot(workspaceRoot: string): string {
 }
 
 function getLegacyPromptBackupRoot(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...LEGACY_BACKUP_DIR_PARTS);
+    return path.join(workspaceRoot, ...LEGACY_BACKUP_DIRS[1]);
 }
 
 function getAllowedPromptBackupRoots(workspaceRoot: string): string[] {
     return [
         getPromptBackupRoot(workspaceRoot),
-        getLegacyPromptBackupRoot(workspaceRoot),
+        ...LEGACY_BACKUP_DIRS.map((parts) => path.join(workspaceRoot, ...parts)),
     ];
 }
 

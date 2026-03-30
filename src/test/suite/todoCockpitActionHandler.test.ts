@@ -18,7 +18,7 @@ suite("Todo Cockpit Action Handler", () => {
     return {
       getPrimaryWorkspaceRootPath: () => workspaceRoot,
       getCurrentCockpitBoard: () => ({
-        version: 2,
+        version: 4,
         sections: [],
         cards: [],
         labelCatalog: [],
@@ -33,6 +33,7 @@ suite("Todo Cockpit Action Handler", () => {
           sortDirection: "asc",
           viewMode: "board",
           showArchived: false,
+          showRecurringTasks: false,
         },
         updatedAt: "",
       }) as CockpitBoard,
@@ -143,6 +144,7 @@ suite("Todo Cockpit Action Handler", () => {
       sortDirection: seededBoard.filters?.sortDirection ?? "asc",
       viewMode: seededBoard.filters?.viewMode ?? "board",
       showArchived: seededBoard.filters?.showArchived === true,
+      showRecurringTasks: seededBoard.filters?.showRecurringTasks === true,
     };
 
     const webview = SchedulerWebview as unknown as {
@@ -228,6 +230,7 @@ suite("Todo Cockpit Action Handler", () => {
             sortDirection: "asc",
             viewMode: "board",
             showArchived: false,
+            showRecurringTasks: false,
           },
         },
         {
@@ -244,6 +247,55 @@ suite("Todo Cockpit Action Handler", () => {
       assert.deepStrictEqual(switchedTabs, []);
     } finally {
       webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("setTodoFilters immediately updates the webview with persisted recurring visibility", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const seededBoard = createDefaultCockpitBoard();
+    const webview = SchedulerWebview as unknown as {
+      switchToTab: (tab: string) => void;
+      updateCockpitBoard: (board: CockpitBoard) => void;
+    };
+    const originalSwitchToTab = webview.switchToTab;
+    const originalUpdateCockpitBoard = webview.updateCockpitBoard;
+    const switchedTabs: string[] = [];
+    const updatedBoards: CockpitBoard[] = [];
+
+    try {
+      webview.switchToTab = (tab: string) => {
+        switchedTabs.push(tab);
+      };
+      webview.updateCockpitBoard = (board: CockpitBoard) => {
+        updatedBoards.push(board);
+      };
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "setTodoFilters",
+          taskId: "",
+          todoFilters: {
+            showRecurringTasks: true,
+          },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => seededBoard,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(updatedBoards.length, 1);
+      assert.strictEqual(updatedBoards[0]?.filters?.showRecurringTasks, true);
+      assert.deepStrictEqual(switchedTabs, ["board"]);
+      assert.strictEqual(
+        readSchedulerConfig(workspaceRoot).cockpitBoard?.filters?.showRecurringTasks,
+        true,
+      );
+    } finally {
+      webview.switchToTab = originalSwitchToTab;
+      webview.updateCockpitBoard = originalUpdateCockpitBoard;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

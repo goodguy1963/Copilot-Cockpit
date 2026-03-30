@@ -52,6 +52,7 @@ import {
 } from "./schedulerWebviewContentUtils";
 import { renderSchedulerWebviewDocument } from "./schedulerWebviewDocument";
 import { buildSchedulerWebviewStrings } from "./schedulerWebviewStrings";
+import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
 import {
   createStartCreateTodoMessage,
   createUpdateCockpitBoardMessage,
@@ -71,6 +72,7 @@ import {
 } from "./schedulerWebviewTemplateCache";
 
 type OutgoingWebviewMessage = { type: string;[key: string]: unknown };
+const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
 
 /**
  * Manages the Webview panel for task management
@@ -92,7 +94,7 @@ export class SchedulerWebview {
   private static currentJobs: JobDefinition[] = [];
   private static currentJobFolders: JobFolder[] = [];
   private static currentCockpitBoard: CockpitBoard = {
-    version: 2,
+    version: 4,
     sections: [],
     cards: [],
     labelCatalog: [],
@@ -110,6 +112,7 @@ export class SchedulerWebview {
       sortDirection: "asc",
       viewMode: "board",
       showArchived: false,
+      showRecurringTasks: false,
     },
     updatedAt: "",
   };
@@ -904,6 +907,107 @@ export class SchedulerWebview {
         this.webviewReady = true;
         this.flushPendingMessages();
         break;
+
+      case "requestTodoFileUpload":
+        await this.handleTodoFileUploadRequest();
+        break;
+    }
+  }
+
+  private static sanitizeTodoUploadFileName(fileName: string): string {
+    const parsed = path.parse(fileName || "upload");
+    const rawBase = parsed.name || "upload";
+    const safeBase = rawBase
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[-_.]+|[-_.]+$/g, "")
+      .slice(0, 48) || "upload";
+    const safeExt = (parsed.ext || "").replace(/[^a-zA-Z0-9.]+/g, "").slice(0, 12);
+    return `${safeBase}${safeExt}`;
+  }
+
+  private static async handleTodoFileUploadRequest(): Promise<void> {
+    const strings = buildSchedulerWebviewStrings(getCurrentLanguage());
+    const workspaceRoot = getResolvedWorkspaceRootPaths()[0];
+    if (!workspaceRoot) {
+      this.postMessage({
+        type: "todoFileUploadResult",
+        ok: false,
+        message: strings.boardUploadFilesError || "File upload failed.",
+      });
+      return;
+    }
+
+    try {
+      const selectedFiles = await vscode.window.showOpenDialog({
+        canSelectMany: true,
+        canSelectFiles: true,
+        canSelectFolders: false,
+        openLabel: strings.boardUploadFiles || "Upload Files",
+      });
+
+      if (!selectedFiles || selectedFiles.length === 0) {
+        this.postMessage({
+          type: "todoFileUploadResult",
+          ok: false,
+          cancelled: true,
+          message: strings.boardUploadFilesEmpty || "No files selected.",
+        });
+        return;
+      }
+
+      const uploadFolderPath = path.join(
+        workspaceRoot,
+        ".vscode",
+        TODO_INPUT_UPLOADS_FOLDER,
+      );
+      fs.mkdirSync(uploadFolderPath, { recursive: true });
+      ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
+
+      const relativePaths: string[] = [];
+      const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
+
+      selectedFiles.forEach((fileUri, index) => {
+        const sourcePath = fileUri.fsPath;
+        const safeName = this.sanitizeTodoUploadFileName(path.basename(sourcePath));
+        const parsed = path.parse(safeName);
+        const prefix = `${stamp}-${String(index + 1).padStart(2, "0")}`;
+        let targetName = `${prefix}-${parsed.name}${parsed.ext}`;
+        let targetPath = path.join(uploadFolderPath, targetName);
+        let attempt = 2;
+
+        while (fs.existsSync(targetPath)) {
+          targetName = `${prefix}-${parsed.name}-${attempt}${parsed.ext}`;
+          targetPath = path.join(uploadFolderPath, targetName);
+          attempt += 1;
+        }
+
+        fs.copyFileSync(sourcePath, targetPath);
+        relativePaths.push(path.relative(workspaceRoot, targetPath).split(path.sep).join("/"));
+      });
+
+      const insertedText = [
+        relativePaths.length === 1 ? "Attachment:" : "Attachments:",
+        ...relativePaths.map((relativePath) => `- ${relativePath}`),
+      ].join("\n");
+
+      this.postMessage({
+        type: "todoFileUploadResult",
+        ok: true,
+        message: strings.boardUploadFilesSuccess || "Files copied into the workspace input folder and added to the description.",
+        insertedText,
+        relativePaths,
+        folderRelativePath: `.vscode/${TODO_INPUT_UPLOADS_FOLDER}`,
+      });
+    } catch (error) {
+      logError("Todo file upload failed", error);
+      this.postMessage({
+        type: "todoFileUploadResult",
+        ok: false,
+        message: (strings.boardUploadFilesError || "File upload failed.") + " " + sanitizeAbsolutePathDetails(
+          error instanceof Error ? error.message : String(error ?? ""),
+        ),
+      });
     }
   }
 
@@ -1035,7 +1139,7 @@ export class SchedulerWebview {
     .tab-bar {
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 30;
       display: flex;
       align-items: flex-end;
       justify-content: space-between;
@@ -2086,15 +2190,15 @@ export class SchedulerWebview {
     .board-columns-shell {
       width: 100%;
       overflow-x: auto;
-      overflow-y: hidden;
+      overflow-y: visible;
       padding-bottom: 10px;
       min-height: 200px;
     }
 
     .board-filter-sticky {
       position: sticky;
-      top: 0;
-      z-index: 20;
+      top: var(--cockpit-tab-bar-sticky-top, 0px);
+      z-index: 24;
       display: grid;
       gap: 8px;
       background: var(--vscode-sideBar-background);
@@ -2112,6 +2216,8 @@ export class SchedulerWebview {
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      flex-wrap: wrap;
+      width: 100%;
       max-width: 1600px;
     }
 
@@ -2125,11 +2231,88 @@ export class SchedulerWebview {
 
     .board-filter-body {
       display: grid;
-      gap: 6px;
+      gap: 8px;
+      min-width: 0;
     }
 
-    .board-filter-sticky.is-collapsed .board-filter-body {
+    .board-filter-grid-shell {
+      min-width: 0;
+    }
+
+    .board-filter-sticky.is-collapsed .board-filter-grid-shell {
       display: none;
+    }
+
+    .board-filter-footer {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .board-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      align-items: end;
+      max-width: 1600px;
+      min-width: 0;
+    }
+
+    .board-filter-grid .form-group {
+      margin: 0;
+      min-width: 0;
+    }
+
+    .board-filter-grid .board-filter-search {
+      grid-column: span 2;
+      min-width: 220px;
+    }
+
+    .board-filter-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      margin-top: 6px;
+      max-width: 1600px;
+      min-width: 0;
+    }
+
+    .board-filter-primary-actions {
+      display: flex;
+      flex: 1 1 340px;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .board-filter-view-group {
+      display: flex;
+      justify-content: center;
+      flex: 0 1 160px;
+      min-width: 140px;
+    }
+
+    .board-filter-view-group .form-group {
+      width: 100%;
+      max-width: 140px;
+      margin: 0;
+      min-width: 110px;
+    }
+
+    .board-filter-options {
+      display: flex;
+      flex: 1 1 340px;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .board-filter-options label {
+      min-width: 0;
     }
 
     .board-toolbar {
@@ -2143,14 +2326,17 @@ export class SchedulerWebview {
     .board-col-width-group {
       display: flex;
       align-items: center;
+      flex: 0 1 220px;
+      flex-wrap: wrap;
       gap: 6px;
-      margin-left: auto;
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
+      min-width: 170px;
     }
 
     .board-col-width-group input[type="range"] {
-      width: 100px;
+      width: min(100%, 140px);
+      flex: 1 1 120px;
       cursor: pointer;
     }
 
@@ -2165,7 +2351,7 @@ export class SchedulerWebview {
       border-radius: 10px;
       border: 1px solid var(--vscode-panel-border);
       background: var(--vscode-editorWidget-background);
-      overflow: hidden;
+      overflow: visible;
     }
 
     .todo-list-items {
@@ -2259,6 +2445,13 @@ export class SchedulerWebview {
       gap: 6px;
       cursor: grab;
       user-select: none;
+      min-width: 0;
+      position: sticky;
+      top: var(--cockpit-board-sticky-top, 0px);
+      z-index: 8;
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
     }
 
     .cockpit-section-header:active {
@@ -2267,6 +2460,11 @@ export class SchedulerWebview {
 
     .cockpit-section-header strong {
       padding-left: 2px;
+    }
+
+    .cockpit-drag-handle {
+      flex: 0 0 auto;
+      touch-action: none;
     }
 
     .cockpit-collapse-btn {
@@ -2313,21 +2511,50 @@ export class SchedulerWebview {
       overflow: hidden;
     }
 
-    .card-labels [data-label-slot]:not([data-label-slot="0"]) {
-      display: none;
+    .card-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--cockpit-chip-gap, 4px);
+      min-width: 0;
     }
 
-    :root.labels-3 .card-labels [data-label-slot="1"],
-    :root.labels-3 .card-labels [data-label-slot="2"],
-    :root.labels-6 .card-labels [data-label-slot="1"],
-    :root.labels-6 .card-labels [data-label-slot="2"] {
-      display: inline;
+    .card-labels [data-label-slot] {
+      display: inline-flex;
+      min-width: 0;
     }
 
-    :root.labels-6 .card-labels [data-label-slot="3"],
-    :root.labels-6 .card-labels [data-label-slot="4"],
-    :root.labels-6 .card-labels [data-label-slot="5"] {
-      display: inline;
+    [data-label-chip],
+    [data-flag-chip] {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--cockpit-chip-gap, 4px);
+      max-width: 100%;
+      min-width: 0;
+      font-size: inherit;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    [data-label-chip] {
+      padding: var(--cockpit-label-pad-y, 2px) var(--cockpit-label-pad-x, 7px);
+    }
+
+    [data-flag-chip] {
+      padding: var(--cockpit-flag-pad-y, 2px) var(--cockpit-flag-pad-x, 8px);
+    }
+
+    [data-label-chip-select],
+    [data-flag-chip] > span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    [data-label-chip-select] {
+      max-width: 100%;
     }
 
     section[data-section-id] {
@@ -2358,6 +2585,36 @@ export class SchedulerWebview {
     article[data-todo-id].todo-dragging {
       opacity: 0.35;
       transform: rotate(1.5deg) scale(0.97) !important;
+    }
+
+    @media (max-width: 920px) {
+      .board-filter-grid .board-filter-search {
+        grid-column: auto;
+      }
+
+      .board-filter-actions {
+        align-items: stretch;
+      }
+
+      .board-filter-view-group,
+      .board-filter-options {
+        flex: 1 1 100%;
+        justify-content: flex-start;
+      }
+
+      .board-col-width-group {
+        flex: 1 1 100%;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .board-filter-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .board-filter-header {
+        align-items: flex-start;
+      }
     }
 
     article[data-todo-id].todo-drop-target {
@@ -2422,6 +2679,15 @@ export class SchedulerWebview {
       color: var(--vscode-button-secondaryForeground) !important;
     }
 
+    .todo-card-approve.is-confirming {
+      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 26%, var(--vscode-button-secondaryBackground)) !important;
+    }
+
+    .todo-complete-button.is-confirming {
+      background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 24%, var(--vscode-input-background)) !important;
+      border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 70%, var(--vscode-panel-border)) !important;
+    }
+
     .todo-card-finalize {
       background-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-button-secondaryBackground)) !important;
       color: var(--vscode-button-secondaryForeground) !important;
@@ -2458,6 +2724,11 @@ export class SchedulerWebview {
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+
+    .cockpit-inline-modal-card.comment-detail-modal {
+      width: min(860px, calc(100vw - 40px));
+      max-height: min(84vh, 920px);
     }
 
     .cockpit-inline-modal-title {
@@ -2562,6 +2833,36 @@ export class SchedulerWebview {
       border-radius: 8px;
       border: 1px solid var(--vscode-panel-border);
       background: var(--vscode-sideBar-background);
+      border-left: 4px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .todo-comment-card:hover,
+    .todo-comment-card:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+      outline: none;
+    }
+
+    .todo-comment-card.is-human-form {
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 12%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 70%, white);
+    }
+
+    .todo-comment-card.is-bot-mcp {
+      background: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 14%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 74%, white);
+    }
+
+    .todo-comment-card.is-bot-manual {
+      background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 14%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 76%, white);
+    }
+
+    .todo-comment-card.is-system-event {
+      background: color-mix(in srgb, var(--vscode-descriptionForeground) 10%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-descriptionForeground) 72%, white);
     }
 
     .todo-comment-header {
@@ -2583,6 +2884,110 @@ export class SchedulerWebview {
     .todo-comment-card.is-user-form .todo-comment-author,
     .todo-comment-card.is-user-form .todo-comment-body {
       color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-comment-expand-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-comment-modal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+
+    .todo-comment-modal-body {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 13px;
+      border-radius: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editor-background);
+      padding: 14px;
+    }
+
+    .todo-upload-row {
+      display: grid;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .todo-upload-note {
+      min-height: 1.3em;
+    }
+
+    .todo-upload-note.is-success {
+      color: var(--vscode-testing-iconPassed, #4caf50);
+    }
+
+    .todo-upload-note.is-error {
+      color: var(--vscode-errorForeground);
+    }
+
+    .todo-editor-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .todo-editor-action-row > button {
+      min-height: 38px;
+      padding: 8px 14px;
+      font-weight: 700;
+    }
+
+    #todo-complete-btn {
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 20%, var(--vscode-button-secondaryBackground));
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    #todo-delete-btn {
+      background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground));
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    #todo-priority-input {
+      font-weight: 700;
+      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+
+    #todo-priority-input option {
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-dropdown-background, var(--vscode-input-background));
+    }
+
+    #todo-priority-input option:hover {
+      color: var(--vscode-list-highlightForeground, var(--vscode-input-foreground));
+    }
+
+    #todo-priority-input[data-priority="none"] {
+      background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent);
+      color: var(--vscode-foreground);
+    }
+
+    #todo-priority-input[data-priority="low"] {
+      background: color-mix(in srgb, #64748b 28%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="medium"] {
+      background: color-mix(in srgb, #3b82f6 26%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="high"] {
+      background: color-mix(in srgb, #f59e0b 24%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="urgent"] {
+      background: color-mix(in srgb, #ef4444 22%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
     }
 
     .history-toolbar {
@@ -3828,6 +4233,10 @@ export class SchedulerWebview {
               <label for="todo-description-input">${escapeHtml(strings.boardFieldDescription)}</label>
               <textarea id="todo-description-input" style="min-height:180px;"></textarea>
             </div>
+            <div class="todo-upload-row">
+              <button type="button" class="btn-secondary" id="todo-upload-files-btn">${escapeHtml(strings.boardUploadFiles)}</button>
+              <div id="todo-upload-files-note" class="note todo-upload-note">${escapeHtml(strings.boardUploadFilesHint)}</div>
+            </div>
             <div>
               <div class="section-title" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
               <div id="todo-comment-list" class="todo-editor-comments" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
@@ -3894,11 +4303,11 @@ export class SchedulerWebview {
               <div class="note" style="margin-top:4px;margin-bottom:8px;">${escapeHtml(strings.boardFlagCatalogHint)}</div>
             </div>
             <div id="todo-linked-task-note" class="note">${escapeHtml(strings.boardTaskDraftNote)}</div>
-            <div class="button-group" style="margin:0;">
+            <div class="button-group todo-editor-action-row">
               <button type="submit" class="btn-primary" id="todo-save-btn">${escapeHtml(strings.boardSaveCreate)}</button>
-              <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
               <button type="button" class="btn-secondary" id="todo-complete-btn">${escapeHtml(strings.boardCompleteTodo)}</button>
               <button type="button" class="btn-secondary" id="todo-delete-btn">${escapeHtml(strings.boardDeleteTodo)}</button>
+              <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
             </div>
           </section>
         </div>
@@ -4159,67 +4568,75 @@ export class SchedulerWebview {
         <button type="button" class="btn-secondary" id="todo-toggle-filters-btn">${escapeHtml(strings.boardHideFilters)}</button>
       </div>
       <div id="board-filter-body" class="board-filter-body">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;max-width:1600px;">
-        <div class="form-group" style="margin:0;min-width:220px;flex:1 1 220px;">
-          <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
-          <input type="text" id="todo-search-input" placeholder="${escapeHtmlAttr(strings.boardSearchPlaceholder)}">
-        </div>
-        <div class="form-group" style="margin:0;min-width:130px;">
-          <label for="todo-section-filter">${escapeHtml(strings.boardSectionFilterLabel)}</label>
-          <select id="todo-section-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:130px;">
-          <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
-          <select id="todo-label-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:130px;">
-          <label for="todo-flag-filter">${escapeHtml(strings.boardFlagFilterLabel)}</label>
-          <select id="todo-flag-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:120px;">
-          <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
-          <select id="todo-priority-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:120px;">
-          <label for="todo-status-filter">${escapeHtml(strings.boardStatusFilterLabel)}</label>
-          <select id="todo-status-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:140px;">
-          <label for="todo-archive-outcome-filter">${escapeHtml(strings.boardArchiveOutcomeFilterLabel)}</label>
-          <select id="todo-archive-outcome-filter"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:130px;">
-          <label for="todo-sort-by">${escapeHtml(strings.boardSortLabel)}</label>
-          <select id="todo-sort-by"></select>
-        </div>
-        <div class="form-group" style="margin:0;min-width:110px;">
-          <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
-          <select id="todo-sort-direction"></select>
-        </div>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:6px;max-width:1600px;">
-        <div style="display:flex;flex:1 1 340px;flex-wrap:wrap;gap:8px;align-items:center;">
-          <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
-          <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
-          <button type="button" class="btn-secondary" id="todo-clear-filters-btn">${escapeHtml(strings.boardToolbarClearFilters)}</button>
-        </div>
-        <div style="display:flex;justify-content:center;flex:0 1 160px;min-width:140px;">
-          <div class="form-group" style="margin:0;min-width:110px;width:100%;max-width:140px;">
-            <label for="todo-view-mode">${escapeHtml(strings.boardViewLabel)}</label>
-            <select id="todo-view-mode"></select>
+        <div class="board-filter-grid-shell">
+          <div class="board-filter-grid">
+            <div class="form-group board-filter-search">
+              <label for="todo-search-input">${escapeHtml(strings.boardSearchLabel)}</label>
+              <input type="text" id="todo-search-input" placeholder="${escapeHtmlAttr(strings.boardSearchPlaceholder)}">
+            </div>
+            <div class="form-group">
+              <label for="todo-section-filter">${escapeHtml(strings.boardSectionFilterLabel)}</label>
+              <select id="todo-section-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-label-filter">${escapeHtml(strings.boardLabelFilterLabel)}</label>
+              <select id="todo-label-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-flag-filter">${escapeHtml(strings.boardFlagFilterLabel)}</label>
+              <select id="todo-flag-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-priority-filter">${escapeHtml(strings.boardPriorityFilterLabel)}</label>
+              <select id="todo-priority-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-status-filter">${escapeHtml(strings.boardStatusFilterLabel)}</label>
+              <select id="todo-status-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-archive-outcome-filter">${escapeHtml(strings.boardArchiveOutcomeFilterLabel)}</label>
+              <select id="todo-archive-outcome-filter"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-sort-by">${escapeHtml(strings.boardSortLabel)}</label>
+              <select id="todo-sort-by"></select>
+            </div>
+            <div class="form-group">
+              <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
+              <select id="todo-sort-direction"></select>
+            </div>
           </div>
         </div>
-        <div style="display:flex;flex:1 1 340px;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;">
-          <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
-            <input type="checkbox" id="todo-show-archived" style="margin:0;">
-            ${escapeHtml(strings.boardShowArchived)}
-          </label>
-          <div class="board-col-width-group" style="margin-left:auto;">
-            <label for="cockpit-col-slider">Column width</label>
-            <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
+        <div class="board-filter-footer">
+          <div class="board-filter-actions">
+            <div class="board-filter-primary-actions">
+              <button type="button" class="btn-primary" id="todo-new-btn">${escapeHtml(strings.boardToolbarNew)}</button>
+              <button type="button" class="btn-secondary" id="todo-clear-selection-btn">${escapeHtml(strings.boardToolbarClear)}</button>
+              <button type="button" class="btn-secondary" id="todo-clear-filters-btn">${escapeHtml(strings.boardToolbarClearFilters)}</button>
+            </div>
+            <div class="board-filter-view-group">
+              <div class="form-group">
+                <label for="todo-view-mode">${escapeHtml(strings.boardViewLabel)}</label>
+                <select id="todo-view-mode"></select>
+              </div>
+            </div>
+            <div class="board-filter-options">
+              <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
+                <input type="checkbox" id="todo-show-recurring-tasks" style="margin:0;">
+                ${escapeHtml(strings.boardShowRecurringTasks)}
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;margin:0;cursor:pointer;font-size:var(--vscode-font-size,12px);">
+                <input type="checkbox" id="todo-show-archived" style="margin:0;">
+                ${escapeHtml(strings.boardShowArchived)}
+              </label>
+              <div class="board-col-width-group">
+                <label for="cockpit-col-slider">Column width</label>
+                <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
+              </div>
+            </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
     <div id="board-summary" class="note"></div>

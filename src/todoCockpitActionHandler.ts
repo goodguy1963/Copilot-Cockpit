@@ -152,7 +152,8 @@ function areCockpitBoardFiltersEqual(
     && left.sortBy === right.sortBy
     && left.sortDirection === right.sortDirection
     && left.viewMode === right.viewMode
-    && left.showArchived === right.showArchived;
+    && left.showArchived === right.showArchived
+    && left.showRecurringTasks === right.showRecurringTasks;
 }
 
 type TodoCockpitTaskAction = Extract<
@@ -508,10 +509,11 @@ export async function handleTodoCockpitAction(
       if (areCockpitBoardFiltersEqual(currentBoard.filters, nextBoard.filters)) {
         return true;
       }
-      setCockpitBoardFilters(
+      const persistedBoard = setCockpitBoardFilters(
         workspaceRoot,
         filterUpdates,
       );
+      SchedulerWebview.updateCockpitBoard(persistedBoard);
       deps.refreshSchedulerUiState();
       SchedulerWebview.switchToTab("board");
       return true;
@@ -609,6 +611,7 @@ export async function handleTodoCockpitAction(
         cronExpression: "0 9 * * 1-5",
         prompt: buildTaskPromptFromTodo(todo),
         enabled: false,
+        oneTime: true,
         labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
         scope: "workspace",
         promptSource: "inline",
