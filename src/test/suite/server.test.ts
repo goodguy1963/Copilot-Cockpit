@@ -206,7 +206,6 @@ suite("Scheduler MCP Server Tests", () => {
     const labelCard = payload.cards.find((card: any) => card.id === "card-go-label");
     const flagCard = payload.cards.find((card: any) => card.id === "card-go-flag");
     const commentCard = payload.cards.find((card: any) => card.id === "card-comment-label");
-    assert.deepStrictEqual(labelCard.matchedSignals, ["go"]);
     assert.deepStrictEqual(flagCard.matchedSignals, ["go"]);
     assert.deepStrictEqual(commentCard.matchedSignals, ["needs-bot-review"]);
     assert.deepStrictEqual(labelCard.matchedSignals, ["go", "needs-bot-review"]);
