@@ -2446,12 +2446,19 @@ export class SchedulerWebview {
       cursor: grab;
       user-select: none;
       min-width: 0;
-      position: sticky;
-      top: var(--cockpit-board-sticky-top, 0px);
-      z-index: 8;
       background: color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent);
       backdrop-filter: blur(10px);
       box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+    }
+
+    .todo-list-section .cockpit-section-header {
+      position: sticky;
+      top: var(--cockpit-board-sticky-top, 0px);
+      z-index: 8;
+    }
+
+    .board-column .cockpit-section-header {
+      position: static;
     }
 
     .cockpit-section-header:active {
