@@ -1,13 +1,7390 @@
-"use strict";(()=>{function Ho(n){var a=n&&n.target?n.target:n;return a&&a.nodeType===3&&(a=a.parentElement),a||null}function q(n,a){var s=Ho(n);return s&&s.closest?s.closest(a):null}function Po(n){return!!q(n,["input","button","select","textarea","a","label",'[role="button"]','[contenteditable="true"]',"[data-no-drag]","[data-todo-edit]","[data-todo-delete]","[data-todo-purge]","[data-todo-reject]","[data-todo-restore]","[data-todo-complete]","[data-section-collapse]","[data-section-rename]","[data-section-delete]"].join(", "))}function Oo(n,a,s){var f=n&&typeof n.setTimeout=="function"?n.setTimeout:typeof setTimeout=="function"?setTimeout:null;return f?f.call(null,a,s):(a(),null)}function cl(n,a){var s=n.getAttribute("data-section-collapse");a.toggleSectionCollapsed(s);var f=n.closest?n.closest("[data-section-id]"):null,v=f?f.querySelector(".section-body-wrapper"):null,p=a.collapsedSections.has(s);n.classList.toggle("collapsed",p),n.title=p?"Expand section":"Collapse section",v&&v.classList.toggle("collapsed",p),f&&f.classList.toggle("is-collapsed",p)}function ul(n,a){var s=n.getAttribute("data-section-rename"),f=n.closest?n.closest("[data-section-id]"):null,v=f?f.querySelector(".cockpit-section-header"):null,p=v?v.querySelector("strong"):null;if(p){var D=p.textContent||"",S=a.document.createElement("input");S.type="text",S.value=D,S.style.cssText="font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";var L=!1,x=function(){if(!L){L=!0;var h=S.value.trim();h&&h!==D?a.vscode.postMessage({type:"renameCockpitSection",sectionId:s,title:h}):(p.style.display="",S.parentNode&&S.parentNode.removeChild(S))}};S.onkeydown=function(h){h.key==="Enter"&&(h.preventDefault(),x()),h.key==="Escape"&&(L=!0,p.style.display="",S.parentNode&&S.parentNode.removeChild(S))},S.onblur=function(){Oo(a,x,120)},p.style.display="none",p.parentNode.insertBefore(S,p),S.select()}}function fl(n,a){var s=n.getAttribute("data-section-delete");if(n.getAttribute("data-confirming")){a.vscode.postMessage({type:"deleteCockpitSection",sectionId:s}),n.removeAttribute("data-confirming");return}n.setAttribute("data-confirming","1");var f=n.textContent,v=n.style.color;n.textContent=a.strings.boardDeleteConfirm||"Delete?",n.style.color="var(--vscode-errorForeground)",n.style.opacity="1",Oo(a,function(){n.getAttribute("data-confirming")&&(n.removeAttribute("data-confirming"),n.textContent=f,n.style.color=v,n.style.opacity="")},2500)}function vl(n,a){var s=n.getAttribute("data-todo-complete"),f=n.closest?n.closest("[data-todo-id]"):null;function v(){n.removeAttribute("data-confirming"),n.classList.remove("is-confirming"),n.hasAttribute("data-confirm-label")&&(n.setAttribute("title",n.getAttribute("data-confirm-label")||""),n.setAttribute("aria-label",n.getAttribute("data-confirm-label")||""),n.removeAttribute("data-confirm-label")),n.hasAttribute("data-confirm-html")&&(n.innerHTML=n.getAttribute("data-confirm-html")||"",n.removeAttribute("data-confirm-html"));var x=f&&f.querySelector?f.querySelector('[data-todo-complete-cancel="'+s+'"]'):null;x&&x.parentNode&&x.parentNode.removeChild(x)}if(s){if(!n.getAttribute("data-confirming")){n.setAttribute("data-confirming","1"),n.classList.add("is-confirming"),n.setAttribute("data-confirm-label",n.getAttribute("title")||""),n.setAttribute("data-confirm-html",n.innerHTML||""),n.setAttribute("title",a.strings.boardConfirmApproveHint||"Click Confirm to continue, or Cancel to keep the todo unchanged."),n.setAttribute("aria-label",a.strings.boardConfirmAction||"Confirm"),n.innerHTML='<span aria-hidden="true">!</span>';var p=a.document.createElement("button");p.type="button",p.className="btn-icon",p.setAttribute("data-todo-complete-cancel",s),p.setAttribute("data-no-drag","1"),p.textContent=a.strings.boardCancelAction||"Cancel",p.style.cssText="display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 8px;border-radius:999px;border:1px solid var(--vscode-panel-border);background:var(--vscode-input-background);color:var(--vscode-foreground);font-size:11px;font-weight:700;line-height:1;",p.onclick=function(x){we(x),v()},n.parentNode&&n.parentNode.insertBefore(p,n.nextSibling),Oo(a,v,2800);return}v(),n.disabled=!0,f&&(f.style.opacity="0.35",f.style.pointerEvents="none");var D="approveTodo",S=a.cockpitBoard;if(S&&Array.isArray(S.cards)){for(var L=0;L<S.cards.length;L++)if(S.cards[L]&&S.cards[L].id===s){S.cards[L].status==="ready"&&(D="finalizeTodo");break}}a.vscode.postMessage({type:D,todoId:s})}}function we(n){n&&(typeof n.preventDefault=="function"&&n.preventDefault(),typeof n.stopPropagation=="function"&&n.stopPropagation())}var Ir=null,il=!1,K=null,Aa=!1,sl=6;function Ea(n,a,s){var f=n&&n.document,v=f&&f.body;!v||!v.classList||(v.classList.toggle("cockpit-board-dragging",!!a),v.classList.toggle("cockpit-board-dragging-section",!!a&&s==="section"),v.classList.toggle("cockpit-board-dragging-todo",!!a&&s==="todo"),v.style&&(v.style.userSelect=a?"none":"",v.style.webkitUserSelect=a?"none":"",v.style.cursor=a?"grabbing":""))}function Ro(){Aa=!0}function pc(n){return Aa?(Aa=!1,we(n),!0):!1}function gc(n,a){if(!n||!a||typeof n.clientX!="number"||typeof n.clientY!="number")return!0;var s=n.clientX-a.startX,f=n.clientY-a.startY;return s*s+f*f>=sl*sl}function No(n){var a=K;if(!(!n||!a||a.activated)){if(a.activated=!0,n.setIsBoardDragging(!0),Ea(n,!0,a.kind),a.kind==="section"){n.setDraggingSectionId(a.draggedId),n.setLastDragOverSectionId(null),a.draggedElement&&a.draggedElement.classList.add("section-dragging");return}n.setDraggingTodoId(a.draggedId),a.draggedElement&&a.draggedElement.classList.add("todo-dragging")}}function Ia(n){return n?typeof n.getBoardColumns=="function"?n.getBoardColumns():n.boardColumns||null:null}function Dn(n){return Ho(n)}function pl(n,a){var s=Ia(n),f=Dn(a);return!!(s&&f&&typeof s.contains=="function"&&s.contains(f))}function Er(n){!n||typeof n.querySelectorAll!="function"||(Array.prototype.forEach.call(n.querySelectorAll("[data-section-id].section-drag-over"),function(a){a.classList.remove("section-drag-over")}),Array.prototype.forEach.call(n.querySelectorAll("[data-section-id].section-dragging"),function(a){a.classList.remove("section-dragging")}),Array.prototype.forEach.call(n.querySelectorAll("[data-todo-id].todo-dragging"),function(a){a.classList.remove("todo-dragging")}),Array.prototype.forEach.call(n.querySelectorAll("[data-todo-id].todo-drop-target"),function(a){a.classList.remove("todo-drop-target")}))}function gl(n,a){var s=n&&n.document;if(s&&typeof s.elementFromPoint=="function"&&a&&typeof a.clientX=="number"&&typeof a.clientY=="number"){var f=s.elementFromPoint(a.clientX,a.clientY);if(f)return f}return Dn(a)}function mc(n,a,s){var f=q(s,"[data-section-id]");if(Er(a),!f){n.setLastDragOverSectionId(null),K&&K.draggedElement&&K.draggedElement.classList.add("section-dragging");return}var v=f.getAttribute("data-section-id"),p=n.getDraggingSectionId();if(!v||v===p||n.isArchiveTodoSectionId(v)){n.setLastDragOverSectionId(null),K&&K.draggedElement&&K.draggedElement.classList.add("section-dragging");return}f.classList.add("section-drag-over"),K&&K.draggedElement&&K.draggedElement.classList.add("section-dragging"),n.setLastDragOverSectionId(v)}function bc(n,a,s){var f=q(s,"[data-section-id]"),v=q(s,"[data-todo-id]");if(Er(a),K&&K.draggedElement&&K.draggedElement.classList.add("todo-dragging"),!!f){var p=f.getAttribute("data-section-id");if(!(!p||n.isArchiveTodoSectionId(p))){if(v&&v.getAttribute("data-todo-id")!==n.getDraggingTodoId()){v.classList.add("todo-drop-target");return}f.classList.add("section-drag-over")}}}function yc(n){var a=Ir;if(!(!a||!K)){if(!K.activated){if(!gc(n,K))return;No(a),Ro()}we(n);var s=Ia(a);if(!s){Ea(a,!1),a.finishBoardDragState(),K=null;return}var f=gl(a,n);if(K.kind==="section"){mc(a,s,f);return}bc(a,s,f)}}function ll(n,a){var s=Ir,f=K;if(!s||!f){K=null;return}if(!f.activated){Ea(s,!1),K=null;return}var v=Ia(s),p=a?null:gl(s,n);if(v&&Er(v),!a&&v&&f.kind==="section"){var D=q(p,"[data-section-id]"),S=D?D.getAttribute("data-section-id"):null;if((!S||S===s.getDraggingSectionId())&&(S=s.getLastDragOverSectionId()),S&&S!==s.getDraggingSectionId()){for(var L=v.querySelectorAll("[data-section-id]"),x=-1,h=0;h<L.length;h+=1)if(L[h].getAttribute("data-section-id")===S){x=h;break}x>=0&&s.vscode.postMessage({type:"reorderCockpitSection",sectionId:s.getDraggingSectionId(),targetIndex:x})}}if(!a&&v&&f.kind==="todo"){var k=q(p,"[data-section-id]"),X=q(p,"[data-todo-id]");if(k&&s.getDraggingTodoId()&&!s.isArchiveTodoSectionId(k.getAttribute("data-section-id"))){var x=Number(X?X.getAttribute("data-order")||0:k.getAttribute("data-card-count")||0);s.vscode.postMessage({type:"moveTodo",todoId:s.getDraggingTodoId(),sectionId:k.getAttribute("data-section-id"),targetIndex:x})}}Ea(s,!1),s.finishBoardDragState(),K=null,typeof setTimeout=="function"&&setTimeout(function(){Aa=!1},350)}function hc(n,a){var s=Ir;if(s){var f=Dn(a);!n||!f||!pl(s,f)||(a&&typeof a.stopPropagation=="function"&&a.stopPropagation(),s.handleTodoCompletion(n))}}function Mo(n,a,s){!n||typeof n.addEventListener!="function"||n.addEventListener(a,s)}var dl=!1;function Sc(n){dl||!n||typeof n.addEventListener!="function"||(dl=!0,n.addEventListener("click",function(a){var s=Ir;if(s){var f=Ho(a);if(!(!f||typeof f.closest!="function")){var v=f.closest("[data-todo-edit]");if(v){we(a),s.openTodoEditor(v.getAttribute("data-todo-edit")||"");return}var p=f.closest("[data-todo-delete]");if(p){we(a),s.openTodoDeleteModal(p.getAttribute("data-todo-delete")||"");return}var D=f.closest("[data-todo-purge]");if(D){we(a),s.openTodoDeleteModal(D.getAttribute("data-todo-purge")||"",{permanentOnly:!0});return}var S=f.closest("[data-todo-reject]");if(S){we(a),s.handleTodoReject(S);return}var L=f.closest("[data-todo-restore]");if(L){we(a),s.handleTodoRestore(L);return}var x=f.closest("[data-todo-complete]");if(x){hc(x,a);return}var h=f.closest("[data-section-collapse]");if(h){we(a),s.handleSectionCollapse(h);return}var k=f.closest("[data-section-rename]");if(k){we(a),s.handleSectionRename(k);return}var X=f.closest("[data-section-delete]");if(X){we(a),s.handleSectionDelete(X);return}var ne=f.closest("[data-todo-id]");if(ne){if(pc(a)||Po(f))return;s.setSelectedTodoId(ne.getAttribute("data-todo-id")),s.renderCockpitBoard()}}}}))}function kc(n,a){!n||typeof n.querySelectorAll!="function"||(Array.prototype.forEach.call(n.querySelectorAll("[data-section-drag-handle]"),function(s){Mo(s,"pointerdown",Fo)}),Array.prototype.forEach.call(n.querySelectorAll(".cockpit-section-header"),function(s){Mo(s,"pointerdown",Fo)}),Array.prototype.forEach.call(n.querySelectorAll("[data-todo-id]"),function(s){Mo(s,"pointerdown",Fo)}))}function Fo(n){var a=Ir;if(a&&(Aa=!1,!(typeof n.button=="number"&&n.button!==0))){var s=Dn(n);if(pl(a,s)){var f=q(s,"[data-section-drag-handle]"),v=q(s,".cockpit-section-header"),p=q(s,"[data-todo-drag-handle]"),D=Ia(a);if(D){var S=f&&f.closest?f.closest("[data-section-id]"):v&&v.closest?v.closest("[data-section-id]"):null,h=f?f.getAttribute("data-section-drag-handle"):S&&S.getAttribute?S.getAttribute("data-section-id"):"",L=!!(!f&&v&&S&&h&&!(a.isSpecialTodoSectionId&&a.isSpecialTodoSectionId(h))&&!Po(s));if(f||L){we(n),Er(D),K={kind:"section",draggedId:h,draggedElement:S,activated:!1,startX:typeof n.clientX=="number"?n.clientX:0,startY:typeof n.clientY=="number"?n.clientY:0},No(a),Ro();return}var x=p&&p.closest?p.closest("[data-todo-id]"):q(s,"[data-todo-id]");if(x){var h=x.getAttribute?x.getAttribute("data-section-id"):"";!p&&(Po(s)||a.isArchiveTodoSectionId(h||""))||(Er(D),K={kind:"todo",draggedId:p?p.getAttribute("data-todo-drag-handle")||x.getAttribute("data-todo-id"):x.getAttribute("data-todo-id")||"",draggedElement:x,activated:!1,startX:typeof n.clientX=="number"?n.clientX:0,startY:typeof n.clientY=="number"?n.clientY:0},p&&(we(n),No(a),Ro()))}}}}}function Ac(n){if(!il){var a=n.window;!a||typeof a.addEventListener!="function"||(a.addEventListener("pointermove",yc,!0),a.addEventListener("pointerup",function(s){ll(s,!1)},!0),a.addEventListener("pointercancel",function(s){ll(s,!0)},!0),il=!0)}}function ml(n){var a=Ia(n);a&&(Ir=n,Ea(n,!1),Er(a),Sc(a),kc(a,n),Ac(n))}function bl(n){var a=n&&typeof n.initialLogLevel=="string"?n.initialLogLevel:"info";function s(){return a==="debug"}function f(h){if(typeof h>"u")return{};try{return JSON.parse(JSON.stringify(h))}catch{return{value:String(h)}}}function v(h,k){if(s()){var X={event:h,detail:f(k)};try{n&&n.console&&typeof n.console.log=="function"&&n.console.log("[SchedulerWebviewDebug]",X)}catch{}try{n&&n.vscode&&typeof n.vscode.postMessage=="function"&&n.vscode.postMessage({type:"debugWebview",event:h,detail:X.detail})}catch{}}}function p(){return{title:"",description:"",dueAt:"",flagColor:"#f59e0b",flagInput:"",priority:"none",flag:"",labelColor:"#4f8cff",labelInput:"",sectionId:"",taskId:""}}function D(h){var k=p();return v("todoDraftReset",{reason:h||"unknown"}),k}function S(h){if(!h||h.selectedTodoId)return h?h.currentTodoDraft:p();var k=h.currentTodoDraft||p();return k.title=h.todoTitleInput?String(h.todoTitleInput.value||""):"",k.description=h.todoDescriptionInput?String(h.todoDescriptionInput.value||""):"",k.dueAt=h.todoDueInput?String(h.todoDueInput.value||""):"",k.priority=h.todoPriorityInput?String(h.todoPriorityInput.value||"none"):"none",k.sectionId=h.todoSectionInput?String(h.todoSectionInput.value||""):"",k.taskId=h.todoLinkedTaskSelect?String(h.todoLinkedTaskSelect.value||""):"",h.reason&&v("todoDraftSync",{reason:h.reason,titleLength:k.title.length,hasDescription:k.description.length>0,hasDueAt:!!k.dueAt,sectionId:k.sectionId,taskId:k.taskId}),k}function L(h){a=typeof h=="string"&&h?h:"info"}function x(){return a}return{createEmptyTodoDraft:p,emitWebviewDebug:v,getLogLevel:x,resetTodoDraft:D,setLogLevel:L,syncTodoDraftFromInputs:S}}function yl(n){var a=n.visibleSections,s=n.cards,f=n.filters,v=n.strings;return f.viewMode==="list"?Tc(a,s,f,n):xc(a,s,f,n)}function Ec(n){return Array.isArray(n.comments)&&n.comments.length?n.comments[n.comments.length-1]:null}function hl(n,a){var s=a.strings,f=a.helpers,v=['<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="'+f.escapeAttr(n.id)+'" title="'+f.escapeAttr(s.boardEditTodo||"Open Editor")+'" style="color:var(--vscode-textLink-foreground);">&#9998; '+f.escapeHtml(s.boardEditTodoShort||"Edit")+"</button>"];return n.archived?(v.push('<button type="button" class="btn-secondary todo-card-restore todo-list-action-btn" data-todo-restore="'+f.escapeAttr(n.id)+'" title="'+f.escapeAttr(s.boardRestoreTodo||"Restore")+'">&#8634; '+f.escapeHtml(s.boardRestoreTodo||"Restore")+"</button>"),v.push('<button type="button" class="btn-danger todo-card-purge todo-list-action-btn" data-todo-purge="'+f.escapeAttr(n.id)+'" title="'+f.escapeAttr(s.boardDeleteTodoPermanent||"Delete Permanently")+'">&#128465; '+f.escapeHtml(s.boardDeleteTodoPermanent||"Delete Permanently")+"</button>")):(n.status==="ready"&&v.push('<button type="button" class="btn-secondary todo-card-reject todo-list-action-btn" data-todo-reject="'+f.escapeAttr(n.id)+'" title="'+f.escapeAttr(s.boardDeclineTodo||"Decline")+'">&#8601; '+f.escapeHtml(s.boardDeclineTodo||"Decline")+"</button>"),v.push('<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="'+f.escapeAttr(n.id)+'" title="'+f.escapeAttr(s.boardDeleteTodo||"Delete Todo")+'">&#128465; '+f.escapeHtml(s.boardDeleteTodoShort||"Delete")+"</button>")),'<div class="todo-list-actions'+(v.length===1?" has-single-action":"")+'">'+v.join("")+"</div>"}function Ic(n,a,s){var f=s.strings,v=s.helpers,p=s.selectedTodoId,D=n.id===p,S=Ec(n),L=n.description?v.getTodoDescriptionPreview(n.description):S&&S.body?v.getTodoCommentSourceLabel(S.source||"human-form")+": "+v.getTodoDescriptionPreview(S.body):n.taskId?f.boardTaskLinked||"Linked task":f.boardDescriptionPreviewEmpty||"No description yet.",x=Array.isArray(n.flags)&&n.flags[0]?n.flags[0]:"",h=["<span data-card-meta>"+v.escapeHtml(v.getTodoPriorityLabel(n.priority||"none"))+"</span>","<span data-card-meta>"+v.escapeHtml(v.getTodoStatusLabel(n.status||"active"))+"</span>"];n.dueAt&&h.push("<span data-card-meta>"+v.escapeHtml((f.boardDueLabel||"Due")+": "+v.formatTodoDate(n.dueAt))+"</span>"),n.archived&&n.archiveOutcome&&h.push("<span data-card-meta>"+v.escapeHtml(v.getTodoArchiveOutcomeLabel(n.archiveOutcome))+"</span>"),x&&h.push(v.renderFlagChip(x,!1));var k=Array.isArray(n.labels)?n.labels.slice(0,2):[];return k.length&&h.push(k.map(function(X){return v.renderLabelChip(X,!1,!1)}).join(" ")),'<article class="todo-list-row" draggable="false" data-todo-id="'+v.escapeAttr(n.id)+'" data-section-id="'+v.escapeAttr(a)+'" data-order="'+String(n.order||0)+'" style="border-radius:8px;background:'+v.getTodoPriorityCardBg(n.priority||"none",D)+";border:1px solid "+(D?"var(--vscode-focusBorder)":"var(--vscode-widget-border)")+';padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">'+v.renderTodoCompletionCheckbox(n)+'<strong class="todo-list-title">'+v.escapeHtml(n.title||f.boardCardUntitled||"Untitled")+'</strong></div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">'+v.renderTodoDragHandle(n)+h.join("")+'</div></div><div class="cockpit-card-details"><div class="note todo-list-summary">'+v.escapeHtml(L)+"</div></div></div>"+hl(n,s)+"</article>"}function Tc(n,a,s,f){var v=f.strings,p=f.helpers,D=f.collapsedSections;return'<div class="todo-list-view">'+n.map(function(S){var L=p.sortTodoCards(a.filter(function(k){return k.sectionId===S.id&&p.cardMatchesTodoFilters(k,s)}),s),x=D.has(S.id),h=p.isSpecialTodoSectionId(S.id);return'<section class="todo-list-section'+(x?" is-collapsed":"")+'" data-section-id="'+p.escapeAttr(S.id)+'" data-card-count="'+String(L.length)+'"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);"><button type="button" class="cockpit-collapse-btn'+(x?" collapsed":"")+'" data-section-collapse="'+p.escapeAttr(S.id)+'" title="'+p.escapeAttr(x?v.boardSectionExpand||"Expand section":v.boardSectionCollapse||"Collapse section")+'">&#9660;</button>'+p.renderSectionDragHandle(S,h)+'<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+p.escapeHtml(S.title||v.boardSectionUntitled||"Section")+' <span class="note">('+String(L.length)+")</span></strong>"+(h?"":'<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="'+p.escapeAttr(S.id)+'" title="'+p.escapeAttr(v.boardSectionRename||"Rename section")+'">&#9998;</button><button type="button" class="btn-icon" data-section-delete="'+p.escapeAttr(S.id)+'" title="'+p.escapeAttr(v.boardSectionDelete||"Delete section")+'">&#215;</button></div>')+'</div><div class="section-body-wrapper'+(x?" collapsed":"")+'"><div class="section-body-inner"><div class="todo-list-items">'+(L.length?L.map(function(k){return Ic(k,S.id,f)}).join(""):'<div class="note">'+p.escapeHtml(v.boardListEmptySection||v.boardEmpty||"No todos in this section.")+"</div>")+"</div></div></div></section>"}).join("")+"</div>"}function xc(n,a,s,f){var v=f.strings,p=f.helpers,D=f.collapsedSections,S=f.selectedTodoId;return'<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">'+n.map(function(L){var x=p.sortTodoCards(a.filter(function(k){return k.sectionId===L.id&&p.cardMatchesTodoFilters(k,s)}),s),h=p.isSpecialTodoSectionId(L.id);return'<section class="board-column'+(D.has(L.id)?" is-collapsed":"")+'" data-section-id="'+p.escapeAttr(L.id)+'" data-card-count="'+String(x.length)+'" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)"><button type="button" class="cockpit-collapse-btn'+(D.has(L.id)?" collapsed":"")+'" data-section-collapse="'+p.escapeAttr(L.id)+'" title="'+p.escapeAttr(D.has(L.id)?v.boardSectionExpand||"Expand section":v.boardSectionCollapse||"Collapse section")+'">&#9660;</button>'+p.renderSectionDragHandle(L,h)+'<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+p.escapeHtml(L.title||v.boardSectionUntitled||"Section")+"</strong>"+(h?"":'<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="'+p.escapeAttr(L.id)+'" title="'+p.escapeAttr(v.boardSectionRename||"Rename section")+'">&#9998;</button><button type="button" class="btn-icon" data-section-delete="'+p.escapeAttr(L.id)+'" title="'+p.escapeAttr(v.boardSectionDelete||"Delete section")+'">&#215;</button></div>')+'</div><div class="section-body-wrapper'+(D.has(L.id)?" collapsed":"")+'"><div class="section-body-inner"><div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);"><div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">'+(x.length?x.map(function(k){var X=k.id===S,ne=Array.isArray(k.flags)&&k.flags[0]?k.flags[0]:"",Ue=ne||Array.isArray(k.labels)&&k.labels.length?'<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'+(ne?p.renderFlagChip(ne,!1):"")+(Array.isArray(k.labels)&&k.labels.length?'<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">'+k.labels.slice(0,6).map(function(R,Fn){return'<span data-label-slot="'+Fn+'">'+p.renderLabelChip(R,!1,!1)+"</span>"}).join("")+"</div>":"")+"</div>":"",Fe=Array.isArray(k.comments)&&k.comments.length?k.comments[k.comments.length-1]:null,Qe=k.dueAt?'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+p.escapeHtml((v.boardDueLabel||"Due")+": "+p.formatTodoDate(k.dueAt))+"</span>":"",_e=k.archived&&k.archiveOutcome?'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+p.escapeHtml(p.getTodoArchiveOutcomeLabel(k.archiveOutcome))+"</span>":"",Mn=Fe&&Fe.body?'<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>'+p.escapeHtml(v.boardLatestComment||"Latest comment")+":</strong><span data-card-meta>#"+p.escapeHtml(String(Fe.sequence||1))+" \u2022 "+p.escapeHtml(p.getTodoCommentSourceLabel(Fe.source||"human-form"))+" \u2022 "+p.escapeHtml(p.getTodoDescriptionPreview(Fe.body||""))+"</span></div>":"";return'<article draggable="false" data-todo-id="'+p.escapeAttr(k.id)+'" data-section-id="'+p.escapeAttr(L.id)+'" data-order="'+String(k.order||0)+'" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:'+p.getTodoPriorityCardBg(k.priority||"none",X)+";border:1px solid "+(X?"var(--vscode-focusBorder)":"var(--vscode-widget-border)")+';cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">'+p.renderTodoCompletionCheckbox(k)+'<strong style="line-height:1.3;min-width:0;">'+p.escapeHtml(k.title||v.boardCardUntitled||"Untitled")+'</strong></div><div style="display:flex;align-items:center;gap:6px;">'+p.renderTodoDragHandle(k)+'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+p.escapeHtml(p.getTodoPriorityLabel(k.priority||"none"))+"</span></div></div>"+(Qe||_e?'<div style="display:flex;flex-wrap:wrap;gap:4px;">'+Qe+_e+"</div>":"")+Ue+'<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">'+p.escapeHtml(p.getTodoDescriptionPreview(k.description||""))+"</div>"+Mn+"</div>"+hl(k,f).replace("todo-list-actions","todo-card-action-row")+"</article>"}).join(""):'<div class="note">'+p.escapeHtml(v.boardEmpty||"No cards yet.")+"</div>")+"</div></div></div></div></section>"}).join("")+"</div>"}function Tr(n,a){if(!n||!a)return!1;var s=n.options;if(!s||typeof s.length!="number")return!1;for(var f=0;f<s.length;f++){var v=s[f];if(v&&v.value===a)return!0}return!1}function Sl(n){var a=n.agentSelect;if(a){var s=Array.isArray(n.agents)?n.agents:[],f=n.escapeAttr,v=n.escapeHtml,p=n.strings||{},D=n.executionDefaults||{};if(s.length===0){var S=p.placeholderNoAgents||"";a.innerHTML='<option value="">'+v(S)+"</option>";return}var L=p.placeholderSelectAgent||"",x='<option value="">'+v(L)+"</option>";if(a.innerHTML=x+s.map(function(X){return'<option value="'+f(X.id)+'">'+v(X.name)+"</option>"}).join(""),!a.value){var h=D&&typeof D.agent=="string"?D.agent:"agent",k=s.find(function(X){return X.id===h});k&&(a.value=h)}}}function kl(n){var a=n.modelSelect;if(a){var s=Array.isArray(n.models)?n.models:[],f=n.escapeAttr,v=n.escapeHtml,p=n.strings||{},D=n.executionDefaults||{},S=n.formatModelLabel;if(s.length===0){var L=p.placeholderNoModels||"";a.innerHTML='<option value="">'+v(L)+"</option>";return}var x=p.placeholderSelectModel||"",h='<option value="">'+v(x)+"</option>";if(a.innerHTML=h+s.map(function(ne){return'<option value="'+f(ne.id)+'">'+v(S(ne))+"</option>"}).join(""),!a.value){var k=D&&typeof D.model=="string"?D.model:"",X=s.find(function(ne){return ne.id===k});X&&(a.value=k)}}}(function(){var n=null,a={},s={};try{var f=document.getElementById("initial-data");f&&f.textContent&&(s=JSON.parse(f.textContent)||{})}catch{s={}}a=s.strings||{};var v=typeof s.logLevel=="string"&&s.logLevel?s.logLevel:"info",p=typeof s.logDirectory=="string"?s.logDirectory:"";function D(e){if(!e)return"";var t=String(e),r=t.lastIndexOf("\\"),o=t.lastIndexOf("/");return t.substring(Math.max(r,o)+1)}function S(e){if(!e)return"";var t=String(e);if(/^file:\/\/\/?/i.test(t))try{var r=new URL(t);r.protocol==="file:"?t=decodeURIComponent(r.pathname||""):t=t.replace(/^file:\/\/\/?/i,"")}catch{t=t.replace(/^file:\/\/\/?/i,"")}return D(t)}function L(e){var t=e&&e.id?String(e.id).trim():"",r=e&&e.name?String(e.name).trim():"",o=e&&e.vendor?String(e.vendor).trim():"",i=e&&e.description?String(e.description).trim():"",d=(t+" "+r+" "+o+" "+i).toLowerCase();return d.indexOf("openrouter")>=0?"OpenRouter":d.indexOf("copilot")>=0||d.indexOf("codex")>=0||d.indexOf("github")>=0||d.indexOf("microsoft")>=0?"Copilot":o}function x(e){var t=e&&(e.name||e.id)?String(e.name||e.id).trim():"",r=L(e);return!r||r.toLowerCase()===t.toLowerCase()?t:t+" \u2022 "+r}function h(e){for(var t=Math.max(0,Math.floor(e)),r=[{label:"y",seconds:365*24*60*60},{label:"mo",seconds:720*60*60},{label:"w",seconds:10080*60},{label:"d",seconds:1440*60},{label:"h",seconds:3600},{label:"m",seconds:60},{label:"s",seconds:1}],o=[],i=0;i<r.length;i+=1){var d=r[i],b=Math.floor(t/d.seconds);b<=0||(o.push(String(b)+d.label),t-=b*d.seconds)}return o.length===0?"0s":o.join(" ")}function k(e,t){if(!e||!isFinite(t)||t<=0)return"";var r=t-Date.now();return r>0?" (in "+h(Math.floor(r/1e3))+")":" (due now)"}function X(){(!ve||!ve.isConnected)&&(ve=document.getElementById("task-list")),ve&&ve.querySelectorAll(".task-next-run-countdown").forEach(function(e){var t=Number(e.getAttribute("data-next-run-ms")||""),r=e.getAttribute("data-enabled")==="true";e.textContent=k(r,t)})}function ne(e){if(!e)return"";var t=String(e);return t.replace(/'(file:\/\/[^']+)'/gi,function(r,o){return"'"+S(o)+"'"}).replace(/"(file:\/\/[^"]+)"/gi,function(r,o){return'"'+S(o)+'"'}).replace(/file:\/\/[^\s"'`]+/gi,function(r){return S(r)}).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g,function(r,o){return"'"+S(o)+"'"}).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g,function(r,o){return'"'+S(o)+'"'}).replace(/(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,function(r,o,i){return String(o)+S(i)}).replace(/'(\/[^']+)'/g,function(r,o){return"'"+S(o)+"'"}).replace(/"(\/[^\"]+)"/g,function(r,o){return'"'+S(o)+'"'}).replace(/(^|[\s(])(\/[^\s"'`]+)/g,function(r,o,i){return String(o)+S(i)})}var Ue=0;function Fe(){var e=document.getElementById("global-error-banner"),t=document.getElementById("global-error-text");Ue&&(clearTimeout(Ue),Ue=0),t&&(t.textContent=""),e&&e.classList.remove("is-visible")}function Qe(e,t){var r=document.getElementById("global-error-banner"),o=document.getElementById("global-error-text");if(r){var i=ne(String(e||"")).trim();if(!i){Fe();return}Ue&&(clearTimeout(Ue),Ue=0),o?o.textContent=i:r.textContent=i,r.classList.add("is-visible");var d=t&&typeof t.durationMs=="number"?t.durationMs:8e3;d>0&&(Ue=setTimeout(function(){Fe()},d))}}window.onerror=function(e,t,r,o,i){var d=a.webviewScriptErrorPrefix||"",b=a.webviewLinePrefix||"",c=a.webviewLineSuffix||"";Qe(d+ne(String(e))+b+String(r)+c)},window.onunhandledrejection=function(e){var t=a.webviewUnhandledErrorPrefix||"",r=a.webviewUnknown||"",o=e&&e.reason?e.reason:null,i=r;o&&(typeof o=="string"?i=o:typeof o=="object"&&o.message?i=String(o.message):i=String(o)),i=String(i).split(/\r?\n/)[0],Qe(t+ne(i))},typeof acquireVsCodeApi=="function"?n=acquireVsCodeApi():(n={postMessage:function(){}},Qe(a.webviewApiUnavailable||"",{durationMs:0}));var _e=bl({console,initialLogLevel:v,vscode:n}),Mn=_e.createEmptyTodoDraft,R=_e.emitWebviewDebug;function Fn(e,t){!e||typeof e.addEventListener!="function"||e.addEventListener("click",function(r){var o=r&&r.target&&r.target.nodeType===3?r.target.parentElement:r.target;if(!(!o||typeof o.closest!="function")){var i=o.closest(t.selector);i&&R(t.eventName,{controlId:i.id||"",tagName:i.tagName?String(i.tagName).toLowerCase():"",disabled:!!i.disabled,selectedTodoId:w||""})}},!0)}var J=Array.isArray(s.tasks)?s.tasks:[],Ye=Array.isArray(s.jobs)?s.jobs:[],xt=Array.isArray(s.jobFolders)?s.jobFolders:[],C=s.cockpitBoard||{version:4,sections:[],cards:[],labelCatalog:[],archives:{completedSuccessfully:[],rejected:[]},filters:{labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sortBy:"manual",sortDirection:"asc",viewMode:"board",showArchived:!1,showRecurringTasks:!1},updatedAt:""},Pe=s.telegramNotification||{enabled:!1,hasBotToken:!1,hookConfigured:!1},ue=s.executionDefaults||{agent:"agent",model:""},Lt=Array.isArray(s.researchProfiles)?s.researchProfiles:[],Be=s.activeResearchRun||null,wt=Array.isArray(s.recentResearchRuns)?s.recentResearchRuns:[],Gt=Array.isArray(s.agents)?s.agents:[],$t=Array.isArray(s.models)?s.models:[],Pn=Array.isArray(s.promptTemplates)?s.promptTemplates:[],xr=Array.isArray(s.skills)?s.skills:[],Lr=Array.isArray(s.scheduleHistory)?s.scheduleHistory:[],Kt=s.defaultChatSession==="continue"?"continue":"new",Rn=!!s.autoShowOnStartup,Al=Array.isArray(s.workspacePaths)?s.workspacePaths:[],El=!!s.caseInsensitivePaths,Se=null,w=null,Ta="+",Nn="\u2699",Hn=null,xa=!1,La=!1,On=0;function qo(){if(xa){La=!0;return}On||(On=requestAnimationFrame(function(){if(On=0,xa){La=!0;return}At()}))}function Il(){Hn=null,eo=null,to=null,xa=!1,La&&(La=!1,qo())}var G=[],Z=Mn(),Q="",ee="",qn="",Jn="",Zt="",ke=null,Ae=null,oe="",ie="",fe="",Vn=!0,wr=!1,Jo="copilot-scheduler-help-warp-seen-v1",Vo=(function(){try{return localStorage.getItem(Jo)!=="1"}catch{return!0}})(),Wo=0,zo=0,Ee=!1,Uo=!1;function _o(e){Z=_e.resetTodoDraft(e)}function wa(e){Z=_e.syncTodoDraftFromInputs({currentTodoDraft:Z,reason:e,selectedTodoId:w,todoDescriptionInput:Ne,todoDueInput:Je,todoLinkedTaskSelect:me,todoPriorityInput:ce,todoSectionInput:ge,todoTitleInput:lt})}function Bt(){w||!Z||(Z.flag=ee||"")}function le(){w||!Z||(Z.flag=ee||"",Z.labelInput=M?String(M.value||""):Z.labelInput||"",Z.labelColor=W?String(W.value||""):Z.labelColor||"#4f8cff",Z.flagInput=je?String(je.value||""):Z.flagInput||"",Z.flagColor=Nt?String(Nt.value||""):Z.flagColor||"#f59e0b")}var Wn=(function(){var e=s.defaultJitterSeconds,t=typeof e=="number"?e:Number(e);if(!isFinite(t))return 600;var r=Math.floor(t);return r<0?0:r>1800?1800:r})(),Ct=typeof s.locale=="string"&&s.locale?s.locale:void 0,Yo="",Ba=document.getElementById("task-form"),ve=document.getElementById("task-list"),Xo=document.getElementById("edit-task-id"),Ce=document.getElementById("submit-btn"),Go=document.getElementById("test-btn"),$o=document.getElementById("refresh-btn"),Ca=document.getElementById("auto-show-startup-btn"),Re=document.getElementById("schedule-history-select"),Qt=document.getElementById("restore-history-btn"),Ko=document.getElementById("auto-show-startup-note"),Zo=document.getElementById("friendly-builder"),Xe=document.getElementById("cron-preset"),pe=document.getElementById("cron-expression"),U=document.getElementById("agent-select"),_=document.getElementById("model-select"),Qo=document.getElementById("chat-session-group"),de=document.getElementById("chat-session"),H=document.getElementById("template-select"),et=document.getElementById("template-select-group"),ei=document.getElementById("template-refresh-btn"),ja=document.getElementById("skill-select"),ti=document.getElementById("insert-skill-btn"),ri=document.getElementById("setup-mcp-btn"),ai=document.getElementById("sync-bundled-skills-btn"),Br=document.getElementById("help-language-select"),Cr=document.getElementById("settings-language-select"),Ie=document.getElementById("help-warp-layer"),tt=document.getElementById("help-intro-rocket"),jr=document.getElementById("prompt-group"),rt=document.getElementById("jitter-seconds"),at=document.getElementById("friendly-frequency"),ni=document.getElementById("friendly-interval"),nt=document.getElementById("friendly-minute"),er=document.getElementById("friendly-hour"),oi=document.getElementById("friendly-dow"),ii=document.getElementById("friendly-dom"),si=document.getElementById("friendly-generate"),li=document.getElementById("open-guru-btn"),di=document.getElementById("cron-preview-text"),Da=document.getElementById("new-task-btn"),tr=document.getElementById("task-filter-bar"),ot=document.getElementById("task-label-filter"),it=document.getElementById("task-labels"),Ma=document.getElementById("jobs-folder-list"),ci=document.getElementById("jobs-current-folder-banner"),Ge=document.getElementById("jobs-list"),Fa=document.getElementById("jobs-empty-state"),Pa=document.getElementById("jobs-details"),zn=document.getElementById("jobs-layout"),Ra=document.getElementById("jobs-toggle-sidebar-btn"),rr=document.getElementById("jobs-show-sidebar-btn"),ui=document.getElementById("jobs-new-folder-btn"),Na=document.getElementById("jobs-rename-folder-btn"),Ha=document.getElementById("jobs-delete-folder-btn"),fi=document.getElementById("jobs-new-job-btn"),Oa=document.getElementById("jobs-save-btn"),vi=document.getElementById("jobs-save-deck-btn"),qa=document.getElementById("jobs-duplicate-btn"),Dr=document.getElementById("jobs-pause-btn"),Ja=document.getElementById("jobs-compile-btn"),Va=document.getElementById("jobs-delete-btn"),pi=document.getElementById("jobs-back-btn"),gi=document.getElementById("jobs-open-editor-btn"),mi=document.querySelector(".tab-bar"),st=document.getElementById("board-filter-sticky"),bi=document.getElementById("board-summary"),ar=document.getElementById("board-columns"),Mr=document.getElementById("todo-toggle-filters-btn"),Fr=document.getElementById("todo-search-input"),nr=document.getElementById("todo-section-filter"),jt=document.getElementById("todo-label-filter"),Dt=document.getElementById("todo-flag-filter"),Mt=document.getElementById("todo-priority-filter"),Ft=document.getElementById("todo-status-filter"),Pt=document.getElementById("todo-archive-outcome-filter"),or=document.getElementById("todo-sort-by"),ir=document.getElementById("todo-sort-direction"),sr=document.getElementById("todo-view-mode"),Pr=document.getElementById("todo-show-recurring-tasks"),Rr=document.getElementById("todo-show-archived"),Nr=document.getElementById("todo-hide-card-details"),yi=document.getElementById("todo-new-btn"),hi=document.getElementById("todo-clear-selection-btn"),Wa=document.getElementById("todo-clear-filters-btn"),Si=document.getElementById("todo-back-btn"),ki=document.getElementById("todo-detail-title"),Ai=document.getElementById("todo-detail-mode-note"),Un=document.getElementById("todo-detail-form"),za=document.getElementById("todo-detail-id"),lt=document.getElementById("todo-title-input"),Ne=document.getElementById("todo-description-input"),Je=document.getElementById("todo-due-input"),ce=document.getElementById("todo-priority-input"),ge=document.getElementById("todo-section-input"),me=document.getElementById("todo-linked-task-select"),Ua=document.getElementById("todo-detail-status"),_a=document.getElementById("todo-label-chip-list"),M=document.getElementById("todo-labels-input"),be=document.getElementById("todo-label-suggestions"),W=document.getElementById("todo-label-color-input"),_n=document.getElementById("todo-label-add-btn"),Rt=document.getElementById("todo-label-color-save-btn"),Hr=document.getElementById("todo-label-catalog"),je=document.getElementById("todo-flag-name-input"),Nt=document.getElementById("todo-flag-color-input"),Yn=document.getElementById("todo-flag-add-btn"),Ht=document.getElementById("todo-flag-color-save-btn"),Ot=document.getElementById("todo-linked-task-note"),Xn=document.getElementById("todo-save-btn"),Ya=document.getElementById("todo-create-task-btn"),Or=document.getElementById("todo-complete-btn"),Xa=document.getElementById("todo-delete-btn"),Ga=document.getElementById("todo-upload-files-btn"),qr=document.getElementById("todo-upload-files-note"),Jr=document.getElementById("todo-comment-list"),qt=document.getElementById("todo-comment-input"),$a=document.getElementById("todo-add-comment-btn"),dt=document.getElementById("jobs-name-input"),$e=document.getElementById("jobs-cron-preset"),ae=document.getElementById("jobs-cron-input"),Ei=document.getElementById("jobs-cron-preview-text"),Ii=document.getElementById("jobs-open-guru-btn"),Ti=document.getElementById("jobs-friendly-builder"),lr=document.getElementById("jobs-friendly-frequency"),xi=document.getElementById("jobs-friendly-interval"),ct=document.getElementById("jobs-friendly-minute"),dr=document.getElementById("jobs-friendly-hour"),Li=document.getElementById("jobs-friendly-dow"),wi=document.getElementById("jobs-friendly-dom"),Bi=document.getElementById("jobs-friendly-generate"),De=document.getElementById("jobs-folder-select"),ut=document.getElementById("jobs-status-pill"),Ci=document.getElementById("jobs-timeline-inline"),cr=document.getElementById("jobs-workflow-metrics"),Gn=document.getElementById("jobs-step-list"),Ka=document.getElementById("jobs-pause-name-input"),ji=document.getElementById("jobs-create-pause-btn"),ur=document.getElementById("jobs-existing-task-select"),Di=document.getElementById("jobs-existing-window-input"),Za=document.getElementById("jobs-attach-btn"),Qa=document.getElementById("jobs-step-name-input"),en=document.getElementById("jobs-step-window-input"),tn=document.getElementById("jobs-step-prompt-input"),Vr=document.getElementById("jobs-step-agent-select"),Wr=document.getElementById("jobs-step-model-select"),rn=document.getElementById("jobs-step-labels-input"),Mi=document.getElementById("jobs-create-step-btn"),Fi=document.getElementById("research-new-btn"),an=document.getElementById("research-save-btn"),nn=document.getElementById("research-duplicate-btn"),on=document.getElementById("research-delete-btn"),sn=document.getElementById("research-start-btn"),ln=document.getElementById("research-stop-btn"),ft=document.getElementById("research-edit-id"),zr=document.getElementById("research-name"),Ur=document.getElementById("research-instructions"),_r=document.getElementById("research-editable-paths"),Yr=document.getElementById("research-benchmark-command"),Xr=document.getElementById("research-metric-pattern"),Gr=document.getElementById("research-metric-direction"),$r=document.getElementById("research-max-iterations"),Kr=document.getElementById("research-max-minutes"),Zr=document.getElementById("research-max-failures"),Qr=document.getElementById("research-benchmark-timeout"),ea=document.getElementById("research-edit-wait"),vt=document.getElementById("research-agent-select"),pt=document.getElementById("research-model-select"),Jt=document.getElementById("research-profile-list"),Vt=document.getElementById("research-run-list"),Pi=document.getElementById("research-run-title"),fr=document.getElementById("research-form-error"),dn=document.getElementById("research-active-empty"),$n=document.getElementById("research-active-details"),Ri=document.getElementById("research-active-status"),Ni=document.getElementById("research-active-best"),Hi=document.getElementById("research-active-attempts"),Oi=document.getElementById("research-active-last-outcome"),qi=document.getElementById("research-active-meta"),cn=document.getElementById("research-attempt-list"),ta=document.getElementById("telegram-enabled"),vr=document.getElementById("telegram-bot-token"),ra=document.getElementById("telegram-chat-id"),aa=document.getElementById("telegram-message-prefix"),Ji=document.getElementById("telegram-save-btn"),Vi=document.getElementById("telegram-test-btn"),gt=document.getElementById("telegram-feedback"),Wi=document.getElementById("telegram-token-status"),zi=document.getElementById("telegram-chat-status"),Ui=document.getElementById("telegram-hook-status"),_i=document.getElementById("telegram-updated-at"),Yi=document.getElementById("telegram-status-note"),Kn=document.getElementById("default-agent-select"),Zn=document.getElementById("default-model-select"),Xi=document.getElementById("execution-defaults-save-btn"),Gi=document.getElementById("execution-defaults-note"),na=document.getElementById("settings-log-level-select"),Qn=document.getElementById("settings-log-directory"),$i=document.getElementById("settings-open-log-folder-btn"),oa=document.getElementById("board-add-section-btn"),un=document.getElementById("board-section-inline-form"),Wt=document.getElementById("board-section-name-input"),Ki=document.getElementById("board-section-save-btn"),Zi=document.getElementById("board-section-cancel-btn"),Ve=document.getElementById("cockpit-col-slider"),Ke="all",zt="",Y="",I="",z="",He="",pr="",gr="",eo=null,to=null,mt=!1,ia=!1,bt=!1,sa=0,ro=0,ao=0,fn=0,yt="",We="",mr=(function(){try{return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections")||"[]"))}catch{return new Set}})();function Tl(e){mr.has(e)?mr.delete(e):mr.add(e);try{localStorage.setItem("cockpit-collapsed-sections",JSON.stringify(Array.from(mr)))}catch{}}function xl(e){var t=e>=390?"labels-6":e>=300?"labels-3":"labels-1";document.documentElement.classList.remove("labels-1","labels-3","labels-6"),document.documentElement.classList.add(t)}function Qi(e){var t=Math.round(10+(e-180)*3/340),r=Math.round(8+(e-180)*6/340),o=Math.round(4+(e-180)*4/340),i=Math.max(3,Math.round(3+(e-180)*2/340)),d=Math.max(1,Math.round(2+(e-180)*1/340)),b=Math.max(5,Math.round(6+(e-180)*3/340)),c=Math.max(1,Math.round(2+(e-180)*1/340)),A=Math.max(6,Math.round(7+(e-180)*3/340));document.documentElement.style.setProperty("--cockpit-col-width",e+"px"),document.documentElement.style.setProperty("--cockpit-col-font",t+"px"),document.documentElement.style.setProperty("--cockpit-card-pad",r+"px"),document.documentElement.style.setProperty("--cockpit-card-gap",o+"px"),document.documentElement.style.setProperty("--cockpit-chip-gap",i+"px"),document.documentElement.style.setProperty("--cockpit-label-pad-y",d+"px"),document.documentElement.style.setProperty("--cockpit-label-pad-x",b+"px"),document.documentElement.style.setProperty("--cockpit-flag-pad-y",c+"px"),document.documentElement.style.setProperty("--cockpit-flag-pad-x",A+"px"),xl(e),document.documentElement.classList.toggle("cockpit-board-compact-details",e<=280)}(function(){var e=localStorage.getItem("cockpit-col-width"),t=e?Number(e):Ve?Number(Ve.value):240;t>=180&&t<=520&&(Qi(t),Ve&&!e&&(Ve.value=String(t)))})();var br=!1,no=!1,Ll="";function es(e){return e==="all"||e==="recurring"||e==="one-time"}function wl(){if(!(!n||typeof n.getState!="function"))try{var e=n.getState()||{},t=e&&e.taskFilter;es(t)&&(Ke=t),e&&typeof e.labelFilter=="string"&&(zt=e.labelFilter),e&&typeof e.selectedJobFolderId=="string"&&(Y=e.selectedJobFolderId),e&&typeof e.selectedJobId=="string"&&(I=e.selectedJobId),e&&typeof e.jobsSidebarHidden=="boolean"&&(mt=e.jobsSidebarHidden),e&&typeof e.boardFiltersCollapsed=="boolean"&&(ia=e.boardFiltersCollapsed),e&&typeof e.selectedResearchId=="string"&&(z=e.selectedResearchId),e&&typeof e.selectedResearchRunId=="string"&&(He=e.selectedResearchRunId)}catch{}}function Te(){if(!(!n||typeof n.setState!="function"))try{var e=typeof n.getState=="function"?n.getState()||{}:{},t={};if(e&&typeof e=="object")for(var r in e)Object.prototype.hasOwnProperty.call(e,r)&&(t[r]=e[r]);t.taskFilter=Ke,t.labelFilter=zt,t.selectedJobFolderId=Y,t.selectedJobId=I,t.jobsSidebarHidden=mt,t.boardFiltersCollapsed=ia,t.selectedResearchId=z,t.selectedResearchRunId=He,n.setState(t)}catch{}}function vn(){gt&&(gt.textContent="",gt.style.display="none",gt.classList.remove("error"))}function oo(){return!!(ia||bt)}function yr(){ro||(ro=requestAnimationFrame(function(){ro=0,Bl()}))}function Bl(){var e=0;mi&&(e=Math.max(0,Math.ceil(mi.getBoundingClientRect().height)));var t=e;st&&Io("board")&&(t=Math.max(e,e+Math.ceil(st.getBoundingClientRect().height+8))),document.documentElement.style.setProperty("--cockpit-tab-bar-sticky-top",e+"px"),document.documentElement.style.setProperty("--cockpit-board-sticky-top",t+"px")}function ts(){ao=0,fn=0}function Cl(e){var t=st?Math.ceil(st.getBoundingClientRect().height):0;ao=e,fn=Math.max(28,Math.ceil(t*.45))}function jl(e){return fn<=0?!1:Math.abs(e-ao)<=fn?!0:(ts(),!1)}function rs(e){var t=Math.max(window.scrollY||0,document.documentElement&&document.documentElement.scrollTop||0);if(e||!Io("board")){sa=t,ts(),bt&&(bt=!1,pn());return}if(jl(t)){sa=t;return}var r=bt;t>sa+18&&t>140?r=!0:(t<sa-14||t<72)&&(r=!1),sa=t,r!==bt&&(bt=r,Cl(t),pn())}function pn(){if(st&&st.classList){var e=oo();st.classList.toggle("is-collapsed",e),st.setAttribute("data-auto-collapsed",bt?"true":"false")}if(Mr){var t=oo();Mr.textContent=t?a.boardShowFilters||"Show Filters":a.boardHideFilters||"Hide Filters",Mr.setAttribute("aria-expanded",t?"false":"true")}yr()}function Dl(e){if(!e||!C||!Array.isArray(C.cards))return null;for(var t=0;t<C.cards.length;t+=1){var r=C.cards[t];if(r&&r.id===e)return r}return null}function gn(e,t){qr&&(qr.textContent=e||a.boardUploadFilesHint||"",qr.classList.remove("is-success","is-error"),t==="success"?qr.classList.add("is-success"):t==="error"&&qr.classList.add("is-error"))}function Ml(e){if(!(!Ne||!e)){var t=String(Ne.value||""),r=t?/\n\s*$/.test(t)?`
-`:`
+"use strict";
+(() => {
+  // media/schedulerWebviewBoardInteractions.js
+  function getEventTargetElement(eventOrTarget) {
+    var target = eventOrTarget && eventOrTarget.target ? eventOrTarget.target : eventOrTarget;
+    if (target && target.nodeType === 3) {
+      target = target.parentElement;
+    }
+    return target || null;
+  }
+  function getClosestEventTarget(eventOrTarget, selector) {
+    var target = getEventTargetElement(eventOrTarget);
+    return target && target.closest ? target.closest(selector) : null;
+  }
+  function isTodoInteractiveTarget(target) {
+    return !!getClosestEventTarget(
+      target,
+      [
+        "input",
+        "button",
+        "select",
+        "textarea",
+        "a",
+        "label",
+        '[role="button"]',
+        '[contenteditable="true"]',
+        "[data-no-drag]",
+        "[data-todo-edit]",
+        "[data-todo-delete]",
+        "[data-todo-purge]",
+        "[data-todo-reject]",
+        "[data-todo-restore]",
+        "[data-todo-complete]",
+        "[data-section-collapse]",
+        "[data-section-rename]",
+        "[data-section-delete]"
+      ].join(", ")
+    );
+  }
+  function scheduleBoardTimeout(options, callback, delay) {
+    var timeoutFn = options && typeof options.setTimeout === "function" ? options.setTimeout : typeof setTimeout === "function" ? setTimeout : null;
+    if (!timeoutFn) {
+      callback();
+      return null;
+    }
+    return timeoutFn.call(null, callback, delay);
+  }
+  function handleBoardSectionCollapse(collapseBtn, options) {
+    var sectionId = collapseBtn.getAttribute("data-section-collapse");
+    options.toggleSectionCollapsed(sectionId);
+    var sectionEl = collapseBtn.closest ? collapseBtn.closest("[data-section-id]") : null;
+    var bodyWrapper = sectionEl ? sectionEl.querySelector(".section-body-wrapper") : null;
+    var isNowCollapsed = options.collapsedSections.has(sectionId);
+    collapseBtn.classList.toggle("collapsed", isNowCollapsed);
+    collapseBtn.title = isNowCollapsed ? "Expand section" : "Collapse section";
+    if (bodyWrapper) {
+      bodyWrapper.classList.toggle("collapsed", isNowCollapsed);
+    }
+    if (sectionEl) {
+      sectionEl.classList.toggle("is-collapsed", isNowCollapsed);
+    }
+  }
+  function handleBoardSectionRename(sectionRenameBtn, options) {
+    var sectionId = sectionRenameBtn.getAttribute("data-section-rename");
+    var sectionEl = sectionRenameBtn.closest ? sectionRenameBtn.closest("[data-section-id]") : null;
+    var sectionHeader = sectionEl ? sectionEl.querySelector(".cockpit-section-header") : null;
+    var strongEl = sectionHeader ? sectionHeader.querySelector("strong") : null;
+    if (!strongEl) return;
+    var currentTitle = strongEl.textContent || "";
+    var inputEl = options.document.createElement("input");
+    inputEl.type = "text";
+    inputEl.value = currentTitle;
+    inputEl.style.cssText = "font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";
+    var committed = false;
+    var saveRename = function() {
+      if (committed) return;
+      committed = true;
+      var newTitle = inputEl.value.trim();
+      if (newTitle && newTitle !== currentTitle) {
+        options.vscode.postMessage({ type: "renameCockpitSection", sectionId, title: newTitle });
+      } else {
+        strongEl.style.display = "";
+        if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+      }
+    };
+    inputEl.onkeydown = function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveRename();
+      }
+      if (e.key === "Escape") {
+        committed = true;
+        strongEl.style.display = "";
+        if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+      }
+    };
+    inputEl.onblur = function() {
+      scheduleBoardTimeout(options, saveRename, 120);
+    };
+    strongEl.style.display = "none";
+    strongEl.parentNode.insertBefore(inputEl, strongEl);
+    inputEl.select();
+  }
+  function handleBoardSectionDelete(sectionDeleteBtn, options) {
+    var sectionId = sectionDeleteBtn.getAttribute("data-section-delete");
+    if (sectionDeleteBtn.getAttribute("data-confirming")) {
+      options.vscode.postMessage({ type: "deleteCockpitSection", sectionId });
+      sectionDeleteBtn.removeAttribute("data-confirming");
+      return;
+    }
+    sectionDeleteBtn.setAttribute("data-confirming", "1");
+    var origText = sectionDeleteBtn.textContent;
+    var origColor = sectionDeleteBtn.style.color;
+    sectionDeleteBtn.textContent = options.strings.boardDeleteConfirm || "Delete?";
+    sectionDeleteBtn.style.color = "var(--vscode-errorForeground)";
+    sectionDeleteBtn.style.opacity = "1";
+    scheduleBoardTimeout(options, function() {
+      if (sectionDeleteBtn.getAttribute("data-confirming")) {
+        sectionDeleteBtn.removeAttribute("data-confirming");
+        sectionDeleteBtn.textContent = origText;
+        sectionDeleteBtn.style.color = origColor;
+        sectionDeleteBtn.style.opacity = "";
+      }
+    }, 2500);
+  }
+  function handleBoardTodoCompletion(completeToggle, options) {
+    var todoId = completeToggle.getAttribute("data-todo-complete");
+    var cardEl = completeToggle.closest ? completeToggle.closest("[data-todo-id]") : null;
+    function clearCompletionConfirmState() {
+      completeToggle.removeAttribute("data-confirming");
+      completeToggle.classList.remove("is-confirming");
+      if (completeToggle.hasAttribute("data-confirm-label")) {
+        completeToggle.setAttribute(
+          "title",
+          completeToggle.getAttribute("data-confirm-label") || ""
+        );
+        completeToggle.setAttribute(
+          "aria-label",
+          completeToggle.getAttribute("data-confirm-label") || ""
+        );
+        completeToggle.removeAttribute("data-confirm-label");
+      }
+      if (completeToggle.hasAttribute("data-confirm-html")) {
+        completeToggle.innerHTML = completeToggle.getAttribute("data-confirm-html") || "";
+        completeToggle.removeAttribute("data-confirm-html");
+      }
+      var cancelBtn2 = cardEl && cardEl.querySelector ? cardEl.querySelector('[data-todo-complete-cancel="' + todoId + '"]') : null;
+      if (cancelBtn2 && cancelBtn2.parentNode) {
+        cancelBtn2.parentNode.removeChild(cancelBtn2);
+      }
+    }
+    if (!todoId) {
+      return;
+    }
+    if (!completeToggle.getAttribute("data-confirming")) {
+      completeToggle.setAttribute("data-confirming", "1");
+      completeToggle.classList.add("is-confirming");
+      completeToggle.setAttribute(
+        "data-confirm-label",
+        completeToggle.getAttribute("title") || ""
+      );
+      completeToggle.setAttribute("data-confirm-html", completeToggle.innerHTML || "");
+      completeToggle.setAttribute(
+        "title",
+        options.strings.boardConfirmApproveHint || "Click Confirm to continue, or Cancel to keep the todo unchanged."
+      );
+      completeToggle.setAttribute(
+        "aria-label",
+        options.strings.boardConfirmAction || "Confirm"
+      );
+      completeToggle.innerHTML = '<span aria-hidden="true">!</span>';
+      var cancelBtn = options.document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn-icon";
+      cancelBtn.setAttribute("data-todo-complete-cancel", todoId);
+      cancelBtn.setAttribute("data-no-drag", "1");
+      cancelBtn.textContent = options.strings.boardCancelAction || "Cancel";
+      cancelBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 8px;border-radius:999px;border:1px solid var(--vscode-panel-border);background:var(--vscode-input-background);color:var(--vscode-foreground);font-size:11px;font-weight:700;line-height:1;";
+      cancelBtn.onclick = function(event) {
+        stopBoardEvent(event);
+        clearCompletionConfirmState();
+      };
+      if (completeToggle.parentNode) {
+        completeToggle.parentNode.insertBefore(cancelBtn, completeToggle.nextSibling);
+      }
+      scheduleBoardTimeout(options, clearCompletionConfirmState, 2800);
+      return;
+    }
+    clearCompletionConfirmState();
+    completeToggle.disabled = true;
+    if (cardEl) {
+      cardEl.style.opacity = "0.35";
+      cardEl.style.pointerEvents = "none";
+    }
+    var nextActionType = "approveTodo";
+    var cockpitBoard = options.cockpitBoard;
+    if (cockpitBoard && Array.isArray(cockpitBoard.cards)) {
+      for (var oi = 0; oi < cockpitBoard.cards.length; oi++) {
+        if (cockpitBoard.cards[oi] && cockpitBoard.cards[oi].id === todoId) {
+          if (cockpitBoard.cards[oi].status === "ready") {
+            nextActionType = "finalizeTodo";
+          }
+          break;
+        }
+      }
+    }
+    options.vscode.postMessage({ type: nextActionType, todoId });
+  }
+  function stopBoardEvent(event) {
+    if (!event) {
+      return;
+    }
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    if (typeof event.stopPropagation === "function") {
+      event.stopPropagation();
+    }
+  }
+  var activeBoardOptions = null;
+  var boardListenersInstalled = false;
+  var pointerDragSession = null;
+  var suppressNextBoardClick = false;
+  var TODO_POINTER_DRAG_THRESHOLD_PX = 6;
+  function setBoardDocumentDragState(options, active, kind) {
+    var doc = options && options.document;
+    var body = doc && doc.body;
+    if (!body || !body.classList) {
+      return;
+    }
+    body.classList.toggle("cockpit-board-dragging", !!active);
+    body.classList.toggle("cockpit-board-dragging-section", !!active && kind === "section");
+    body.classList.toggle("cockpit-board-dragging-todo", !!active && kind === "todo");
+    if (body.style) {
+      body.style.userSelect = active ? "none" : "";
+      body.style.webkitUserSelect = active ? "none" : "";
+      body.style.cursor = active ? "grabbing" : "";
+    }
+  }
+  function armBoardClickSuppression() {
+    suppressNextBoardClick = true;
+  }
+  function consumeSuppressedBoardClick(event) {
+    if (!suppressNextBoardClick) {
+      return false;
+    }
+    suppressNextBoardClick = false;
+    stopBoardEvent(event);
+    return true;
+  }
+  function hasTodoPointerDragThreshold(event, session) {
+    if (!event || !session || typeof event.clientX !== "number" || typeof event.clientY !== "number") {
+      return true;
+    }
+    var deltaX = event.clientX - session.startX;
+    var deltaY = event.clientY - session.startY;
+    return deltaX * deltaX + deltaY * deltaY >= TODO_POINTER_DRAG_THRESHOLD_PX * TODO_POINTER_DRAG_THRESHOLD_PX;
+  }
+  function activatePointerDragSession(options) {
+    var session = pointerDragSession;
+    if (!options || !session || session.activated) {
+      return;
+    }
+    session.activated = true;
+    options.setIsBoardDragging(true);
+    setBoardDocumentDragState(options, true, session.kind);
+    if (session.kind === "section") {
+      options.setDraggingSectionId(session.draggedId);
+      options.setLastDragOverSectionId(null);
+      if (session.draggedElement) {
+        session.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    options.setDraggingTodoId(session.draggedId);
+    if (session.draggedElement) {
+      session.draggedElement.classList.add("todo-dragging");
+    }
+  }
+  function getBoardColumns(options) {
+    if (!options) {
+      return null;
+    }
+    if (typeof options.getBoardColumns === "function") {
+      return options.getBoardColumns();
+    }
+    return options.boardColumns || null;
+  }
+  function getBoardTarget(eventOrTarget) {
+    return getEventTargetElement(eventOrTarget);
+  }
+  function isTargetInsideBoard(options, target) {
+    var boardColumns = getBoardColumns(options);
+    var element = getBoardTarget(target);
+    return !!(boardColumns && element && typeof boardColumns.contains === "function" && boardColumns.contains(element));
+  }
+  function clearBoardDragClasses(boardColumns) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return;
+    }
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-id].section-drag-over"), function(el) {
+      el.classList.remove("section-drag-over");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-id].section-dragging"), function(el) {
+      el.classList.remove("section-dragging");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id].todo-dragging"), function(el) {
+      el.classList.remove("todo-dragging");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id].todo-drop-target"), function(el) {
+      el.classList.remove("todo-drop-target");
+    });
+  }
+  function getPointerPointTarget(options, event) {
+    var doc = options && options.document;
+    if (doc && typeof doc.elementFromPoint === "function" && event && typeof event.clientX === "number" && typeof event.clientY === "number") {
+      var pointTarget = doc.elementFromPoint(event.clientX, event.clientY);
+      if (pointTarget) {
+        return pointTarget;
+      }
+    }
+    return getBoardTarget(event);
+  }
+  function updateSectionDragState(options, boardColumns, pointTarget) {
+    var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+    clearBoardDragClasses(boardColumns);
+    if (!section) {
+      options.setLastDragOverSectionId(null);
+      if (pointerDragSession && pointerDragSession.draggedElement) {
+        pointerDragSession.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    var sectionId = section.getAttribute("data-section-id");
+    var draggingSectionId = options.getDraggingSectionId();
+    if (!sectionId || sectionId === draggingSectionId || options.isArchiveTodoSectionId(sectionId)) {
+      options.setLastDragOverSectionId(null);
+      if (pointerDragSession && pointerDragSession.draggedElement) {
+        pointerDragSession.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    section.classList.add("section-drag-over");
+    if (pointerDragSession && pointerDragSession.draggedElement) {
+      pointerDragSession.draggedElement.classList.add("section-dragging");
+    }
+    options.setLastDragOverSectionId(sectionId);
+  }
+  function updateTodoDragState(options, boardColumns, pointTarget) {
+    var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+    var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
+    clearBoardDragClasses(boardColumns);
+    if (pointerDragSession && pointerDragSession.draggedElement) {
+      pointerDragSession.draggedElement.classList.add("todo-dragging");
+    }
+    if (!section) {
+      return;
+    }
+    var sectionId = section.getAttribute("data-section-id");
+    if (!sectionId || options.isArchiveTodoSectionId(sectionId)) {
+      return;
+    }
+    if (targetCard && targetCard.getAttribute("data-todo-id") !== options.getDraggingTodoId()) {
+      targetCard.classList.add("todo-drop-target");
+      return;
+    }
+    section.classList.add("section-drag-over");
+  }
+  function updatePointerDragSession(event) {
+    var options = activeBoardOptions;
+    if (!options || !pointerDragSession) {
+      return;
+    }
+    if (!pointerDragSession.activated) {
+      if (!hasTodoPointerDragThreshold(event, pointerDragSession)) {
+        return;
+      }
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+    }
+    stopBoardEvent(event);
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      setBoardDocumentDragState(options, false);
+      options.finishBoardDragState();
+      pointerDragSession = null;
+      return;
+    }
+    var pointTarget = getPointerPointTarget(options, event);
+    if (pointerDragSession.kind === "section") {
+      updateSectionDragState(options, boardColumns, pointTarget);
+      return;
+    }
+    updateTodoDragState(options, boardColumns, pointTarget);
+  }
+  function finishPointerDragSession(event, cancelled) {
+    var options = activeBoardOptions;
+    var session = pointerDragSession;
+    if (!options || !session) {
+      pointerDragSession = null;
+      return;
+    }
+    if (!session.activated) {
+      setBoardDocumentDragState(options, false);
+      pointerDragSession = null;
+      return;
+    }
+    var boardColumns = getBoardColumns(options);
+    var pointTarget = cancelled ? null : getPointerPointTarget(options, event);
+    if (boardColumns) {
+      clearBoardDragClasses(boardColumns);
+    }
+    if (!cancelled && boardColumns && session.kind === "section") {
+      var dropSection = getClosestEventTarget(pointTarget, "[data-section-id]");
+      var dropSectionId = dropSection ? dropSection.getAttribute("data-section-id") : null;
+      if (!dropSectionId || dropSectionId === options.getDraggingSectionId()) {
+        dropSectionId = options.getLastDragOverSectionId();
+      }
+      if (dropSectionId && dropSectionId !== options.getDraggingSectionId()) {
+        var allSections = boardColumns.querySelectorAll("[data-section-id]");
+        var targetIndex = -1;
+        for (var i = 0; i < allSections.length; i += 1) {
+          if (allSections[i].getAttribute("data-section-id") === dropSectionId) {
+            targetIndex = i;
+            break;
+          }
+        }
+        if (targetIndex >= 0) {
+          options.vscode.postMessage({ type: "reorderCockpitSection", sectionId: options.getDraggingSectionId(), targetIndex });
+        }
+      }
+    }
+    if (!cancelled && boardColumns && session.kind === "todo") {
+      var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+      var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
+      if (section && options.getDraggingTodoId() && !options.isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
+        var targetIndex = targetCard ? Number(targetCard.getAttribute("data-order") || 0) : Number(section.getAttribute("data-card-count") || 0);
+        options.vscode.postMessage({
+          type: "moveTodo",
+          todoId: options.getDraggingTodoId(),
+          sectionId: section.getAttribute("data-section-id"),
+          targetIndex
+        });
+      }
+    }
+    setBoardDocumentDragState(options, false);
+    options.finishBoardDragState();
+    pointerDragSession = null;
+    if (typeof setTimeout === "function") {
+      setTimeout(function() {
+        suppressNextBoardClick = false;
+      }, 350);
+    }
+  }
+  function handleBoardTodoChange(completeToggle, event) {
+    var options = activeBoardOptions;
+    if (!options) {
+      return;
+    }
+    var target = getBoardTarget(event);
+    if (!completeToggle || !target || !isTargetInsideBoard(options, target)) {
+      return;
+    }
+    if (event && typeof event.stopPropagation === "function") {
+      event.stopPropagation();
+    }
+    options.handleTodoCompletion(completeToggle);
+  }
+  function bindElementListener(element, eventName, handler) {
+    if (!element || typeof element.addEventListener !== "function") {
+      return;
+    }
+    element.addEventListener(eventName, handler);
+  }
+  var boardClickDelegationInstalled = false;
+  function installBoardClickDelegation(boardColumns) {
+    if (boardClickDelegationInstalled || !boardColumns || typeof boardColumns.addEventListener !== "function") {
+      return;
+    }
+    boardClickDelegationInstalled = true;
+    boardColumns.addEventListener("click", function(event) {
+      var options = activeBoardOptions;
+      if (!options) {
+        return;
+      }
+      var target = getEventTargetElement(event);
+      if (!target || typeof target.closest !== "function") {
+        return;
+      }
+      var editBtn = target.closest("[data-todo-edit]");
+      if (editBtn) {
+        stopBoardEvent(event);
+        options.openTodoEditor(editBtn.getAttribute("data-todo-edit") || "");
+        return;
+      }
+      var deleteBtn = target.closest("[data-todo-delete]");
+      if (deleteBtn) {
+        stopBoardEvent(event);
+        options.openTodoDeleteModal(deleteBtn.getAttribute("data-todo-delete") || "");
+        return;
+      }
+      var purgeBtn = target.closest("[data-todo-purge]");
+      if (purgeBtn) {
+        stopBoardEvent(event);
+        options.openTodoDeleteModal(purgeBtn.getAttribute("data-todo-purge") || "", { permanentOnly: true });
+        return;
+      }
+      var rejectBtn = target.closest("[data-todo-reject]");
+      if (rejectBtn) {
+        stopBoardEvent(event);
+        options.handleTodoReject(rejectBtn);
+        return;
+      }
+      var restoreBtn = target.closest("[data-todo-restore]");
+      if (restoreBtn) {
+        stopBoardEvent(event);
+        options.handleTodoRestore(restoreBtn);
+        return;
+      }
+      var completeBtn = target.closest("[data-todo-complete]");
+      if (completeBtn) {
+        handleBoardTodoChange(completeBtn, event);
+        return;
+      }
+      var collapseBtn = target.closest("[data-section-collapse]");
+      if (collapseBtn) {
+        stopBoardEvent(event);
+        options.handleSectionCollapse(collapseBtn);
+        return;
+      }
+      var renameBtn = target.closest("[data-section-rename]");
+      if (renameBtn) {
+        stopBoardEvent(event);
+        options.handleSectionRename(renameBtn);
+        return;
+      }
+      var sectionDelBtn = target.closest("[data-section-delete]");
+      if (sectionDelBtn) {
+        stopBoardEvent(event);
+        options.handleSectionDelete(sectionDelBtn);
+        return;
+      }
+      var card = target.closest("[data-todo-id]");
+      if (card) {
+        if (consumeSuppressedBoardClick(event)) {
+          return;
+        }
+        if (isTodoInteractiveTarget(target)) {
+          return;
+        }
+        options.setSelectedTodoId(card.getAttribute("data-todo-id"));
+        options.renderCockpitBoard();
+      }
+    });
+  }
+  function bindRenderedBoardListeners(boardColumns, options) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return;
+    }
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-drag-handle]"), function(sectionHandle) {
+      bindElementListener(sectionHandle, "pointerdown", handleBoardPointerDown);
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll(".cockpit-section-header"), function(sectionHeader) {
+      bindElementListener(sectionHeader, "pointerdown", handleBoardPointerDown);
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id]"), function(card) {
+      bindElementListener(card, "pointerdown", handleBoardPointerDown);
+    });
+  }
+  function handleBoardPointerDown(event) {
+    var options = activeBoardOptions;
+    if (!options) {
+      return;
+    }
+    suppressNextBoardClick = false;
+    if (typeof event.button === "number" && event.button !== 0) {
+      return;
+    }
+    var target = getBoardTarget(event);
+    if (!isTargetInsideBoard(options, target)) {
+      return;
+    }
+    var sectionHandle = getClosestEventTarget(target, "[data-section-drag-handle]");
+    var sectionHeader = getClosestEventTarget(target, ".cockpit-section-header");
+    var todoHandle = getClosestEventTarget(target, "[data-todo-drag-handle]");
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      return;
+    }
+    var sectionEl = sectionHandle && sectionHandle.closest ? sectionHandle.closest("[data-section-id]") : sectionHeader && sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null;
+    var sectionId = sectionHandle ? sectionHandle.getAttribute("data-section-drag-handle") : sectionEl && sectionEl.getAttribute ? sectionEl.getAttribute("data-section-id") : "";
+    var allowHeaderSectionDrag = !!(!sectionHandle && sectionHeader && sectionEl && sectionId && !(options.isSpecialTodoSectionId && options.isSpecialTodoSectionId(sectionId)) && !isTodoInteractiveTarget(target));
+    if (sectionHandle || allowHeaderSectionDrag) {
+      stopBoardEvent(event);
+      clearBoardDragClasses(boardColumns);
+      pointerDragSession = {
+        kind: "section",
+        draggedId: sectionId,
+        draggedElement: sectionEl,
+        activated: false,
+        startX: typeof event.clientX === "number" ? event.clientX : 0,
+        startY: typeof event.clientY === "number" ? event.clientY : 0
+      };
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+      return;
+    }
+    var card = todoHandle && todoHandle.closest ? todoHandle.closest("[data-todo-id]") : getClosestEventTarget(target, "[data-todo-id]");
+    if (!card) {
+      return;
+    }
+    var sectionId = card.getAttribute ? card.getAttribute("data-section-id") : "";
+    if (!todoHandle && (isTodoInteractiveTarget(target) || options.isArchiveTodoSectionId(sectionId || ""))) {
+      return;
+    }
+    clearBoardDragClasses(boardColumns);
+    pointerDragSession = {
+      kind: "todo",
+      draggedId: todoHandle ? todoHandle.getAttribute("data-todo-drag-handle") || card.getAttribute("data-todo-id") : card.getAttribute("data-todo-id") || "",
+      draggedElement: card,
+      activated: false,
+      startX: typeof event.clientX === "number" ? event.clientX : 0,
+      startY: typeof event.clientY === "number" ? event.clientY : 0
+    };
+    if (todoHandle) {
+      stopBoardEvent(event);
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+    }
+  }
+  function installBoardListeners(options) {
+    if (boardListenersInstalled) {
+      return;
+    }
+    var win = options.window;
+    if (!win || typeof win.addEventListener !== "function") {
+      return;
+    }
+    win.addEventListener("pointermove", updatePointerDragSession, true);
+    win.addEventListener("pointerup", function(event) {
+      finishPointerDragSession(event, false);
+    }, true);
+    win.addEventListener("pointercancel", function(event) {
+      finishPointerDragSession(event, true);
+    }, true);
+    boardListenersInstalled = true;
+  }
+  function bindBoardColumnInteractions(options) {
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      return;
+    }
+    activeBoardOptions = options;
+    setBoardDocumentDragState(options, false);
+    clearBoardDragClasses(boardColumns);
+    installBoardClickDelegation(boardColumns);
+    bindRenderedBoardListeners(boardColumns, options);
+    installBoardListeners(options);
+  }
 
-`:"";Ne.value=t+r+e,wa("upload")}}function as(){ce&&ce.setAttribute("data-priority",String(ce.value||"none"))}function Fl(e){var t=e&&e.source?String(e.source):"human-form";return t==="bot-mcp"?" is-bot-mcp":t==="bot-manual"?" is-bot-manual":t==="system-event"?" is-system-event":" is-human-form"}function ns(e,t){gt&&(gt.textContent=String(e||""),gt.style.display=e?"block":"none",gt.classList.toggle("error",!!t))}function Pl(e){if(!e)return"-";var t=new Date(e);return isNaN(t.getTime())?String(e):t.toLocaleString(Ct)}function Rl(){return{enabled:!!(ta&&ta.checked),botToken:vr?String(vr.value||""):"",chatId:ra?String(ra.value||""):"",messagePrefix:aa?String(aa.value||""):""}}function Nl(e){var t=e.enabled||!!String(e.chatId||"").trim()||!!String(e.messagePrefix||"").trim();return t&&!String(e.chatId||"").trim()?a.telegramValidationChatId||"Telegram chat ID is required.":t&&!String(e.botToken||"").trim()&&!(Pe&&Pe.hasBotToken)?a.telegramValidationBotToken||"Telegram bot token is required.":""}function os(){ta&&(ta.checked=!!Pe.enabled),ra&&(ra.value=Pe.chatId||""),aa&&(aa.value=Pe.messagePrefix||""),vr&&(vr.value="",vr.placeholder=Pe.hasBotToken?a.telegramSavedToken||"Bot token stored privately":a.telegramBotTokenPlaceholder||"123456:ABCDEF..."),Wi&&(Wi.textContent=Pe.hasBotToken?a.telegramSavedToken||"Bot token stored privately":a.telegramMissingToken||"No bot token saved yet"),zi&&(zi.textContent=Pe.chatId||"-"),Ui&&(Ui.textContent=Pe.hookConfigured?a.telegramHookReady||"Stop hook configured":a.telegramHookMissing||"Stop hook files not configured"),_i&&(_i.textContent=Pl(Pe.updatedAt)),Yi&&(Yi.textContent=a.telegramWorkspaceNote||"The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json."),vn()}function Hl(){return{agent:Kn?String(Kn.value||""):"",model:Zn?String(Zn.value||""):""}}function mn(){It(Kn,Gt,a.placeholderSelectAgent||"Select agent",ue&&typeof ue.agent=="string"?ue.agent:"agent",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),It(Zn,$t,a.placeholderSelectModel||"Select model",ue&&typeof ue.model=="string"?ue.model:"",function(e){return e&&e.id?e.id:""},function(e){return x(e)}),Gi&&(Gi.textContent=a.executionDefaultsSaved||"Workspace default agent and model settings.")}function io(){na&&(na.value=v||"info"),Qn&&(Qn.value=p||"",Qn.title=p||"")}function so(){zn&&zn.classList&&zn.classList.toggle("sidebar-collapsed",!!mt),rr&&(rr.style.display=mt?"inline-flex":"none")}function lo(e){return e&&e.runtime&&e.runtime.waitingPause?a.jobsPauseWaiting||"Waiting for approval":e&&e.archived?a.jobsArchivedBadge||"Archived":e&&e.paused?a.jobsPaused||"Inactive":a.jobsRunning||"Active"}function is(){if(tr)for(var e=tr.querySelectorAll(".task-filter-btn"),t=0;t<e.length;t++){var r=e[t];!r||!r.classList||(r.getAttribute("data-filter")===Ke?r.classList.add("active"):r.classList.remove("active"))}}function Ol(){if(Ie){Ie.textContent="";for(var e=0;e<22;e+=1){var t=document.createElement("span"),r=4+e*91/22+Math.random()*3.5,o=Math.random()*.95,i=1.05+Math.random()*1.25,d=110+Math.round(Math.random()*180),b=1+Math.round(Math.random()*2),c=(-7+Math.random()*14).toFixed(2);t.className="help-warp-streak",t.style.setProperty("--warp-top",r.toFixed(2)+"%"),t.style.setProperty("--warp-delay",o.toFixed(2)+"s"),t.style.setProperty("--warp-duration",i.toFixed(2)+"s"),t.style.setProperty("--warp-length",String(d)+"px"),t.style.setProperty("--warp-thickness",String(b)+"px"),t.style.setProperty("--warp-rotate",c+"deg"),Ie.appendChild(t)}}}function ss(e){if(Ie){var t=e||{};window.clearTimeout(Wo),window.clearTimeout(zo),Ie.classList.remove("is-active"),Ie.classList.remove("is-fading"),Ol(),Ie.offsetWidth,Ie.classList.add("is-active"),t.animateRocket&&tt&&(tt.classList.remove("is-launching"),tt.offsetWidth,tt.classList.add("is-launching"),window.setTimeout(function(){tt&&tt.classList.remove("is-launching")},1250)),Wo=window.setTimeout(function(){Ie&&Ie.classList.add("is-fading")},1e4),zo=window.setTimeout(function(){Ie&&(Ie.classList.remove("is-active"),Ie.classList.remove("is-fading"),Ie.textContent="")},13800)}}function ls(e){if(!(e!=="help"||!Vo)){Vo=!1;try{localStorage.setItem(Jo,"1")}catch{}ss({animateRocket:!1})}}function ds(){Ca&&(Ca.textContent=Rn?a.autoShowOnStartupToggleEnabled||"Disable Auto Open":a.autoShowOnStartupToggleDisabled||"Enable Auto Open"),Ko&&(Ko.textContent=Rn?a.autoShowOnStartupEnabled||"Auto-open on startup: On":a.autoShowOnStartupDisabled||"Auto-open on startup: Off")}function bn(){var e=document.getElementById("one-time"),t=!!(e&&e.checked);Qo&&(Qo.style.display=t?"none":"block"),de&&!de.value&&(de.value=Kt),t&&de&&(de.value=Kt)}function cs(e){if(!e||!e.createdAt)return a.scheduleHistoryPlaceholder||"Select a backup version";var t=new Date(e.createdAt);return isNaN(t.getTime())?String(e.createdAt):t.toLocaleString(Ct)}function us(){if(Re){var e=Re.value||"",t=Array.isArray(Lr)?Lr:[];if(t=t.slice().sort(function(r,o){return new Date(o.createdAt).getTime()-new Date(r.createdAt).getTime()}),t.length===0){Re.innerHTML='<option value="">'+u(a.scheduleHistoryEmpty||"No backup versions yet")+"</option>",Re.disabled=!0,Qt&&(Qt.disabled=!0);return}Re.innerHTML='<option value="">'+u(a.scheduleHistoryPlaceholder||"Select a backup version")+"</option>"+t.map(function(r){return'<option value="'+m(r.id||"")+'">'+u(cs(r))+"</option>"}).join(""),Re.disabled=!1,Qt&&(Qt.disabled=!1),e&&(Re.value=e),Re.value!==e&&(Re.value="")}}function co(e){return e?String(e).split(",").map(function(t){return String(t||"").trim()}).filter(function(t,r,o){return t&&o.indexOf(t)===r}):[]}function fs(e){return Array.isArray(e)?e.join(", "):""}function ht(e){return(Array.isArray(Ye)?Ye:[]).find(function(t){return t&&t.id===e})||null}function uo(e){return!!e&&e.type==="pause"}function Lc(e){return!!e&&e.type!=="pause"&&!!e.taskId}function ql(e){var t=e&&e.runtime&&Array.isArray(e.runtime.approvedPauseNodeIds)?e.runtime.approvedPauseNodeIds:[];return t.filter(function(r){return typeof r=="string"&&r})}function Jl(e){return e&&e.runtime&&e.runtime.waitingPause?e.runtime.waitingPause:null}function la(e){return(Array.isArray(xt)?xt:[]).find(function(t){return t&&t.id===e})||null}function vs(e){return(Array.isArray(J)?J:[]).find(function(t){return t&&t.id===e})||null}function fo(){return(Array.isArray(Ye)?Ye:[]).filter(function(e){return e&&(e.folderId||"")===Y}).sort(function(e,t){var r=Sn(t&&t.updatedAt)-Sn(e&&e.updatedAt);if(r!==0)return r;var o=e&&e.name?String(e.name):"",i=t&&t.name?String(t.name):"";return o.localeCompare(i)})}function yn(e){for(var t=0,r=e;r&&r.parentId&&(t+=1,r=la(r.parentId),!(t>20)););return t}function ps(e){if(!e)return a.jobsRootFolder||"All jobs";for(var t=[],r=la(e),o=0;r&&o<20;)t.unshift(r.name||""),r=r.parentId?la(r.parentId):null,o+=1;return t.unshift(a.jobsRootFolder||"All jobs"),t.filter(Boolean).join(" / ")}function da(e){return!!e&&String(e.name||"").toLowerCase()===String(a.jobsArchiveFolder||"Archive").toLowerCase()}function Vl(e){if(!e)return[];var t=[];return po().forEach(function(r){!r||r.taskId!==e||!Array.isArray(r.labels)||(t=t.concat(r.labels))}),St(t)}function hn(e){var t=[];if(e&&Array.isArray(e.labels)&&(t=t.concat(e.labels)),e&&e.jobId){var r=ht(e.jobId);r&&r.name&&t.push(r.name)}return e&&e.id&&(t=t.concat(Vl(e.id))),St(t)}function Sn(e){if(!e)return Number.MAX_SAFE_INTEGER;var t=new Date(e),r=t.getTime();return isNaN(r)?Number.MAX_SAFE_INTEGER:r}function gs(e){return(Array.isArray(e)?e.slice():[]).sort(function(t,r){var o=Sn(t&&t.nextRun)-Sn(r&&r.nextRun);if(o!==0)return o;var i=t&&t.name?String(t.name):"",d=r&&r.name?String(r.name):"";return i.localeCompare(d)})}function Wl(){return gs((Array.isArray(J)?J:[]).filter(function(e){return e&&e.oneTime!==!0}))}function ms(e){var t=ga(e||"");return(!t||t===(a.labelFriendlyFallback||""))&&(t=e||a.labelNever||"Never"),t}function zl(){if(cr){var e=cr.querySelector("[data-jobs-workflow-cadence]");if(e){var t=ae?String(ae.value||"").trim():"";e.textContent=ms(t),e.parentElement&&e.parentElement.setAttribute("title",e.textContent||"")}}}function kn(){if(ot){var e=[];(Array.isArray(J)?J:[]).forEach(function(r){hn(r).forEach(function(o){e.indexOf(o)===-1&&e.push(o)})}),e.sort(function(r,o){return String(r).localeCompare(String(o))});var t=zt||"";ot.innerHTML='<option value="">'+u(a.labelAllLabels||"All labels")+"</option>"+e.map(function(r){return'<option value="'+m(r)+'">'+u(r)+"</option>"}).join(""),ot.value=t,ot.value!==t&&(zt="",ot.value="")}}function Ul(){if(Y&&!la(Y)&&(Y=""),Ee){I="";return}var e=I?ht(I):null;if(e&&(e.folderId||"")!==Y&&(I="",e=null),I&&!e&&(I=""),!I){var t=fo();t.length>0&&(I=t[0].id)}}function _l(){return Y?la(Y):null}wl(),pn(),ds(),us(),ma(),ya(),wo(),Qd(),ec(),Sa(),os(),At(),mn(),io();function wc(e){return e?String(e).split(",").map(function(t){return t.trim()}).filter(function(t){return t.length>0}):[]}function Me(e){return String(e||"").trim().replace(/\s+/g," ")}function T(e){return Me(e).toLowerCase()}function St(e){var t={};return(Array.isArray(e)?e:[]).map(Me).filter(function(r){var o=T(r);return!o||t[o]?!1:(t[o]=!0,!0)})}function ca(e){return e==="archive-completed"||e==="archive-rejected"}function ua(e){return e==="recurring-tasks"}function vo(e){return ca(e)||ua(e)}function po(){return C&&Array.isArray(C.cards)?C.cards.slice():[]}function Yl(e){var t=po();return(!e||e.showArchived!==!0)&&(t=t.filter(function(r){return!r.archived&&!ca(r.sectionId)})),(!e||e.showRecurringTasks!==!0)&&(t=t.filter(function(r){return!ua(r.sectionId)})),t}function Xl(){var e=[],t=Object.create(null);return(Array.isArray(J)?J:[]).forEach(function(r){hn(r).forEach(function(o){var i=Me(o),d=T(i);!i||!d||t[d]||(t[d]=!0,e.push({key:d,name:i,color:"var(--vscode-badge-background)",source:"task"}))})}),e.sort(function(r,o){return String(r.name).localeCompare(String(o.name))})}function fa(){var e=[],t=Object.create(null),r=C&&Array.isArray(C.labelCatalog)?C.labelCatalog.slice():[];return r.forEach(function(o){var i=Me(o&&o.name),d=T(o&&(o.key||o.name||""));!i||!d||(t[d]={key:d,name:i,color:o.color||"var(--vscode-badge-background)",createdAt:o.createdAt,updatedAt:o.updatedAt,source:"board"})}),Xl().forEach(function(o){t[o.key]||(t[o.key]=o)}),Object.keys(t).forEach(function(o){e.push(t[o])}),e.sort(function(o,i){return String(o.name).localeCompare(String(i.name))})}function An(){return C&&Array.isArray(C.flagCatalog)?C.flagCatalog.slice():[]}function Gl(e){for(var t=T(e),r=An(),o=0;o<r.length;o+=1)if(T(r[o].key||r[o].name)===t)return r[o];return null}function $l(e){var t=Gl(e);return t&&t.color?t.color:"#f59e0b"}function va(e){for(var t=T(e),r=fa(),o=0;o<r.length;o+=1)if(T(r[o].key||r[o].name)===t)return r[o];return null}function bs(e){var t=va(e);return t&&t.color?t.color:"var(--vscode-badge-background)"}function ye(e){(!e||e==="label")&&(qn=""),(!e||e==="flag")&&(Jn="")}function ys(e,t){var r=e==="flag"?Jn:qn;return!!r&&T(r)===T(t||"")}function Kl(e){Ut(G.filter(function(t){return T(t)!==T(e)}),!0),T(Q)===T(e)&&(Q="")}function Zl(){if(Q&&!va(Q)){var e=G.some(function(t){return T(t)===T(Q)});e||(Q="")}}function pa(e){var t=String(e||"").trim();if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(t)){var r=t.slice(1);r.length===3&&(r=r.split("").map(function(c){return c+c}).join(""));var o=parseInt(r.slice(0,2),16),i=parseInt(r.slice(2,4),16),d=parseInt(r.slice(4,6),16),b=(o*299+i*587+d*114)/1e3;return b>=150?"#111111":"#ffffff"}return"var(--vscode-badge-foreground)"}function hs(e,t,r){var o=bs(e),i=pa(o),d=r?"var(--vscode-focusBorder)":"var(--vscode-panel-border)";return'<span data-label-chip="'+m(e)+'" style="border-radius:999px;background:'+m(o)+";color:"+m(i)+";border:1px solid "+m(d)+';"><button type="button" data-label-chip-select="'+m(e)+'" style="all:unset;cursor:pointer;color:inherit;">'+u(e)+"</button>"+(t?'<button type="button" data-label-chip-remove="'+m(e)+'" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xD7</button>':"")+"</span>"}function Ss(e,t){var r=$l(e),o=pa(r);return'<span data-flag-chip="'+m(e)+'" style="border-radius:4px;background:'+m(r)+";color:"+m(o)+";border:1px solid color-mix(in srgb,"+m(r)+' 70%,var(--vscode-panel-border));font-weight:600;"><span>'+u(e)+"</span>"+(t?'<button type="button" data-flag-chip-remove="'+m(e)+'" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="'+m(a.boardFlagClearTitle||a.boardFlagClear||"Clear flag")+'">\xD7</button>':"")+"</span>"}function Ut(e,t){G=St(e),t?Q&&G.map(T).indexOf(T(Q))<0&&(Q=G[0]||""):Q=G[0]||"",he()}function Ql(){if(Hr){var e=G.map(T),t=fa().filter(function(r){return e.indexOf(T(r.name))<0});if(t.length===0){Hr.innerHTML="";return}Hr.innerHTML=t.map(function(r){var o=r.color||"var(--vscode-badge-background)",i=pa(o),d="color-mix(in srgb,"+o+" 60%,var(--vscode-panel-border))",b=r.source!=="task",c=b&&ys("label",r.name);return'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:'+m(o)+";color:"+m(i)+";border:1.5px solid "+m(d)+';font-size:12px;"><button type="button" data-label-catalog-select="'+m(r.name)+'" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="'+m(a.boardLabelCatalogAddTitle||"Add to todo")+'">'+u(r.name)+"</button>"+(c?'<button type="button" data-label-catalog-confirm-delete="'+m(r.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="'+m(a.boardLabelCatalogDeleteTitle||"Delete label")+'">'+u(a.boardDeleteConfirm||"Delete?")+"</button>":'<button type="button" data-label-catalog-edit="'+m(r.name)+'" data-label-catalog-edit-color="'+m(o)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="'+m(a.boardLabelCatalogEditTitle||"Edit label")+'">\u270E</button>'+(b?'<button type="button" data-label-catalog-delete="'+m(r.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="'+m(a.boardLabelCatalogDeleteTitle||"Delete label")+'">\xD7</button>':""))+"</span>"}).join("")}}function go(){if(be){var e=M?T(M.value):"",t=G.map(T),r=St(fa().map(function(o){return o.name}).concat(G)).filter(function(o){return t.indexOf(T(o))<0}).sort(function(o,i){return o.localeCompare(i)});if(e?r=r.filter(function(o){return T(o).indexOf(e)>=0}):r=[],r.length===0){be.style.display="none",be.innerHTML="";return}be.style.display="flex",be.innerHTML=r.map(function(o){var i=bs(o),d=pa(i);return'<button type="button" data-label-suggestion="'+m(o)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:'+m(i)+";color:"+m(d)+";border:1px solid color-mix(in srgb,"+m(i)+' 60%,var(--vscode-panel-border));font-size:12.5px;line-height:1.5;">'+u(o)+"</button>"}).join("")}}function ze(){_a&&(_a.innerHTML=G.length>0?G.map(function(r){return hs(r,!0,T(r)===T(Q))}).join(""):'<div class="note">No labels yet.</div>');var e=Q?va(Q):null;if(W){var t=M&&M.value.trim();Q?W.value=/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(e&&e.color?e.color:"")?e.color:"#4f8cff":t||(W.value="#4f8cff"),W.disabled=!1}Rt&&(Rt.disabled=!M||!M.value.trim()),go(),Ql()}function En(){if(!M){R("todoLabelAddIgnored",{reason:"missingInput"});return}ye("label");var e=Me(M.value);if(!e){R("todoLabelAddIgnored",{reason:"emptyLabel",rawValue:String(M.value||"")});return}R("todoLabelAddAccepted",{label:e,editingExisting:!!We,color:W?W.value:""});var t=We;We="";var r=W?W.value:"";if(M.value="",t){var o=T(t),i=G.map(T),d=i.indexOf(o);if(d>=0){var b=G.slice();b.splice(d,1,e),Ut(b,!0),Q=e}r&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r)&&n.postMessage({type:"saveTodoLabelDefinition",data:{name:e,previousName:t,color:r}}),be&&(be.style.display="none"),le(),ze();return}Ut(G.concat([e]),!0),Q=e,be&&(be.style.display="none"),le(),ze(),r&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r)&&n.postMessage({type:"saveTodoLabelDefinition",data:{name:e,color:r}})}function ed(e){ye("label"),Ut(G.filter(function(t){return T(t)!==T(e)}),!0),ze()}function td(){ml({boardColumns:ar,getBoardColumns:function(){return ar},document,window,vscode:n,renderCockpitBoard:At,openTodoEditor:Cs,openTodoDeleteModal:js,handleSectionCollapse:function(e){cl(e,{toggleSectionCollapsed:Tl,collapsedSections:mr})},handleSectionRename:function(e){ul(e,{document,vscode:n,setTimeout})},handleSectionDelete:function(e){fl(e,{strings:a,vscode:n,setTimeout})},handleTodoCompletion:function(e){vl(e,{cockpitBoard:C,document,strings:a,setTimeout,vscode:n})},handleTodoReject:function(e){var t=e.getAttribute("data-todo-reject")||"";t&&n.postMessage({type:"rejectTodo",todoId:t})},handleTodoRestore:function(e){var t=e.getAttribute("data-todo-restore")||"";t&&n.postMessage({type:"archiveTodo",todoId:t,archived:!1})},setSelectedTodoId:function(e){w=e},getDraggingSectionId:function(){return eo},setDraggingSectionId:function(e){eo=e},getLastDragOverSectionId:function(){return to},setLastDragOverSectionId:function(e){to=e},getDraggingTodoId:function(){return Hn},setDraggingTodoId:function(e){Hn=e},setIsBoardDragging:function(e){xa=e},requestAnimationFrame,finishBoardDragState:Il,isArchiveTodoSectionId:ca,isSpecialTodoSectionId:vo})}function rd(){Uo||(Uo=!0,[lt,Ne,Je].forEach(function(e){!e||typeof e.addEventListener!="function"||e.addEventListener("input",function(){wa("input")})}),[ce,ge,me].forEach(function(e){!e||typeof e.addEventListener!="function"||e.addEventListener("change",function(){wa("change"),e===ce&&as()})}),Fn(Un,{selector:"#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",eventName:"todoDetailClickAttempt"}),document.addEventListener("click",function(e){var t=q(e,"[data-flag-chip-remove]");if(t){ee="",Bt(),kt();return}var r=q(e,"[data-flag-catalog-select]");if(r){e.preventDefault(),e.stopPropagation(),ye("flag");var o=r.getAttribute("data-flag-catalog-select")||"";if(!o)return;ee=Me(o)||o,Bt(),kt();return}var i=q(e,"[data-flag-catalog-edit]");if(i){e.preventDefault(),e.stopPropagation(),ye("flag");for(var d=i.getAttribute("data-flag-catalog-edit")||"",b=An(),c=null,A=0;A<b.length;A++)if(T(b[A].name)===T(d)){c=b[A];break}var E=document.getElementById("todo-flag-name-input"),j=document.getElementById("todo-flag-color-input");E&&(E.value=c?c.name:d),j&&c&&c.color&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.color)&&(j.value=c.color),yt=d,le(),E&&E.focus();return}var P=q(e,"[data-flag-catalog-confirm-delete]");if(P){e.preventDefault(),e.stopPropagation();var l=P.getAttribute("data-flag-catalog-confirm-delete")||"";if(!l)return;ye("flag"),T(ee)===T(l)&&(ee="",Bt()),kt(),n.postMessage({type:"deleteTodoFlagDefinition",data:{name:l}});return}var g=q(e,"[data-flag-catalog-delete]");if(g){e.preventDefault(),e.stopPropagation();var o=g.getAttribute("data-flag-catalog-delete")||"";if(!o)return;Jn=o,kt()}}))}function kt(){var e=document.getElementById("todo-flag-current"),t=document.getElementById("todo-flag-picker");if(e&&(ee?e.innerHTML=Ss(ee,!0):e.innerHTML='<span class="note">No flag set.</span>'),t){var r=An();r.length===0?t.innerHTML="":t.innerHTML=r.map(function(o){var i=o.color||"#f59e0b",d=pa(i),b=T(o.name)===T(ee),c=b?"2px solid var(--vscode-focusBorder)":"1px solid color-mix(in srgb,"+i+" 70%,var(--vscode-panel-border))",A=ys("flag",o.name);return'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:'+m(i)+";color:"+m(d)+";border:"+c+';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="'+m(o.name)+'" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="'+m(a.boardFlagCatalogSelectTitle||"Set as flag")+'">'+u(o.name)+"</button>"+(A?'<button type="button" data-flag-catalog-confirm-delete="'+m(o.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="'+m(a.boardFlagCatalogDeleteTitle||"Delete flag")+'">'+u(a.boardDeleteConfirm||"Delete?")+"</button>":'<button type="button" data-flag-catalog-edit="'+m(o.name)+'" data-flag-catalog-edit-color="'+m(i)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="'+m(a.boardFlagCatalogEditTitle||"Edit flag")+'">\u270E</button><button type="button" data-flag-catalog-delete="'+m(o.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="'+m(a.boardFlagCatalogDeleteTitle||"Delete flag")+'">\xD7</button>')+"</span>"}).join("")}he()}function ks(){ye("flag");var e=document.getElementById("todo-flag-name-input"),t=document.getElementById("todo-flag-color-input");if(!e){R("todoFlagAddIgnored",{reason:"missingInput"});return}var r=Me(e.value);if(!r){R("todoFlagAddIgnored",{reason:"emptyFlag",rawValue:String(e.value||"")});return}var o=t?t.value:"#f59e0b";R("todoFlagAddAccepted",{flag:r,editingExisting:!!yt,color:o});var i=yt;yt="",e.value="",i&&T(i)!==T(r)&&T(ee)===T(i)&&(ee=r),n.postMessage({type:"saveTodoFlagDefinition",data:{name:r,previousName:i||void 0,color:o}}),i||(ee=r),Bt(),le(),kt()}function As(e){if(!e)return"";var t=new Date(e);if(isNaN(t.getTime()))return"";var r=t.getFullYear(),o=Sr(t.getMonth()+1),i=Sr(t.getDate()),d=Sr(t.getHours()),b=Sr(t.getMinutes());return r+"-"+o+"-"+i+"T"+d+":"+b}function ad(e){if(e){var t=new Date(e);if(!isNaN(t.getTime()))return t.toISOString()}}function mo(e){if(!e)return"";var t=new Date(e);return isNaN(t.getTime())?String(e):t.toLocaleString(Ct||void 0,{dateStyle:"medium",timeStyle:"short"})}function _t(e){switch(e){case"low":return a.boardPriorityLow||"Low";case"medium":return a.boardPriorityMedium||"Medium";case"high":return a.boardPriorityHigh||"High";case"urgent":return a.boardPriorityUrgent||"Urgent";default:return a.boardPriorityNone||"None"}}function Es(e){switch(e){case"urgent":return 4;case"high":return 3;case"medium":return 2;case"low":return 1;default:return 0}}function nd(e,t){if(t)return"var(--vscode-list-activeSelectionBackground)";switch(e){case"urgent":return"color-mix(in srgb, #ef4444 12%, var(--vscode-sideBar-background))";case"high":return"color-mix(in srgb, #f59e0b 12%, var(--vscode-sideBar-background))";case"medium":return"color-mix(in srgb, #3b82f6 12%, var(--vscode-sideBar-background))";case"low":return"color-mix(in srgb, #6b7280 12%, var(--vscode-sideBar-background))";default:return"color-mix(in srgb, #9ca3af 6%, var(--vscode-sideBar-background))"}}function Yt(e){switch(e){case"ready":return a.boardStatusReady||"Ready";case"completed":return a.boardStatusCompleted||"Completed";case"rejected":return a.boardStatusRejected||"Rejected";default:return a.boardStatusActive||"Active"}}function In(e){switch(e){case"completed-successfully":return a.boardArchiveCompletedSuccessfully||"Completed successfully";case"rejected":return a.boardArchiveRejected||"Rejected";default:return a.boardAllArchiveOutcomes||"All outcomes"}}function bo(e){switch(e){case"bot-mcp":return a.boardCommentSourceBotMcp||"Bot MCP";case"bot-manual":return a.boardCommentSourceBotManual||"Bot manual";case"system-event":return a.boardCommentSourceSystemEvent||"System event";default:return a.boardCommentSourceHumanForm||"Human form"}}function od(e){var t=String(e||"").trim().replace(/\s+/g," ");return t?t.length>140?t.slice(0,137)+"...":t:a.boardDescriptionPreviewEmpty||"No description yet."}function yo(){var e=C&&C.filters?C.filters:{};return{searchText:e.searchText||"",labels:Array.isArray(e.labels)?e.labels:[],priorities:Array.isArray(e.priorities)?e.priorities:[],statuses:Array.isArray(e.statuses)?e.statuses:[],archiveOutcomes:Array.isArray(e.archiveOutcomes)?e.archiveOutcomes:[],flags:Array.isArray(e.flags)?e.flags:[],sectionId:e.sectionId||"",sortBy:e.sortBy||"manual",sortDirection:e.sortDirection||"asc",viewMode:e.viewMode==="list"?"list":"board",showArchived:e.showArchived===!0,showRecurringTasks:e.showRecurringTasks===!0,hideCardDetails:e.hideCardDetails===!0}}function xe(e){var t=Object.assign({},yo(),e||{});C||(C={sections:[],cards:[],labelCatalog:[],archives:{completedSuccessfully:[],rejected:[]},filters:{},updatedAt:""}),C.filters=t,At(),n.postMessage({type:"setTodoFilters",data:t})}function id(e){var t=e||yo();return!!(t.searchText&&String(t.searchText).trim()||Array.isArray(t.labels)&&t.labels.length>0||Array.isArray(t.priorities)&&t.priorities.length>0||Array.isArray(t.statuses)&&t.statuses.length>0||Array.isArray(t.archiveOutcomes)&&t.archiveOutcomes.length>0||Array.isArray(t.flags)&&t.flags.length>0||t.sectionId&&String(t.sectionId).trim()||t.showArchived===!0||t.showRecurringTasks===!0||t.hideCardDetails===!0)}function sd(){xe({searchText:"",labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sectionId:"",showArchived:!1,showRecurringTasks:!1,hideCardDetails:!1})}function Is(e){var t=Array.isArray(C.sections)?C.sections.slice():[];return t.sort(function(r,o){return(r.order||0)-(o.order||0)}),t.filter(function(r){return!(!(e&&e.showArchived===!0)&&ca(r.id)||!(e&&e.showRecurringTasks===!0)&&ua(r.id))})}function ld(){return Is({showArchived:!0,showRecurringTasks:!0}).filter(function(e){return!vo(e.id)})}function ho(e){return!!(e&&!e.archived&&e.status==="ready")}function dd(e){return ho(e)?"finalizeTodo":"approveTodo"}function Ts(e){return ho(e)?a.boardFinalizeTodo||"Final Accept":a.boardApproveTodo||"Approve"}function So(e){return!!(e&&e.archived&&e.archiveOutcome==="completed-successfully")}function cd(e){var t=!!(e&&e.archived),r=t?a.boardRestoreTodo||"Restore":Ts(e),o=So(e)?"\u2713":ho(e)?"\u2713\u2713":"\u25CB",i=t?"data-todo-restore":"data-todo-complete";return'<button type="button" class="todo-complete-button" '+i+'="'+m(e.id)+'" data-no-drag="1" title="'+m(r)+'" aria-label="'+m(r)+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:'+(So(e)?"var(--vscode-button-background)":"var(--vscode-input-background)")+";color:"+(So(e)?"var(--vscode-button-foreground)":"var(--vscode-foreground)")+';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;"><span aria-hidden="true">'+u(o)+"</span></button>"}function ud(e){return!e||e.archived?"":'<span class="cockpit-drag-handle" data-todo-drag-handle="'+m(e.id)+'" data-no-drag="1" title="'+m(a.boardReorderTodo||"Drag todo")+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>'}function fd(e,t){return!e||t?"":'<span class="cockpit-drag-handle" data-section-drag-handle="'+m(e.id)+'" data-no-drag="1" title="'+m(a.boardReorderSection||"Drag section")+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>'}function vd(e){if(!e)return null;for(var t=0;t<J.length;t+=1)if(J[t]&&J[t].id===e)return J[t];return null}function pd(e,t){if(!t.showArchived&&e.archived||!t.showRecurringTasks&&ua(e.sectionId)||t.sectionId&&e.sectionId!==t.sectionId)return!1;if(t.labels.length>0){var r=(e.labels||[]).some(function(c){return t.labels.indexOf(c)>=0});if(!r)return!1}if(t.priorities.length>0&&t.priorities.indexOf(e.priority||"none")<0||t.statuses.length>0&&t.statuses.indexOf(e.status||"active")<0||t.archiveOutcomes.length>0&&(!e.archived||t.archiveOutcomes.indexOf(e.archiveOutcome||"")<0))return!1;if(t.flags.length>0){var o=(e.flags||[]).some(function(c){return t.flags.indexOf(c)>=0});if(!o)return!1}if(t.searchText){var i=String(t.searchText).toLowerCase(),d=(e.comments||[]).map(function(c){return(c.author||"")+" "+(c.body||"")}).join(" "),b=[e.title||"",e.description||"",(e.labels||[]).join(" "),(e.flags||[]).join(" "),d].join(" ").toLowerCase();if(b.indexOf(i)<0)return!1}return!0}function gd(e,t){var r=t.sortDirection==="desc"?-1:1;return e.slice().sort(function(o,i){var d=0;switch(t.sortBy){case"dueAt":{var b=o.dueAt?new Date(o.dueAt).getTime():Number.MAX_SAFE_INTEGER,c=i.dueAt?new Date(i.dueAt).getTime():Number.MAX_SAFE_INTEGER;d=b-c;break}case"priority":d=Es(o.priority)-Es(i.priority);break;case"updatedAt":d=new Date(o.updatedAt||0).getTime()-new Date(i.updatedAt||0).getTime();break;case"createdAt":d=new Date(o.createdAt||0).getTime()-new Date(i.createdAt||0).getTime();break;default:d=(o.order||0)-(i.order||0);break}return d===0&&(d=String(o.title||"").localeCompare(String(i.title||""))),d*r})}function md(e,t,r){var o=St(fa().map(function(c){return c.name}).concat((Array.isArray(r)?r:[]).reduce(function(c,A){return c.concat(A.labels||[])},[]))).sort(),i=St(An().map(function(c){return c.name}).concat((Array.isArray(r)?r:[]).reduce(function(c,A){return c.concat(A.flags||[])},[]))).sort();if(Fr&&(Fr.value=e.searchText||""),nr&&(nr.innerHTML='<option value="">'+u(a.boardAllSections||"All sections")+"</option>"+t.map(function(c){return'<option value="'+m(c.id)+'">'+u(c.title)+"</option>"}).join(""),nr.value=e.sectionId||""),jt&&(jt.innerHTML='<option value="">'+u(a.boardAllLabels||"All labels")+"</option>"+o.map(function(c){return'<option value="'+m(c)+'">'+u(c)+"</option>"}).join(""),jt.value=e.labels[0]||""),Dt&&(Dt.innerHTML='<option value="">'+u(a.boardAllFlags||"All flags")+"</option>"+i.map(function(c){return'<option value="'+m(c)+'">'+u(c)+"</option>"}).join(""),Dt.value=e.flags[0]||""),Mt){var d={"":"",none:"background:#d1d5db;color:#374151;",low:"background:#6b7280;color:#fff;",medium:"background:#3b82f6;color:#fff;",high:"background:#f59e0b;color:#fff;",urgent:"background:#ef4444;color:#fff;"};Mt.innerHTML=[{value:"",label:a.boardAllPriorities||"All priorities"},{value:"none",label:_t("none")},{value:"low",label:_t("low")},{value:"medium",label:_t("medium")},{value:"high",label:_t("high")},{value:"urgent",label:_t("urgent")}].map(function(c){var A=d[c.value]||"",E=A?' style="'+A+'"':"";return'<option value="'+m(c.value)+'"'+E+">"+u(c.label)+"</option>"}).join(""),Mt.value=e.priorities[0]||""}if(Ft&&(Ft.innerHTML=[{value:"",label:a.boardAllStatuses||"All statuses"},{value:"active",label:Yt("active")},{value:"ready",label:Yt("ready")},{value:"completed",label:Yt("completed")},{value:"rejected",label:Yt("rejected")}].map(function(c){return'<option value="'+m(c.value)+'">'+u(c.label)+"</option>"}).join(""),Ft.value=e.statuses[0]||""),Pt&&(Pt.innerHTML=[{value:"",label:a.boardAllArchiveOutcomes||"All outcomes"},{value:"completed-successfully",label:In("completed-successfully")},{value:"rejected",label:In("rejected")}].map(function(c){return'<option value="'+m(c.value)+'">'+u(c.label)+"</option>"}).join(""),Pt.value=e.archiveOutcomes[0]||""),or&&(or.innerHTML=[{value:"manual",label:a.boardSortManual||"Manual order"},{value:"dueAt",label:a.boardSortDueAt||"Due date"},{value:"priority",label:a.boardSortPriority||"Priority"},{value:"updatedAt",label:a.boardSortUpdatedAt||"Last updated"},{value:"createdAt",label:a.boardSortCreatedAt||"Created date"}].map(function(c){return'<option value="'+m(c.value)+'">'+u(c.label)+"</option>"}).join(""),or.value=e.sortBy||"manual"),ir&&(ir.innerHTML=[{value:"asc",label:a.boardSortAsc||"Ascending"},{value:"desc",label:a.boardSortDesc||"Descending"}].map(function(c){return'<option value="'+m(c.value)+'">'+u(c.label)+"</option>"}).join(""),ir.value=e.sortDirection||"asc"),sr&&(sr.innerHTML=[{value:"board",label:a.boardViewBoard||"Board"},{value:"list",label:a.boardViewList||"List"}].map(function(c){return'<option value="'+m(c.value)+'">'+u(c.label)+"</option>"}).join(""),sr.value=e.viewMode||"board"),Rr&&(Rr.checked=e.showArchived===!0),Pr&&(Pr.checked=e.showRecurringTasks===!0),Nr&&(Nr.checked=e.hideCardDetails===!0),document.documentElement.classList.toggle("cockpit-board-hide-card-details",e.hideCardDetails===!0),Wa&&(Wa.disabled=!id(e)),Ve){var b=Ve.closest?Ve.closest(".board-col-width-group"):null;b&&(b.style.display=e.viewMode==="list"?"none":"flex")}}function xs(e,t){var r=!!e,o=!!(e&&e.archived),i=r?null:Z,d=r&&za&&za.value===e.id,b=ld();if(r&&e&&e.sectionId){var c=b.some(function(g){return g.id===e.sectionId});if(!c){var A=(Array.isArray(t)?t:[]).find(function(g){return g.id===e.sectionId});A&&(b=b.concat([A]))}}if(he(),d||(r?Ut(e.labels||[],!1):Ut(G,!0)),ki&&(ki.textContent=r?a.boardDetailTitleEdit||"Edit Todo":a.boardDetailTitleCreate||"Create Todo"),Ai&&(Ai.textContent=r?a.boardDetailModeEdit||"Update this todo.":a.boardDetailModeCreate||"Fill the form to create a new todo."),za&&(za.value=r?e.id:""),d||(lt&&(lt.value=r?e.title||"":i.title||""),Ne&&(Ne.value=r?e.description||"":i.description||""),Je&&(Je.value=r?As(e.dueAt):i.dueAt||""),M&&(M.value=r?"":i.labelInput||""),W&&!r&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(i.labelColor||"")&&(W.value=i.labelColor),ee=r?(e.flags||[])[0]||"":i.flag||"",je&&(je.value=r?"":i.flagInput||""),Nt&&!r&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(i.flagColor||"")&&(Nt.value=i.flagColor)),gn(a.boardUploadFilesHint||"","neutral"),Bt(),kt(),ze(),Ht&&(Ht.disabled=!je||!je.value.trim()),Ua&&(r?e.archived?Ua.textContent=(a.boardStatusLabel||"Status")+": "+Yt(e.status||"active")+" \u2022 "+In(e.archiveOutcome||"rejected"):Ua.textContent=(a.boardStatusLabel||"Status")+": "+Yt(e.status||"active"):Ua.textContent=a.boardStatusLabel?a.boardStatusLabel+": "+(a.boardStatusActive||"Active"):"Status: Active"),ce){var E=d?ce.value:"";ce.innerHTML=["none","low","medium","high","urgent"].map(function(g){return'<option value="'+m(g)+'">'+u(_t(g))+"</option>"}).join(""),ce.value=d?E:r?e.priority||"none":i.priority||"none",as()}if(ge){var j=d?ge.value:"";ge.innerHTML=b.map(function(g){return'<option value="'+m(g.id)+'">'+u(g.title)+"</option>"}).join(""),d&&Tr(ge,j)?ge.value=j:ge.value=r?e.sectionId:i.sectionId&&Tr(ge,i.sectionId)?i.sectionId:b[0]?b[0].id:""}d||Ls(r&&e?e.taskId||"":i.taskId||""),r||(Z.priority=ce&&ce.value||"none",Z.sectionId=ge&&ge.value||"",Z.dueAt=Je&&Je.value||""),Xn&&(Xn.textContent=r?a.boardSaveUpdate||"Save Todo":a.boardSaveCreate||"Create Todo",Xn.disabled=o),Ya&&(Ya.disabled=!r||o),Or&&(Or.textContent=r?Ts(e):a.boardApproveTodo||"Approve",Or.disabled=!r||o),Xa&&(Xa.disabled=!r||o),Ga&&(Ga.disabled=!!o),$a&&($a.disabled=!r||o),qt&&(qt.disabled=!r||o,r||(qt.value=""));var P=r?vd(e.taskId):null;if(Ot&&(r?e.archived?Ot.textContent=a.boardReadOnlyArchived||"Archived items are read-only.":e.status==="ready"?Ot.textContent=a.boardReadyForTask||"Approved items can become scheduled task drafts or be final accepted.":e.taskId&&!P?Ot.textContent=a.boardTaskMissing||"Linked task not found in Task List.":P?Ot.textContent=(a.boardTaskLinked||"Linked task")+": "+(P.name||P.id):Ot.textContent=a.boardTaskDraftNote||"Scheduled tasks remain separate from planning todos.":Ot.textContent=a.boardTaskDraftNote||"Scheduled tasks remain separate from planning todos."),he(),Jr){var l=r&&Array.isArray(e.comments)?e.comments:[];Jr.innerHTML=l.length>0?l.map(function(g,B){var F=bo(g.source||"human-form"),V=typeof g.sequence=="number"?g.sequence:1,y=g.updatedAt||g.editedAt||g.createdAt,N=Fl(g),O=g.source==="human-form"&&String(g.author||"").toLowerCase()==="user"?" is-user-form":"";return'<article class="todo-comment-card'+N+O+'" data-comment-index="'+m(String(B))+'" tabindex="0" role="button" aria-label="'+m(a.boardCommentOpenFull||"Open full comment")+'"><div class="todo-comment-header"><strong>#'+u(String(V))+" \u2022 "+u(F)+'</strong><span class="note">'+u(mo(y))+'</span></div><div class="note todo-comment-author">'+u(g.author||"system")+'</div><div class="note todo-comment-body">'+u(g.body||"")+'</div><div class="todo-comment-expand-hint">'+u(a.boardCommentOpenFull||"Open full comment")+"</div></article>"}).join(""):'<div class="note">'+u(a.boardCommentsEmpty||"No comments yet.")+"</div>"}}function Ls(e){if(me){var t=me.value||"",r=e||t;if(me.innerHTML='<option value="">'+u(a.boardLinkedTaskNone||"No linked task")+"</option>"+J.map(function(i){return'<option value="'+m(i.id)+'">'+u(i.name||i.id)+"</option>"}).join(""),!r){me.value="",w||(Z.taskId="");return}var o=J.some(function(i){return i&&i.id===r});me.value=o?r:"",w||(Z.taskId=me.value||"")}}function At(){rd();var e=yo(),t=Is(e),r=Array.isArray(C.sections)?C.sections.slice().sort(function(l,g){return(l.order||0)-(g.order||0)}):[],o=po(),i=Yl(e);if(w){var d=o.find(function(l){return l&&l.id===w});d&&d.archived&&e.showArchived!==!0&&(w=null),d&&ua(d.sectionId)&&e.showRecurringTasks!==!0&&(w=null);var b=o.some(function(l){return l&&l.id===w});b||(w=null)}if(md(e,t,i),bi){var c=o.filter(function(l){return!l.archived}).length,A=o.filter(function(l){return l.archived}).length;bi.textContent=(a.boardSections||"Sections")+": "+t.length+" \u2022 "+(a.boardCards||"Cards")+": "+c+" \u2022 Archived: "+String(A)+" \u2022 "+(a.boardComments||"Comments")+": "+o.reduce(function(l,g){return l+(Array.isArray(g.comments)?g.comments.length:0)},0)}if(!ar)return;var E=t.filter(function(l){return!e.sectionId||l.id===e.sectionId});if(E.length===0){ar.innerHTML='<div class="note">'+u(a.boardEmpty||"No cards yet.")+"</div>",xs(null,t);return}ar.innerHTML=yl({visibleSections:E,cards:i,filters:e,strings:a,selectedTodoId:w,collapsedSections:mr,helpers:{escapeAttr:m,escapeHtml:u,sortTodoCards:gd,cardMatchesTodoFilters:pd,isArchiveTodoSectionId:ca,isSpecialTodoSectionId:vo,renderSectionDragHandle:fd,renderTodoCompletionCheckbox:cd,renderTodoDragHandle:ud,renderFlagChip:Ss,renderLabelChip:hs,getTodoPriorityLabel:_t,getTodoStatusLabel:Yt,getTodoDescriptionPreview:od,getTodoCommentSourceLabel:bo,getTodoArchiveOutcomeLabel:In,getTodoPriorityCardBg:nd,formatTodoDate:mo}}),xs(w&&o.find(function(l){return l.id===w})||null,r),ar&&td(),yr(),yi&&(yi.onclick=function(){ye(),Cs("")}),hi&&(hi.onclick=function(){ye(),w=null,G=[],Q="",ee="",Bt(),At(),se("board")}),oa&&(oa.onclick=function(){oa.style.display="none",un&&(un.style.display="flex",Wt&&(Wt.value="",Wt.focus()))});function j(){un&&(un.style.display="none"),oa&&(oa.style.display="")}function P(){var l=Wt?Wt.value.trim():"";l&&n.postMessage({type:"addCockpitSection",title:l}),j()}Ki&&(Ki.onclick=P),Zi&&(Zi.onclick=j),Wt&&(Wt.onkeydown=function(l){l.key==="Enter"&&(l.preventDefault(),P()),l.key==="Escape"&&j()}),Ve&&(Ve.oninput=function(){var l=Number(Ve.value);Qi(l);try{localStorage.setItem("cockpit-col-width",l)}catch{}}),Si&&(Si.onclick=function(){se("board")}),Fr&&(Fr.oninput=function(){xe({searchText:Fr.value||""})}),nr&&(nr.onchange=function(){xe({sectionId:nr.value||""})}),jt&&(jt.onchange=function(){xe({labels:jt.value?[jt.value]:[]})}),Dt&&(Dt.onchange=function(){xe({flags:Dt.value?[Dt.value]:[]})}),Mt&&(Mt.onchange=function(){xe({priorities:Mt.value?[Mt.value]:[]})}),Ft&&(Ft.onchange=function(){xe({statuses:Ft.value?[Ft.value]:[]})}),Pt&&(Pt.onchange=function(){xe({archiveOutcomes:Pt.value?[Pt.value]:[]})}),or&&(or.onchange=function(){xe({sortBy:or.value||"manual"})}),ir&&(ir.onchange=function(){xe({sortDirection:ir.value||"asc"})}),sr&&(sr.onchange=function(){xe({viewMode:sr.value==="list"?"list":"board"})}),Rr&&(Rr.onchange=function(){xe({showArchived:Rr.checked===!0})}),Pr&&(Pr.onchange=function(){xe({showRecurringTasks:Pr.checked===!0})}),Nr&&(Nr.onchange=function(){xe({hideCardDetails:Nr.checked===!0})}),Mr&&(Mr.onclick=function(){oo()?(ia=!1,bt=!1):ia=!0,pn(),Te()}),Wa&&(Wa.onclick=function(){sd()}),Un&&(Un.onsubmit=function(l){if(l.preventDefault(),!(!lt||!ge||!ce)){wa("submit");var g={title:lt.value||"",description:Ne?Ne.value:"",dueAt:ad(Je?Je.value:"")||null,sectionId:ge.value||"",priority:ce.value||"none",labels:G.slice(),flags:ee?[ee]:[],taskId:me&&me.value?me.value:null};w?n.postMessage({type:"updateTodo",todoId:w,data:g}):(R("todoCreateSubmit",{titleLength:g.title.length,sectionId:g.sectionId,taskId:g.taskId||""}),n.postMessage({type:"createTodo",data:g}))}}),$a&&($a.onclick=function(){!w||!qt||!qt.value.trim()||(n.postMessage({type:"addTodoComment",todoId:w,data:{body:qt.value.trim(),author:"user",source:"human-form"}}),qt.value="")}),Jr&&(Jr.onclick=function(l){var g=q(l,"[data-comment-index]");if(!(!g||!w)){var B=Number(g.getAttribute("data-comment-index")),F=Dl(w),V=F&&Array.isArray(F.comments)?F.comments:[];B<0||B>=V.length||Md(V[B])}},Jr.onkeydown=function(l){if(!(l.key!=="Enter"&&l.key!==" ")){var g=q(l,"[data-comment-index]");g&&(l.preventDefault(),g.click())}}),Ga&&(Ga.onclick=function(){n.postMessage({type:"requestTodoFileUpload",todoId:w||void 0})}),Ya&&(Ya.onclick=function(){w&&n.postMessage({type:"createTaskFromTodo",todoId:w})}),Or&&(Or.onclick=function(){if(w){var l=C&&Array.isArray(C.cards)?C.cards.find(function(g){return g&&g.id===w}):null;n.postMessage({type:dd(l),todoId:w})}}),Xa&&(Xa.onclick=function(){w&&js(w)}),_n&&(_n.onclick=function(){R("todoLabelAddButtonClick",{disabled:!!_n.disabled,inputValue:M?String(M.value||""):""}),En()}),M&&(M.oninput=function(){var l=Me(M.value);if(l){var g=va(l);g&&g.color&&W&&(W.value=g.color),W&&(W.disabled=!1)}else Q="",ze();Rt&&(Rt.disabled=!M.value.trim()),le(),go()},M.onfocus=function(){go()},M.onblur=function(){setTimeout(function(){be&&(be.style.display="none")},200)},M.onkeydown=function(l){l.key==="Enter"?(l.preventDefault(),En()):l.key==="Escape"&&be&&(be.style.display="none")}),W&&(W.oninput=function(){le()},W.onchange=function(){le()}),_a&&(_a.onclick=function(l){var g=q(l,"[data-label-chip-remove]"),B=q(l,"[data-label-chip-select]");if(g){ed(g.getAttribute("data-label-chip-remove")||"");return}if(B){ye("label");var F=B.getAttribute("data-label-chip-select")||"";Q=F,M&&(M.value=F,M.focus()),le(),ze()}}),Rt&&(Rt.onclick=function(){var l=M?M.value.trim():"";if(R("todoLabelSaveButtonClick",{disabled:!!Rt.disabled,inputValue:l,hasColorInput:!!W}),!l||!W){R("todoLabelSaveIgnored",{reason:l?"missingColorInput":"emptyLabel"});return}var g=Me?Me(l):l;R("todoLabelSaveAccepted",{label:g,color:W.value,editingExisting:!!We}),n.postMessage({type:"saveTodoLabelDefinition",data:{name:g,previousName:We||void 0,color:W.value}});var B=We;if(B&&T(B)!==T(g)){var F=G.map(T).indexOf(T(B));if(F>=0){var V=G.slice();V.splice(F,1,g),Ut(V,!0)}}We="",M.value="",le(),ze()}),be&&(be.onclick=function(l){var g=q(l,"[data-label-suggestion]");if(g){var B=g.getAttribute("data-label-suggestion")||"",F=va(B);We="",F&&F.color&&W&&(W.value=F.color),M&&(M.value=B),le(),En()}}),Hr&&(Hr.onclick=function(l){var g=q(l,"[data-label-catalog-edit]"),B=q(l,"[data-label-catalog-delete]"),F=q(l,"[data-label-catalog-confirm-delete]"),V=q(l,"[data-label-catalog-select]");if(g){l.preventDefault(),l.stopPropagation(),ye("label");for(var y=g.getAttribute("data-label-catalog-edit")||"",N=fa(),O=null,$=0;$<N.length;$++)if(T(N[$].name)===T(y)){O=N[$];break}M&&(M.value=O?O.name:y),W&&O&&O.color&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(O.color)&&(W.value=O.color),We=y,le(),M&&M.focus();return}if(F){l.preventDefault(),l.stopPropagation();var Le=F.getAttribute("data-label-catalog-confirm-delete")||"";if(!Le)return;ye("label"),Kl(Le),ze(),n.postMessage({type:"deleteTodoLabelDefinition",data:{name:Le}});return}if(B){l.preventDefault(),l.stopPropagation();var te=B.getAttribute("data-label-catalog-delete")||"";if(!te)return;qn=te,ze();return}if(V){l.preventDefault(),l.stopPropagation(),ye("label");var te=V.getAttribute("data-label-catalog-select")||"";if(!te)return;We="",M&&(M.value=te),le(),En()}}),Ht&&(Ht.onclick=function(){var l=document.getElementById("todo-flag-name-input"),g=document.getElementById("todo-flag-color-input");if(R("todoFlagSaveButtonClick",{disabled:!!Ht.disabled,hasNameInput:!!l,hasColorInput:!!g}),!l||!g){R("todoFlagSaveIgnored",{reason:"missingInputs"});return}var B=l.value.trim();if(!B){R("todoFlagSaveIgnored",{reason:"emptyFlag"});return}var F=Me?Me(B):B;R("todoFlagSaveAccepted",{flag:F,color:g.value,editingExisting:!!yt}),n.postMessage({type:"saveTodoFlagDefinition",data:{name:F,previousName:yt||void 0,color:g.value}});var V=yt;V&&T(V)!==T(F)&&T(ee)===T(V)&&(ee=F,Bt(),kt()),yt="",l.value="",le()}),Yn&&(Yn.onclick=function(){R("todoFlagAddButtonClick",{disabled:!!Yn.disabled,inputValue:je?String(je.value||""):""}),ks()}),je&&(je.oninput=function(){Ht&&(Ht.disabled=!je.value.trim()),le()},je.onkeydown=function(l){l.key==="Enter"&&(l.preventDefault(),ks())}),Nt&&(Nt.oninput=function(){le()},Nt.onchange=function(){le()})}function bd(e){return document.querySelector('[data-tab-label="'+e+'"]')}function yd(e){return document.querySelector('[data-tab-symbol="'+e+'"]')}function hd(e){return document.querySelector('.tab-button[data-tab="'+e+'"]')}function Sd(e){if(!e)return null;for(var t=Array.isArray(J)?J:[],r=0;r<t.length;r+=1)if(t[r]&&t[r].id===e)return t[r];return null}function ws(e){return co(e||"").join(",")}function kd(){var e=document.getElementById("task-name"),t=document.getElementById("prompt-text"),r=document.querySelector('input[name="scope"]:checked'),o=document.querySelector('input[name="prompt-source"]:checked'),i=document.getElementById("one-time"),d=o?String(o.value||"inline"):"inline",b=H?String(H.value||""):"";d!=="inline"&&!b&&fe&&(b=fe);var c=U?String(U.value||""):"";!c&&oe&&(c=oe);var A=_?String(_.value||""):"";!A&&ie&&(A=ie);var E=!!(i&&i.checked);return{name:e?String(e.value||""):"",prompt:t?String(t.value||""):"",cronExpression:pe?String(pe.value||""):"",labels:ws(it?it.value:""),agent:c,model:A,scope:r?String(r.value||"workspace"):"workspace",promptSource:d,promptPath:b,oneTime:E,chatSession:E?"":de?String(de.value||""):"",jitterSeconds:rt?Number(rt.value||0):0}}function Ad(e){return e?{name:String(e.name||""),prompt:typeof e.prompt=="string"?e.prompt:"",cronExpression:String(e.cronExpression||""),labels:ws(fs(e.labels)),agent:String(e.agent||""),model:String(e.model||""),scope:String(e.scope||"workspace"),promptSource:String(e.promptSource||"inline"),promptPath:String(e.promptPath||""),oneTime:e.oneTime===!0,chatSession:e.oneTime===!0?"":String(e.chatSession||Kt||"new"),jitterSeconds:Number(e.jitterSeconds!=null?e.jitterSeconds:Wn)}:null}function Ed(){return{title:lt?String(lt.value||""):"",description:Ne?String(Ne.value||""):"",dueAt:Je?String(Je.value||""):"",priority:ce?String(ce.value||"none"):"none",sectionId:ge?String(ge.value||""):"",taskId:me?String(me.value||""):"",labels:St(G).map(T).join(","),flag:T(ee||"")}}function Id(e){return e?{title:String(e.title||""),description:String(e.description||""),dueAt:As(e.dueAt),priority:String(e.priority||"none"),sectionId:String(e.sectionId||""),taskId:String(e.taskId||""),labels:St(e.labels||[]).map(T).join(","),flag:T((e.flags||[])[0]||"")}:null}function Td(){return{name:dt?String(dt.value||""):"",cronExpression:ae?String(ae.value||""):"",folderId:De?String(De.value||""):""}}function xd(e){return e?{name:String(e.name||""),cronExpression:String(e.cronExpression||""),folderId:String(e.folderId||"")}:null}function ko(e,t){if(!e||!t)return e===t;var r=Object.keys(e),o=Object.keys(t);if(r.length!==o.length)return!1;for(var i=0;i<r.length;i+=1){var d=r[i];if(e[d]!==t[d])return!1}return!0}function Ld(){return Se?!ko(kd(),Ad(Sd(Se))):!1}function wd(){if(!w)return!1;var e=C&&Array.isArray(C.cards)?C.cards.find(function(t){return t&&t.id===w}):null;return!ko(Ed(),Id(e))}function Bd(){return Ee||!I?!1:!ko(Td(),xd(ht(I)))}function Ao(e,t){var r=hd(e),o=yd(e),i=bd(e);if(o&&(o.textContent=t.symbol||Ta),i&&(i.textContent="",i.classList&&i.classList.toggle("is-dirty",t.dirty===!0)),r){var d=t.title||"";t.dirty&&(d=d+" \u2022 "+(a.tabUnsavedChanges||a.researchUnsavedChanges||"Unsaved changes")),r.title=d,r.setAttribute("aria-label",d||e)}}function he(){Ao("create",{symbol:Se?Nn:Ta,dirty:Ld(),title:Se?a.tabTaskEditorEdit||a.tabEdit||"Edit Task":a.tabTaskEditorCreate||a.tabTaskEditor||"Create Task"}),Ao("todo-edit",{symbol:w?Nn:Ta,dirty:wd(),title:w?a.tabTodoEditorEdit||a.boardDetailTitleEdit||"Edit Todo":a.tabTodoEditorCreate||a.tabTodoEditor||"Create Todo"}),Ao("jobs-edit",{symbol:Ee||!I?Ta:Nn,dirty:Bd(),title:Ee||!I?a.tabJobsEditorCreate||a.tabJobsEditor||"Create Job":a.tabJobsEditorEdit||"Edit Job"})}function Bs(e){if(Se=e||null,Xo&&(Xo.value=Se||""),he(),Ce){var t=Se?a.actionSave:a.actionCreate;t&&(Ce.textContent=t)}Da&&(Da.style.display=Se?"inline-flex":"none")}function Cs(e){ye(),Et(),w=e||null,w?R("openTodoEditor",{mode:"edit",todoId:w}):(_o("open-create"),G=[],Q="",ee="",R("openTodoEditor",{mode:"create"})),At(),se("todo-edit")}function Cd(){ye(),Et(),w=null,_o("reset-editor"),G=[],Q="",ee="",At()}function jd(){return ke&&document.body.contains(ke)||(ke=document.createElement("div"),ke.className="cockpit-inline-modal",ke.setAttribute("hidden","hidden"),ke.innerHTML='<div class="cockpit-inline-modal-card" role="dialog" aria-modal="true" aria-labelledby="todo-delete-modal-title"><div class="cockpit-inline-modal-title" id="todo-delete-modal-title"></div><div class="note" data-todo-delete-modal-message></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-todo-delete-cancel>'+u(a.boardDeleteTodoCancel||"Cancel")+'</button><button type="button" class="btn-secondary" data-todo-delete-reject>'+u(a.boardDeleteTodoReject||"Archive as Rejected")+'</button><button type="button" class="btn-danger" data-todo-delete-permanent>'+u(a.boardDeleteTodoPermanent||"Delete Permanently")+"</button></div></div>",ke.onclick=function(e){if(e.target===ke){Et();return}var t=q(e,"[data-todo-delete-cancel]");if(t){Et();return}var r=q(e,"[data-todo-delete-reject]");if(r){Ds("reject");return}var o=q(e,"[data-todo-delete-permanent]");o&&Ds("permanent")},document.body.appendChild(ke)),ke}function Et(){Zt="",ke&&(ke.classList.remove("is-open"),ke.setAttribute("hidden","hidden"))}function Dd(){return Ae&&document.body.contains(Ae)||(Ae=document.createElement("div"),Ae.className="cockpit-inline-modal",Ae.setAttribute("hidden","hidden"),Ae.innerHTML='<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title"><div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div><div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div><div class="todo-comment-modal-body" id="todo-comment-modal-body"></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-comment-modal-close="1">'+u(a.boardCancelAction||"Cancel")+"</button></div></div>",Ae.onclick=function(e){if(e.target===Ae){Eo();return}var t=q(e,"[data-comment-modal-close]");t&&Eo()},document.body.appendChild(Ae)),Ae}function Eo(){Ae&&(Ae.classList.remove("is-open"),Ae.setAttribute("hidden","hidden"))}function Md(e){if(e){var t=Dd(),r=t.querySelector("#todo-comment-modal-title"),o=t.querySelector("#todo-comment-modal-meta"),i=t.querySelector("#todo-comment-modal-body"),d=bo(e.source||"human-form"),b=e.updatedAt||e.editedAt||e.createdAt;r&&(r.textContent=a.boardCommentModalTitle||"Comment Detail"),o&&(o.innerHTML="<span><strong>"+u(d)+"</strong></span><span>"+u(e.author||"system")+"</span><span>"+u(mo(b))+"</span>"),i&&(i.textContent=e.body||""),t.removeAttribute("hidden"),t.classList.add("is-open")}}function js(e,t){if(e){var r=!!(t&&t.permanentOnly),o=C&&Array.isArray(C.cards)?C.cards.find(function(E){return E&&E.id===e}):null,i=jd();Zt=e;var d=i.querySelector("#todo-delete-modal-title"),b=i.querySelector("[data-todo-delete-modal-message]"),c=i.querySelector("[data-todo-delete-reject]");if(d&&(d.textContent=r?a.boardDeleteTodoPermanent||"Delete Permanently":a.boardDeleteTodoTitle||"Delete Todo"),b){var A=r?a.boardDeleteTodoPermanentPrompt||"Delete this archived todo permanently? This cannot be undone.":a.boardDeleteTodoPrompt||"Choose whether this todo should be rejected into the archive or removed permanently.";b.textContent=o&&o.title?'"'+String(o.title||"")+'". '+A:A}c&&(c.hidden=r),i.removeAttribute("hidden"),i.classList.add("is-open"),setTimeout(function(){var E=i.querySelector(r?"[data-todo-delete-permanent]":"[data-todo-delete-reject]");E&&typeof E.focus=="function"&&E.focus()},0)}}function Ds(e){if(!Zt){Et();return}var t=Zt;Et(),w===t&&(w=null,G=[],Q="",ee="",At()),n.postMessage({type:e==="permanent"?"purgeTodo":"rejectTodo",todoId:t})}function Ms(e){if(Ee=!1,typeof e=="string")I=e;else if(!I){var t=fo();I=t.length?String(t[0].id||""):""}Te(),Ze(),se("jobs-edit")}function Fd(){Ee=!0,I="",Te(),Ze(),se("jobs-edit")}function Fs(){var e=dt?String(dt.value||"").trim():"",t=ae?String(ae.value||"").trim():"";if(!e||!t){R("jobSaveBlocked",{isCreatingJob:Ee,hasName:!!e,hasCron:!!t});return}if(Ee||!I){R("jobCreateSubmit",{name:e,folderId:De&&De.value?De.value:""}),n.postMessage({type:"createJob",data:{name:e,cronExpression:t,folderId:De&&De.value?De.value:void 0}});return}n.postMessage({type:"updateJob",jobId:I,data:{name:dt?dt.value:"",cronExpression:ae?ae.value:"",folderId:De&&De.value?De.value:void 0}})}function Io(e){var t=document.getElementById(e+"-tab");return!!(t&&t.classList.contains("active"))}function se(e){document.querySelectorAll(".tab-button").forEach(function(o){o.classList.remove("active")}),document.querySelectorAll(".tab-content").forEach(function(o){o.classList.remove("active")});var t=document.querySelector('.tab-button[data-tab="'+e+'"]'),r=document.getElementById(e+"-tab");t&&t.classList.add("active"),r&&r.classList.add("active"),Ra&&(Ra.style.display=""),rr&&(rr.style.display=e==="jobs"&&mt?"inline-flex":"none"),e==="list"&&X(),rs(!0),yr(),ls(e)}function Pd(){var e=typeof s.initialTab=="string"?s.initialTab:"help";switch(e){case"help":case"settings":case"research":case"jobs":case"jobs-edit":case"list":case"create":case"board":case"todo-edit":return e;default:return"help"}}U&&U.addEventListener("change",function(){oe=U?String(U.value||""):"",R("taskAgentChanged",{value:oe})}),_&&_.addEventListener("change",function(){ie=_?String(_.value||""):"",R("taskModelChanged",{value:ie})}),H&&H.addEventListener("change",function(){fe=H?H.value:""});var Ps=document.getElementById("one-time");Ps&&Ps.addEventListener("change",function(){bn()}),Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"),function(e){e.addEventListener("click",function(t){t.preventDefault(),t.stopPropagation();var r=e.getAttribute("data-tab");r&&se(r)})}),tr&&(is(),tr.addEventListener("click",function(e){for(var t=e&&e.target,r=t;r&&r!==tr&&!(r.getAttribute&&r.getAttribute("data-filter"));)r=r.parentElement;if(!(!r||r===tr)){var o=r.getAttribute("data-filter");es(o)&&(Ke=o,is(),Te(),hr(J))}})),ot&&ot.addEventListener("change",function(){zt=ot.value||"",Te(),hr(J)}),document.addEventListener("change",function(e){var t=e.target;t&&t.name==="prompt-source"&&t.checked&&ha(t.value)}),Xe&&pe&&(Xe.addEventListener("change",function(){Xe.value&&(pe.value=Xe.value),kr()}),pe.addEventListener("input",function(){Xe.value="",kr()})),$e&&ae&&($e.addEventListener("change",function(){$e.value&&(ae.value=$e.value),ma(),he()}),ae.addEventListener("input",function(){$e.value="",ma(),he()})),at&&at.addEventListener("change",function(){ba()}),lr&&lr.addEventListener("change",function(){ya(),he()}),[ta,vr,ra,aa].forEach(function(e){!e||typeof e.addEventListener!="function"||(e.addEventListener("input",vn),e.addEventListener("change",vn))}),Ji&&Ji.addEventListener("click",function(){Ks("saveTelegramNotification")}),Vi&&Vi.addEventListener("click",function(){Ks("testTelegramNotification")}),Xi&&Xi.addEventListener("click",function(){n.postMessage({type:"saveExecutionDefaults",data:Hl()})}),na&&na.addEventListener("change",function(){v=na.value||"info",_e.setLogLevel(v),io(),n.postMessage({type:"setLogLevel",logLevel:v})}),$i&&$i.addEventListener("click",function(){n.postMessage({type:"openLogFolder"})}),document.addEventListener("change",function(e){var t=e&&e.target;t&&t.id==="friendly-frequency"&&ba(),t&&t.id==="jobs-friendly-frequency"&&ya()}),document.addEventListener("input",function(e){var t=e&&e.target;t&&t.id==="friendly-frequency"&&ba(),t&&t.id==="jobs-friendly-frequency"&&ya()}),si&&si.addEventListener("click",function(){qd()}),Bi&&Bi.addEventListener("click",function(){Jd(),he()}),li&&li.addEventListener("click",function(){var e=pe?pe.value.trim():"";e||(e="* * * * *");var t="https://crontab.guru/#"+encodeURIComponent(e);window.open(t,"_blank")}),Ii&&Ii.addEventListener("click",function(){var e=ae?ae.value.trim():"";e||(e="* * * * *");var t="https://crontab.guru/#"+encodeURIComponent(e);window.open(t,"_blank")}),document.addEventListener("change",function(e){var t=e.target;if(t){if(t.classList.contains("task-agent-select")){var r=t.getAttribute("data-id"),o=t.value;n.postMessage({type:"updateTask",taskId:r,data:{agent:o}})}else if(t.classList.contains("task-model-select")){var r=t.getAttribute("data-id"),o=t.value;n.postMessage({type:"updateTask",taskId:r,data:{model:o}})}}}),H&&H.addEventListener("change",function(){var e=H.value;if(e){var t=document.querySelector('input[name="prompt-source"]:checked'),r=t?t.value:"inline";n.postMessage({type:"loadPromptTemplate",path:e,source:r})}}),Ba&&Ba.addEventListener("submit",function(e){e.preventDefault(),Fe();var t=document.getElementById("form-error");t&&(t.style.display="none");var r=document.getElementById("task-name"),o=document.getElementById("prompt-text"),i=document.querySelector('input[name="scope"]:checked'),d=document.querySelector('input[name="prompt-source"]:checked'),b=document.getElementById("run-first"),c=document.getElementById("one-time"),A=d?d.value:"inline",E=U?U.value:"";!E&&oe&&(E=oe);var j=_?_.value:"";!j&&ie&&(j=ie);var P=H?H.value:"";A!=="inline"&&Se&&!P&&fe&&(P=fe);var l={name:r?r.value:"",prompt:o?o.value:"",cronExpression:pe?pe.value:"",labels:co(it?it.value:""),agent:E,model:j,scope:i?i.value:"workspace",promptSource:A,promptPath:P,runFirstInOneMinute:b?b.checked:!1,oneTime:c?c.checked:!1,jitterSeconds:rt?Number(rt.value||0):0,enabled:Se?Vn:!0};l.oneTime||(l.chatSession=de&&de.value==="continue"?"continue":"new");var g=(l.name||"").trim();if(!g){t&&(t.textContent=a.taskNameRequired||"",t.style.display="block");return}var B=(l.promptPath||"").trim();if(A!=="inline"&&!B){t&&(t.textContent=a.templateRequired||"",t.style.display="block");return}var F=(l.prompt||"").trim();if(!F){t&&(t.textContent=a.promptRequired||"",t.style.display="block");return}var V=(l.cronExpression||"").trim();if(!V){t&&(t.textContent=a.cronExpressionRequired||a.invalidCronExpression||"",t.style.display="block");return}wr=!0,Ce&&(Ce.disabled=!0),Se?n.postMessage({type:"updateTask",taskId:Se,data:l}):n.postMessage({type:"createTask",data:l})}),Go&&Go.addEventListener("click",function(){var e=document.getElementById("prompt-text"),t=e?e.value:"",r=U?U.value:"",o=_?_.value:"";t&&n.postMessage({type:"testPrompt",prompt:t,agent:r,model:o})}),$o&&$o.addEventListener("click",function(){n.postMessage({type:"refreshTasks"}),n.postMessage({type:"refreshAgents"}),n.postMessage({type:"refreshPrompts"})}),Ca&&Ca.addEventListener("click",function(){n.postMessage({type:"toggleAutoShowOnStartup"})}),Qt&&Qt.addEventListener("click",function(){var e=Re?Re.value:"";if(!e){window.alert(a.scheduleHistoryRestoreSelectRequired||"Select a backup version first");return}var t=(Array.isArray(Lr)?Lr:[]).find(function(i){return i&&i.id===e}),r=cs(t),o=(a.scheduleHistoryRestoreConfirm||"Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}",r).replace("{timestamp}",r);window.confirm(o)&&n.postMessage({type:"restoreScheduleHistory",snapshotId:e})}),Fi&&Fi.addEventListener("click",function(){br=!0,z="",wn(null),Sa()}),an&&an.addEventListener("click",function(){var e=Xd(),t=Gd(e);if(t){Wd(t);return}Lo(),z?n.postMessage({type:"updateResearchProfile",researchId:z,data:e}):n.postMessage({type:"createResearchProfile",data:e})}),nn&&nn.addEventListener("click",function(){z&&n.postMessage({type:"duplicateResearchProfile",researchId:z})}),on&&on.addEventListener("click",function(){z&&n.postMessage({type:"deleteResearchProfile",researchId:z})}),sn&&sn.addEventListener("click",function(){z&&n.postMessage({type:"startResearchRun",researchId:z})}),ln&&ln.addEventListener("click",function(){n.postMessage({type:"stopResearchRun"})}),Jt&&Jt.addEventListener("click",function(e){for(var t=e&&e.target;t&&t!==Jt&&!(t.getAttribute&&t.getAttribute("data-research-id"));)t=t.parentElement;if(!(!t||t===Jt)){br=!1,z=t.getAttribute("data-research-id")||"";var r=Gs();wn(r||null),Sa()}}),Vt&&Vt.addEventListener("click",function(e){for(var t=e&&e.target;t&&t!==Vt&&!(t.getAttribute&&t.getAttribute("data-run-id"));)t=t.parentElement;!t||t===Vt||(He=t.getAttribute("data-run-id")||"",Te(),Sa())}),ui&&ui.addEventListener("click",function(){n.postMessage({type:"requestCreateJobFolder",parentFolderId:Y||void 0})}),Na&&Na.addEventListener("click",function(){Y&&n.postMessage({type:"requestRenameJobFolder",folderId:Y})}),Ha&&Ha.addEventListener("click",function(){Y&&n.postMessage({type:"requestDeleteJobFolder",folderId:Y})}),fi&&fi.addEventListener("click",function(){Ee=!0,he(),n.postMessage({type:"requestCreateJob",folderId:Y||void 0}),se("jobs-edit")});var Rs=document.getElementById("jobs-empty-new-btn");Rs&&Rs.addEventListener("click",function(){Ee=!0,he(),n.postMessage({type:"requestCreateJob",folderId:Y||void 0})}),pi&&pi.addEventListener("click",function(){se("jobs")}),gi&&gi.addEventListener("click",function(){Ms(I||"")}),Oa&&Oa.addEventListener("click",Fs),vi&&vi.addEventListener("click",Fs),qa&&qa.addEventListener("click",function(){I&&n.postMessage({type:"duplicateJob",jobId:I})}),Dr&&Dr.addEventListener("click",function(){I&&n.postMessage({type:"toggleJobPaused",jobId:I})}),Ja&&Ja.addEventListener("click",function(){I&&n.postMessage({type:"compileJob",jobId:I})}),ut&&ut.addEventListener("click",function(){I&&n.postMessage({type:"toggleJobPaused",jobId:I})}),Ra&&Ra.addEventListener("click",function(){mt=!mt,so(),Te()}),rr&&rr.addEventListener("click",function(){mt=!1,so(),Te()}),Va&&Va.addEventListener("click",function(){I&&n.postMessage({type:"deleteJob",jobId:I})}),Za&&Za.addEventListener("click",function(){!I||!ur||!ur.value||n.postMessage({type:"attachTaskToJob",jobId:I,taskId:ur.value,windowMinutes:Di?Number(Di.value||30):30})}),Mi&&Mi.addEventListener("click",function(){if(I){var e=Qa?Qa.value.trim():"",t=tn?tn.value.trim():"";if(!(!e||!t)){var r=ht(I);n.postMessage({type:"createJobTask",jobId:I,windowMinutes:en?Number(en.value||30):30,data:{name:e,prompt:t,cronExpression:r&&r.cronExpression?r.cronExpression:"0 9 * * 1-5",agent:Vr?Vr.value:"",model:Wr?Wr.value:"",labels:co(rn?rn.value:""),scope:"workspace",promptSource:"inline",oneTime:!1}}),Qa&&(Qa.value=""),tn&&(tn.value=""),rn&&(rn.value=""),en&&(en.value="30")}}}),ji&&ji.addEventListener("click",function(){if(I){var e=Ka?Ka.value.trim():"";n.postMessage({type:"createJobPause",jobId:I,data:{title:e||a.jobsPauseDefaultTitle||"Manual review"}}),Ka&&(Ka.value="")}}),document.addEventListener("click",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-folder]"):null;if(r&&Ma&&Ma.contains(r)){Y=r.getAttribute("data-job-folder")||"",I="",Te(),Ze();return}var o=t&&t.closest?t.closest("[data-job-open-editor]"):null;if(o&&Ge&&Ge.contains(o)){Ms(o.getAttribute("data-job-open-editor")||"");return}var i=t&&t.closest?t.closest("[data-job-id]"):null;if(i&&Ge&&Ge.contains(i)){I=i.getAttribute("data-job-id")||"",Te(),Ze();return}var d=t&&t.getAttribute?t.getAttribute("data-job-action"):"";if(d){if(d==="detach-node"){var b=t.getAttribute("data-job-node-id")||"";I&&b&&n.postMessage({type:"requestDeleteJobTask",jobId:I,nodeId:b});return}if(d==="edit-task"){var c=t.getAttribute("data-job-task-id")||"";c&&typeof window.editTask=="function"&&window.editTask(c);return}if(d==="edit-pause"){var A=t.getAttribute("data-job-node-id")||"";I&&A&&n.postMessage({type:"requestRenameJobPause",jobId:I,nodeId:A});return}if(d==="delete-pause"){var E=t.getAttribute("data-job-node-id")||"";I&&E&&n.postMessage({type:"requestDeleteJobPause",jobId:I,nodeId:E});return}if(d==="approve-pause"){var j=t.getAttribute("data-job-node-id")||"";I&&j&&n.postMessage({type:"approveJobPause",jobId:I,nodeId:j});return}if(d==="reject-pause"){var P=t.getAttribute("data-job-node-id")||"";I&&P&&n.postMessage({type:"rejectJobPause",jobId:I,nodeId:P});return}if(d==="run-task"){var l=t.getAttribute("data-job-task-id")||"";l&&typeof window.runTask=="function"&&window.runTask(l)}}}),document.addEventListener("change",function(e){var t=e&&e.target;if(t&&t.classList&&t.classList.contains("job-node-window-input")){if(!I)return;var r=t.getAttribute("data-job-node-window-id")||"";if(!r)return;n.postMessage({type:"updateJobNodeWindow",jobId:I,nodeId:r,windowMinutes:Number(t.value||30)})}}),document.addEventListener("dragstart",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-id]"):null;if(r&&Ge&&Ge.contains(r)){gr=r.getAttribute("data-job-id")||"",r.classList&&r.classList.add("dragging"),e.dataTransfer&&(e.dataTransfer.effectAllowed="move");return}var o=t&&t.closest?t.closest("[data-job-node-id]"):null;o&&(pr=o.getAttribute("data-job-node-id")||"",o.classList&&o.classList.add("dragging"),e.dataTransfer&&(e.dataTransfer.effectAllowed="move"))}),document.addEventListener("dragend",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-id]"):null;r&&r.classList&&r.classList.remove("dragging");var o=t&&t.closest?t.closest("[data-job-node-id]"):null;o&&o.classList&&o.classList.remove("dragging"),gr="",pr="",Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"),function(i){i&&i.classList&&i.classList.remove("drag-over")}),Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"),function(i){i&&i.classList&&i.classList.remove("drag-over")})}),document.addEventListener("dragover",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-folder]"):null;if(r&&gr){e.preventDefault(),e.dataTransfer&&(e.dataTransfer.dropEffect="move"),r.classList&&r.classList.add("drag-over");return}var o=t&&t.closest?t.closest("[data-job-node-id]"):null;!o||!pr||(e.preventDefault(),e.dataTransfer&&(e.dataTransfer.dropEffect="move"),o.classList&&o.classList.add("drag-over"))}),document.addEventListener("dragleave",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-folder]"):null;r&&r.classList&&r.classList.remove("drag-over");var o=t&&t.closest?t.closest("[data-job-node-id]"):null;o&&o.classList&&o.classList.remove("drag-over")}),document.addEventListener("drop",function(e){var t=e&&e.target,r=t&&t.closest?t.closest("[data-job-folder]"):null;if(r&&gr){e.preventDefault(),r.classList&&r.classList.remove("drag-over");var o=r.getAttribute("data-job-folder")||"",i=ht(gr);if(!i||(i.folderId||"")===o)return;n.postMessage({type:"updateJob",jobId:gr,data:{folderId:o||void 0}});return}var d=t&&t.closest?t.closest("[data-job-node-id]"):null;if(!(!d||!pr||!I)){e.preventDefault(),d.classList&&d.classList.remove("drag-over");var b=d.getAttribute("data-job-node-id")||"",c=ht(I);if(!(!c||!Array.isArray(c.nodes))){var A=c.nodes.findIndex(function(E){return E&&E.id===b});A<0||pr===b||n.postMessage({type:"reorderJobNode",jobId:I,nodeId:pr,targetIndex:A})}}}),ei&&ei.addEventListener("click",function(){n.postMessage({type:"refreshPrompts"});var e=H?H.value:"",t=document.querySelector('input[name="prompt-source"]:checked'),r=t?t.value:"inline";e&&(r==="local"||r==="global")&&n.postMessage({type:"loadPromptTemplate",path:e,source:r})}),ti&&ti.addEventListener("click",function(){Vd()}),ri&&ri.addEventListener("click",function(){n.postMessage({type:"setupMcp"})}),ai&&ai.addEventListener("click",function(){n.postMessage({type:"syncBundledSkills"})});function Ns(e){var t=e||"auto";Br&&(Br.value=t),Cr&&(Cr.value=t)}function Hs(e){var t=e||"auto";Ns(t),n.postMessage({type:"setLanguage",language:t})}Ns(typeof s.languageSetting=="string"&&s.languageSetting?s.languageSetting:"auto"),Br&&Br.addEventListener("change",function(){Hs(Br.value)}),Cr&&Cr.addEventListener("change",function(){Hs(Cr.value)});var Os=document.getElementById("btn-intro-tutorial");Os&&Os.addEventListener("click",function(){n.postMessage({type:"introTutorial"})});var qs=document.getElementById("btn-plan-integration");qs&&qs.addEventListener("click",function(){n.postMessage({type:"planIntegration"})}),tt&&tt.addEventListener("click",function(){ss({animateRocket:!0})}),["btn-help-switch-settings","btn-help-switch-board","btn-help-switch-create","btn-help-switch-list","btn-help-switch-jobs","btn-help-switch-research"].forEach(function(e){var t=document.getElementById(e);t&&t.addEventListener("click",function(){var r={"btn-help-switch-settings":"settings","btn-help-switch-board":"board","btn-help-switch-create":"create","btn-help-switch-list":"list","btn-help-switch-jobs":"jobs","btn-help-switch-research":"research"};se(r[e])})}),document.getElementById("help-tab")&&document.getElementById("help-tab").classList.contains("active")&&window.requestAnimationFrame(function(){ls("help")});function Rd(e){for(var t=e&&e.nodeType===3?e.parentElement:e;t&&t!==document.body;){if(t.hasAttribute&&t.hasAttribute("data-action")&&(t.hasAttribute("data-id")||t.hasAttribute("data-task-id")||t.hasAttribute("data-job-id")||t.hasAttribute("data-profile-id")))return t;t=t.parentElement}return null}document.addEventListener("click",function(e){var t=Rd(e.target);if(t&&((!ve||!ve.isConnected)&&(ve=document.getElementById("task-list")),!(ve&&!ve.contains(t)))){var r=t.getAttribute("data-action"),o=t.getAttribute("data-id");if(!(!r||!o)){var i={toggle:window.toggleTask,run:window.runTask,edit:window.editTask,copy:window.copyPrompt,duplicate:window.duplicateTask,move:window.moveTaskToCurrentWorkspace,delete:window.deleteTask},d=i[r];typeof d=="function"&&(e.preventDefault(),d(o))}}});function hr(e){if(Array.isArray(e)&&(J=e.filter(Boolean)),(!ve||!ve.isConnected)&&(ve=document.getElementById("task-list")),!ve)return;var t=Array.isArray(J)?J.filter(Boolean):[];t=gs(t),zt&&(t=t.filter(function(l){return hn(l).indexOf(zt)!==-1}));var r="";function o(l){if(!l)return"";var g=String(l).replace(/\\/g,"/");return g==="/"||(g=g.replace(/\/+$/,""),g==="")?"/":El?g.toLowerCase():g}function i(l){if(!l)return"";var g=String(l).replace(/[/\\]+$/,""),B=g.split(/[/\\]+/);return B.length?B[B.length-1]||"":g}function d(l){if(!l||!l.id)return"";var g=l.enabled||!1,B=g?"enabled":"disabled",F=g?a.labelEnabled:a.labelDisabled,V=g?"\u23F8\uFE0F":"\u25B6\uFE0F",y=g?a.actionDisable:a.actionEnable,N=l.nextRun?new Date(l.nextRun):null,O=N&&!isNaN(N.getTime())?N.getTime():0,$=N&&!isNaN(N.getTime())?N.toLocaleString(Ct):a.labelNever,Le=typeof l.prompt=="string"?l.prompt:"",te=Le.length>100?Le.substring(0,100)+"...":Le,Xt=typeof l.lastError=="string"?l.lastError:"",Oe=l.lastErrorAt?new Date(l.lastErrorAt):null,ka=Oe&&!isNaN(Oe.getTime())?Oe.toLocaleString(Ct):"",Bo=u(l.cronExpression||""),tc=ga(l.cronExpression||""),rc=u(l.name||""),Tt=l.scope||"workspace",el=Tt==="global"?a.labelScopeGlobal||"":a.labelScopeWorkspace||"",Bn=Tt==="workspace"&&l.workspacePath||"",tl=Bn?i(Bn):"",Cn=Tt==="global"?!0:!!Bn&&(Al||[]).some(function(Ar){return o(Ar)===o(Bn)}),ac=a.labelOtherWorkspaceShort||"",nc=a.labelThisWorkspaceShort||"",rl=Tt==="global"?"\u{1F310} "+u(el):"\u{1F4C1} "+u(el)+(tl?" \u2022 "+u(tl):"");Tt==="workspace"&&(rl+=" \u2022 "+u(Cn?nc:ac));var oc=l.oneTime===!0?'<span class="task-badge clickable" data-action="toggle" data-id="'+m(l.id||"")+'">'+u(a.labelOneTime||"One-time")+"</span>":"",ic=l.oneTime===!0?"":'<span class="task-badge" title="'+m(a.labelChatSession||"Recurring chat session")+'">'+u(l.chatSession==="continue"?a.labelChatSessionBadgeContinue||"Chat: Continue":a.labelChatSessionBadgeNew||"Chat: New")+"</span>",al=hn(l).map(function(Ar){return'<span class="task-badge label">'+u(Ar)+"</span>"}).join(""),qe=m(l.id||"");function nl(Ar,cc,jo,uc){var ol='<option value="">'+u(uc)+"</option>";return Array.isArray(Ar)&&Ar.forEach(function(jn){var Do=jn.id||jn.slug,fc=jo&&jo.indexOf("model")>=0?x(jn):jn.name||Do,vc=Do===cc?" selected":"";ol+='<option value="'+m(Do)+'"'+vc+">"+u(fc)+"</option>"}),'<select class="'+jo+'" data-id="'+qe+'" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">'+ol+"</select>"}var sc=nl(Gt,l.agent,"task-agent-select",a.placeholderSelectAgent||"Agent"),lc=nl($t,l.model,"task-model-select",a.placeholderSelectModel||"Model"),dc='<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">'+sc+lc+"</div>",Co='<button class="btn-secondary btn-icon" data-action="toggle" data-id="'+qe+'" title="'+m(y)+'">'+V+'</button><button class="btn-secondary btn-icon" data-action="run" data-id="'+qe+'" title="'+m(a.actionRun)+'">\u{1F680}</button><button class="btn-secondary btn-icon" data-action="edit" data-id="'+qe+'" title="'+m(a.actionEdit)+'">\u270F\uFE0F</button><button class="btn-secondary btn-icon" data-action="copy" data-id="'+qe+'" title="'+m(a.actionCopyPrompt)+'">\u{1F4CB}</button><button class="btn-secondary btn-icon" data-action="duplicate" data-id="'+qe+'" title="'+m(a.actionDuplicate)+'">\u{1F4C4}</button>';return Tt==="workspace"&&!Cn&&(Co+='<button class="btn-secondary btn-icon" data-action="move" data-id="'+qe+'" title="'+m(a.actionMoveToCurrentWorkspace||"")+'">\u{1F4CC}</button>'),(Tt==="global"||Cn)&&(Co+='<button class="btn-danger btn-icon" data-action="delete" data-id="'+qe+'" title="'+m(a.actionDelete)+'">\u{1F5D1}\uFE0F</button>'),'<div class="task-card '+(g?"":"disabled")+(Tt==="workspace"&&!Cn?" other-workspace":"")+'" data-id="'+qe+'"><div class="task-header"><div class="task-header-main"><span class="task-name clickable" data-action="toggle" data-id="'+qe+'">'+rc+"</span>"+ic+oc+'</div><span class="task-status '+B+'" data-action="toggle" data-id="'+qe+'">'+u(F)+'</span></div><div class="task-info"><span>\u23F0 '+u(tc)+"</span><span>"+u(a.labelNextRun)+': <span class="task-next-run-label">'+u($)+'</span><span class="task-next-run-countdown" data-enabled="'+(g?"true":"false")+'" data-next-run-ms="'+m(O>0?String(O):"")+'"></span></span><span>'+rl+'</span></div><div class="task-info"><span>Cron: '+Bo+"</span></div>"+(al?'<div class="task-badges">'+al+"</div>":"")+dc+'<div class="task-prompt">'+u(te)+"</div>"+(Xt?'<div class="task-prompt" style="color: var(--vscode-errorForeground);">Last error'+(ka?" ("+u(ka)+")":"")+": "+u(Xt)+"</div>":"")+'<div class="task-actions">'+Co+"</div></div>"}function b(l,g){var B=g.map(d).filter(Boolean).join("");return B||(B='<div class="empty-state">'+u(a.noTasksFound)+"</div>"),'<div class="task-section"><div class="task-section-title"><span>'+u(l)+"</span><span>"+String(g.length)+"</span></div>"+B+"</div>"}var c=t.filter(function(l){if(!l)return!1;var g=l.oneTime===!0||l.id&&l.id.indexOf("exec-")===0;return!g}),A=t.filter(function(l){if(!l)return!1;var g=l.oneTime===!0||l.id&&l.id.indexOf("exec-")===0;return g}),E="";(Ke==="all"||Ke==="recurring")&&(E+=b(a.labelRecurringTasks||"Recurring Tasks",c)),(Ke==="all"||Ke==="one-time")&&(E+=b(a.labelOneTimeTasks||"One-time Tasks",A));var j="task-sections",P="";Ke!=="all"&&(j+=" filtered",P=' style="display:grid;grid-template-columns:1fr;"'),r='<div class="'+j+'"'+P+">"+E+"</div>",r!==Yo&&(Nd()||(Yo=r,ve.innerHTML=r,X()))}function u(e){if(e==null)return"";var t=document.createElement("div");return t.textContent=String(e),t.innerHTML}function m(e){return typeof e!="string"&&(e=String(e||"")),e.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function Nd(){var e=document.activeElement;return!e||!e.classList?!1:e.classList.contains("task-agent-select")||e.classList.contains("task-model-select")}var Hd=[a.daySun||"",a.dayMon||"",a.dayTue||"",a.dayWed||"",a.dayThu||"",a.dayFri||"",a.daySat||""];function Sr(e){var t=parseInt(String(e),10);return isNaN(t)&&(t=0),t<10?"0"+t:String(t)}function re(e,t,r,o){var i=parseInt(String(e),10);return isNaN(i)&&(i=o),i=Math.max(t,Math.min(r,i)),i}function Od(e){var t=String(e||"").trim().toLowerCase();if(/^\d+$/.test(t)){var r=parseInt(t,10);if(r===7&&(r=0),r>=0&&r<=6)return r}var o={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};return o.hasOwnProperty(t)?o[t]:null}function Tn(e,t){return Sr(e)+":"+Sr(t)}function ga(e){var t=a.labelFriendlyFallback||"",r=(e||"").trim();if(!r)return t;var o=r.split(/\s+/);if(o.length!==5)return t;var i=o[0],d=o[1],b=o[2],c=o[3],A=o[4],E=function(te){return/^\d+$/.test(String(te))},j=String(A||"").toLowerCase(),P=j==="1-5"||j==="mon-fri",l=/^\*\/(\d+)$/.exec(i);if(l&&d==="*"&&b==="*"&&c==="*"&&A==="*"){var g=a.cronPreviewEveryNMinutes||"";return g?g.replace("{n}",String(l[1])):t}if(E(i)&&d==="*"&&b==="*"&&c==="*"&&A==="*"){var B=a.cronPreviewHourlyAtMinute||"";return B?B.replace("{m}",String(i)):t}if(E(i)&&E(d)&&b==="*"&&c==="*"&&A==="*"){var F=a.cronPreviewDailyAt||"",V=Tn(d,i);return F?F.replace("{t}",String(V)):t}if(E(i)&&E(d)&&b==="*"&&c==="*"&&P){var y=a.cronPreviewWeekdaysAt||"",V=Tn(d,i);return y?y.replace("{t}",String(V)):t}var N=Od(A);if(E(i)&&E(d)&&b==="*"&&c==="*"&&N!==null){var O=Hd[N]||String(N),$=a.cronPreviewWeeklyOnAt||"",V=Tn(d,i);return $?$.replace("{d}",String(O)).replace("{t}",String(V)):t}if(E(i)&&E(d)&&E(b)&&c==="*"&&A==="*"){var Le=a.cronPreviewMonthlyOnAt||"",V=Tn(d,i);return Le?Le.replace("{dom}",String(b)).replace("{t}",String(V)):t}return t}function kr(){!di||!pe||(di.textContent=ga(pe.value||""))}function ma(){!Ei||!ae||(Ei.textContent=ga(ae.value||""),zl())}function ba(){var e=at?at.value:"",t=[];switch(e){case"every-n":t=["interval"];break;case"hourly":t=["minute"];break;case"daily":t=["hour","minute"];break;case"weekly":t=["dow","hour","minute"];break;case"monthly":t=["dom","hour","minute"];break;default:t=[]}for(var r=Zo?Zo.querySelectorAll(".friendly-field"):[],o=0;o<r.length;o++){var i=r[o];if(!(!i||!i.getAttribute)){var d=i.getAttribute("data-field");t.indexOf(d)!==-1?(i.classList&&i.classList.add("visible"),i.style&&(i.style.display="block")):(i.classList&&i.classList.remove("visible"),i.style&&(i.style.display="none"))}}}function ya(){var e=lr?lr.value:"",t=[];switch(e){case"every-n":t=["interval"];break;case"hourly":t=["minute"];break;case"daily":t=["hour","minute"];break;case"weekly":t=["dow","hour","minute"];break;case"monthly":t=["dom","hour","minute"];break;default:t=[]}for(var r=Ti?Ti.querySelectorAll(".friendly-field"):[],o=0;o<r.length;o++){var i=r[o];if(!(!i||!i.getAttribute)){var d=i.getAttribute("data-field");t.indexOf(d)!==-1?(i.classList&&i.classList.add("visible"),i.style&&(i.style.display="block")):(i.classList&&i.classList.remove("visible"),i.style&&(i.style.display="none"))}}}function qd(){if(!(!at||!pe)){var e=at.value,t="";switch(e){case"every-n":{var r=re(ni?ni.value:"",1,59,5);t="*/"+r+" * * * *";break}case"hourly":{var o=re(nt?nt.value:"",0,59,0);t=o+" * * * *";break}case"daily":{var i=re(nt?nt.value:"",0,59,0),d=re(er?er.value:"",0,23,9);t=i+" "+d+" * * *";break}case"weekly":{var b=re(nt?nt.value:"",0,59,0),c=re(er?er.value:"",0,23,9),A=re(oi?oi.value:"",0,6,1);t=b+" "+c+" * * "+A;break}case"monthly":{var E=re(nt?nt.value:"",0,59,0),j=re(er?er.value:"",0,23,9),P=re(ii?ii.value:"",1,31,1);t=E+" "+j+" "+P+" * *";break}default:t=""}t&&(pe.value=t,Xe&&(Xe.value=""),kr())}}function Jd(){if(!(!lr||!ae)){var e=lr.value,t="";switch(e){case"every-n":{var r=re(xi?xi.value:"",1,59,5);t="*/"+r+" * * * *";break}case"hourly":{var o=re(ct?ct.value:"",0,59,0);t=o+" * * * *";break}case"daily":{var i=re(ct?ct.value:"",0,59,0),d=re(dr?dr.value:"",0,23,9);t=i+" "+d+" * * *";break}case"weekly":{var b=re(ct?ct.value:"",0,59,0),c=re(dr?dr.value:"",0,23,9),A=re(Li?Li.value:"",0,6,1);t=b+" "+c+" * * "+A;break}case"monthly":{var E=re(ct?ct.value:"",0,59,0),j=re(dr?dr.value:"",0,23,9),P=re(wi?wi.value:"",1,31,1);t=E+" "+j+" "+P+" * *";break}default:t=""}t&&(ae.value=t,$e&&($e.value=""),ma())}}function To(){Ba&&Ba.reset(),Bs(null),oe="",ie="",fe="",Vn=!0,ha("inline"),at&&(at.value=""),rt&&(rt.value=String(Wn)),it&&(it.value="");var e=document.getElementById("run-first");e&&(e.checked=!1);var t=document.getElementById("one-time");t&&(t.checked=!1),de&&(de.value=Kt),U&&(U.value=ue.agent||""),_&&(_.value=ue.model||""),bn(),ba(),kr()}function Js(){Sl({agentSelect:U,agents:Gt,escapeAttr:m,escapeHtml:u,executionDefaults:ue,strings:a})}function Vs(){kl({escapeAttr:m,escapeHtml:u,executionDefaults:ue,formatModelLabel:x,modelSelect:_,models:$t,strings:a})}function Ws(e,t){if(H){t=t||"";var r=Array.isArray(Pn)?Pn:[],o=r.filter(function(b){return b.source===e}),i=a.placeholderSelectTemplate||"",d='<option value="">'+u(i)+"</option>";if(H.innerHTML=d+o.map(function(b){return'<option value="'+m(b.path)+'">'+u(b.name)+"</option>"}).join(""),!t){H.value="";return}H.value=t,H.value!==t&&(H.value="")}}function ha(e,t){var r=e||"inline",o=t&&H?H.value:"";if(r==="inline"){et&&(et.style.display="none"),jr&&(jr.style.display="block"),!t&&H&&(H.value="");return}et?et.style.display="block":console.warn("[CopilotScheduler] Template select group missing; template selection is disabled."),jr&&(jr.style.display="block"),Ws(r,o)}function zs(){if(ja){var e=Array.isArray(xr)?xr:[],t=a.placeholderSelectSkill||"Select a skill";ja.innerHTML='<option value="">'+u(t)+"</option>"+e.map(function(r){return'<option value="'+m(r.path||"")+'">'+u(r.reference||r.name||"")+"</option>"}).join("")}}function Vd(){if(!(!ja||!jr)){var e=ja.value||"";if(e){var t=(Array.isArray(xr)?xr:[]).find(function(c){return c&&c.path===e});if(t){var r=document.querySelector('input[name="prompt-source"][value="inline"]');r&&(r.checked=!0),ha("inline",!1);var o=document.getElementById("prompt-text");if(o){var i=a.skillSentenceTemplate||"Use {skill} to know how things must be done.",d=i.replace("{skill}",t.reference||t.name||"skill"),b=o.value||"";o.value=b.trim()?b.replace(/\s*$/,`
+  // media/schedulerWebviewDebug.js
+  function createWebviewDebugTools(options) {
+    var currentLogLevel = options && typeof options.initialLogLevel === "string" ? options.initialLogLevel : "info";
+    function shouldEmitDetailedLogs() {
+      return currentLogLevel === "debug";
+    }
+    function cloneDebugDetail(detail) {
+      if (typeof detail === "undefined") {
+        return {};
+      }
+      try {
+        return JSON.parse(JSON.stringify(detail));
+      } catch (_error) {
+        return { value: String(detail) };
+      }
+    }
+    function emitWebviewDebug(eventName, detail) {
+      if (!shouldEmitDetailedLogs()) {
+        return;
+      }
+      var payload = {
+        event: eventName,
+        detail: cloneDebugDetail(detail)
+      };
+      try {
+        if (options && options.console && typeof options.console.log === "function") {
+          options.console.log("[SchedulerWebviewDebug]", payload);
+        }
+      } catch (_error) {
+      }
+      try {
+        if (options && options.vscode && typeof options.vscode.postMessage === "function") {
+          options.vscode.postMessage({
+            type: "debugWebview",
+            event: eventName,
+            detail: payload.detail
+          });
+        }
+      } catch (_error) {
+      }
+    }
+    function createEmptyTodoDraft() {
+      return {
+        title: "",
+        description: "",
+        dueAt: "",
+        flagColor: "#f59e0b",
+        flagInput: "",
+        priority: "none",
+        flag: "",
+        labelColor: "#4f8cff",
+        labelInput: "",
+        sectionId: "",
+        taskId: ""
+      };
+    }
+    function resetTodoDraft(reason) {
+      var nextDraft = createEmptyTodoDraft();
+      emitWebviewDebug("todoDraftReset", { reason: reason || "unknown" });
+      return nextDraft;
+    }
+    function syncTodoDraftFromInputs(params) {
+      if (!params || params.selectedTodoId) {
+        return params ? params.currentTodoDraft : createEmptyTodoDraft();
+      }
+      var nextDraft = params.currentTodoDraft || createEmptyTodoDraft();
+      nextDraft.title = params.todoTitleInput ? String(params.todoTitleInput.value || "") : "";
+      nextDraft.description = params.todoDescriptionInput ? String(params.todoDescriptionInput.value || "") : "";
+      nextDraft.dueAt = params.todoDueInput ? String(params.todoDueInput.value || "") : "";
+      nextDraft.priority = params.todoPriorityInput ? String(params.todoPriorityInput.value || "none") : "none";
+      nextDraft.sectionId = params.todoSectionInput ? String(params.todoSectionInput.value || "") : "";
+      nextDraft.taskId = params.todoLinkedTaskSelect ? String(params.todoLinkedTaskSelect.value || "") : "";
+      if (params.reason) {
+        emitWebviewDebug("todoDraftSync", {
+          reason: params.reason,
+          titleLength: nextDraft.title.length,
+          hasDescription: nextDraft.description.length > 0,
+          hasDueAt: !!nextDraft.dueAt,
+          sectionId: nextDraft.sectionId,
+          taskId: nextDraft.taskId
+        });
+      }
+      return nextDraft;
+    }
+    function setLogLevel(nextLevel) {
+      currentLogLevel = typeof nextLevel === "string" && nextLevel ? nextLevel : "info";
+    }
+    function getLogLevel() {
+      return currentLogLevel;
+    }
+    return {
+      createEmptyTodoDraft,
+      emitWebviewDebug,
+      getLogLevel,
+      resetTodoDraft,
+      setLogLevel,
+      syncTodoDraftFromInputs
+    };
+  }
 
-`)+d:d,typeof o.focus=="function"&&o.focus()}}}}}function It(e,t,r,o,i,d){if(e){var b=Array.isArray(t)?t:[],c='<option value="">'+u(r||"")+"</option>"+b.map(function(A){var E=i(A),j=d(A);return'<option value="'+m(E)+'">'+u(j)+"</option>"}).join("");e.innerHTML=c,e.value=o||"",e.value!==(o||"")&&(e.value="")}}function Us(e){It(De,Array.isArray(xt)?xt.slice().sort(function(t,r){return String(t&&t.name||"").localeCompare(String(r&&r.name||""))}):[],a.jobsRootFolder||"All jobs",e||"",function(t){return t&&t.id?t.id:""},function(t){var r=yn(t),o=new Array(r+1).join("  ");return o+(t&&t.name?t.name:"")})}function xn(){It(Vr,Gt,a.placeholderSelectAgent||"Select agent",Vr?Vr.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),It(Wr,$t,a.placeholderSelectModel||"Select model",Wr?Wr.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""})}function xo(){var e=Wl();It(ur,e,a.jobsNoStandaloneTasks||"No standalone tasks available",ur?ur.value:"",function(t){return t&&t.id?t.id:""},function(t){if(!t||!t.name)return"";if(!t.jobId)return t.name;var r=ht(t.jobId);return r&&r.name?t.name+" \xB7 "+r.name:t.name}),Za&&(Za.disabled=e.length===0)}function _s(){var e=Array.isArray(Lt)?Lt:[];if(br){ft&&(ft.value="");return}var t=e.some(function(r){return r&&r.id===z});t||(z=e.length>0&&e[0]?e[0].id:""),ft&&(ft.value=z||"")}function Lo(){fr&&(fr.textContent="",fr.style.display="none")}function Wd(e){fr&&(fr.textContent=String(e||""),fr.style.display=e?"block":"none")}function Ln(e){if(!e)return"-";var t=new Date(e);return isNaN(t.getTime())?String(e):t.toLocaleString(Ct)}function Ys(e,t){if(!e)return"-";var r=new Date(e).getTime();if(!isFinite(r))return"-";var o=t?new Date(t).getTime():Date.now();if(!isFinite(o)||o<r)return"-";var i=Math.max(0,Math.floor((o-r)/1e3));return h(i)}function zd(e){return String(e||"").replace(/-/g," ")}function Ud(e){return(Array.isArray(wt)?wt:[]).find(function(t){return t&&t.id===e})}function Xs(){var e=Array.isArray(wt)?wt:[],t=Be&&Be.id?Be.id:"",r=e.some(function(o){return o&&o.id===He});if(!r){if(t){He=t;return}He=e.length>0&&e[0]?e[0].id:""}}function _d(){return Xs(),Ud(He)||null}function Yd(e){return String(e||"").split(/\r?\n/).map(function(t){return String(t||"").trim()}).filter(function(t){return t.length>0})}function Gs(){return(Array.isArray(Lt)?Lt:[]).find(function(e){return e&&e.id===z})}function $s(e){return e==="running"?a.researchStatusRunning||"Running":e==="stopping"?a.researchStatusStopping||"Stopping":e==="completed"?a.researchStatusCompleted||"Completed":e==="failed"?a.researchStatusFailed||"Failed":e==="stopped"?a.researchStatusStopped||"Stopped":a.researchStatusIdle||"Idle"}function wn(e){var t=e||null;z=t&&t.id?t.id:"",Ll=z||"",no=!1,br=!z,Lo(),ft&&(ft.value=z||""),zr&&(zr.value=t&&t.name?t.name:""),Ur&&(Ur.value=t&&t.instructions?t.instructions:""),_r&&(_r.value=t&&Array.isArray(t.editablePaths)?t.editablePaths.join(`
-`):""),Yr&&(Yr.value=t&&t.benchmarkCommand?t.benchmarkCommand:""),Xr&&(Xr.value=t&&t.metricPattern?t.metricPattern:""),Gr&&(Gr.value=t&&t.metricDirection==="minimize"?"minimize":"maximize"),$r&&($r.value=String(t&&t.maxIterations!==void 0?t.maxIterations:3)),Kr&&(Kr.value=String(t&&t.maxMinutes!==void 0?t.maxMinutes:15)),Zr&&(Zr.value=String(t&&t.maxConsecutiveFailures!==void 0?t.maxConsecutiveFailures:2)),Qr&&(Qr.value=String(t&&t.benchmarkTimeoutSeconds!==void 0?t.benchmarkTimeoutSeconds:180)),ea&&(ea.value=String(t&&t.editWaitSeconds!==void 0?t.editWaitSeconds:20)),vt&&(vt.value=t&&t.agent?t.agent:""),pt&&(pt.value=t&&t.model?t.model:""),Te()}function Xd(){return{name:zr?zr.value:"",instructions:Ur?Ur.value:"",editablePaths:Yd(_r?_r.value:""),benchmarkCommand:Yr?Yr.value:"",metricPattern:Xr?Xr.value:"",metricDirection:Gr&&Gr.value==="minimize"?"minimize":"maximize",maxIterations:$r?Number($r.value||0):0,maxMinutes:Kr?Number(Kr.value||0):0,maxConsecutiveFailures:Zr?Number(Zr.value||0):0,benchmarkTimeoutSeconds:Qr?Number(Qr.value||0):0,editWaitSeconds:ea?Number(ea.value||0):0,agent:vt?vt.value:"",model:pt?pt.value:""}}function Gd(e){return String(e.name||"").trim()?String(e.benchmarkCommand||"").trim()?String(e.metricPattern||"").trim()?!Array.isArray(e.editablePaths)||e.editablePaths.length===0?a.researchEditableRequired||"Add at least one editable file path.":"":a.researchMetricRequired||"Metric regex is required.":a.researchBenchmarkRequired||"Benchmark command is required.":a.researchProfileNameRequired||"Research profile name is required."}function wo(){It(vt,Gt,a.placeholderSelectAgent||"Select agent",vt?vt.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),It(pt,$t,a.placeholderSelectModel||"Select model",pt?pt.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""})}function $d(){if(_s(),!!Jt){var e=Array.isArray(Lt)?Lt.slice():[];if(e.sort(function(t,r){return String(t&&t.name||"").localeCompare(String(r&&r.name||""))}),e.length===0){Jt.innerHTML='<div class="jobs-empty">'+u(a.researchEmptyProfiles||"No research profiles yet.")+"</div>",wn(null);return}Jt.innerHTML=e.map(function(t){var r=t&&t.id===z;return'<div class="research-card'+(r?" active":"")+'" data-research-id="'+m(t.id||"")+'"><div class="research-card-header"><strong>'+u(t.name||"")+'</strong><span class="jobs-pill">'+u(t.metricDirection==="minimize"?a.researchDirectionMinimize||"Minimize":a.researchDirectionMaximize||"Maximize")+'</span></div><div class="research-meta">'+u(t.benchmarkCommand||"")+'</div><div class="research-chip-row"><span class="research-chip">'+u((a.researchEditableCount||"Editable files")+": "+String((t.editablePaths||[]).length))+'</span><span class="research-chip">'+u((a.researchBudgetShort||"Budget")+": "+String(t.maxIterations||0)+" / "+String(t.maxMinutes||0)+"m")+'</span><span class="research-chip">'+u((a.researchMetricPatternShort||"Metric")+": "+String(t.metricPattern||""))+"</span></div></div>"}).join("")}}function Kd(){if(Vt){var e=Array.isArray(wt)?wt:[];if(e.length===0){Vt.innerHTML='<div class="jobs-empty">'+u(a.researchEmptyRuns||"No research runs yet.")+"</div>";return}Vt.innerHTML=e.map(function(t){var r=Array.isArray(t.attempts)&&t.attempts.length>0?t.attempts[t.attempts.length-1]:null,o=t&&t.id===He;return'<div class="research-run-card'+(o?" active":"")+'" data-run-id="'+m(t.id||"")+'"><div class="research-run-card-header"><strong>'+u(t.profileName||"")+'</strong><span class="jobs-pill">'+u($s(t.status))+'</span></div><div class="research-run-meta">'+u("Best: "+(t.bestScore!==void 0?String(t.bestScore):a.researchNoScore||"No score yet"))+`
-`+u("Duration: "+Ys(t.startedAt,t.finishedAt))+`
-`+u("Attempts: "+String(Array.isArray(t.attempts)?t.attempts.length:0))+(r?`
-`+u("Last: "+(r.summary||r.outcome||"")):"")+"</div></div>"}).join("")}}function Zd(){if(!(!dn||!$n)){var e=_d();if(Pi&&(Pi.textContent=a.researchActiveRunTitle||"Run details"),!e){dn.style.display="block",$n.style.display="none",dn.textContent=a.researchNoRunSelected||"Select a recent run to inspect its attempts.",cn&&(cn.innerHTML="");return}dn.style.display="none",$n.style.display="block";var t=Array.isArray(e.attempts)?e.attempts:[],r=t.length>0?t[t.length-1]:null;Ri&&(Ri.textContent=$s(e.status)),Ni&&(Ni.textContent=e.bestScore!==void 0?String(e.bestScore):a.researchNoScore||"No score yet"),Hi&&(Hi.textContent=String(t.length)),Oi&&(Oi.textContent=r?String(r.outcome||"-"):"-"),qi&&(qi.textContent=[e.profileName||"",(a.researchStartedAt||"Started")+": "+Ln(e.startedAt),(a.researchFinishedAt||"Finished")+": "+Ln(e.finishedAt),(a.researchDuration||"Duration")+": "+Ys(e.startedAt,e.finishedAt),(a.researchBaselineScore||"Baseline score")+": "+(e.baselineScore!==void 0?String(e.baselineScore):a.researchNoScore||"No score yet"),(a.researchBestScore||"Best score")+": "+(e.bestScore!==void 0?String(e.bestScore):a.researchNoScore||"No score yet"),(a.researchCompletedIterations||"Completed iterations")+": "+String(e.completedIterations||0),e.stopReason?(a.researchStopReason||"Stop reason")+": "+e.stopReason:""].filter(Boolean).join(`
-`)),cn&&(cn.innerHTML=t.map(function(o){var i=o.iteration===0?a.researchBaselineLabel||"Baseline":(a.researchIterationLabel||"Iteration")+" "+o.iteration,d=[o.summary||"",(a.researchStartedAt||"Started")+": "+Ln(o.startedAt),o.finishedAt?(a.researchFinishedAt||"Finished")+": "+Ln(o.finishedAt):"",o.score!==void 0?"Score: "+String(o.score):"",o.bestScoreAfter!==void 0?(a.researchBestScore||"Best score")+": "+String(o.bestScoreAfter):"",o.exitCode!==void 0?(a.researchExitCode||"Exit code")+": "+String(o.exitCode):""].filter(Boolean),b=[];return Array.isArray(o.changedPaths)&&o.changedPaths.length>0&&b.push((a.researchChangedFiles||"Changed files")+": "+o.changedPaths.join(", ")),Array.isArray(o.policyViolationPaths)&&o.policyViolationPaths.length>0&&b.push((a.researchViolationFiles||"Policy violation files")+": "+o.policyViolationPaths.join(", ")),o.snapshot&&o.snapshot.label&&b.push((a.researchSnapshot||"Snapshot")+": "+o.snapshot.label),'<div class="research-attempt-card"><div class="research-attempt-card-header"><strong>'+u(i)+'</strong><span class="jobs-pill">'+u(zd(o.outcome||""))+'</span></div><div class="research-attempt-meta">'+u(d.join(`
-`))+"</div>"+(b.length>0?'<div class="research-attempt-paths">'+u(b.join(`
-`))+"</div>":"")+(o.output?'<div class="research-output"><details><summary>'+u(a.researchBenchmarkOutput||"Benchmark output")+"</summary><pre>"+u(o.output)+"</pre></details></div>":"")+"</div>"}).join(""))}}function Sa(){$d(),Kd(),Zd();var e=Gs();no?ft&&(ft.value=z||""):wn(e||null),an&&(an.textContent=br?a.researchCreateProfile||a.researchSaveProfile||"Create Profile":a.researchSaveProfile||"Save Profile"),nn&&(nn.disabled=!z),on&&(on.disabled=!z),sn&&(sn.disabled=!z||Be&&Be.status==="running"),ln&&(ln.disabled=!(Be&&(Be.status==="running"||Be.status==="stopping"))),Te()}function Ks(e){vn();var t=Rl(),r=Nl(t);if(r){ns(r,!0);return}n.postMessage({type:e,data:t}),ns(e==="saveTelegramNotification"?a.telegramStatusSaved||"Saving Telegram settings...":a.telegramTest||"Sending test message...",!1)}function Zs(){no=!0,Lo()}function Qd(){[zr,Ur,_r,Yr,Xr,Gr,$r,Kr,Zr,Qr,ea,vt,pt].forEach(function(e){!e||typeof e.addEventListener!="function"||(e.addEventListener("input",Zs),e.addEventListener("change",Zs))})}function ec(){var e=["#task-name","#prompt-text","#cron-expression","#task-labels","#agent-select","#model-select","#template-select","#jitter-seconds","#chat-session","#run-first","#one-time",'input[name="scope"]','input[name="prompt-source"]',"#todo-title-input","#todo-description-input","#todo-due-input","#todo-priority-input","#todo-section-input","#todo-linked-task-select","#todo-labels-input","#todo-label-color-input","#todo-flag-name-input","#todo-flag-color-input","#jobs-name-input","#jobs-cron-input","#jobs-folder-select"].join(", ");["input","change"].forEach(function(t){document.addEventListener(t,function(r){var o=r&&r.target;!o||typeof o.matches!="function"||o.matches(e)&&he()})})}function Ze(){if(Ul(),Te(),he(),ci){var e=_l(),t=da(e),r=Y?(e||{}).name||a.jobsRootFolder||"All jobs":a.jobsRootFolder||"All jobs";ci.innerHTML='<div><span class="jobs-current-folder-label">'+u(a.jobsCurrentFolderLabel||"Current folder")+'</span><strong class="jobs-current-folder-name">'+u(t&&a.jobsArchiveFolderBadge||r)+'</strong><div class="jobs-folder-path">'+u(ps(Y))+'</div></div><span class="jobs-pill'+(t?" is-inactive":"")+'">'+u(a.jobsCurrentFolderBadge||"Current")+"</span>"}if(Na&&(Na.disabled=!Y),Ha&&(Ha.disabled=!Y),Ma){var o=(Array.isArray(xt)?xt.slice():[]).sort(function(y,N){var O=(da(y)?1:0)-(da(N)?1:0);if(O!==0)return O;var $=yn(y)-yn(N);return $!==0?$:String(y&&y.name||"").localeCompare(String(N&&N.name||""))}),i=Y?"jobs-folder-item":"jobs-folder-item active",d='<div class="'+i+'" data-job-folder=""><div class="jobs-folder-item-header"><span>'+u(a.jobsRootFolder||"All jobs")+'</span><span class="jobs-pill">'+String((Array.isArray(Ye)?Ye:[]).filter(function(y){return y&&!y.folderId}).length)+"</span></div></div>";d+=o.map(function(y){var N=yn(y),O=y&&y.id===Y,$=da(y)?" is-archive":"",Le=(Array.isArray(Ye)?Ye:[]).filter(function(Oe){return Oe&&Oe.folderId===y.id}).length,te=new Array(N+1).join('<span class="jobs-folder-indent"></span>'),Xt=ps(y.id);return'<div class="jobs-folder-item'+(O?" active":"")+$+'" data-job-folder="'+m(y.id||"")+'"><div class="jobs-folder-item-header"><span>'+te+u(y.name||"")+'</span><span class="jobs-pill">'+String(Le)+"</span></div>"+(da(y)?'<div class="jobs-folder-path"><span class="jobs-pill is-inactive">'+u(a.jobsArchiveFolderBadge||"Archived jobs")+"</span></div>":'<div class="jobs-folder-path">'+u(Xt)+"</div>")+"</div>"}).join(""),Ma.innerHTML=d||'<div class="jobs-empty">'+u(a.jobsNoFolders||"No folders yet.")+"</div>"}if(Ge){var b=fo();b.length===0?Ge.innerHTML='<div class="jobs-empty">'+u(a.jobsNoJobs||"No jobs in this folder yet.")+"</div>":Ge.innerHTML=b.map(function(y){var N=ga(y.cronExpression||""),O=N!==(a.labelFriendlyFallback||"")?N:y.cronExpression||"",$="";return y&&y.runtime&&y.runtime.waitingPause?$=" is-waiting":y&&(y.paused||y.archived)&&($=" is-inactive"),'<div class="jobs-list-item'+(y.id===I?" active":"")+'" data-job-id="'+m(y.id||"")+'" draggable="true"><div class="jobs-list-item-header"><strong>'+u(y.name||"")+'</strong><span class="jobs-pill'+$+'">'+u(lo(y))+'</span></div><div class="jobs-list-item-meta-row" title="'+m(y.cronExpression||"")+'"><div class="jobs-list-item-meta">'+u(O)+" \u2022 "+String(Array.isArray(y.nodes)?y.nodes.length:0)+' items</div><div style="display:flex;align-items:center;gap:8px;">'+(y.archived?'<span class="jobs-pill is-inactive">'+u(a.jobsArchivedBadge||"Archived")+"</span>":"")+'<button type="button" class="btn-secondary" data-job-open-editor="'+m(y.id||"")+'">'+u(a.jobsOpenEditor||"Open editor")+"</button></div></div></div>"}).join("")}var c=ht(I),A=!c&&Ee;if(so(),!c&&!A){cr&&(cr.innerHTML=""),Fa&&(Fa.style.display="block"),Pa&&(Pa.style.display="none");return}c&&(Ee=!1),he(),Fa&&(Fa.style.display="none"),Pa&&(Pa.style.display="block");var E=c&&Array.isArray(c.nodes)?c.nodes:[],j=Jl(c),P=ql(c),l=E.filter(function(y){return uo(y)}).length,g=Math.max(0,E.length-l),B=ms(c&&c.cronExpression||"");if(cr&&(cr.innerHTML=[{label:a.jobsWorkflowStatus||"Status",value:c?lo(c):a.jobsCreateJob||"New Job",tone:j?"is-waiting":c&&(c.paused||c.archived)?"is-muted":"is-accent"},{label:a.jobsWorkflowCadence||"Cadence",value:c?B:a.jobsEditorScheduleNote||"Define a schedule before saving.",tone:"is-accent",valueAttr:c?' data-jobs-workflow-cadence="1"':""},{label:a.jobsWorkflowTaskCount||"Task steps",value:String(g),tone:""},{label:a.jobsWorkflowPauseCount||"Pause checkpoints",value:String(l),tone:l>0?"is-accent":""}].map(function(y){return'<div class="jobs-workflow-metric'+(String(y.value||"").length>18?" is-compact":"")+(y.tone?" "+y.tone:"")+'" title="'+m(y.value)+'"><div class="jobs-workflow-metric-label">'+u(y.label)+'</div><div class="jobs-workflow-metric-value"'+(y.valueAttr||"")+">"+u(y.value)+"</div></div>"}).join("")),dt&&(dt.value=c&&c.name||""),ae&&(ae.value=c?c.cronExpression||"":"0 9 * * 1-5"),$e&&($e.value=""),Us(c?c.folderId||"":Y||""),ut&&(ut.textContent=c?lo(c):a.jobsRunning||"Running",ut.classList&&(ut.classList.toggle("is-inactive",!!(c&&(c.paused||c.archived))),ut.classList.toggle("is-waiting",!!j)),ut.disabled=!c),Dr&&(Dr.textContent=c&&c.paused?a.jobsResume||"Resume Job":a.jobsPause||"Pause Job",Dr.disabled=!c),Ja&&(Ja.disabled=!c||E.length===0),qa&&(qa.disabled=!c),Va&&(Va.disabled=!c),Oa&&(Oa.textContent=c?a.jobsSave||"Save Job":a.jobsCreateJob||"New Job"),Ci){var F=E.map(function(y,N){var O="";if(uo(y))O=(a.jobsPausePrefix||"Pause")+": "+(y.title||a.jobsPauseDefaultTitle||"Manual review");else{var $=vs(y.taskId);O=$&&$.name?$.name:(a.jobsStepPrefix||"Step")+" "+String(N+1)}return'<span class="jobs-timeline-node" title="'+m(O)+'">'+u(O)+"</span>"+(N<E.length-1?'<span class="jobs-timeline-arrow">\u2192</span>':"")}).join("");Ci.innerHTML=c&&F||u(a.jobsTimelineEmpty||"No steps yet")}if(xo(),xn(),ma(),ya(),Gn){if(!c){Gn.innerHTML='<div class="jobs-empty">'+u(a.jobsCreateJob||"Create Job")+": "+u(a.jobsSave||"Save Job")+"</div>";return}var V=E.map(function(y,N){if(uo(y)){var O=!!j&&j.nodeId===y.id,$=P.indexOf(y.id)>=0,Le=O?a.jobsPauseWaiting||"Waiting for approval":$?a.jobsPauseApproved||"Approved":a.jobsPauseDefaultTitle||"Manual review";return'<div class="jobs-step-card jobs-pause-card'+(O?" is-waiting":"")+'" draggable="true" data-job-node-id="'+m(y.id||"")+'"><div class="jobs-step-header"><strong title="'+m(y.title||"")+'">'+String(N+1)+". "+u(y.title||a.jobsPauseDefaultTitle||"Manual review")+'</strong><span class="jobs-pill'+(O?" is-waiting":"")+'">'+u(Le)+'</span></div><div class="jobs-pause-copy">'+u(a.jobsPauseHelpText||"This checkpoint blocks downstream steps until you approve the previous result.")+'</div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-pause" data-job-node-id="'+m(y.id||"")+'">'+u(a.jobsPauseEdit||"Edit")+'</button><button type="button" class="btn-danger" data-job-action="delete-pause" data-job-node-id="'+m(y.id||"")+'">'+u(a.jobsPauseDelete||"Delete")+"</button>"+(O?'<button type="button" class="btn-primary" data-job-action="approve-pause" data-job-node-id="'+m(y.id||"")+'">'+u(a.jobsPauseApprove||"Approve")+'</button><button type="button" class="btn-secondary" data-job-action="reject-pause" data-job-node-id="'+m(y.id||"")+'">'+u(a.jobsPauseReject||"Reject and edit previous step")+"</button>":"")+"</div></div>"}var te=vs(y.taskId),Xt=te&&te.name?te.name:"Missing task",Oe=te&&te.prompt?String(te.prompt):"",ka=Oe.length>120?Oe.slice(0,120)+"...":Oe,Bo=te&&te.nextRun?new Date(te.nextRun).toLocaleString(Ct):a.labelNever||"Never";return'<div class="jobs-step-card" draggable="true" data-job-node-id="'+m(y.id||"")+'"><div class="jobs-step-header"><strong title="'+m(Xt)+'">'+String(N+1)+". "+u(Xt)+'</strong><span class="jobs-pill">'+u(String(y.windowMinutes||30)+"m")+'</span></div><div class="jobs-step-meta">'+u(a.labelNextRun||"Next run")+": "+u(Bo)+'</div><div class="jobs-step-summary" title="'+m(Oe||ka)+'">'+u(ka||"-")+'</div><div class="jobs-inline-form"><div class="form-group"><input type="number" class="job-node-window-input" data-job-node-window-id="'+m(y.id||"")+'" min="1" max="1440" value="'+m(String(y.windowMinutes||30))+'"></div></div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="'+m(y.taskId||"")+'">'+u(a.actionEdit||"Edit")+'</button><button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="'+m(y.taskId||"")+'">'+u(a.actionRun||"Run")+'</button><button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="'+m(y.id||"")+'">Delete</button></div></div>'}).join("");Gn.innerHTML=V||'<div class="jobs-empty">'+u(a.jobsEmptySteps||"This job has no steps yet.")+"</div>"}}Js(),Vs();var Qs=document.querySelector('input[name="prompt-source"]:checked');Qs&&ha(Qs.value),de&&!de.value&&(de.value=Kt),bn(),ba(),kr(),zs(),kn(),xn(),Us(""),xo(),Ze(),he(),window.runTask=function(e){n.postMessage({type:"runTask",taskId:e})},window.editTask=function(e){var t=Array.isArray(J)?J:[],r=t.find(function(P){return P&&P.id===e});if(r){Bs(e);var o=document.getElementById("task-name"),i=document.getElementById("prompt-text");o&&(o.value=r.name||""),it&&(it.value=fs(r.labels)),i&&(i.value=typeof r.prompt=="string"?r.prompt:""),pe&&(pe.value=r.cronExpression||""),Xe&&(Xe.value=""),kr(),oe=r.agent||"",ie=r.model||"",U&&(oe&&Tr(U,oe)?(U.value=oe,oe=""):oe&&(U.value="")),_&&(ie&&Tr(_,ie)?(_.value=ie,ie=""):ie&&(_.value="")),Vn=r.enabled!==!1;var d=r.scope||"workspace",b=document.querySelector('input[name="scope"][value="'+d+'"]');b&&(b.checked=!0);var c=r.promptSource||"inline",A=document.querySelector('input[name="prompt-source"][value="'+c+'"]');A&&(A.checked=!0),ha(c,!0),fe=r.promptPath||"",H&&(fe&&Tr(H,fe)?(H.value=fe,fe=""):fe&&(H.value="")),rt&&(rt.value=String(r.jitterSeconds??Wn));var E=document.getElementById("run-first");E&&(E.checked=!1);var j=document.getElementById("one-time");j&&(j.checked=r.oneTime===!0),de&&(de.value=r.chatSession==="continue"?"continue":r.chatSession==="new"?"new":Kt),bn(),se("create")}},Da&&Da.addEventListener("click",function(){To(),se("create");try{var e=document.getElementById("task-name");e&&typeof e.focus=="function"&&e.focus()}catch{}}),window.copyPrompt=function(e){n.postMessage({type:"copyTask",taskId:e})},window.duplicateTask=function(e){n.postMessage({type:"duplicateTask",taskId:e})},window.moveTaskToCurrentWorkspace=function(e){n.postMessage({type:"moveTaskToCurrentWorkspace",taskId:e})},window.toggleTask=function(e){n.postMessage({type:"toggleTask",taskId:e})},window.deleteTask=function(e){var t=J.find(function(r){return r&&r.id===e});t&&n.postMessage({type:"deleteTask",taskId:e})},window.addEventListener("message",function(e){var t=e.data;try{switch(t.type){case"updateTasks":J=Array.isArray(t.tasks)?t.tasks:[],R("updateTasks",{taskCount:J.length,selectedTodoId:w||"",isCreatingJob:Ee}),kn(),xo(),hr(t.tasks),Ze(),Ls(w?"":me?me.value:"");break;case"updateJobs":Ye=Array.isArray(t.jobs)?t.jobs:[],kn(),hr(J),Ze();break;case"updateJobFolders":xt=Array.isArray(t.jobFolders)?t.jobFolders:[],Ze();break;case"updateCockpitBoard":C=t.cockpitBoard||{version:4,sections:[],cards:[],filters:{labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sortBy:"manual",sortDirection:"asc",viewMode:"board",showArchived:!1,showRecurringTasks:!1},updatedAt:""},R("updateCockpitBoard",{sectionCount:Array.isArray(C.sections)?C.sections.length:0,cardCount:Array.isArray(C.cards)?C.cards.length:0,selectedTodoId:w||"",draftTitleLength:Z.title.length}),Zt&&!C.cards.some(function(l){return l&&l.id===Zt})&&Et(),ye(),kn(),hr(J),qo(),Zl(),kt(),ze(),yr();break;case"updateResearchState":Lt=Array.isArray(t.profiles)?t.profiles:[],Be=t.activeRun||null,wt=Array.isArray(t.recentRuns)?t.recentRuns:[],Be&&(!He||He===Be.id)?He=Be.id:Xs(),!z&&!br&&_s(),Sa();break;case"updateTelegramNotification":Pe=t.telegramNotification||{enabled:!1,hasBotToken:!1,hookConfigured:!1},os();break;case"updateLogLevel":v=typeof t.logLevel=="string"&&t.logLevel?t.logLevel:"info",_e.setLogLevel(v),io();break;case"updateExecutionDefaults":ue=t.executionDefaults||{agent:"agent",model:""},R("updateExecutionDefaults",{agent:ue.agent||"",model:ue.model||"",editingTaskId:Se||"",pendingAgentValue:oe,pendingModelValue:ie}),mn(),Se||(U&&!oe&&!U.value&&(U.value=ue.agent||""),_&&!ie&&!_.value&&(_.value=ue.model||""));break;case"updateAgents":{var r=oe||(U?U.value:"");R("updateAgents",{currentAgentValue:r,agentCount:Array.isArray(t.agents)?t.agents.length:0}),Gt=Array.isArray(t.agents)?t.agents:[],Js(),mn(),xn(),wo(),U&&r&&(U.value=r,U.value===r?oe="":oe=r)}break;case"updateModels":{var o=ie||(_?_.value:"");R("updateModels",{currentModelValue:o,modelCount:Array.isArray(t.models)?t.models.length:0}),$t=Array.isArray(t.models)?t.models:[],Vs(),mn(),xn(),wo(),_&&o&&(_.value=o,_.value===o?ie="":ie=o)}break;case"updatePromptTemplates":Pn=Array.isArray(t.templates)?t.templates:[];{var i=document.querySelector('input[name="prompt-source"]:checked'),d=i?i.value:"inline",b=fe||(H?H.value:"");Ws(d,b),H&&b&&(H.value===b?fe="":fe=b),d==="local"||d==="global"?et&&(et.style.display="block"):et&&(et.style.display="none")}break;case"updateSkills":xr=Array.isArray(t.skills)?t.skills:[],zs();break;case"updateAutoShowOnStartup":Rn=!!t.enabled,ds();break;case"updateScheduleHistory":Lr=Array.isArray(t.entries)?t.entries:[],us();break;case"promptTemplateLoaded":var c=document.getElementById("prompt-text");c&&(c.value=t.content);break;case"switchToList":if(wr=!1,Ce&&(Ce.disabled=!1),Fe(),To(),se("list"),t.successMessage){var A=document.getElementById("success-toast");if(A){var E=a.webviewSuccessPrefix||"\u2714 ";A.textContent=E+t.successMessage,A.style.display="block",A.style.opacity="1",setTimeout(function(){A.style.opacity="0"},3e3),setTimeout(function(){A.style.display="none",A.style.opacity="1"},3500)}}break;case"switchToTab":t.tab&&se(t.tab);break;case"focusTask":se("list"),setTimeout(function(){for(var l=document.querySelectorAll(".task-card"),g=null,B=0;B<l.length;B++){var F=l[B];if(F&&F.getAttribute&&F.getAttribute("data-id")===t.taskId){g=F;break}}g&&g.scrollIntoView({behavior:"smooth"})},100);break;case"focusJob":Y=typeof t.folderId=="string"?t.folderId:"";var j=t.jobId||"";Ee=!0,I="",Te(),Ze(),se("jobs"),setTimeout(function(){var l=j?document.querySelector('[data-job-id="'+j+'"]'):null;l&&typeof l.scrollIntoView=="function"&&l.scrollIntoView({behavior:"smooth",block:"nearest"})},50);break;case"editTask":t.taskId&&typeof window.editTask=="function"&&window.editTask(t.taskId);break;case"startCreateTask":wr=!1,Ce&&(Ce.disabled=!1),Fe(),To(),se("create"),setTimeout(function(){try{var l=document.getElementById("task-name");l&&typeof l.focus=="function"&&l.focus()}catch{}},0);break;case"startCreateTodo":R("startCreateTodo",{reason:"host"}),Cd();break;case"startCreateJob":R("startCreateJob",{reason:"host"}),Fd();break;case"showError":t.text&&(Qe(t.text),wr=!1,Ce&&(Ce.disabled=!1));break;case"todoFileUploadResult":t.ok&&t.insertedText?(Ml(String(t.insertedText||"")),gn(String(t.message||a.boardUploadFilesSuccess||""),"success")):t.cancelled?gn(String(t.message||a.boardUploadFilesHint||""),"neutral"):gn(String(t.message||a.boardUploadFilesError||""),"error");break}}catch(l){var E=a.webviewClientErrorPrefix||"",P=l&&l.message?l.message:l;P=String(P).split(/\r?\n/)[0],Qe(E+ne(P)),wr=!1,Ce&&(Ce.disabled=!1)}}),hr(J),se(Pd()),window.addEventListener("scroll",function(){rs(!1)},{passive:!0}),window.addEventListener("resize",yr),document.addEventListener("keydown",function(e){e.key==="Escape"&&(Et(),Eo())}),yr(),setInterval(function(){Io("list")&&X()},1e3),n.postMessage({type:"webviewReady"})})();})();
+  // media/schedulerWebviewBoardRendering.js
+  function renderTodoBoardMarkup(options) {
+    var visibleSections = options.visibleSections;
+    var cards = options.cards;
+    var filters = options.filters;
+    var strings = options.strings;
+    if (filters.viewMode === "list") {
+      return renderTodoListView(visibleSections, cards, filters, options);
+    }
+    return renderTodoBoardColumns(visibleSections, cards, filters, options);
+  }
+  function getLatestTodoComment(card) {
+    return Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
+  }
+  function renderTodoCompactActions(card, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var actions = [
+      '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + helpers.escapeHtml(strings.boardEditTodoShort || "Edit") + "</button>"
+    ];
+    if (card.archived) {
+      actions.push(
+        '<button type="button" class="btn-secondary todo-card-restore todo-list-action-btn" data-todo-restore="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardRestoreTodo || "Restore") + '">&#8634; ' + helpers.escapeHtml(strings.boardRestoreTodo || "Restore") + "</button>"
+      );
+      actions.push(
+        '<button type="button" class="btn-danger todo-card-purge todo-list-action-btn" data-todo-purge="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodoPermanent || "Delete Permanently") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + "</button>"
+      );
+    } else {
+      if (card.status === "ready") {
+        actions.push(
+          '<button type="button" class="btn-secondary todo-card-reject todo-list-action-btn" data-todo-reject="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeclineTodo || "Decline") + '">&#8601; ' + helpers.escapeHtml(strings.boardDeclineTodo || "Decline") + "</button>"
+        );
+      }
+      actions.push(
+        '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoShort || "Delete") + "</button>"
+      );
+    }
+    return '<div class="todo-list-actions' + (actions.length === 1 ? " has-single-action" : "") + '">' + actions.join("") + "</div>";
+  }
+  function renderTodoListRow(card, sectionId, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var selectedTodoId = options.selectedTodoId;
+    var isSelected = card.id === selectedTodoId;
+    var latestComment = getLatestTodoComment(card);
+    var summary = card.description ? helpers.getTodoDescriptionPreview(card.description) : latestComment && latestComment.body ? helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + ": " + helpers.getTodoDescriptionPreview(latestComment.body) : card.taskId ? strings.boardTaskLinked || "Linked task" : strings.boardDescriptionPreviewEmpty || "No description yet.";
+    var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
+    var metaParts = [
+      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span>",
+      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoStatusLabel(card.status || "active")) + "</span>"
+    ];
+    if (card.dueAt) {
+      metaParts.push("<span data-card-meta>" + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>");
+    }
+    if (card.archived && card.archiveOutcome) {
+      metaParts.push("<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>");
+    }
+    if (cardFlag) {
+      metaParts.push(helpers.renderFlagChip(cardFlag, false));
+    }
+    var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 2) : [];
+    if (visibleLabels.length) {
+      metaParts.push(visibleLabels.map(function(label) {
+        return helpers.renderLabelChip(label, false, false);
+      }).join(" "));
+    }
+    return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' + helpers.renderTodoCompletionCheckbox(card) + '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div></div><div class="cockpit-card-details"><div class="note todo-list-summary">' + helpers.escapeHtml(summary) + "</div></div></div>" + renderTodoCompactActions(card, options) + "</article>";
+  }
+  function renderTodoListView(visibleSections, cards, filters, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var collapsedSections = options.collapsedSections;
+    return '<div class="todo-list-view">' + visibleSections.map(function(section) {
+      var sectionCards = helpers.sortTodoCards(cards.filter(function(card) {
+        return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters);
+      }), filters);
+      var isCollapsed = collapsedSections.has(section.id);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
+      return '<section class="todo-list-section' + (isCollapsed ? " is-collapsed" : "") + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);"><button type="button" class="cockpit-collapse-btn' + (isCollapsed ? " collapsed" : "") + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(isCollapsed ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section") + '">&#9660;</button>' + helpers.renderSectionDragHandle(section, isSpecialSection) + '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ")</span></strong>" + (isSpecialSection ? "" : '<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button><button type="button" class="btn-icon" data-section-delete="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button></div>') + '</div><div class="section-body-wrapper' + (isCollapsed ? " collapsed" : "") + '"><div class="section-body-inner"><div class="todo-list-items">' + (sectionCards.length ? sectionCards.map(function(card) {
+        return renderTodoListRow(card, section.id, options);
+      }).join("") : '<div class="note">' + helpers.escapeHtml(strings.boardListEmptySection || strings.boardEmpty || "No todos in this section.") + "</div>") + "</div></div></div></section>";
+    }).join("") + "</div>";
+  }
+  function renderTodoBoardColumns(visibleSections, cards, filters, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var collapsedSections = options.collapsedSections;
+    var selectedTodoId = options.selectedTodoId;
+    return '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' + visibleSections.map(function(section) {
+      var sectionCards = helpers.sortTodoCards(cards.filter(function(card) {
+        return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters);
+      }), filters);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
+      return '<section class="board-column' + (collapsedSections.has(section.id) ? " is-collapsed" : "") + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)"><button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? " collapsed" : "") + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section") + '">&#9660;</button>' + helpers.renderSectionDragHandle(section, isSpecialSection) + '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + "</strong>" + (isSpecialSection ? "" : '<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button><button type="button" class="btn-icon" data-section-delete="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button></div>') + '</div><div class="section-body-wrapper' + (collapsedSections.has(section.id) ? " collapsed" : "") + '"><div class="section-body-inner"><div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);"><div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">' + (sectionCards.length ? sectionCards.map(function(card) {
+        var isSelected = card.id === selectedTodoId;
+        var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
+        var chipMarkup = cardFlag || Array.isArray(card.labels) && card.labels.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + (cardFlag ? helpers.renderFlagChip(cardFlag, false) : "") + (Array.isArray(card.labels) && card.labels.length ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function(label, idx) {
+          return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
+        }).join("") + "</div>" : "") + "</div>" : "";
+        var latestComment = Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
+        var dueMarkup = card.dueAt ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>" : "";
+        var archiveMarkup = card.archived && card.archiveOutcome ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>" : "";
+        var latestCommentMarkup = latestComment && latestComment.body ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ":</strong><span data-card-meta>#" + helpers.escapeHtml(String(latestComment.sequence || 1)) + " \u2022 " + helpers.escapeHtml(helpers.getTodoCommentSourceLabel(latestComment.source || "human-form")) + " \u2022 " + helpers.escapeHtml(helpers.getTodoDescriptionPreview(latestComment.body || "")) + "</span></div>" : "";
+        return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' + helpers.renderTodoCompletionCheckbox(card) + '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div style="display:flex;align-items:center;gap:6px;">' + helpers.renderTodoDragHandle(card) + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span></div></div>" + (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + "</div>" : "") + chipMarkup + '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + "</div>" + latestCommentMarkup + "</div>" + renderTodoCompactActions(card, options).replace("todo-list-actions", "todo-card-action-row") + "</article>";
+      }).join("") : '<div class="note">' + helpers.escapeHtml(strings.boardEmpty || "No cards yet.") + "</div>") + "</div></div></div></div></section>";
+    }).join("") + "</div>";
+  }
+
+  // media/schedulerWebviewTaskSelectState.js
+  function selectHasOptionValue(selectEl, value) {
+    if (!selectEl || !value) return false;
+    var opts = selectEl.options;
+    if (!opts || typeof opts.length !== "number") return false;
+    for (var i = 0; i < opts.length; i++) {
+      var opt = opts[i];
+      if (opt && opt.value === value) return true;
+    }
+    return false;
+  }
+  function updateAgentOptions(params) {
+    var agentSelect = params.agentSelect;
+    if (!agentSelect) return;
+    var items = Array.isArray(params.agents) ? params.agents : [];
+    var escapeAttr = params.escapeAttr;
+    var escapeHtml = params.escapeHtml;
+    var strings = params.strings || {};
+    var executionDefaults = params.executionDefaults || {};
+    if (items.length === 0) {
+      var noText = strings.placeholderNoAgents || "";
+      agentSelect.innerHTML = '<option value="">' + escapeHtml(noText) + "</option>";
+      return;
+    }
+    var selectText = strings.placeholderSelectAgent || "";
+    var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
+    agentSelect.innerHTML = placeholder + items.map(function(agent) {
+      return '<option value="' + escapeAttr(agent.id) + '">' + escapeHtml(agent.name) + "</option>";
+    }).join("");
+    if (!agentSelect.value) {
+      var defaultAgentId = executionDefaults && typeof executionDefaults.agent === "string" ? executionDefaults.agent : "agent";
+      var hasDefaultAgent = items.find(function(agent) {
+        return agent.id === defaultAgentId;
+      });
+      if (hasDefaultAgent) {
+        agentSelect.value = defaultAgentId;
+      }
+    }
+  }
+  function updateModelOptions(params) {
+    var modelSelect = params.modelSelect;
+    if (!modelSelect) return;
+    var items = Array.isArray(params.models) ? params.models : [];
+    var escapeAttr = params.escapeAttr;
+    var escapeHtml = params.escapeHtml;
+    var strings = params.strings || {};
+    var executionDefaults = params.executionDefaults || {};
+    var formatModelLabel = params.formatModelLabel;
+    if (items.length === 0) {
+      var noText = strings.placeholderNoModels || "";
+      modelSelect.innerHTML = '<option value="">' + escapeHtml(noText) + "</option>";
+      return;
+    }
+    var selectText = strings.placeholderSelectModel || "";
+    var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
+    modelSelect.innerHTML = placeholder + items.map(function(model) {
+      return '<option value="' + escapeAttr(model.id) + '">' + escapeHtml(formatModelLabel(model)) + "</option>";
+    }).join("");
+    if (!modelSelect.value) {
+      var defaultModelId = executionDefaults && typeof executionDefaults.model === "string" ? executionDefaults.model : "";
+      var hasDefaultModel = items.find(function(model) {
+        return model.id === defaultModelId;
+      });
+      if (hasDefaultModel) {
+        modelSelect.value = defaultModelId;
+      }
+    }
+  }
+
+  // media/schedulerWebview.js
+  (function() {
+    var vscode = null;
+    var strings = {};
+    var initialData = {};
+    try {
+      var initialScript = document.getElementById("initial-data");
+      if (initialScript && initialScript.textContent) {
+        initialData = JSON.parse(initialScript.textContent) || {};
+      }
+    } catch (e) {
+      initialData = {};
+    }
+    strings = initialData.strings || {};
+    var currentLogLevel = typeof initialData.logLevel === "string" && initialData.logLevel ? initialData.logLevel : "info";
+    var currentLogDirectory = typeof initialData.logDirectory === "string" ? initialData.logDirectory : "";
+    function basenameAny(p) {
+      if (!p) return "";
+      var s = String(p);
+      var i1 = s.lastIndexOf("\\");
+      var i2 = s.lastIndexOf("/");
+      return s.substring(Math.max(i1, i2) + 1);
+    }
+    function basenameFromPathLike(p) {
+      if (!p) return "";
+      var s = String(p);
+      if (/^file:\/\/\/?/i.test(s)) {
+        try {
+          var u = new URL(s);
+          if (u.protocol === "file:") {
+            s = decodeURIComponent(u.pathname || "");
+          } else {
+            s = s.replace(/^file:\/\/\/?/i, "");
+          }
+        } catch (_e) {
+          s = s.replace(/^file:\/\/\/?/i, "");
+        }
+      }
+      return basenameAny(s);
+    }
+    function getModelSourceLabel(model) {
+      var id = model && model.id ? String(model.id).trim() : "";
+      var name = model && model.name ? String(model.name).trim() : "";
+      var vendor = model && model.vendor ? String(model.vendor).trim() : "";
+      var description = model && model.description ? String(model.description).trim() : "";
+      var normalized = (id + " " + name + " " + vendor + " " + description).toLowerCase();
+      if (normalized.indexOf("openrouter") >= 0) {
+        return "OpenRouter";
+      }
+      if (normalized.indexOf("copilot") >= 0 || normalized.indexOf("codex") >= 0 || normalized.indexOf("github") >= 0 || normalized.indexOf("microsoft") >= 0) {
+        return "Copilot";
+      }
+      return vendor;
+    }
+    function formatModelLabel(model) {
+      var name = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
+      var source = getModelSourceLabel(model);
+      if (!source || source.toLowerCase() === name.toLowerCase()) {
+        return name;
+      }
+      return name + " \u2022 " + source;
+    }
+    function formatCountdown(totalSec) {
+      var remaining = Math.max(0, Math.floor(totalSec));
+      var units = [
+        { label: "y", seconds: 365 * 24 * 60 * 60 },
+        { label: "mo", seconds: 30 * 24 * 60 * 60 },
+        { label: "w", seconds: 7 * 24 * 60 * 60 },
+        { label: "d", seconds: 24 * 60 * 60 },
+        { label: "h", seconds: 60 * 60 },
+        { label: "m", seconds: 60 },
+        { label: "s", seconds: 1 }
+      ];
+      var parts = [];
+      for (var i = 0; i < units.length; i += 1) {
+        var unit = units[i];
+        var value = Math.floor(remaining / unit.seconds);
+        if (value <= 0) {
+          continue;
+        }
+        parts.push(String(value) + unit.label);
+        remaining -= value * unit.seconds;
+      }
+      if (parts.length === 0) {
+        return "0s";
+      }
+      return parts.join(" ");
+    }
+    function getNextRunCountdownText(enabled, nextRunMs) {
+      if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
+        return "";
+      }
+      var diffMs = nextRunMs - Date.now();
+      if (diffMs > 0) {
+        return " (in " + formatCountdown(Math.floor(diffMs / 1e3)) + ")";
+      }
+      return " (due now)";
+    }
+    function refreshTaskCountdowns() {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (!taskList) {
+        return;
+      }
+      taskList.querySelectorAll(".task-next-run-countdown").forEach(function(node) {
+        var nextRunMs = Number(node.getAttribute("data-next-run-ms") || "");
+        var enabled = node.getAttribute("data-enabled") === "true";
+        node.textContent = getNextRunCountdownText(enabled, nextRunMs);
+      });
+    }
+    function sanitizeAbsolutePaths(text) {
+      if (!text) return "";
+      var s = String(text);
+      return s.replace(/'(file:\/\/[^']+)'/gi, function(_m, p1) {
+        return "'" + basenameFromPathLike(p1) + "'";
+      }).replace(/"(file:\/\/[^"]+)"/gi, function(_m, p1) {
+        return '"' + basenameFromPathLike(p1) + '"';
+      }).replace(/file:\/\/[^\s"'`]+/gi, function(m) {
+        return basenameFromPathLike(m);
+      }).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function(_m, p1) {
+        return "'" + basenameFromPathLike(p1) + "'";
+      }).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function(_m, p1) {
+        return '"' + basenameFromPathLike(p1) + '"';
+      }).replace(
+        /(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,
+        function(_m, prefix, p1) {
+          return String(prefix) + basenameFromPathLike(p1);
+        }
+      ).replace(/'(\/[^']+)'/g, function(_m, p1) {
+        return "'" + basenameFromPathLike(p1) + "'";
+      }).replace(/"(\/[^\"]+)"/g, function(_m, p1) {
+        return '"' + basenameFromPathLike(p1) + '"';
+      }).replace(/(^|[\s(])(\/[^\s"'`]+)/g, function(_m, prefix, p1) {
+        return String(prefix) + basenameFromPathLike(p1);
+      });
+    }
+    var globalErrorHideTimer = 0;
+    function hideGlobalError() {
+      var errorBanner = document.getElementById("global-error-banner");
+      var errorText = document.getElementById("global-error-text");
+      if (globalErrorHideTimer) {
+        clearTimeout(globalErrorHideTimer);
+        globalErrorHideTimer = 0;
+      }
+      if (errorText) {
+        errorText.textContent = "";
+      }
+      if (errorBanner) {
+        errorBanner.classList.remove("is-visible");
+      }
+    }
+    function showGlobalError(message, options) {
+      var errorBanner = document.getElementById("global-error-banner");
+      var errorText = document.getElementById("global-error-text");
+      if (!errorBanner) {
+        return;
+      }
+      var normalized = sanitizeAbsolutePaths(String(message || "")).trim();
+      if (!normalized) {
+        hideGlobalError();
+        return;
+      }
+      if (globalErrorHideTimer) {
+        clearTimeout(globalErrorHideTimer);
+        globalErrorHideTimer = 0;
+      }
+      if (errorText) {
+        errorText.textContent = normalized;
+      } else {
+        errorBanner.textContent = normalized;
+      }
+      errorBanner.classList.add("is-visible");
+      var durationMs = options && typeof options.durationMs === "number" ? options.durationMs : 8e3;
+      if (durationMs > 0) {
+        globalErrorHideTimer = setTimeout(function() {
+          hideGlobalError();
+        }, durationMs);
+      }
+    }
+    window.onerror = function(msg, url, line, col, error) {
+      var prefix = strings.webviewScriptErrorPrefix || "";
+      var linePrefix = strings.webviewLinePrefix || "";
+      var lineSuffix = strings.webviewLineSuffix || "";
+      showGlobalError(
+        prefix + sanitizeAbsolutePaths(String(msg)) + linePrefix + String(line) + lineSuffix
+      );
+    };
+    window.onunhandledrejection = function(ev) {
+      var prefix = strings.webviewUnhandledErrorPrefix || "";
+      var unknown = strings.webviewUnknown || "";
+      var reason = ev && ev.reason ? ev.reason : null;
+      var raw = unknown;
+      if (reason) {
+        if (typeof reason === "string") {
+          raw = reason;
+        } else if (typeof reason === "object" && reason.message) {
+          raw = String(reason.message);
+        } else {
+          raw = String(reason);
+        }
+      }
+      raw = String(raw).split(/\r?\n/)[0];
+      showGlobalError(prefix + sanitizeAbsolutePaths(raw));
+    };
+    if (typeof acquireVsCodeApi === "function") {
+      vscode = acquireVsCodeApi();
+    } else {
+      vscode = { postMessage: function() {
+      } };
+      showGlobalError(strings.webviewApiUnavailable || "", { durationMs: 0 });
+    }
+    var debugTools = createWebviewDebugTools({
+      console,
+      initialLogLevel: currentLogLevel,
+      vscode
+    });
+    var createEmptyTodoDraft = debugTools.createEmptyTodoDraft;
+    var emitWebviewDebug = debugTools.emitWebviewDebug;
+    function bindDebugClickAttempts(element, config) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("click", function(event) {
+        var target = event && event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
+        if (!target || typeof target.closest !== "function") {
+          return;
+        }
+        var actionTarget = target.closest(config.selector);
+        if (!actionTarget) {
+          return;
+        }
+        emitWebviewDebug(config.eventName, {
+          controlId: actionTarget.id || "",
+          tagName: actionTarget.tagName ? String(actionTarget.tagName).toLowerCase() : "",
+          disabled: !!actionTarget.disabled,
+          selectedTodoId: selectedTodoId || ""
+        });
+      }, true);
+    }
+    var tasks = Array.isArray(initialData.tasks) ? initialData.tasks : [];
+    var jobs = Array.isArray(initialData.jobs) ? initialData.jobs : [];
+    var jobFolders = Array.isArray(initialData.jobFolders) ? initialData.jobFolders : [];
+    var cockpitBoard = initialData.cockpitBoard || {
+      version: 4,
+      sections: [],
+      cards: [],
+      labelCatalog: [],
+      archives: { completedSuccessfully: [], rejected: [] },
+      filters: {
+        labels: [],
+        priorities: [],
+        statuses: [],
+        archiveOutcomes: [],
+        flags: [],
+        sortBy: "manual",
+        sortDirection: "asc",
+        viewMode: "board",
+        showArchived: false,
+        showRecurringTasks: false
+      },
+      updatedAt: ""
+    };
+    var telegramNotification = initialData.telegramNotification || {
+      enabled: false,
+      hasBotToken: false,
+      hookConfigured: false
+    };
+    var executionDefaults = initialData.executionDefaults || {
+      agent: "agent",
+      model: ""
+    };
+    var researchProfiles = Array.isArray(initialData.researchProfiles) ? initialData.researchProfiles : [];
+    var activeResearchRun = initialData.activeResearchRun || null;
+    var recentResearchRuns = Array.isArray(initialData.recentResearchRuns) ? initialData.recentResearchRuns : [];
+    var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
+    var models = Array.isArray(initialData.models) ? initialData.models : [];
+    var promptTemplates = Array.isArray(initialData.promptTemplates) ? initialData.promptTemplates : [];
+    var skills = Array.isArray(initialData.skills) ? initialData.skills : [];
+    var scheduleHistory = Array.isArray(initialData.scheduleHistory) ? initialData.scheduleHistory : [];
+    var defaultChatSession = initialData.defaultChatSession === "continue" ? "continue" : "new";
+    var autoShowOnStartup = !!initialData.autoShowOnStartup;
+    var workspacePaths = Array.isArray(initialData.workspacePaths) ? initialData.workspacePaths : [];
+    var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
+    var editingTaskId = null;
+    var selectedTodoId = null;
+    var EDITOR_CREATE_SYMBOL = "+";
+    var EDITOR_EDIT_SYMBOL = "\u2699";
+    var draggingTodoId = null;
+    var isBoardDragging = false;
+    var pendingBoardRender = false;
+    var scheduledBoardRenderFrame = 0;
+    function requestCockpitBoardRender() {
+      if (isBoardDragging) {
+        pendingBoardRender = true;
+        return;
+      }
+      if (scheduledBoardRenderFrame) {
+        return;
+      }
+      scheduledBoardRenderFrame = requestAnimationFrame(function() {
+        scheduledBoardRenderFrame = 0;
+        if (isBoardDragging) {
+          pendingBoardRender = true;
+          return;
+        }
+        renderCockpitBoard();
+      });
+    }
+    function finishBoardDragState() {
+      draggingTodoId = null;
+      draggingSectionId = null;
+      lastDragOverSectionId = null;
+      isBoardDragging = false;
+      if (pendingBoardRender) {
+        pendingBoardRender = false;
+        requestCockpitBoardRender();
+      }
+    }
+    var currentTodoLabels = [];
+    var currentTodoDraft = createEmptyTodoDraft();
+    var selectedTodoLabelName = "";
+    var currentTodoFlag = "";
+    var pendingDeleteLabelName = "";
+    var pendingDeleteFlagName = "";
+    var pendingTodoDeleteId = "";
+    var todoDeleteModalRoot = null;
+    var todoCommentModalRoot = null;
+    var pendingAgentValue = "";
+    var pendingModelValue = "";
+    var pendingTemplatePath = "";
+    var editingTaskEnabled = true;
+    var pendingSubmit = false;
+    var HELP_WARP_SEEN_KEY = "copilot-scheduler-help-warp-seen-v1";
+    var helpWarpIntroPending = (function() {
+      try {
+        return localStorage.getItem(HELP_WARP_SEEN_KEY) !== "1";
+      } catch (_e) {
+        return true;
+      }
+    })();
+    var helpWarpFadeTimeout = 0;
+    var helpWarpCleanupTimeout = 0;
+    var isCreatingJob = false;
+    var todoEditorListenersBound = false;
+    function resetTodoDraft(reason) {
+      currentTodoDraft = debugTools.resetTodoDraft(reason);
+    }
+    function syncTodoDraftFromInputs(reason) {
+      currentTodoDraft = debugTools.syncTodoDraftFromInputs({
+        currentTodoDraft,
+        reason,
+        selectedTodoId,
+        todoDescriptionInput,
+        todoDueInput,
+        todoLinkedTaskSelect,
+        todoPriorityInput,
+        todoSectionInput,
+        todoTitleInput
+      });
+    }
+    function syncTodoFlagDraft() {
+      if (selectedTodoId || !currentTodoDraft) {
+        return;
+      }
+      currentTodoDraft.flag = currentTodoFlag || "";
+    }
+    function syncTodoEditorTransientDraft() {
+      if (selectedTodoId || !currentTodoDraft) {
+        return;
+      }
+      currentTodoDraft.flag = currentTodoFlag || "";
+      currentTodoDraft.labelInput = todoLabelsInput ? String(todoLabelsInput.value || "") : currentTodoDraft.labelInput || "";
+      currentTodoDraft.labelColor = todoLabelColorInput ? String(todoLabelColorInput.value || "") : currentTodoDraft.labelColor || "#4f8cff";
+      currentTodoDraft.flagInput = todoFlagNameInput ? String(todoFlagNameInput.value || "") : currentTodoDraft.flagInput || "";
+      currentTodoDraft.flagColor = todoFlagColorInput ? String(todoFlagColorInput.value || "") : currentTodoDraft.flagColor || "#f59e0b";
+    }
+    var defaultJitterSeconds = (function() {
+      var raw = initialData.defaultJitterSeconds;
+      var n = typeof raw === "number" ? raw : Number(raw);
+      if (!isFinite(n)) return 600;
+      var i = Math.floor(n);
+      if (i < 0) return 0;
+      if (i > 1800) return 1800;
+      return i;
+    })();
+    var locale = typeof initialData.locale === "string" && initialData.locale ? initialData.locale : void 0;
+    var lastRenderedTasksHtml = "";
+    var taskForm = document.getElementById("task-form");
+    var taskList = document.getElementById("task-list");
+    var editTaskIdInput = document.getElementById("edit-task-id");
+    var submitBtn = document.getElementById("submit-btn");
+    var testBtn = document.getElementById("test-btn");
+    var refreshBtn = document.getElementById("refresh-btn");
+    var autoShowStartupBtn = document.getElementById("auto-show-startup-btn");
+    var scheduleHistorySelect = document.getElementById("schedule-history-select");
+    var restoreHistoryBtn = document.getElementById("restore-history-btn");
+    var autoShowStartupNote = document.getElementById("auto-show-startup-note");
+    var friendlyBuilder = document.getElementById("friendly-builder");
+    var cronPreset = document.getElementById("cron-preset");
+    var cronExpression = document.getElementById("cron-expression");
+    var agentSelect = document.getElementById("agent-select");
+    var modelSelect = document.getElementById("model-select");
+    var chatSessionGroup = document.getElementById("chat-session-group");
+    var chatSessionSelect = document.getElementById("chat-session");
+    var templateSelect = document.getElementById("template-select");
+    var templateSelectGroup = document.getElementById("template-select-group");
+    var templateRefreshBtn = document.getElementById("template-refresh-btn");
+    var skillSelect = document.getElementById("skill-select");
+    var insertSkillBtn = document.getElementById("insert-skill-btn");
+    var setupMcpBtn = document.getElementById("setup-mcp-btn");
+    var syncBundledSkillsBtn = document.getElementById("sync-bundled-skills-btn");
+    var helpLanguageSelect = document.getElementById("help-language-select");
+    var settingsLanguageSelect = document.getElementById("settings-language-select");
+    var helpWarpLayer = document.getElementById("help-warp-layer");
+    var helpIntroRocket = document.getElementById("help-intro-rocket");
+    var promptGroup = document.getElementById("prompt-group");
+    var jitterSecondsInput = document.getElementById("jitter-seconds");
+    var friendlyFrequency = document.getElementById("friendly-frequency");
+    var friendlyInterval = document.getElementById("friendly-interval");
+    var friendlyMinute = document.getElementById("friendly-minute");
+    var friendlyHour = document.getElementById("friendly-hour");
+    var friendlyDow = document.getElementById("friendly-dow");
+    var friendlyDom = document.getElementById("friendly-dom");
+    var friendlyGenerate = document.getElementById("friendly-generate");
+    var openGuruBtn = document.getElementById("open-guru-btn");
+    var cronPreviewText = document.getElementById("cron-preview-text");
+    var newTaskBtn = document.getElementById("new-task-btn");
+    var taskFilterBar = document.getElementById("task-filter-bar");
+    var taskLabelFilter = document.getElementById("task-label-filter");
+    var taskLabelsInput = document.getElementById("task-labels");
+    var jobsFolderList = document.getElementById("jobs-folder-list");
+    var jobsCurrentFolderBanner = document.getElementById("jobs-current-folder-banner");
+    var jobsList = document.getElementById("jobs-list");
+    var jobsEmptyState = document.getElementById("jobs-empty-state");
+    var jobsDetails = document.getElementById("jobs-details");
+    var jobsLayout = document.getElementById("jobs-layout");
+    var jobsToggleSidebarBtn = document.getElementById("jobs-toggle-sidebar-btn");
+    var jobsShowSidebarBtn = document.getElementById("jobs-show-sidebar-btn");
+    var jobsNewFolderBtn = document.getElementById("jobs-new-folder-btn");
+    var jobsRenameFolderBtn = document.getElementById("jobs-rename-folder-btn");
+    var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
+    var jobsNewJobBtn = document.getElementById("jobs-new-job-btn");
+    var jobsSaveBtn = document.getElementById("jobs-save-btn");
+    var jobsSaveDeckBtn = document.getElementById("jobs-save-deck-btn");
+    var jobsDuplicateBtn = document.getElementById("jobs-duplicate-btn");
+    var jobsPauseBtn = document.getElementById("jobs-pause-btn");
+    var jobsCompileBtn = document.getElementById("jobs-compile-btn");
+    var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
+    var jobsBackBtn = document.getElementById("jobs-back-btn");
+    var jobsOpenEditorBtn = document.getElementById("jobs-open-editor-btn");
+    var tabBar = document.querySelector(".tab-bar");
+    var boardFilterSticky = document.getElementById("board-filter-sticky");
+    var boardSummary = document.getElementById("board-summary");
+    var boardColumns = document.getElementById("board-columns");
+    var todoToggleFiltersBtn = document.getElementById("todo-toggle-filters-btn");
+    var todoSearchInput = document.getElementById("todo-search-input");
+    var todoSectionFilter = document.getElementById("todo-section-filter");
+    var todoLabelFilter = document.getElementById("todo-label-filter");
+    var todoFlagFilter = document.getElementById("todo-flag-filter");
+    var todoPriorityFilter = document.getElementById("todo-priority-filter");
+    var todoStatusFilter = document.getElementById("todo-status-filter");
+    var todoArchiveOutcomeFilter = document.getElementById("todo-archive-outcome-filter");
+    var todoSortBy = document.getElementById("todo-sort-by");
+    var todoSortDirection = document.getElementById("todo-sort-direction");
+    var todoViewMode = document.getElementById("todo-view-mode");
+    var todoShowRecurringTasks = document.getElementById("todo-show-recurring-tasks");
+    var todoShowArchived = document.getElementById("todo-show-archived");
+    var todoHideCardDetails = document.getElementById("todo-hide-card-details");
+    var todoNewBtn = document.getElementById("todo-new-btn");
+    var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
+    var todoClearFiltersBtn = document.getElementById("todo-clear-filters-btn");
+    var todoBackBtn = document.getElementById("todo-back-btn");
+    var todoDetailTitle = document.getElementById("todo-detail-title");
+    var todoDetailModeNote = document.getElementById("todo-detail-mode-note");
+    var todoDetailForm = document.getElementById("todo-detail-form");
+    var todoDetailId = document.getElementById("todo-detail-id");
+    var todoTitleInput = document.getElementById("todo-title-input");
+    var todoDescriptionInput = document.getElementById("todo-description-input");
+    var todoDueInput = document.getElementById("todo-due-input");
+    var todoPriorityInput = document.getElementById("todo-priority-input");
+    var todoSectionInput = document.getElementById("todo-section-input");
+    var todoLinkedTaskSelect = document.getElementById("todo-linked-task-select");
+    var todoDetailStatus = document.getElementById("todo-detail-status");
+    var todoLabelChipList = document.getElementById("todo-label-chip-list");
+    var todoLabelsInput = document.getElementById("todo-labels-input");
+    var todoLabelSuggestions = document.getElementById("todo-label-suggestions");
+    var todoLabelColorInput = document.getElementById("todo-label-color-input");
+    var todoLabelAddBtn = document.getElementById("todo-label-add-btn");
+    var todoLabelColorSaveBtn = document.getElementById("todo-label-color-save-btn");
+    var todoLabelCatalog = document.getElementById("todo-label-catalog");
+    var todoFlagNameInput = document.getElementById("todo-flag-name-input");
+    var todoFlagColorInput = document.getElementById("todo-flag-color-input");
+    var todoFlagAddBtn = document.getElementById("todo-flag-add-btn");
+    var todoFlagColorSaveBtn = document.getElementById("todo-flag-color-save-btn");
+    var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
+    var todoSaveBtn = document.getElementById("todo-save-btn");
+    var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
+    var todoCompleteBtn = document.getElementById("todo-complete-btn");
+    var todoDeleteBtn = document.getElementById("todo-delete-btn");
+    var todoUploadFilesBtn = document.getElementById("todo-upload-files-btn");
+    var todoUploadFilesNote = document.getElementById("todo-upload-files-note");
+    var todoCommentList = document.getElementById("todo-comment-list");
+    var todoCommentInput = document.getElementById("todo-comment-input");
+    var todoAddCommentBtn = document.getElementById("todo-add-comment-btn");
+    var jobsNameInput = document.getElementById("jobs-name-input");
+    var jobsCronPreset = document.getElementById("jobs-cron-preset");
+    var jobsCronInput = document.getElementById("jobs-cron-input");
+    var jobsCronPreviewText = document.getElementById("jobs-cron-preview-text");
+    var jobsOpenGuruBtn = document.getElementById("jobs-open-guru-btn");
+    var jobsFriendlyBuilder = document.getElementById("jobs-friendly-builder");
+    var jobsFriendlyFrequency = document.getElementById("jobs-friendly-frequency");
+    var jobsFriendlyInterval = document.getElementById("jobs-friendly-interval");
+    var jobsFriendlyMinute = document.getElementById("jobs-friendly-minute");
+    var jobsFriendlyHour = document.getElementById("jobs-friendly-hour");
+    var jobsFriendlyDow = document.getElementById("jobs-friendly-dow");
+    var jobsFriendlyDom = document.getElementById("jobs-friendly-dom");
+    var jobsFriendlyGenerate = document.getElementById("jobs-friendly-generate");
+    var jobsFolderSelect = document.getElementById("jobs-folder-select");
+    var jobsStatusPill = document.getElementById("jobs-status-pill");
+    var jobsTimelineInline = document.getElementById("jobs-timeline-inline");
+    var jobsWorkflowMetrics = document.getElementById("jobs-workflow-metrics");
+    var jobsStepList = document.getElementById("jobs-step-list");
+    var jobsPauseNameInput = document.getElementById("jobs-pause-name-input");
+    var jobsCreatePauseBtn = document.getElementById("jobs-create-pause-btn");
+    var jobsExistingTaskSelect = document.getElementById("jobs-existing-task-select");
+    var jobsExistingWindowInput = document.getElementById("jobs-existing-window-input");
+    var jobsAttachBtn = document.getElementById("jobs-attach-btn");
+    var jobsStepNameInput = document.getElementById("jobs-step-name-input");
+    var jobsStepWindowInput = document.getElementById("jobs-step-window-input");
+    var jobsStepPromptInput = document.getElementById("jobs-step-prompt-input");
+    var jobsStepAgentSelect = document.getElementById("jobs-step-agent-select");
+    var jobsStepModelSelect = document.getElementById("jobs-step-model-select");
+    var jobsStepLabelsInput = document.getElementById("jobs-step-labels-input");
+    var jobsCreateStepBtn = document.getElementById("jobs-create-step-btn");
+    var researchNewBtn = document.getElementById("research-new-btn");
+    var researchSaveBtn = document.getElementById("research-save-btn");
+    var researchDuplicateBtn = document.getElementById("research-duplicate-btn");
+    var researchDeleteBtn = document.getElementById("research-delete-btn");
+    var researchStartBtn = document.getElementById("research-start-btn");
+    var researchStopBtn = document.getElementById("research-stop-btn");
+    var researchEditIdInput = document.getElementById("research-edit-id");
+    var researchNameInput = document.getElementById("research-name");
+    var researchInstructionsInput = document.getElementById("research-instructions");
+    var researchEditablePathsInput = document.getElementById("research-editable-paths");
+    var researchBenchmarkInput = document.getElementById("research-benchmark-command");
+    var researchMetricPatternInput = document.getElementById("research-metric-pattern");
+    var researchMetricDirectionSelect = document.getElementById("research-metric-direction");
+    var researchMaxIterationsInput = document.getElementById("research-max-iterations");
+    var researchMaxMinutesInput = document.getElementById("research-max-minutes");
+    var researchMaxFailuresInput = document.getElementById("research-max-failures");
+    var researchBenchmarkTimeoutInput = document.getElementById("research-benchmark-timeout");
+    var researchEditWaitInput = document.getElementById("research-edit-wait");
+    var researchAgentSelect = document.getElementById("research-agent-select");
+    var researchModelSelect = document.getElementById("research-model-select");
+    var researchProfileList = document.getElementById("research-profile-list");
+    var researchRunList = document.getElementById("research-run-list");
+    var researchRunTitle = document.getElementById("research-run-title");
+    var researchFormError = document.getElementById("research-form-error");
+    var researchActiveEmpty = document.getElementById("research-active-empty");
+    var researchActiveDetails = document.getElementById("research-active-details");
+    var researchActiveStatus = document.getElementById("research-active-status");
+    var researchActiveBest = document.getElementById("research-active-best");
+    var researchActiveAttempts = document.getElementById("research-active-attempts");
+    var researchActiveLastOutcome = document.getElementById("research-active-last-outcome");
+    var researchActiveMeta = document.getElementById("research-active-meta");
+    var researchAttemptList = document.getElementById("research-attempt-list");
+    var telegramEnabledInput = document.getElementById("telegram-enabled");
+    var telegramBotTokenInput = document.getElementById("telegram-bot-token");
+    var telegramChatIdInput = document.getElementById("telegram-chat-id");
+    var telegramMessagePrefixInput = document.getElementById("telegram-message-prefix");
+    var telegramSaveBtn = document.getElementById("telegram-save-btn");
+    var telegramTestBtn = document.getElementById("telegram-test-btn");
+    var telegramFeedback = document.getElementById("telegram-feedback");
+    var telegramTokenStatus = document.getElementById("telegram-token-status");
+    var telegramChatStatus = document.getElementById("telegram-chat-status");
+    var telegramHookStatus = document.getElementById("telegram-hook-status");
+    var telegramUpdatedAt = document.getElementById("telegram-updated-at");
+    var telegramStatusNote = document.getElementById("telegram-status-note");
+    var defaultAgentSelect = document.getElementById("default-agent-select");
+    var defaultModelSelect = document.getElementById("default-model-select");
+    var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
+    var executionDefaultsNote = document.getElementById("execution-defaults-note");
+    var settingsLogLevelSelect = document.getElementById("settings-log-level-select");
+    var settingsLogDirectoryInput = document.getElementById("settings-log-directory");
+    var settingsOpenLogFolderBtn = document.getElementById("settings-open-log-folder-btn");
+    var boardAddSectionBtn = document.getElementById("board-add-section-btn");
+    var boardSectionInlineForm = document.getElementById("board-section-inline-form");
+    var boardSectionNameInput = document.getElementById("board-section-name-input");
+    var boardSectionSaveBtn = document.getElementById("board-section-save-btn");
+    var boardSectionCancelBtn = document.getElementById("board-section-cancel-btn");
+    var cockpitColSlider = document.getElementById("cockpit-col-slider");
+    var activeTaskFilter = "all";
+    var activeLabelFilter = "";
+    var selectedJobFolderId = "";
+    var selectedJobId = "";
+    var selectedResearchId = "";
+    var selectedResearchRunId = "";
+    var draggedJobNodeId = "";
+    var draggedJobId = "";
+    var draggingSectionId = null;
+    var lastDragOverSectionId = null;
+    var jobsSidebarHidden = false;
+    var boardFiltersManualCollapsed = false;
+    var boardFiltersAutoCollapsed = false;
+    var boardLastScrollY = 0;
+    var boardStickyMetricsFrame = 0;
+    var boardAutoCollapseSettleY = 0;
+    var boardAutoCollapseSettleDistance = 0;
+    var boardCardDetailsHidden = (function() {
+      try {
+        return localStorage.getItem("cockpit-hide-card-details") === "1";
+      } catch (_e) {
+        return false;
+      }
+    })();
+    var editingFlagOriginalName = "";
+    var editingLabelOriginalName = "";
+    var collapsedSections = (function() {
+      try {
+        return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections") || "[]"));
+      } catch (e) {
+        return /* @__PURE__ */ new Set();
+      }
+    })();
+    function toggleSectionCollapsed(sectionId) {
+      if (collapsedSections.has(sectionId)) {
+        collapsedSections.delete(sectionId);
+      } else {
+        collapsedSections.add(sectionId);
+      }
+      try {
+        localStorage.setItem("cockpit-collapsed-sections", JSON.stringify(Array.from(collapsedSections)));
+      } catch (e) {
+      }
+    }
+    function setLabelSlotsClass(w) {
+      var cls = w >= 390 ? "labels-6" : w >= 300 ? "labels-3" : "labels-1";
+      document.documentElement.classList.remove("labels-1", "labels-3", "labels-6");
+      document.documentElement.classList.add(cls);
+    }
+    function applyCockpitColumnScale(w) {
+      var font = Math.round(10 + (w - 180) * 3 / 340);
+      var pad = Math.round(8 + (w - 180) * 6 / 340);
+      var gap = Math.round(4 + (w - 180) * 4 / 340);
+      var chipGap = Math.max(3, Math.round(3 + (w - 180) * 2 / 340));
+      var labelPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
+      var labelPadX = Math.max(5, Math.round(6 + (w - 180) * 3 / 340));
+      var flagPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
+      var flagPadX = Math.max(6, Math.round(7 + (w - 180) * 3 / 340));
+      document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+      document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
+      document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
+      document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
+      document.documentElement.style.setProperty("--cockpit-chip-gap", chipGap + "px");
+      document.documentElement.style.setProperty("--cockpit-label-pad-y", labelPadY + "px");
+      document.documentElement.style.setProperty("--cockpit-label-pad-x", labelPadX + "px");
+      document.documentElement.style.setProperty("--cockpit-flag-pad-y", flagPadY + "px");
+      document.documentElement.style.setProperty("--cockpit-flag-pad-x", flagPadX + "px");
+      setLabelSlotsClass(w);
+      document.documentElement.classList.toggle("cockpit-board-compact-details", w <= 280);
+    }
+    (function() {
+      var saved = localStorage.getItem("cockpit-col-width");
+      var w = saved ? Number(saved) : cockpitColSlider ? Number(cockpitColSlider.value) : 240;
+      if (w >= 180 && w <= 520) {
+        applyCockpitColumnScale(w);
+        if (cockpitColSlider && !saved) cockpitColSlider.value = String(w);
+      }
+    })();
+    var isCreatingResearchProfile = false;
+    var researchFormDirty = false;
+    var loadedResearchProfileId = "";
+    function isValidTaskFilter(value) {
+      return value === "all" || value === "recurring" || value === "one-time";
+    }
+    function restoreTaskFilter() {
+      if (!vscode || typeof vscode.getState !== "function") return;
+      try {
+        var state = vscode.getState() || {};
+        var saved = state && state.taskFilter;
+        if (isValidTaskFilter(saved)) {
+          activeTaskFilter = saved;
+        }
+        if (state && typeof state.labelFilter === "string") {
+          activeLabelFilter = state.labelFilter;
+        }
+        if (state && typeof state.selectedJobFolderId === "string") {
+          selectedJobFolderId = state.selectedJobFolderId;
+        }
+        if (state && typeof state.selectedJobId === "string") {
+          selectedJobId = state.selectedJobId;
+        }
+        if (state && typeof state.jobsSidebarHidden === "boolean") {
+          jobsSidebarHidden = state.jobsSidebarHidden;
+        }
+        if (state && typeof state.boardFiltersCollapsed === "boolean") {
+          boardFiltersManualCollapsed = state.boardFiltersCollapsed;
+        }
+        if (state && typeof state.selectedResearchId === "string") {
+          selectedResearchId = state.selectedResearchId;
+        }
+        if (state && typeof state.selectedResearchRunId === "string") {
+          selectedResearchRunId = state.selectedResearchRunId;
+        }
+      } catch (_e) {
+      }
+    }
+    function persistTaskFilter() {
+      if (!vscode || typeof vscode.setState !== "function") return;
+      try {
+        var prev = typeof vscode.getState === "function" ? vscode.getState() || {} : {};
+        var next = {};
+        if (prev && typeof prev === "object") {
+          for (var key in prev) {
+            if (Object.prototype.hasOwnProperty.call(prev, key)) {
+              next[key] = prev[key];
+            }
+          }
+        }
+        next.taskFilter = activeTaskFilter;
+        next.labelFilter = activeLabelFilter;
+        next.selectedJobFolderId = selectedJobFolderId;
+        next.selectedJobId = selectedJobId;
+        next.jobsSidebarHidden = jobsSidebarHidden;
+        next.boardFiltersCollapsed = boardFiltersManualCollapsed;
+        next.selectedResearchId = selectedResearchId;
+        next.selectedResearchRunId = selectedResearchRunId;
+        vscode.setState(next);
+      } catch (_e) {
+      }
+    }
+    function clearTelegramFeedback() {
+      if (!telegramFeedback) return;
+      telegramFeedback.textContent = "";
+      telegramFeedback.style.display = "none";
+      telegramFeedback.classList.remove("error");
+    }
+    function isBoardFiltersCollapsed() {
+      return !!(boardFiltersManualCollapsed || boardFiltersAutoCollapsed);
+    }
+    function scheduleBoardStickyMetrics() {
+      if (boardStickyMetricsFrame) {
+        return;
+      }
+      boardStickyMetricsFrame = requestAnimationFrame(function() {
+        boardStickyMetricsFrame = 0;
+        updateBoardStickyMetrics();
+      });
+    }
+    function updateBoardStickyMetrics() {
+      var tabBarStickyTop = 0;
+      if (tabBar) {
+        tabBarStickyTop = Math.max(
+          0,
+          Math.ceil(tabBar.getBoundingClientRect().height)
+        );
+      }
+      var stickyTop = tabBarStickyTop;
+      if (boardFilterSticky && isTabActive("board")) {
+        stickyTop = Math.max(
+          tabBarStickyTop,
+          tabBarStickyTop + Math.ceil(boardFilterSticky.getBoundingClientRect().height + 8)
+        );
+      }
+      document.documentElement.style.setProperty(
+        "--cockpit-tab-bar-sticky-top",
+        tabBarStickyTop + "px"
+      );
+      document.documentElement.style.setProperty(
+        "--cockpit-board-sticky-top",
+        stickyTop + "px"
+      );
+    }
+    function clearBoardAutoCollapseSettle() {
+      boardAutoCollapseSettleY = 0;
+      boardAutoCollapseSettleDistance = 0;
+    }
+    function armBoardAutoCollapseSettle(currentY) {
+      var stickyHeight = boardFilterSticky ? Math.ceil(boardFilterSticky.getBoundingClientRect().height) : 0;
+      boardAutoCollapseSettleY = currentY;
+      boardAutoCollapseSettleDistance = Math.max(28, Math.ceil(stickyHeight * 0.45));
+    }
+    function shouldIgnoreBoardAutoCollapseScroll(currentY) {
+      if (boardAutoCollapseSettleDistance <= 0) {
+        return false;
+      }
+      if (Math.abs(currentY - boardAutoCollapseSettleY) <= boardAutoCollapseSettleDistance) {
+        return true;
+      }
+      clearBoardAutoCollapseSettle();
+      return false;
+    }
+    function updateBoardAutoCollapseFromScroll(forceExpand) {
+      var currentY = Math.max(
+        window.scrollY || 0,
+        document.documentElement ? document.documentElement.scrollTop || 0 : 0
+      );
+      if (forceExpand || !isTabActive("board")) {
+        boardLastScrollY = currentY;
+        clearBoardAutoCollapseSettle();
+        if (boardFiltersAutoCollapsed) {
+          boardFiltersAutoCollapsed = false;
+          applyBoardFilterCollapseState();
+        }
+        return;
+      }
+      if (shouldIgnoreBoardAutoCollapseScroll(currentY)) {
+        boardLastScrollY = currentY;
+        return;
+      }
+      var nextAutoCollapsed = boardFiltersAutoCollapsed;
+      if (currentY > boardLastScrollY + 18 && currentY > 140) {
+        nextAutoCollapsed = true;
+      } else if (currentY < boardLastScrollY - 14 || currentY < 72) {
+        nextAutoCollapsed = false;
+      }
+      boardLastScrollY = currentY;
+      if (nextAutoCollapsed !== boardFiltersAutoCollapsed) {
+        boardFiltersAutoCollapsed = nextAutoCollapsed;
+        armBoardAutoCollapseSettle(currentY);
+        applyBoardFilterCollapseState();
+      }
+    }
+    function applyBoardFilterCollapseState() {
+      if (boardFilterSticky && boardFilterSticky.classList) {
+        var collapsed = isBoardFiltersCollapsed();
+        boardFilterSticky.classList.toggle("is-collapsed", collapsed);
+        boardFilterSticky.setAttribute(
+          "data-auto-collapsed",
+          boardFiltersAutoCollapsed ? "true" : "false"
+        );
+      }
+      if (todoToggleFiltersBtn) {
+        var isCollapsed = isBoardFiltersCollapsed();
+        todoToggleFiltersBtn.textContent = isCollapsed ? strings.boardShowFilters || "Show Filters" : strings.boardHideFilters || "Hide Filters";
+        todoToggleFiltersBtn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+      }
+      scheduleBoardStickyMetrics();
+    }
+    function findTodoById(todoId) {
+      if (!todoId || !cockpitBoard || !Array.isArray(cockpitBoard.cards)) {
+        return null;
+      }
+      for (var i = 0; i < cockpitBoard.cards.length; i += 1) {
+        var card = cockpitBoard.cards[i];
+        if (card && card.id === todoId) {
+          return card;
+        }
+      }
+      return null;
+    }
+    function setTodoUploadNote(text, state) {
+      if (!todoUploadFilesNote) {
+        return;
+      }
+      todoUploadFilesNote.textContent = text || (strings.boardUploadFilesHint || "");
+      todoUploadFilesNote.classList.remove("is-success", "is-error");
+      if (state === "success") {
+        todoUploadFilesNote.classList.add("is-success");
+      } else if (state === "error") {
+        todoUploadFilesNote.classList.add("is-error");
+      }
+    }
+    function appendTextToTodoDescription(insertedText) {
+      if (!todoDescriptionInput || !insertedText) {
+        return;
+      }
+      var currentValue = String(todoDescriptionInput.value || "");
+      var separator = currentValue ? /\n\s*$/.test(currentValue) ? "\n" : "\n\n" : "";
+      todoDescriptionInput.value = currentValue + separator + insertedText;
+      syncTodoDraftFromInputs("upload");
+    }
+    function syncTodoPriorityInputTone() {
+      if (!todoPriorityInput) {
+        return;
+      }
+      todoPriorityInput.setAttribute(
+        "data-priority",
+        String(todoPriorityInput.value || "none")
+      );
+    }
+    function getTodoCommentToneClass(comment) {
+      var source = comment && comment.source ? String(comment.source) : "human-form";
+      if (source === "bot-mcp") {
+        return " is-bot-mcp";
+      }
+      if (source === "bot-manual") {
+        return " is-bot-manual";
+      }
+      if (source === "system-event") {
+        return " is-system-event";
+      }
+      return " is-human-form";
+    }
+    function showTelegramFeedback(message, isError) {
+      if (!telegramFeedback) return;
+      telegramFeedback.textContent = String(message || "");
+      telegramFeedback.style.display = message ? "block" : "none";
+      telegramFeedback.classList.toggle("error", !!isError);
+    }
+    function formatTelegramUpdatedAt(value) {
+      if (!value) return "-";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function collectTelegramFormData() {
+      return {
+        enabled: !!(telegramEnabledInput && telegramEnabledInput.checked),
+        botToken: telegramBotTokenInput ? String(telegramBotTokenInput.value || "") : "",
+        chatId: telegramChatIdInput ? String(telegramChatIdInput.value || "") : "",
+        messagePrefix: telegramMessagePrefixInput ? String(telegramMessagePrefixInput.value || "") : ""
+      };
+    }
+    function validateTelegramFormData(data) {
+      var needsConfig = data.enabled || !!String(data.chatId || "").trim() || !!String(data.messagePrefix || "").trim();
+      if (needsConfig && !String(data.chatId || "").trim()) {
+        return strings.telegramValidationChatId || "Telegram chat ID is required.";
+      }
+      if (needsConfig && !String(data.botToken || "").trim() && !(telegramNotification && telegramNotification.hasBotToken)) {
+        return strings.telegramValidationBotToken || "Telegram bot token is required.";
+      }
+      return "";
+    }
+    function renderTelegramTab() {
+      if (telegramEnabledInput) {
+        telegramEnabledInput.checked = !!telegramNotification.enabled;
+      }
+      if (telegramChatIdInput) {
+        telegramChatIdInput.value = telegramNotification.chatId || "";
+      }
+      if (telegramMessagePrefixInput) {
+        telegramMessagePrefixInput.value = telegramNotification.messagePrefix || "";
+      }
+      if (telegramBotTokenInput) {
+        telegramBotTokenInput.value = "";
+        telegramBotTokenInput.placeholder = telegramNotification.hasBotToken ? strings.telegramSavedToken || "Bot token stored privately" : strings.telegramBotTokenPlaceholder || "123456:ABCDEF...";
+      }
+      if (telegramTokenStatus) {
+        telegramTokenStatus.textContent = telegramNotification.hasBotToken ? strings.telegramSavedToken || "Bot token stored privately" : strings.telegramMissingToken || "No bot token saved yet";
+      }
+      if (telegramChatStatus) {
+        telegramChatStatus.textContent = telegramNotification.chatId || "-";
+      }
+      if (telegramHookStatus) {
+        telegramHookStatus.textContent = telegramNotification.hookConfigured ? strings.telegramHookReady || "Stop hook configured" : strings.telegramHookMissing || "Stop hook files not configured";
+      }
+      if (telegramUpdatedAt) {
+        telegramUpdatedAt.textContent = formatTelegramUpdatedAt(telegramNotification.updatedAt);
+      }
+      if (telegramStatusNote) {
+        telegramStatusNote.textContent = strings.telegramWorkspaceNote || "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.";
+      }
+      clearTelegramFeedback();
+    }
+    function collectExecutionDefaultsFormData() {
+      return {
+        agent: defaultAgentSelect ? String(defaultAgentSelect.value || "") : "",
+        model: defaultModelSelect ? String(defaultModelSelect.value || "") : ""
+      };
+    }
+    function renderExecutionDefaultsControls() {
+      updateSimpleSelect(
+        defaultAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        executionDefaults && typeof executionDefaults.agent === "string" ? executionDefaults.agent : "agent",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        defaultModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        executionDefaults && typeof executionDefaults.model === "string" ? executionDefaults.model : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return formatModelLabel(item);
+        }
+      );
+      if (executionDefaultsNote) {
+        executionDefaultsNote.textContent = strings.executionDefaultsSaved || "Workspace default agent and model settings.";
+      }
+    }
+    function renderLoggingControls() {
+      if (settingsLogLevelSelect) {
+        settingsLogLevelSelect.value = currentLogLevel || "info";
+      }
+      if (settingsLogDirectoryInput) {
+        settingsLogDirectoryInput.value = currentLogDirectory || "";
+        settingsLogDirectoryInput.title = currentLogDirectory || "";
+      }
+    }
+    function applyJobsSidebarState() {
+      if (jobsLayout && jobsLayout.classList) {
+        jobsLayout.classList.toggle("sidebar-collapsed", !!jobsSidebarHidden);
+      }
+      if (jobsShowSidebarBtn) {
+        jobsShowSidebarBtn.style.display = jobsSidebarHidden ? "inline-flex" : "none";
+      }
+    }
+    function getJobStatusText(job) {
+      if (job && job.runtime && job.runtime.waitingPause) {
+        return strings.jobsPauseWaiting || "Waiting for approval";
+      }
+      if (job && job.archived) {
+        return strings.jobsArchivedBadge || "Archived";
+      }
+      return job && job.paused ? strings.jobsPaused || "Inactive" : strings.jobsRunning || "Active";
+    }
+    function syncTaskFilterButtons() {
+      if (!taskFilterBar) return;
+      var buttons = taskFilterBar.querySelectorAll(".task-filter-btn");
+      for (var i = 0; i < buttons.length; i++) {
+        var btn = buttons[i];
+        if (!btn || !btn.classList) continue;
+        if (btn.getAttribute("data-filter") === activeTaskFilter) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      }
+    }
+    function buildHelpWarpStreaks() {
+      if (!helpWarpLayer) {
+        return;
+      }
+      helpWarpLayer.textContent = "";
+      for (var i = 0; i < 22; i += 1) {
+        var streak = document.createElement("span");
+        var top = 4 + i * 91 / 22 + Math.random() * 3.5;
+        var delay = Math.random() * 0.95;
+        var duration = 1.05 + Math.random() * 1.25;
+        var length = 110 + Math.round(Math.random() * 180);
+        var thickness = 1 + Math.round(Math.random() * 2);
+        var rotation = (-7 + Math.random() * 14).toFixed(2);
+        streak.className = "help-warp-streak";
+        streak.style.setProperty("--warp-top", top.toFixed(2) + "%");
+        streak.style.setProperty("--warp-delay", delay.toFixed(2) + "s");
+        streak.style.setProperty("--warp-duration", duration.toFixed(2) + "s");
+        streak.style.setProperty("--warp-length", String(length) + "px");
+        streak.style.setProperty("--warp-thickness", String(thickness) + "px");
+        streak.style.setProperty("--warp-rotate", rotation + "deg");
+        helpWarpLayer.appendChild(streak);
+      }
+    }
+    function triggerHelpWarpAnimation(options) {
+      if (!helpWarpLayer) {
+        return;
+      }
+      var settings = options || {};
+      window.clearTimeout(helpWarpFadeTimeout);
+      window.clearTimeout(helpWarpCleanupTimeout);
+      helpWarpLayer.classList.remove("is-active");
+      helpWarpLayer.classList.remove("is-fading");
+      buildHelpWarpStreaks();
+      void helpWarpLayer.offsetWidth;
+      helpWarpLayer.classList.add("is-active");
+      if (settings.animateRocket && helpIntroRocket) {
+        helpIntroRocket.classList.remove("is-launching");
+        void helpIntroRocket.offsetWidth;
+        helpIntroRocket.classList.add("is-launching");
+        window.setTimeout(function() {
+          if (helpIntroRocket) {
+            helpIntroRocket.classList.remove("is-launching");
+          }
+        }, 1250);
+      }
+      helpWarpFadeTimeout = window.setTimeout(function() {
+        if (helpWarpLayer) {
+          helpWarpLayer.classList.add("is-fading");
+        }
+      }, 1e4);
+      helpWarpCleanupTimeout = window.setTimeout(function() {
+        if (helpWarpLayer) {
+          helpWarpLayer.classList.remove("is-active");
+          helpWarpLayer.classList.remove("is-fading");
+          helpWarpLayer.textContent = "";
+        }
+      }, 13800);
+    }
+    function maybePlayInitialHelpWarp(tabName) {
+      if (tabName !== "help" || !helpWarpIntroPending) {
+        return;
+      }
+      helpWarpIntroPending = false;
+      try {
+        localStorage.setItem(HELP_WARP_SEEN_KEY, "1");
+      } catch (_e) {
+      }
+      triggerHelpWarpAnimation({ animateRocket: false });
+    }
+    function syncAutoShowOnStartupUi() {
+      if (autoShowStartupBtn) {
+        autoShowStartupBtn.textContent = autoShowOnStartup ? strings.autoShowOnStartupToggleEnabled || "Disable Auto Open" : strings.autoShowOnStartupToggleDisabled || "Enable Auto Open";
+      }
+      if (autoShowStartupNote) {
+        autoShowStartupNote.textContent = autoShowOnStartup ? strings.autoShowOnStartupEnabled || "Auto-open on startup: On" : strings.autoShowOnStartupDisabled || "Auto-open on startup: Off";
+      }
+    }
+    function syncRecurringChatSessionUi() {
+      var oneTimeEl = document.getElementById("one-time");
+      var isOneTime = !!(oneTimeEl && oneTimeEl.checked);
+      if (chatSessionGroup) {
+        chatSessionGroup.style.display = isOneTime ? "none" : "block";
+      }
+      if (chatSessionSelect && !chatSessionSelect.value) {
+        chatSessionSelect.value = defaultChatSession;
+      }
+      if (isOneTime && chatSessionSelect) {
+        chatSessionSelect.value = defaultChatSession;
+      }
+    }
+    function formatHistoryLabel(entry) {
+      if (!entry || !entry.createdAt) {
+        return strings.scheduleHistoryPlaceholder || "Select a backup version";
+      }
+      var date = new Date(entry.createdAt);
+      if (isNaN(date.getTime())) {
+        return String(entry.createdAt);
+      }
+      return date.toLocaleString(locale);
+    }
+    function syncScheduleHistoryOptions() {
+      if (!scheduleHistorySelect) return;
+      var previousValue = scheduleHistorySelect.value || "";
+      var entries = Array.isArray(scheduleHistory) ? scheduleHistory : [];
+      entries = entries.slice().sort(function(a, b) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      if (entries.length === 0) {
+        scheduleHistorySelect.innerHTML = '<option value="">' + escapeHtml(strings.scheduleHistoryEmpty || "No backup versions yet") + "</option>";
+        scheduleHistorySelect.disabled = true;
+        if (restoreHistoryBtn) restoreHistoryBtn.disabled = true;
+        return;
+      }
+      scheduleHistorySelect.innerHTML = '<option value="">' + escapeHtml(strings.scheduleHistoryPlaceholder || "Select a backup version") + "</option>" + entries.map(function(entry) {
+        return '<option value="' + escapeAttr(entry.id || "") + '">' + escapeHtml(formatHistoryLabel(entry)) + "</option>";
+      }).join("");
+      scheduleHistorySelect.disabled = false;
+      if (restoreHistoryBtn) restoreHistoryBtn.disabled = false;
+      if (previousValue) {
+        scheduleHistorySelect.value = previousValue;
+      }
+      if (scheduleHistorySelect.value !== previousValue) {
+        scheduleHistorySelect.value = "";
+      }
+    }
+    function parseLabels(value) {
+      if (!value) return [];
+      return String(value).split(",").map(function(item) {
+        return String(item || "").trim();
+      }).filter(function(item, index, list) {
+        return item && list.indexOf(item) === index;
+      });
+    }
+    function toLabelString(labels) {
+      return Array.isArray(labels) ? labels.join(", ") : "";
+    }
+    function getJobById(id) {
+      return (Array.isArray(jobs) ? jobs : []).find(function(job) {
+        return job && job.id === id;
+      }) || null;
+    }
+    function isPauseNode(node) {
+      return !!node && node.type === "pause";
+    }
+    function isTaskNode(node) {
+      return !!node && node.type !== "pause" && !!node.taskId;
+    }
+    function getApprovedPauseIds(job) {
+      var approved = job && job.runtime && Array.isArray(job.runtime.approvedPauseNodeIds) ? job.runtime.approvedPauseNodeIds : [];
+      return approved.filter(function(value) {
+        return typeof value === "string" && value;
+      });
+    }
+    function getWaitingPauseState(job) {
+      return job && job.runtime && job.runtime.waitingPause ? job.runtime.waitingPause : null;
+    }
+    function getFolderById(id) {
+      return (Array.isArray(jobFolders) ? jobFolders : []).find(function(folder) {
+        return folder && folder.id === id;
+      }) || null;
+    }
+    function getTaskById(id) {
+      return (Array.isArray(tasks) ? tasks : []).find(function(task) {
+        return task && task.id === id;
+      }) || null;
+    }
+    function getVisibleJobs() {
+      return (Array.isArray(jobs) ? jobs : []).filter(function(job) {
+        return job && (job.folderId || "") === selectedJobFolderId;
+      }).sort(function(a, b) {
+        var updatedDiff = getComparableTime(b && b.updatedAt) - getComparableTime(a && a.updatedAt);
+        if (updatedDiff !== 0) {
+          return updatedDiff;
+        }
+        var aName = a && a.name ? String(a.name) : "";
+        var bName = b && b.name ? String(b.name) : "";
+        return aName.localeCompare(bName);
+      });
+    }
+    function getFolderDepth(folder) {
+      var depth = 0;
+      var current = folder;
+      while (current && current.parentId) {
+        depth += 1;
+        current = getFolderById(current.parentId);
+        if (depth > 20) break;
+      }
+      return depth;
+    }
+    function getFolderPath(folderId) {
+      if (!folderId) {
+        return strings.jobsRootFolder || "All jobs";
+      }
+      var parts = [];
+      var current = getFolderById(folderId);
+      var guard = 0;
+      while (current && guard < 20) {
+        parts.unshift(current.name || "");
+        current = current.parentId ? getFolderById(current.parentId) : null;
+        guard += 1;
+      }
+      parts.unshift(strings.jobsRootFolder || "All jobs");
+      return parts.filter(Boolean).join(" / ");
+    }
+    function isArchiveFolder(folder) {
+      return !!folder && String(folder.name || "").toLowerCase() === String(strings.jobsArchiveFolder || "Archive").toLowerCase();
+    }
+    function getLinkedTodoLabels(taskId) {
+      if (!taskId) {
+        return [];
+      }
+      var labels = [];
+      getAllTodoCards().forEach(function(card) {
+        if (!card || card.taskId !== taskId || !Array.isArray(card.labels)) {
+          return;
+        }
+        labels = labels.concat(card.labels);
+      });
+      return dedupeStringList(labels);
+    }
+    function getEffectiveLabels(task) {
+      var labels = [];
+      if (task && Array.isArray(task.labels)) {
+        labels = labels.concat(task.labels);
+      }
+      if (task && task.jobId) {
+        var job = getJobById(task.jobId);
+        if (job && job.name) {
+          labels.push(job.name);
+        }
+      }
+      if (task && task.id) {
+        labels = labels.concat(getLinkedTodoLabels(task.id));
+      }
+      return dedupeStringList(labels);
+    }
+    function getComparableTime(value) {
+      if (!value) return Number.MAX_SAFE_INTEGER;
+      var d = new Date(value);
+      var t = d.getTime();
+      return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    }
+    function sortTasksByNextRun(list) {
+      return (Array.isArray(list) ? list.slice() : []).sort(function(a, b) {
+        var diff = getComparableTime(a && a.nextRun) - getComparableTime(b && b.nextRun);
+        if (diff !== 0) return diff;
+        var aName = a && a.name ? String(a.name) : "";
+        var bName = b && b.name ? String(b.name) : "";
+        return aName.localeCompare(bName);
+      });
+    }
+    function getStandaloneTasks() {
+      return sortTasksByNextRun(
+        (Array.isArray(tasks) ? tasks : []).filter(function(task) {
+          return task && task.oneTime !== true;
+        })
+      );
+    }
+    function getJobsCadenceText(expression) {
+      var cadenceText = getCronSummary(expression || "");
+      if (!cadenceText || cadenceText === (strings.labelFriendlyFallback || "")) {
+        cadenceText = expression || (strings.labelNever || "Never");
+      }
+      return cadenceText;
+    }
+    function updateJobsCadenceMetric() {
+      if (!jobsWorkflowMetrics) return;
+      var cadenceValue = jobsWorkflowMetrics.querySelector("[data-jobs-workflow-cadence]");
+      if (!cadenceValue) return;
+      var currentExpression = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+      cadenceValue.textContent = getJobsCadenceText(currentExpression);
+      if (cadenceValue.parentElement) {
+        cadenceValue.parentElement.setAttribute("title", cadenceValue.textContent || "");
+      }
+    }
+    function syncTaskLabelFilterOptions() {
+      if (!taskLabelFilter) return;
+      var values = [];
+      (Array.isArray(tasks) ? tasks : []).forEach(function(task) {
+        getEffectiveLabels(task).forEach(function(label) {
+          if (values.indexOf(label) === -1) {
+            values.push(label);
+          }
+        });
+      });
+      values.sort(function(a, b) {
+        return String(a).localeCompare(String(b));
+      });
+      var currentValue = activeLabelFilter || "";
+      taskLabelFilter.innerHTML = '<option value="">' + escapeHtml(strings.labelAllLabels || "All labels") + "</option>" + values.map(function(label) {
+        return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + "</option>";
+      }).join("");
+      taskLabelFilter.value = currentValue;
+      if (taskLabelFilter.value !== currentValue) {
+        activeLabelFilter = "";
+        taskLabelFilter.value = "";
+      }
+    }
+    function ensureValidJobSelection() {
+      if (selectedJobFolderId && !getFolderById(selectedJobFolderId)) {
+        selectedJobFolderId = "";
+      }
+      if (isCreatingJob) {
+        selectedJobId = "";
+        return;
+      }
+      var selectedJob = selectedJobId ? getJobById(selectedJobId) : null;
+      if (selectedJob && (selectedJob.folderId || "") !== selectedJobFolderId) {
+        selectedJobId = "";
+        selectedJob = null;
+      }
+      if (selectedJobId && !selectedJob) {
+        selectedJobId = "";
+      }
+      if (!selectedJobId) {
+        var visibleJobs = getVisibleJobs();
+        if (visibleJobs.length > 0) {
+          selectedJobId = visibleJobs[0].id;
+        }
+      }
+    }
+    function getSelectedJobFolder() {
+      return selectedJobFolderId ? getFolderById(selectedJobFolderId) : null;
+    }
+    restoreTaskFilter();
+    applyBoardFilterCollapseState();
+    syncAutoShowOnStartupUi();
+    syncScheduleHistoryOptions();
+    updateJobsCronPreview();
+    updateJobsFriendlyVisibility();
+    syncResearchSelectors();
+    hookResearchFormDirtyTracking();
+    hookEditorTabDirtyTracking();
+    renderResearchTab();
+    renderTelegramTab();
+    renderCockpitBoard();
+    renderExecutionDefaultsControls();
+    renderLoggingControls();
+    function parseTagList(text) {
+      if (!text) return [];
+      return String(text).split(",").map(function(entry) {
+        return entry.trim();
+      }).filter(function(entry) {
+        return entry.length > 0;
+      });
+    }
+    function normalizeTodoLabel(value) {
+      return String(value || "").trim().replace(/\s+/g, " ");
+    }
+    function normalizeTodoLabelKey(value) {
+      return normalizeTodoLabel(value).toLowerCase();
+    }
+    function dedupeStringList(values) {
+      var seen = {};
+      return (Array.isArray(values) ? values : []).map(normalizeTodoLabel).filter(function(value) {
+        var key = normalizeTodoLabelKey(value);
+        if (!key || seen[key]) {
+          return false;
+        }
+        seen[key] = true;
+        return true;
+      });
+    }
+    function isArchiveTodoSectionId(sectionId) {
+      return sectionId === "archive-completed" || sectionId === "archive-rejected";
+    }
+    function isRecurringTodoSectionId(sectionId) {
+      return sectionId === "recurring-tasks";
+    }
+    function isSpecialTodoSectionId(sectionId) {
+      return isArchiveTodoSectionId(sectionId) || isRecurringTodoSectionId(sectionId);
+    }
+    function getAllTodoCards() {
+      return cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.slice() : [];
+    }
+    function getVisibleTodoCards(filters) {
+      var allCards = getAllTodoCards();
+      if (!filters || filters.showArchived !== true) {
+        allCards = allCards.filter(function(card) {
+          return !card.archived && !isArchiveTodoSectionId(card.sectionId);
+        });
+      }
+      if (!filters || filters.showRecurringTasks !== true) {
+        allCards = allCards.filter(function(card) {
+          return !isRecurringTodoSectionId(card.sectionId);
+        });
+      }
+      return allCards;
+    }
+    function getTaskLabelCatalog() {
+      var catalog = [];
+      var seen = /* @__PURE__ */ Object.create(null);
+      (Array.isArray(tasks) ? tasks : []).forEach(function(task) {
+        getEffectiveLabels(task).forEach(function(label) {
+          var normalizedName = normalizeTodoLabel(label);
+          var key = normalizeTodoLabelKey(normalizedName);
+          if (!normalizedName || !key || seen[key]) {
+            return;
+          }
+          seen[key] = true;
+          catalog.push({
+            key,
+            name: normalizedName,
+            color: "var(--vscode-badge-background)",
+            source: "task"
+          });
+        });
+      });
+      return catalog.sort(function(left, right) {
+        return String(left.name).localeCompare(String(right.name));
+      });
+    }
+    function getLabelCatalog() {
+      var merged = [];
+      var byKey = /* @__PURE__ */ Object.create(null);
+      var boardCatalog = cockpitBoard && Array.isArray(cockpitBoard.labelCatalog) ? cockpitBoard.labelCatalog.slice() : [];
+      boardCatalog.forEach(function(entry) {
+        var normalizedName = normalizeTodoLabel(entry && entry.name);
+        var key = normalizeTodoLabelKey(entry && (entry.key || entry.name || ""));
+        if (!normalizedName || !key) {
+          return;
+        }
+        byKey[key] = {
+          key,
+          name: normalizedName,
+          color: entry.color || "var(--vscode-badge-background)",
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+          source: "board"
+        };
+      });
+      getTaskLabelCatalog().forEach(function(entry) {
+        if (!byKey[entry.key]) {
+          byKey[entry.key] = entry;
+        }
+      });
+      Object.keys(byKey).forEach(function(key) {
+        merged.push(byKey[key]);
+      });
+      return merged.sort(function(left, right) {
+        return String(left.name).localeCompare(String(right.name));
+      });
+    }
+    function getFlagCatalog() {
+      return cockpitBoard && Array.isArray(cockpitBoard.flagCatalog) ? cockpitBoard.flagCatalog.slice() : [];
+    }
+    function getFlagDefinition(flagName) {
+      var key = normalizeTodoLabelKey(flagName);
+      var catalog = getFlagCatalog();
+      for (var index = 0; index < catalog.length; index += 1) {
+        if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+          return catalog[index];
+        }
+      }
+      return null;
+    }
+    function getFlagColor(flagName) {
+      var definition = getFlagDefinition(flagName);
+      return definition && definition.color ? definition.color : "#f59e0b";
+    }
+    function getLabelDefinition(label) {
+      var key = normalizeTodoLabelKey(label);
+      var catalog = getLabelCatalog();
+      for (var index = 0; index < catalog.length; index += 1) {
+        if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+          return catalog[index];
+        }
+      }
+      return null;
+    }
+    function getLabelColor(label) {
+      var definition = getLabelDefinition(label);
+      return definition && definition.color ? definition.color : "var(--vscode-badge-background)";
+    }
+    function clearCatalogDeleteState(kind) {
+      if (!kind || kind === "label") {
+        pendingDeleteLabelName = "";
+      }
+      if (!kind || kind === "flag") {
+        pendingDeleteFlagName = "";
+      }
+    }
+    function isPendingCatalogDelete(kind, name) {
+      var pendingName = kind === "flag" ? pendingDeleteFlagName : pendingDeleteLabelName;
+      return !!pendingName && normalizeTodoLabelKey(pendingName) === normalizeTodoLabelKey(name || "");
+    }
+    function removeLabelFromCurrentTodo(label) {
+      setTodoEditorLabels(
+        currentTodoLabels.filter(function(entry) {
+          return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+        }),
+        true
+      );
+      if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(label)) {
+        selectedTodoLabelName = "";
+      }
+    }
+    function reconcileTodoEditorCatalogState() {
+      if (selectedTodoLabelName && !getLabelDefinition(selectedTodoLabelName)) {
+        var stillApplied = currentTodoLabels.some(function(label) {
+          return normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName);
+        });
+        if (!stillApplied) {
+          selectedTodoLabelName = "";
+        }
+      }
+    }
+    function getReadableTextColor(background) {
+      var value = String(background || "").trim();
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+        var hex = value.slice(1);
+        if (hex.length === 3) {
+          hex = hex.split("").map(function(part) {
+            return part + part;
+          }).join("");
+        }
+        var red = parseInt(hex.slice(0, 2), 16);
+        var green = parseInt(hex.slice(2, 4), 16);
+        var blue = parseInt(hex.slice(4, 6), 16);
+        var luminance = (red * 299 + green * 587 + blue * 114) / 1e3;
+        return luminance >= 150 ? "#111111" : "#ffffff";
+      }
+      return "var(--vscode-badge-foreground)";
+    }
+    function renderLabelChip(label, removable, selected) {
+      var color = getLabelColor(label);
+      var textColor = getReadableTextColor(color);
+      var borderColor = selected ? "var(--vscode-focusBorder)" : "var(--vscode-panel-border)";
+      return '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid " + escapeAttr(borderColor) + ';"><button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + "</button>" + (removable ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xD7</button>' : "") + "</span>";
+    }
+    function renderFlagChip(flagName, removable) {
+      var color = getFlagColor(flagName);
+      var textColor = getReadableTextColor(color);
+      return '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid color-mix(in srgb," + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;"><span>' + escapeHtml(flagName) + "</span>" + (removable ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">\xD7</button>' : "") + "</span>";
+    }
+    function setTodoEditorLabels(labels, preserveSelection) {
+      currentTodoLabels = dedupeStringList(labels);
+      if (!preserveSelection) {
+        selectedTodoLabelName = currentTodoLabels[0] || "";
+      } else if (selectedTodoLabelName && currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(selectedTodoLabelName)) < 0) {
+        selectedTodoLabelName = currentTodoLabels[0] || "";
+      }
+      syncEditorTabLabels();
+    }
+    function syncLabelCatalog() {
+      if (!todoLabelCatalog) return;
+      var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+      var catalog = getLabelCatalog().filter(function(entry) {
+        return addedKeys.indexOf(normalizeTodoLabelKey(entry.name)) < 0;
+      });
+      if (catalog.length === 0) {
+        todoLabelCatalog.innerHTML = "";
+        return;
+      }
+      todoLabelCatalog.innerHTML = catalog.map(function(entry) {
+        var bg = entry.color || "var(--vscode-badge-background)";
+        var fg = getReadableTextColor(bg);
+        var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
+        var canDelete = entry.source !== "task";
+        var pendingDelete = canDelete && isPendingCatalogDelete("label", entry.name);
+        return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1.5px solid " + escapeAttr(borderColor) + ';font-size:12px;"><button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + "</button>" + (pendingDelete ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">\u270E</button>' + (canDelete ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">\xD7</button>' : "")) + "</span>";
+      }).join("");
+    }
+    function syncTodoLabelSuggestions() {
+      if (!todoLabelSuggestions) {
+        return;
+      }
+      var inputValue = todoLabelsInput ? normalizeTodoLabelKey(todoLabelsInput.value) : "";
+      var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+      var labels = dedupeStringList(
+        getLabelCatalog().map(function(entry) {
+          return entry.name;
+        }).concat(currentTodoLabels)
+      ).filter(function(label) {
+        return addedKeys.indexOf(normalizeTodoLabelKey(label)) < 0;
+      }).sort(function(left, right) {
+        return left.localeCompare(right);
+      });
+      if (inputValue) {
+        labels = labels.filter(function(label) {
+          return normalizeTodoLabelKey(label).indexOf(inputValue) >= 0;
+        });
+      } else {
+        labels = [];
+      }
+      if (labels.length === 0) {
+        todoLabelSuggestions.style.display = "none";
+        todoLabelSuggestions.innerHTML = "";
+        return;
+      }
+      todoLabelSuggestions.style.display = "flex";
+      todoLabelSuggestions.innerHTML = labels.map(function(label) {
+        var bg = getLabelColor(label);
+        var fg = getReadableTextColor(bg);
+        return '<button type="button" data-label-suggestion="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1px solid color-mix(in srgb," + escapeAttr(bg) + ' 60%,var(--vscode-panel-border));font-size:12.5px;line-height:1.5;">' + escapeHtml(label) + "</button>";
+      }).join("");
+    }
+    function syncTodoLabelEditor() {
+      if (todoLabelChipList) {
+        todoLabelChipList.innerHTML = currentTodoLabels.length > 0 ? currentTodoLabels.map(function(label) {
+          return renderLabelChip(
+            label,
+            true,
+            normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName)
+          );
+        }).join("") : '<div class="note">No labels yet.</div>';
+      }
+      var selectedDefinition = selectedTodoLabelName ? getLabelDefinition(selectedTodoLabelName) : null;
+      if (todoLabelColorInput) {
+        var isTypingNew = todoLabelsInput && todoLabelsInput.value.trim();
+        if (selectedTodoLabelName) {
+          todoLabelColorInput.value = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
+            selectedDefinition && selectedDefinition.color ? selectedDefinition.color : ""
+          ) ? selectedDefinition.color : "#4f8cff";
+        } else if (!isTypingNew) {
+          todoLabelColorInput.value = "#4f8cff";
+        }
+        todoLabelColorInput.disabled = false;
+      }
+      if (todoLabelColorSaveBtn) {
+        todoLabelColorSaveBtn.disabled = !todoLabelsInput || !todoLabelsInput.value.trim();
+      }
+      syncTodoLabelSuggestions();
+      syncLabelCatalog();
+    }
+    function addEditorLabelFromInput() {
+      if (!todoLabelsInput) {
+        emitWebviewDebug("todoLabelAddIgnored", { reason: "missingInput" });
+        return;
+      }
+      clearCatalogDeleteState("label");
+      var label = normalizeTodoLabel(todoLabelsInput.value);
+      if (!label) {
+        emitWebviewDebug("todoLabelAddIgnored", {
+          reason: "emptyLabel",
+          rawValue: String(todoLabelsInput.value || "")
+        });
+        return;
+      }
+      emitWebviewDebug("todoLabelAddAccepted", {
+        label,
+        editingExisting: !!editingLabelOriginalName,
+        color: todoLabelColorInput ? todoLabelColorInput.value : ""
+      });
+      var prevName = editingLabelOriginalName;
+      editingLabelOriginalName = "";
+      var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
+      todoLabelsInput.value = "";
+      if (prevName) {
+        var prevKey = normalizeTodoLabelKey(prevName);
+        var currentLabelKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+        var prevIndex = currentLabelKeys.indexOf(prevKey);
+        if (prevIndex >= 0) {
+          var renamedLabels = currentTodoLabels.slice();
+          renamedLabels.splice(prevIndex, 1, label);
+          setTodoEditorLabels(renamedLabels, true);
+          selectedTodoLabelName = label;
+        }
+        if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, previousName: prevName, color: pendingColor } });
+        }
+        if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+        syncTodoEditorTransientDraft();
+        syncTodoLabelEditor();
+        return;
+      }
+      setTodoEditorLabels(currentTodoLabels.concat([label]), true);
+      selectedTodoLabelName = label;
+      if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+      syncTodoEditorTransientDraft();
+      syncTodoLabelEditor();
+      if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+        vscode.postMessage({
+          type: "saveTodoLabelDefinition",
+          data: { name: label, color: pendingColor }
+        });
+      }
+    }
+    function removeEditorLabel(label) {
+      clearCatalogDeleteState("label");
+      setTodoEditorLabels(
+        currentTodoLabels.filter(function(entry) {
+          return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+        }),
+        true
+      );
+      syncTodoLabelEditor();
+    }
+    function bindRenderedCockpitBoardInteractions() {
+      bindBoardColumnInteractions({
+        boardColumns,
+        getBoardColumns: function() {
+          return boardColumns;
+        },
+        document,
+        window,
+        vscode,
+        renderCockpitBoard,
+        openTodoEditor,
+        openTodoDeleteModal,
+        handleSectionCollapse: function(collapseBtn) {
+          handleBoardSectionCollapse(collapseBtn, {
+            toggleSectionCollapsed,
+            collapsedSections
+          });
+        },
+        handleSectionRename: function(sectionRenameBtn) {
+          handleBoardSectionRename(sectionRenameBtn, {
+            document,
+            vscode,
+            setTimeout
+          });
+        },
+        handleSectionDelete: function(sectionDeleteBtn) {
+          handleBoardSectionDelete(sectionDeleteBtn, {
+            strings,
+            vscode,
+            setTimeout
+          });
+        },
+        handleTodoCompletion: function(completeToggle) {
+          handleBoardTodoCompletion(completeToggle, {
+            cockpitBoard,
+            document,
+            strings,
+            setTimeout,
+            vscode
+          });
+        },
+        handleTodoReject: function(rejectBtn) {
+          var todoId = rejectBtn.getAttribute("data-todo-reject") || "";
+          if (!todoId) {
+            return;
+          }
+          vscode.postMessage({ type: "rejectTodo", todoId });
+        },
+        handleTodoRestore: function(restoreBtn) {
+          var todoId = restoreBtn.getAttribute("data-todo-restore") || "";
+          if (!todoId) {
+            return;
+          }
+          vscode.postMessage({ type: "archiveTodo", todoId, archived: false });
+        },
+        setSelectedTodoId: function(todoId) {
+          selectedTodoId = todoId;
+        },
+        getDraggingSectionId: function() {
+          return draggingSectionId;
+        },
+        setDraggingSectionId: function(value) {
+          draggingSectionId = value;
+        },
+        getLastDragOverSectionId: function() {
+          return lastDragOverSectionId;
+        },
+        setLastDragOverSectionId: function(value) {
+          lastDragOverSectionId = value;
+        },
+        getDraggingTodoId: function() {
+          return draggingTodoId;
+        },
+        setDraggingTodoId: function(value) {
+          draggingTodoId = value;
+        },
+        setIsBoardDragging: function(value) {
+          isBoardDragging = value;
+        },
+        requestAnimationFrame,
+        finishBoardDragState,
+        isArchiveTodoSectionId,
+        isSpecialTodoSectionId
+      });
+    }
+    function ensureTodoEditorListenersBound() {
+      if (todoEditorListenersBound) {
+        return;
+      }
+      todoEditorListenersBound = true;
+      [todoTitleInput, todoDescriptionInput, todoDueInput].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("input", function() {
+          syncTodoDraftFromInputs("input");
+        });
+      });
+      [todoPriorityInput, todoSectionInput, todoLinkedTaskSelect].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("change", function() {
+          syncTodoDraftFromInputs("change");
+          if (element === todoPriorityInput) {
+            syncTodoPriorityInputTone();
+          }
+        });
+      });
+      bindDebugClickAttempts(todoDetailForm, {
+        selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
+        eventName: "todoDetailClickAttempt"
+      });
+      document.addEventListener("click", function(event) {
+        var removeBtn = getClosestEventTarget(event, "[data-flag-chip-remove]");
+        if (removeBtn) {
+          currentTodoFlag = "";
+          syncTodoFlagDraft();
+          syncFlagEditor();
+          return;
+        }
+        var catalogSelect = getClosestEventTarget(event, "[data-flag-catalog-select]");
+        if (catalogSelect) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCatalogDeleteState("flag");
+          var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
+          if (!flagName) return;
+          currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
+          syncTodoFlagDraft();
+          syncFlagEditor();
+          return;
+        }
+        var catalogEdit = getClosestEventTarget(event, "[data-flag-catalog-edit]");
+        if (catalogEdit) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCatalogDeleteState("flag");
+          var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
+          var feCatalog = getFlagCatalog();
+          var feEntry = null;
+          for (var fei = 0; fei < feCatalog.length; fei++) {
+            if (normalizeTodoLabelKey(feCatalog[fei].name) === normalizeTodoLabelKey(feName)) {
+              feEntry = feCatalog[fei];
+              break;
+            }
+          }
+          var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+          var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+          if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
+          if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
+          editingFlagOriginalName = feName;
+          syncTodoEditorTransientDraft();
+          if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
+          return;
+        }
+        var catalogConfirmDelete = getClosestEventTarget(event, "[data-flag-catalog-confirm-delete]");
+        if (catalogConfirmDelete) {
+          event.preventDefault();
+          event.stopPropagation();
+          var confirmFlagName = catalogConfirmDelete.getAttribute("data-flag-catalog-confirm-delete") || "";
+          if (!confirmFlagName) return;
+          clearCatalogDeleteState("flag");
+          if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
+            currentTodoFlag = "";
+            syncTodoFlagDraft();
+          }
+          syncFlagEditor();
+          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
+          return;
+        }
+        var catalogDelete = getClosestEventTarget(event, "[data-flag-catalog-delete]");
+        if (catalogDelete) {
+          event.preventDefault();
+          event.stopPropagation();
+          var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
+          if (!flagName) return;
+          pendingDeleteFlagName = flagName;
+          syncFlagEditor();
+        }
+      });
+    }
+    function syncFlagEditor() {
+      var todoflagCurrentEl = document.getElementById("todo-flag-current");
+      var todoFlagPickerEl = document.getElementById("todo-flag-picker");
+      if (todoflagCurrentEl) {
+        if (currentTodoFlag) {
+          todoflagCurrentEl.innerHTML = renderFlagChip(currentTodoFlag, true);
+        } else {
+          todoflagCurrentEl.innerHTML = '<span class="note">No flag set.</span>';
+        }
+      }
+      if (todoFlagPickerEl) {
+        var catalog = getFlagCatalog();
+        if (catalog.length === 0) {
+          todoFlagPickerEl.innerHTML = "";
+        } else {
+          todoFlagPickerEl.innerHTML = catalog.map(function(entry) {
+            var bg = entry.color || "#f59e0b";
+            var fg = getReadableTextColor(bg);
+            var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
+            var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
+            var pendingDelete = isPendingCatalogDelete("flag", entry.name);
+            return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:" + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + "</button>" + (pendingDelete ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">\u270E</button><button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">\xD7</button>') + "</span>";
+          }).join("");
+        }
+      }
+      syncEditorTabLabels();
+    }
+    function addFlagFromInput() {
+      clearCatalogDeleteState("flag");
+      var todoFlagNameInput2 = document.getElementById("todo-flag-name-input");
+      var todoFlagColorInput2 = document.getElementById("todo-flag-color-input");
+      if (!todoFlagNameInput2) {
+        emitWebviewDebug("todoFlagAddIgnored", { reason: "missingInput" });
+        return;
+      }
+      var name = normalizeTodoLabel(todoFlagNameInput2.value);
+      if (!name) {
+        emitWebviewDebug("todoFlagAddIgnored", {
+          reason: "emptyFlag",
+          rawValue: String(todoFlagNameInput2.value || "")
+        });
+        return;
+      }
+      var color = todoFlagColorInput2 ? todoFlagColorInput2.value : "#f59e0b";
+      emitWebviewDebug("todoFlagAddAccepted", {
+        flag: name,
+        editingExisting: !!editingFlagOriginalName,
+        color
+      });
+      var prevName = editingFlagOriginalName;
+      editingFlagOriginalName = "";
+      todoFlagNameInput2.value = "";
+      if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(name)) {
+        if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+          currentTodoFlag = name;
+        }
+      }
+      vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name, previousName: prevName || void 0, color } });
+      if (!prevName) {
+        currentTodoFlag = name;
+      }
+      syncTodoFlagDraft();
+      syncTodoEditorTransientDraft();
+      syncFlagEditor();
+    }
+    function toLocalDateTimeInput(value) {
+      if (!value) return "";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return "";
+      var year = date.getFullYear();
+      var month = padNumber(date.getMonth() + 1);
+      var day = padNumber(date.getDate());
+      var hour = padNumber(date.getHours());
+      var minute = padNumber(date.getMinutes());
+      return year + "-" + month + "-" + day + "T" + hour + ":" + minute;
+    }
+    function fromLocalDateTimeInput(value) {
+      if (!value) return void 0;
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return void 0;
+      return date.toISOString();
+    }
+    function formatTodoDate(value) {
+      if (!value) return "";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return String(value);
+      return date.toLocaleString(locale || void 0, {
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+    }
+    function getTodoPriorityLabel(priority) {
+      switch (priority) {
+        case "low":
+          return strings.boardPriorityLow || "Low";
+        case "medium":
+          return strings.boardPriorityMedium || "Medium";
+        case "high":
+          return strings.boardPriorityHigh || "High";
+        case "urgent":
+          return strings.boardPriorityUrgent || "Urgent";
+        default:
+          return strings.boardPriorityNone || "None";
+      }
+    }
+    function getTodoPriorityRank(priority) {
+      switch (priority) {
+        case "urgent":
+          return 4;
+        case "high":
+          return 3;
+        case "medium":
+          return 2;
+        case "low":
+          return 1;
+        default:
+          return 0;
+      }
+    }
+    function getTodoPriorityCardBg(priority, isSelected) {
+      if (isSelected) return "var(--vscode-list-activeSelectionBackground)";
+      switch (priority) {
+        case "urgent":
+          return "color-mix(in srgb, #ef4444 12%, var(--vscode-sideBar-background))";
+        case "high":
+          return "color-mix(in srgb, #f59e0b 12%, var(--vscode-sideBar-background))";
+        case "medium":
+          return "color-mix(in srgb, #3b82f6 12%, var(--vscode-sideBar-background))";
+        case "low":
+          return "color-mix(in srgb, #6b7280 12%, var(--vscode-sideBar-background))";
+        default:
+          return "color-mix(in srgb, #9ca3af 6%, var(--vscode-sideBar-background))";
+      }
+    }
+    function getTodoStatusLabel(status) {
+      switch (status) {
+        case "ready":
+          return strings.boardStatusReady || "Ready";
+        case "completed":
+          return strings.boardStatusCompleted || "Completed";
+        case "rejected":
+          return strings.boardStatusRejected || "Rejected";
+        default:
+          return strings.boardStatusActive || "Active";
+      }
+    }
+    function getTodoArchiveOutcomeLabel(outcome) {
+      switch (outcome) {
+        case "completed-successfully":
+          return strings.boardArchiveCompletedSuccessfully || "Completed successfully";
+        case "rejected":
+          return strings.boardArchiveRejected || "Rejected";
+        default:
+          return strings.boardAllArchiveOutcomes || "All outcomes";
+      }
+    }
+    function getTodoCommentSourceLabel(source) {
+      switch (source) {
+        case "bot-mcp":
+          return strings.boardCommentSourceBotMcp || "Bot MCP";
+        case "bot-manual":
+          return strings.boardCommentSourceBotManual || "Bot manual";
+        case "system-event":
+          return strings.boardCommentSourceSystemEvent || "System event";
+        default:
+          return strings.boardCommentSourceHumanForm || "Human form";
+      }
+    }
+    function getTodoDescriptionPreview(description) {
+      var text = String(description || "").trim().replace(/\s+/g, " ");
+      if (!text) {
+        return strings.boardDescriptionPreviewEmpty || "No description yet.";
+      }
+      return text.length > 140 ? text.slice(0, 137) + "..." : text;
+    }
+    function getTodoFilters() {
+      var filters = cockpitBoard && cockpitBoard.filters ? cockpitBoard.filters : {};
+      return {
+        searchText: filters.searchText || "",
+        labels: Array.isArray(filters.labels) ? filters.labels : [],
+        priorities: Array.isArray(filters.priorities) ? filters.priorities : [],
+        statuses: Array.isArray(filters.statuses) ? filters.statuses : [],
+        archiveOutcomes: Array.isArray(filters.archiveOutcomes) ? filters.archiveOutcomes : [],
+        flags: Array.isArray(filters.flags) ? filters.flags : [],
+        sectionId: filters.sectionId || "",
+        sortBy: filters.sortBy || "manual",
+        sortDirection: filters.sortDirection || "asc",
+        viewMode: filters.viewMode === "list" ? "list" : "board",
+        showArchived: filters.showArchived === true,
+        showRecurringTasks: filters.showRecurringTasks === true,
+        hideCardDetails: filters.hideCardDetails === true
+      };
+    }
+    function updateTodoFilters(partial) {
+      var next = Object.assign({}, getTodoFilters(), partial || {});
+      if (partial && typeof partial.hideCardDetails === "boolean") {
+        boardCardDetailsHidden = partial.hideCardDetails;
+        try {
+          localStorage.setItem("cockpit-hide-card-details", boardCardDetailsHidden ? "1" : "0");
+        } catch (_e) {
+        }
+      }
+      if (!cockpitBoard) {
+        cockpitBoard = {
+          sections: [],
+          cards: [],
+          labelCatalog: [],
+          archives: { completedSuccessfully: [], rejected: [] },
+          filters: {},
+          updatedAt: ""
+        };
+      }
+      cockpitBoard.filters = next;
+      renderCockpitBoard();
+      vscode.postMessage({ type: "setTodoFilters", data: next });
+    }
+    function hasActiveTodoFilters(filters) {
+      var current = filters || getTodoFilters();
+      return Boolean(
+        current.searchText && String(current.searchText).trim() || Array.isArray(current.labels) && current.labels.length > 0 || Array.isArray(current.priorities) && current.priorities.length > 0 || Array.isArray(current.statuses) && current.statuses.length > 0 || Array.isArray(current.archiveOutcomes) && current.archiveOutcomes.length > 0 || Array.isArray(current.flags) && current.flags.length > 0 || current.sectionId && String(current.sectionId).trim() || current.showArchived === true || current.showRecurringTasks === true || current.hideCardDetails === true
+      );
+    }
+    function clearTodoFilters() {
+      updateTodoFilters({
+        searchText: "",
+        labels: [],
+        priorities: [],
+        statuses: [],
+        archiveOutcomes: [],
+        flags: [],
+        sectionId: "",
+        showArchived: false,
+        showRecurringTasks: false,
+        hideCardDetails: false
+      });
+    }
+    function getTodoSections(filters) {
+      var sections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice() : [];
+      sections.sort(function(left, right) {
+        return (left.order || 0) - (right.order || 0);
+      });
+      return sections.filter(function(section) {
+        if (!(filters && filters.showArchived === true) && isArchiveTodoSectionId(section.id)) {
+          return false;
+        }
+        if (!(filters && filters.showRecurringTasks === true) && isRecurringTodoSectionId(section.id)) {
+          return false;
+        }
+        return true;
+      });
+    }
+    function getEditableTodoSections() {
+      return getTodoSections({ showArchived: true, showRecurringTasks: true }).filter(function(section) {
+        return !isSpecialTodoSectionId(section.id);
+      });
+    }
+    function isTodoReadyForFinalize(card) {
+      return !!(card && !card.archived && card.status === "ready");
+    }
+    function getTodoCompletionActionType(card) {
+      return isTodoReadyForFinalize(card) ? "finalizeTodo" : "approveTodo";
+    }
+    function getTodoCompletionActionLabel(card) {
+      return isTodoReadyForFinalize(card) ? strings.boardFinalizeTodo || "Final Accept" : strings.boardApproveTodo || "Approve";
+    }
+    function isTodoCompleted(card) {
+      return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
+    }
+    function renderTodoCompletionButton(card) {
+      var isArchivedCard = !!(card && card.archived);
+      var title = isArchivedCard ? strings.boardRestoreTodo || "Restore" : getTodoCompletionActionLabel(card);
+      var icon = isTodoCompleted(card) ? "\u2713" : isTodoReadyForFinalize(card) ? "\u2713\u2713" : "\u25CB";
+      var actionAttr = isArchivedCard ? "data-todo-restore" : "data-todo-complete";
+      return '<button type="button" class="todo-complete-button" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? "var(--vscode-button-background)" : "var(--vscode-input-background)") + ";color:" + (isTodoCompleted(card) ? "var(--vscode-button-foreground)" : "var(--vscode-foreground)") + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;"><span aria-hidden="true">' + escapeHtml(icon) + "</span></button>";
+    }
+    function renderTodoDragHandle(card) {
+      if (!card || card.archived) {
+        return "";
+      }
+      return '<span class="cockpit-drag-handle" data-todo-drag-handle="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderTodo || "Drag todo") + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+    }
+    function renderSectionDragHandle(section, isArchiveSection) {
+      if (!section || isArchiveSection) {
+        return "";
+      }
+      return '<span class="cockpit-drag-handle" data-section-drag-handle="' + escapeAttr(section.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderSection || "Drag section") + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+    }
+    function getLinkedTask(taskId) {
+      if (!taskId) return null;
+      for (var i = 0; i < tasks.length; i += 1) {
+        if (tasks[i] && tasks[i].id === taskId) {
+          return tasks[i];
+        }
+      }
+      return null;
+    }
+    function cardMatchesTodoFilters(card, filters) {
+      if (!filters.showArchived && card.archived) {
+        return false;
+      }
+      if (!filters.showRecurringTasks && isRecurringTodoSectionId(card.sectionId)) {
+        return false;
+      }
+      if (filters.sectionId && card.sectionId !== filters.sectionId) {
+        return false;
+      }
+      if (filters.labels.length > 0) {
+        var hasLabel = (card.labels || []).some(function(label) {
+          return filters.labels.indexOf(label) >= 0;
+        });
+        if (!hasLabel) return false;
+      }
+      if (filters.priorities.length > 0 && filters.priorities.indexOf(card.priority || "none") < 0) {
+        return false;
+      }
+      if (filters.statuses.length > 0 && filters.statuses.indexOf(card.status || "active") < 0) {
+        return false;
+      }
+      if (filters.archiveOutcomes.length > 0) {
+        if (!card.archived || filters.archiveOutcomes.indexOf(card.archiveOutcome || "") < 0) {
+          return false;
+        }
+      }
+      if (filters.flags.length > 0) {
+        var hasFlag = (card.flags || []).some(function(flag) {
+          return filters.flags.indexOf(flag) >= 0;
+        });
+        if (!hasFlag) return false;
+      }
+      if (filters.searchText) {
+        var needle = String(filters.searchText).toLowerCase();
+        var commentsText = (card.comments || []).map(function(comment) {
+          return (comment.author || "") + " " + (comment.body || "");
+        }).join(" ");
+        var haystack = [
+          card.title || "",
+          card.description || "",
+          (card.labels || []).join(" "),
+          (card.flags || []).join(" "),
+          commentsText
+        ].join(" ").toLowerCase();
+        if (haystack.indexOf(needle) < 0) {
+          return false;
+        }
+      }
+      return true;
+    }
+    function sortTodoCards(cards, filters) {
+      var direction = filters.sortDirection === "desc" ? -1 : 1;
+      return cards.slice().sort(function(left, right) {
+        var result = 0;
+        switch (filters.sortBy) {
+          case "dueAt": {
+            var leftDue = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+            var rightDue = right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+            result = leftDue - rightDue;
+            break;
+          }
+          case "priority":
+            result = getTodoPriorityRank(left.priority) - getTodoPriorityRank(right.priority);
+            break;
+          case "updatedAt":
+            result = new Date(left.updatedAt || 0).getTime() - new Date(right.updatedAt || 0).getTime();
+            break;
+          case "createdAt":
+            result = new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime();
+            break;
+          default:
+            result = (left.order || 0) - (right.order || 0);
+            break;
+        }
+        if (result === 0) {
+          result = String(left.title || "").localeCompare(String(right.title || ""));
+        }
+        return result * direction;
+      });
+    }
+    function renderTodoFilterControls(filters, sections, cards) {
+      var labels = dedupeStringList(
+        getLabelCatalog().map(function(entry) {
+          return entry.name;
+        }).concat((Array.isArray(cards) ? cards : []).reduce(function(all, card) {
+          return all.concat(card.labels || []);
+        }, []))
+      ).sort();
+      var flags = dedupeStringList(
+        getFlagCatalog().map(function(entry) {
+          return entry.name;
+        }).concat((Array.isArray(cards) ? cards : []).reduce(function(all, card) {
+          return all.concat(card.flags || []);
+        }, []))
+      ).sort();
+      if (todoSearchInput) todoSearchInput.value = filters.searchText || "";
+      if (todoSectionFilter) {
+        todoSectionFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllSections || "All sections") + "</option>" + sections.map(function(section) {
+          return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + "</option>";
+        }).join("");
+        todoSectionFilter.value = filters.sectionId || "";
+      }
+      if (todoLabelFilter) {
+        todoLabelFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllLabels || "All labels") + "</option>" + labels.map(function(label) {
+          return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + "</option>";
+        }).join("");
+        todoLabelFilter.value = filters.labels[0] || "";
+      }
+      if (todoFlagFilter) {
+        todoFlagFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllFlags || "All flags") + "</option>" + flags.map(function(flag) {
+          return '<option value="' + escapeAttr(flag) + '">' + escapeHtml(flag) + "</option>";
+        }).join("");
+        todoFlagFilter.value = filters.flags[0] || "";
+      }
+      if (todoPriorityFilter) {
+        var PRIORITY_FILTER_STYLES = { "": "", none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
+        todoPriorityFilter.innerHTML = [
+          { value: "", label: strings.boardAllPriorities || "All priorities" },
+          { value: "none", label: getTodoPriorityLabel("none") },
+          { value: "low", label: getTodoPriorityLabel("low") },
+          { value: "medium", label: getTodoPriorityLabel("medium") },
+          { value: "high", label: getTodoPriorityLabel("high") },
+          { value: "urgent", label: getTodoPriorityLabel("urgent") }
+        ].map(function(option) {
+          var optStyle = PRIORITY_FILTER_STYLES[option.value] || "";
+          var style = optStyle ? ' style="' + optStyle + '"' : "";
+          return '<option value="' + escapeAttr(option.value) + '"' + style + ">" + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoPriorityFilter.value = filters.priorities[0] || "";
+      }
+      if (todoStatusFilter) {
+        todoStatusFilter.innerHTML = [
+          { value: "", label: strings.boardAllStatuses || "All statuses" },
+          { value: "active", label: getTodoStatusLabel("active") },
+          { value: "ready", label: getTodoStatusLabel("ready") },
+          { value: "completed", label: getTodoStatusLabel("completed") },
+          { value: "rejected", label: getTodoStatusLabel("rejected") }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoStatusFilter.value = filters.statuses[0] || "";
+      }
+      if (todoArchiveOutcomeFilter) {
+        todoArchiveOutcomeFilter.innerHTML = [
+          { value: "", label: strings.boardAllArchiveOutcomes || "All outcomes" },
+          { value: "completed-successfully", label: getTodoArchiveOutcomeLabel("completed-successfully") },
+          { value: "rejected", label: getTodoArchiveOutcomeLabel("rejected") }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoArchiveOutcomeFilter.value = filters.archiveOutcomes[0] || "";
+      }
+      if (todoSortBy) {
+        todoSortBy.innerHTML = [
+          { value: "manual", label: strings.boardSortManual || "Manual order" },
+          { value: "dueAt", label: strings.boardSortDueAt || "Due date" },
+          { value: "priority", label: strings.boardSortPriority || "Priority" },
+          { value: "updatedAt", label: strings.boardSortUpdatedAt || "Last updated" },
+          { value: "createdAt", label: strings.boardSortCreatedAt || "Created date" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoSortBy.value = filters.sortBy || "manual";
+      }
+      if (todoSortDirection) {
+        todoSortDirection.innerHTML = [
+          { value: "asc", label: strings.boardSortAsc || "Ascending" },
+          { value: "desc", label: strings.boardSortDesc || "Descending" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoSortDirection.value = filters.sortDirection || "asc";
+      }
+      if (todoViewMode) {
+        todoViewMode.innerHTML = [
+          { value: "board", label: strings.boardViewBoard || "Board" },
+          { value: "list", label: strings.boardViewList || "List" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoViewMode.value = filters.viewMode || "board";
+      }
+      if (todoShowArchived) {
+        todoShowArchived.checked = filters.showArchived === true;
+      }
+      if (todoShowRecurringTasks) {
+        todoShowRecurringTasks.checked = filters.showRecurringTasks === true;
+      }
+      if (todoHideCardDetails) {
+        var hideCardDetails = filters.hideCardDetails === true || boardCardDetailsHidden === true;
+        todoHideCardDetails.checked = hideCardDetails;
+      }
+      document.documentElement.classList.toggle(
+        "cockpit-board-hide-card-details",
+        filters.hideCardDetails === true || boardCardDetailsHidden === true
+      );
+      if (todoClearFiltersBtn) {
+        todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters);
+      }
+      if (cockpitColSlider) {
+        var widthGroup = cockpitColSlider.closest ? cockpitColSlider.closest(".board-col-width-group") : null;
+        if (widthGroup) {
+          widthGroup.style.display = filters.viewMode === "list" ? "none" : "flex";
+        }
+      }
+    }
+    function renderTodoDetailPanel(selectedTodo, sections) {
+      var isEditingTodo = !!selectedTodo;
+      var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+      var todoDraft = isEditingTodo ? null : currentTodoDraft;
+      var isRefreshingSameTodo = isEditingTodo && todoDetailId && todoDetailId.value === selectedTodo.id;
+      var sectionOptions = getEditableTodoSections();
+      if (isEditingTodo && selectedTodo && selectedTodo.sectionId) {
+        var hasCurrentSection = sectionOptions.some(function(section) {
+          return section.id === selectedTodo.sectionId;
+        });
+        if (!hasCurrentSection) {
+          var currentSection = (Array.isArray(sections) ? sections : []).find(function(section) {
+            return section.id === selectedTodo.sectionId;
+          });
+          if (currentSection) {
+            sectionOptions = sectionOptions.concat([currentSection]);
+          }
+        }
+      }
+      syncEditorTabLabels();
+      if (!isRefreshingSameTodo) {
+        if (isEditingTodo) {
+          setTodoEditorLabels(selectedTodo.labels || [], false);
+        } else {
+          setTodoEditorLabels(currentTodoLabels, true);
+        }
+      }
+      if (todoDetailTitle) {
+        todoDetailTitle.textContent = isEditingTodo ? strings.boardDetailTitleEdit || "Edit Todo" : strings.boardDetailTitleCreate || "Create Todo";
+      }
+      if (todoDetailModeNote) {
+        todoDetailModeNote.textContent = isEditingTodo ? strings.boardDetailModeEdit || "Update this todo." : strings.boardDetailModeCreate || "Fill the form to create a new todo.";
+      }
+      if (todoDetailId) todoDetailId.value = isEditingTodo ? selectedTodo.id : "";
+      if (!isRefreshingSameTodo) {
+        if (todoTitleInput) todoTitleInput.value = isEditingTodo ? selectedTodo.title || "" : todoDraft.title || "";
+        if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? selectedTodo.description || "" : todoDraft.description || "";
+        if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : todoDraft.dueAt || "";
+        if (todoLabelsInput) todoLabelsInput.value = isEditingTodo ? "" : todoDraft.labelInput || "";
+        if (todoLabelColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.labelColor || "")) {
+          todoLabelColorInput.value = todoDraft.labelColor;
+        }
+        currentTodoFlag = isEditingTodo ? (selectedTodo.flags || [])[0] || "" : todoDraft.flag || "";
+        if (todoFlagNameInput) todoFlagNameInput.value = isEditingTodo ? "" : todoDraft.flagInput || "";
+        if (todoFlagColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.flagColor || "")) {
+          todoFlagColorInput.value = todoDraft.flagColor;
+        }
+      }
+      setTodoUploadNote(strings.boardUploadFilesHint || "", "neutral");
+      syncTodoFlagDraft();
+      syncFlagEditor();
+      syncTodoLabelEditor();
+      if (todoFlagColorSaveBtn) {
+        todoFlagColorSaveBtn.disabled = !todoFlagNameInput || !todoFlagNameInput.value.trim();
+      }
+      if (todoDetailStatus) {
+        if (!isEditingTodo) {
+          todoDetailStatus.textContent = strings.boardStatusLabel ? strings.boardStatusLabel + ": " + (strings.boardStatusActive || "Active") : "Status: Active";
+        } else if (selectedTodo.archived) {
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \u2022 " + getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
+        } else {
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active");
+        }
+      }
+      if (todoPriorityInput) {
+        var prevPriority = isRefreshingSameTodo ? todoPriorityInput.value : "";
+        todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function(priority) {
+          return '<option value="' + escapeAttr(priority) + '">' + escapeHtml(getTodoPriorityLabel(priority)) + "</option>";
+        }).join("");
+        todoPriorityInput.value = isRefreshingSameTodo ? prevPriority : isEditingTodo ? selectedTodo.priority || "none" : todoDraft.priority || "none";
+        syncTodoPriorityInputTone();
+      }
+      if (todoSectionInput) {
+        var prevSection = isRefreshingSameTodo ? todoSectionInput.value : "";
+        todoSectionInput.innerHTML = sectionOptions.map(function(section) {
+          return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + "</option>";
+        }).join("");
+        if (isRefreshingSameTodo && selectHasOptionValue(todoSectionInput, prevSection)) {
+          todoSectionInput.value = prevSection;
+        } else {
+          todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : todoDraft.sectionId && selectHasOptionValue(todoSectionInput, todoDraft.sectionId) ? todoDraft.sectionId : sectionOptions[0] ? sectionOptions[0].id : "";
+        }
+      }
+      if (!isRefreshingSameTodo) {
+        syncTodoLinkedTaskOptions(isEditingTodo && selectedTodo ? selectedTodo.taskId || "" : todoDraft.taskId || "");
+      }
+      if (!isEditingTodo) {
+        currentTodoDraft.priority = todoPriorityInput ? todoPriorityInput.value || "none" : "none";
+        currentTodoDraft.sectionId = todoSectionInput ? todoSectionInput.value || "" : "";
+        currentTodoDraft.dueAt = todoDueInput ? todoDueInput.value || "" : "";
+      }
+      if (todoSaveBtn) {
+        todoSaveBtn.textContent = isEditingTodo ? strings.boardSaveUpdate || "Save Todo" : strings.boardSaveCreate || "Create Todo";
+        todoSaveBtn.disabled = isArchivedTodo;
+      }
+      if (todoCreateTaskBtn) {
+        todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo;
+      }
+      if (todoCompleteBtn) {
+        todoCompleteBtn.textContent = isEditingTodo ? getTodoCompletionActionLabel(selectedTodo) : strings.boardApproveTodo || "Approve";
+        todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+      }
+      if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+      if (todoUploadFilesBtn) todoUploadFilesBtn.disabled = !!isArchivedTodo;
+      if (todoAddCommentBtn) todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo;
+      if (todoCommentInput) {
+        todoCommentInput.disabled = !isEditingTodo || isArchivedTodo;
+        if (!isEditingTodo) {
+          todoCommentInput.value = "";
+        }
+      }
+      var linkedTask = isEditingTodo ? getLinkedTask(selectedTodo.taskId) : null;
+      if (todoLinkedTaskNote) {
+        if (!isEditingTodo) {
+          todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+        } else if (selectedTodo.archived) {
+          todoLinkedTaskNote.textContent = strings.boardReadOnlyArchived || "Archived items are read-only.";
+        } else if (selectedTodo.status === "ready") {
+          todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
+        } else if (selectedTodo.taskId && !linkedTask) {
+          todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";
+        } else if (linkedTask) {
+          todoLinkedTaskNote.textContent = (strings.boardTaskLinked || "Linked task") + ": " + (linkedTask.name || linkedTask.id);
+        } else {
+          todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+        }
+      }
+      syncEditorTabLabels();
+      if (todoCommentList) {
+        var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+        todoCommentList.innerHTML = comments.length > 0 ? comments.map(function(comment, commentIndex) {
+          var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+          var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
+          var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+          var toneClass = getTodoCommentToneClass(comment);
+          var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user" ? " is-user-form" : "";
+          return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '"><div class="todo-comment-header"><strong>#' + escapeHtml(String(sequence)) + " \u2022 " + escapeHtml(sourceLabel) + '</strong><span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span></div><div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div><div class="note todo-comment-body">' + escapeHtml(comment.body || "") + '</div><div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + "</div></article>";
+        }).join("") : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + "</div>";
+      }
+    }
+    function syncTodoLinkedTaskOptions(preferredTaskId) {
+      if (!todoLinkedTaskSelect) {
+        return;
+      }
+      var currentValue = todoLinkedTaskSelect.value || "";
+      var nextValue = preferredTaskId || currentValue;
+      todoLinkedTaskSelect.innerHTML = '<option value="">' + escapeHtml(strings.boardLinkedTaskNone || "No linked task") + "</option>" + tasks.map(function(task) {
+        return '<option value="' + escapeAttr(task.id) + '">' + escapeHtml(task.name || task.id) + "</option>";
+      }).join("");
+      if (!nextValue) {
+        todoLinkedTaskSelect.value = "";
+        if (!selectedTodoId) {
+          currentTodoDraft.taskId = "";
+        }
+        return;
+      }
+      var hasTaskOption = tasks.some(function(task) {
+        return task && task.id === nextValue;
+      });
+      todoLinkedTaskSelect.value = hasTaskOption ? nextValue : "";
+      if (!selectedTodoId) {
+        currentTodoDraft.taskId = todoLinkedTaskSelect.value || "";
+      }
+    }
+    function renderCockpitBoard() {
+      ensureTodoEditorListenersBound();
+      var filters = getTodoFilters();
+      var sections = getTodoSections(filters);
+      var allSections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice().sort(function(left, right) {
+        return (left.order || 0) - (right.order || 0);
+      }) : [];
+      var allCards = getAllTodoCards();
+      var cards = getVisibleTodoCards(filters);
+      if (selectedTodoId) {
+        var selectedTodo = allCards.find(function(card) {
+          return card && card.id === selectedTodoId;
+        });
+        if (selectedTodo && selectedTodo.archived && filters.showArchived !== true) {
+          selectedTodoId = null;
+        }
+        if (selectedTodo && isRecurringTodoSectionId(selectedTodo.sectionId) && filters.showRecurringTasks !== true) {
+          selectedTodoId = null;
+        }
+        var hasSelectedTodo = allCards.some(function(card) {
+          return card && card.id === selectedTodoId;
+        });
+        if (!hasSelectedTodo) {
+          selectedTodoId = null;
+        }
+      }
+      renderTodoFilterControls(filters, sections, cards);
+      if (boardSummary) {
+        var activeCount = allCards.filter(function(card) {
+          return !card.archived;
+        }).length;
+        var archivedCount = allCards.filter(function(card) {
+          return card.archived;
+        }).length;
+        boardSummary.textContent = (strings.boardSections || "Sections") + ": " + sections.length + " \u2022 " + (strings.boardCards || "Cards") + ": " + activeCount + " \u2022 Archived: " + String(archivedCount) + " \u2022 " + (strings.boardComments || "Comments") + ": " + allCards.reduce(function(count, card) {
+          return count + (Array.isArray(card.comments) ? card.comments.length : 0);
+        }, 0);
+      }
+      if (!boardColumns) {
+        return;
+      }
+      var visibleSections = sections.filter(function(section) {
+        return !filters.sectionId || section.id === filters.sectionId;
+      });
+      if (visibleSections.length === 0) {
+        boardColumns.innerHTML = '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + "</div>";
+        renderTodoDetailPanel(null, sections);
+        return;
+      }
+      boardColumns.innerHTML = renderTodoBoardMarkup({
+        visibleSections,
+        cards,
+        filters,
+        strings,
+        selectedTodoId,
+        collapsedSections,
+        helpers: {
+          escapeAttr,
+          escapeHtml,
+          sortTodoCards,
+          cardMatchesTodoFilters,
+          isArchiveTodoSectionId,
+          isSpecialTodoSectionId,
+          renderSectionDragHandle,
+          renderTodoCompletionCheckbox: renderTodoCompletionButton,
+          renderTodoDragHandle,
+          renderFlagChip,
+          renderLabelChip,
+          getTodoPriorityLabel,
+          getTodoStatusLabel,
+          getTodoDescriptionPreview,
+          getTodoCommentSourceLabel,
+          getTodoArchiveOutcomeLabel,
+          getTodoPriorityCardBg,
+          formatTodoDate
+        }
+      });
+      renderTodoDetailPanel(
+        selectedTodoId ? allCards.find(function(card) {
+          return card.id === selectedTodoId;
+        }) || null : null,
+        allSections
+      );
+      if (boardColumns) {
+        bindRenderedCockpitBoardInteractions();
+      }
+      scheduleBoardStickyMetrics();
+      if (todoNewBtn) {
+        todoNewBtn.onclick = function() {
+          clearCatalogDeleteState();
+          openTodoEditor("");
+        };
+      }
+      if (todoClearSelectionBtn) {
+        todoClearSelectionBtn.onclick = function() {
+          clearCatalogDeleteState();
+          selectedTodoId = null;
+          currentTodoLabels = [];
+          selectedTodoLabelName = "";
+          currentTodoFlag = "";
+          syncTodoFlagDraft();
+          renderCockpitBoard();
+          switchTab("board");
+        };
+      }
+      if (boardAddSectionBtn) {
+        boardAddSectionBtn.onclick = function() {
+          boardAddSectionBtn.style.display = "none";
+          if (boardSectionInlineForm) {
+            boardSectionInlineForm.style.display = "flex";
+            if (boardSectionNameInput) {
+              boardSectionNameInput.value = "";
+              boardSectionNameInput.focus();
+            }
+          }
+        };
+      }
+      function hideSectionForm() {
+        if (boardSectionInlineForm) boardSectionInlineForm.style.display = "none";
+        if (boardAddSectionBtn) boardAddSectionBtn.style.display = "";
+      }
+      function doAddSection() {
+        var title = boardSectionNameInput ? boardSectionNameInput.value.trim() : "";
+        if (title) {
+          vscode.postMessage({ type: "addCockpitSection", title });
+        }
+        hideSectionForm();
+      }
+      if (boardSectionSaveBtn) {
+        boardSectionSaveBtn.onclick = doAddSection;
+      }
+      if (boardSectionCancelBtn) {
+        boardSectionCancelBtn.onclick = hideSectionForm;
+      }
+      if (boardSectionNameInput) {
+        boardSectionNameInput.onkeydown = function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            doAddSection();
+          }
+          if (e.key === "Escape") {
+            hideSectionForm();
+          }
+        };
+      }
+      if (cockpitColSlider) {
+        cockpitColSlider.oninput = function() {
+          var w = Number(cockpitColSlider.value);
+          applyCockpitColumnScale(w);
+          try {
+            localStorage.setItem("cockpit-col-width", w);
+          } catch (e) {
+          }
+        };
+      }
+      if (todoBackBtn) {
+        todoBackBtn.onclick = function() {
+          switchTab("board");
+        };
+      }
+      if (todoSearchInput) {
+        todoSearchInput.oninput = function() {
+          updateTodoFilters({ searchText: todoSearchInput.value || "" });
+        };
+      }
+      if (todoSectionFilter) {
+        todoSectionFilter.onchange = function() {
+          updateTodoFilters({ sectionId: todoSectionFilter.value || "" });
+        };
+      }
+      if (todoLabelFilter) {
+        todoLabelFilter.onchange = function() {
+          updateTodoFilters({ labels: todoLabelFilter.value ? [todoLabelFilter.value] : [] });
+        };
+      }
+      if (todoFlagFilter) {
+        todoFlagFilter.onchange = function() {
+          updateTodoFilters({ flags: todoFlagFilter.value ? [todoFlagFilter.value] : [] });
+        };
+      }
+      if (todoPriorityFilter) {
+        todoPriorityFilter.onchange = function() {
+          updateTodoFilters({ priorities: todoPriorityFilter.value ? [todoPriorityFilter.value] : [] });
+        };
+      }
+      if (todoStatusFilter) {
+        todoStatusFilter.onchange = function() {
+          updateTodoFilters({ statuses: todoStatusFilter.value ? [todoStatusFilter.value] : [] });
+        };
+      }
+      if (todoArchiveOutcomeFilter) {
+        todoArchiveOutcomeFilter.onchange = function() {
+          updateTodoFilters({ archiveOutcomes: todoArchiveOutcomeFilter.value ? [todoArchiveOutcomeFilter.value] : [] });
+        };
+      }
+      if (todoSortBy) {
+        todoSortBy.onchange = function() {
+          updateTodoFilters({ sortBy: todoSortBy.value || "manual" });
+        };
+      }
+      if (todoSortDirection) {
+        todoSortDirection.onchange = function() {
+          updateTodoFilters({ sortDirection: todoSortDirection.value || "asc" });
+        };
+      }
+      if (todoViewMode) {
+        todoViewMode.onchange = function() {
+          updateTodoFilters({ viewMode: todoViewMode.value === "list" ? "list" : "board" });
+        };
+      }
+      if (todoShowArchived) {
+        todoShowArchived.onchange = function() {
+          updateTodoFilters({ showArchived: todoShowArchived.checked === true });
+        };
+      }
+      if (todoShowRecurringTasks) {
+        todoShowRecurringTasks.onchange = function() {
+          updateTodoFilters({ showRecurringTasks: todoShowRecurringTasks.checked === true });
+        };
+      }
+      if (todoHideCardDetails) {
+        todoHideCardDetails.onchange = function() {
+          updateTodoFilters({ hideCardDetails: todoHideCardDetails.checked === true });
+        };
+      }
+      if (todoToggleFiltersBtn) {
+        todoToggleFiltersBtn.onclick = function() {
+          if (isBoardFiltersCollapsed()) {
+            boardFiltersManualCollapsed = false;
+            boardFiltersAutoCollapsed = false;
+          } else {
+            boardFiltersManualCollapsed = true;
+          }
+          applyBoardFilterCollapseState();
+          persistTaskFilter();
+        };
+      }
+      if (todoClearFiltersBtn) {
+        todoClearFiltersBtn.onclick = function() {
+          clearTodoFilters();
+        };
+      }
+      if (todoDetailForm) {
+        todoDetailForm.onsubmit = function(event) {
+          event.preventDefault();
+          if (!todoTitleInput || !todoSectionInput || !todoPriorityInput) {
+            return;
+          }
+          syncTodoDraftFromInputs("submit");
+          var payload = {
+            title: todoTitleInput.value || "",
+            description: todoDescriptionInput ? todoDescriptionInput.value : "",
+            dueAt: fromLocalDateTimeInput(todoDueInput ? todoDueInput.value : "") || null,
+            sectionId: todoSectionInput.value || "",
+            priority: todoPriorityInput.value || "none",
+            labels: currentTodoLabels.slice(),
+            flags: currentTodoFlag ? [currentTodoFlag] : [],
+            taskId: todoLinkedTaskSelect && todoLinkedTaskSelect.value ? todoLinkedTaskSelect.value : null
+          };
+          if (selectedTodoId) {
+            vscode.postMessage({ type: "updateTodo", todoId: selectedTodoId, data: payload });
+          } else {
+            emitWebviewDebug("todoCreateSubmit", {
+              titleLength: payload.title.length,
+              sectionId: payload.sectionId,
+              taskId: payload.taskId || ""
+            });
+            vscode.postMessage({ type: "createTodo", data: payload });
+          }
+        };
+      }
+      if (todoAddCommentBtn) {
+        todoAddCommentBtn.onclick = function() {
+          if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
+            return;
+          }
+          vscode.postMessage({
+            type: "addTodoComment",
+            todoId: selectedTodoId,
+            data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" }
+          });
+          todoCommentInput.value = "";
+        };
+      }
+      if (todoCommentList) {
+        todoCommentList.onclick = function(event) {
+          var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+          if (!commentCard || !selectedTodoId) {
+            return;
+          }
+          var commentIndex = Number(commentCard.getAttribute("data-comment-index"));
+          var selectedTodo2 = findTodoById(selectedTodoId);
+          var comments = selectedTodo2 && Array.isArray(selectedTodo2.comments) ? selectedTodo2.comments : [];
+          if (commentIndex < 0 || commentIndex >= comments.length) {
+            return;
+          }
+          openTodoCommentModal(comments[commentIndex]);
+        };
+        todoCommentList.onkeydown = function(event) {
+          if (event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+          if (!commentCard) {
+            return;
+          }
+          event.preventDefault();
+          commentCard.click();
+        };
+      }
+      if (todoUploadFilesBtn) {
+        todoUploadFilesBtn.onclick = function() {
+          vscode.postMessage({
+            type: "requestTodoFileUpload",
+            todoId: selectedTodoId || void 0
+          });
+        };
+      }
+      if (todoCreateTaskBtn) {
+        todoCreateTaskBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          vscode.postMessage({ type: "createTaskFromTodo", todoId: selectedTodoId });
+        };
+      }
+      if (todoCompleteBtn) {
+        todoCompleteBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          var selectedTodo2 = cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.find(function(card) {
+            return card && card.id === selectedTodoId;
+          }) : null;
+          vscode.postMessage({
+            type: getTodoCompletionActionType(selectedTodo2),
+            todoId: selectedTodoId
+          });
+        };
+      }
+      if (todoDeleteBtn) {
+        todoDeleteBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          openTodoDeleteModal(selectedTodoId);
+        };
+      }
+      if (todoLabelAddBtn) {
+        todoLabelAddBtn.onclick = function() {
+          emitWebviewDebug("todoLabelAddButtonClick", {
+            disabled: !!todoLabelAddBtn.disabled,
+            inputValue: todoLabelsInput ? String(todoLabelsInput.value || "") : ""
+          });
+          addEditorLabelFromInput();
+        };
+      }
+      if (todoLabelsInput) {
+        todoLabelsInput.oninput = function() {
+          var label = normalizeTodoLabel(todoLabelsInput.value);
+          if (label) {
+            var def = getLabelDefinition(label);
+            if (def && def.color && todoLabelColorInput) {
+              todoLabelColorInput.value = def.color;
+            }
+            if (todoLabelColorInput) todoLabelColorInput.disabled = false;
+          } else {
+            selectedTodoLabelName = "";
+            syncTodoLabelEditor();
+          }
+          if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !todoLabelsInput.value.trim();
+          syncTodoEditorTransientDraft();
+          syncTodoLabelSuggestions();
+        };
+        todoLabelsInput.onfocus = function() {
+          syncTodoLabelSuggestions();
+        };
+        todoLabelsInput.onblur = function() {
+          setTimeout(function() {
+            if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+          }, 200);
+        };
+        todoLabelsInput.onkeydown = function(event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addEditorLabelFromInput();
+          } else if (event.key === "Escape") {
+            if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+          }
+        };
+      }
+      if (todoLabelColorInput) {
+        todoLabelColorInput.oninput = function() {
+          syncTodoEditorTransientDraft();
+        };
+        todoLabelColorInput.onchange = function() {
+          syncTodoEditorTransientDraft();
+        };
+      }
+      if (todoLabelChipList) {
+        todoLabelChipList.onclick = function(event) {
+          var removeButton = getClosestEventTarget(event, "[data-label-chip-remove]");
+          var selectButton = getClosestEventTarget(event, "[data-label-chip-select]");
+          if (removeButton) {
+            removeEditorLabel(removeButton.getAttribute("data-label-chip-remove") || "");
+            return;
+          }
+          if (selectButton) {
+            clearCatalogDeleteState("label");
+            var lname = selectButton.getAttribute("data-label-chip-select") || "";
+            selectedTodoLabelName = lname;
+            if (todoLabelsInput) {
+              todoLabelsInput.value = lname;
+              todoLabelsInput.focus();
+            }
+            syncTodoEditorTransientDraft();
+            syncTodoLabelEditor();
+          }
+        };
+      }
+      if (todoLabelColorSaveBtn) {
+        todoLabelColorSaveBtn.onclick = function() {
+          var name = todoLabelsInput ? todoLabelsInput.value.trim() : "";
+          emitWebviewDebug("todoLabelSaveButtonClick", {
+            disabled: !!todoLabelColorSaveBtn.disabled,
+            inputValue: name,
+            hasColorInput: !!todoLabelColorInput
+          });
+          if (!name || !todoLabelColorInput) {
+            emitWebviewDebug("todoLabelSaveIgnored", {
+              reason: !name ? "emptyLabel" : "missingColorInput"
+            });
+            return;
+          }
+          var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          emitWebviewDebug("todoLabelSaveAccepted", {
+            label: normalized,
+            color: todoLabelColorInput.value,
+            editingExisting: !!editingLabelOriginalName
+          });
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: editingLabelOriginalName || void 0, color: todoLabelColorInput.value } });
+          var prevName = editingLabelOriginalName;
+          if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+            var prevIdx = currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(prevName));
+            if (prevIdx >= 0) {
+              var newLabels = currentTodoLabels.slice();
+              newLabels.splice(prevIdx, 1, normalized);
+              setTodoEditorLabels(newLabels, true);
+            }
+          }
+          editingLabelOriginalName = "";
+          todoLabelsInput.value = "";
+          syncTodoEditorTransientDraft();
+          syncTodoLabelEditor();
+        };
+      }
+      if (todoLabelSuggestions) {
+        todoLabelSuggestions.onclick = function(event) {
+          var btn = getClosestEventTarget(event, "[data-label-suggestion]");
+          if (btn) {
+            var pickedLabel = btn.getAttribute("data-label-suggestion") || "";
+            var def = getLabelDefinition(pickedLabel);
+            editingLabelOriginalName = "";
+            if (def && def.color && todoLabelColorInput) {
+              todoLabelColorInput.value = def.color;
+            }
+            if (todoLabelsInput) todoLabelsInput.value = pickedLabel;
+            syncTodoEditorTransientDraft();
+            addEditorLabelFromInput();
+          }
+        };
+      }
+      if (todoLabelCatalog) {
+        todoLabelCatalog.onclick = function(event) {
+          var editBtn = getClosestEventTarget(event, "[data-label-catalog-edit]");
+          var deleteBtn = getClosestEventTarget(event, "[data-label-catalog-delete]");
+          var confirmDeleteBtn = getClosestEventTarget(event, "[data-label-catalog-confirm-delete]");
+          var selectBtn = getClosestEventTarget(event, "[data-label-catalog-select]");
+          if (editBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            clearCatalogDeleteState("label");
+            var eName = editBtn.getAttribute("data-label-catalog-edit") || "";
+            var eCatalog = getLabelCatalog();
+            var eEntry = null;
+            for (var ei = 0; ei < eCatalog.length; ei++) {
+              if (normalizeTodoLabelKey(eCatalog[ei].name) === normalizeTodoLabelKey(eName)) {
+                eEntry = eCatalog[ei];
+                break;
+              }
+            }
+            if (todoLabelsInput) todoLabelsInput.value = eEntry ? eEntry.name : eName;
+            if (todoLabelColorInput && eEntry && eEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(eEntry.color)) todoLabelColorInput.value = eEntry.color;
+            editingLabelOriginalName = eName;
+            syncTodoEditorTransientDraft();
+            if (todoLabelsInput) todoLabelsInput.focus();
+            return;
+          }
+          if (confirmDeleteBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            var confirmName = confirmDeleteBtn.getAttribute("data-label-catalog-confirm-delete") || "";
+            if (!confirmName) return;
+            clearCatalogDeleteState("label");
+            removeLabelFromCurrentTodo(confirmName);
+            syncTodoLabelEditor();
+            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: confirmName } });
+            return;
+          }
+          if (deleteBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
+            if (!name) return;
+            pendingDeleteLabelName = name;
+            syncTodoLabelEditor();
+            return;
+          }
+          if (selectBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            clearCatalogDeleteState("label");
+            var name = selectBtn.getAttribute("data-label-catalog-select") || "";
+            if (!name) return;
+            editingLabelOriginalName = "";
+            if (todoLabelsInput) todoLabelsInput.value = name;
+            syncTodoEditorTransientDraft();
+            addEditorLabelFromInput();
+          }
+        };
+      }
+      if (todoFlagColorSaveBtn) {
+        todoFlagColorSaveBtn.onclick = function() {
+          var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+          var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+          emitWebviewDebug("todoFlagSaveButtonClick", {
+            disabled: !!todoFlagColorSaveBtn.disabled,
+            hasNameInput: !!todoFlagNameInputEl,
+            hasColorInput: !!todoFlagColorInputEl
+          });
+          if (!todoFlagNameInputEl || !todoFlagColorInputEl) {
+            emitWebviewDebug("todoFlagSaveIgnored", { reason: "missingInputs" });
+            return;
+          }
+          var name = todoFlagNameInputEl.value.trim();
+          if (!name) {
+            emitWebviewDebug("todoFlagSaveIgnored", { reason: "emptyFlag" });
+            return;
+          }
+          var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          emitWebviewDebug("todoFlagSaveAccepted", {
+            flag: normalized,
+            color: todoFlagColorInputEl.value,
+            editingExisting: !!editingFlagOriginalName
+          });
+          vscode.postMessage({
+            type: "saveTodoFlagDefinition",
+            data: {
+              name: normalized,
+              previousName: editingFlagOriginalName || void 0,
+              color: todoFlagColorInputEl.value
+            }
+          });
+          var prevName = editingFlagOriginalName;
+          if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+            if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+              currentTodoFlag = normalized;
+              syncTodoFlagDraft();
+              syncFlagEditor();
+            }
+          }
+          editingFlagOriginalName = "";
+          todoFlagNameInputEl.value = "";
+          syncTodoEditorTransientDraft();
+        };
+      }
+      if (todoFlagAddBtn) {
+        todoFlagAddBtn.onclick = function() {
+          emitWebviewDebug("todoFlagAddButtonClick", {
+            disabled: !!todoFlagAddBtn.disabled,
+            inputValue: todoFlagNameInput ? String(todoFlagNameInput.value || "") : ""
+          });
+          addFlagFromInput();
+        };
+      }
+      if (todoFlagNameInput) {
+        todoFlagNameInput.oninput = function() {
+          if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !todoFlagNameInput.value.trim();
+          syncTodoEditorTransientDraft();
+        };
+        todoFlagNameInput.onkeydown = function(event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addFlagFromInput();
+          }
+        };
+      }
+      if (todoFlagColorInput) {
+        todoFlagColorInput.oninput = function() {
+          syncTodoEditorTransientDraft();
+        };
+        todoFlagColorInput.onchange = function() {
+          syncTodoEditorTransientDraft();
+        };
+      }
+    }
+    function getEditorTabLabelNode(tabName) {
+      return document.querySelector('[data-tab-label="' + tabName + '"]');
+    }
+    function getEditorTabSymbolNode(tabName) {
+      return document.querySelector('[data-tab-symbol="' + tabName + '"]');
+    }
+    function getEditorTabButton(tabName) {
+      return document.querySelector('.tab-button[data-tab="' + tabName + '"]');
+    }
+    function getTaskByIdLocal(taskId) {
+      if (!taskId) {
+        return null;
+      }
+      var taskListArray = Array.isArray(tasks) ? tasks : [];
+      for (var i = 0; i < taskListArray.length; i += 1) {
+        if (taskListArray[i] && taskListArray[i].id === taskId) {
+          return taskListArray[i];
+        }
+      }
+      return null;
+    }
+    function normalizeTaskLabelsValue(raw) {
+      return parseLabels(raw || "").join(",");
+    }
+    function getCurrentTaskEditorState() {
+      var taskNameEl = document.getElementById("task-name");
+      var promptTextEl = document.getElementById("prompt-text");
+      var scopeEl = document.querySelector('input[name="scope"]:checked');
+      var promptSourceEl = document.querySelector('input[name="prompt-source"]:checked');
+      var oneTimeEl = document.getElementById("one-time");
+      var promptSourceValue = promptSourceEl ? String(promptSourceEl.value || "inline") : "inline";
+      var promptPathValue = templateSelect ? String(templateSelect.value || "") : "";
+      if (promptSourceValue !== "inline" && !promptPathValue && pendingTemplatePath) {
+        promptPathValue = pendingTemplatePath;
+      }
+      var agentValue = agentSelect ? String(agentSelect.value || "") : "";
+      if (!agentValue && pendingAgentValue) {
+        agentValue = pendingAgentValue;
+      }
+      var modelValue = modelSelect ? String(modelSelect.value || "") : "";
+      if (!modelValue && pendingModelValue) {
+        modelValue = pendingModelValue;
+      }
+      var oneTime = !!(oneTimeEl && oneTimeEl.checked);
+      return {
+        name: taskNameEl ? String(taskNameEl.value || "") : "",
+        prompt: promptTextEl ? String(promptTextEl.value || "") : "",
+        cronExpression: cronExpression ? String(cronExpression.value || "") : "",
+        labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
+        agent: agentValue,
+        model: modelValue,
+        scope: scopeEl ? String(scopeEl.value || "workspace") : "workspace",
+        promptSource: promptSourceValue,
+        promptPath: promptPathValue,
+        oneTime,
+        chatSession: oneTime ? "" : chatSessionSelect ? String(chatSessionSelect.value || "") : "",
+        jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0
+      };
+    }
+    function getSavedTaskEditorState(task) {
+      if (!task) {
+        return null;
+      }
+      return {
+        name: String(task.name || ""),
+        prompt: typeof task.prompt === "string" ? task.prompt : "",
+        cronExpression: String(task.cronExpression || ""),
+        labels: normalizeTaskLabelsValue(toLabelString(task.labels)),
+        agent: String(task.agent || ""),
+        model: String(task.model || ""),
+        scope: String(task.scope || "workspace"),
+        promptSource: String(task.promptSource || "inline"),
+        promptPath: String(task.promptPath || ""),
+        oneTime: task.oneTime === true,
+        chatSession: task.oneTime === true ? "" : String(task.chatSession || defaultChatSession || "new"),
+        jitterSeconds: Number(task.jitterSeconds != null ? task.jitterSeconds : defaultJitterSeconds)
+      };
+    }
+    function getCurrentTodoEditorState() {
+      return {
+        title: todoTitleInput ? String(todoTitleInput.value || "") : "",
+        description: todoDescriptionInput ? String(todoDescriptionInput.value || "") : "",
+        dueAt: todoDueInput ? String(todoDueInput.value || "") : "",
+        priority: todoPriorityInput ? String(todoPriorityInput.value || "none") : "none",
+        sectionId: todoSectionInput ? String(todoSectionInput.value || "") : "",
+        taskId: todoLinkedTaskSelect ? String(todoLinkedTaskSelect.value || "") : "",
+        labels: dedupeStringList(currentTodoLabels).map(normalizeTodoLabelKey).join(","),
+        flag: normalizeTodoLabelKey(currentTodoFlag || "")
+      };
+    }
+    function getSavedTodoEditorState(card) {
+      if (!card) {
+        return null;
+      }
+      return {
+        title: String(card.title || ""),
+        description: String(card.description || ""),
+        dueAt: toLocalDateTimeInput(card.dueAt),
+        priority: String(card.priority || "none"),
+        sectionId: String(card.sectionId || ""),
+        taskId: String(card.taskId || ""),
+        labels: dedupeStringList(card.labels || []).map(normalizeTodoLabelKey).join(","),
+        flag: normalizeTodoLabelKey((card.flags || [])[0] || "")
+      };
+    }
+    function getCurrentJobEditorState() {
+      return {
+        name: jobsNameInput ? String(jobsNameInput.value || "") : "",
+        cronExpression: jobsCronInput ? String(jobsCronInput.value || "") : "",
+        folderId: jobsFolderSelect ? String(jobsFolderSelect.value || "") : ""
+      };
+    }
+    function getSavedJobEditorState(job) {
+      if (!job) {
+        return null;
+      }
+      return {
+        name: String(job.name || ""),
+        cronExpression: String(job.cronExpression || ""),
+        folderId: String(job.folderId || "")
+      };
+    }
+    function areEditorStatesEqual(left, right) {
+      if (!left || !right) {
+        return left === right;
+      }
+      var leftKeys = Object.keys(left);
+      var rightKeys = Object.keys(right);
+      if (leftKeys.length !== rightKeys.length) {
+        return false;
+      }
+      for (var i = 0; i < leftKeys.length; i += 1) {
+        var key = leftKeys[i];
+        if (left[key] !== right[key]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    function isTaskEditorDirty() {
+      if (!editingTaskId) {
+        return false;
+      }
+      return !areEditorStatesEqual(
+        getCurrentTaskEditorState(),
+        getSavedTaskEditorState(getTaskByIdLocal(editingTaskId))
+      );
+    }
+    function isTodoEditorDirty() {
+      if (!selectedTodoId) {
+        return false;
+      }
+      var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.find(function(card) {
+        return card && card.id === selectedTodoId;
+      }) : null;
+      return !areEditorStatesEqual(
+        getCurrentTodoEditorState(),
+        getSavedTodoEditorState(selectedTodo)
+      );
+    }
+    function isJobsEditorDirty() {
+      if (isCreatingJob || !selectedJobId) {
+        return false;
+      }
+      return !areEditorStatesEqual(
+        getCurrentJobEditorState(),
+        getSavedJobEditorState(getJobById(selectedJobId))
+      );
+    }
+    function setEditorTabState(tabName, options) {
+      var button = getEditorTabButton(tabName);
+      var symbolNode = getEditorTabSymbolNode(tabName);
+      var labelNode = getEditorTabLabelNode(tabName);
+      if (symbolNode) {
+        symbolNode.textContent = options.symbol || EDITOR_CREATE_SYMBOL;
+      }
+      if (labelNode) {
+        labelNode.textContent = "";
+        if (labelNode.classList) {
+          labelNode.classList.toggle("is-dirty", options.dirty === true);
+        }
+      }
+      if (button) {
+        var title = options.title || "";
+        if (options.dirty) {
+          title = title + " \u2022 " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+        }
+        button.title = title;
+        button.setAttribute("aria-label", title || tabName);
+      }
+    }
+    function syncEditorTabLabels() {
+      setEditorTabState("create", {
+        symbol: editingTaskId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+        dirty: isTaskEditorDirty(),
+        title: editingTaskId ? strings.tabTaskEditorEdit || strings.tabEdit || "Edit Task" : strings.tabTaskEditorCreate || strings.tabTaskEditor || "Create Task"
+      });
+      setEditorTabState("todo-edit", {
+        symbol: selectedTodoId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+        dirty: isTodoEditorDirty(),
+        title: selectedTodoId ? strings.tabTodoEditorEdit || strings.boardDetailTitleEdit || "Edit Todo" : strings.tabTodoEditorCreate || strings.tabTodoEditor || "Create Todo"
+      });
+      setEditorTabState("jobs-edit", {
+        symbol: isCreatingJob || !selectedJobId ? EDITOR_CREATE_SYMBOL : EDITOR_EDIT_SYMBOL,
+        dirty: isJobsEditorDirty(),
+        title: isCreatingJob || !selectedJobId ? strings.tabJobsEditorCreate || strings.tabJobsEditor || "Create Job" : strings.tabJobsEditorEdit || "Edit Job"
+      });
+    }
+    function setEditingMode(taskId) {
+      editingTaskId = taskId || null;
+      if (editTaskIdInput) editTaskIdInput.value = editingTaskId || "";
+      syncEditorTabLabels();
+      if (submitBtn) {
+        var label = editingTaskId ? strings.actionSave : strings.actionCreate;
+        if (label) submitBtn.textContent = label;
+      }
+      if (newTaskBtn) {
+        newTaskBtn.style.display = editingTaskId ? "inline-flex" : "none";
+      }
+    }
+    function openTodoEditor(todoId) {
+      clearCatalogDeleteState();
+      closeTodoDeleteModal();
+      selectedTodoId = todoId || null;
+      if (!selectedTodoId) {
+        resetTodoDraft("open-create");
+        currentTodoLabels = [];
+        selectedTodoLabelName = "";
+        currentTodoFlag = "";
+        emitWebviewDebug("openTodoEditor", { mode: "create" });
+      } else {
+        emitWebviewDebug("openTodoEditor", { mode: "edit", todoId: selectedTodoId });
+      }
+      renderCockpitBoard();
+      switchTab("todo-edit");
+    }
+    function resetTodoEditor() {
+      clearCatalogDeleteState();
+      closeTodoDeleteModal();
+      selectedTodoId = null;
+      resetTodoDraft("reset-editor");
+      currentTodoLabels = [];
+      selectedTodoLabelName = "";
+      currentTodoFlag = "";
+      renderCockpitBoard();
+    }
+    function ensureTodoDeleteModal() {
+      if (todoDeleteModalRoot && document.body.contains(todoDeleteModalRoot)) {
+        return todoDeleteModalRoot;
+      }
+      todoDeleteModalRoot = document.createElement("div");
+      todoDeleteModalRoot.className = "cockpit-inline-modal";
+      todoDeleteModalRoot.setAttribute("hidden", "hidden");
+      todoDeleteModalRoot.innerHTML = '<div class="cockpit-inline-modal-card" role="dialog" aria-modal="true" aria-labelledby="todo-delete-modal-title"><div class="cockpit-inline-modal-title" id="todo-delete-modal-title"></div><div class="note" data-todo-delete-modal-message></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-todo-delete-cancel>' + escapeHtml(strings.boardDeleteTodoCancel || "Cancel") + '</button><button type="button" class="btn-secondary" data-todo-delete-reject>' + escapeHtml(strings.boardDeleteTodoReject || "Archive as Rejected") + '</button><button type="button" class="btn-danger" data-todo-delete-permanent>' + escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + "</button></div></div>";
+      todoDeleteModalRoot.onclick = function(event) {
+        if (event.target === todoDeleteModalRoot) {
+          closeTodoDeleteModal();
+          return;
+        }
+        var cancelBtn = getClosestEventTarget(event, "[data-todo-delete-cancel]");
+        if (cancelBtn) {
+          closeTodoDeleteModal();
+          return;
+        }
+        var rejectBtn = getClosestEventTarget(event, "[data-todo-delete-reject]");
+        if (rejectBtn) {
+          submitTodoDeleteChoice("reject");
+          return;
+        }
+        var permanentBtn = getClosestEventTarget(event, "[data-todo-delete-permanent]");
+        if (permanentBtn) {
+          submitTodoDeleteChoice("permanent");
+        }
+      };
+      document.body.appendChild(todoDeleteModalRoot);
+      return todoDeleteModalRoot;
+    }
+    function closeTodoDeleteModal() {
+      pendingTodoDeleteId = "";
+      if (!todoDeleteModalRoot) {
+        return;
+      }
+      todoDeleteModalRoot.classList.remove("is-open");
+      todoDeleteModalRoot.setAttribute("hidden", "hidden");
+    }
+    function ensureTodoCommentModal() {
+      if (todoCommentModalRoot && document.body.contains(todoCommentModalRoot)) {
+        return todoCommentModalRoot;
+      }
+      todoCommentModalRoot = document.createElement("div");
+      todoCommentModalRoot.className = "cockpit-inline-modal";
+      todoCommentModalRoot.setAttribute("hidden", "hidden");
+      todoCommentModalRoot.innerHTML = '<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title"><div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div><div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div><div class="todo-comment-modal-body" id="todo-comment-modal-body"></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-comment-modal-close="1">' + escapeHtml(strings.boardCancelAction || "Cancel") + "</button></div></div>";
+      todoCommentModalRoot.onclick = function(event) {
+        if (event.target === todoCommentModalRoot) {
+          closeTodoCommentModal();
+          return;
+        }
+        var closeBtn = getClosestEventTarget(event, "[data-comment-modal-close]");
+        if (closeBtn) {
+          closeTodoCommentModal();
+        }
+      };
+      document.body.appendChild(todoCommentModalRoot);
+      return todoCommentModalRoot;
+    }
+    function closeTodoCommentModal() {
+      if (!todoCommentModalRoot) {
+        return;
+      }
+      todoCommentModalRoot.classList.remove("is-open");
+      todoCommentModalRoot.setAttribute("hidden", "hidden");
+    }
+    function openTodoCommentModal(comment) {
+      if (!comment) {
+        return;
+      }
+      var modal = ensureTodoCommentModal();
+      var titleEl = modal.querySelector("#todo-comment-modal-title");
+      var metaEl = modal.querySelector("#todo-comment-modal-meta");
+      var bodyEl = modal.querySelector("#todo-comment-modal-body");
+      var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+      var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+      if (titleEl) {
+        titleEl.textContent = strings.boardCommentModalTitle || "Comment Detail";
+      }
+      if (metaEl) {
+        metaEl.innerHTML = "<span><strong>" + escapeHtml(sourceLabel) + "</strong></span><span>" + escapeHtml(comment.author || "system") + "</span><span>" + escapeHtml(formatTodoDate(displayDate)) + "</span>";
+      }
+      if (bodyEl) {
+        bodyEl.textContent = comment.body || "";
+      }
+      modal.removeAttribute("hidden");
+      modal.classList.add("is-open");
+    }
+    function openTodoDeleteModal(todoId, options) {
+      if (!todoId) {
+        return;
+      }
+      var permanentOnly = !!(options && options.permanentOnly);
+      var todo = cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.find(function(card) {
+        return card && card.id === todoId;
+      }) : null;
+      var modal = ensureTodoDeleteModal();
+      pendingTodoDeleteId = todoId;
+      var titleEl = modal.querySelector("#todo-delete-modal-title");
+      var messageEl = modal.querySelector("[data-todo-delete-modal-message]");
+      var rejectBtn = modal.querySelector("[data-todo-delete-reject]");
+      if (titleEl) {
+        titleEl.textContent = permanentOnly ? strings.boardDeleteTodoPermanent || "Delete Permanently" : strings.boardDeleteTodoTitle || "Delete Todo";
+      }
+      if (messageEl) {
+        var promptText = permanentOnly ? strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone." : strings.boardDeleteTodoPrompt || "Choose whether this todo should be rejected into the archive or removed permanently.";
+        messageEl.textContent = todo && todo.title ? '"' + String(todo.title || "") + '". ' + promptText : promptText;
+      }
+      if (rejectBtn) {
+        rejectBtn.hidden = permanentOnly;
+      }
+      modal.removeAttribute("hidden");
+      modal.classList.add("is-open");
+      setTimeout(function() {
+        var defaultButton = modal.querySelector(permanentOnly ? "[data-todo-delete-permanent]" : "[data-todo-delete-reject]");
+        if (defaultButton && typeof defaultButton.focus === "function") {
+          defaultButton.focus();
+        }
+      }, 0);
+    }
+    function submitTodoDeleteChoice(choice) {
+      if (!pendingTodoDeleteId) {
+        closeTodoDeleteModal();
+        return;
+      }
+      var todoId = pendingTodoDeleteId;
+      closeTodoDeleteModal();
+      if (selectedTodoId === todoId) {
+        selectedTodoId = null;
+        currentTodoLabels = [];
+        selectedTodoLabelName = "";
+        currentTodoFlag = "";
+        renderCockpitBoard();
+      }
+      vscode.postMessage({
+        type: choice === "permanent" ? "purgeTodo" : "rejectTodo",
+        todoId
+      });
+    }
+    function openJobEditor(jobId) {
+      isCreatingJob = false;
+      if (typeof jobId === "string") {
+        selectedJobId = jobId;
+      } else if (!selectedJobId) {
+        var visibleJobs = getVisibleJobs();
+        selectedJobId = visibleJobs.length ? String(visibleJobs[0].id || "") : "";
+      }
+      persistTaskFilter();
+      renderJobsTab();
+      switchTab("jobs-edit");
+    }
+    function resetJobEditor() {
+      isCreatingJob = true;
+      selectedJobId = "";
+      persistTaskFilter();
+      renderJobsTab();
+      switchTab("jobs-edit");
+    }
+    function submitJobEditor() {
+      var jobName = jobsNameInput ? String(jobsNameInput.value || "").trim() : "";
+      var cronExpressionValue = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+      if (!jobName || !cronExpressionValue) {
+        emitWebviewDebug("jobSaveBlocked", {
+          isCreatingJob,
+          hasName: !!jobName,
+          hasCron: !!cronExpressionValue
+        });
+        return;
+      }
+      if (isCreatingJob || !selectedJobId) {
+        emitWebviewDebug("jobCreateSubmit", {
+          name: jobName,
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : ""
+        });
+        vscode.postMessage({
+          type: "createJob",
+          data: {
+            name: jobName,
+            cronExpression: cronExpressionValue,
+            folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : void 0
+          }
+        });
+        return;
+      }
+      vscode.postMessage({
+        type: "updateJob",
+        jobId: selectedJobId,
+        data: {
+          name: jobsNameInput ? jobsNameInput.value : "",
+          cronExpression: jobsCronInput ? jobsCronInput.value : "",
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : void 0
+        }
+      });
+    }
+    function isTabActive(tabName) {
+      var targetContent = document.getElementById(tabName + "-tab");
+      return !!(targetContent && targetContent.classList.contains("active"));
+    }
+    function switchTab(tabName) {
+      document.querySelectorAll(".tab-button").forEach(function(b) {
+        b.classList.remove("active");
+      });
+      document.querySelectorAll(".tab-content").forEach(function(c) {
+        c.classList.remove("active");
+      });
+      var targetBtn = document.querySelector(
+        '.tab-button[data-tab="' + tabName + '"]'
+      );
+      var targetContent = document.getElementById(tabName + "-tab");
+      if (targetBtn) targetBtn.classList.add("active");
+      if (targetContent) targetContent.classList.add("active");
+      if (jobsToggleSidebarBtn) {
+        jobsToggleSidebarBtn.style.display = "";
+      }
+      if (jobsShowSidebarBtn) {
+        jobsShowSidebarBtn.style.display = tabName === "jobs" && jobsSidebarHidden ? "inline-flex" : "none";
+      }
+      if (tabName === "list") {
+        refreshTaskCountdowns();
+      }
+      updateBoardAutoCollapseFromScroll(true);
+      scheduleBoardStickyMetrics();
+      maybePlayInitialHelpWarp(tabName);
+    }
+    function getInitialTabName() {
+      var tabName = typeof initialData.initialTab === "string" ? initialData.initialTab : "help";
+      switch (tabName) {
+        case "help":
+        case "settings":
+        case "research":
+        case "jobs":
+        case "jobs-edit":
+        case "list":
+        case "create":
+        case "board":
+        case "todo-edit":
+          return tabName;
+        default:
+          return "help";
+      }
+    }
+    if (agentSelect) {
+      agentSelect.addEventListener("change", function() {
+        pendingAgentValue = agentSelect ? String(agentSelect.value || "") : "";
+        emitWebviewDebug("taskAgentChanged", { value: pendingAgentValue });
+      });
+    }
+    if (modelSelect) {
+      modelSelect.addEventListener("change", function() {
+        pendingModelValue = modelSelect ? String(modelSelect.value || "") : "";
+        emitWebviewDebug("taskModelChanged", { value: pendingModelValue });
+      });
+    }
+    if (templateSelect) {
+      templateSelect.addEventListener("change", function() {
+        pendingTemplatePath = templateSelect ? templateSelect.value : "";
+      });
+    }
+    var oneTimeToggle = document.getElementById("one-time");
+    if (oneTimeToggle) {
+      oneTimeToggle.addEventListener("change", function() {
+        syncRecurringChatSessionUi();
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function(button) {
+      button.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var tabName = button.getAttribute("data-tab");
+        if (tabName) {
+          switchTab(tabName);
+        }
+      });
+    });
+    if (taskFilterBar) {
+      syncTaskFilterButtons();
+      taskFilterBar.addEventListener("click", function(e) {
+        var target = e && e.target;
+        var filterButton = target;
+        while (filterButton && filterButton !== taskFilterBar) {
+          if (filterButton.getAttribute && filterButton.getAttribute("data-filter")) {
+            break;
+          }
+          filterButton = filterButton.parentElement;
+        }
+        if (!filterButton || filterButton === taskFilterBar) return;
+        var filterValue = filterButton.getAttribute("data-filter");
+        if (!isValidTaskFilter(filterValue)) return;
+        activeTaskFilter = filterValue;
+        syncTaskFilterButtons();
+        persistTaskFilter();
+        renderTaskList(tasks);
+      });
+    }
+    if (taskLabelFilter) {
+      taskLabelFilter.addEventListener("change", function() {
+        activeLabelFilter = taskLabelFilter.value || "";
+        persistTaskFilter();
+        renderTaskList(tasks);
+      });
+    }
+    document.addEventListener("change", function(e) {
+      var target = e.target;
+      if (target && target.name === "prompt-source" && target.checked) {
+        applyPromptSource(target.value);
+      }
+    });
+    if (cronPreset && cronExpression) {
+      cronPreset.addEventListener("change", function() {
+        if (cronPreset.value) {
+          cronExpression.value = cronPreset.value;
+        }
+        updateCronPreview();
+      });
+      cronExpression.addEventListener("input", function() {
+        cronPreset.value = "";
+        updateCronPreview();
+      });
+    }
+    if (jobsCronPreset && jobsCronInput) {
+      jobsCronPreset.addEventListener("change", function() {
+        if (jobsCronPreset.value) {
+          jobsCronInput.value = jobsCronPreset.value;
+        }
+        updateJobsCronPreview();
+        syncEditorTabLabels();
+      });
+      jobsCronInput.addEventListener("input", function() {
+        jobsCronPreset.value = "";
+        updateJobsCronPreview();
+        syncEditorTabLabels();
+      });
+    }
+    if (friendlyFrequency) {
+      friendlyFrequency.addEventListener("change", function() {
+        updateFriendlyVisibility();
+      });
+    }
+    if (jobsFriendlyFrequency) {
+      jobsFriendlyFrequency.addEventListener("change", function() {
+        updateJobsFriendlyVisibility();
+        syncEditorTabLabels();
+      });
+    }
+    [telegramEnabledInput, telegramBotTokenInput, telegramChatIdInput, telegramMessagePrefixInput].forEach(function(element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", clearTelegramFeedback);
+      element.addEventListener("change", clearTelegramFeedback);
+    });
+    if (telegramSaveBtn) {
+      telegramSaveBtn.addEventListener("click", function() {
+        submitTelegramForm("saveTelegramNotification");
+      });
+    }
+    if (telegramTestBtn) {
+      telegramTestBtn.addEventListener("click", function() {
+        submitTelegramForm("testTelegramNotification");
+      });
+    }
+    if (executionDefaultsSaveBtn) {
+      executionDefaultsSaveBtn.addEventListener("click", function() {
+        vscode.postMessage({
+          type: "saveExecutionDefaults",
+          data: collectExecutionDefaultsFormData()
+        });
+      });
+    }
+    if (settingsLogLevelSelect) {
+      settingsLogLevelSelect.addEventListener("change", function() {
+        currentLogLevel = settingsLogLevelSelect.value || "info";
+        debugTools.setLogLevel(currentLogLevel);
+        renderLoggingControls();
+        vscode.postMessage({
+          type: "setLogLevel",
+          logLevel: currentLogLevel
+        });
+      });
+    }
+    if (settingsOpenLogFolderBtn) {
+      settingsOpenLogFolderBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "openLogFolder" });
+      });
+    }
+    document.addEventListener("change", function(e) {
+      var target = e && e.target;
+      if (target && target.id === "friendly-frequency") {
+        updateFriendlyVisibility();
+      }
+      if (target && target.id === "jobs-friendly-frequency") {
+        updateJobsFriendlyVisibility();
+      }
+    });
+    document.addEventListener("input", function(e) {
+      var target = e && e.target;
+      if (target && target.id === "friendly-frequency") {
+        updateFriendlyVisibility();
+      }
+      if (target && target.id === "jobs-friendly-frequency") {
+        updateJobsFriendlyVisibility();
+      }
+    });
+    if (friendlyGenerate) {
+      friendlyGenerate.addEventListener("click", function() {
+        generateCronFromFriendly();
+      });
+    }
+    if (jobsFriendlyGenerate) {
+      jobsFriendlyGenerate.addEventListener("click", function() {
+        generateJobsCronFromFriendly();
+        syncEditorTabLabels();
+      });
+    }
+    if (openGuruBtn) {
+      openGuruBtn.addEventListener("click", function() {
+        var expression = cronExpression ? cronExpression.value.trim() : "";
+        if (!expression) {
+          expression = "* * * * *";
+        }
+        var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
+        window.open(targetUrl, "_blank");
+      });
+    }
+    if (jobsOpenGuruBtn) {
+      jobsOpenGuruBtn.addEventListener("click", function() {
+        var expression = jobsCronInput ? jobsCronInput.value.trim() : "";
+        if (!expression) {
+          expression = "* * * * *";
+        }
+        var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
+        window.open(targetUrl, "_blank");
+      });
+    }
+    document.addEventListener("change", function(e) {
+      var target = e.target;
+      if (!target) return;
+      if (target.classList.contains("task-agent-select")) {
+        var taskId = target.getAttribute("data-id");
+        var value = target.value;
+        vscode.postMessage({
+          type: "updateTask",
+          taskId,
+          data: { agent: value }
+        });
+      } else if (target.classList.contains("task-model-select")) {
+        var taskId = target.getAttribute("data-id");
+        var value = target.value;
+        vscode.postMessage({
+          type: "updateTask",
+          taskId,
+          data: { model: value }
+        });
+      }
+    });
+    if (templateSelect) {
+      templateSelect.addEventListener("change", function() {
+        var selectedPath = templateSelect.value;
+        if (selectedPath) {
+          var sourceEl = document.querySelector(
+            'input[name="prompt-source"]:checked'
+          );
+          var source = sourceEl ? sourceEl.value : "inline";
+          vscode.postMessage({
+            type: "loadPromptTemplate",
+            path: selectedPath,
+            source
+          });
+        }
+      });
+    }
+    if (taskForm) {
+      taskForm.addEventListener("submit", function(e) {
+        e.preventDefault();
+        hideGlobalError();
+        var formErr = document.getElementById("form-error");
+        if (formErr) {
+          formErr.style.display = "none";
+        }
+        var taskNameEl = document.getElementById("task-name");
+        var promptTextEl = document.getElementById("prompt-text");
+        var scopeEl = document.querySelector('input[name="scope"]:checked');
+        var promptSourceEl = document.querySelector(
+          'input[name="prompt-source"]:checked'
+        );
+        var runFirstEl = document.getElementById("run-first");
+        var oneTimeEl = document.getElementById("one-time");
+        var promptSourceValue = promptSourceEl ? promptSourceEl.value : "inline";
+        var agentValue = agentSelect ? agentSelect.value : "";
+        if (!agentValue && pendingAgentValue) {
+          agentValue = pendingAgentValue;
+        }
+        var modelValue = modelSelect ? modelSelect.value : "";
+        if (!modelValue && pendingModelValue) {
+          modelValue = pendingModelValue;
+        }
+        var promptPathValue = templateSelect ? templateSelect.value : "";
+        if (promptSourceValue !== "inline" && editingTaskId && !promptPathValue && pendingTemplatePath) {
+          promptPathValue = pendingTemplatePath;
+        }
+        var taskData = {
+          name: taskNameEl ? taskNameEl.value : "",
+          prompt: promptTextEl ? promptTextEl.value : "",
+          cronExpression: cronExpression ? cronExpression.value : "",
+          labels: parseLabels(taskLabelsInput ? taskLabelsInput.value : ""),
+          agent: agentValue,
+          model: modelValue,
+          scope: scopeEl ? scopeEl.value : "workspace",
+          promptSource: promptSourceValue,
+          promptPath: promptPathValue,
+          runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
+          oneTime: oneTimeEl ? oneTimeEl.checked : false,
+          jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0,
+          enabled: editingTaskId ? editingTaskEnabled : true
+        };
+        if (!taskData.oneTime) {
+          taskData.chatSession = chatSessionSelect && chatSessionSelect.value === "continue" ? "continue" : "new";
+        }
+        var nameValue = (taskData.name || "").trim();
+        if (!nameValue) {
+          if (formErr) {
+            formErr.textContent = strings.taskNameRequired || "";
+            formErr.style.display = "block";
+          }
+          return;
+        }
+        var templateValue = (taskData.promptPath || "").trim();
+        if (promptSourceValue !== "inline" && !templateValue) {
+          if (formErr) {
+            formErr.textContent = strings.templateRequired || "";
+            formErr.style.display = "block";
+          }
+          return;
+        }
+        var promptValue = (taskData.prompt || "").trim();
+        if (!promptValue) {
+          if (formErr) {
+            formErr.textContent = strings.promptRequired || "";
+            formErr.style.display = "block";
+          }
+          return;
+        }
+        var cronValue = (taskData.cronExpression || "").trim();
+        if (!cronValue) {
+          if (formErr) {
+            formErr.textContent = strings.cronExpressionRequired || strings.invalidCronExpression || "";
+            formErr.style.display = "block";
+          }
+          return;
+        }
+        pendingSubmit = true;
+        if (submitBtn) submitBtn.disabled = true;
+        if (editingTaskId) {
+          vscode.postMessage({
+            type: "updateTask",
+            taskId: editingTaskId,
+            data: taskData
+          });
+        } else {
+          vscode.postMessage({
+            type: "createTask",
+            data: taskData
+          });
+        }
+      });
+    }
+    if (testBtn) {
+      testBtn.addEventListener("click", function() {
+        var promptTextEl = document.getElementById("prompt-text");
+        var prompt = promptTextEl ? promptTextEl.value : "";
+        var agent = agentSelect ? agentSelect.value : "";
+        var model = modelSelect ? modelSelect.value : "";
+        if (prompt) {
+          vscode.postMessage({
+            type: "testPrompt",
+            prompt,
+            agent,
+            model
+          });
+        }
+      });
+    }
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "refreshTasks" });
+        vscode.postMessage({ type: "refreshAgents" });
+        vscode.postMessage({ type: "refreshPrompts" });
+      });
+    }
+    if (autoShowStartupBtn) {
+      autoShowStartupBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "toggleAutoShowOnStartup" });
+      });
+    }
+    if (restoreHistoryBtn) {
+      restoreHistoryBtn.addEventListener("click", function() {
+        var snapshotId = scheduleHistorySelect ? scheduleHistorySelect.value : "";
+        if (!snapshotId) {
+          window.alert(
+            strings.scheduleHistoryRestoreSelectRequired || "Select a backup version first"
+          );
+          return;
+        }
+        var selectedEntry = (Array.isArray(scheduleHistory) ? scheduleHistory : []).find(
+          function(entry) {
+            return entry && entry.id === snapshotId;
+          }
+        );
+        var selectedLabel = formatHistoryLabel(selectedEntry);
+        var confirmText = (strings.scheduleHistoryRestoreConfirm || "Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}", selectedLabel).replace("{timestamp}", selectedLabel);
+        if (!window.confirm(confirmText)) {
+          return;
+        }
+        vscode.postMessage({
+          type: "restoreScheduleHistory",
+          snapshotId
+        });
+      });
+    }
+    if (researchNewBtn) {
+      researchNewBtn.addEventListener("click", function() {
+        isCreatingResearchProfile = true;
+        selectedResearchId = "";
+        resetResearchForm(null);
+        renderResearchTab();
+      });
+    }
+    if (researchSaveBtn) {
+      researchSaveBtn.addEventListener("click", function() {
+        var data = collectResearchFormData();
+        var errorMessage = validateResearchFormData(data);
+        if (errorMessage) {
+          showResearchFormError(errorMessage);
+          return;
+        }
+        clearResearchFormError();
+        if (selectedResearchId) {
+          vscode.postMessage({
+            type: "updateResearchProfile",
+            researchId: selectedResearchId,
+            data
+          });
+        } else {
+          vscode.postMessage({
+            type: "createResearchProfile",
+            data
+          });
+        }
+      });
+    }
+    if (researchDuplicateBtn) {
+      researchDuplicateBtn.addEventListener("click", function() {
+        if (!selectedResearchId) return;
+        vscode.postMessage({
+          type: "duplicateResearchProfile",
+          researchId: selectedResearchId
+        });
+      });
+    }
+    if (researchDeleteBtn) {
+      researchDeleteBtn.addEventListener("click", function() {
+        if (!selectedResearchId) return;
+        vscode.postMessage({
+          type: "deleteResearchProfile",
+          researchId: selectedResearchId
+        });
+      });
+    }
+    if (researchStartBtn) {
+      researchStartBtn.addEventListener("click", function() {
+        if (!selectedResearchId) return;
+        vscode.postMessage({
+          type: "startResearchRun",
+          researchId: selectedResearchId
+        });
+      });
+    }
+    if (researchStopBtn) {
+      researchStopBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "stopResearchRun" });
+      });
+    }
+    if (researchProfileList) {
+      researchProfileList.addEventListener("click", function(e) {
+        var target = e && e.target;
+        while (target && target !== researchProfileList) {
+          if (target.getAttribute && target.getAttribute("data-research-id")) {
+            break;
+          }
+          target = target.parentElement;
+        }
+        if (!target || target === researchProfileList) return;
+        isCreatingResearchProfile = false;
+        selectedResearchId = target.getAttribute("data-research-id") || "";
+        var profile = getSelectedResearchProfile();
+        resetResearchForm(profile || null);
+        renderResearchTab();
+      });
+    }
+    if (researchRunList) {
+      researchRunList.addEventListener("click", function(e) {
+        var target = e && e.target;
+        while (target && target !== researchRunList) {
+          if (target.getAttribute && target.getAttribute("data-run-id")) {
+            break;
+          }
+          target = target.parentElement;
+        }
+        if (!target || target === researchRunList) return;
+        selectedResearchRunId = target.getAttribute("data-run-id") || "";
+        persistTaskFilter();
+        renderResearchTab();
+      });
+    }
+    if (jobsNewFolderBtn) {
+      jobsNewFolderBtn.addEventListener("click", function() {
+        vscode.postMessage({
+          type: "requestCreateJobFolder",
+          parentFolderId: selectedJobFolderId || void 0
+        });
+      });
+    }
+    if (jobsRenameFolderBtn) {
+      jobsRenameFolderBtn.addEventListener("click", function() {
+        if (!selectedJobFolderId) return;
+        vscode.postMessage({
+          type: "requestRenameJobFolder",
+          folderId: selectedJobFolderId
+        });
+      });
+    }
+    if (jobsDeleteFolderBtn) {
+      jobsDeleteFolderBtn.addEventListener("click", function() {
+        if (!selectedJobFolderId) return;
+        vscode.postMessage({ type: "requestDeleteJobFolder", folderId: selectedJobFolderId });
+      });
+    }
+    if (jobsNewJobBtn) {
+      jobsNewJobBtn.addEventListener("click", function() {
+        isCreatingJob = true;
+        syncEditorTabLabels();
+        vscode.postMessage({
+          type: "requestCreateJob",
+          folderId: selectedJobFolderId || void 0
+        });
+        switchTab("jobs-edit");
+      });
+    }
+    var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
+    if (jobsEmptyNewBtn) {
+      jobsEmptyNewBtn.addEventListener("click", function() {
+        isCreatingJob = true;
+        syncEditorTabLabels();
+        vscode.postMessage({
+          type: "requestCreateJob",
+          folderId: selectedJobFolderId || void 0
+        });
+      });
+    }
+    if (jobsBackBtn) {
+      jobsBackBtn.addEventListener("click", function() {
+        switchTab("jobs");
+      });
+    }
+    if (jobsOpenEditorBtn) {
+      jobsOpenEditorBtn.addEventListener("click", function() {
+        openJobEditor(selectedJobId || "");
+      });
+    }
+    if (jobsSaveBtn) {
+      jobsSaveBtn.addEventListener("click", submitJobEditor);
+    }
+    if (jobsSaveDeckBtn) {
+      jobsSaveDeckBtn.addEventListener("click", submitJobEditor);
+    }
+    if (jobsDuplicateBtn) {
+      jobsDuplicateBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
+      });
+    }
+    if (jobsPauseBtn) {
+      jobsPauseBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+      });
+    }
+    if (jobsCompileBtn) {
+      jobsCompileBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
+      });
+    }
+    if (jobsStatusPill) {
+      jobsStatusPill.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+      });
+    }
+    if (jobsToggleSidebarBtn) {
+      jobsToggleSidebarBtn.addEventListener("click", function() {
+        jobsSidebarHidden = !jobsSidebarHidden;
+        applyJobsSidebarState();
+        persistTaskFilter();
+      });
+    }
+    if (jobsShowSidebarBtn) {
+      jobsShowSidebarBtn.addEventListener("click", function() {
+        jobsSidebarHidden = false;
+        applyJobsSidebarState();
+        persistTaskFilter();
+      });
+    }
+    if (jobsDeleteBtn) {
+      jobsDeleteBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
+      });
+    }
+    if (jobsAttachBtn) {
+      jobsAttachBtn.addEventListener("click", function() {
+        if (!selectedJobId || !jobsExistingTaskSelect || !jobsExistingTaskSelect.value) return;
+        vscode.postMessage({
+          type: "attachTaskToJob",
+          jobId: selectedJobId,
+          taskId: jobsExistingTaskSelect.value,
+          windowMinutes: jobsExistingWindowInput ? Number(jobsExistingWindowInput.value || 30) : 30
+        });
+      });
+    }
+    if (jobsCreateStepBtn) {
+      jobsCreateStepBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        var name = jobsStepNameInput ? jobsStepNameInput.value.trim() : "";
+        var prompt = jobsStepPromptInput ? jobsStepPromptInput.value.trim() : "";
+        if (!name || !prompt) return;
+        var selectedJob = getJobById(selectedJobId);
+        vscode.postMessage({
+          type: "createJobTask",
+          jobId: selectedJobId,
+          windowMinutes: jobsStepWindowInput ? Number(jobsStepWindowInput.value || 30) : 30,
+          data: {
+            name,
+            prompt,
+            cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
+            agent: jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
+            model: jobsStepModelSelect ? jobsStepModelSelect.value : "",
+            labels: parseLabels(jobsStepLabelsInput ? jobsStepLabelsInput.value : ""),
+            scope: "workspace",
+            promptSource: "inline",
+            oneTime: false
+          }
+        });
+        if (jobsStepNameInput) jobsStepNameInput.value = "";
+        if (jobsStepPromptInput) jobsStepPromptInput.value = "";
+        if (jobsStepLabelsInput) jobsStepLabelsInput.value = "";
+        if (jobsStepWindowInput) jobsStepWindowInput.value = "30";
+      });
+    }
+    if (jobsCreatePauseBtn) {
+      jobsCreatePauseBtn.addEventListener("click", function() {
+        if (!selectedJobId) return;
+        var title = jobsPauseNameInput ? jobsPauseNameInput.value.trim() : "";
+        vscode.postMessage({
+          type: "createJobPause",
+          jobId: selectedJobId,
+          data: {
+            title: title || strings.jobsPauseDefaultTitle || "Manual review"
+          }
+        });
+        if (jobsPauseNameInput) {
+          jobsPauseNameInput.value = "";
+        }
+      });
+    }
+    document.addEventListener("click", function(e) {
+      var target = e && e.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
+        selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
+        selectedJobId = "";
+        persistTaskFilter();
+        renderJobsTab();
+        return;
+      }
+      var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
+      if (openJobEditorButton && jobsList && jobsList.contains(openJobEditorButton)) {
+        openJobEditor(openJobEditorButton.getAttribute("data-job-open-editor") || "");
+        return;
+      }
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && jobsList && jobsList.contains(jobItem)) {
+        selectedJobId = jobItem.getAttribute("data-job-id") || "";
+        persistTaskFilter();
+        renderJobsTab();
+        return;
+      }
+      var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
+      if (!jobAction) return;
+      if (jobAction === "detach-node") {
+        var detachNodeId = target.getAttribute("data-job-node-id") || "";
+        if (selectedJobId && detachNodeId) {
+          vscode.postMessage({ type: "requestDeleteJobTask", jobId: selectedJobId, nodeId: detachNodeId });
+        }
+        return;
+      }
+      if (jobAction === "edit-task") {
+        var editTaskId = target.getAttribute("data-job-task-id") || "";
+        if (editTaskId && typeof window.editTask === "function") {
+          window.editTask(editTaskId);
+        }
+        return;
+      }
+      if (jobAction === "edit-pause") {
+        var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
+        if (selectedJobId && editPauseNodeId) {
+          vscode.postMessage({ type: "requestRenameJobPause", jobId: selectedJobId, nodeId: editPauseNodeId });
+        }
+        return;
+      }
+      if (jobAction === "delete-pause") {
+        var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
+        if (selectedJobId && deletePauseNodeId) {
+          vscode.postMessage({ type: "requestDeleteJobPause", jobId: selectedJobId, nodeId: deletePauseNodeId });
+        }
+        return;
+      }
+      if (jobAction === "approve-pause") {
+        var approveNodeId = target.getAttribute("data-job-node-id") || "";
+        if (selectedJobId && approveNodeId) {
+          vscode.postMessage({ type: "approveJobPause", jobId: selectedJobId, nodeId: approveNodeId });
+        }
+        return;
+      }
+      if (jobAction === "reject-pause") {
+        var rejectNodeId = target.getAttribute("data-job-node-id") || "";
+        if (selectedJobId && rejectNodeId) {
+          vscode.postMessage({ type: "rejectJobPause", jobId: selectedJobId, nodeId: rejectNodeId });
+        }
+        return;
+      }
+      if (jobAction === "run-task") {
+        var runTaskId = target.getAttribute("data-job-task-id") || "";
+        if (runTaskId && typeof window.runTask === "function") {
+          window.runTask(runTaskId);
+        }
+      }
+    });
+    document.addEventListener("change", function(e) {
+      var target = e && e.target;
+      if (!target) return;
+      if (target.classList && target.classList.contains("job-node-window-input")) {
+        if (!selectedJobId) return;
+        var nodeId = target.getAttribute("data-job-node-window-id") || "";
+        if (!nodeId) return;
+        vscode.postMessage({
+          type: "updateJobNodeWindow",
+          jobId: selectedJobId,
+          nodeId,
+          windowMinutes: Number(target.value || 30)
+        });
+      }
+    });
+    document.addEventListener("dragstart", function(e) {
+      var target = e && e.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && jobsList && jobsList.contains(jobItem)) {
+        draggedJobId = jobItem.getAttribute("data-job-id") || "";
+        if (jobItem.classList) jobItem.classList.add("dragging");
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = "move";
+        }
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card) return;
+      draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
+      if (card.classList) card.classList.add("dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+      }
+    });
+    document.addEventListener("dragend", function(e) {
+      var target = e && e.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("dragging");
+      draggedJobId = "";
+      draggedJobNodeId = "";
+      Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function(item) {
+        if (item && item.classList) item.classList.remove("drag-over");
+      });
+      Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"), function(item) {
+        if (item && item.classList) item.classList.remove("drag-over");
+      });
+    });
+    document.addEventListener("dragover", function(e) {
+      var target = e && e.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && draggedJobId) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = "move";
+        }
+        if (folderItem.classList) folderItem.classList.add("drag-over");
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card || !draggedJobNodeId) return;
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "move";
+      }
+      if (card.classList) card.classList.add("drag-over");
+    });
+    document.addEventListener("dragleave", function(e) {
+      var target = e && e.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("drag-over");
+    });
+    document.addEventListener("drop", function(e) {
+      var target = e && e.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && draggedJobId) {
+        e.preventDefault();
+        if (folderItem.classList) folderItem.classList.remove("drag-over");
+        var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
+        var draggedJob = getJobById(draggedJobId);
+        if (!draggedJob) return;
+        if ((draggedJob.folderId || "") === droppedFolderId) return;
+        vscode.postMessage({
+          type: "updateJob",
+          jobId: draggedJobId,
+          data: {
+            folderId: droppedFolderId || void 0
+          }
+        });
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card || !draggedJobNodeId || !selectedJobId) return;
+      e.preventDefault();
+      if (card.classList) card.classList.remove("drag-over");
+      var targetNodeId = card.getAttribute("data-job-node-id") || "";
+      var selectedJob = getJobById(selectedJobId);
+      if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
+      var targetIndex = selectedJob.nodes.findIndex(function(node) {
+        return node && node.id === targetNodeId;
+      });
+      if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
+      vscode.postMessage({
+        type: "reorderJobNode",
+        jobId: selectedJobId,
+        nodeId: draggedJobNodeId,
+        targetIndex
+      });
+    });
+    if (templateRefreshBtn) {
+      templateRefreshBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "refreshPrompts" });
+        var selectedPath = templateSelect ? templateSelect.value : "";
+        var sourceEl = document.querySelector(
+          'input[name="prompt-source"]:checked'
+        );
+        var source = sourceEl ? sourceEl.value : "inline";
+        if (selectedPath && (source === "local" || source === "global")) {
+          vscode.postMessage({
+            type: "loadPromptTemplate",
+            path: selectedPath,
+            source
+          });
+        }
+      });
+    }
+    if (insertSkillBtn) {
+      insertSkillBtn.addEventListener("click", function() {
+        insertSelectedSkillReference();
+      });
+    }
+    if (setupMcpBtn) {
+      setupMcpBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "setupMcp" });
+      });
+    }
+    if (syncBundledSkillsBtn) {
+      syncBundledSkillsBtn.addEventListener("click", function() {
+        vscode.postMessage({ type: "syncBundledSkills" });
+      });
+    }
+    function syncLanguageSelectors(value) {
+      var nextValue = value || "auto";
+      if (helpLanguageSelect) {
+        helpLanguageSelect.value = nextValue;
+      }
+      if (settingsLanguageSelect) {
+        settingsLanguageSelect.value = nextValue;
+      }
+    }
+    function saveLanguageSelection(value) {
+      var nextValue = value || "auto";
+      syncLanguageSelectors(nextValue);
+      vscode.postMessage({
+        type: "setLanguage",
+        language: nextValue
+      });
+    }
+    syncLanguageSelectors(
+      typeof initialData.languageSetting === "string" && initialData.languageSetting ? initialData.languageSetting : "auto"
+    );
+    if (helpLanguageSelect) {
+      helpLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(helpLanguageSelect.value);
+      });
+    }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(settingsLanguageSelect.value);
+      });
+    }
+    var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
+    if (btnIntroTutorial) {
+      btnIntroTutorial.addEventListener("click", function() {
+        vscode.postMessage({ type: "introTutorial" });
+      });
+    }
+    var btnPlanIntegration = document.getElementById("btn-plan-integration");
+    if (btnPlanIntegration) {
+      btnPlanIntegration.addEventListener("click", function() {
+        vscode.postMessage({ type: "planIntegration" });
+      });
+    }
+    if (helpIntroRocket) {
+      helpIntroRocket.addEventListener("click", function() {
+        triggerHelpWarpAnimation({ animateRocket: true });
+      });
+    }
+    [
+      "btn-help-switch-settings",
+      "btn-help-switch-board",
+      "btn-help-switch-create",
+      "btn-help-switch-list",
+      "btn-help-switch-jobs",
+      "btn-help-switch-research"
+    ].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) {
+        btn.addEventListener("click", function() {
+          var targetTabMap = {
+            "btn-help-switch-settings": "settings",
+            "btn-help-switch-board": "board",
+            "btn-help-switch-create": "create",
+            "btn-help-switch-list": "list",
+            "btn-help-switch-jobs": "jobs",
+            "btn-help-switch-research": "research"
+          };
+          switchTab(targetTabMap[id]);
+        });
+      }
+    });
+    if (document.getElementById("help-tab") && document.getElementById("help-tab").classList.contains("active")) {
+      window.requestAnimationFrame(function() {
+        maybePlayInitialHelpWarp("help");
+      });
+    }
+    function resolveActionTarget(node) {
+      var el = node && node.nodeType === 3 ? node.parentElement : node;
+      while (el && el !== document.body) {
+        if (el.hasAttribute && el.hasAttribute("data-action") && (el.hasAttribute("data-id") || el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))) {
+          return el;
+        }
+        el = el.parentElement;
+      }
+      return null;
+    }
+    document.addEventListener("click", function(e) {
+      var actionTarget = resolveActionTarget(e.target);
+      if (!actionTarget) {
+        return;
+      }
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (taskList && !taskList.contains(actionTarget)) {
+        return;
+      }
+      var action = actionTarget.getAttribute("data-action");
+      var taskId = actionTarget.getAttribute("data-id");
+      if (!action || !taskId) {
+        return;
+      }
+      var actionHandlers = {
+        toggle: window.toggleTask,
+        run: window.runTask,
+        edit: window.editTask,
+        copy: window.copyPrompt,
+        duplicate: window.duplicateTask,
+        move: window.moveTaskToCurrentWorkspace,
+        delete: window.deleteTask
+      };
+      var handler = actionHandlers[action];
+      if (typeof handler === "function") {
+        e.preventDefault();
+        handler(taskId);
+      }
+    });
+    function renderTaskList(nextTasks) {
+      if (Array.isArray(nextTasks)) {
+        tasks = nextTasks.filter(Boolean);
+      }
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (!taskList) return;
+      var taskItems = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+      taskItems = sortTasksByNextRun(taskItems);
+      if (activeLabelFilter) {
+        taskItems = taskItems.filter(function(task) {
+          return getEffectiveLabels(task).indexOf(activeLabelFilter) !== -1;
+        });
+      }
+      var renderedTasks = "";
+      function normalizePath(p) {
+        if (!p) return "";
+        var s = String(p).replace(/\\/g, "/");
+        if (s === "/") return "/";
+        s = s.replace(/\/+$/, "");
+        if (s === "") return "/";
+        return caseInsensitivePaths ? s.toLowerCase() : s;
+      }
+      function basename(p) {
+        if (!p) return "";
+        var s = String(p).replace(/[/\\]+$/, "");
+        var parts = s.split(/[/\\]+/);
+        return parts.length ? parts[parts.length - 1] || "" : s;
+      }
+      function renderTaskCard(task) {
+        if (!task || !task.id) {
+          return "";
+        }
+        var enabled = task.enabled || false;
+        var statusClass = enabled ? "enabled" : "disabled";
+        var statusText = enabled ? strings.labelEnabled : strings.labelDisabled;
+        var toggleIcon = enabled ? "\u23F8\uFE0F" : "\u25B6\uFE0F";
+        var toggleTitle = enabled ? strings.actionDisable : strings.actionEnable;
+        var nextRunDate = task.nextRun ? new Date(task.nextRun) : null;
+        var nextRunMs = nextRunDate && !isNaN(nextRunDate.getTime()) ? nextRunDate.getTime() : 0;
+        var nextRun = nextRunDate && !isNaN(nextRunDate.getTime()) ? nextRunDate.toLocaleString(locale) : strings.labelNever;
+        var promptText = typeof task.prompt === "string" ? task.prompt : "";
+        var promptPreview = promptText.length > 100 ? promptText.substring(0, 100) + "..." : promptText;
+        var lastErrorText = typeof task.lastError === "string" ? task.lastError : "";
+        var lastErrorAtDate = task.lastErrorAt ? new Date(task.lastErrorAt) : null;
+        var lastErrorAt = lastErrorAtDate && !isNaN(lastErrorAtDate.getTime()) ? lastErrorAtDate.toLocaleString(locale) : "";
+        var cronText = escapeHtml(task.cronExpression || "");
+        var cronSummary = getCronSummary(task.cronExpression || "");
+        var taskName = escapeHtml(task.name || "");
+        var scopeValue = task.scope || "workspace";
+        var scopeLabel = scopeValue === "global" ? strings.labelScopeGlobal || "" : strings.labelScopeWorkspace || "";
+        var wsPath = scopeValue === "workspace" ? task.workspacePath || "" : "";
+        var wsName = wsPath ? basename(wsPath) : "";
+        var inThisWorkspace = scopeValue === "global" ? true : !!wsPath && (workspacePaths || []).some(function(p) {
+          return normalizePath(p) === normalizePath(wsPath);
+        });
+        var otherWsLabel = strings.labelOtherWorkspaceShort || "";
+        var thisWsLabel = strings.labelThisWorkspaceShort || "";
+        var scopeInfo = scopeValue === "global" ? "\u{1F310} " + escapeHtml(scopeLabel) : "\u{1F4C1} " + escapeHtml(scopeLabel) + (wsName ? " \u2022 " + escapeHtml(wsName) : "");
+        if (scopeValue === "workspace") {
+          scopeInfo += " \u2022 " + escapeHtml(inThisWorkspace ? thisWsLabel : otherWsLabel);
+        }
+        var oneTimeBadgeHtml = task.oneTime === true ? '<span class="task-badge clickable" data-action="toggle" data-id="' + escapeAttr(task.id || "") + '">' + escapeHtml(strings.labelOneTime || "One-time") + "</span>" : "";
+        var chatSessionBadgeHtml = task.oneTime === true ? "" : '<span class="task-badge" title="' + escapeAttr(strings.labelChatSession || "Recurring chat session") + '">' + escapeHtml(
+          task.chatSession === "continue" ? strings.labelChatSessionBadgeContinue || "Chat: Continue" : strings.labelChatSessionBadgeNew || "Chat: New"
+        ) + "</span>";
+        var labelBadgesHtml = getEffectiveLabels(task).map(function(label) {
+          return '<span class="task-badge label">' + escapeHtml(label) + "</span>";
+        }).join("");
+        var taskIdEscaped = escapeAttr(task.id || "");
+        function createSelect(items, selectedId, cls, placeholder) {
+          var options = '<option value="">' + escapeHtml(placeholder) + "</option>";
+          if (Array.isArray(items)) {
+            items.forEach(function(item) {
+              var id = item.id || item.slug;
+              var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : item.name || id;
+              var sel = id === selectedId ? " selected" : "";
+              options += '<option value="' + escapeAttr(id) + '"' + sel + ">" + escapeHtml(label) + "</option>";
+            });
+          }
+          return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + "</select>";
+        }
+        var agentSelect2 = createSelect(agents, task.agent, "task-agent-select", strings.placeholderSelectAgent || "Agent");
+        var modelSelect2 = createSelect(models, task.model, "task-model-select", strings.placeholderSelectModel || "Model");
+        var configRow = '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' + agentSelect2 + modelSelect2 + "</div>";
+        var actionsHtml = '<button class="btn-secondary btn-icon" data-action="toggle" data-id="' + taskIdEscaped + '" title="' + escapeAttr(toggleTitle) + '">' + toggleIcon + '</button><button class="btn-secondary btn-icon" data-action="run" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionRun) + '">\u{1F680}</button><button class="btn-secondary btn-icon" data-action="edit" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionEdit) + '">\u270F\uFE0F</button><button class="btn-secondary btn-icon" data-action="copy" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionCopyPrompt) + '">\u{1F4CB}</button><button class="btn-secondary btn-icon" data-action="duplicate" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionDuplicate) + '">\u{1F4C4}</button>';
+        if (scopeValue === "workspace" && !inThisWorkspace) {
+          actionsHtml += '<button class="btn-secondary btn-icon" data-action="move" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionMoveToCurrentWorkspace || "") + '">\u{1F4CC}</button>';
+        }
+        if (scopeValue === "global" || inThisWorkspace) {
+          actionsHtml += '<button class="btn-danger btn-icon" data-action="delete" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionDelete) + '">\u{1F5D1}\uFE0F</button>';
+        }
+        return '<div class="task-card ' + (enabled ? "" : "disabled") + (scopeValue === "workspace" && !inThisWorkspace ? " other-workspace" : "") + '" data-id="' + taskIdEscaped + '"><div class="task-header"><div class="task-header-main"><span class="task-name clickable" data-action="toggle" data-id="' + taskIdEscaped + '">' + taskName + "</span>" + chatSessionBadgeHtml + oneTimeBadgeHtml + '</div><span class="task-status ' + statusClass + '" data-action="toggle" data-id="' + taskIdEscaped + '">' + escapeHtml(statusText) + '</span></div><div class="task-info"><span>\u23F0 ' + escapeHtml(cronSummary) + "</span><span>" + escapeHtml(strings.labelNextRun) + ': <span class="task-next-run-label">' + escapeHtml(nextRun) + '</span><span class="task-next-run-countdown" data-enabled="' + (enabled ? "true" : "false") + '" data-next-run-ms="' + escapeAttr(nextRunMs > 0 ? String(nextRunMs) : "") + '"></span></span><span>' + scopeInfo + '</span></div><div class="task-info"><span>Cron: ' + cronText + "</span></div>" + (labelBadgesHtml ? '<div class="task-badges">' + labelBadgesHtml + "</div>" : "") + configRow + '<div class="task-prompt">' + escapeHtml(promptPreview) + "</div>" + (lastErrorText ? '<div class="task-prompt" style="color: var(--vscode-errorForeground);">Last error' + (lastErrorAt ? " (" + escapeHtml(lastErrorAt) + ")" : "") + ": " + escapeHtml(lastErrorText) + "</div>" : "") + '<div class="task-actions">' + actionsHtml + "</div></div>";
+      }
+      function renderTaskSection(title, items) {
+        var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
+        if (!listHtml) {
+          listHtml = '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + "</div>";
+        }
+        return '<div class="task-section"><div class="task-section-title"><span>' + escapeHtml(title) + "</span><span>" + String(items.length) + "</span></div>" + listHtml + "</div>";
+      }
+      var recurringTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = task.oneTime === true || task.id && task.id.indexOf("exec-") === 0;
+        return !isOneTime;
+      });
+      var oneTimeTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = task.oneTime === true || task.id && task.id.indexOf("exec-") === 0;
+        return isOneTime;
+      });
+      var sectionHtml = "";
+      if (activeTaskFilter === "all" || activeTaskFilter === "recurring") {
+        sectionHtml += renderTaskSection(
+          strings.labelRecurringTasks || "Recurring Tasks",
+          recurringTasks
+        );
+      }
+      if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
+        sectionHtml += renderTaskSection(
+          strings.labelOneTimeTasks || "One-time Tasks",
+          oneTimeTasks
+        );
+      }
+      var containerClass = "task-sections";
+      var containerStyle = "";
+      if (activeTaskFilter !== "all") {
+        containerClass += " filtered";
+        containerStyle = ' style="display:grid;grid-template-columns:1fr;"';
+      }
+      renderedTasks = '<div class="' + containerClass + '"' + containerStyle + ">" + sectionHtml + "</div>";
+      if (renderedTasks === lastRenderedTasksHtml) {
+        return;
+      }
+      if (isInlineTaskSelectActive()) {
+        return;
+      }
+      lastRenderedTasksHtml = renderedTasks;
+      taskList.innerHTML = renderedTasks;
+      refreshTaskCountdowns();
+    }
+    function postTaskInlineChange(taskId, field, value) {
+      if (!taskId) {
+        return;
+      }
+      var data = {};
+      data[field] = value;
+      vscode.postMessage({
+        type: "updateTask",
+        taskId,
+        data
+      });
+    }
+    if (taskList) {
+      taskList.addEventListener("change", function(event) {
+        var target = event && event.target;
+        if (!target || !target.classList) {
+          return;
+        }
+        if (target.classList.contains("task-agent-select")) {
+          postTaskInlineChange(
+            target.getAttribute("data-id") || "",
+            "agent",
+            target.value || ""
+          );
+          return;
+        }
+        if (target.classList.contains("task-model-select")) {
+          postTaskInlineChange(
+            target.getAttribute("data-id") || "",
+            "model",
+            target.value || ""
+          );
+        }
+      });
+    }
+    function escapeHtml(text) {
+      if (text == null) return "";
+      var div = document.createElement("div");
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+    function escapeAttr(text) {
+      if (typeof text !== "string") text = String(text || "");
+      return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    function isInlineTaskSelectActive() {
+      var active = document.activeElement;
+      if (!active || !active.classList) return false;
+      return active.classList.contains("task-agent-select") || active.classList.contains("task-model-select");
+    }
+    var dayNames = [
+      strings.daySun || "",
+      strings.dayMon || "",
+      strings.dayTue || "",
+      strings.dayWed || "",
+      strings.dayThu || "",
+      strings.dayFri || "",
+      strings.daySat || ""
+    ];
+    function padNumber(value) {
+      var num = parseInt(String(value), 10);
+      if (isNaN(num)) num = 0;
+      return num < 10 ? "0" + num : String(num);
+    }
+    function boundedNumber(value, min, max, fallback) {
+      var num = parseInt(String(value), 10);
+      if (isNaN(num)) {
+        num = fallback;
+      }
+      num = Math.max(min, Math.min(max, num));
+      return num;
+    }
+    function normalizeDow(value) {
+      var normalized = String(value || "").trim().toLowerCase();
+      if (/^\d+$/.test(normalized)) {
+        var asNumber = parseInt(normalized, 10);
+        if (asNumber === 7) asNumber = 0;
+        if (asNumber >= 0 && asNumber <= 6) return asNumber;
+      }
+      var map = {
+        sun: 0,
+        mon: 1,
+        tue: 2,
+        wed: 3,
+        thu: 4,
+        fri: 5,
+        sat: 6
+      };
+      if (map.hasOwnProperty(normalized)) {
+        return map[normalized];
+      }
+      return null;
+    }
+    function formatTime(hour, minute) {
+      return padNumber(hour) + ":" + padNumber(minute);
+    }
+    function getCronSummary(expression) {
+      var fallback = strings.labelFriendlyFallback || "";
+      var expr = (expression || "").trim();
+      if (!expr) return fallback;
+      var parts = expr.split(/\s+/);
+      if (parts.length !== 5) {
+        return fallback;
+      }
+      var minute = parts[0];
+      var hour = parts[1];
+      var dom = parts[2];
+      var mon = parts[3];
+      var dow = parts[4];
+      var isNumber = function(value) {
+        return /^\d+$/.test(String(value));
+      };
+      var dowLower = String(dow || "").toLowerCase();
+      var isWeekdays = dowLower === "1-5" || dowLower === "mon-fri";
+      var everyN = /^\*\/(\d+)$/.exec(minute);
+      if (everyN && hour === "*" && dom === "*" && mon === "*" && dow === "*") {
+        var tplEveryN = strings.cronPreviewEveryNMinutes || "";
+        return tplEveryN ? tplEveryN.replace("{n}", String(everyN[1])) : fallback;
+      }
+      if (isNumber(minute) && hour === "*" && dom === "*" && mon === "*" && dow === "*") {
+        var tplHourly = strings.cronPreviewHourlyAtMinute || "";
+        return tplHourly ? tplHourly.replace("{m}", String(minute)) : fallback;
+      }
+      if (isNumber(minute) && isNumber(hour) && dom === "*" && mon === "*" && dow === "*") {
+        var tplDaily = strings.cronPreviewDailyAt || "";
+        var t = formatTime(hour, minute);
+        return tplDaily ? tplDaily.replace("{t}", String(t)) : fallback;
+      }
+      if (isNumber(minute) && isNumber(hour) && dom === "*" && mon === "*" && isWeekdays) {
+        var tplWeekdays = strings.cronPreviewWeekdaysAt || "";
+        var t = formatTime(hour, minute);
+        return tplWeekdays ? tplWeekdays.replace("{t}", String(t)) : fallback;
+      }
+      var dowValue = normalizeDow(dow);
+      if (isNumber(minute) && isNumber(hour) && dom === "*" && mon === "*" && dowValue !== null) {
+        var dayLabel = dayNames[dowValue] || String(dowValue);
+        var tplWeekly = strings.cronPreviewWeeklyOnAt || "";
+        var t = formatTime(hour, minute);
+        return tplWeekly ? tplWeekly.replace("{d}", String(dayLabel)).replace("{t}", String(t)) : fallback;
+      }
+      if (isNumber(minute) && isNumber(hour) && isNumber(dom) && mon === "*" && dow === "*") {
+        var tplMonthly = strings.cronPreviewMonthlyOnAt || "";
+        var t = formatTime(hour, minute);
+        return tplMonthly ? tplMonthly.replace("{dom}", String(dom)).replace("{t}", String(t)) : fallback;
+      }
+      return fallback;
+    }
+    function updateCronPreview() {
+      if (!cronPreviewText || !cronExpression) return;
+      cronPreviewText.textContent = getCronSummary(cronExpression.value || "");
+    }
+    function updateJobsCronPreview() {
+      if (!jobsCronPreviewText || !jobsCronInput) return;
+      jobsCronPreviewText.textContent = getCronSummary(jobsCronInput.value || "");
+      updateJobsCadenceMetric();
+    }
+    function updateFriendlyVisibility() {
+      var selection = friendlyFrequency ? friendlyFrequency.value : "";
+      var fields = [];
+      switch (selection) {
+        case "every-n":
+          fields = ["interval"];
+          break;
+        case "hourly":
+          fields = ["minute"];
+          break;
+        case "daily":
+          fields = ["hour", "minute"];
+          break;
+        case "weekly":
+          fields = ["dow", "hour", "minute"];
+          break;
+        case "monthly":
+          fields = ["dom", "hour", "minute"];
+          break;
+        default:
+          fields = [];
+      }
+      var friendlyFields = friendlyBuilder ? friendlyBuilder.querySelectorAll(".friendly-field") : [];
+      for (var i = 0; i < friendlyFields.length; i++) {
+        var el = friendlyFields[i];
+        if (!el || !el.getAttribute) continue;
+        var fieldName = el.getAttribute("data-field");
+        if (fields.indexOf(fieldName) !== -1) {
+          if (el.classList) el.classList.add("visible");
+          if (el.style) el.style.display = "block";
+        } else {
+          if (el.classList) el.classList.remove("visible");
+          if (el.style) el.style.display = "none";
+        }
+      }
+    }
+    function updateJobsFriendlyVisibility() {
+      var selection = jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "";
+      var fields = [];
+      switch (selection) {
+        case "every-n":
+          fields = ["interval"];
+          break;
+        case "hourly":
+          fields = ["minute"];
+          break;
+        case "daily":
+          fields = ["hour", "minute"];
+          break;
+        case "weekly":
+          fields = ["dow", "hour", "minute"];
+          break;
+        case "monthly":
+          fields = ["dom", "hour", "minute"];
+          break;
+        default:
+          fields = [];
+      }
+      var friendlyFields = jobsFriendlyBuilder ? jobsFriendlyBuilder.querySelectorAll(".friendly-field") : [];
+      for (var i = 0; i < friendlyFields.length; i++) {
+        var el = friendlyFields[i];
+        if (!el || !el.getAttribute) continue;
+        var fieldName = el.getAttribute("data-field");
+        if (fields.indexOf(fieldName) !== -1) {
+          if (el.classList) el.classList.add("visible");
+          if (el.style) el.style.display = "block";
+        } else {
+          if (el.classList) el.classList.remove("visible");
+          if (el.style) el.style.display = "none";
+        }
+      }
+    }
+    function generateCronFromFriendly() {
+      if (!friendlyFrequency || !cronExpression) return;
+      var selection = friendlyFrequency.value;
+      var expr = "";
+      switch (selection) {
+        case "every-n": {
+          var interval = boundedNumber(
+            friendlyInterval ? friendlyInterval.value : "",
+            1,
+            59,
+            5
+          );
+          expr = "*/" + interval + " * * * *";
+          break;
+        }
+        case "hourly": {
+          var minuteValue = boundedNumber(
+            friendlyMinute ? friendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          expr = minuteValue + " * * * *";
+          break;
+        }
+        case "daily": {
+          var dailyMinute = boundedNumber(
+            friendlyMinute ? friendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var dailyHour = boundedNumber(
+            friendlyHour ? friendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          expr = dailyMinute + " " + dailyHour + " * * *";
+          break;
+        }
+        case "weekly": {
+          var weeklyMinute = boundedNumber(
+            friendlyMinute ? friendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var weeklyHour = boundedNumber(
+            friendlyHour ? friendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          var dowValue = boundedNumber(
+            friendlyDow ? friendlyDow.value : "",
+            0,
+            6,
+            1
+          );
+          expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
+          break;
+        }
+        case "monthly": {
+          var monthlyMinute = boundedNumber(
+            friendlyMinute ? friendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var monthlyHour = boundedNumber(
+            friendlyHour ? friendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          var domValue = boundedNumber(
+            friendlyDom ? friendlyDom.value : "",
+            1,
+            31,
+            1
+          );
+          expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
+          break;
+        }
+        default:
+          expr = "";
+      }
+      if (expr) {
+        cronExpression.value = expr;
+        if (cronPreset) cronPreset.value = "";
+        updateCronPreview();
+      }
+    }
+    function generateJobsCronFromFriendly() {
+      if (!jobsFriendlyFrequency || !jobsCronInput) return;
+      var selection = jobsFriendlyFrequency.value;
+      var expr = "";
+      switch (selection) {
+        case "every-n": {
+          var interval = boundedNumber(
+            jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
+            1,
+            59,
+            5
+          );
+          expr = "*/" + interval + " * * * *";
+          break;
+        }
+        case "hourly": {
+          var minuteValue = boundedNumber(
+            jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          expr = minuteValue + " * * * *";
+          break;
+        }
+        case "daily": {
+          var dailyMinute = boundedNumber(
+            jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var dailyHour = boundedNumber(
+            jobsFriendlyHour ? jobsFriendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          expr = dailyMinute + " " + dailyHour + " * * *";
+          break;
+        }
+        case "weekly": {
+          var weeklyMinute = boundedNumber(
+            jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var weeklyHour = boundedNumber(
+            jobsFriendlyHour ? jobsFriendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          var dowValue = boundedNumber(
+            jobsFriendlyDow ? jobsFriendlyDow.value : "",
+            0,
+            6,
+            1
+          );
+          expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
+          break;
+        }
+        case "monthly": {
+          var monthlyMinute = boundedNumber(
+            jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+            0,
+            59,
+            0
+          );
+          var monthlyHour = boundedNumber(
+            jobsFriendlyHour ? jobsFriendlyHour.value : "",
+            0,
+            23,
+            9
+          );
+          var domValue = boundedNumber(
+            jobsFriendlyDom ? jobsFriendlyDom.value : "",
+            1,
+            31,
+            1
+          );
+          expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
+          break;
+        }
+        default:
+          expr = "";
+      }
+      if (expr) {
+        jobsCronInput.value = expr;
+        if (jobsCronPreset) jobsCronPreset.value = "";
+        updateJobsCronPreview();
+      }
+    }
+    function resetForm() {
+      if (taskForm) taskForm.reset();
+      setEditingMode(null);
+      pendingAgentValue = "";
+      pendingModelValue = "";
+      pendingTemplatePath = "";
+      editingTaskEnabled = true;
+      applyPromptSource("inline");
+      if (friendlyFrequency) friendlyFrequency.value = "";
+      if (jitterSecondsInput)
+        jitterSecondsInput.value = String(defaultJitterSeconds);
+      if (taskLabelsInput) taskLabelsInput.value = "";
+      var runFirstEl = document.getElementById("run-first");
+      if (runFirstEl) runFirstEl.checked = false;
+      var oneTimeEl = document.getElementById("one-time");
+      if (oneTimeEl) oneTimeEl.checked = false;
+      if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
+      if (agentSelect) agentSelect.value = executionDefaults.agent || "";
+      if (modelSelect) modelSelect.value = executionDefaults.model || "";
+      syncRecurringChatSessionUi();
+      updateFriendlyVisibility();
+      updateCronPreview();
+    }
+    function updateAgentOptions2() {
+      updateAgentOptions({
+        agentSelect,
+        agents,
+        escapeAttr,
+        escapeHtml,
+        executionDefaults,
+        strings
+      });
+    }
+    function updateModelOptions2() {
+      updateModelOptions({
+        escapeAttr,
+        escapeHtml,
+        executionDefaults,
+        formatModelLabel,
+        modelSelect,
+        models,
+        strings
+      });
+    }
+    function updateTemplateOptions(source, selectedPath) {
+      if (!templateSelect) return;
+      selectedPath = selectedPath || "";
+      var templates = Array.isArray(promptTemplates) ? promptTemplates : [];
+      var filtered = templates.filter(function(t) {
+        return t.source === source;
+      });
+      var selectText = strings.placeholderSelectTemplate || "";
+      var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
+      templateSelect.innerHTML = placeholder + filtered.map(function(t) {
+        return '<option value="' + escapeAttr(t.path) + '">' + escapeHtml(t.name) + "</option>";
+      }).join("");
+      if (!selectedPath) {
+        templateSelect.value = "";
+        return;
+      }
+      templateSelect.value = selectedPath;
+      if (templateSelect.value !== selectedPath) {
+        templateSelect.value = "";
+      }
+    }
+    function applyPromptSource(source, keepSelection) {
+      var effectiveSource = source || "inline";
+      var selectedPath = keepSelection && templateSelect ? templateSelect.value : "";
+      if (effectiveSource === "inline") {
+        if (templateSelectGroup) templateSelectGroup.style.display = "none";
+        if (promptGroup) promptGroup.style.display = "block";
+        if (!keepSelection && templateSelect) {
+          templateSelect.value = "";
+        }
+        return;
+      }
+      if (templateSelectGroup) {
+        templateSelectGroup.style.display = "block";
+      } else {
+        console.warn(
+          "[CopilotScheduler] Template select group missing; template selection is disabled."
+        );
+      }
+      if (promptGroup) promptGroup.style.display = "block";
+      updateTemplateOptions(effectiveSource, selectedPath);
+    }
+    function updateSkillOptions() {
+      if (!skillSelect) return;
+      var items = Array.isArray(skills) ? skills : [];
+      var placeholder = strings.placeholderSelectSkill || "Select a skill";
+      skillSelect.innerHTML = '<option value="">' + escapeHtml(placeholder) + "</option>" + items.map(function(skill) {
+        return '<option value="' + escapeAttr(skill.path || "") + '">' + escapeHtml(skill.reference || skill.name || "") + "</option>";
+      }).join("");
+    }
+    function insertSelectedSkillReference() {
+      if (!skillSelect || !promptGroup) return;
+      var selectedPath = skillSelect.value || "";
+      if (!selectedPath) return;
+      var selectedSkill = (Array.isArray(skills) ? skills : []).find(function(skill) {
+        return skill && skill.path === selectedPath;
+      });
+      if (!selectedSkill) return;
+      var sourceRadio = document.querySelector('input[name="prompt-source"][value="inline"]');
+      if (sourceRadio) {
+        sourceRadio.checked = true;
+      }
+      applyPromptSource("inline", false);
+      var promptTextEl = document.getElementById("prompt-text");
+      if (!promptTextEl) return;
+      var template = strings.skillSentenceTemplate || "Use {skill} to know how things must be done.";
+      var sentence = template.replace("{skill}", selectedSkill.reference || selectedSkill.name || "skill");
+      var current = promptTextEl.value || "";
+      promptTextEl.value = current.trim() ? current.replace(/\s*$/, "\n\n") + sentence : sentence;
+      if (typeof promptTextEl.focus === "function") {
+        promptTextEl.focus();
+      }
+    }
+    function updateSimpleSelect(selectEl, items, placeholder, selectedValue, getValue, getLabel) {
+      if (!selectEl) return;
+      var optionItems = Array.isArray(items) ? items : [];
+      var html = '<option value="">' + escapeHtml(placeholder || "") + "</option>" + optionItems.map(function(item) {
+        var value = getValue(item);
+        var label = getLabel(item);
+        return '<option value="' + escapeAttr(value) + '">' + escapeHtml(label) + "</option>";
+      }).join("");
+      selectEl.innerHTML = html;
+      selectEl.value = selectedValue || "";
+      if (selectEl.value !== (selectedValue || "")) {
+        selectEl.value = "";
+      }
+    }
+    function syncJobsFolderSelect(selectedValue) {
+      updateSimpleSelect(
+        jobsFolderSelect,
+        Array.isArray(jobFolders) ? jobFolders.slice().sort(function(a, b) {
+          return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+        }) : [],
+        strings.jobsRootFolder || "All jobs",
+        selectedValue || "",
+        function(folder) {
+          return folder && folder.id ? folder.id : "";
+        },
+        function(folder) {
+          var depth = getFolderDepth(folder);
+          var prefix = new Array(depth + 1).join("  ");
+          return prefix + (folder && folder.name ? folder.name : "");
+        }
+      );
+    }
+    function syncJobsStepSelectors() {
+      updateSimpleSelect(
+        jobsStepAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        jobsStepModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        jobsStepModelSelect ? jobsStepModelSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+    }
+    function syncJobsExistingTaskSelect() {
+      var standaloneTasks = getStandaloneTasks();
+      updateSimpleSelect(
+        jobsExistingTaskSelect,
+        standaloneTasks,
+        strings.jobsNoStandaloneTasks || "No standalone tasks available",
+        jobsExistingTaskSelect ? jobsExistingTaskSelect.value : "",
+        function(task) {
+          return task && task.id ? task.id : "";
+        },
+        function(task) {
+          if (!task || !task.name) {
+            return "";
+          }
+          if (!task.jobId) {
+            return task.name;
+          }
+          var job = getJobById(task.jobId);
+          return job && job.name ? task.name + " \xB7 " + job.name : task.name;
+        }
+      );
+      if (jobsAttachBtn) {
+        jobsAttachBtn.disabled = standaloneTasks.length === 0;
+      }
+    }
+    function ensureValidResearchSelection() {
+      var profiles = Array.isArray(researchProfiles) ? researchProfiles : [];
+      if (isCreatingResearchProfile) {
+        if (researchEditIdInput) {
+          researchEditIdInput.value = "";
+        }
+        return;
+      }
+      var hasSelected = profiles.some(function(profile) {
+        return profile && profile.id === selectedResearchId;
+      });
+      if (!hasSelected) {
+        selectedResearchId = profiles.length > 0 && profiles[0] ? profiles[0].id : "";
+      }
+      if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+    }
+    function clearResearchFormError() {
+      if (!researchFormError) {
+        return;
+      }
+      researchFormError.textContent = "";
+      researchFormError.style.display = "none";
+    }
+    function showResearchFormError(message) {
+      if (!researchFormError) {
+        return;
+      }
+      researchFormError.textContent = String(message || "");
+      researchFormError.style.display = message ? "block" : "none";
+    }
+    function formatResearchDate(value) {
+      if (!value) {
+        return "-";
+      }
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function formatResearchDuration(startedAt, finishedAt) {
+      if (!startedAt) {
+        return "-";
+      }
+      var start = new Date(startedAt).getTime();
+      if (!isFinite(start)) {
+        return "-";
+      }
+      var end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+      if (!isFinite(end) || end < start) {
+        return "-";
+      }
+      var totalSeconds = Math.max(0, Math.floor((end - start) / 1e3));
+      return formatCountdown(totalSeconds);
+    }
+    function formatOutcomeLabel(outcome) {
+      return String(outcome || "").replace(/-/g, " ");
+    }
+    function getResearchRunById(runId) {
+      return (Array.isArray(recentResearchRuns) ? recentResearchRuns : []).find(function(run) {
+        return run && run.id === runId;
+      });
+    }
+    function ensureValidResearchRunSelection() {
+      var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+      var activeId = activeResearchRun && activeResearchRun.id ? activeResearchRun.id : "";
+      var hasSelected = runs.some(function(run) {
+        return run && run.id === selectedResearchRunId;
+      });
+      if (hasSelected) {
+        return;
+      }
+      if (activeId) {
+        selectedResearchRunId = activeId;
+        return;
+      }
+      selectedResearchRunId = runs.length > 0 && runs[0] ? runs[0].id : "";
+    }
+    function getDisplayedResearchRun() {
+      ensureValidResearchRunSelection();
+      return getResearchRunById(selectedResearchRunId) || null;
+    }
+    function parseResearchEditablePaths(raw) {
+      return String(raw || "").split(/\r?\n/).map(function(line) {
+        return String(line || "").trim();
+      }).filter(function(line) {
+        return line.length > 0;
+      });
+    }
+    function getSelectedResearchProfile() {
+      return (Array.isArray(researchProfiles) ? researchProfiles : []).find(function(profile) {
+        return profile && profile.id === selectedResearchId;
+      });
+    }
+    function formatResearchStatus(status) {
+      if (status === "running") return strings.researchStatusRunning || "Running";
+      if (status === "stopping") return strings.researchStatusStopping || "Stopping";
+      if (status === "completed") return strings.researchStatusCompleted || "Completed";
+      if (status === "failed") return strings.researchStatusFailed || "Failed";
+      if (status === "stopped") return strings.researchStatusStopped || "Stopped";
+      return strings.researchStatusIdle || "Idle";
+    }
+    function resetResearchForm(profile) {
+      var value = profile || null;
+      selectedResearchId = value && value.id ? value.id : "";
+      loadedResearchProfileId = selectedResearchId || "";
+      researchFormDirty = false;
+      isCreatingResearchProfile = !selectedResearchId;
+      clearResearchFormError();
+      if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+      if (researchNameInput) {
+        researchNameInput.value = value && value.name ? value.name : "";
+      }
+      if (researchInstructionsInput) {
+        researchInstructionsInput.value = value && value.instructions ? value.instructions : "";
+      }
+      if (researchEditablePathsInput) {
+        researchEditablePathsInput.value = value && Array.isArray(value.editablePaths) ? value.editablePaths.join("\n") : "";
+      }
+      if (researchBenchmarkInput) {
+        researchBenchmarkInput.value = value && value.benchmarkCommand ? value.benchmarkCommand : "";
+      }
+      if (researchMetricPatternInput) {
+        researchMetricPatternInput.value = value && value.metricPattern ? value.metricPattern : "";
+      }
+      if (researchMetricDirectionSelect) {
+        researchMetricDirectionSelect.value = value && value.metricDirection === "minimize" ? "minimize" : "maximize";
+      }
+      if (researchMaxIterationsInput) {
+        researchMaxIterationsInput.value = String(value && value.maxIterations !== void 0 ? value.maxIterations : 3);
+      }
+      if (researchMaxMinutesInput) {
+        researchMaxMinutesInput.value = String(value && value.maxMinutes !== void 0 ? value.maxMinutes : 15);
+      }
+      if (researchMaxFailuresInput) {
+        researchMaxFailuresInput.value = String(value && value.maxConsecutiveFailures !== void 0 ? value.maxConsecutiveFailures : 2);
+      }
+      if (researchBenchmarkTimeoutInput) {
+        researchBenchmarkTimeoutInput.value = String(value && value.benchmarkTimeoutSeconds !== void 0 ? value.benchmarkTimeoutSeconds : 180);
+      }
+      if (researchEditWaitInput) {
+        researchEditWaitInput.value = String(value && value.editWaitSeconds !== void 0 ? value.editWaitSeconds : 20);
+      }
+      if (researchAgentSelect) {
+        researchAgentSelect.value = value && value.agent ? value.agent : "";
+      }
+      if (researchModelSelect) {
+        researchModelSelect.value = value && value.model ? value.model : "";
+      }
+      persistTaskFilter();
+    }
+    function collectResearchFormData() {
+      return {
+        name: researchNameInput ? researchNameInput.value : "",
+        instructions: researchInstructionsInput ? researchInstructionsInput.value : "",
+        editablePaths: parseResearchEditablePaths(
+          researchEditablePathsInput ? researchEditablePathsInput.value : ""
+        ),
+        benchmarkCommand: researchBenchmarkInput ? researchBenchmarkInput.value : "",
+        metricPattern: researchMetricPatternInput ? researchMetricPatternInput.value : "",
+        metricDirection: researchMetricDirectionSelect && researchMetricDirectionSelect.value === "minimize" ? "minimize" : "maximize",
+        maxIterations: researchMaxIterationsInput ? Number(researchMaxIterationsInput.value || 0) : 0,
+        maxMinutes: researchMaxMinutesInput ? Number(researchMaxMinutesInput.value || 0) : 0,
+        maxConsecutiveFailures: researchMaxFailuresInput ? Number(researchMaxFailuresInput.value || 0) : 0,
+        benchmarkTimeoutSeconds: researchBenchmarkTimeoutInput ? Number(researchBenchmarkTimeoutInput.value || 0) : 0,
+        editWaitSeconds: researchEditWaitInput ? Number(researchEditWaitInput.value || 0) : 0,
+        agent: researchAgentSelect ? researchAgentSelect.value : "",
+        model: researchModelSelect ? researchModelSelect.value : ""
+      };
+    }
+    function validateResearchFormData(data) {
+      if (!String(data.name || "").trim()) {
+        return strings.researchProfileNameRequired || "Research profile name is required.";
+      }
+      if (!String(data.benchmarkCommand || "").trim()) {
+        return strings.researchBenchmarkRequired || "Benchmark command is required.";
+      }
+      if (!String(data.metricPattern || "").trim()) {
+        return strings.researchMetricRequired || "Metric regex is required.";
+      }
+      if (!Array.isArray(data.editablePaths) || data.editablePaths.length === 0) {
+        return strings.researchEditableRequired || "Add at least one editable file path.";
+      }
+      return "";
+    }
+    function syncResearchSelectors() {
+      updateSimpleSelect(
+        researchAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        researchAgentSelect ? researchAgentSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        researchModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        researchModelSelect ? researchModelSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+    }
+    function renderResearchProfiles() {
+      ensureValidResearchSelection();
+      if (!researchProfileList) {
+        return;
+      }
+      var profiles = Array.isArray(researchProfiles) ? researchProfiles.slice() : [];
+      profiles.sort(function(a, b) {
+        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      });
+      if (profiles.length === 0) {
+        researchProfileList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyProfiles || "No research profiles yet.") + "</div>";
+        resetResearchForm(null);
+        return;
+      }
+      researchProfileList.innerHTML = profiles.map(function(profile) {
+        var isActive = profile && profile.id === selectedResearchId;
+        return '<div class="research-card' + (isActive ? " active" : "") + '" data-research-id="' + escapeAttr(profile.id || "") + '"><div class="research-card-header"><strong>' + escapeHtml(profile.name || "") + '</strong><span class="jobs-pill">' + escapeHtml(profile.metricDirection === "minimize" ? strings.researchDirectionMinimize || "Minimize" : strings.researchDirectionMaximize || "Maximize") + '</span></div><div class="research-meta">' + escapeHtml(profile.benchmarkCommand || "") + '</div><div class="research-chip-row"><span class="research-chip">' + escapeHtml((strings.researchEditableCount || "Editable files") + ": " + String((profile.editablePaths || []).length)) + '</span><span class="research-chip">' + escapeHtml((strings.researchBudgetShort || "Budget") + ": " + String(profile.maxIterations || 0) + " / " + String(profile.maxMinutes || 0) + "m") + '</span><span class="research-chip">' + escapeHtml((strings.researchMetricPatternShort || "Metric") + ": " + String(profile.metricPattern || "")) + "</span></div></div>";
+      }).join("");
+    }
+    function renderResearchRuns() {
+      if (!researchRunList) {
+        return;
+      }
+      var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+      if (runs.length === 0) {
+        researchRunList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyRuns || "No research runs yet.") + "</div>";
+        return;
+      }
+      researchRunList.innerHTML = runs.map(function(run) {
+        var lastAttempt = Array.isArray(run.attempts) && run.attempts.length > 0 ? run.attempts[run.attempts.length - 1] : null;
+        var isActive = run && run.id === selectedResearchRunId;
+        return '<div class="research-run-card' + (isActive ? " active" : "") + '" data-run-id="' + escapeAttr(run.id || "") + '"><div class="research-run-card-header"><strong>' + escapeHtml(run.profileName || "") + '</strong><span class="jobs-pill">' + escapeHtml(formatResearchStatus(run.status)) + '</span></div><div class="research-run-meta">' + escapeHtml("Best: " + (run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet")) + "\n" + escapeHtml("Duration: " + formatResearchDuration(run.startedAt, run.finishedAt)) + "\n" + escapeHtml("Attempts: " + String(Array.isArray(run.attempts) ? run.attempts.length : 0)) + (lastAttempt ? "\n" + escapeHtml("Last: " + (lastAttempt.summary || lastAttempt.outcome || "")) : "") + "</div></div>";
+      }).join("");
+    }
+    function renderResearchActiveRun() {
+      if (!researchActiveEmpty || !researchActiveDetails) {
+        return;
+      }
+      var run = getDisplayedResearchRun();
+      if (researchRunTitle) {
+        researchRunTitle.textContent = strings.researchActiveRunTitle || "Run details";
+      }
+      if (!run) {
+        researchActiveEmpty.style.display = "block";
+        researchActiveDetails.style.display = "none";
+        researchActiveEmpty.textContent = strings.researchNoRunSelected || "Select a recent run to inspect its attempts.";
+        if (researchAttemptList) {
+          researchAttemptList.innerHTML = "";
+        }
+        return;
+      }
+      researchActiveEmpty.style.display = "none";
+      researchActiveDetails.style.display = "block";
+      var attempts = Array.isArray(run.attempts) ? run.attempts : [];
+      var lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+      if (researchActiveStatus) {
+        researchActiveStatus.textContent = formatResearchStatus(run.status);
+      }
+      if (researchActiveBest) {
+        researchActiveBest.textContent = run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet";
+      }
+      if (researchActiveAttempts) {
+        researchActiveAttempts.textContent = String(attempts.length);
+      }
+      if (researchActiveLastOutcome) {
+        researchActiveLastOutcome.textContent = lastAttempt ? String(lastAttempt.outcome || "-") : "-";
+      }
+      if (researchActiveMeta) {
+        researchActiveMeta.textContent = [
+          run.profileName || "",
+          (strings.researchStartedAt || "Started") + ": " + formatResearchDate(run.startedAt),
+          (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(run.finishedAt),
+          (strings.researchDuration || "Duration") + ": " + formatResearchDuration(run.startedAt, run.finishedAt),
+          (strings.researchBaselineScore || "Baseline score") + ": " + (run.baselineScore !== void 0 ? String(run.baselineScore) : strings.researchNoScore || "No score yet"),
+          (strings.researchBestScore || "Best score") + ": " + (run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet"),
+          (strings.researchCompletedIterations || "Completed iterations") + ": " + String(run.completedIterations || 0),
+          run.stopReason ? (strings.researchStopReason || "Stop reason") + ": " + run.stopReason : ""
+        ].filter(Boolean).join("\n");
+      }
+      if (researchAttemptList) {
+        researchAttemptList.innerHTML = attempts.map(function(attempt) {
+          var title = attempt.iteration === 0 ? strings.researchBaselineLabel || "Baseline" : (strings.researchIterationLabel || "Iteration") + " " + attempt.iteration;
+          var metaLines = [
+            attempt.summary || "",
+            (strings.researchStartedAt || "Started") + ": " + formatResearchDate(attempt.startedAt),
+            attempt.finishedAt ? (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(attempt.finishedAt) : "",
+            attempt.score !== void 0 ? "Score: " + String(attempt.score) : "",
+            attempt.bestScoreAfter !== void 0 ? (strings.researchBestScore || "Best score") + ": " + String(attempt.bestScoreAfter) : "",
+            attempt.exitCode !== void 0 ? (strings.researchExitCode || "Exit code") + ": " + String(attempt.exitCode) : ""
+          ].filter(Boolean);
+          var pathLines = [];
+          if (Array.isArray(attempt.changedPaths) && attempt.changedPaths.length > 0) {
+            pathLines.push(
+              (strings.researchChangedFiles || "Changed files") + ": " + attempt.changedPaths.join(", ")
+            );
+          }
+          if (Array.isArray(attempt.policyViolationPaths) && attempt.policyViolationPaths.length > 0) {
+            pathLines.push(
+              (strings.researchViolationFiles || "Policy violation files") + ": " + attempt.policyViolationPaths.join(", ")
+            );
+          }
+          if (attempt.snapshot && attempt.snapshot.label) {
+            pathLines.push(
+              (strings.researchSnapshot || "Snapshot") + ": " + attempt.snapshot.label
+            );
+          }
+          return '<div class="research-attempt-card"><div class="research-attempt-card-header"><strong>' + escapeHtml(title) + '</strong><span class="jobs-pill">' + escapeHtml(formatOutcomeLabel(attempt.outcome || "")) + '</span></div><div class="research-attempt-meta">' + escapeHtml(metaLines.join("\n")) + "</div>" + (pathLines.length > 0 ? '<div class="research-attempt-paths">' + escapeHtml(pathLines.join("\n")) + "</div>" : "") + (attempt.output ? '<div class="research-output"><details><summary>' + escapeHtml(strings.researchBenchmarkOutput || "Benchmark output") + "</summary><pre>" + escapeHtml(attempt.output) + "</pre></details></div>" : "") + "</div>";
+        }).join("");
+      }
+    }
+    function renderResearchTab() {
+      renderResearchProfiles();
+      renderResearchRuns();
+      renderResearchActiveRun();
+      var selected = getSelectedResearchProfile();
+      if (!researchFormDirty) {
+        resetResearchForm(selected || null);
+      } else if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+      if (researchSaveBtn) {
+        researchSaveBtn.textContent = isCreatingResearchProfile ? strings.researchCreateProfile || strings.researchSaveProfile || "Create Profile" : strings.researchSaveProfile || "Save Profile";
+      }
+      if (researchDuplicateBtn) {
+        researchDuplicateBtn.disabled = !selectedResearchId;
+      }
+      if (researchDeleteBtn) {
+        researchDeleteBtn.disabled = !selectedResearchId;
+      }
+      if (researchStartBtn) {
+        researchStartBtn.disabled = !selectedResearchId || activeResearchRun && activeResearchRun.status === "running";
+      }
+      if (researchStopBtn) {
+        researchStopBtn.disabled = !(activeResearchRun && (activeResearchRun.status === "running" || activeResearchRun.status === "stopping"));
+      }
+      persistTaskFilter();
+    }
+    function submitTelegramForm(messageType) {
+      clearTelegramFeedback();
+      var data = collectTelegramFormData();
+      var validationError = validateTelegramFormData(data);
+      if (validationError) {
+        showTelegramFeedback(validationError, true);
+        return;
+      }
+      vscode.postMessage({ type: messageType, data });
+      showTelegramFeedback(
+        messageType === "saveTelegramNotification" ? strings.telegramStatusSaved || "Saving Telegram settings..." : strings.telegramTest || "Sending test message...",
+        false
+      );
+    }
+    function markResearchFormDirty() {
+      researchFormDirty = true;
+      clearResearchFormError();
+    }
+    function hookResearchFormDirtyTracking() {
+      [
+        researchNameInput,
+        researchInstructionsInput,
+        researchEditablePathsInput,
+        researchBenchmarkInput,
+        researchMetricPatternInput,
+        researchMetricDirectionSelect,
+        researchMaxIterationsInput,
+        researchMaxMinutesInput,
+        researchMaxFailuresInput,
+        researchBenchmarkTimeoutInput,
+        researchEditWaitInput,
+        researchAgentSelect,
+        researchModelSelect
+      ].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("input", markResearchFormDirty);
+        element.addEventListener("change", markResearchFormDirty);
+      });
+    }
+    function hookEditorTabDirtyTracking() {
+      var selector = [
+        "#task-name",
+        "#prompt-text",
+        "#cron-expression",
+        "#task-labels",
+        "#agent-select",
+        "#model-select",
+        "#template-select",
+        "#jitter-seconds",
+        "#chat-session",
+        "#run-first",
+        "#one-time",
+        'input[name="scope"]',
+        'input[name="prompt-source"]',
+        "#todo-title-input",
+        "#todo-description-input",
+        "#todo-due-input",
+        "#todo-priority-input",
+        "#todo-section-input",
+        "#todo-linked-task-select",
+        "#todo-labels-input",
+        "#todo-label-color-input",
+        "#todo-flag-name-input",
+        "#todo-flag-color-input",
+        "#jobs-name-input",
+        "#jobs-cron-input",
+        "#jobs-folder-select"
+      ].join(", ");
+      ["input", "change"].forEach(function(eventName) {
+        document.addEventListener(eventName, function(event) {
+          var target = event && event.target;
+          if (!target || typeof target.matches !== "function") {
+            return;
+          }
+          if (target.matches(selector)) {
+            syncEditorTabLabels();
+          }
+        });
+      });
+    }
+    function renderJobsTab() {
+      ensureValidJobSelection();
+      persistTaskFilter();
+      syncEditorTabLabels();
+      if (jobsCurrentFolderBanner) {
+        var selectedFolder = getSelectedJobFolder();
+        var isArchive = isArchiveFolder(selectedFolder);
+        var currentFolderName = selectedJobFolderId ? (selectedFolder || {}).name || (strings.jobsRootFolder || "All jobs") : strings.jobsRootFolder || "All jobs";
+        jobsCurrentFolderBanner.innerHTML = '<div><span class="jobs-current-folder-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</span><strong class="jobs-current-folder-name">' + escapeHtml(isArchive ? strings.jobsArchiveFolderBadge || currentFolderName : currentFolderName) + '</strong><div class="jobs-folder-path">' + escapeHtml(getFolderPath(selectedJobFolderId)) + '</div></div><span class="jobs-pill' + (isArchive ? " is-inactive" : "") + '">' + escapeHtml(strings.jobsCurrentFolderBadge || "Current") + "</span>";
+      }
+      if (jobsRenameFolderBtn) jobsRenameFolderBtn.disabled = !selectedJobFolderId;
+      if (jobsDeleteFolderBtn) jobsDeleteFolderBtn.disabled = !selectedJobFolderId;
+      if (jobsFolderList) {
+        var folderItems = (Array.isArray(jobFolders) ? jobFolders.slice() : []).sort(function(a, b) {
+          var archiveDiff = (isArchiveFolder(a) ? 1 : 0) - (isArchiveFolder(b) ? 1 : 0);
+          if (archiveDiff !== 0) return archiveDiff;
+          var depthDiff = getFolderDepth(a) - getFolderDepth(b);
+          if (depthDiff !== 0) return depthDiff;
+          return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+        });
+        var rootClass = selectedJobFolderId ? "jobs-folder-item" : "jobs-folder-item active";
+        var folderHtml = '<div class="' + rootClass + '" data-job-folder=""><div class="jobs-folder-item-header"><span>' + escapeHtml(strings.jobsRootFolder || "All jobs") + '</span><span class="jobs-pill">' + String((Array.isArray(jobs) ? jobs : []).filter(function(job) {
+          return job && !(job.folderId || "");
+        }).length) + "</span></div></div>";
+        folderHtml += folderItems.map(function(folder) {
+          var depth = getFolderDepth(folder);
+          var isActive = folder && folder.id === selectedJobFolderId;
+          var archiveClass = isArchiveFolder(folder) ? " is-archive" : "";
+          var count = (Array.isArray(jobs) ? jobs : []).filter(function(job) {
+            return job && job.folderId === folder.id;
+          }).length;
+          var indent = new Array(depth + 1).join('<span class="jobs-folder-indent"></span>');
+          var folderPath = getFolderPath(folder.id);
+          return '<div class="jobs-folder-item' + (isActive ? " active" : "") + archiveClass + '" data-job-folder="' + escapeAttr(folder.id || "") + '"><div class="jobs-folder-item-header"><span>' + indent + escapeHtml(folder.name || "") + '</span><span class="jobs-pill">' + String(count) + "</span></div>" + (isArchiveFolder(folder) ? '<div class="jobs-folder-path"><span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchiveFolderBadge || "Archived jobs") + "</span></div>" : '<div class="jobs-folder-path">' + escapeHtml(folderPath) + "</div>") + "</div>";
+        }).join("");
+        jobsFolderList.innerHTML = folderHtml || '<div class="jobs-empty">' + escapeHtml(strings.jobsNoFolders || "No folders yet.") + "</div>";
+      }
+      if (jobsList) {
+        var visibleJobs = getVisibleJobs();
+        if (visibleJobs.length === 0) {
+          jobsList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsNoJobs || "No jobs in this folder yet.") + "</div>";
+        } else {
+          jobsList.innerHTML = visibleJobs.map(function(job) {
+            var scheduleSummary = getCronSummary(job.cronExpression || "");
+            var scheduleLabel = scheduleSummary !== (strings.labelFriendlyFallback || "") ? scheduleSummary : job.cronExpression || "";
+            var statusClass = "";
+            if (job && job.runtime && job.runtime.waitingPause) {
+              statusClass = " is-waiting";
+            } else if (job && (job.paused || job.archived)) {
+              statusClass = " is-inactive";
+            }
+            return '<div class="jobs-list-item' + (job.id === selectedJobId ? " active" : "") + '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true"><div class="jobs-list-item-header"><strong>' + escapeHtml(job.name || "") + '</strong><span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span></div><div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '"><div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + " \u2022 " + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div><div style="display:flex;align-items:center;gap:8px;">' + (job.archived ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || "Archived") + "</span>" : "") + '<button type="button" class="btn-secondary" data-job-open-editor="' + escapeAttr(job.id || "") + '">' + escapeHtml(strings.jobsOpenEditor || "Open editor") + "</button></div></div></div>";
+          }).join("");
+        }
+      }
+      var selectedJob = getJobById(selectedJobId);
+      var isJobCreateMode = !selectedJob && isCreatingJob;
+      applyJobsSidebarState();
+      if (!selectedJob && !isJobCreateMode) {
+        if (jobsWorkflowMetrics) jobsWorkflowMetrics.innerHTML = "";
+        if (jobsEmptyState) jobsEmptyState.style.display = "block";
+        if (jobsDetails) jobsDetails.style.display = "none";
+        return;
+      }
+      if (selectedJob) {
+        isCreatingJob = false;
+      }
+      syncEditorTabLabels();
+      if (jobsEmptyState) jobsEmptyState.style.display = "none";
+      if (jobsDetails) jobsDetails.style.display = "block";
+      var selectedNodes = selectedJob && Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+      var selectedWaitingPause = getWaitingPauseState(selectedJob);
+      var approvedPauseIds = getApprovedPauseIds(selectedJob);
+      var pauseCount = selectedNodes.filter(function(node) {
+        return isPauseNode(node);
+      }).length;
+      var taskCount = Math.max(0, selectedNodes.length - pauseCount);
+      var cadenceText = getJobsCadenceText(selectedJob ? selectedJob.cronExpression || "" : "");
+      if (jobsWorkflowMetrics) {
+        jobsWorkflowMetrics.innerHTML = [
+          {
+            label: strings.jobsWorkflowStatus || "Status",
+            value: selectedJob ? getJobStatusText(selectedJob) : strings.jobsCreateJob || "New Job",
+            tone: selectedWaitingPause ? "is-waiting" : selectedJob && (selectedJob.paused || selectedJob.archived) ? "is-muted" : "is-accent"
+          },
+          {
+            label: strings.jobsWorkflowCadence || "Cadence",
+            value: selectedJob ? cadenceText : strings.jobsEditorScheduleNote || "Define a schedule before saving.",
+            tone: "is-accent",
+            valueAttr: selectedJob ? ' data-jobs-workflow-cadence="1"' : ""
+          },
+          {
+            label: strings.jobsWorkflowTaskCount || "Task steps",
+            value: String(taskCount),
+            tone: ""
+          },
+          {
+            label: strings.jobsWorkflowPauseCount || "Pause checkpoints",
+            value: String(pauseCount),
+            tone: pauseCount > 0 ? "is-accent" : ""
+          }
+        ].map(function(metric) {
+          return '<div class="jobs-workflow-metric' + (String(metric.value || "").length > 18 ? " is-compact" : "") + (metric.tone ? " " + metric.tone : "") + '" title="' + escapeAttr(metric.value) + '"><div class="jobs-workflow-metric-label">' + escapeHtml(metric.label) + '</div><div class="jobs-workflow-metric-value"' + (metric.valueAttr || "") + ">" + escapeHtml(metric.value) + "</div></div>";
+        }).join("");
+      }
+      if (jobsNameInput) jobsNameInput.value = selectedJob ? selectedJob.name || "" : "";
+      if (jobsCronInput) jobsCronInput.value = selectedJob ? selectedJob.cronExpression || "" : "0 9 * * 1-5";
+      if (jobsCronPreset) jobsCronPreset.value = "";
+      syncJobsFolderSelect(selectedJob ? selectedJob.folderId || "" : selectedJobFolderId || "");
+      if (jobsStatusPill) {
+        jobsStatusPill.textContent = selectedJob ? getJobStatusText(selectedJob) : strings.jobsRunning || "Running";
+        if (jobsStatusPill.classList) {
+          jobsStatusPill.classList.toggle("is-inactive", !!(selectedJob && (selectedJob.paused || selectedJob.archived)));
+          jobsStatusPill.classList.toggle("is-waiting", !!selectedWaitingPause);
+        }
+        jobsStatusPill.disabled = !selectedJob;
+      }
+      if (jobsPauseBtn) {
+        jobsPauseBtn.textContent = selectedJob && selectedJob.paused ? strings.jobsResume || "Resume Job" : strings.jobsPause || "Pause Job";
+        jobsPauseBtn.disabled = !selectedJob;
+      }
+      if (jobsCompileBtn) {
+        jobsCompileBtn.disabled = !selectedJob || selectedNodes.length === 0;
+      }
+      if (jobsDuplicateBtn) {
+        jobsDuplicateBtn.disabled = !selectedJob;
+      }
+      if (jobsDeleteBtn) {
+        jobsDeleteBtn.disabled = !selectedJob;
+      }
+      if (jobsSaveBtn) {
+        jobsSaveBtn.textContent = selectedJob ? strings.jobsSave || "Save Job" : strings.jobsCreateJob || "New Job";
+      }
+      if (jobsTimelineInline) {
+        var timelineHtml = selectedNodes.map(function(node, index) {
+          var taskName = "";
+          if (isPauseNode(node)) {
+            taskName = (strings.jobsPausePrefix || "Pause") + ": " + (node.title || (strings.jobsPauseDefaultTitle || "Manual review"));
+          } else {
+            var task = getTaskById(node.taskId);
+            taskName = task && task.name ? task.name : (strings.jobsStepPrefix || "Step") + " " + String(index + 1);
+          }
+          return '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' + escapeHtml(taskName) + "</span>" + (index < selectedNodes.length - 1 ? '<span class="jobs-timeline-arrow">\u2192</span>' : "");
+        }).join("");
+        jobsTimelineInline.innerHTML = selectedJob ? timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet") : escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
+      }
+      syncJobsExistingTaskSelect();
+      syncJobsStepSelectors();
+      updateJobsCronPreview();
+      updateJobsFriendlyVisibility();
+      if (jobsStepList) {
+        if (!selectedJob) {
+          jobsStepList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsCreateJob || "Create Job") + ": " + escapeHtml(strings.jobsSave || "Save Job") + "</div>";
+          return;
+        }
+        var stepCards = selectedNodes.map(function(node, index) {
+          if (isPauseNode(node)) {
+            var isWaiting = !!selectedWaitingPause && selectedWaitingPause.nodeId === node.id;
+            var isApproved = approvedPauseIds.indexOf(node.id) >= 0;
+            var pauseStatusText = isWaiting ? strings.jobsPauseWaiting || "Waiting for approval" : isApproved ? strings.jobsPauseApproved || "Approved" : strings.jobsPauseDefaultTitle || "Manual review";
+            return '<div class="jobs-step-card jobs-pause-card' + (isWaiting ? " is-waiting" : "") + '" draggable="true" data-job-node-id="' + escapeAttr(node.id || "") + '"><div class="jobs-step-header"><strong title="' + escapeAttr(node.title || "") + '">' + String(index + 1) + ". " + escapeHtml(node.title || (strings.jobsPauseDefaultTitle || "Manual review")) + '</strong><span class="jobs-pill' + (isWaiting ? " is-waiting" : "") + '">' + escapeHtml(pauseStatusText) + '</span></div><div class="jobs-pause-copy">' + escapeHtml(strings.jobsPauseHelpText || "This checkpoint blocks downstream steps until you approve the previous result.") + '</div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseEdit || "Edit") + '</button><button type="button" class="btn-danger" data-job-action="delete-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseDelete || "Delete") + "</button>" + (isWaiting ? '<button type="button" class="btn-primary" data-job-action="approve-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseApprove || "Approve") + '</button><button type="button" class="btn-secondary" data-job-action="reject-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseReject || "Reject and edit previous step") + "</button>" : "") + "</div></div>";
+          }
+          var task = getTaskById(node.taskId);
+          var taskName = task && task.name ? task.name : "Missing task";
+          var taskPrompt = task && task.prompt ? String(task.prompt) : "";
+          var preview = taskPrompt.length > 120 ? taskPrompt.slice(0, 120) + "..." : taskPrompt;
+          var nextRunText = task && task.nextRun ? new Date(task.nextRun).toLocaleString(locale) : strings.labelNever || "Never";
+          return '<div class="jobs-step-card" draggable="true" data-job-node-id="' + escapeAttr(node.id || "") + '"><div class="jobs-step-header"><strong title="' + escapeAttr(taskName) + '">' + String(index + 1) + ". " + escapeHtml(taskName) + '</strong><span class="jobs-pill">' + escapeHtml(String(node.windowMinutes || 30) + "m") + '</span></div><div class="jobs-step-meta">' + escapeHtml(strings.labelNextRun || "Next run") + ": " + escapeHtml(nextRunText) + '</div><div class="jobs-step-summary" title="' + escapeAttr(taskPrompt || preview) + '">' + escapeHtml(preview || "-") + '</div><div class="jobs-inline-form"><div class="form-group"><input type="number" class="job-node-window-input" data-job-node-window-id="' + escapeAttr(node.id || "") + '" min="1" max="1440" value="' + escapeAttr(String(node.windowMinutes || 30)) + '"></div></div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionEdit || "Edit") + '</button><button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionRun || "Run") + '</button><button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="' + escapeAttr(node.id || "") + '">Delete</button></div></div>';
+        }).join("");
+        jobsStepList.innerHTML = stepCards || '<div class="jobs-empty">' + escapeHtml(strings.jobsEmptySteps || "This job has no steps yet.") + "</div>";
+      }
+    }
+    updateAgentOptions2();
+    updateModelOptions2();
+    var initialPromptSource = document.querySelector(
+      'input[name="prompt-source"]:checked'
+    );
+    if (initialPromptSource) {
+      applyPromptSource(initialPromptSource.value);
+    }
+    if (chatSessionSelect && !chatSessionSelect.value) {
+      chatSessionSelect.value = defaultChatSession;
+    }
+    syncRecurringChatSessionUi();
+    updateFriendlyVisibility();
+    updateCronPreview();
+    updateSkillOptions();
+    syncTaskLabelFilterOptions();
+    syncJobsStepSelectors();
+    syncJobsFolderSelect("");
+    syncJobsExistingTaskSelect();
+    renderJobsTab();
+    syncEditorTabLabels();
+    window.runTask = function(id) {
+      vscode.postMessage({ type: "runTask", taskId: id });
+    };
+    window.editTask = function(id) {
+      var taskListArray = Array.isArray(tasks) ? tasks : [];
+      var task = taskListArray.find(function(t) {
+        return t && t.id === id;
+      });
+      if (!task) return;
+      setEditingMode(id);
+      var taskNameEl = document.getElementById("task-name");
+      var promptTextEl = document.getElementById("prompt-text");
+      if (taskNameEl) taskNameEl.value = task.name || "";
+      if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
+      if (promptTextEl)
+        promptTextEl.value = typeof task.prompt === "string" ? task.prompt : "";
+      if (cronExpression) cronExpression.value = task.cronExpression || "";
+      if (cronPreset) cronPreset.value = "";
+      updateCronPreview();
+      pendingAgentValue = task.agent || "";
+      pendingModelValue = task.model || "";
+      if (agentSelect) {
+        if (pendingAgentValue && selectHasOptionValue(agentSelect, pendingAgentValue)) {
+          agentSelect.value = pendingAgentValue;
+          pendingAgentValue = "";
+        } else if (pendingAgentValue) {
+          agentSelect.value = "";
+        }
+      }
+      if (modelSelect) {
+        if (pendingModelValue && selectHasOptionValue(modelSelect, pendingModelValue)) {
+          modelSelect.value = pendingModelValue;
+          pendingModelValue = "";
+        } else if (pendingModelValue) {
+          modelSelect.value = "";
+        }
+      }
+      editingTaskEnabled = task.enabled !== false;
+      var scopeValue = task.scope || "workspace";
+      var scopeRadio = document.querySelector(
+        'input[name="scope"][value="' + scopeValue + '"]'
+      );
+      if (scopeRadio) {
+        scopeRadio.checked = true;
+      }
+      var sourceValue = task.promptSource || "inline";
+      var sourceRadio = document.querySelector(
+        'input[name="prompt-source"][value="' + sourceValue + '"]'
+      );
+      if (sourceRadio) {
+        sourceRadio.checked = true;
+      }
+      applyPromptSource(sourceValue, true);
+      pendingTemplatePath = task.promptPath || "";
+      if (templateSelect) {
+        if (pendingTemplatePath && selectHasOptionValue(templateSelect, pendingTemplatePath)) {
+          templateSelect.value = pendingTemplatePath;
+          pendingTemplatePath = "";
+        } else if (pendingTemplatePath) {
+          templateSelect.value = "";
+        }
+      }
+      if (jitterSecondsInput) {
+        jitterSecondsInput.value = String(
+          task.jitterSeconds ?? defaultJitterSeconds
+        );
+      }
+      var runFirstEl = document.getElementById("run-first");
+      if (runFirstEl) runFirstEl.checked = false;
+      var oneTimeEl = document.getElementById("one-time");
+      if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+      if (chatSessionSelect) {
+        chatSessionSelect.value = task.chatSession === "continue" ? "continue" : task.chatSession === "new" ? "new" : defaultChatSession;
+      }
+      syncRecurringChatSessionUi();
+      switchTab("create");
+    };
+    if (newTaskBtn) {
+      newTaskBtn.addEventListener("click", function() {
+        resetForm();
+        switchTab("create");
+        try {
+          var taskNameEl = document.getElementById("task-name");
+          if (taskNameEl && typeof taskNameEl.focus === "function") {
+            taskNameEl.focus();
+          }
+        } catch (e) {
+        }
+      });
+    }
+    window.copyPrompt = function(id) {
+      vscode.postMessage({ type: "copyTask", taskId: id });
+    };
+    window.duplicateTask = function(id) {
+      vscode.postMessage({ type: "duplicateTask", taskId: id });
+    };
+    window.moveTaskToCurrentWorkspace = function(id) {
+      vscode.postMessage({ type: "moveTaskToCurrentWorkspace", taskId: id });
+    };
+    window.toggleTask = function(id) {
+      vscode.postMessage({ type: "toggleTask", taskId: id });
+    };
+    window.deleteTask = function(id) {
+      var task = tasks.find(function(t) {
+        return t && t.id === id;
+      });
+      if (!task) {
+        return;
+      }
+      vscode.postMessage({ type: "deleteTask", taskId: id });
+    };
+    window.addEventListener("message", function(event) {
+      var message = event.data;
+      try {
+        switch (message.type) {
+          case "updateTasks":
+            tasks = Array.isArray(message.tasks) ? message.tasks : [];
+            emitWebviewDebug("updateTasks", {
+              taskCount: tasks.length,
+              selectedTodoId: selectedTodoId || "",
+              isCreatingJob
+            });
+            syncTaskLabelFilterOptions();
+            syncJobsExistingTaskSelect();
+            renderTaskList(message.tasks);
+            renderJobsTab();
+            syncTodoLinkedTaskOptions(selectedTodoId ? "" : todoLinkedTaskSelect ? todoLinkedTaskSelect.value : "");
+            break;
+          case "updateJobs":
+            jobs = Array.isArray(message.jobs) ? message.jobs : [];
+            syncTaskLabelFilterOptions();
+            renderTaskList(tasks);
+            renderJobsTab();
+            break;
+          case "updateJobFolders":
+            jobFolders = Array.isArray(message.jobFolders) ? message.jobFolders : [];
+            renderJobsTab();
+            break;
+          case "updateCockpitBoard":
+            cockpitBoard = message.cockpitBoard || {
+              version: 4,
+              sections: [],
+              cards: [],
+              filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
+              updatedAt: ""
+            };
+            emitWebviewDebug("updateCockpitBoard", {
+              sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
+              cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,
+              selectedTodoId: selectedTodoId || "",
+              draftTitleLength: currentTodoDraft.title.length
+            });
+            if (pendingTodoDeleteId && !cockpitBoard.cards.some(function(card) {
+              return card && card.id === pendingTodoDeleteId;
+            })) {
+              closeTodoDeleteModal();
+            }
+            clearCatalogDeleteState();
+            syncTaskLabelFilterOptions();
+            renderTaskList(tasks);
+            requestCockpitBoardRender();
+            reconcileTodoEditorCatalogState();
+            syncFlagEditor();
+            syncTodoLabelEditor();
+            scheduleBoardStickyMetrics();
+            break;
+          case "updateResearchState":
+            researchProfiles = Array.isArray(message.profiles) ? message.profiles : [];
+            activeResearchRun = message.activeRun || null;
+            recentResearchRuns = Array.isArray(message.recentRuns) ? message.recentRuns : [];
+            if (activeResearchRun && (!selectedResearchRunId || selectedResearchRunId === activeResearchRun.id)) {
+              selectedResearchRunId = activeResearchRun.id;
+            } else {
+              ensureValidResearchRunSelection();
+            }
+            if (!selectedResearchId && !isCreatingResearchProfile) {
+              ensureValidResearchSelection();
+            }
+            renderResearchTab();
+            break;
+          case "updateTelegramNotification":
+            telegramNotification = message.telegramNotification || {
+              enabled: false,
+              hasBotToken: false,
+              hookConfigured: false
+            };
+            renderTelegramTab();
+            break;
+          case "updateLogLevel":
+            currentLogLevel = typeof message.logLevel === "string" && message.logLevel ? message.logLevel : "info";
+            debugTools.setLogLevel(currentLogLevel);
+            renderLoggingControls();
+            break;
+          case "updateExecutionDefaults":
+            executionDefaults = message.executionDefaults || {
+              agent: "agent",
+              model: ""
+            };
+            emitWebviewDebug("updateExecutionDefaults", {
+              agent: executionDefaults.agent || "",
+              model: executionDefaults.model || "",
+              editingTaskId: editingTaskId || "",
+              pendingAgentValue,
+              pendingModelValue
+            });
+            renderExecutionDefaultsControls();
+            if (!editingTaskId) {
+              if (agentSelect && !pendingAgentValue && !agentSelect.value) {
+                agentSelect.value = executionDefaults.agent || "";
+              }
+              if (modelSelect && !pendingModelValue && !modelSelect.value) {
+                modelSelect.value = executionDefaults.model || "";
+              }
+            }
+            break;
+          case "updateAgents":
+            {
+              var currentAgentValue = pendingAgentValue || (agentSelect ? agentSelect.value : "");
+              emitWebviewDebug("updateAgents", {
+                currentAgentValue,
+                agentCount: Array.isArray(message.agents) ? message.agents.length : 0
+              });
+              agents = Array.isArray(message.agents) ? message.agents : [];
+              updateAgentOptions2();
+              renderExecutionDefaultsControls();
+              syncJobsStepSelectors();
+              syncResearchSelectors();
+              if (agentSelect && currentAgentValue) {
+                agentSelect.value = currentAgentValue;
+                if (agentSelect.value === currentAgentValue) {
+                  pendingAgentValue = "";
+                } else {
+                  pendingAgentValue = currentAgentValue;
+                }
+              }
+            }
+            break;
+          case "updateModels":
+            {
+              var currentModelValue = pendingModelValue || (modelSelect ? modelSelect.value : "");
+              emitWebviewDebug("updateModels", {
+                currentModelValue,
+                modelCount: Array.isArray(message.models) ? message.models.length : 0
+              });
+              models = Array.isArray(message.models) ? message.models : [];
+              updateModelOptions2();
+              renderExecutionDefaultsControls();
+              syncJobsStepSelectors();
+              syncResearchSelectors();
+              if (modelSelect && currentModelValue) {
+                modelSelect.value = currentModelValue;
+                if (modelSelect.value === currentModelValue) {
+                  pendingModelValue = "";
+                } else {
+                  pendingModelValue = currentModelValue;
+                }
+              }
+            }
+            break;
+          case "updatePromptTemplates":
+            promptTemplates = Array.isArray(message.templates) ? message.templates : [];
+            {
+              var sourceElement = document.querySelector(
+                'input[name="prompt-source"]:checked'
+              );
+              var currentSource = sourceElement ? sourceElement.value : "inline";
+              var currentTemplateValue = pendingTemplatePath || (templateSelect ? templateSelect.value : "");
+              updateTemplateOptions(currentSource, currentTemplateValue);
+              if (templateSelect && currentTemplateValue) {
+                if (templateSelect.value === currentTemplateValue) {
+                  pendingTemplatePath = "";
+                } else {
+                  pendingTemplatePath = currentTemplateValue;
+                }
+              }
+              if (currentSource === "local" || currentSource === "global") {
+                if (templateSelectGroup)
+                  templateSelectGroup.style.display = "block";
+              } else {
+                if (templateSelectGroup)
+                  templateSelectGroup.style.display = "none";
+              }
+            }
+            break;
+          case "updateSkills":
+            skills = Array.isArray(message.skills) ? message.skills : [];
+            updateSkillOptions();
+            break;
+          case "updateAutoShowOnStartup":
+            autoShowOnStartup = !!message.enabled;
+            syncAutoShowOnStartupUi();
+            break;
+          case "updateScheduleHistory":
+            scheduleHistory = Array.isArray(message.entries) ? message.entries : [];
+            syncScheduleHistoryOptions();
+            break;
+          case "promptTemplateLoaded":
+            var promptTextEl = document.getElementById("prompt-text");
+            if (promptTextEl) promptTextEl.value = message.content;
+            break;
+          case "switchToList":
+            pendingSubmit = false;
+            if (submitBtn) submitBtn.disabled = false;
+            hideGlobalError();
+            resetForm();
+            switchTab("list");
+            if (message.successMessage) {
+              var toast = document.getElementById("success-toast");
+              if (toast) {
+                var prefix = strings.webviewSuccessPrefix || "\u2714 ";
+                toast.textContent = prefix + message.successMessage;
+                toast.style.display = "block";
+                toast.style.opacity = "1";
+                setTimeout(function() {
+                  toast.style.opacity = "0";
+                }, 3e3);
+                setTimeout(function() {
+                  toast.style.display = "none";
+                  toast.style.opacity = "1";
+                }, 3500);
+              }
+            }
+            break;
+          case "switchToTab":
+            if (message.tab) {
+              switchTab(message.tab);
+            }
+            break;
+          case "focusTask":
+            switchTab("list");
+            setTimeout(function() {
+              var list = document.querySelectorAll(".task-card");
+              var card = null;
+              for (var i = 0; i < list.length; i++) {
+                var el = list[i];
+                if (el && el.getAttribute && el.getAttribute("data-id") === message.taskId) {
+                  card = el;
+                  break;
+                }
+              }
+              if (card) card.scrollIntoView({ behavior: "smooth" });
+            }, 100);
+            break;
+          case "focusJob":
+            selectedJobFolderId = typeof message.folderId === "string" ? message.folderId : "";
+            var focusedJobId = message.jobId || "";
+            isCreatingJob = true;
+            selectedJobId = "";
+            persistTaskFilter();
+            renderJobsTab();
+            switchTab("jobs");
+            setTimeout(function() {
+              var jobCard = focusedJobId ? document.querySelector('[data-job-id="' + focusedJobId + '"]') : null;
+              if (jobCard && typeof jobCard.scrollIntoView === "function") {
+                jobCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }
+            }, 50);
+            break;
+          case "editTask":
+            if (message.taskId && typeof window.editTask === "function") {
+              window.editTask(message.taskId);
+            }
+            break;
+          case "startCreateTask":
+            pendingSubmit = false;
+            if (submitBtn) submitBtn.disabled = false;
+            hideGlobalError();
+            resetForm();
+            switchTab("create");
+            setTimeout(function() {
+              try {
+                var taskNameEl = document.getElementById("task-name");
+                if (taskNameEl && typeof taskNameEl.focus === "function") {
+                  taskNameEl.focus();
+                }
+              } catch (e) {
+              }
+            }, 0);
+            break;
+          case "startCreateTodo":
+            emitWebviewDebug("startCreateTodo", { reason: "host" });
+            resetTodoEditor();
+            break;
+          case "startCreateJob":
+            emitWebviewDebug("startCreateJob", { reason: "host" });
+            resetJobEditor();
+            break;
+          case "showError":
+            if (message.text) {
+              showGlobalError(message.text);
+              pendingSubmit = false;
+              if (submitBtn) submitBtn.disabled = false;
+            }
+            break;
+          case "todoFileUploadResult":
+            if (message.ok && message.insertedText) {
+              appendTextToTodoDescription(String(message.insertedText || ""));
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesSuccess || ""),
+                "success"
+              );
+            } else if (!message.cancelled) {
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesError || ""),
+                "error"
+              );
+            } else {
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesHint || ""),
+                "neutral"
+              );
+            }
+            break;
+        }
+      } catch (e) {
+        var prefix = strings.webviewClientErrorPrefix || "";
+        var rawError = e && e.message ? e.message : e;
+        rawError = String(rawError).split(/\r?\n/)[0];
+        showGlobalError(prefix + sanitizeAbsolutePaths(rawError));
+        pendingSubmit = false;
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+    renderTaskList(tasks);
+    switchTab(getInitialTabName());
+    window.addEventListener("scroll", function() {
+      updateBoardAutoCollapseFromScroll(false);
+    }, { passive: true });
+    window.addEventListener("resize", scheduleBoardStickyMetrics);
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") {
+        closeTodoDeleteModal();
+        closeTodoCommentModal();
+      }
+    });
+    scheduleBoardStickyMetrics();
+    setInterval(function() {
+      if (isTabActive("list")) {
+        refreshTaskCountdowns();
+      }
+    }, 1e3);
+    vscode.postMessage({ type: "webviewReady" });
+  })();
+})();

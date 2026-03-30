@@ -2601,6 +2601,13 @@ export class SchedulerWebview {
       transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
     }
 
+    article[data-todo-id][data-selected="true"] {
+      box-shadow:
+        inset 0 0 0 1px var(--vscode-focusBorder),
+        0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+      background-clip: padding-box;
+    }
+
     article[data-todo-id].todo-dragging {
       opacity: 0.35;
       transform: rotate(1.5deg) scale(0.97) !important;
