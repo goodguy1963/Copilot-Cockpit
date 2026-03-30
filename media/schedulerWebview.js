@@ -721,6 +721,13 @@ import {
   var boardStickyMetricsFrame = 0;
   var boardAutoCollapseSettleY = 0;
   var boardAutoCollapseSettleDistance = 0;
+  var boardCardDetailsHidden = (function () {
+    try {
+      return localStorage.getItem("cockpit-hide-card-details") === "1";
+    } catch (_e) {
+      return false;
+    }
+  })();
 
   // Edit-mode tracking for flag and label catalog
   var editingFlagOriginalName = "";
@@ -2430,6 +2437,12 @@ syncTodoLabelSuggestions();
 
   function updateTodoFilters(partial) {
     var next = Object.assign({}, getTodoFilters(), partial || {});
+    if (partial && typeof partial.hideCardDetails === "boolean") {
+      boardCardDetailsHidden = partial.hideCardDetails;
+      try {
+        localStorage.setItem("cockpit-hide-card-details", boardCardDetailsHidden ? "1" : "0");
+      } catch (_e) {}
+    }
     if (!cockpitBoard) {
       cockpitBoard = {
         sections: [],
@@ -2753,9 +2766,13 @@ syncTodoLabelSuggestions();
       todoShowRecurringTasks.checked = filters.showRecurringTasks === true;
     }
     if (todoHideCardDetails) {
-      todoHideCardDetails.checked = filters.hideCardDetails === true;
+      var hideCardDetails = filters.hideCardDetails === true || boardCardDetailsHidden === true;
+      todoHideCardDetails.checked = hideCardDetails;
     }
-    document.documentElement.classList.toggle("cockpit-board-hide-card-details", filters.hideCardDetails === true);
+    document.documentElement.classList.toggle(
+      "cockpit-board-hide-card-details",
+      filters.hideCardDetails === true || boardCardDetailsHidden === true,
+    );
     if (todoClearFiltersBtn) {
       todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters);
     }
@@ -5603,6 +5620,45 @@ syncTodoLabelSuggestions();
     lastRenderedTasksHtml = renderedTasks;
     taskList.innerHTML = renderedTasks;
     refreshTaskCountdowns();
+  }
+
+  function postTaskInlineChange(taskId, field, value) {
+    if (!taskId) {
+      return;
+    }
+    var data = {};
+    data[field] = value;
+    vscode.postMessage({
+      type: "updateTask",
+      taskId: taskId,
+      data: data,
+    });
+  }
+
+  if (taskList) {
+    taskList.addEventListener("change", function (event) {
+      var target = event && event.target;
+      if (!target || !target.classList) {
+        return;
+      }
+
+      if (target.classList.contains("task-agent-select")) {
+        postTaskInlineChange(
+          target.getAttribute("data-id") || "",
+          "agent",
+          target.value || "",
+        );
+        return;
+      }
+
+      if (target.classList.contains("task-model-select")) {
+        postTaskInlineChange(
+          target.getAttribute("data-id") || "",
+          "model",
+          target.value || "",
+        );
+      }
+    });
   }
 
   // Helper functions

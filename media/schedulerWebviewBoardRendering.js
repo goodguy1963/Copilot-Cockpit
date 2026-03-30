@@ -81,7 +81,7 @@ function renderTodoListRow(card, sectionId, options) {
     }).join(" "));
   }
 
-  return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';padding:var(--cockpit-card-pad, 8px);cursor:pointer;">' +
+  return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? 'true' : 'false') + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;">' +
     '<div class="todo-list-main">' +
       '<div class="todo-list-title-line">' +
         '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
@@ -195,7 +195,7 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
                 '</div>'
               : '';
             return (
-              '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", isSelected) + ';border:1px solid ' + (isSelected ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)') + ';cursor:pointer;">' +
+              '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? 'true' : 'false') + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;">' +
               '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
               '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
               helpers.renderTodoCompletionCheckbox(card) +
