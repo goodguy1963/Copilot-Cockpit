@@ -12,6 +12,10 @@ import {
     normalizeCockpitBoard,
 } from "./cockpitBoard.js";
 import {
+    DEFAULT_ROUTING_SIGNALS,
+    listCockpitRoutingCards,
+} from "./cockpitRouting.js";
+import {
     addTodoCommentInBoard,
     approveTodoInBoard,
     createTodoInBoard,
@@ -859,6 +863,17 @@ export const MCP_TOOL_DEFINITIONS = [
                 todoId: { type: "string", description: "Card ID to fetch." },
             },
             required: ["todoId"],
+        },
+    },
+    {
+        name: "cockpit_list_routing_cards",
+        description: "List Cockpit todo cards that match routing labels, flags, or actionable comment labels.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, abgelehnt, needs-bot-review, and on-schedule-list." },
+                includeArchived: { type: "boolean", description: "Set false to exclude archived cards." },
+            },
         },
     },
     {
@@ -1849,6 +1864,23 @@ export async function handleSchedulerToolCall(
                 return textResponse(summarizeCockpitTodo(board, todo));
             }
 
+            case "cockpit_list_routing_cards": {
+                const board = getCockpitBoard(config);
+                const signals = Array.isArray(args.signals)
+                    ? args.signals.filter((entry): entry is string => typeof entry === "string")
+                    : DEFAULT_ROUTING_SIGNALS;
+                const cards = listCockpitRoutingCards(board, {
+                    signals,
+                    includeArchived: args.includeArchived !== false,
+                });
+                return textResponse({
+                    workspaceRoot: context.workspaceRoot,
+                    routingSignals: signals,
+                    cardCount: cards.length,
+                    cards,
+                });
+            }
+
             case "cockpit_create_todo": {
                 const board = getCockpitBoard(config);
                 const result = createTodoInBoard(board, {
@@ -2018,6 +2050,7 @@ export async function handleSchedulerToolCall(
                     viewMode: typeof args.viewMode === "string" ? args.viewMode : undefined,
                     showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
                     showRecurringTasks: typeof args.showRecurringTasks === "boolean" ? args.showRecurringTasks : undefined,
+                    hideCardDetails: typeof args.hideCardDetails === "boolean" ? args.hideCardDetails : undefined,
                 });
                 config.cockpitBoard = board;
                 context.writeConfig(config);

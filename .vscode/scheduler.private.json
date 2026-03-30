@@ -12,13 +12,13 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-29T18:59:02.838Z",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-30T19:46:36.419Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-29T23:07:03.153Z",
-            "nextRun": "2026-03-30T07:00:00.000Z",
+            "lastRun": "2026-03-30T07:00:04.677Z",
+            "nextRun": "2026-03-31T07:00:00.000Z",
             "createdAt": "2026-03-29T18:59:02.815Z",
             "updatedAt": "2026-03-29T21:43:07.299Z"
         },
@@ -34,14 +34,13 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774820624347_er6ssw.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-29T21:43:44.369Z",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820624347_er6ssw.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-30T19:46:36.424Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
             "jobNodeId": "jobnode_1774820624387_y0buu9",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-03-30T07:00:00.000Z",
             "createdAt": "2026-03-29T21:43:44.347Z",
             "updatedAt": "2026-03-29T21:50:06.240Z"
         },
@@ -55,8 +54,8 @@
             "agent": "agent",
             "model": "gpt-5-mini",
             "promptSource": "inline",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774820637468_uatpgj.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-29T21:43:57.490Z",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820637468_uatpgj.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-30T19:46:36.440Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
@@ -77,13 +76,13 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774820899929_ua1d8h.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-29T21:48:19.954Z",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820899929_ua1d8h.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-30T19:46:36.446Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-29T21:48:51.622Z",
-            "nextRun": "2026-03-30T07:00:00.000Z",
+            "lastRun": "2026-03-30T07:00:05.438Z",
+            "nextRun": "2026-03-31T07:00:00.000Z",
             "createdAt": "2026-03-29T21:48:19.929Z",
             "updatedAt": "2026-03-29T21:48:44.010Z"
         },
@@ -99,14 +98,14 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1774820991131_24potb.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-29T21:49:51.155Z",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820991131_24potb.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-30T19:46:36.451Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
             "jobNodeId": "jobnode_1774820991174_sjtdkg",
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-03-30T07:30:00.000Z",
+            "lastRun": "2026-03-30T07:30:04.338Z",
             "createdAt": "2026-03-29T21:49:51.131Z",
             "updatedAt": "2026-03-29T21:50:17.032Z"
         }
@@ -144,12 +143,21 @@
                 }
             ],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-03-29T23:07:11.139Z"
+            "updatedAt": "2026-03-30T07:30:04.343Z",
+            "runtime": {
+                "cycleStartedAt": "2026-03-30T07:00:00.000Z",
+                "approvedPauseNodeIds": [],
+                "waitingPause": {
+                    "nodeId": "jobnode_1774820631235_4mkln3",
+                    "previousTaskId": "task_1774820991131_24potb",
+                    "activatedAt": "2026-03-30T07:30:04.338Z"
+                }
+            }
         }
     ],
     "jobFolders": [],
     "cockpitBoard": {
-        "version": 3,
+        "version": 4,
         "sections": [
             {
                 "id": "unsorted",
@@ -173,16 +181,23 @@
                 "updatedAt": "2026-03-29T21:40:46.161Z"
             },
             {
+                "id": "recurring-tasks",
+                "title": "Recurring Tasks",
+                "order": 3,
+                "createdAt": "2026-03-30T16:04:32.123Z",
+                "updatedAt": "2026-03-30T16:04:32.123Z"
+            },
+            {
                 "id": "archive-completed",
                 "title": "Archive: Completed",
-                "order": 3,
+                "order": 4,
                 "createdAt": "2026-03-28T18:06:48.620Z",
                 "updatedAt": "2026-03-28T18:06:48.620Z"
             },
             {
                 "id": "archive-rejected",
                 "title": "Archive: Rejected",
-                "order": 4,
+                "order": 5,
                 "createdAt": "2026-03-28T18:06:48.620Z",
                 "updatedAt": "2026-03-28T18:06:48.620Z"
             }
@@ -298,7 +313,7 @@
                 "id": "todo_mnc4b5uh_i97iwz",
                 "title": "a",
                 "sectionId": "archive-completed",
-                "order": 0,
+                "order": 1,
                 "priority": "medium",
                 "dueAt": "2026-03-04T19:57:00.000Z",
                 "status": "completed",
@@ -341,11 +356,15 @@
             {
                 "id": "todo_mnc4hppm_dztwob",
                 "title": "aa",
-                "sectionId": "archive-completed",
-                "order": 2,
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "recurring-tasks",
+                "order": 0,
                 "priority": "medium",
-                "status": "completed",
-                "labels": [],
+                "status": "active",
+                "labels": [
+                    "scheduled-task",
+                    "recurring-task"
+                ],
                 "flags": [],
                 "comments": [
                     {
@@ -372,19 +391,16 @@
                     }
                 ],
                 "taskId": "task_1774810742815_ntq7vy",
-                "archived": true,
-                "archiveOutcome": "completed-successfully",
+                "archived": false,
                 "approvedAt": "2026-03-29T19:00:55.154Z",
-                "completedAt": "2026-03-29T19:00:56.077Z",
-                "archivedAt": "2026-03-29T19:00:56.077Z",
                 "createdAt": "2026-03-29T18:59:02.815Z",
-                "updatedAt": "2026-03-29T21:38:31.999Z"
+                "updatedAt": "2026-03-29T21:43:07.299Z"
             },
             {
                 "id": "todo_mnc49kym_nxxehd",
                 "title": "ass",
                 "sectionId": "archive-completed",
-                "order": 1,
+                "order": 2,
                 "priority": "none",
                 "status": "completed",
                 "labels": [],
@@ -994,12 +1010,16 @@
                 "id": "todo_mnam089y_zvmjrs",
                 "title": "Fix Layout of Readme",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 1,
+                "sectionId": "unsorted",
+                "order": 0,
                 "priority": "low",
                 "status": "ready",
-                "labels": [],
-                "flags": [],
+                "labels": [
+                    "recurring-task"
+                ],
+                "flags": [
+                    "GO"
+                ],
                 "comments": [
                     {
                         "id": "comment_mnam08qw_guxc6o",
@@ -1026,7 +1046,7 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-03-29T21:41:48.272Z"
+                "updatedAt": "2026-03-30T18:45:36.967Z"
             },
             {
                 "id": "todo_mn975hc2_ae6w8w",
@@ -1091,12 +1111,14 @@
             {
                 "id": "todo_mncadick_xfbptq",
                 "title": "Research",
-                "sectionId": "unsorted",
-                "order": 0,
-                "priority": "medium",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "recurring-tasks",
+                "order": 4,
+                "priority": "none",
                 "status": "ready",
                 "labels": [
-                    "scheduled-task"
+                    "scheduled-task",
+                    "recurring-task"
                 ],
                 "flags": [],
                 "comments": [
@@ -1116,18 +1138,19 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T23:04:30.395Z",
                 "createdAt": "2026-03-29T21:43:44.347Z",
-                "updatedAt": "2026-03-29T23:04:30.395Z"
+                "updatedAt": "2026-03-29T21:50:06.240Z"
             },
             {
                 "id": "todo_mncadsha_oflulp",
                 "title": "Research",
-                "description": "dfdfdf",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 0,
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "recurring-tasks",
+                "order": 2,
                 "priority": "none",
                 "status": "active",
                 "labels": [
-                    "scheduled-task"
+                    "scheduled-task",
+                    "recurring-task"
                 ],
                 "flags": [
                     "NEW"
@@ -1146,45 +1169,55 @@
                 "taskId": "task_1774820637468_uatpgj",
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-03-29T21:47:07.961Z"
+                "updatedAt": "2026-03-29T21:43:57.507Z"
             },
             {
                 "id": "todo_mncaldd4_cm0n69",
                 "title": "Do Filter",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 0,
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "recurring-tasks",
+                "order": 1,
                 "priority": "none",
                 "status": "active",
                 "labels": [
-                    "scheduled-task"
+                    "scheduled-task",
+                    "recurring-task"
                 ],
                 "flags": [],
                 "comments": [],
                 "taskId": "task_1774820991131_24potb",
                 "archived": false,
                 "createdAt": "2026-03-29T21:49:51.131Z",
-                "updatedAt": "2026-03-29T23:04:16.294Z"
+                "updatedAt": "2026-03-29T21:50:17.032Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
                 "title": "assa",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 1,
+                "sectionId": "recurring-tasks",
+                "order": 3,
                 "priority": "medium",
                 "status": "active",
                 "labels": [
-                    "scheduled-task"
+                    "scheduled-task",
+                    "recurring-task"
                 ],
                 "flags": [],
                 "comments": [],
                 "taskId": "task_1774820899929_ua1d8h",
                 "archived": false,
                 "createdAt": "2026-03-29T21:48:19.929Z",
-                "updatedAt": "2026-03-29T23:06:52.633Z"
+                "updatedAt": "2026-03-29T21:48:44.010Z"
             }
         ],
         "labelCatalog": [
+            {
+                "name": "recurring-task",
+                "key": "recurring-task",
+                "color": "#4f8cff",
+                "createdAt": "2026-03-30T16:04:32.137Z",
+                "updatedAt": "2026-03-30T16:36:55.356Z"
+            },
             {
                 "name": "scheduled-task",
                 "key": "scheduled-task",
@@ -1262,6 +1295,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-03-29T23:06:52.633Z"
+        "updatedAt": "2026-03-30T18:46:06.030Z"
     }
 }

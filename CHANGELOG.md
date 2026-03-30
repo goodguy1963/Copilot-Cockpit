@@ -5,6 +5,13 @@ All notable changes to the "Copilot Scheduler" extension will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Improved
+
+- **Cockpit routing toolchain**: Added a compact `cockpit_list_routing_cards` MCP read tool plus dispatcher skill/prompt guidance so agents can route Todo Cockpit cards without scanning the full board payload.
+- **Routing semantics**: Documented the distinction between `labels`, `flags`, and comment labels; `GO` is now treated explicitly as a flag signal in the dispatcher docs.
+
 ## [1.0.13] - 2026-02-25
 
 ### Security

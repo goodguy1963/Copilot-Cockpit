@@ -219,6 +219,7 @@ export function buildSchedulerWebviewStrings(
     boardAllFlags: localize("All flags", "すべての Flags", "Alle Flags"),
     boardShowArchived: localize("Show archived", "アーカイブを表示", "Archivierte anzeigen"),
     boardShowRecurringTasks: localize("Show recurring tasks", "Recurring Tasks を表示", "Wiederkehrende Tasks anzeigen"),
+    boardHideCardDetails: localize("Hide card details", "カード詳細を隠す", "Kartendetails ausblenden"),
     boardAllSections: localize("All sections", "すべてのセクション", "Alle Bereiche"),
     boardAllLabels: localize("All labels", "すべてのラベル", "Alle Labels"),
     boardAllPriorities: localize("All priorities", "すべての優先度", "Alle Prioritäten"),

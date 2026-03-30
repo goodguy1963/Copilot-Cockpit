@@ -175,6 +175,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     [
       'id="todo-upload-files-btn"',
       'id="todo-upload-files-note"',
+      'id="todo-hide-card-details"',
       'class="board-filter-grid-shell"',
       'class="board-filter-footer"',
     ].forEach((snippet) => {

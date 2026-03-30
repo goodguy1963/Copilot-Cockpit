@@ -1,3 +1,7 @@
 # Copilot Cockpit private config
 scheduler.private.json
 scheduler-prompt-backups/
+
+# Copilot Cockpit private config
+cockpit-prompt-backups/
+cockpit-input-uploads/
