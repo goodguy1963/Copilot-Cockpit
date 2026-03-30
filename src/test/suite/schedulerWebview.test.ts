@@ -189,6 +189,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'case "todoFileUploadResult":',
       'function openTodoCommentModal(comment)',
       'function updateBoardAutoCollapseFromScroll(forceExpand)',
+      'function shouldIgnoreBoardAutoCollapseScroll(currentY)',
     ].forEach((snippet) => {
       assert.ok(
         scriptSource.includes(snippet),

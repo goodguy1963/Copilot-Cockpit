@@ -718,6 +718,8 @@ import {
   var boardFiltersAutoCollapsed = false;
   var boardLastScrollY = 0;
   var boardStickyMetricsFrame = 0;
+  var boardAutoCollapseSettleY = 0;
+  var boardAutoCollapseSettleDistance = 0;
 
   // Edit-mode tracking for flag and label catalog
   var editingFlagOriginalName = "";
@@ -886,6 +888,30 @@ import {
     );
   }
 
+  function clearBoardAutoCollapseSettle() {
+    boardAutoCollapseSettleY = 0;
+    boardAutoCollapseSettleDistance = 0;
+  }
+
+  function armBoardAutoCollapseSettle(currentY) {
+    var stickyHeight = boardFilterSticky
+      ? Math.ceil(boardFilterSticky.getBoundingClientRect().height)
+      : 0;
+    boardAutoCollapseSettleY = currentY;
+    boardAutoCollapseSettleDistance = Math.max(28, Math.ceil(stickyHeight * 0.45));
+  }
+
+  function shouldIgnoreBoardAutoCollapseScroll(currentY) {
+    if (boardAutoCollapseSettleDistance <= 0) {
+      return false;
+    }
+    if (Math.abs(currentY - boardAutoCollapseSettleY) <= boardAutoCollapseSettleDistance) {
+      return true;
+    }
+    clearBoardAutoCollapseSettle();
+    return false;
+  }
+
   function updateBoardAutoCollapseFromScroll(forceExpand) {
     var currentY = Math.max(
       window.scrollY || 0,
@@ -893,10 +919,16 @@ import {
     );
     if (forceExpand || !isTabActive("board")) {
       boardLastScrollY = currentY;
+      clearBoardAutoCollapseSettle();
       if (boardFiltersAutoCollapsed) {
         boardFiltersAutoCollapsed = false;
         applyBoardFilterCollapseState();
       }
+      return;
+    }
+
+    if (shouldIgnoreBoardAutoCollapseScroll(currentY)) {
+      boardLastScrollY = currentY;
       return;
     }
 
@@ -910,6 +942,7 @@ import {
 
     if (nextAutoCollapsed !== boardFiltersAutoCollapsed) {
       boardFiltersAutoCollapsed = nextAutoCollapsed;
+      armBoardAutoCollapseSettle(currentY);
       applyBoardFilterCollapseState();
     }
   }
