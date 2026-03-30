@@ -262,6 +262,35 @@ export interface CockpitTodoComment {
   editedAt?: string;
 }
 
+export interface CockpitTaskSnapshot {
+  /** Last synced task name */
+  name: string;
+
+  /** Last synced task description */
+  description?: string;
+
+  /** Last synced cron expression */
+  cronExpression: string;
+
+  /** Last synced task enabled state */
+  enabled: boolean;
+
+  /** Last synced task mode */
+  oneTime: boolean;
+
+  /** Last synced agent */
+  agent?: string;
+
+  /** Last synced model */
+  model?: string;
+
+  /** Last synced normalized labels */
+  labels: string[];
+
+  /** Last synced prompt fingerprint */
+  promptHash: string;
+}
+
 export interface CockpitLabelDefinition {
   /** Canonical label name shown in the UI */
   name: string;
@@ -312,6 +341,9 @@ export interface CockpitTodoCard {
 
   /** Communication trail between user and system */
   comments: CockpitTodoComment[];
+
+  /** Last synced scheduler task metadata for recurring-task history cards */
+  taskSnapshot?: CockpitTaskSnapshot;
 
   /** Optional linked scheduler task */
   taskId?: string;
@@ -377,6 +409,9 @@ export interface CockpitBoardFilters {
 
   /** Whether archived cards should remain visible */
   showArchived: boolean;
+
+  /** Whether recurring-task history cards should remain visible */
+  showRecurringTasks: boolean;
 }
 
 export interface CockpitBoard {
@@ -538,6 +573,9 @@ export interface UpdateCockpitBoardFiltersInput {
   /** Whether archived cards should stay visible */
   showArchived?: boolean;
 
+  /** Whether recurring-task history cards should stay visible */
+  showRecurringTasks?: boolean;
+
   /** Active sort mode */
   sortBy?: CockpitTodoSortBy;
 
@@ -551,6 +589,9 @@ export interface UpdateCockpitBoardFiltersInput {
 export interface UpsertCockpitLabelDefinitionInput {
   /** Human-readable label name */
   name: string;
+
+  /** Optional previous label or flag name when renaming */
+  previousName?: string | null;
 
   /** Optional shared chip color */
   color?: string | null;
@@ -1415,6 +1456,7 @@ export type WebviewToExtensionMessage =
   | { type: "deleteTodoLabelDefinition"; data: { name: string } }
   | { type: "saveTodoFlagDefinition"; data: UpsertCockpitLabelDefinitionInput }
   | { type: "deleteTodoFlagDefinition"; data: { name: string } }
+  | { type: "requestTodoFileUpload"; todoId?: string }
   | { type: "linkTodoTask"; todoId: string; taskId?: string }
   | { type: "createTaskFromTodo"; todoId: string }
   | { type: "runTask"; taskId: string }

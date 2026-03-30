@@ -37,7 +37,7 @@ suite("Private Config Ignore Tests", () => {
       assert.strictEqual(ignorePath, vscodeIgnorePath);
       assert.strictEqual(
         fs.readFileSync(vscodeIgnorePath, "utf8"),
-        "# Copilot Cockpit private config\nscheduler.private.json\nscheduler-prompt-backups/\n",
+        "# Copilot Cockpit private config\nscheduler.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\n",
       );
       assert.strictEqual(
         fs.readFileSync(rootIgnorePath, "utf8"),
@@ -62,7 +62,7 @@ suite("Private Config Ignore Tests", () => {
       assert.strictEqual(updatedPath, vscodeIgnorePath);
       assert.strictEqual(
         fs.readFileSync(vscodeIgnorePath, "utf8"),
-        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\nscheduler-prompt-backups/\n",
+        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\n",
       );
       assert.strictEqual(
         fs.readFileSync(rootIgnorePath, "utf8"),

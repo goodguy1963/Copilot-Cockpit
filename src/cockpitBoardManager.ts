@@ -1,9 +1,11 @@
 import {
   DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
   DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
+  DEFAULT_RECURRING_TASKS_SECTION_ID,
   DEFAULT_UNSORTED_SECTION_ID,
   createDefaultCockpitBoard,
   isArchiveSectionId,
+  isRecurringTasksSectionId,
   normalizeCockpitBoard,
 } from "./cockpitBoard";
 import {
@@ -15,6 +17,7 @@ import type {
   CockpitArchiveOutcome,
   CockpitBoard,
   CockpitLabelDefinition,
+  CockpitTaskSnapshot,
   CockpitTodoCard,
   CockpitTodoPriority,
   CreateCockpitTodoInput,
@@ -87,10 +90,153 @@ function stripFlagFromTodoCards(
   }
 }
 
+function renameLabelValues(
+  values: string[],
+  previousKey: string,
+  nextName: string,
+): string[] {
+  const seen = new Set<string>();
+  const renamed: string[] = [];
+
+  for (const entry of normalizeStringList(values)) {
+    const nextValue = normalizeLabelKey(entry) === previousKey ? nextName : entry;
+    const nextKey = normalizeLabelKey(nextValue);
+    if (!nextKey || seen.has(nextKey)) {
+      continue;
+    }
+    seen.add(nextKey);
+    renamed.push(nextValue);
+  }
+
+  return renamed;
+}
+
+function renameLabelOnTodoCards(
+  cards: CockpitTodoCard[],
+  previousKey: string,
+  nextName: string,
+  timestamp: string,
+): void {
+  for (const card of cards) {
+    const currentLabels = normalizeStringList(card.labels);
+    const renamedLabels = renameLabelValues(currentLabels, previousKey, nextName);
+    if (!areStringListsEqual(currentLabels, renamedLabels)) {
+      card.labels = renamedLabels;
+      card.updatedAt = timestamp;
+    }
+  }
+}
+
+function renameFlagOnTodoCards(
+  cards: CockpitTodoCard[],
+  previousKey: string,
+  nextName: string,
+  timestamp: string,
+): void {
+  for (const card of cards) {
+    const currentFlags = normalizeStringList(card.flags);
+    const renamedFlags = renameLabelValues(currentFlags, previousKey, nextName);
+    const nextFlags = renamedFlags[0] ? [renamedFlags[0]] : [];
+    if (!areStringListsEqual(currentFlags, nextFlags)) {
+      card.flags = nextFlags;
+      card.updatedAt = timestamp;
+    }
+  }
+}
+
 function getArchiveSectionId(outcome: CockpitArchiveOutcome): string {
   return outcome === "completed-successfully"
     ? DEFAULT_ARCHIVE_COMPLETED_SECTION_ID
     : DEFAULT_ARCHIVE_REJECTED_SECTION_ID;
+}
+
+function isOneTimeTask(task: Pick<ScheduledTask, "id" | "oneTime">): boolean {
+  return task.oneTime === true
+    || (typeof task.id === "string" && task.id.startsWith("exec-"));
+}
+
+function hashTaskPrompt(prompt: string | undefined): string {
+  const text = String(prompt || "");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return `${text.length}:${(hash >>> 0).toString(16)}`;
+}
+
+function buildTaskSnapshot(task: ScheduledTask): CockpitTaskSnapshot {
+  return {
+    name: task.name,
+    description: normalizeOptionalString(task.description),
+    cronExpression: task.cronExpression,
+    enabled: task.enabled !== false,
+    oneTime: isOneTimeTask(task),
+    agent: normalizeOptionalString(task.agent),
+    model: normalizeOptionalString(task.model),
+    labels: normalizeStringList(task.labels),
+    promptHash: hashTaskPrompt(task.prompt),
+  };
+}
+
+function areStringListsEqual(left: string[] = [], right: string[] = []): boolean {
+  return left.length === right.length
+    && left.every((entry, index) => entry === right[index]);
+}
+
+function formatSnapshotValue(value: string | undefined): string {
+  return value && value.trim() ? value.trim() : "-";
+}
+
+function buildRecurringTaskChangeComment(
+  previous: CockpitTaskSnapshot | undefined,
+  next: CockpitTaskSnapshot,
+): string | undefined {
+  if (!previous) {
+    return undefined;
+  }
+
+  const changes: string[] = [];
+  if (previous.name !== next.name) {
+    changes.push(`renamed from "${previous.name}" to "${next.name}"`);
+  }
+  if ((previous.description || "") !== (next.description || "")) {
+    changes.push("description updated");
+  }
+  if (previous.cronExpression !== next.cronExpression) {
+    changes.push(`schedule changed from "${previous.cronExpression}" to "${next.cronExpression}"`);
+  }
+  if (previous.promptHash !== next.promptHash) {
+    changes.push("prompt updated");
+  }
+  if (formatSnapshotValue(previous.agent) !== formatSnapshotValue(next.agent)) {
+    changes.push(`agent changed from "${formatSnapshotValue(previous.agent)}" to "${formatSnapshotValue(next.agent)}"`);
+  }
+  if (formatSnapshotValue(previous.model) !== formatSnapshotValue(next.model)) {
+    changes.push(`model changed from "${formatSnapshotValue(previous.model)}" to "${formatSnapshotValue(next.model)}"`);
+  }
+  if (previous.enabled !== next.enabled) {
+    changes.push(next.enabled ? "task enabled" : "task disabled");
+  }
+  if (!areStringListsEqual(previous.labels, next.labels)) {
+    changes.push(
+      `task labels changed from "${previous.labels.join(", ") || "-"}" to "${next.labels.join(", ") || "-"}"`,
+    );
+  }
+
+  return changes.length > 0
+    ? `Recurring task updated: ${changes.join("; ")}.`
+    : undefined;
+}
+
+function ensureCardLabel(card: CockpitTodoCard, label: string): void {
+  const labels = new Set(normalizeStringList(card.labels));
+  labels.add(label);
+  card.labels = Array.from(labels);
+}
+
+function dropCardLabel(card: CockpitTodoCard, label: string): void {
+  const key = normalizeLabelKey(label);
+  card.labels = normalizeStringList(card.labels).filter((entry) => normalizeLabelKey(entry) !== key);
 }
 
 function appendTodoCommentRecord(
@@ -127,6 +273,102 @@ function addSystemEventComment(
   );
 }
 
+function isLifecycleCommentLabeled(
+  todo: Pick<CockpitTodoCard, "comments">,
+  label: string,
+): boolean {
+  const key = normalizeLabelKey(label);
+  return todo.comments.some((comment) =>
+    normalizeStringList(comment.labels).some((entry) => normalizeLabelKey(entry) === key),
+  );
+}
+
+function resequenceTodoComments(todo: Pick<CockpitTodoCard, "comments">): void {
+  todo.comments.forEach((comment, index) => {
+    comment.sequence = index + 1;
+  });
+}
+
+function isStaleDisabledLifecycleComment(
+  comment: CockpitTodoCard["comments"][number],
+  taskEnabled: boolean,
+): boolean {
+  const labels = normalizeStringList(comment.labels).map((entry) => normalizeLabelKey(entry));
+  return (taskEnabled && labels.includes("task-disabled"))
+    || (!taskEnabled && labels.includes("task-enabled"));
+}
+
+function normalizeTaskLinkedTodoForTask(
+  card: CockpitTodoCard,
+  task: ScheduledTask,
+  timestamp: string,
+): boolean {
+  let changed = false;
+  const nextSnapshot = buildTaskSnapshot(task);
+  const filteredComments = card.comments.filter((comment) =>
+    !isStaleDisabledLifecycleComment(comment, nextSnapshot.enabled),
+  );
+
+  if (filteredComments.length !== card.comments.length) {
+    card.comments = filteredComments;
+    resequenceTodoComments(card);
+    changed = true;
+  }
+
+  if (card.taskId !== task.id) {
+    card.taskId = task.id;
+    changed = true;
+  }
+
+  if (!card.taskSnapshot || JSON.stringify(card.taskSnapshot) !== JSON.stringify(nextSnapshot)) {
+    card.taskSnapshot = nextSnapshot;
+    changed = true;
+  }
+
+  if (!nextSnapshot.enabled) {
+    if (card.archived || card.archiveOutcome || card.archivedAt) {
+      card.archived = false;
+      card.archiveOutcome = undefined;
+      card.archivedAt = undefined;
+      changed = true;
+    }
+    if (card.status !== "active") {
+      card.status = "active";
+      changed = true;
+    }
+    if (card.approvedAt || card.completedAt || card.rejectedAt) {
+      card.approvedAt = undefined;
+      card.completedAt = undefined;
+      card.rejectedAt = undefined;
+      changed = true;
+    }
+
+    if (!isLifecycleCommentLabeled(card, "task-disabled") && !isRecurringTasksSectionId(card.sectionId)) {
+      addSystemEventComment(
+        card,
+        "Linked task is disabled. Todo reset to active planning state.",
+        ["scheduled-task", "task-disabled"],
+        timestamp,
+      );
+      changed = true;
+    }
+  } else if (!isRecurringTasksSectionId(card.sectionId) && !isLifecycleCommentLabeled(card, "task-enabled")) {
+    addSystemEventComment(
+      card,
+      "Linked task is enabled again.",
+      ["scheduled-task", "task-enabled"],
+      timestamp,
+    );
+    changed = true;
+  }
+
+  if (changed) {
+    card.updatedAt = timestamp;
+  }
+
+  return changed;
+}
+
 function upsertLabelDefinitionInBoard(
   board: CockpitBoard,
   input: UpsertCockpitLabelDefinitionInput,
@@ -142,16 +384,25 @@ function upsertLabelDefinitionInBoard(
   const nextBoard = cloneBoard(board);
   const timestamp = nowIso();
   const key = normalizeLabelKey(name);
+  const previousName = normalizeOptionalString(input.previousName);
+  const previousKey = previousName ? normalizeLabelKey(previousName) : "";
   const nextCatalog = Array.isArray(nextBoard.labelCatalog)
     ? nextBoard.labelCatalog.slice()
     : [];
   const existingIndex = nextCatalog.findIndex((entry) => entry.key === key);
-  const label: CockpitLabelDefinition = existingIndex >= 0
+  const previousIndex = previousKey && previousKey !== key
+    ? nextCatalog.findIndex((entry) => entry.key === previousKey)
+    : -1;
+  const sourceEntry = existingIndex >= 0
+    ? nextCatalog[existingIndex]
+    : (previousIndex >= 0 ? nextCatalog[previousIndex] : undefined);
+  const label: CockpitLabelDefinition = sourceEntry
     ? {
-      ...nextCatalog[existingIndex],
+      ...sourceEntry,
       name,
+      key,
       color: normalizeOptionalString(input.color)
-        ?? nextCatalog[existingIndex].color,
+        ?? sourceEntry.color,
       updatedAt: timestamp,
     }
     : {
@@ -164,15 +415,32 @@ function upsertLabelDefinitionInBoard(
 
   if (existingIndex >= 0) {
     nextCatalog[existingIndex] = label;
+  } else if (previousIndex >= 0) {
+    nextCatalog[previousIndex] = label;
   } else {
     nextCatalog.push(label);
+  }
+
+  if (previousIndex >= 0 && existingIndex >= 0 && previousIndex !== existingIndex) {
+    nextCatalog.splice(previousIndex, 1);
+  }
+
+  if (previousKey && previousKey !== key) {
+    renameLabelOnTodoCards(nextBoard.cards, previousKey, name, timestamp);
+    if (nextBoard.filters) {
+      nextBoard.filters.labels = renameLabelValues(
+        nextBoard.filters.labels ?? [],
+        previousKey,
+        name,
+      );
+    }
   }
 
   nextBoard.labelCatalog = nextCatalog.sort((left, right) =>
     left.name.localeCompare(right.name),
   );
   nextBoard.deletedLabelCatalogKeys = (nextBoard.deletedLabelCatalogKeys ?? [])
-    .filter((entry) => entry !== key);
+    .filter((entry) => entry !== key && entry !== previousKey);
   touchBoard(nextBoard, timestamp);
   return { board: nextBoard, label };
 }
@@ -192,16 +460,25 @@ function upsertFlagDefinitionInBoard(
   const nextBoard = cloneBoard(board);
   const timestamp = nowIso();
   const key = normalizeLabelKey(name);
+  const previousName = normalizeOptionalString(input.previousName);
+  const previousKey = previousName ? normalizeLabelKey(previousName) : "";
   const nextCatalog = Array.isArray(nextBoard.flagCatalog)
     ? nextBoard.flagCatalog.slice()
     : [];
   const existingIndex = nextCatalog.findIndex((entry) => entry.key === key);
-  const label: CockpitLabelDefinition = existingIndex >= 0
+  const previousIndex = previousKey && previousKey !== key
+    ? nextCatalog.findIndex((entry) => entry.key === previousKey)
+    : -1;
+  const sourceEntry = existingIndex >= 0
+    ? nextCatalog[existingIndex]
+    : (previousIndex >= 0 ? nextCatalog[previousIndex] : undefined);
+  const label: CockpitLabelDefinition = sourceEntry
     ? {
-      ...nextCatalog[existingIndex],
+      ...sourceEntry,
       name,
+      key,
       color: normalizeOptionalString(input.color)
-        ?? nextCatalog[existingIndex].color,
+        ?? sourceEntry.color,
       updatedAt: timestamp,
     }
     : {
@@ -214,15 +491,33 @@ function upsertFlagDefinitionInBoard(
 
   if (existingIndex >= 0) {
     nextCatalog[existingIndex] = label;
+  } else if (previousIndex >= 0) {
+    nextCatalog[previousIndex] = label;
   } else {
     nextCatalog.push(label);
+  }
+
+  if (previousIndex >= 0 && existingIndex >= 0 && previousIndex !== existingIndex) {
+    nextCatalog.splice(previousIndex, 1);
+  }
+
+  if (previousKey && previousKey !== key) {
+    renameFlagOnTodoCards(nextBoard.cards, previousKey, name, timestamp);
+    if (nextBoard.filters) {
+      const renamedFlags = renameLabelValues(
+        nextBoard.filters.flags ?? [],
+        previousKey,
+        name,
+      );
+      nextBoard.filters.flags = renamedFlags[0] ? [renamedFlags[0]] : [];
+    }
   }
 
   nextBoard.flagCatalog = nextCatalog.sort((left, right) =>
     left.name.localeCompare(right.name),
   );
   nextBoard.deletedFlagCatalogKeys = (nextBoard.deletedFlagCatalogKeys ?? [])
-    .filter((entry) => entry !== key);
+    .filter((entry) => entry !== key && entry !== previousKey);
   touchBoard(nextBoard, timestamp);
   return { board: nextBoard, label };
 }
@@ -366,6 +661,149 @@ function deriveTaskPriority(task: ScheduledTask): CockpitTodoCard["priority"] {
     return "medium";
   }
   return "low";
+}
+
+function createRecurringTaskTodoCard(
+  board: CockpitBoard,
+  task: ScheduledTask,
+  timestamp: string,
+): CockpitTodoCard {
+  const recurringSectionId = getSectionOrFallback(board, DEFAULT_RECURRING_TASKS_SECTION_ID);
+  const todo: CockpitTodoCard = {
+    id: createId("todo"),
+    title: task.name || "Unnamed recurring task",
+    description: normalizeOptionalString(task.description),
+    sectionId: recurringSectionId,
+    order: board.cards.filter((card) => card.sectionId === recurringSectionId).length,
+    priority: deriveTaskPriority(task),
+    dueAt: undefined,
+    status: "active",
+    labels: ["scheduled-task", "recurring-task"],
+    flags: [],
+    comments: [],
+    taskSnapshot: buildTaskSnapshot(task),
+    taskId: task.id,
+    sessionId: undefined,
+    archived: false,
+    createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : timestamp,
+    updatedAt: timestamp,
+  };
+
+  addSystemEventComment(
+    todo,
+    "Recurring task linked. Future schedule, prompt, model, and label changes will be recorded here.",
+    ["recurring-task"],
+    timestamp,
+  );
+
+  if (task.lastError) {
+    appendTodoCommentRecord(todo, {
+      body: `Existing scheduled task error: ${task.lastError}`,
+      author: "system",
+      source: "system-event",
+      labels: ["task-error"],
+    }, task.lastErrorAt instanceof Date ? task.lastErrorAt.toISOString() : timestamp);
+  }
+
+  return todo;
+}
+
+function syncRecurringTaskTodoCard(
+  board: CockpitBoard,
+  card: CockpitTodoCard,
+  task: ScheduledTask,
+  timestamp: string,
+): void {
+  const previousSnapshot = card.taskSnapshot;
+  const nextSnapshot = buildTaskSnapshot(task);
+  const previousSectionId = card.sectionId;
+  const previousLabels = normalizeStringList(card.labels);
+  const nextTitle = task.name || card.title;
+  const nextDescription = normalizeOptionalString(task.description);
+  const nextPriority = deriveTaskPriority(task);
+  const nextSectionId = getSectionOrFallback(board, DEFAULT_RECURRING_TASKS_SECTION_ID);
+  let changed = false;
+
+  if (card.title !== nextTitle) {
+    card.title = nextTitle;
+    changed = true;
+  }
+  if ((card.description || "") !== (nextDescription || "")) {
+    card.description = nextDescription;
+    changed = true;
+  }
+  if (card.priority !== nextPriority) {
+    card.priority = nextPriority;
+    changed = true;
+  }
+  if (card.taskId !== task.id) {
+    card.taskId = task.id;
+    changed = true;
+  }
+  if (card.sectionId !== nextSectionId) {
+    card.sectionId = nextSectionId;
+    changed = true;
+  }
+  if (card.archived || card.archiveOutcome || card.archivedAt) {
+    card.archived = false;
+    card.archiveOutcome = undefined;
+    card.archivedAt = undefined;
+    changed = true;
+  }
+  if (card.status === "completed" || card.status === "rejected") {
+    card.status = "active";
+    card.completedAt = undefined;
+    card.rejectedAt = undefined;
+    changed = true;
+  }
+  if (!previousSnapshot || JSON.stringify(previousSnapshot) !== JSON.stringify(nextSnapshot)) {
+    card.taskSnapshot = nextSnapshot;
+    changed = true;
+  }
+  ensureCardLabel(card, "scheduled-task");
+  ensureCardLabel(card, "recurring-task");
+  if (!areStringListsEqual(previousLabels, card.labels)) {
+    changed = true;
+  }
+
+  const changeComment = buildRecurringTaskChangeComment(previousSnapshot, nextSnapshot);
+  if (changeComment) {
+    addSystemEventComment(card, changeComment, ["recurring-task"], timestamp);
+    changed = true;
+  }
+
+  if (changed) {
+    card.updatedAt = timestamp;
+    resequenceCards(board, previousSectionId);
+    resequenceCards(board, card.sectionId);
+  }
+}
+
+function moveRecurringCardOutOfRecurringSection(
+  board: CockpitBoard,
+  card: CockpitTodoCard,
+  task: ScheduledTask,
+  timestamp: string,
+): void {
+  if (!isRecurringTasksSectionId(card.sectionId)) {
+    return;
+  }
+
+  const previousSectionId = card.sectionId;
+  const unsortedSectionId = getSectionOrFallback(board, DEFAULT_UNSORTED_SECTION_ID);
+  card.sectionId = unsortedSectionId;
+  card.order = board.cards.filter((entry) => entry.id !== card.id && entry.sectionId === unsortedSectionId).length;
+  card.taskSnapshot = buildTaskSnapshot(task);
+  card.updatedAt = timestamp;
+  dropCardLabel(card, "recurring-task");
+  addSystemEventComment(
+    card,
+    "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+    ["scheduled-task"],
+    timestamp,
+  );
+  resequenceCards(board, previousSectionId);
+  resequenceCards(board, unsortedSectionId);
 }
 
 export function getCockpitBoard(workspaceRoot: string): CockpitBoard {
@@ -644,6 +1082,9 @@ export function setCockpitBoardFiltersInBoard(
     showArchived: typeof input.showArchived === "boolean"
       ? input.showArchived
       : nextBoard.filters?.showArchived === true,
+    showRecurringTasks: typeof input.showRecurringTasks === "boolean"
+      ? input.showRecurringTasks
+      : nextBoard.filters?.showRecurringTasks === true,
   };
   touchBoard(nextBoard);
   return nextBoard;
@@ -654,51 +1095,90 @@ export function ensureTaskTodosInBoard(
   tasks: ScheduledTask[],
 ): { board: CockpitBoard; createdTodoIds: string[] } {
   const nextBoard = cloneBoard(board);
-  const unsortedSectionId = getSectionOrFallback(nextBoard, DEFAULT_UNSORTED_SECTION_ID);
   const createdTodoIds: string[] = [];
+  let changed = false;
+  const tasksById = new Map(
+    tasks
+      .filter((task): task is ScheduledTask => Boolean(task?.id))
+      .map((task) => [task.id, task] as const),
+  );
 
   for (const task of tasks) {
-    if (!task?.id || nextBoard.cards.some((card) => card.taskId === task.id)) {
+    if (!task?.id) {
       continue;
     }
 
+    const existingCard = nextBoard.cards.find((card) => card.taskId === task.id);
     const timestamp = task.updatedAt instanceof Date
       ? task.updatedAt.toISOString()
       : nowIso();
-    const todo: CockpitTodoCard = {
-      id: createId("todo"),
-      title: task.name || "Unnamed task",
-      description: normalizeOptionalString(task.description),
-      sectionId: unsortedSectionId,
-      order: nextBoard.cards.filter((card) => card.sectionId === unsortedSectionId).length,
-      priority: deriveTaskPriority(task),
-      dueAt: undefined,
-      status: "active",
-      labels: normalizeStringList(task.labels ?? []).concat(["scheduled-task"]),
-      flags: [],
-      comments: task.lastError
-        ? [{
-          id: createId("comment"),
-          author: "system",
-          body: `Existing scheduled task error: ${task.lastError}`,
-          labels: ["task-error"],
-          source: "system-event",
-          sequence: 1,
-          createdAt: task.lastErrorAt instanceof Date ? task.lastErrorAt.toISOString() : timestamp,
-        }]
-        : [],
-      taskId: task.id,
-      sessionId: undefined,
-      archived: false,
-      createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : timestamp,
-      updatedAt: timestamp,
-    };
+
+    if (isOneTimeTask(task)) {
+      if (existingCard) {
+        moveRecurringCardOutOfRecurringSection(nextBoard, existingCard, task, timestamp);
+        changed = true;
+      }
+      continue;
+    }
+
+    if (existingCard) {
+      const beforeCommentCount = existingCard.comments.length;
+      const beforeSectionId = existingCard.sectionId;
+      const beforeUpdatedAt = existingCard.updatedAt;
+      syncRecurringTaskTodoCard(nextBoard, existingCard, task, timestamp);
+      changed = changed
+        || beforeCommentCount !== existingCard.comments.length
+        || beforeSectionId !== existingCard.sectionId
+        || beforeUpdatedAt !== existingCard.updatedAt;
+      continue;
+    }
+
+    const todo = createRecurringTaskTodoCard(nextBoard, task, timestamp);
     nextBoard.cards.push(todo);
     createdTodoIds.push(todo.id);
+    changed = true;
   }
 
-  resequenceCards(nextBoard, unsortedSectionId);
-  if (createdTodoIds.length > 0) {
+  for (const card of nextBoard.cards) {
+    if (card.taskId) {
+      const linkedTask = tasksById.get(card.taskId);
+      if (linkedTask && !isOneTimeTask(linkedTask)) {
+        const timestamp = linkedTask.updatedAt instanceof Date
+          ? linkedTask.updatedAt.toISOString()
+          : nowIso();
+        changed = normalizeTaskLinkedTodoForTask(card, linkedTask, timestamp) || changed;
+      }
+    }
+
+    if (!card.taskId || !isRecurringTasksSectionId(card.sectionId)) {
+      continue;
+    }
+
+    const linkedTask = tasksById.get(card.taskId);
+    if (!linkedTask || isOneTimeTask(linkedTask)) {
+      moveRecurringCardOutOfRecurringSection(
+        nextBoard,
+        card,
+        linkedTask ?? {
+          id: card.taskId,
+          name: card.title,
+          description: card.description,
+          cronExpression: card.taskSnapshot?.cronExpression ?? "",
+          prompt: "",
+          enabled: false,
+          oneTime: true,
+          scope: "workspace",
+          promptSource: "inline",
+          createdAt: new Date(card.createdAt),
+          updatedAt: new Date(card.updatedAt),
+        },
+        nowIso(),
+      );
+      changed = true;
+    }
+  }
+
+  if (changed) {
     touchBoard(nextBoard);
   }
   return { board: nextBoard, createdTodoIds };

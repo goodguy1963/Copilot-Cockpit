@@ -19,14 +19,28 @@ suite("Prompt Backup Helpers", () => {
             "exec:task/with unsafe chars",
         );
 
-        assert.ok(relativePath.startsWith(".vscode/scheduler-prompt-backups/"));
+        assert.ok(relativePath.startsWith(".vscode/cockpit-prompt-backups/"));
         assert.strictEqual(relativePath.includes(".github/prompts"), false);
         assert.ok(relativePath.endsWith(".prompt.md"));
+    });
+
+    test("default backup path shortens long task ids", () => {
+        const relativePath = getDefaultPromptBackupRelativePath(
+            "task-" + "very-long-name-".repeat(16),
+        );
+        const fileName = path.basename(relativePath);
+
+        assert.ok(fileName.length <= 74);
+        assert.ok(/-[a-f0-9]{10}\.prompt\.md$/.test(fileName));
     });
 
     test("resolvePromptBackupPath allows current and legacy backup-root paths only", () => {
         const workspaceRoot = path.join("/tmp", "workspace");
         const resolvedCurrent = resolvePromptBackupPath(
+            workspaceRoot,
+            ".vscode/cockpit-prompt-backups/test.prompt.md",
+        );
+        const resolvedLegacyWorkspace = resolvePromptBackupPath(
             workspaceRoot,
             ".vscode/scheduler-prompt-backups/test.prompt.md",
         );
@@ -41,6 +55,17 @@ suite("Prompt Backup Helpers", () => {
 
         assert.strictEqual(
             normalizePathForTest(resolvedCurrent),
+            normalizePathForTest(
+                path.join(
+                    workspaceRoot,
+                    ".vscode",
+                    "cockpit-prompt-backups",
+                    "test.prompt.md",
+                ),
+            ),
+        );
+        assert.strictEqual(
+            normalizePathForTest(resolvedLegacyWorkspace),
             normalizePathForTest(
                 path.join(
                     workspaceRoot,
@@ -77,7 +102,7 @@ suite("Prompt Backup Helpers", () => {
                 path.join(
                     workspaceRoot,
                     ".vscode",
-                    "scheduler-prompt-backups",
+                    "cockpit-prompt-backups",
                     "test.prompt.md",
                 ),
             ),

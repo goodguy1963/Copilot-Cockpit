@@ -106,13 +106,13 @@ function renderTodoListView(visibleSections, cards, filters, options) {
         return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters);
       }), filters);
       var isCollapsed = collapsedSections.has(section.id);
-      var isArchiveSection = helpers.isArchiveTodoSectionId(section.id);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
       return '<section class="todo-list-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '">' +
         '<div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);">' +
           '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
-          helpers.renderSectionDragHandle(section, isArchiveSection) +
+          helpers.renderSectionDragHandle(section, isSpecialSection) +
           '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ')</span></strong>' +
-          (isArchiveSection
+          (isSpecialSection
             ? ''
             : '<div class="cockpit-section-actions">' +
               '<button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +
@@ -145,14 +145,14 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
       var sectionCards = helpers.sortTodoCards(cards.filter(function (card) {
         return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters);
       }), filters);
-      var isArchiveSection = helpers.isArchiveTodoSectionId(section.id);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
       return (
         '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow-x:hidden;">' +
         '<div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)">' +
         '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
-        helpers.renderSectionDragHandle(section, isArchiveSection) +
+        helpers.renderSectionDragHandle(section, isSpecialSection) +
         '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + '</strong>' +
-        (isArchiveSection
+        (isSpecialSection
           ? ''
           : '<div class="cockpit-section-actions">' +
             '<button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button>' +

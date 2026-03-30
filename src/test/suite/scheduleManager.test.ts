@@ -1178,7 +1178,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       assert.ok(recurringBackupPath);
       assert.ok(
         recurringBackupPath?.includes(
-          path.join(".vscode", "scheduler-prompt-backups"),
+          path.join(".vscode", "cockpit-prompt-backups"),
         ),
       );
       assert.ok(fs.existsSync(recurringBackupPath!));

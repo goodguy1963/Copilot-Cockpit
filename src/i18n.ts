@@ -473,9 +473,9 @@ export const messages = {
     ),
   helpStorageItemBackups: () =>
     t(
-      "Inline prompts are backed up to .vscode/scheduler-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/scheduler-history/.",
-      "インラインプロンプトは.vscode/scheduler-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/scheduler-history/に保存されます。",
-      "Inline-Prompts werden als Markdown-Dateien nach .vscode/scheduler-prompt-backups/ gesichert. Vollständige Snapshots des Scheduler-Zustands landen in .vscode/scheduler-history/.",
+      "Inline prompts are backed up to .vscode/cockpit-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/scheduler-history/.",
+      "インラインプロンプトは.vscode/cockpit-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/scheduler-history/に保存されます。",
+      "Inline-Prompts werden als Markdown-Dateien nach .vscode/cockpit-prompt-backups/ gesichert. Vollständige Snapshots des Scheduler-Zustands landen in .vscode/scheduler-history/.",
     ),
   helpStorageItemIsolation: () =>
     t(
