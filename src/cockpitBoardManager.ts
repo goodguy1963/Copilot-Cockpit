@@ -171,6 +171,7 @@ function buildTaskSnapshot(task: ScheduledTask): CockpitTaskSnapshot {
     cronExpression: task.cronExpression,
     enabled: task.enabled !== false,
     oneTime: isOneTimeTask(task),
+    manualSession: task.manualSession === true ? true : undefined,
     agent: normalizeOptionalString(task.agent),
     model: normalizeOptionalString(task.model),
     labels: normalizeStringList(task.labels),

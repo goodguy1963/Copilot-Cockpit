@@ -34,6 +34,111 @@ export interface BundledSkillSyncResult {
   nextState: BundledSkillSyncState;
 }
 
+async function collectBundledSkillSyncResult(
+  extensionRoot: string,
+  workspaceRoots: string[],
+  syncState: BundledSkillSyncState = {},
+  applyChanges: boolean,
+): Promise<BundledSkillSyncResult> {
+  const normalizedState = normalizeSyncState(syncState);
+  const result: BundledSkillSyncResult = {
+    createdPaths: [],
+    updatedPaths: [],
+    skippedPaths: [],
+    unchangedPaths: [],
+    nextState: { ...normalizedState },
+  };
+
+  if (!extensionRoot || workspaceRoots.length === 0) {
+    return result;
+  }
+
+  const bundledRelativePaths = await collectBundledRelativeFilePaths(
+    extensionRoot,
+    BUNDLED_SKILLS_RELATIVE_PATH,
+  );
+  if (bundledRelativePaths.length === 0) {
+    return result;
+  }
+
+  const bundledContentByRelativePath = new Map<string, string>();
+
+  for (const workspaceRoot of workspaceRoots) {
+    if (!workspaceRoot) {
+      continue;
+    }
+
+    const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
+    const nextWorkspaceState: Record<string, string> = {};
+
+    for (const relativePath of bundledRelativePaths) {
+      let bundledContent = bundledContentByRelativePath.get(relativePath);
+      if (bundledContent === undefined) {
+        bundledContent = await fs.promises.readFile(
+          path.join(extensionRoot, relativePath),
+          "utf8",
+        );
+        bundledContentByRelativePath.set(relativePath, bundledContent);
+      }
+
+      const bundledHash = createContentHash(bundledContent);
+      const targetPath = path.join(workspaceRoot, relativePath);
+      const previousManagedHash = previousWorkspaceState[relativePath];
+
+      let currentContent: string | undefined;
+      try {
+        currentContent = await fs.promises.readFile(targetPath, "utf8");
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        if (code && code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (currentContent === undefined) {
+        if (applyChanges) {
+          await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        }
+        result.createdPaths.push(targetPath);
+        nextWorkspaceState[relativePath] = bundledHash;
+        continue;
+      }
+
+      const currentHash = createContentHash(currentContent);
+      if (currentHash === bundledHash) {
+        result.unchangedPaths.push(targetPath);
+        nextWorkspaceState[relativePath] = bundledHash;
+        continue;
+      }
+
+      if (previousManagedHash && currentHash === previousManagedHash) {
+        if (applyChanges) {
+          await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        }
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[relativePath] = bundledHash;
+        continue;
+      }
+
+      result.skippedPaths.push(targetPath);
+      if (previousManagedHash) {
+        nextWorkspaceState[relativePath] = previousManagedHash;
+      }
+    }
+
+    if (Object.keys(nextWorkspaceState).length > 0) {
+      result.nextState[workspaceRoot] = nextWorkspaceState;
+    } else {
+      delete result.nextState[workspaceRoot];
+    }
+  }
+
+  return result;
+}
+
 export function getBundledSchedulerSkillPath(extensionRoot: string): string {
   return path.join(extensionRoot, SCHEDULER_SKILL_RELATIVE_PATH);
 }
@@ -123,99 +228,25 @@ export async function syncBundledSkillsForWorkspaceRoots(
   workspaceRoots: string[],
   syncState: BundledSkillSyncState = {},
 ): Promise<BundledSkillSyncResult> {
-  const normalizedState = normalizeSyncState(syncState);
-  const result: BundledSkillSyncResult = {
-    createdPaths: [],
-    updatedPaths: [],
-    skippedPaths: [],
-    unchangedPaths: [],
-    nextState: { ...normalizedState },
-  };
-
-  if (!extensionRoot || workspaceRoots.length === 0) {
-    return result;
-  }
-
-  const bundledRelativePaths = await collectBundledRelativeFilePaths(
+  return collectBundledSkillSyncResult(
     extensionRoot,
-    BUNDLED_SKILLS_RELATIVE_PATH,
+    workspaceRoots,
+    syncState,
+    true,
   );
-  if (bundledRelativePaths.length === 0) {
-    return result;
-  }
+}
 
-  const bundledContentByRelativePath = new Map<string, string>();
-
-  for (const workspaceRoot of workspaceRoots) {
-    if (!workspaceRoot) {
-      continue;
-    }
-
-    const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
-    const nextWorkspaceState: Record<string, string> = {};
-
-    for (const relativePath of bundledRelativePaths) {
-      let bundledContent = bundledContentByRelativePath.get(relativePath);
-      if (bundledContent === undefined) {
-        bundledContent = await fs.promises.readFile(
-          path.join(extensionRoot, relativePath),
-          "utf8",
-        );
-        bundledContentByRelativePath.set(relativePath, bundledContent);
-      }
-
-      const bundledHash = createContentHash(bundledContent);
-      const targetPath = path.join(workspaceRoot, relativePath);
-      const previousManagedHash = previousWorkspaceState[relativePath];
-
-      let currentContent: string | undefined;
-      try {
-        currentContent = await fs.promises.readFile(targetPath, "utf8");
-      } catch (error) {
-        const code = error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "";
-        if (code && code !== "ENOENT") {
-          throw error;
-        }
-      }
-
-      if (currentContent === undefined) {
-        await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-        await fs.promises.writeFile(targetPath, bundledContent, "utf8");
-        result.createdPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
-        continue;
-      }
-
-      const currentHash = createContentHash(currentContent);
-      if (currentHash === bundledHash) {
-        result.unchangedPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
-        continue;
-      }
-
-      if (previousManagedHash && currentHash === previousManagedHash) {
-        await fs.promises.writeFile(targetPath, bundledContent, "utf8");
-        result.updatedPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
-        continue;
-      }
-
-      result.skippedPaths.push(targetPath);
-      if (previousManagedHash) {
-        nextWorkspaceState[relativePath] = previousManagedHash;
-      }
-    }
-
-    if (Object.keys(nextWorkspaceState).length > 0) {
-      result.nextState[workspaceRoot] = nextWorkspaceState;
-    } else {
-      delete result.nextState[workspaceRoot];
-    }
-  }
-
-  return result;
+export async function previewBundledSkillSyncForWorkspaceRoots(
+  extensionRoot: string,
+  workspaceRoots: string[],
+  syncState: BundledSkillSyncState = {},
+): Promise<BundledSkillSyncResult> {
+  return collectBundledSkillSyncResult(
+    extensionRoot,
+    workspaceRoots,
+    syncState,
+    false,
+  );
 }
 
 async function ensureBundledFileForWorkspaceRoots(

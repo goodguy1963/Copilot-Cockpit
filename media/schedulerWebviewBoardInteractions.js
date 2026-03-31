@@ -30,8 +30,10 @@ export function isTodoInteractiveTarget(target) {
       "[data-no-drag]",
       "[data-todo-edit]",
       "[data-todo-delete]",
+      "[data-todo-delete-cancel]",
+      "[data-todo-delete-reject]",
+      "[data-todo-delete-permanent]",
       "[data-todo-purge]",
-      "[data-todo-reject]",
       "[data-todo-restore]",
       "[data-todo-complete]",
       "[data-section-collapse]",
@@ -538,21 +540,35 @@ function installBoardClickDelegation(boardColumns) {
     var deleteBtn = target.closest("[data-todo-delete]");
     if (deleteBtn) {
       stopBoardEvent(event);
-      options.openTodoDeleteModal(deleteBtn.getAttribute("data-todo-delete") || "");
+      options.setPendingBoardDelete(deleteBtn.getAttribute("data-todo-delete") || "", false);
+      return;
+    }
+
+    var deleteCancelBtn = target.closest("[data-todo-delete-cancel]");
+    if (deleteCancelBtn) {
+      stopBoardEvent(event);
+      options.clearPendingBoardDelete();
+      return;
+    }
+
+    var deleteRejectBtn = target.closest("[data-todo-delete-reject]");
+    if (deleteRejectBtn) {
+      stopBoardEvent(event);
+      options.submitBoardDeleteChoice("reject");
+      return;
+    }
+
+    var deletePermanentBtn = target.closest("[data-todo-delete-permanent]");
+    if (deletePermanentBtn) {
+      stopBoardEvent(event);
+      options.submitBoardDeleteChoice("permanent");
       return;
     }
 
     var purgeBtn = target.closest("[data-todo-purge]");
     if (purgeBtn) {
       stopBoardEvent(event);
-      options.openTodoDeleteModal(purgeBtn.getAttribute("data-todo-purge") || "", { permanentOnly: true });
-      return;
-    }
-
-    var rejectBtn = target.closest("[data-todo-reject]");
-    if (rejectBtn) {
-      stopBoardEvent(event);
-      options.handleTodoReject(rejectBtn);
+      options.setPendingBoardDelete(purgeBtn.getAttribute("data-todo-purge") || "", true);
       return;
     }
 
@@ -575,6 +591,21 @@ function installBoardClickDelegation(boardColumns) {
       stopBoardEvent(event);
       options.handleSectionCollapse(collapseBtn);
       return;
+    }
+
+    var sectionHeader = target.closest(".cockpit-section-header");
+    if (
+      sectionHeader &&
+      !target.closest("[data-section-drag-handle]") &&
+      !target.closest("[data-section-rename]") &&
+      !target.closest("[data-section-delete]")
+    ) {
+      var headerCollapseBtn = sectionHeader.querySelector("[data-section-collapse]");
+      if (headerCollapseBtn) {
+        stopBoardEvent(event);
+        options.handleSectionCollapse(headerCollapseBtn);
+        return;
+      }
     }
 
     var renameBtn = target.closest("[data-section-rename]");
@@ -672,8 +703,10 @@ function handleBoardPointerDown(event) {
       startX: typeof event.clientX === "number" ? event.clientX : 0,
       startY: typeof event.clientY === "number" ? event.clientY : 0,
     };
-    activatePointerDragSession(options);
-    armBoardClickSuppression();
+    if (sectionHandle) {
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+    }
     return;
   }
   var card = todoHandle && todoHandle.closest

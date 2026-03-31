@@ -167,6 +167,37 @@ suite("i18n Tests", () => {
   });
 });
 
+suite("Workspace Support Repair Tests", () => {
+  test("Repair plan prompts for stale MCP roots and extension updates", async () => {
+    const { __testOnly } = await import("../../extension");
+    const buildPlan = __testOnly.createWorkspaceSupportRepairPlan as
+      | ((
+        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" }>,
+        extensionVersionChanged: boolean,
+      ) => {
+        mcpRootsNeedingRepair: string[];
+        shouldRefreshBundledSkills: boolean;
+        needsPrompt: boolean;
+      })
+      | undefined;
+
+    assert.ok(typeof buildPlan === "function");
+
+    const plan = buildPlan!(
+      [
+        { workspaceRoot: "c:/repo-a", status: "configured" },
+        { workspaceRoot: "c:/repo-b", status: "missing" },
+        { workspaceRoot: "c:/repo-c", status: "invalid" },
+      ],
+      true,
+    );
+
+    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b", "c:/repo-c"]);
+    assert.strictEqual(plan.shouldRefreshBundledSkills, true);
+    assert.strictEqual(plan.needsPrompt, true);
+  });
+});
+
 suite("Error Message Sanitization Tests", () => {
   test("Sanitizes absolute paths to basenames (Windows and POSIX)", async () => {
     const { __testOnly } = await import("../../extension");

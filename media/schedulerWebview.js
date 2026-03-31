@@ -418,6 +418,8 @@ import {
   var pendingDeleteLabelName = "";
   var pendingDeleteFlagName = "";
   var pendingTodoDeleteId = "";
+  var pendingBoardDeleteTodoId = "";
+  var pendingBoardDeletePermanentOnly = false;
   var todoDeleteModalRoot = null;
   var todoCommentModalRoot = null;
   var pendingAgentValue = "";
@@ -707,6 +709,11 @@ import {
 
   var activeTaskFilter = "all";
   var activeLabelFilter = "";
+  var taskSectionCollapseState = {
+    manual: false,
+    recurring: false,
+    "one-time": false,
+  };
   var selectedJobFolderId = "";
   var selectedJobId = "";
   var selectedResearchId = "";
@@ -790,7 +797,11 @@ import {
   var loadedResearchProfileId = "";
 
   function isValidTaskFilter(value) {
-    return value === "all" || value === "recurring" || value === "one-time";
+    return value === "all" || value === "manual" || value === "recurring" || value === "one-time";
+  }
+
+  function isTaskSectionKey(value) {
+    return value === "manual" || value === "recurring" || value === "one-time";
   }
 
   function restoreTaskFilter() {
@@ -803,6 +814,13 @@ import {
       }
       if (state && typeof state.labelFilter === "string") {
         activeLabelFilter = state.labelFilter;
+      }
+      if (state && state.taskSectionCollapseState && typeof state.taskSectionCollapseState === "object") {
+        Object.keys(taskSectionCollapseState).forEach(function (key) {
+          if (typeof state.taskSectionCollapseState[key] === "boolean") {
+            taskSectionCollapseState[key] = state.taskSectionCollapseState[key];
+          }
+        });
       }
       if (state && typeof state.selectedJobFolderId === "string") {
         selectedJobFolderId = state.selectedJobFolderId;
@@ -842,6 +860,7 @@ import {
       }
       next.taskFilter = activeTaskFilter;
       next.labelFilter = activeLabelFilter;
+      next.taskSectionCollapseState = taskSectionCollapseState;
       next.selectedJobFolderId = selectedJobFolderId;
       next.selectedJobId = selectedJobId;
       next.jobsSidebarHidden = jobsSidebarHidden;
@@ -1305,7 +1324,9 @@ import {
 
   function syncRecurringChatSessionUi() {
     var oneTimeEl = document.getElementById("one-time");
+    var manualSessionEl = document.getElementById("manual-session");
     var isOneTime = !!(oneTimeEl && oneTimeEl.checked);
+    var isManualSession = !!(manualSessionEl && manualSessionEl.checked);
 
     if (chatSessionGroup) {
       chatSessionGroup.style.display = isOneTime ? "none" : "block";
@@ -1317,6 +1338,14 @@ import {
 
     if (isOneTime && chatSessionSelect) {
       chatSessionSelect.value = defaultChatSession;
+    }
+
+    if (isOneTime && manualSessionEl && manualSessionEl.checked) {
+      manualSessionEl.checked = false;
+    }
+
+    if (isManualSession && oneTimeEl && oneTimeEl.checked) {
+      oneTimeEl.checked = false;
     }
   }
 
@@ -2076,6 +2105,35 @@ syncTodoLabelSuggestions();
       renderCockpitBoard: renderCockpitBoard,
       openTodoEditor: openTodoEditor,
       openTodoDeleteModal: openTodoDeleteModal,
+      setPendingBoardDelete: function (todoId, permanentOnly) {
+        pendingBoardDeleteTodoId = String(todoId || "");
+        pendingBoardDeletePermanentOnly = !!permanentOnly;
+        requestCockpitBoardRender();
+      },
+      clearPendingBoardDelete: function () {
+        pendingBoardDeleteTodoId = "";
+        pendingBoardDeletePermanentOnly = false;
+        requestCockpitBoardRender();
+      },
+      submitBoardDeleteChoice: function (choice) {
+        if (!pendingBoardDeleteTodoId) {
+          return;
+        }
+        var todoId = pendingBoardDeleteTodoId;
+        pendingBoardDeleteTodoId = "";
+        pendingBoardDeletePermanentOnly = false;
+        if (selectedTodoId === todoId) {
+          selectedTodoId = null;
+          currentTodoLabels = [];
+          selectedTodoLabelName = "";
+          currentTodoFlag = "";
+        }
+        requestCockpitBoardRender();
+        vscode.postMessage({
+          type: choice === "permanent" ? "purgeTodo" : "rejectTodo",
+          todoId: todoId,
+        });
+      },
       handleSectionCollapse: function (collapseBtn) {
         handleBoardSectionCollapse(collapseBtn, {
           toggleSectionCollapsed: toggleSectionCollapsed,
@@ -3116,6 +3174,8 @@ syncTodoLabelSuggestions();
       filters: filters,
       strings: strings,
       selectedTodoId: selectedTodoId,
+      pendingBoardDeleteTodoId: pendingBoardDeleteTodoId,
+      pendingBoardDeletePermanentOnly: pendingBoardDeletePermanentOnly,
       collapsedSections: collapsedSections,
       helpers: {
         escapeAttr: escapeAttr,
@@ -3683,6 +3743,7 @@ syncTodoLabelSuggestions();
     var scopeEl = document.querySelector('input[name="scope"]:checked');
     var promptSourceEl = document.querySelector('input[name="prompt-source"]:checked');
     var oneTimeEl = document.getElementById("one-time");
+    var manualSessionEl = document.getElementById("manual-session");
     var promptSourceValue = promptSourceEl ? String(promptSourceEl.value || "inline") : "inline";
     var promptPathValue = templateSelect ? String(templateSelect.value || "") : "";
     if (promptSourceValue !== "inline" && !promptPathValue && pendingTemplatePath) {
@@ -3697,6 +3758,7 @@ syncTodoLabelSuggestions();
       modelValue = pendingModelValue;
     }
     var oneTime = !!(oneTimeEl && oneTimeEl.checked);
+    var manualSession = !oneTime && !!(manualSessionEl && manualSessionEl.checked);
     return {
       name: taskNameEl ? String(taskNameEl.value || "") : "",
       prompt: promptTextEl ? String(promptTextEl.value || "") : "",
@@ -3708,6 +3770,7 @@ syncTodoLabelSuggestions();
       promptSource: promptSourceValue,
       promptPath: promptPathValue,
       oneTime: oneTime,
+      manualSession: manualSession,
       chatSession: oneTime ? "" : (chatSessionSelect ? String(chatSessionSelect.value || "") : ""),
       jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0,
     };
@@ -3728,6 +3791,7 @@ syncTodoLabelSuggestions();
       promptSource: String(task.promptSource || "inline"),
       promptPath: String(task.promptPath || ""),
       oneTime: task.oneTime === true,
+      manualSession: task.oneTime === true ? false : task.manualSession === true,
       chatSession: task.oneTime === true ? "" : String(task.chatSession || defaultChatSession || "new"),
       jitterSeconds: Number(task.jitterSeconds != null ? task.jitterSeconds : defaultJitterSeconds),
     };
@@ -4232,6 +4296,12 @@ syncTodoLabelSuggestions();
       syncRecurringChatSessionUi();
     });
   }
+  var manualSessionToggle = document.getElementById("manual-session");
+  if (manualSessionToggle) {
+    manualSessionToggle.addEventListener("change", function () {
+      syncRecurringChatSessionUi();
+    });
+  }
 
   Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function (button) {
     button.addEventListener("click", function (e) {
@@ -4492,6 +4562,7 @@ syncTodoLabelSuggestions();
       );
       var runFirstEl = document.getElementById("run-first");
       var oneTimeEl = document.getElementById("one-time");
+      var manualSessionEl = document.getElementById("manual-session");
 
       var promptSourceValue = promptSourceEl ? promptSourceEl.value : "inline";
 
@@ -4526,6 +4597,10 @@ syncTodoLabelSuggestions();
         promptPath: promptPathValue,
         runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
         oneTime: oneTimeEl ? oneTimeEl.checked : false,
+        manualSession:
+          oneTimeEl && oneTimeEl.checked
+            ? false
+            : !!(manualSessionEl && manualSessionEl.checked),
         jitterSeconds: jitterSecondsInput
           ? Number(jitterSecondsInput.value || 0)
           : 0,
@@ -5292,6 +5367,30 @@ syncTodoLabelSuggestions();
   }
 
   document.addEventListener("click", function (e) {
+    var collapseTarget = e && e.target && e.target.nodeType === 3 ? e.target.parentElement : e.target;
+    while (collapseTarget && collapseTarget !== document.body) {
+      if (collapseTarget.getAttribute && collapseTarget.getAttribute("data-task-section-toggle")) {
+        break;
+      }
+      collapseTarget = collapseTarget.parentElement;
+    }
+
+    if (collapseTarget && collapseTarget !== document.body) {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (taskList && taskList.contains(collapseTarget)) {
+        var sectionKey = collapseTarget.getAttribute("data-task-section-toggle");
+        if (isTaskSectionKey(sectionKey)) {
+          e.preventDefault();
+          taskSectionCollapseState[sectionKey] = !(taskSectionCollapseState[sectionKey] === true);
+          persistTaskFilter();
+          renderTaskList(tasks);
+          return;
+        }
+      }
+    }
+
     var actionTarget = resolveActionTarget(e.target);
     if (!actionTarget) {
       return;
@@ -5437,6 +5536,14 @@ syncTodoLabelSuggestions();
           escapeHtml(strings.labelOneTime || "One-time") +
           "</span>"
           : "";
+      var manualSessionBadgeHtml =
+        task.oneTime === true || task.manualSession !== true
+          ? ""
+          : '<span class="task-badge" title="' +
+            escapeAttr(strings.labelManualSession || "Manual session") +
+            '">' +
+            escapeHtml(strings.labelManualSession || "Manual session") +
+            "</span>";
       var chatSessionBadgeHtml =
         task.oneTime === true
           ? ""
@@ -5573,6 +5680,7 @@ syncTodoLabelSuggestions();
         '">' +
         taskName +
         "</span>" +
+        manualSessionBadgeHtml +
         chatSessionBadgeHtml +
         oneTimeBadgeHtml +
         "</div>" +
@@ -5625,7 +5733,7 @@ syncTodoLabelSuggestions();
       );
     }
 
-    function renderTaskSection(title, items) {
+    function renderTaskSection(sectionKey, title, items) {
       var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
       if (!listHtml) {
         listHtml =
@@ -5633,9 +5741,11 @@ syncTodoLabelSuggestions();
           escapeHtml(strings.noTasksFound) +
           "</div>";
       }
+      var isCollapsed = taskSectionCollapseState[sectionKey] === true;
       return (
-        '<div class="task-section">' +
+        '<div class="task-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-task-section="' + escapeAttr(sectionKey) + '">' +
         '<div class="task-section-title">' +
+        '<button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || 'Expand section') : (strings.boardSectionCollapse || 'Collapse section')) + '">&#9660;</button>' +
         '<span>' +
         escapeHtml(title) +
         "</span>" +
@@ -5643,15 +5753,22 @@ syncTodoLabelSuggestions();
         String(items.length) +
         "</span>" +
         "</div>" +
+        '<div class="task-section-body"><div class="task-section-body-inner">' +
         listHtml +
+        '</div></div>' +
         "</div>"
       );
     }
 
+    var manualSessionTasks = taskItems.filter(function (task) {
+      if (!task) return false;
+      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      return !isOneTime && task.manualSession === true;
+    });
     var recurringTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
-      return !isOneTime;
+      return !isOneTime && task.manualSession !== true;
     });
     var oneTimeTasks = taskItems.filter(function (task) {
       if (!task) return false;
@@ -5659,15 +5776,25 @@ syncTodoLabelSuggestions();
       return isOneTime;
     });
 
-    var sectionHtml = "";
+    var leftColumnHtml = "";
+    var rightColumnHtml = "";
+    if (activeTaskFilter === "all" || activeTaskFilter === "manual") {
+      leftColumnHtml += renderTaskSection(
+        "manual",
+        strings.labelManualSessions || "Manual Sessions",
+        manualSessionTasks,
+      );
+    }
     if (activeTaskFilter === "all" || activeTaskFilter === "recurring") {
-      sectionHtml += renderTaskSection(
+      leftColumnHtml += renderTaskSection(
+        "recurring",
         strings.labelRecurringTasks || "Recurring Tasks",
         recurringTasks,
       );
     }
     if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
-      sectionHtml += renderTaskSection(
+      rightColumnHtml += renderTaskSection(
+        "one-time",
         strings.labelOneTimeTasks || "One-time Tasks",
         oneTimeTasks,
       );
@@ -5680,6 +5807,11 @@ syncTodoLabelSuggestions();
       // Inline fallback ensures filtered mode stays single-column even with stale cached CSS.
       containerStyle = ' style="display:grid;grid-template-columns:1fr;"';
     }
+
+    var sectionHtml = activeTaskFilter === "all"
+      ? '<div class="task-sections-column task-sections-column-primary">' + leftColumnHtml + '</div>' +
+        '<div class="task-sections-column task-sections-column-secondary">' + rightColumnHtml + '</div>'
+      : leftColumnHtml + rightColumnHtml;
 
     renderedTasks =
       '<div class="' + containerClass + '"' + containerStyle + ">" +
@@ -6217,6 +6349,8 @@ syncTodoLabelSuggestions();
     if (runFirstEl) runFirstEl.checked = false;
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = false;
+    var manualSessionEl = document.getElementById("manual-session");
+    if (manualSessionEl) manualSessionEl.checked = false;
     if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
     if (agentSelect) agentSelect.value = executionDefaults.agent || "";
     if (modelSelect) modelSelect.value = executionDefaults.model || "";
@@ -7426,6 +7560,8 @@ syncTodoLabelSuggestions();
 
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+    var manualSessionEl = document.getElementById("manual-session");
+    if (manualSessionEl) manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
     if (chatSessionSelect) {
       chatSessionSelect.value = task.chatSession === "continue"
         ? "continue"
@@ -7546,6 +7682,15 @@ syncTodoLabelSuggestions();
             })
           ) {
             closeTodoDeleteModal();
+          }
+          if (
+            pendingBoardDeleteTodoId &&
+            !cockpitBoard.cards.some(function (card) {
+              return card && card.id === pendingBoardDeleteTodoId;
+            })
+          ) {
+            pendingBoardDeleteTodoId = "";
+            pendingBoardDeletePermanentOnly = false;
           }
           clearCatalogDeleteState();
           syncTaskLabelFilterOptions();

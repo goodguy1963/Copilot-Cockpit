@@ -201,6 +201,7 @@ function normalizeTaskSnapshot(value: unknown): CockpitTaskSnapshot | undefined 
     cronExpression,
     enabled: record.enabled !== false,
     oneTime: record.oneTime === true,
+    manualSession: record.manualSession === true ? true : undefined,
     agent: normalizeOptionalString(record.agent),
     model: normalizeOptionalString(record.model),
     labels: normalizeLabels(record.labels),
