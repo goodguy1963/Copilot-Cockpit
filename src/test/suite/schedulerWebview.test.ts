@@ -220,6 +220,65 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("webview runtime orders visible recurring sections first and resolves task-list selects through execution defaults", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "if (filters.showRecurringTasks === true) {",
+      "var leftRecurring = isRecurringTodoSectionId(left.id);",
+      "var effectiveSelectedId = selectedId || fallbackSelectedId || \"\";",
+      "executionDefaults && executionDefaults.agent",
+      "executionDefaults && executionDefaults.model",
+      "renderTaskList(tasks);",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected recurring/default task-list snippet ${snippet}`,
+      );
+    });
+  });
+
+  test("board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "font-size: var(--cockpit-chip-font, inherit);",
+      "@media (max-width: 1180px)",
+      "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;",
+      "@media (max-width: 640px)",
+      "grid-template-columns: 1fr;",
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected responsive footer/chip CSS snippet ${snippet}`,
+      );
+    });
+
+    [
+      'document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");',
+      "var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));",
+      "var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected slider chip-scale runtime snippet ${snippet}`,
+      );
+    });
+  });
+
   test("editor tabs use symbol states and dirty badges", () => {
     const templatePath = path.resolve(
       __dirname,

@@ -2323,6 +2323,7 @@ export class SchedulerWebview {
 
     .board-filter-options label {
       min-width: 0;
+      white-space: nowrap;
     }
 
     .board-toolbar {
@@ -2468,9 +2469,8 @@ export class SchedulerWebview {
     }
 
     .board-column .cockpit-section-header {
-      position: sticky;
-      top: var(--cockpit-board-sticky-top, 0px);
-      z-index: 8;
+      position: relative;
+      z-index: 1;
     }
 
     .cockpit-section-header:active {
@@ -2549,7 +2549,7 @@ export class SchedulerWebview {
       gap: var(--cockpit-chip-gap, 4px);
       max-width: 100%;
       min-width: 0;
-      font-size: inherit;
+      font-size: var(--cockpit-chip-font, inherit);
       line-height: 1.25;
       white-space: nowrap;
       overflow: hidden;
@@ -2613,23 +2613,88 @@ export class SchedulerWebview {
       transform: rotate(1.5deg) scale(0.97) !important;
     }
 
+    @media (max-width: 1180px) {
+      .board-filter-footer {
+        gap: 4px;
+      }
+
+      .board-filter-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        gap: 8px 10px;
+        align-items: end;
+        margin-top: 2px;
+      }
+
+      .board-filter-primary-actions {
+        grid-column: 1 / 3;
+        flex: none;
+        gap: 6px;
+      }
+
+      .board-filter-view-group {
+        grid-column: 3;
+        justify-content: flex-end;
+        min-width: 112px;
+      }
+
+      .board-filter-view-group .form-group {
+        max-width: 112px;
+        min-width: 112px;
+      }
+
+      .board-filter-options {
+        grid-column: 1 / 3;
+        flex: none;
+        gap: 4px 10px;
+        justify-content: flex-start;
+        align-items: center;
+        font-size: 11px;
+      }
+
+      .board-col-width-group {
+        grid-column: 3;
+        flex: none;
+        min-width: 132px;
+        justify-content: flex-end;
+        gap: 4px;
+      }
+
+      .board-col-width-group input[type="range"] {
+        width: min(100%, 96px);
+        flex-basis: 96px;
+      }
+    }
+
     @media (max-width: 920px) {
       .board-filter-grid .board-filter-search {
         grid-column: auto;
       }
 
       .board-filter-actions {
+        grid-template-columns: minmax(0, 1fr) auto;
         align-items: stretch;
+      }
+
+      .board-filter-primary-actions {
+        grid-column: 1 / -1;
       }
 
       .board-filter-view-group,
       .board-filter-options {
-        flex: 1 1 100%;
+        flex: none;
         justify-content: flex-start;
       }
 
+      .board-filter-options {
+        grid-column: 1;
+      }
+
       .board-col-width-group {
-        flex: 1 1 100%;
+        grid-column: 2;
+        flex: none;
+        min-width: 120px;
+        justify-content: flex-end;
       }
     }
 
@@ -2640,6 +2705,27 @@ export class SchedulerWebview {
 
       .board-filter-header {
         align-items: flex-start;
+      }
+
+      .board-filter-actions {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .board-filter-view-group,
+      .board-filter-options,
+      .board-col-width-group {
+        grid-column: 1;
+        min-width: 0;
+      }
+
+      .board-col-width-group {
+        justify-content: flex-start;
+      }
+
+      .board-col-width-group input[type="range"] {
+        width: min(100%, 140px);
+        flex-basis: 120px;
       }
     }
 
