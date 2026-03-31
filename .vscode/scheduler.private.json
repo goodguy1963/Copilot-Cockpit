@@ -12,8 +12,8 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-31T18:11:08.497Z",
+            "promptBackupPath": ".vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-31T18:34:32.118Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
@@ -34,8 +34,8 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820624347_er6ssw.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-31T18:11:08.501Z",
+            "promptBackupPath": ".vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820624347_er6ssw.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-31T18:34:32.250Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
@@ -54,8 +54,8 @@
             "agent": "agent",
             "model": "gpt-5-mini",
             "promptSource": "inline",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820637468_uatpgj.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-31T18:11:08.505Z",
+            "promptBackupPath": ".vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820637468_uatpgj.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-31T18:34:32.276Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
@@ -76,8 +76,8 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820899929_ua1d8h.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-31T18:11:08.507Z",
+            "promptBackupPath": ".vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820899929_ua1d8h.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-31T18:34:32.284Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
@@ -98,8 +98,8 @@
             "chatSession": "new",
             "promptSource": "inline",
             "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820991131_24potb.prompt.md",
-            "promptBackupUpdatedAt": "2026-03-31T18:11:08.509Z",
+            "promptBackupPath": ".vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820991131_24potb.prompt.md",
+            "promptBackupUpdatedAt": "2026-03-31T18:34:32.291Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "jobId": "job_1774810756188_5bn3xr",
@@ -501,6 +501,17 @@
                         "createdAt": "2026-03-29T19:00:56.077Z"
                     }
                 ],
+                "taskSnapshot": {
+                    "name": "aa",
+                    "description": "Auto-generated from scheduler.json",
+                    "cronExpression": "0 9 * * *",
+                    "enabled": true,
+                    "oneTime": false,
+                    "agent": "agent",
+                    "model": "gpt-5.3-codex",
+                    "labels": [],
+                    "promptHash": "1:73"
+                },
                 "taskId": "task_1774810742815_ntq7vy",
                 "archived": false,
                 "approvedAt": "2026-03-29T19:00:55.154Z",
@@ -1178,6 +1189,17 @@
                         "createdAt": "2026-03-29T23:04:30.395Z"
                     }
                 ],
+                "taskSnapshot": {
+                    "name": "Research",
+                    "description": "Auto-generated from scheduler.json",
+                    "cronExpression": "0 9 * * 1-5",
+                    "enabled": true,
+                    "oneTime": false,
+                    "agent": "agent",
+                    "model": "gpt-5-mini",
+                    "labels": [],
+                    "promptHash": "16:7d8d791e"
+                },
                 "taskId": "task_1774820624347_er6ssw",
                 "archived": false,
                 "approvedAt": "2026-03-29T23:04:30.395Z",
@@ -1210,6 +1232,17 @@
                         "createdAt": "2026-03-29T21:46:36.174Z"
                     }
                 ],
+                "taskSnapshot": {
+                    "name": "Research",
+                    "description": "Auto-generated from scheduler.json",
+                    "cronExpression": "0 9 * * 1-5",
+                    "enabled": true,
+                    "oneTime": false,
+                    "agent": "agent",
+                    "model": "gpt-5-mini",
+                    "labels": [],
+                    "promptHash": "16:7d8d791e"
+                },
                 "taskId": "task_1774820637468_uatpgj",
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
@@ -1229,6 +1262,16 @@
                 ],
                 "flags": [],
                 "comments": [],
+                "taskSnapshot": {
+                    "name": "Do Filter",
+                    "description": "Auto-generated from scheduler.json",
+                    "cronExpression": "0 9 * * 1-5",
+                    "enabled": true,
+                    "oneTime": false,
+                    "agent": "agent",
+                    "labels": [],
+                    "promptHash": "10:1a28397e"
+                },
                 "taskId": "task_1774820991131_24potb",
                 "archived": false,
                 "createdAt": "2026-03-29T21:49:51.131Z",
@@ -1248,6 +1291,17 @@
                 ],
                 "flags": [],
                 "comments": [],
+                "taskSnapshot": {
+                    "name": "assa",
+                    "description": "Auto-generated from scheduler.json",
+                    "cronExpression": "0 9 * * 1-5",
+                    "enabled": true,
+                    "oneTime": false,
+                    "agent": "agent",
+                    "model": "gpt-5-mini",
+                    "labels": [],
+                    "promptHash": "18:b176fc5c"
+                },
                 "taskId": "task_1774820899929_ua1d8h",
                 "archived": false,
                 "createdAt": "2026-03-29T21:48:19.929Z",
@@ -1324,10 +1378,6 @@
             "hgjg",
             "lölö"
         ],
-        "archives": {
-            "completedSuccessfully": [],
-            "rejected": []
-        },
         "filters": {
             "labels": [],
             "priorities": [],
@@ -1337,7 +1387,9 @@
             "sortBy": "manual",
             "sortDirection": "desc",
             "viewMode": "list",
-            "showArchived": true
+            "showArchived": true,
+            "showRecurringTasks": false,
+            "hideCardDetails": false
         },
         "updatedAt": "2026-03-31T18:21:39.636Z"
     }

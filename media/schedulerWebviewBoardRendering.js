@@ -83,13 +83,14 @@ function renderTodoListRow(card, sectionId, options) {
   var selectedTodoId = options.selectedTodoId;
   var isSelected = card.id === selectedTodoId;
   var latestComment = getLatestTodoComment(card);
-  var summary = card.description
+  var descriptionText = card.description
     ? helpers.getTodoDescriptionPreview(card.description)
-    : latestComment && latestComment.body
-      ? helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + ': ' + helpers.getTodoDescriptionPreview(latestComment.body)
-      : (card.taskId
-        ? (strings.boardTaskLinked || "Linked task")
-        : (strings.boardDescriptionPreviewEmpty || "No description yet."));
+    : (card.taskId
+      ? (strings.boardTaskLinked || "Linked task")
+      : (strings.boardDescriptionPreviewEmpty || "No description yet."));
+  var latestCommentText = latestComment && latestComment.body
+    ? '#' + String(latestComment.sequence || 1) + ' • ' + helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + ' • ' + helpers.getTodoDescriptionPreview(latestComment.body)
+    : (strings.boardCommentsEmpty || "No comments yet.");
   var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
   var metaParts = [
     '<span data-card-meta>' + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + '</span>',
@@ -101,27 +102,37 @@ function renderTodoListRow(card, sectionId, options) {
   if (card.archived && card.archiveOutcome) {
     metaParts.push('<span data-card-meta>' + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>');
   }
-  if (cardFlag) {
-    metaParts.push(helpers.renderFlagChip(cardFlag, false));
-  }
-  var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 2) : [];
-  if (visibleLabels.length) {
-    metaParts.push(visibleLabels.map(function (label) {
-      return helpers.renderLabelChip(label, false, false);
-    }).join(" "));
-  }
+  var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 6) : [];
+  var chipMarkup = (cardFlag || visibleLabels.length)
+    ? '<div class="todo-list-chip-row">' +
+      (cardFlag ? helpers.renderFlagChip(cardFlag, false) : '') +
+      (visibleLabels.length
+        ? '<div class="card-labels">' + visibleLabels.map(function (label, idx) {
+            return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + '</span>';
+          }).join("") + '</div>'
+        : '') +
+      '</div>'
+    : '';
 
   return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? 'true' : 'false') + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;">' +
     '<div class="todo-list-main">' +
       '<div class="todo-list-title-line">' +
-        '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
+        '<div class="todo-list-title-block">' +
           helpers.renderTodoCompletionCheckbox(card) +
           '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
         '</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0;">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div>' +
+        '<div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div>' +
       '</div>' +
+      chipMarkup +
       '<div class="cockpit-card-details">' +
-        '<div class="note todo-list-summary">' + helpers.escapeHtml(summary) + '</div>' +
+        '<div class="note todo-list-detail-line">' +
+          '<strong data-card-meta>' + helpers.escapeHtml(strings.boardDescriptionLabel || "Description") + ':</strong>' +
+          '<span class="todo-list-summary">' + helpers.escapeHtml(descriptionText) + '</span>' +
+        '</div>' +
+        '<div class="note todo-list-detail-line">' +
+          '<strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
+          '<span class="todo-list-summary">' + helpers.escapeHtml(latestCommentText) + '</span>' +
+        '</div>' +
       '</div>' +
     '</div>' +
     renderTodoCompactActions(card, options) +

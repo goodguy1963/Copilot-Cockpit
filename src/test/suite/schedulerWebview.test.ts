@@ -318,6 +318,48 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("list view rows reuse board chips and switch between compact and detailed lines", () => {
+    const renderPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebviewBoardRendering.js",
+    );
+    const renderSource = fs.readFileSync(renderPath, "utf8");
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+
+    [
+      'var chipMarkup = (cardFlag || visibleLabels.length)',
+      'class="todo-list-chip-row"',
+      'helpers.renderLabelChip(label, false, false)',
+      'strings.boardDescriptionLabel || "Description"',
+      'strings.boardLatestComment || "Latest comment"',
+      'strings.boardCommentsEmpty || "No comments yet."',
+    ].forEach((snippet) => {
+      assert.ok(
+        renderSource.includes(snippet),
+        `expected list-view chip/detail snippet ${snippet}`,
+      );
+    });
+
+    [
+      '.todo-list-row {',
+      'grid-template-columns: minmax(0, 1fr) auto;',
+      '.todo-list-chip-row {',
+      '.todo-list-detail-line {',
+      'grid-auto-flow: column;',
+      '@media (max-width: 760px) {',
+      'grid-template-columns: 1fr;',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected list-view layout CSS snippet ${snippet}`,
+      );
+    });
+  });
+
   test("editor tabs use symbol states and dirty badges", () => {
     const templatePath = path.resolve(
       __dirname,

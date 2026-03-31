@@ -2373,10 +2373,10 @@ export class SchedulerWebview {
     }
 
     .todo-list-row {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
-      align-items: stretch;
+      align-items: start;
       transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
     }
 
@@ -2394,10 +2394,28 @@ export class SchedulerWebview {
 
     .todo-list-title-line {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
       min-width: 0;
+    }
+
+    .todo-list-title-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .todo-list-meta-trail {
+      display: flex;
       flex-wrap: wrap;
+      gap: 4px 6px;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 0;
+      flex: 0 1 auto;
     }
 
     .todo-list-title {
@@ -2417,26 +2435,30 @@ export class SchedulerWebview {
       overflow: hidden;
       line-clamp: 1;
       min-height: 1.2em;
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     .todo-list-actions {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(28px, 1fr);
       gap: 6px;
-      width: 100%;
-      min-width: 0;
+      width: max-content;
+      min-width: max-content;
+      align-self: start;
     }
 
     .todo-list-actions.has-single-action {
-      grid-template-columns: 1fr;
+      grid-auto-columns: minmax(28px, 1fr);
     }
 
     .todo-list-action-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      min-width: 0;
+      width: 28px;
+      min-width: 28px;
       padding: 3px 6px !important;
       font-weight: 600;
       text-align: center;
@@ -2463,12 +2485,6 @@ export class SchedulerWebview {
         0 2px 6px color-mix(in srgb, #000000 22%, transparent);
       filter: saturate(1.14) brightness(1.1);
       transform: translateY(-1px);
-    }
-
-    @media (max-width: 920px) {
-      .todo-list-actions {
-        grid-template-columns: 1fr;
-      }
     }
 
     .cockpit-section-header {
@@ -2510,83 +2526,119 @@ export class SchedulerWebview {
 
     .cockpit-collapse-btn {
       display: flex;
+      }
+
+      .todo-list-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .todo-list-chip-row .card-labels {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .todo-list-detail-line {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+        min-width: 0;
+      }
+
+      .todo-list-detail-line strong {
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+
+      .card-labels [data-label-slot] {
+        display: inline-flex;
+        min-width: 0;
+      }
+
+      [data-label-chip],
+      [data-flag-chip] {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--cockpit-chip-gap, 4px);
+        max-width: 100%;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: var(--cockpit-chip-font, inherit);
+      }
+
+      [data-label-chip] {
+        padding: var(--cockpit-label-pad-y, 2px) var(--cockpit-label-pad-x, 7px);
+      }
+
+      [data-flag-chip] > span:first-child {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      [data-label-chip-select] {
+        max-width: 100%;
+      }
+
+      @media (max-width: 760px) {
+        .todo-list-row {
+          grid-template-columns: 1fr;
+        }
+
+        .todo-list-actions {
+          width: 100%;
+          min-width: 0;
+          grid-auto-columns: minmax(0, 1fr);
+        }
+
+        .todo-list-action-btn {
+          width: 100%;
+        }
       align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-radius: 3px;
-      flex-shrink: 0;
-      padding: 0;
-      opacity: 0.6;
-      transition: opacity 0.12s, transform 0.2s ease;
-      font-size: 10px;
-      line-height: 1;
-    }
-
-    .cockpit-collapse-btn:hover {
-      opacity: 1;
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .cockpit-collapse-btn.collapsed {
-      transform: rotate(-90deg);
-    }
-
-    .section-body-wrapper {
-      display: grid;
-      grid-template-rows: 1fr;
-      transition: grid-template-rows 0.22s ease, opacity 0.22s ease;
-      overflow: hidden;
-    }
-
-    .section-body-wrapper.collapsed {
-      grid-template-rows: 0fr;
-    }
-
-    .section-body-inner {
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .card-labels {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--cockpit-chip-gap, 4px);
+      grid-auto-columns: minmax(28px, 1fr);
       min-width: 0;
-    }
-
-    .card-labels [data-label-slot] {
-      display: inline-flex;
-      min-width: 0;
-    }
-
-    [data-label-chip],
-    [data-flag-chip] {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--cockpit-chip-gap, 4px);
-      max-width: 100%;
-      min-width: 0;
-      font-size: var(--cockpit-chip-font, inherit);
-      line-height: 1.25;
+      width: max-content;
+      min-width: max-content;
+      align-self: start;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
+      grid-auto-columns: minmax(28px, 1fr);
 
     [data-label-chip] {
       padding: var(--cockpit-label-pad-y, 2px) var(--cockpit-label-pad-x, 7px);
     }
 
     [data-flag-chip] {
-      padding: var(--cockpit-flag-pad-y, 2px) var(--cockpit-flag-pad-x, 8px);
+      width: 28px;
+      min-width: 28px;
     }
 
     [data-label-chip-select],
+
+    @media (max-width: 760px) {
+      .todo-list-row {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-list-actions {
+        width: 100%;
+        min-width: 0;
+        grid-auto-columns: minmax(0, 1fr);
+      }
+
+      .todo-list-action-btn {
+        width: 100%;
+      }
+    }
     [data-flag-chip] > span:first-child {
       min-width: 0;
       overflow: hidden;

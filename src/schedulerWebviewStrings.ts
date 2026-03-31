@@ -279,6 +279,7 @@ export function buildSchedulerWebviewStrings(
     boardFinalizeTodoYes: localize("Yes", "はい", "Ja"),
     boardFinalizeTodoNo: localize("No", "いいえ", "Nein"),
     boardFinalizePrompt: localize("Archive this todo as completed successfully?", "この Todo を正常完了としてアーカイブしますか？", "Dieses Todo als erfolgreich abgeschlossen archivieren?"),
+    boardDescriptionLabel: localize("Description", "説明", "Beschreibung"),
     boardConfirmAction: localize("Confirm", "確認", "Bestätigen"),
     boardCancelAction: localize("Cancel", "キャンセル", "Abbrechen"),
     boardConfirmApproveHint: localize("Click Confirm to continue, or Cancel to keep the todo unchanged.", "続行するには「確認」、変更しない場合は「キャンセル」をクリックしてください。", "Klicken Sie auf Bestätigen, um fortzufahren, oder auf Abbrechen, um das Todo unverändert zu lassen."),
