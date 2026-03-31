@@ -661,6 +661,14 @@ export const messages = {
       "繰り返しタスク専用です。一度きりタスクにはタスク単位のチャットセッション設定は保存されません。",
       "Nur für wiederkehrende Tasks. Einmalige Tasks speichern keinen Chat-Session-Modus auf Task-Ebene.",
     ),
+  labelManualSession: () => t("Manual session", "手動セッション", "Manuelle Session"),
+  labelManualSessions: () => t("Manual Sessions", "手動セッション", "Manuelle Sessions"),
+  labelManualSessionNote: () =>
+    t(
+      "Manual sessions stay grouped separately in the task list and do not become one-time tasks.",
+      "手動セッションはタスクリストで別グループになり、一度きりタスクにはなりません。",
+      "Manuelle Sessions bleiben in der Taskliste separat gruppiert und werden nicht zu einmaligen Tasks.",
+    ),
   labelAllTasks: () => t("All", "すべて", "Alle"),
   labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク", "Wiederkehrende Tasks"),
   labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク", "Einmalige Tasks"),
@@ -817,6 +825,43 @@ export const messages = {
     t(
       `Failed to update .vscode/mcp.json: ${reason}`,
       `.vscode/mcp.json の更新に失敗しました: ${reason}`,
+    ),
+  workspaceSupportRepairPrompt: (
+    mcpRepoCount: number,
+    includeSkillRefresh: boolean,
+  ) =>
+    t(
+      mcpRepoCount > 0
+        ? `Scheduler support files need repair in ${mcpRepoCount} workspace repo(s)${includeSkillRefresh ? ", and bundled skills may need a refresh after this update" : ""}. Allow the extension to fix them now?`
+        : "Bundled scheduler support files may need a refresh after this update. Allow the extension to fix them now?",
+      mcpRepoCount > 0
+        ? `Scheduler サポートファイルを ${mcpRepoCount} 個のワークスペース リポジトリで修復する必要があります${includeSkillRefresh ? "。この更新後は同梱スキルの再同期も必要になる可能性があります" : ""}。今すぐ拡張機能に修復を許可しますか？`
+        : "この更新後は同梱された scheduler サポートファイルの再同期が必要になる可能性があります。今すぐ拡張機能に修復を許可しますか？",
+      mcpRepoCount > 0
+        ? `Scheduler-Supportdateien müssen in ${mcpRepoCount} Workspace-Repository(s) repariert werden${includeSkillRefresh ? ", und die gebündelten Skills müssen nach diesem Update möglicherweise aktualisiert werden" : ""}. Darf die Erweiterung das jetzt beheben?`
+        : "Gebündelte Scheduler-Supportdateien müssen nach diesem Update möglicherweise aktualisiert werden. Darf die Erweiterung das jetzt beheben?",
+    ),
+  workspaceSupportRepairAction: () =>
+    t(
+      "Repair Support Files",
+      "サポートファイルを修復",
+      "Supportdateien reparieren",
+    ),
+  workspaceSupportRepairCompleted: (
+    repairedMcpRepos: number,
+    createdSkills: number,
+    updatedSkills: number,
+  ) =>
+    t(
+      `Workspace support repair complete. MCP repos updated: ${repairedMcpRepos}. Bundled skills created: ${createdSkills}, updated: ${updatedSkills}.`,
+      `ワークスペース サポートの修復が完了しました。更新した MCP リポジトリ: ${repairedMcpRepos}。作成した同梱スキル: ${createdSkills}、更新した同梱スキル: ${updatedSkills}。`,
+      `Die Reparatur der Workspace-Supportdateien ist abgeschlossen. Aktualisierte MCP-Repositories: ${repairedMcpRepos}. Erstellte gebündelte Skills: ${createdSkills}, aktualisierte gebündelte Skills: ${updatedSkills}.`,
+    ),
+  workspaceSupportRepairFailed: (reason: string) =>
+    t(
+      `Failed to repair workspace support files: ${reason}`,
+      `ワークスペース サポートファイルの修復に失敗しました: ${reason}`,
+      `Die Reparatur der Workspace-Supportdateien ist fehlgeschlagen: ${reason}`,
     ),
   jobCreateTitle: () => t("New Job", "新規ジョブ", "Neuer Job"),
   jobNamePrompt: () => t("Enter job name", "ジョブ名を入力してください", "Job-Namen eingeben"),

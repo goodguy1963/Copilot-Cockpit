@@ -242,6 +242,50 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("task list adds manual sessions filter and collapsible manual recurring one-time sections", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'data-filter="manual"',
+      'id="manual-session"',
+      'strings.labelManualSessions',
+      'strings.labelManualSessionNote',
+      '.task-sections-column {',
+      '.task-section-toggle {',
+      '.task-section.is-collapsed .task-section-body {',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected manual-session template snippet ${snippet}`,
+      );
+    });
+
+    [
+      'var taskSectionCollapseState = {',
+      'value === "manual"',
+      'data-task-section-toggle',
+      'task.manualSession === true',
+      'task-sections-column task-sections-column-primary',
+      'task-sections-column task-sections-column-secondary',
+      'strings.labelManualSessions || "Manual Sessions"',
+      'manualSession: manualSession,',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected manual-session runtime snippet ${snippet}`,
+      );
+    });
+  });
+
   test("board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars", () => {
     const templatePath = path.resolve(
       __dirname,
@@ -293,9 +337,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       "function renderActionButton(cls, dataAttr, label, iconHtml)",
+      "function renderConfirmButton(cls, dataAttr, label)",
       "todo-card-icon-btn",
       "title=\"' + helpers.escapeAttr(label) + '\" aria-label=\"' + helpers.escapeAttr(label) + '\"",
-      "&#8855;",
+      "data-todo-delete-reject",
+      "data-todo-delete-permanent",
     ].forEach((snippet) => {
       assert.ok(
         renderSource.includes(snippet),
@@ -305,11 +351,13 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       ".todo-card-action-row {",
-      "grid-template-columns: repeat(3, minmax(0, 1fr));",
+      "grid-auto-flow: column;",
+      "grid-auto-columns: minmax(0, 1fr);",
       ".todo-card-icon-btn {",
       "min-height: 24px !important;",
       "filter: saturate(1.08) brightness(1.05);",
-      ".todo-card-reject {",
+      ".todo-card-delete-reject {",
+      ".todo-card-delete-permanent {",
     ].forEach((snippet) => {
       assert.ok(
         templateSource.includes(snippet),
@@ -1192,12 +1240,16 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.deepStrictEqual(calls, ["complete"]);
   });
 
-  test("board interaction binding routes reject, restore, and purge clicks", () => {
+  test("board interaction binding routes inline delete confirmation, restore, and purge clicks", () => {
     const helpers = loadBoardInteractionModule();
     const calls: string[] = [];
-    const rejectButton = createListenerTarget({
-      getAttribute: (name: string) => (name === "data-todo-reject" ? "todo-ready" : ""),
-      closest: (selector: string) => (selector === "[data-todo-reject]" ? rejectButton : null),
+    const deleteButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-delete" ? "todo-ready" : ""),
+      closest: (selector: string) => (selector === "[data-todo-delete]" ? deleteButton : null),
+    });
+    const rejectChoiceButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-delete-reject" ? "todo-ready" : ""),
+      closest: (selector: string) => (selector === "[data-todo-delete-reject]" ? rejectChoiceButton : null),
     });
     const restoreButton = createListenerTarget({
       getAttribute: (name: string) => (name === "data-todo-restore" ? "todo-archived" : ""),
@@ -1208,7 +1260,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       closest: (selector: string) => (selector === "[data-todo-purge]" ? purgeButton : null),
     });
     const boardColumns = createListenerTarget({
-      contains: (value: unknown) => value === rejectButton || value === restoreButton || value === purgeButton,
+      contains: (value: unknown) => value === deleteButton || value === rejectChoiceButton || value === restoreButton || value === purgeButton,
       querySelectorAll: () => [],
     });
 
@@ -1223,11 +1275,13 @@ suite("SchedulerWebview Message Queue Tests", () => {
       renderCockpitBoard: () => calls.push("render"),
       openTodoEditor: () => calls.push("edit"),
       openTodoDeleteModal: () => calls.push("delete"),
+      setPendingBoardDelete: (_todoId: string, permanentOnly: boolean) => calls.push(permanentOnly ? "purge-confirm" : "delete-confirm"),
+      clearPendingBoardDelete: () => calls.push("delete-cancel"),
+      submitBoardDeleteChoice: (choice: string) => calls.push("delete-" + choice),
       handleSectionCollapse: () => calls.push("collapse"),
       handleSectionRename: () => calls.push("rename"),
       handleSectionDelete: () => calls.push("section-delete"),
       handleTodoCompletion: () => calls.push("complete"),
-      handleTodoReject: () => calls.push("reject"),
       handleTodoRestore: () => calls.push("restore"),
       setSelectedTodoId: () => calls.push("select"),
       getDraggingSectionId: () => null,
@@ -1245,7 +1299,12 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.ok(typeof boardColumns.listeners.click === "function");
 
     boardColumns.listeners.click({
-      target: rejectButton,
+      target: deleteButton,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+    boardColumns.listeners.click({
+      target: rejectChoiceButton,
       stopPropagation: () => undefined,
       preventDefault: () => undefined,
     });
@@ -1260,7 +1319,66 @@ suite("SchedulerWebview Message Queue Tests", () => {
       preventDefault: () => undefined,
     });
 
-    assert.deepStrictEqual(calls, ["reject", "restore", "delete"]);
+    assert.deepStrictEqual(calls, ["delete-confirm", "delete-reject", "restore", "purge-confirm"]);
+  });
+
+  test("board interaction binding collapses sections when clicking the section header", () => {
+    const helpers = loadBoardInteractionModule();
+    const calls: string[] = [];
+    const collapseButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-section-collapse" ? "section-a" : ""),
+      closest: (selector: string) => (selector === "[data-section-collapse]" ? collapseButton : null),
+    });
+    const sectionHeader = createListenerTarget({
+      querySelector: (selector: string) => (selector === "[data-section-collapse]" ? collapseButton : null),
+      closest: (selector: string) => (selector === ".cockpit-section-header" ? sectionHeader : null),
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === sectionHeader || value === collapseButton,
+      querySelectorAll: () => [],
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {},
+      window: {
+        addEventListener: () => undefined,
+      },
+      vscode: { postMessage: () => undefined },
+      renderCockpitBoard: () => calls.push("render"),
+      openTodoEditor: () => calls.push("edit"),
+      openTodoDeleteModal: () => calls.push("delete"),
+      setPendingBoardDelete: () => calls.push("delete-confirm"),
+      clearPendingBoardDelete: () => calls.push("delete-cancel"),
+      submitBoardDeleteChoice: () => calls.push("delete-submit"),
+      handleSectionCollapse: () => calls.push("collapse"),
+      handleSectionRename: () => calls.push("rename"),
+      handleSectionDelete: () => calls.push("section-delete"),
+      handleTodoCompletion: () => calls.push("complete"),
+      handleTodoRestore: () => calls.push("restore"),
+      setSelectedTodoId: () => calls.push("select"),
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => null,
+      setDraggingTodoId: () => undefined,
+      setIsBoardDragging: () => undefined,
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => undefined,
+      isArchiveTodoSectionId: () => false,
+      isSpecialTodoSectionId: () => false,
+    });
+
+    assert.ok(typeof boardColumns.listeners.click === "function");
+    boardColumns.listeners.click({
+      target: sectionHeader,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    assert.deepStrictEqual(calls, ["collapse"]);
   });
 
   test("board todo completion approves active cards and uses yes no finalize controls for ready cards", () => {

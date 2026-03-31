@@ -224,6 +224,61 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
       }
     }
   });
+
+  test("persists manualSession separately from recurring and clears it for one-time tasks", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-manual-session-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-manual-session-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForRecurringTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const manualTask = await manager.createTask({
+        name: "Manual session task",
+        cronExpression: "0 * * * *",
+        prompt: "manual prompt",
+        enabled: false,
+        scope: "workspace",
+        manualSession: true,
+        chatSession: "continue",
+      });
+
+      assert.strictEqual(manager.getTask(manualTask.id)?.manualSession, true);
+
+      const updated = await manager.updateTask(manualTask.id, {
+        oneTime: true,
+      });
+
+      assert.strictEqual(updated?.oneTime, true);
+      assert.strictEqual(updated?.manualSession, undefined);
+
+      const liveSchedulerJson = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as {
+        tasks: Array<{ id: string; manualSession?: boolean }>;
+      };
+
+      const manualJson = liveSchedulerJson.tasks.find((task) => task.id === manualTask.id);
+      assert.strictEqual(manualJson?.manualSession, undefined);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
 });
 
 suite("ScheduleManager Jobs Tests", () => {

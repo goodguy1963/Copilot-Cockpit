@@ -17,12 +17,49 @@ function getLatestTodoComment(card) {
     : null;
 }
 
-function renderTodoCompactActions(card, options) {
+function renderTodoCompactActions(card, options, layout) {
   var strings = options.strings;
   var helpers = options.helpers;
+  var isDeleteConfirmOpen = options.pendingBoardDeleteTodoId === card.id;
+  var permanentOnly = !!(card.archived || (isDeleteConfirmOpen && options.pendingBoardDeletePermanentOnly));
+  var actionRowClass = layout === "board" ? "todo-card-action-row" : "todo-list-actions";
 
   function renderActionButton(cls, dataAttr, label, iconHtml) {
     return '<button type="button" class="' + cls + ' todo-list-action-btn todo-card-icon-btn" ' + dataAttr + '="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(label) + '" aria-label="' + helpers.escapeAttr(label) + '">' + iconHtml + '</button>';
+  }
+
+  function renderConfirmButton(cls, dataAttr, label) {
+    return '<button type="button" class="' + cls + ' todo-list-action-btn" ' + dataAttr + '="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(label) + '" aria-label="' + helpers.escapeAttr(label) + '">' + helpers.escapeHtml(label) + '</button>';
+  }
+
+  if (isDeleteConfirmOpen) {
+    var confirmActions = [
+      renderConfirmButton(
+        'btn-secondary todo-card-delete-cancel',
+        'data-todo-delete-cancel',
+        strings.boardDeleteTodoCancel || 'Cancel'
+      )
+    ];
+
+    if (!permanentOnly) {
+      confirmActions.push(
+        renderConfirmButton(
+          'btn-secondary todo-card-delete-reject',
+          'data-todo-delete-reject',
+          strings.boardDeleteTodoReject || 'Archive as Rejected'
+        )
+      );
+    }
+
+    confirmActions.push(
+      renderConfirmButton(
+        'btn-danger todo-card-delete-permanent',
+        'data-todo-delete-permanent',
+        strings.boardDeleteTodoPermanent || 'Delete Permanently'
+      )
+    );
+
+    return '<div class="' + actionRowClass + '">' + confirmActions.join('') + '</div>';
   }
 
   var actions = [
@@ -52,16 +89,6 @@ function renderTodoCompactActions(card, options) {
       )
     );
   } else {
-    if (card.status === "ready") {
-      actions.push(
-        renderActionButton(
-          'btn-secondary todo-card-reject',
-          'data-todo-reject',
-          strings.boardDeclineTodo || 'Decline',
-          '&#8855;'
-        )
-      );
-    }
     actions.push(
       renderActionButton(
         'btn-secondary todo-card-delete',
@@ -72,7 +99,7 @@ function renderTodoCompactActions(card, options) {
     );
   }
 
-  return '<div class="todo-list-actions' + (actions.length === 1 ? ' has-single-action' : '') + '">' +
+  return '<div class="' + actionRowClass + (actions.length === 1 ? ' has-single-action' : '') + '">' +
     actions.join("") +
     '</div>';
 }
@@ -135,7 +162,7 @@ function renderTodoListRow(card, sectionId, options) {
         '</div>' +
       '</div>' +
     '</div>' +
-    renderTodoCompactActions(card, options) +
+    renderTodoCompactActions(card, options, "list") +
   '</article>';
 }
 
@@ -250,7 +277,7 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
                 '<div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + '</div>' +
                 latestCommentMarkup +
               '</div>' +
-              renderTodoCompactActions(card, options).replace('todo-list-actions', 'todo-card-action-row') +
+              renderTodoCompactActions(card, options, "board") +
               '</article>'
             );
           }).join("")

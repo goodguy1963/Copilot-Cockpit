@@ -275,6 +275,9 @@ export interface CockpitTaskSnapshot {
   /** Last synced task mode */
   oneTime: boolean;
 
+  /** Whether the task is grouped under manual sessions. */
+  manualSession?: boolean;
+
   /** Last synced agent */
   agent?: string;
 
@@ -1085,6 +1088,9 @@ export interface ScheduledTask {
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
 
+  /** Whether the task is grouped under manual sessions. */
+  manualSession?: boolean;
+
   /** Per-task chat session behavior for recurring tasks. */
   chatSession?: ChatSessionBehavior;
 
@@ -1137,6 +1143,9 @@ export interface CreateTaskInput {
 
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
+
+  /** Whether the task is grouped under manual sessions. */
+  manualSession?: boolean;
 
   /** Per-task chat session behavior for recurring tasks. */
   chatSession?: ChatSessionBehavior;

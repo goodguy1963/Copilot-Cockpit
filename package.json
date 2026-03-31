@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
-  "version": "99.0.57",
+  "version": "99.0.59",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",

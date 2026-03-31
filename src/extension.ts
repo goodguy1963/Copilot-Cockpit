@@ -43,8 +43,7 @@ import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgno
 import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
-  ensureCockpitTodoSkillForWorkspaceRoots,
-  ensureSchedulerSkillForWorkspaceRoots,
+  previewBundledSkillSyncForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "./skillBootstrap";
 import {
@@ -62,6 +61,7 @@ import {
   sendTelegramNotificationTest,
 } from "./telegramNotificationManager";
 import {
+  type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
   upsertSchedulerMcpConfig,
 } from "./mcpConfigManager";
@@ -97,6 +97,12 @@ const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
 const PROMPT_SYNC_DATE_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
 const LAST_VERSION_KEY = "lastKnownVersion";
+
+type WorkspaceSupportRepairPlan = {
+  mcpRootsNeedingRepair: string[];
+  shouldRefreshBundledSkills: boolean;
+  needsPrompt: boolean;
+};
 
 function getSchedulerSetting<T>(
   key: string,
@@ -260,23 +266,6 @@ async function ensureSchedulerSkillOnStartup(
   }
 
   ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
-
-  const syncResult = await syncBundledSkills(context, workspaceRoots);
-  if (
-    syncResult.createdPaths.length > 0 ||
-    syncResult.updatedPaths.length > 0
-  ) {
-    void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => { });
-  }
-  if (
-    syncResult.createdPaths.length > 0 ||
-    syncResult.updatedPaths.length > 0 ||
-    syncResult.skippedPaths.length > 0
-  ) {
-    logDebug(
-      `[CopilotScheduler] Bundled skill sync created=${syncResult.createdPaths.length} updated=${syncResult.updatedPaths.length} skipped=${syncResult.skippedPaths.length}`,
-    );
-  }
 }
 
 async function syncBundledSkills(
@@ -348,6 +337,23 @@ let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let hasPromptedForMcpSetupThisSession = false;
+let extensionVersionChangedThisSession = false;
+
+function createWorkspaceSupportRepairPlan(
+  states: Array<{ workspaceRoot: string; status: SchedulerMcpSetupState["status"] }>,
+  extensionVersionChanged: boolean,
+): WorkspaceSupportRepairPlan {
+  const mcpRootsNeedingRepair = states
+    .filter((state) => state.status !== "configured")
+    .map((state) => state.workspaceRoot);
+
+  return {
+    mcpRootsNeedingRepair,
+    shouldRefreshBundledSkills: extensionVersionChanged,
+    needsPrompt:
+      mcpRootsNeedingRepair.length > 0 || extensionVersionChanged,
+  };
+}
 
 function createUiRefreshQueue(
   flush: () => void,
@@ -549,6 +555,51 @@ async function setupWorkspaceMcpConfig(
   }
 }
 
+async function repairWorkspaceSupportFiles(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+  mcpRootsNeedingRepair: string[],
+): Promise<boolean> {
+  try {
+    let repairedMcpCount = 0;
+    for (const workspaceRoot of mcpRootsNeedingRepair) {
+      upsertSchedulerMcpConfig(workspaceRoot, context.extensionUri.fsPath);
+      repairedMcpCount += 1;
+    }
+
+    ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+    const syncResult = await syncBundledSkills(context, workspaceRoots);
+    if (
+      syncResult.createdPaths.length > 0 ||
+      syncResult.updatedPaths.length > 0
+    ) {
+      void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => {});
+    }
+
+    notifyInfo(
+      messages.workspaceSupportRepairCompleted(
+        repairedMcpCount,
+        syncResult.createdPaths.length,
+        syncResult.updatedPaths.length,
+      ),
+    );
+    return true;
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error ?? "");
+    logError(
+      "[CopilotScheduler] Failed to repair workspace support files:",
+      sanitizeErrorDetailsForLog(errorMessage),
+    );
+    notifyError(
+      messages.workspaceSupportRepairFailed(
+        sanitizeErrorDetailsForLog(errorMessage),
+      ),
+    );
+    return false;
+  }
+}
+
 async function maybePromptToSetupWorkspaceMcp(
   context: vscode.ExtensionContext,
 ): Promise<void> {
@@ -556,36 +607,62 @@ async function maybePromptToSetupWorkspaceMcp(
     return;
   }
 
-  const workspaceRoot = getPrimaryWorkspaceRootPath();
-  if (!workspaceRoot) {
+  const workspaceRoots = getWorkspaceFolderPaths();
+  if (workspaceRoots.length === 0) {
     return;
   }
 
-  const state = getSchedulerMcpSetupState(
+  const states = workspaceRoots.map((workspaceRoot) => ({
     workspaceRoot,
+    state: getSchedulerMcpSetupState(workspaceRoot, context.extensionUri.fsPath),
+  }));
+  const bundledSkillPreview = await previewBundledSkillSyncForWorkspaceRoots(
     context.extensionUri.fsPath,
+    workspaceRoots,
+    context.globalState.get<BundledSkillSyncState>(
+      BUNDLED_SKILL_SYNC_STATE_KEY,
+      {},
+    ),
   );
-  if (state.status === "configured") {
-    hasPromptedForMcpSetupThisSession = true;
-    return;
+
+  for (const entry of states) {
+    if (entry.state.status === "invalid") {
+      logError(
+        "[CopilotScheduler] Unable to inspect workspace MCP config:",
+        sanitizeErrorDetailsForLog(entry.state.reason),
+      );
+    }
   }
 
-  if (state.status === "invalid") {
-    logError(
-      "[CopilotScheduler] Unable to inspect workspace MCP config:",
-      sanitizeErrorDetailsForLog(state.reason),
-    );
+  const repairPlan = createWorkspaceSupportRepairPlan(
+    states.map((entry) => ({
+      workspaceRoot: entry.workspaceRoot,
+      status: entry.state.status,
+    })),
+    extensionVersionChangedThisSession ||
+      bundledSkillPreview.createdPaths.length > 0 ||
+      bundledSkillPreview.updatedPaths.length > 0,
+  );
+  if (!repairPlan.needsPrompt) {
+    hasPromptedForMcpSetupThisSession = true;
     return;
   }
 
   hasPromptedForMcpSetupThisSession = true;
   const choice = await vscode.window.showInformationMessage(
-    messages.mcpSetupPrompt(),
-    messages.mcpSetupAction(),
+    messages.workspaceSupportRepairPrompt(
+      repairPlan.mcpRootsNeedingRepair.length,
+      repairPlan.shouldRefreshBundledSkills,
+    ),
+    messages.workspaceSupportRepairAction(),
     messages.actionCancel(),
   );
-  if (choice === messages.mcpSetupAction()) {
-    await setupWorkspaceMcpConfig(context);
+  if (choice === messages.workspaceSupportRepairAction()) {
+    await repairWorkspaceSupportFiles(
+      context,
+      workspaceRoots,
+      repairPlan.mcpRootsNeedingRepair,
+    );
   }
 }
 
@@ -779,6 +856,9 @@ export function activate(context: vscode.ExtensionContext): void {
       (context.extension.packageJSON as { version?: string }).version ??
       "0.0.0";
     const lastVersion = context.globalState.get<string>(LAST_VERSION_KEY);
+    extensionVersionChangedThisSession = !!(
+      lastVersion && lastVersion !== currentVersion
+    );
     if (lastVersion && lastVersion !== currentVersion) {
       void vscode.window
         .showInformationMessage(
@@ -942,6 +1022,14 @@ export function activate(context: vscode.ExtensionContext): void {
   void ensureSchedulerSkillOnStartup(context).catch((error) =>
     logError(
       "[CopilotScheduler] Scheduler skill bootstrap failed:",
+      sanitizeErrorDetailsForLog(
+        error instanceof Error ? error.message : String(error ?? ""),
+      ),
+    ),
+  );
+  void maybePromptToSetupWorkspaceMcp(context).catch((error) =>
+    logError(
+      "[CopilotScheduler] Workspace support repair prompt failed:",
       sanitizeErrorDetailsForLog(
         error instanceof Error ? error.message : String(error ?? ""),
       ),
@@ -1210,6 +1298,7 @@ async function resolvePromptText(
 
 export const __testOnly = {
   createUiRefreshQueue,
+  createWorkspaceSupportRepairPlan,
   resolvePromptText,
   sanitizeErrorDetailsForLog,
   ensureSchedulerSkillOnStartup,

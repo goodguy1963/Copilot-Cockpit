@@ -941,6 +941,7 @@ export class ScheduleManager {
           description: t.description,
           agent: t.agent,
           model: t.model,
+          manualSession: t.manualSession,
           chatSession: t.chatSession,
           promptSource: t.promptSource,
           promptPath: t.promptPath,
@@ -1195,6 +1196,17 @@ export class ScheduleManager {
     return chatSession === "new" || chatSession === "continue"
       ? chatSession
       : undefined;
+  }
+
+  private normalizeTaskManualSession(
+    manualSession: unknown,
+    oneTime: boolean,
+  ): boolean | undefined {
+    if (oneTime) {
+      return undefined;
+    }
+
+    return manualSession === true ? true : undefined;
   }
 
   private normalizeLabels(labels: unknown): string[] | undefined {
@@ -1628,6 +1640,7 @@ export class ScheduleManager {
           ? this.clampJitterSeconds(input.jitterSeconds)
           : defaultJitter,
       oneTime,
+      manualSession: this.normalizeTaskManualSession(input.manualSession, oneTime),
       chatSession: this.normalizeTaskChatSession(input.chatSession, oneTime),
       labels: this.normalizeLabels(input.labels),
       nextRun,
@@ -1890,6 +1903,7 @@ export class ScheduleManager {
         prompt: originalTask.prompt,
         enabled: originalTask.enabled,
         oneTime: false,
+        manualSession: originalTask.manualSession,
         chatSession: originalTask.chatSession,
         agent: originalTask.agent,
         model: originalTask.model,
@@ -2604,6 +2618,14 @@ export class ScheduleManager {
     if (updates.oneTime !== undefined) {
       task.oneTime = updates.oneTime;
     }
+    if (updates.manualSession !== undefined || updates.oneTime !== undefined) {
+      task.manualSession = this.normalizeTaskManualSession(
+        updates.manualSession !== undefined
+          ? updates.manualSession
+          : task.manualSession,
+        task.oneTime === true,
+      );
+    }
     if (updates.chatSession !== undefined || updates.oneTime !== undefined) {
       task.chatSession = this.normalizeTaskChatSession(
         updates.chatSession !== undefined ? updates.chatSession : task.chatSession,
@@ -2736,6 +2758,7 @@ export class ScheduleManager {
       model: original.model,
       scope: original.scope,
       oneTime: original.oneTime,
+      manualSession: original.oneTime === true ? undefined : original.manualSession,
       chatSession: original.oneTime === true ? undefined : original.chatSession,
       labels: original.labels,
       promptSource: original.promptSource,
@@ -3159,6 +3182,12 @@ export class ScheduleManager {
           lastError: t.lastError,
           lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt) : undefined,
           oneTime: t.oneTime === true,
+          manualSession:
+            t.oneTime === true
+              ? undefined
+              : t.manualSession === true
+                ? true
+                : undefined,
           nextRun: t.nextRun ? new Date(t.nextRun) : undefined,
           promptSource: t.promptSource || "inline",
           promptPath: t.promptPath,
