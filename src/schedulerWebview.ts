@@ -2437,10 +2437,32 @@ export class SchedulerWebview {
       justify-content: center;
       width: 100%;
       min-width: 0;
-      padding: 4px 8px !important;
+      padding: 3px 6px !important;
       font-weight: 600;
       text-align: center;
       cursor: pointer !important;
+    }
+
+    .todo-card-icon-btn {
+      min-height: 24px !important;
+      padding: 2px 0 !important;
+      font-size: 12px !important;
+      line-height: 1 !important;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent) !important;
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+        0 1px 2px color-mix(in srgb, #000000 18%, transparent);
+      filter: saturate(1.08) brightness(1.05);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    }
+
+    .todo-card-icon-btn:hover,
+    .todo-card-icon-btn:focus-visible {
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent),
+        0 2px 6px color-mix(in srgb, #000000 22%, transparent);
+      filter: saturate(1.14) brightness(1.1);
+      transform: translateY(-1px);
     }
 
     @media (max-width: 920px) {
@@ -2760,9 +2782,9 @@ export class SchedulerWebview {
 
     .todo-card-action-row {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       align-items: stretch;
-      gap: 6px;
+      gap: 4px;
       width: 100%;
       position: relative;
       z-index: 1;
@@ -2780,10 +2802,18 @@ export class SchedulerWebview {
       min-width: 0;
       white-space: nowrap;
       text-align: center;
+      min-height: 24px;
+      padding: 2px 0 !important;
+      font-size: 12px !important;
+      line-height: 1;
     }
 
     .todo-card-edit {
-      background-color: color-mix(in srgb, var(--vscode-button-secondaryBackground) 80%, transparent) !important;
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-textLink-foreground) 28%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
     }
 
     .todo-card-approve {
@@ -2796,8 +2826,34 @@ export class SchedulerWebview {
     }
 
     .todo-complete-button.is-confirming {
-      background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 24%, var(--vscode-input-background)) !important;
-      border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 70%, var(--vscode-panel-border)) !important;
+      min-width: 34px !important;
+      padding: 0 9px !important;
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 18%, var(--vscode-input-background)) !important;
+      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 62%, var(--vscode-panel-border)) !important;
+    }
+
+    .todo-complete-button.is-ready-to-finalize {
+      border-style: dashed !important;
+    }
+
+    .todo-complete-button.is-cancel {
+      min-width: 34px !important;
+      height: 28px !important;
+      padding: 0 9px !important;
+      border-radius: 999px !important;
+      border: 1px solid var(--vscode-panel-border) !important;
+      background: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background)) !important;
+      color: var(--vscode-foreground) !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      line-height: 1 !important;
+      flex: 0 0 auto !important;
+    }
+
+    .todo-complete-button.is-completed {
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background)) !important;
+      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 88%, var(--vscode-panel-border)) !important;
+      color: var(--vscode-button-foreground) !important;
     }
 
     .todo-card-finalize {
@@ -2806,7 +2862,18 @@ export class SchedulerWebview {
     }
 
     .todo-card-delete {
-      background-color: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground)) !important;
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 48%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 28%, var(--vscode-button-secondaryBackground)) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-reject {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 42%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 18%, var(--vscode-button-secondaryBackground)) 100%) !important;
       color: var(--vscode-button-secondaryForeground) !important;
     }
 

@@ -2563,6 +2563,14 @@ syncTodoLabelSuggestions();
       : (strings.boardApproveTodo || "Approve");
   }
 
+  function getTodoFinalizeConfirmLabel() {
+    return strings.boardFinalizeTodoYes || "Yes";
+  }
+
+  function getTodoFinalizeCancelLabel() {
+    return strings.boardFinalizeTodoNo || "No";
+  }
+
   function isTodoCompleted(card) {
     return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
   }
@@ -2574,10 +2582,17 @@ syncTodoLabelSuggestions();
       : getTodoCompletionActionLabel(card);
     var icon = isTodoCompleted(card)
       ? "✓"
-      : (isTodoReadyForFinalize(card) ? "✓✓" : "○");
+      : "○";
     var actionAttr = isArchivedCard ? 'data-todo-restore' : 'data-todo-complete';
-    return '<button type="button" class="todo-complete-button" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '" ' +
-      'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? 'var(--vscode-button-background)' : 'var(--vscode-input-background)') + ';color:' + (isTodoCompleted(card) ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)') + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;">' +
+    var className = 'todo-complete-button';
+    if (isTodoReadyForFinalize(card)) {
+      className += ' is-ready-to-finalize';
+    }
+    if (isTodoCompleted(card)) {
+      className += ' is-completed';
+    }
+    return '<button type="button" class="' + className + '" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '"' + (isTodoReadyForFinalize(card) ? ' data-finalize-state="idle" data-confirm-label="' + escapeAttr(getTodoFinalizeConfirmLabel()) + '" data-cancel-label="' + escapeAttr(getTodoFinalizeCancelLabel()) + '"' : '') + ' ' +
+      'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? 'color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background))' : 'var(--vscode-input-background)') + ';color:' + (isTodoCompleted(card) ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)') + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;">' +
       '<span aria-hidden="true">' + escapeHtml(icon) + '</span></button>';
   }
 
