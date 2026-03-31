@@ -43,6 +43,27 @@ function toSafeErrorDetails(error: unknown): string {
  * Executes prompts through GitHub Copilot Chat
  */
 export class CopilotExecutor {
+  private createOpenChatOptions(
+    query: string,
+    mode?: string,
+    modelId?: string,
+  ): Record<string, unknown> {
+    const openOptions: Record<string, unknown> = {
+      query,
+      isPartialQuery: false,
+    };
+
+    if (mode) {
+      openOptions.mode = mode;
+    }
+
+    if (modelId) {
+      openOptions.modelSelector = { id: modelId };
+    }
+
+    return openOptions;
+  }
+
   private async executeFirstAvailableCommand(
     commandIds: string[],
     ...args: unknown[]
@@ -144,7 +165,8 @@ export class CopilotExecutor {
         "chatSession",
         "new",
       );
-    const requiresExplicitChatContext = Boolean(mode || effectiveModel);
+    let selectedModel = effectiveModel;
+    const requiresExplicitChatContext = Boolean(mode || selectedModel);
     const shouldForceNewChat = chatSession === "new" || requiresExplicitChatContext;
 
     try {
@@ -153,40 +175,39 @@ export class CopilotExecutor {
       // participant/model instead of the task-specific selection.
       if (shouldForceNewChat) {
         const createdNewSession = await this.tryCreateNewChatSession();
-        if (!createdNewSession && effectiveModel) {
-          throw new Error(
-            "Unable to open a fresh Copilot chat session for the selected model.",
+        if (!createdNewSession && selectedModel) {
+          logDebug(
+            `[CopilotScheduler] Unable to create a fresh chat session for model '${selectedModel}'. Continuing without guaranteed model selection.`,
           );
+          selectedModel = "";
         }
       }
 
-      // Prepare options for workbench.action.chat.open
-      const openOptions: any = {
-        query: query,
-        isPartialQuery: false,
-      };
+      let openOptions = this.createOpenChatOptions(query, mode, selectedModel);
 
-      if (mode) {
-        openOptions.mode = mode;
-      }
-
-      // If model is specified, use modelSelector (VS Code 1.98+ API style)
-      // or legacy generic handling if specific API isn't available.
-      // Based on research, modelSelector is available in IOpenChatOptions.
-      if (effectiveModel) {
-        // We can pass just the ID as a string or object depending on version, 
-        // but the research shows `modelSelector` taking `{ id: ... }`
-        openOptions.modelSelector = { id: effectiveModel };
-        logDebug(`[CopilotScheduler] Setting modelSelector: ${effectiveModel}`);
+      if (selectedModel) {
+        logDebug(`[CopilotScheduler] Setting modelSelector: ${selectedModel}`);
       }
 
       // "workbench.action.chat.open"
       logDebug(`[CopilotScheduler] Opening chat with options:`, JSON.stringify(openOptions));
 
-      const openedWithQuery = await this.executeFirstAvailableCommand(
+      let openedWithQuery = await this.executeFirstAvailableCommand(
         ["workbench.action.chat.open"],
         openOptions,
       );
+
+      if (!openedWithQuery && selectedModel) {
+        logDebug(
+          `[CopilotScheduler] Chat open with model '${selectedModel}' failed. Retrying without model pinning.`,
+        );
+        selectedModel = "";
+        openOptions = this.createOpenChatOptions(query, mode);
+        openedWithQuery = await this.executeFirstAvailableCommand(
+          ["workbench.action.chat.open"],
+          openOptions,
+        );
+      }
 
       if (!openedWithQuery) {
         // Fallback: focus chat and type prompt manually.
@@ -204,8 +225,8 @@ export class CopilotExecutor {
         await this.delay(DELAY_AFTER_FOCUS_MS);
 
         if (effectiveModel) {
-          throw new Error(
-            "The current VS Code chat fallback cannot guarantee the selected model. Open the chat command path with model support or remove the task-specific model selection.",
+          logDebug(
+            `[CopilotScheduler] Falling back to manual prompt entry without guaranteed model selection for '${effectiveModel}'.`,
           );
         }
 

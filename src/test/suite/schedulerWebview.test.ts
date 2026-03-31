@@ -199,6 +199,27 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("webview runtime keeps pending recurring filter state across stale board refreshes", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "var pendingTodoFilters = null;",
+      "pendingTodoFilters = next;",
+      "if (pendingTodoFilters) {",
+      "if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {",
+      "filters: normalizeTodoFilters(Object.assign({}, incomingFilters, pendingTodoFilters)),",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected pending filter reconciliation snippet ${snippet}`,
+      );
+    });
+  });
+
   test("editor tabs use symbol states and dirty badges", () => {
     const templatePath = path.resolve(
       __dirname,
