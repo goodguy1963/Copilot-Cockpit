@@ -254,24 +254,19 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
-  test("setTodoFilters immediately updates the webview with persisted recurring visibility", async () => {
+  test("setTodoFilters triggers one immediate scheduler refresh after persisting recurring visibility", async () => {
     const workspaceRoot = createWorkspaceRoot();
     const seededBoard = createDefaultCockpitBoard();
     const webview = SchedulerWebview as unknown as {
       switchToTab: (tab: string) => void;
-      updateCockpitBoard: (board: CockpitBoard) => void;
     };
     const originalSwitchToTab = webview.switchToTab;
-    const originalUpdateCockpitBoard = webview.updateCockpitBoard;
     const switchedTabs: string[] = [];
-    const updatedBoards: CockpitBoard[] = [];
+    const refreshCalls: boolean[] = [];
 
     try {
       webview.switchToTab = (tab: string) => {
         switchedTabs.push(tab);
-      };
-      webview.updateCockpitBoard = (board: CockpitBoard) => {
-        updatedBoards.push(board);
       };
 
       const handled = await handleTodoCockpitAction(
@@ -286,13 +281,14 @@ suite("Todo Cockpit Action Handler", () => {
         {
           ...createDeps(workspaceRoot),
           getCurrentCockpitBoard: () => seededBoard,
+          refreshSchedulerUiState: (immediate?: boolean) => {
+            refreshCalls.push(immediate === true);
+          },
         },
       );
 
       assert.strictEqual(handled, true);
-      assert.strictEqual(updatedBoards.length, 1);
-      assert.strictEqual(updatedBoards[0]?.filters?.showRecurringTasks, true);
-      assert.strictEqual(updatedBoards[0]?.filters?.hideCardDetails, true);
+      assert.deepStrictEqual(refreshCalls, [true]);
       assert.deepStrictEqual(switchedTabs, ["board"]);
       assert.strictEqual(
         readSchedulerConfig(workspaceRoot).cockpitBoard?.filters?.showRecurringTasks,
@@ -304,7 +300,6 @@ suite("Todo Cockpit Action Handler", () => {
       );
     } finally {
       webview.switchToTab = originalSwitchToTab;
-      webview.updateCockpitBoard = originalUpdateCockpitBoard;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

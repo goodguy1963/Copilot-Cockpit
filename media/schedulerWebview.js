@@ -756,15 +756,17 @@ import {
     var font = Math.round(10 + (w - 180) * 3 / 340);
     var pad = Math.round(8 + (w - 180) * 6 / 340);
     var gap = Math.round(4 + (w - 180) * 4 / 340);
-    var chipGap = Math.max(3, Math.round(3 + (w - 180) * 2 / 340));
-    var labelPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
-    var labelPadX = Math.max(5, Math.round(6 + (w - 180) * 3 / 340));
-    var flagPadY = Math.max(1, Math.round(2 + (w - 180) * 1 / 340));
-    var flagPadX = Math.max(6, Math.round(7 + (w - 180) * 3 / 340));
+    var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));
+    var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));
+    var labelPadY = Math.max(0, Math.round(1 + (w - 180) * 2 / 340));
+    var labelPadX = Math.max(4, Math.round(4 + (w - 180) * 4 / 340));
+    var flagPadY = Math.max(0, Math.round(1 + (w - 180) * 2 / 340));
+    var flagPadX = Math.max(4, Math.round(4 + (w - 180) * 4 / 340));
     document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
     document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
     document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
     document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
+    document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");
     document.documentElement.style.setProperty("--cockpit-chip-gap", chipGap + "px");
     document.documentElement.style.setProperty("--cockpit-label-pad-y", labelPadY + "px");
     document.documentElement.style.setProperty("--cockpit-label-pad-x", labelPadX + "px");
@@ -5446,21 +5448,37 @@ syncTodoLabelSuggestions();
       var taskIdEscaped = escapeAttr(task.id || "");
 
       // --- Model & Agent Selection Logic ---
-      function createSelect(items, selectedId, cls, placeholder) {
+      function createSelect(items, selectedId, cls, placeholder, fallbackSelectedId) {
+        var effectiveSelectedId = selectedId || fallbackSelectedId || "";
         var options = '<option value="">' + escapeHtml(placeholder) + '</option>';
         if (Array.isArray(items)) {
           items.forEach(function (item) {
             var id = item.id || item.slug;
+            if (!id) {
+              return;
+            }
             var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : (item.name || id);
-            var sel = (id === selectedId) ? ' selected' : '';
+            var sel = (id === effectiveSelectedId) ? ' selected' : '';
             options += '<option value="' + escapeAttr(id) + '"' + sel + '>' + escapeHtml(label) + '</option>';
           });
         }
         return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + '</select>';
       }
 
-      var agentSelect = createSelect(agents, task.agent, "task-agent-select", strings.placeholderSelectAgent || "Agent");
-      var modelSelect = createSelect(models, task.model, "task-model-select", strings.placeholderSelectModel || "Model");
+      var agentSelect = createSelect(
+        agents,
+        task.agent,
+        "task-agent-select",
+        strings.placeholderSelectAgent || "Agent",
+        executionDefaults && executionDefaults.agent
+      );
+      var modelSelect = createSelect(
+        models,
+        task.model,
+        "task-model-select",
+        strings.placeholderSelectModel || "Model",
+        executionDefaults && executionDefaults.model
+      );
 
       var configRow = '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' +
         agentSelect + modelSelect +
@@ -5503,6 +5521,16 @@ syncTodoLabelSuggestions();
           '" title="' +
           escapeAttr(strings.actionMoveToCurrentWorkspace || "") +
           '">📌</button>';
+          if (filters.showRecurringTasks === true) {
+            visibleSections.sort(function (left, right) {
+              var leftRecurring = isRecurringTodoSectionId(left.id);
+              var rightRecurring = isRecurringTodoSectionId(right.id);
+              if (leftRecurring === rightRecurring) {
+                return 0;
+              }
+              return leftRecurring ? -1 : 1;
+            });
+          }
       }
 
       if (scopeValue === "global" || inThisWorkspace) {
@@ -7571,6 +7599,7 @@ syncTodoLabelSuggestions();
               modelSelect.value = executionDefaults.model || "";
             }
           }
+          renderTaskList(tasks);
           break;
         case "updateAgents":
           {
@@ -7593,6 +7622,7 @@ syncTodoLabelSuggestions();
                 pendingAgentValue = currentAgentValue;
               }
             }
+            renderTaskList(tasks);
           }
           break;
         case "updateModels":
@@ -7616,6 +7646,7 @@ syncTodoLabelSuggestions();
                 pendingModelValue = currentModelValue;
               }
             }
+            renderTaskList(tasks);
           }
           break;
         case "updatePromptTemplates":

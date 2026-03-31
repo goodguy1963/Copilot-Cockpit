@@ -221,7 +221,7 @@ type TodoCockpitActionHandlerDeps = {
   getCurrentCockpitBoard: () => CockpitBoard;
   createTask: (input: CreateTaskInput) => Promise<{ id: string; name: string }>;
   removeLabelFromAllTasks: (labelName: string) => Promise<unknown>;
-  refreshSchedulerUiState: () => void;
+  refreshSchedulerUiState: (immediate?: boolean) => void;
   notifyError: (message: string) => void;
   notifyInfo: (message: string) => void;
   showError: (message: string) => void;
@@ -514,8 +514,8 @@ export async function handleTodoCockpitAction(
         workspaceRoot,
         filterUpdates,
       );
-      SchedulerWebview.updateCockpitBoard(persistedBoard);
-      deps.refreshSchedulerUiState();
+      void persistedBoard;
+      deps.refreshSchedulerUiState(true);
       SchedulerWebview.switchToTab("board");
       return true;
     }
