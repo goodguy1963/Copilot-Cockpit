@@ -2450,7 +2450,7 @@ export class SchedulerWebview {
 
     .cockpit-section-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-start;
       align-items: center;
       gap: 6px;
       cursor: grab;
@@ -2776,6 +2776,7 @@ export class SchedulerWebview {
       gap: 2px;
       opacity: 0.55;
       transition: opacity 0.12s ease;
+      margin-left: auto;
     }
 
     .cockpit-section-header:hover .cockpit-section-actions,

@@ -414,6 +414,7 @@ import {
   var currentTodoDraft = createEmptyTodoDraft();
   var selectedTodoLabelName = "";
   var currentTodoFlag = "";
+  var pendingTodoFilters = null;
   var pendingDeleteLabelName = "";
   var pendingDeleteFlagName = "";
   var pendingTodoDeleteId = "";
@@ -2416,27 +2417,61 @@ syncTodoLabelSuggestions();
     return text.length > 140 ? text.slice(0, 137) + "..." : text;
   }
 
-  function getTodoFilters() {
-    var filters = cockpitBoard && cockpitBoard.filters ? cockpitBoard.filters : {};
+  function normalizeTodoFilters(filters) {
+    var record = filters && typeof filters === "object" ? filters : {};
     return {
-      searchText: filters.searchText || "",
-      labels: Array.isArray(filters.labels) ? filters.labels : [],
-      priorities: Array.isArray(filters.priorities) ? filters.priorities : [],
-      statuses: Array.isArray(filters.statuses) ? filters.statuses : [],
-      archiveOutcomes: Array.isArray(filters.archiveOutcomes) ? filters.archiveOutcomes : [],
-      flags: Array.isArray(filters.flags) ? filters.flags : [],
-      sectionId: filters.sectionId || "",
-      sortBy: filters.sortBy || "manual",
-      sortDirection: filters.sortDirection || "asc",
-      viewMode: filters.viewMode === "list" ? "list" : "board",
-      showArchived: filters.showArchived === true,
-      showRecurringTasks: filters.showRecurringTasks === true,
-      hideCardDetails: filters.hideCardDetails === true,
+      searchText: record.searchText || "",
+      labels: Array.isArray(record.labels) ? record.labels.slice() : [],
+      priorities: Array.isArray(record.priorities) ? record.priorities.slice() : [],
+      statuses: Array.isArray(record.statuses) ? record.statuses.slice() : [],
+      archiveOutcomes: Array.isArray(record.archiveOutcomes) ? record.archiveOutcomes.slice() : [],
+      flags: Array.isArray(record.flags) ? record.flags.slice() : [],
+      sectionId: record.sectionId || "",
+      sortBy: record.sortBy || "manual",
+      sortDirection: record.sortDirection || "asc",
+      viewMode: record.viewMode === "list" ? "list" : "board",
+      showArchived: record.showArchived === true,
+      showRecurringTasks: record.showRecurringTasks === true,
+      hideCardDetails: record.hideCardDetails === true,
     };
   }
 
+  function areTodoFilterListsEqual(left, right) {
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] !== right[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function areTodoFiltersEqual(left, right) {
+    var nextLeft = normalizeTodoFilters(left);
+    var nextRight = normalizeTodoFilters(right);
+    return nextLeft.searchText === nextRight.searchText
+      && areTodoFilterListsEqual(nextLeft.labels, nextRight.labels)
+      && areTodoFilterListsEqual(nextLeft.priorities, nextRight.priorities)
+      && areTodoFilterListsEqual(nextLeft.statuses, nextRight.statuses)
+      && areTodoFilterListsEqual(nextLeft.archiveOutcomes, nextRight.archiveOutcomes)
+      && areTodoFilterListsEqual(nextLeft.flags, nextRight.flags)
+      && nextLeft.sectionId === nextRight.sectionId
+      && nextLeft.sortBy === nextRight.sortBy
+      && nextLeft.sortDirection === nextRight.sortDirection
+      && nextLeft.viewMode === nextRight.viewMode
+      && nextLeft.showArchived === nextRight.showArchived
+      && nextLeft.showRecurringTasks === nextRight.showRecurringTasks
+      && nextLeft.hideCardDetails === nextRight.hideCardDetails;
+  }
+
+  function getTodoFilters() {
+    return normalizeTodoFilters(cockpitBoard && cockpitBoard.filters ? cockpitBoard.filters : {});
+  }
+
   function updateTodoFilters(partial) {
-    var next = Object.assign({}, getTodoFilters(), partial || {});
+    var next = normalizeTodoFilters(Object.assign({}, getTodoFilters(), partial || {}));
     if (partial && typeof partial.hideCardDetails === "boolean") {
       boardCardDetailsHidden = partial.hideCardDetails;
       try {
@@ -2453,6 +2488,7 @@ syncTodoLabelSuggestions();
         updatedAt: "",
       };
     }
+    pendingTodoFilters = next;
     cockpitBoard.filters = next;
     renderCockpitBoard();
     vscode.postMessage({ type: "setTodoFilters", data: next });
@@ -7444,6 +7480,16 @@ syncTodoLabelSuggestions();
             filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
             updatedAt: "",
           };
+          if (pendingTodoFilters) {
+            var incomingFilters = normalizeTodoFilters(cockpitBoard.filters);
+            if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {
+              pendingTodoFilters = null;
+            } else {
+              cockpitBoard = Object.assign({}, cockpitBoard, {
+                filters: normalizeTodoFilters(Object.assign({}, incomingFilters, pendingTodoFilters)),
+              });
+            }
+          }
           emitWebviewDebug("updateCockpitBoard", {
             sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
             cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,
