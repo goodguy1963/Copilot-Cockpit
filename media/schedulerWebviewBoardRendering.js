@@ -20,25 +20,55 @@ function getLatestTodoComment(card) {
 function renderTodoCompactActions(card, options) {
   var strings = options.strings;
   var helpers = options.helpers;
+
+  function renderActionButton(cls, dataAttr, label, iconHtml) {
+    return '<button type="button" class="' + cls + ' todo-list-action-btn todo-card-icon-btn" ' + dataAttr + '="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(label) + '" aria-label="' + helpers.escapeAttr(label) + '">' + iconHtml + '</button>';
+  }
+
   var actions = [
-    '<button type="button" class="btn-secondary todo-card-edit todo-list-action-btn" data-todo-edit="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardEditTodo || "Open Editor") + '" style="color:var(--vscode-textLink-foreground);">&#9998; ' + helpers.escapeHtml(strings.boardEditTodoShort || "Edit") + '</button>'
+    renderActionButton(
+      'btn-secondary todo-card-edit',
+      'data-todo-edit',
+      strings.boardEditTodo || 'Open Editor',
+      '&#9998;'
+    )
   ];
 
   if (card.archived) {
     actions.push(
-      '<button type="button" class="btn-secondary todo-card-restore todo-list-action-btn" data-todo-restore="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardRestoreTodo || "Restore") + '">&#8634; ' + helpers.escapeHtml(strings.boardRestoreTodo || "Restore") + '</button>'
+      renderActionButton(
+        'btn-secondary todo-card-restore',
+        'data-todo-restore',
+        strings.boardRestoreTodo || 'Restore',
+        '&#8634;'
+      )
     );
     actions.push(
-      '<button type="button" class="btn-danger todo-card-purge todo-list-action-btn" data-todo-purge="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodoPermanent || "Delete Permanently") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + '</button>'
+      renderActionButton(
+        'btn-danger todo-card-purge',
+        'data-todo-purge',
+        strings.boardDeleteTodoPermanent || 'Delete Permanently',
+        '&#128465;'
+      )
     );
   } else {
     if (card.status === "ready") {
       actions.push(
-        '<button type="button" class="btn-secondary todo-card-reject todo-list-action-btn" data-todo-reject="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeclineTodo || "Decline") + '">&#8601; ' + helpers.escapeHtml(strings.boardDeclineTodo || "Decline") + '</button>'
+        renderActionButton(
+          'btn-secondary todo-card-reject',
+          'data-todo-reject',
+          strings.boardDeclineTodo || 'Decline',
+          '&#8855;'
+        )
       );
     }
     actions.push(
-      '<button type="button" class="btn-secondary todo-card-delete todo-list-action-btn" data-todo-delete="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(strings.boardDeleteTodo || "Delete Todo") + '">&#128465; ' + helpers.escapeHtml(strings.boardDeleteTodoShort || "Delete") + '</button>'
+      renderActionButton(
+        'btn-secondary todo-card-delete',
+        'data-todo-delete',
+        strings.boardDeleteTodo || 'Delete Todo',
+        '&#128465;'
+      )
     );
   }
 

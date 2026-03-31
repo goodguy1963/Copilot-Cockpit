@@ -123,26 +123,38 @@ export function handleBoardSectionDelete(sectionDeleteBtn, options) {
 export function handleBoardTodoCompletion(completeToggle, options) {
   var todoId = completeToggle.getAttribute("data-todo-complete");
   var cardEl = completeToggle.closest ? completeToggle.closest("[data-todo-id]") : null;
+  var cockpitBoard = options.cockpitBoard;
+  var todoCard = null;
+  if (cockpitBoard && Array.isArray(cockpitBoard.cards)) {
+    for (var oi = 0; oi < cockpitBoard.cards.length; oi++) {
+      if (cockpitBoard.cards[oi] && cockpitBoard.cards[oi].id === todoId) {
+        todoCard = cockpitBoard.cards[oi];
+        break;
+      }
+    }
+  }
+  var isReadyTodo = !!(todoCard && todoCard.status === "ready");
   function clearCompletionConfirmState() {
     completeToggle.removeAttribute("data-confirming");
     completeToggle.classList.remove("is-confirming");
-    if (completeToggle.hasAttribute("data-confirm-label")) {
+    completeToggle.setAttribute("data-finalize-state", "idle");
+    if (completeToggle.hasAttribute("data-original-title")) {
       completeToggle.setAttribute(
         "title",
-        completeToggle.getAttribute("data-confirm-label") || "",
+        completeToggle.getAttribute("data-original-title") || "",
       );
       completeToggle.setAttribute(
         "aria-label",
-        completeToggle.getAttribute("data-confirm-label") || "",
+        completeToggle.getAttribute("data-original-title") || "",
       );
-      completeToggle.removeAttribute("data-confirm-label");
+      completeToggle.removeAttribute("data-original-title");
     }
-    if (completeToggle.hasAttribute("data-confirm-html")) {
-      completeToggle.innerHTML = completeToggle.getAttribute("data-confirm-html") || "";
-      completeToggle.removeAttribute("data-confirm-html");
+    if (completeToggle.hasAttribute("data-original-html")) {
+      completeToggle.innerHTML = completeToggle.getAttribute("data-original-html") || "";
+      completeToggle.removeAttribute("data-original-html");
     }
     var cancelBtn = cardEl && cardEl.querySelector
-      ? cardEl.querySelector('[data-todo-complete-cancel="' + todoId + '"]')
+      ? cardEl.querySelector('[data-todo-finalize-cancel="' + todoId + '"]')
       : null;
     if (cancelBtn && cancelBtn.parentNode) {
       cancelBtn.parentNode.removeChild(cancelBtn);
@@ -152,30 +164,43 @@ export function handleBoardTodoCompletion(completeToggle, options) {
   if (!todoId) {
     return;
   }
+
+  if (!isReadyTodo) {
+    completeToggle.disabled = true;
+    if (cardEl) {
+      cardEl.style.opacity = "0.35";
+      cardEl.style.pointerEvents = "none";
+    }
+    options.vscode.postMessage({ type: "approveTodo", todoId: todoId });
+    return;
+  }
+
   if (!completeToggle.getAttribute("data-confirming")) {
     completeToggle.setAttribute("data-confirming", "1");
     completeToggle.classList.add("is-confirming");
+    completeToggle.setAttribute("data-finalize-state", "confirming");
     completeToggle.setAttribute(
-      "data-confirm-label",
+      "data-original-title",
       completeToggle.getAttribute("title") || "",
     );
-    completeToggle.setAttribute("data-confirm-html", completeToggle.innerHTML || "");
+    completeToggle.setAttribute("data-original-html", completeToggle.innerHTML || "");
     completeToggle.setAttribute(
       "title",
-      options.strings.boardConfirmApproveHint || "Click Confirm to continue, or Cancel to keep the todo unchanged.",
+      options.strings.boardFinalizePrompt || "Archive this todo as completed successfully?",
     );
     completeToggle.setAttribute(
       "aria-label",
-      options.strings.boardConfirmAction || "Confirm",
+      options.strings.boardFinalizeTodoYes || "Yes",
     );
-    completeToggle.innerHTML = '<span aria-hidden="true">!</span>';
+    completeToggle.innerHTML = '<span aria-hidden="true">' + (options.strings.boardFinalizeTodoYes || "Yes") + '</span>';
     var cancelBtn = options.document.createElement("button");
     cancelBtn.type = "button";
-    cancelBtn.className = "btn-icon";
-    cancelBtn.setAttribute("data-todo-complete-cancel", todoId);
+    cancelBtn.className = "todo-complete-button is-cancel";
+    cancelBtn.setAttribute("data-todo-finalize-cancel", todoId);
     cancelBtn.setAttribute("data-no-drag", "1");
-    cancelBtn.textContent = options.strings.boardCancelAction || "Cancel";
-    cancelBtn.style.cssText = "display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 8px;border-radius:999px;border:1px solid var(--vscode-panel-border);background:var(--vscode-input-background);color:var(--vscode-foreground);font-size:11px;font-weight:700;line-height:1;";
+    cancelBtn.setAttribute("title", options.strings.boardFinalizeTodoNo || "No");
+    cancelBtn.setAttribute("aria-label", options.strings.boardFinalizeTodoNo || "No");
+    cancelBtn.textContent = options.strings.boardFinalizeTodoNo || "No";
     cancelBtn.onclick = function (event) {
       stopBoardEvent(event);
       clearCompletionConfirmState();
@@ -183,7 +208,6 @@ export function handleBoardTodoCompletion(completeToggle, options) {
     if (completeToggle.parentNode) {
       completeToggle.parentNode.insertBefore(cancelBtn, completeToggle.nextSibling);
     }
-    scheduleBoardTimeout(options, clearCompletionConfirmState, 2800);
     return;
   }
 
@@ -193,19 +217,7 @@ export function handleBoardTodoCompletion(completeToggle, options) {
     cardEl.style.opacity = "0.35";
     cardEl.style.pointerEvents = "none";
   }
-  var nextActionType = "approveTodo";
-  var cockpitBoard = options.cockpitBoard;
-  if (cockpitBoard && Array.isArray(cockpitBoard.cards)) {
-    for (var oi = 0; oi < cockpitBoard.cards.length; oi++) {
-      if (cockpitBoard.cards[oi] && cockpitBoard.cards[oi].id === todoId) {
-        if (cockpitBoard.cards[oi].status === "ready") {
-          nextActionType = "finalizeTodo";
-        }
-        break;
-      }
-    }
-  }
-  options.vscode.postMessage({ type: nextActionType, todoId: todoId });
+  options.vscode.postMessage({ type: "finalizeTodo", todoId: todoId });
 }
 
 function stopBoardEvent(event) {

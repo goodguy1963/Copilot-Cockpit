@@ -279,6 +279,45 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("todo board cards use icon-only compact actions and keep board rows on one line", () => {
+    const renderPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebviewBoardRendering.js",
+    );
+    const renderSource = fs.readFileSync(renderPath, "utf8");
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+
+    [
+      "function renderActionButton(cls, dataAttr, label, iconHtml)",
+      "todo-card-icon-btn",
+      "title=\"' + helpers.escapeAttr(label) + '\" aria-label=\"' + helpers.escapeAttr(label) + '\"",
+      "&#8855;",
+    ].forEach((snippet) => {
+      assert.ok(
+        renderSource.includes(snippet),
+        `expected compact icon action snippet ${snippet}`,
+      );
+    });
+
+    [
+      ".todo-card-action-row {",
+      "grid-template-columns: repeat(3, minmax(0, 1fr));",
+      ".todo-card-icon-btn {",
+      "min-height: 24px !important;",
+      "filter: saturate(1.08) brightness(1.05);",
+      ".todo-card-reject {",
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected compact action row CSS snippet ${snippet}`,
+      );
+    });
+  });
+
   test("editor tabs use symbol states and dirty badges", () => {
     const templatePath = path.resolve(
       __dirname,
@@ -1182,9 +1221,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.deepStrictEqual(calls, ["reject", "restore", "delete"]);
   });
 
-  test("board todo completion approves active cards and finalizes ready cards", () => {
+  test("board todo completion approves active cards and uses yes no finalize controls for ready cards", () => {
     const helpers = loadBoardInteractionModule();
     const postedMessages: Array<Record<string, unknown>> = [];
+    const insertedButtons: any[] = [];
     const createMockButton = (todoId: string, cardEl: any = null) => {
       const attrs: Record<string, string> = {
         "data-todo-complete": todoId,
@@ -1196,7 +1236,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
         disabled: false,
         innerHTML: "<span>○</span>",
         parentNode: {
-          insertBefore: (_node: unknown) => undefined,
+          insertBefore: (node: unknown) => {
+            insertedButtons.push(node);
+          },
         },
         classList: {
           add: (name: string) => classes.add(name),
@@ -1217,13 +1259,16 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const createMockDocument = () => ({
       createElement: () => {
         const attrs: Record<string, string> = {};
-        return {
+        const element = {
           type: "button",
           className: "",
           textContent: "",
           style: {},
+          removed: false,
           parentNode: {
-            removeChild: () => undefined,
+            removeChild: () => {
+              element.removed = true;
+            },
           },
           setAttribute: (name: string, value: string) => {
             attrs[name] = String(value);
@@ -1231,15 +1276,22 @@ suite("SchedulerWebview Message Queue Tests", () => {
           getAttribute: (name: string) => attrs[name] || "",
           onclick: undefined as undefined | ((event: unknown) => void),
         };
+        return element;
       },
     });
     const activeToggle = createMockButton("todo-active");
+    let readyCancelButton: any = null;
     const readyCardElement = {
       style: {
         opacity: "",
         pointerEvents: "",
       },
-      querySelector: () => null,
+      querySelector: (selector: string) => {
+        if (selector === '[data-todo-finalize-cancel="todo-ready"]') {
+          return readyCancelButton;
+        }
+        return null;
+      },
     };
     const readyToggle = createMockButton("todo-ready", readyCardElement);
 
@@ -1247,9 +1299,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       document: createMockDocument(),
       setTimeout: () => 1,
       strings: {
-        boardConfirmAction: "Confirm",
-        boardCancelAction: "Cancel",
-        boardConfirmApproveHint: "Click Confirm to continue.",
+        boardFinalizeTodoYes: "Yes",
+        boardFinalizeTodoNo: "No",
+        boardFinalizePrompt: "Archive this todo as completed successfully?",
       },
       vscode: {
         postMessage: (message: Record<string, unknown>) => {
@@ -1266,7 +1318,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       },
       ...interactionOptions,
     });
-    assert.strictEqual(postedMessages.length, 0);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
+      { type: "approveTodo", todoId: "todo-active" },
+    ]);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
@@ -1276,16 +1330,33 @@ suite("SchedulerWebview Message Queue Tests", () => {
       },
       ...interactionOptions,
     });
-    assert.strictEqual(postedMessages.length, 0);
+    assert.strictEqual(postedMessages.length, 1);
+    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "1");
+    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "confirming");
+    assert.strictEqual(readyToggle.innerHTML, "<span aria-hidden=\"true\">Yes</span>");
+    assert.strictEqual(insertedButtons.length, 1);
+    readyCancelButton = insertedButtons[0];
+    assert.strictEqual(readyCancelButton.textContent, "No");
+    assert.strictEqual(readyCancelButton.className, "todo-complete-button is-cancel");
 
-    helpers.handleBoardTodoCompletion(activeToggle, {
+    readyCancelButton.onclick?.({
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
+    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
+    assert.strictEqual(readyToggle.innerHTML, "<span>○</span>");
+    assert.strictEqual(readyCancelButton.removed, true);
+
+    helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-active", status: "active" },
+          { id: "todo-ready", status: "ready" },
         ],
       },
       ...interactionOptions,
     });
+    readyCancelButton = insertedButtons[1];
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
@@ -1319,6 +1390,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       'var actionAttr = isArchivedCard ? \'data-todo-restore\' : \'data-todo-complete\';',
+      "className += ' is-completed';",
+      'data-finalize-state="idle"',
       'strings.boardRestoreTodo || "Restore"',
       'strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone."',
     ].forEach((snippet) => {
@@ -1328,10 +1401,16 @@ suite("SchedulerWebview Message Queue Tests", () => {
       );
     });
 
-    assert.ok(
-      boardRenderingSource.includes('data-todo-purge='),
-      "expected archived board actions to include a permanent delete button",
-    );
+    [
+      'renderActionButton(',
+      "'data-todo-purge'",
+      "strings.boardDeleteTodoPermanent || 'Delete Permanently'",
+    ].forEach((snippet) => {
+      assert.ok(
+        boardRenderingSource.includes(snippet),
+        `expected archived board actions snippet ${snippet}`,
+      );
+    });
   });
 
   test("board interaction binding uses pointer drag for todo moves", () => {
