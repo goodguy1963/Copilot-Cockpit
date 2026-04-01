@@ -151,12 +151,12 @@ function renderTodoListRow(card, sectionId, options) {
         '<div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div>' +
       '</div>' +
       chipMarkup +
-      '<div class="cockpit-card-details">' +
-        '<div class="note todo-list-detail-line">' +
+      '<div class="cockpit-card-details todo-list-card-details">' +
+        '<div class="note todo-list-detail-line todo-list-detail-line-description">' +
           '<strong data-card-meta>' + helpers.escapeHtml(strings.boardDescriptionLabel || "Description") + ':</strong>' +
           '<span class="todo-list-summary">' + helpers.escapeHtml(descriptionText) + '</span>' +
         '</div>' +
-        '<div class="note todo-list-detail-line">' +
+        '<div class="note todo-list-detail-line todo-list-detail-line-comment">' +
           '<strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong>' +
           '<span class="todo-list-summary">' + helpers.escapeHtml(latestCommentText) + '</span>' +
         '</div>' +
@@ -177,11 +177,15 @@ function renderTodoListView(visibleSections, cards, filters, options) {
       }), filters);
       var isCollapsed = collapsedSections.has(section.id);
       var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
+      var sectionTitle = helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section"));
       return '<section class="todo-list-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '">' +
         '<div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);">' +
-          '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
+          '<button type="button" class="cockpit-collapse-btn' + (isCollapsed ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '" title="' + helpers.escapeAttr(isCollapsed ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
           helpers.renderSectionDragHandle(section, isSpecialSection) +
-          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + ' <span class="note">(' + String(sectionCards.length) + ')</span></strong>' +
+          '<div class="cockpit-section-title-group">' +
+            '<strong class="cockpit-section-title">' + sectionTitle + '</strong>' +
+          '</div>' +
+          '<span class="note cockpit-section-count">(' + String(sectionCards.length) + ')</span>' +
           (isSpecialSection
             ? ''
             : '<div class="cockpit-section-actions">' +

@@ -670,7 +670,14 @@ export const messages = {
       "Manuelle Sessions bleiben in der Taskliste separat gruppiert und werden nicht zu einmaligen Tasks.",
     ),
   labelAllTasks: () => t("All", "すべて", "Alle"),
+  labelJobTasks: () => t("Jobs", "ジョブ", "Jobs"),
   labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク", "Wiederkehrende Tasks"),
+  labelTodoTaskDrafts: () =>
+    t(
+      "Todo Task Drafts",
+      "Todo Task Draft",
+      "Todo-Task-Entwürfe",
+    ),
   labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク", "Einmalige Tasks"),
   labelJitterSeconds: () =>
     t("Jitter (max seconds, 0=off)", "ジッター(最大秒数, 0=無効)", "Jitter (max. Sekunden, 0=aus)"),

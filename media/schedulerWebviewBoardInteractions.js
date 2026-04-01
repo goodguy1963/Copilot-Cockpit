@@ -61,6 +61,7 @@ export function handleBoardSectionCollapse(collapseBtn, options) {
   var bodyWrapper = sectionEl ? sectionEl.querySelector(".section-body-wrapper") : null;
   var isNowCollapsed = options.collapsedSections.has(sectionId);
   collapseBtn.classList.toggle("collapsed", isNowCollapsed);
+  collapseBtn.setAttribute("aria-expanded", isNowCollapsed ? "false" : "true");
   collapseBtn.title = isNowCollapsed ? "Expand section" : "Collapse section";
   if (bodyWrapper) { bodyWrapper.classList.toggle("collapsed", isNowCollapsed); }
   if (sectionEl) { sectionEl.classList.toggle("is-collapsed", isNowCollapsed); }
@@ -649,10 +650,6 @@ function bindRenderedBoardListeners(boardColumns, options) {
     bindElementListener(sectionHandle, "pointerdown", handleBoardPointerDown);
   });
 
-  Array.prototype.forEach.call(boardColumns.querySelectorAll(".cockpit-section-header"), function (sectionHeader) {
-    bindElementListener(sectionHeader, "pointerdown", handleBoardPointerDown);
-  });
-
   Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id]"), function (card) {
     bindElementListener(card, "pointerdown", handleBoardPointerDown);
   });
@@ -672,7 +669,6 @@ function handleBoardPointerDown(event) {
     return;
   }
   var sectionHandle = getClosestEventTarget(target, "[data-section-drag-handle]");
-  var sectionHeader = getClosestEventTarget(target, ".cockpit-section-header");
   var todoHandle = getClosestEventTarget(target, "[data-todo-drag-handle]");
   var boardColumns = getBoardColumns(options);
   if (!boardColumns) {
@@ -680,19 +676,11 @@ function handleBoardPointerDown(event) {
   }
   var sectionEl = sectionHandle && sectionHandle.closest
     ? sectionHandle.closest("[data-section-id]")
-    : (sectionHeader && sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null);
+    : null;
   var sectionId = sectionHandle
     ? sectionHandle.getAttribute("data-section-drag-handle")
-    : (sectionEl && sectionEl.getAttribute ? sectionEl.getAttribute("data-section-id") : "");
-  var allowHeaderSectionDrag = !!(
-    !sectionHandle &&
-    sectionHeader &&
-    sectionEl &&
-    sectionId &&
-    !(options.isSpecialTodoSectionId && options.isSpecialTodoSectionId(sectionId)) &&
-    !isTodoInteractiveTarget(target)
-  );
-  if (sectionHandle || allowHeaderSectionDrag) {
+    : "";
+  if (sectionHandle) {
     stopBoardEvent(event);
     clearBoardDragClasses(boardColumns);
     pointerDragSession = {
@@ -703,10 +691,8 @@ function handleBoardPointerDown(event) {
       startX: typeof event.clientX === "number" ? event.clientX : 0,
       startY: typeof event.clientY === "number" ? event.clientY : 0,
     };
-    if (sectionHandle) {
-      activatePointerDragSession(options);
-      armBoardClickSuppression();
-    }
+    activatePointerDragSession(options);
+    armBoardClickSuppression();
     return;
   }
   var card = todoHandle && todoHandle.closest

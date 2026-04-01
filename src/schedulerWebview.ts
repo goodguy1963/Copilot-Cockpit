@@ -1937,6 +1937,48 @@ export class SchedulerWebview {
       min-height: 0;
       overflow: hidden;
     }
+
+    .task-subsection {
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 72%, transparent);
+      border-radius: 5px;
+      padding: 4px;
+      margin-bottom: 6px;
+      background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-editorWidget-background));
+      min-width: 0;
+    }
+
+    .task-subsection:last-child {
+      margin-bottom: 0;
+    }
+
+    .task-subsection-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 0;
+    }
+
+    .task-subsection-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .task-subsection-count,
+    .task-section-count {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .task-subsection-body {
+      min-width: 0;
+    }
     
     .task-card {
       display: grid;
@@ -2427,6 +2469,27 @@ export class SchedulerWebview {
       overflow: visible;
     }
 
+    .section-body-wrapper {
+      display: grid;
+      grid-template-rows: 1fr;
+      min-height: 0;
+      transition: grid-template-rows 0.18s ease, opacity 0.18s ease;
+    }
+
+    .section-body-wrapper.collapsed {
+      grid-template-rows: 0fr;
+      opacity: 0;
+    }
+
+    .section-body-inner {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .todo-list-section.is-collapsed .todo-list-items {
+      padding-bottom: 0;
+    }
+
     .todo-list-items {
       display: flex;
       flex-direction: column;
@@ -2451,7 +2514,7 @@ export class SchedulerWebview {
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
     }
 
     .todo-list-title-line {
@@ -2499,6 +2562,14 @@ export class SchedulerWebview {
       min-height: 1.2em;
       min-width: 0;
       flex: 1 1 auto;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.4;
+    }
+
+    .todo-list-card-details {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
     }
 
     .todo-list-chip-row {
@@ -2517,8 +2588,9 @@ export class SchedulerWebview {
     }
 
     .todo-list-detail-line {
-      display: flex;
-      gap: 6px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
       align-items: flex-start;
       min-width: 0;
     }
@@ -2526,6 +2598,11 @@ export class SchedulerWebview {
     .todo-list-detail-line strong {
       flex: 0 0 auto;
       white-space: nowrap;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-list-detail-line-comment .todo-list-summary {
+      font-style: italic;
     }
 
     .card-labels {
@@ -2633,6 +2710,34 @@ export class SchedulerWebview {
       position: sticky;
       top: var(--cockpit-board-sticky-top, 0px);
       z-index: 8;
+      gap: 8px;
+    }
+
+    .todo-list-section .cockpit-section-title-group {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .todo-list-section .cockpit-section-title {
+      display: block;
+    }
+
+    .todo-list-section .cockpit-section-count {
+      margin-left: auto;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-list-section .cockpit-section-actions {
+      margin-left: 0;
+    }
+
+    .todo-list-section.is-collapsed .cockpit-section-actions {
+      display: none;
+    }
+
+    .cockpit-board-hide-card-details .todo-list-card-details,
+    .cockpit-board-compact-details .todo-list-card-details {
+      display: none;
     }
 
     .board-column .cockpit-section-header {
@@ -2646,6 +2751,27 @@ export class SchedulerWebview {
 
     .cockpit-section-header strong {
       padding-left: 2px;
+    }
+
+    .cockpit-section-title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .cockpit-section-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cockpit-section-count {
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
 
     .cockpit-drag-handle {
@@ -2900,12 +3026,24 @@ export class SchedulerWebview {
       justify-content: center;
       width: 100%;
       min-width: 0;
-      white-space: nowrap;
       text-align: center;
       min-height: 24px;
       padding: 2px 0 !important;
       font-size: 12px !important;
+      line-height: 1.15;
+    }
+
+    .todo-card-action-row > .todo-card-icon-btn {
+      white-space: nowrap;
       line-height: 1;
+    }
+
+    .todo-card-action-row > button:not(.todo-card-icon-btn) {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      min-height: 38px;
+      padding: 4px 6px !important;
     }
 
     .todo-card-edit {

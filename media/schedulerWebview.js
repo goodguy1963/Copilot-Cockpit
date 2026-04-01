@@ -711,7 +711,9 @@ import {
   var activeLabelFilter = "";
   var taskSectionCollapseState = {
     manual: false,
+    jobs: true,
     recurring: false,
+    "todo-draft": false,
     "one-time": false,
   };
   var selectedJobFolderId = "";
@@ -801,7 +803,7 @@ import {
   }
 
   function isTaskSectionKey(value) {
-    return value === "manual" || value === "recurring" || value === "one-time";
+    return value === "manual" || value === "jobs" || value === "recurring" || value === "todo-draft" || value === "one-time";
   }
 
   function restoreTaskFilter() {
@@ -1682,6 +1684,34 @@ import {
     return normalizeTodoLabel(value).toLowerCase();
   }
 
+  function getActiveTodoLabelEditorName() {
+    var typedLabel = todoLabelsInput ? normalizeTodoLabel(todoLabelsInput.value) : "";
+    if (typedLabel) {
+      return typedLabel;
+    }
+    if (editingLabelOriginalName) {
+      return normalizeTodoLabel(editingLabelOriginalName);
+    }
+    if (selectedTodoLabelName) {
+      return normalizeTodoLabel(selectedTodoLabelName);
+    }
+    return "";
+  }
+
+  function getActiveTodoFlagEditorName() {
+    var typedFlag = todoFlagNameInput ? normalizeTodoLabel(todoFlagNameInput.value) : "";
+    if (typedFlag) {
+      return typedFlag;
+    }
+    if (editingFlagOriginalName) {
+      return normalizeTodoLabel(editingFlagOriginalName);
+    }
+    if (currentTodoFlag) {
+      return normalizeTodoLabel(currentTodoFlag);
+    }
+    return "";
+  }
+
   function dedupeStringList(values) {
     var seen = {};
     return (Array.isArray(values) ? values : [])
@@ -2022,7 +2052,7 @@ import {
       // Always enabled — user can pick a color before clicking Add
       todoLabelColorInput.disabled = false;
     }
-      if (todoLabelColorSaveBtn) { todoLabelColorSaveBtn.disabled = !todoLabelsInput || !todoLabelsInput.value.trim(); }
+      if (todoLabelColorSaveBtn) { todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName(); }
 syncTodoLabelSuggestions();
     syncLabelCatalog();
   }
@@ -3470,7 +3500,7 @@ syncTodoLabelSuggestions();
             selectedTodoLabelName = "";
             syncTodoLabelEditor();
           }
-          if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !todoLabelsInput.value.trim();
+          if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName();
           syncTodoEditorTransientDraft();
           syncTodoLabelSuggestions();
         };
@@ -3522,7 +3552,7 @@ syncTodoLabelSuggestions();
     }
     if (todoLabelColorSaveBtn) {
         todoLabelColorSaveBtn.onclick = function () {
-          var name = todoLabelsInput ? todoLabelsInput.value.trim() : "";
+          var name = getActiveTodoLabelEditorName();
           emitWebviewDebug("todoLabelSaveButtonClick", {
             disabled: !!todoLabelColorSaveBtn.disabled,
             inputValue: name,
@@ -3535,13 +3565,16 @@ syncTodoLabelSuggestions();
             return;
           }
           var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          var previousName = editingLabelOriginalName || (selectedTodoLabelName && normalizeTodoLabelKey(selectedTodoLabelName) !== normalizeTodoLabelKey(normalized)
+            ? selectedTodoLabelName
+            : undefined);
           emitWebviewDebug("todoLabelSaveAccepted", {
             label: normalized,
             color: todoLabelColorInput.value,
-            editingExisting: !!editingLabelOriginalName,
+            editingExisting: !!previousName,
           });
-          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: editingLabelOriginalName || undefined, color: todoLabelColorInput.value } });
-          var prevName = editingLabelOriginalName;
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: previousName, color: todoLabelColorInput.value } });
+          var prevName = previousName;
           if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
             var prevIdx = currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(prevName));
             if (prevIdx >= 0) {
@@ -3550,8 +3583,11 @@ syncTodoLabelSuggestions();
               setTodoEditorLabels(newLabels, true);
             }
           }
+          selectedTodoLabelName = normalized;
           editingLabelOriginalName = "";
-          todoLabelsInput.value = "";
+          if (todoLabelsInput) {
+            todoLabelsInput.value = normalized;
+          }
           syncTodoEditorTransientDraft();
           syncTodoLabelEditor();
         };
@@ -3633,8 +3669,10 @@ syncTodoLabelSuggestions();
       todoFlagColorSaveBtn.onclick = function () {
         var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
         var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+        var activeFlagName = getActiveTodoFlagEditorName();
         emitWebviewDebug("todoFlagSaveButtonClick", {
           disabled: !!todoFlagColorSaveBtn.disabled,
+          inputValue: activeFlagName,
           hasNameInput: !!todoFlagNameInputEl,
           hasColorInput: !!todoFlagColorInputEl,
         });
@@ -3642,29 +3680,32 @@ syncTodoLabelSuggestions();
           emitWebviewDebug("todoFlagSaveIgnored", { reason: "missingInputs" });
           return;
         }
-        var name = todoFlagNameInputEl.value.trim();
+        var name = activeFlagName;
         if (!name) {
           emitWebviewDebug("todoFlagSaveIgnored", { reason: "emptyFlag" });
           return;
         }
         var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+        var previousName = editingFlagOriginalName || (currentTodoFlag && normalizeTodoLabelKey(currentTodoFlag) !== normalizeTodoLabelKey(normalized)
+          ? currentTodoFlag
+          : undefined);
         emitWebviewDebug("todoFlagSaveAccepted", {
           flag: normalized,
           color: todoFlagColorInputEl.value,
-          editingExisting: !!editingFlagOriginalName,
+          editingExisting: !!previousName,
         });
         vscode.postMessage({
           type: "saveTodoFlagDefinition",
           data: {
             name: normalized,
-            previousName: editingFlagOriginalName || undefined,
+            previousName: previousName,
             color: todoFlagColorInputEl.value,
           },
         });
         
         // Also update editor UI in case the flag was currently active
         // But do not assign it if they aren't adding it. But wait, if they renamed it, and it was active:
-        var prevName = editingFlagOriginalName;
+        var prevName = previousName;
         if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
           if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
             currentTodoFlag = normalized;
@@ -3672,9 +3713,14 @@ syncTodoLabelSuggestions();
             syncFlagEditor();
           }
         }
+        if (!prevName || normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+          currentTodoFlag = normalized;
+          syncTodoFlagDraft();
+        }
         editingFlagOriginalName = "";
-        todoFlagNameInputEl.value = "";
+        todoFlagNameInputEl.value = normalized;
         syncTodoEditorTransientDraft();
+        syncFlagEditor();
       };
     }
     if (todoFlagAddBtn) {
@@ -3688,7 +3734,7 @@ syncTodoLabelSuggestions();
     }
     if (todoFlagNameInput) {
       todoFlagNameInput.oninput = function () {
-        if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !todoFlagNameInput.value.trim();
+        if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
         syncTodoEditorTransientDraft();
       };
       todoFlagNameInput.onkeydown = function (event) {
@@ -3700,9 +3746,11 @@ syncTodoLabelSuggestions();
     }
     if (todoFlagColorInput) {
       todoFlagColorInput.oninput = function () {
+        if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
         syncTodoEditorTransientDraft();
       };
       todoFlagColorInput.onchange = function () {
+        if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
         syncTodoEditorTransientDraft();
       };
     }
@@ -5572,6 +5620,8 @@ syncTodoLabelSuggestions();
       // --- Model & Agent Selection Logic ---
       function createSelect(items, selectedId, cls, placeholder, fallbackSelectedId) {
         var effectiveSelectedId = selectedId || fallbackSelectedId || "";
+        var preservedSelectedId = selectedId || "";
+        var hasSelectedOption = !preservedSelectedId;
         var options = '<option value="">' + escapeHtml(placeholder) + '</option>';
         if (Array.isArray(items)) {
           items.forEach(function (item) {
@@ -5580,9 +5630,15 @@ syncTodoLabelSuggestions();
               return;
             }
             var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : (item.name || id);
+            if (id === preservedSelectedId) {
+              hasSelectedOption = true;
+            }
             var sel = (id === effectiveSelectedId) ? ' selected' : '';
             options += '<option value="' + escapeAttr(id) + '"' + sel + '>' + escapeHtml(label) + '</option>';
           });
+        }
+        if (preservedSelectedId && !hasSelectedOption) {
+          options += '<option value="' + escapeAttr(preservedSelectedId) + '" selected>' + escapeHtml(preservedSelectedId) + '</option>';
         }
         return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + '</select>';
       }
@@ -5760,21 +5816,129 @@ syncTodoLabelSuggestions();
       );
     }
 
+    function renderTaskSectionContent(sectionKey, title, contentHtml, itemCount) {
+      var isCollapsed = taskSectionCollapseState[sectionKey] === true;
+      return (
+        '<div class="task-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-task-section="' + escapeAttr(sectionKey) + '">' +
+        '<div class="task-section-title">' +
+        '<button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || 'Expand section') : (strings.boardSectionCollapse || 'Collapse section')) + '">&#9660;</button>' +
+        '<span>' +
+        escapeHtml(title) +
+        "</span>" +
+        '<span class="task-section-count">' +
+        String(itemCount) +
+        "</span>" +
+        "</div>" +
+        '<div class="task-section-body"><div class="task-section-body-inner">' +
+        contentHtml +
+        '</div></div>' +
+        "</div>"
+      );
+    }
+
+    function renderTaskSubsection(title, items) {
+      var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
+      if (!listHtml) {
+        listHtml =
+          '<div class="empty-state">' +
+          escapeHtml(strings.noTasksFound) +
+          "</div>";
+      }
+      return (
+        '<div class="task-subsection">' +
+        '<div class="task-subsection-title">' +
+        '<span class="task-subsection-name">' + escapeHtml(title) + '</span>' +
+        '<span class="task-subsection-count">' + String(items.length) + '</span>' +
+        '</div>' +
+        '<div class="task-subsection-body">' + listHtml + '</div>' +
+        '</div>'
+      );
+    }
+
+    function isTodoTaskDraft(task) {
+      return !!(
+        task &&
+        Array.isArray(task.labels) &&
+        task.labels.some(function (label) {
+          return normalizeTodoLabelKey(label) === "from-todo-cockpit";
+        })
+      );
+    }
+
+    function isJobTask(task) {
+      return !!(task && task.jobId);
+    }
+
     var manualSessionTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
-      return !isOneTime && task.manualSession === true;
+      return !isOneTime && !isJobTask(task) && task.manualSession === true;
+    });
+    var jobTasks = taskItems.filter(function (task) {
+      return !!task && isJobTask(task);
     });
     var recurringTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
-      return !isOneTime && task.manualSession !== true;
+      return !isOneTime && !isJobTask(task) && task.manualSession !== true;
+    });
+    var todoDraftTasks = taskItems.filter(function (task) {
+      if (!task) return false;
+      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      return isOneTime && !isJobTask(task) && isTodoTaskDraft(task);
     });
     var oneTimeTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
-      return isOneTime;
+      return isOneTime && !isJobTask(task) && !isTodoTaskDraft(task);
     });
+
+    var jobSectionHtml = "";
+    if (jobTasks.length > 0) {
+      var jobGroupsById = Object.create(null);
+      jobTasks.forEach(function (task) {
+        var jobId = String(task.jobId || "");
+        if (!jobId) {
+          return;
+        }
+        if (!jobGroupsById[jobId]) {
+          var job = getJobById(jobId);
+          jobGroupsById[jobId] = {
+            title: job && job.name ? String(job.name) : jobId,
+            items: [],
+          };
+        }
+        jobGroupsById[jobId].items.push(task);
+      });
+
+      var jobGroupEntries = Object.keys(jobGroupsById)
+        .map(function (jobId) {
+          return {
+            id: jobId,
+            title: jobGroupsById[jobId].title,
+            items: jobGroupsById[jobId].items,
+          };
+        })
+        .sort(function (left, right) {
+          return left.title.localeCompare(right.title);
+        });
+
+      jobSectionHtml = renderTaskSectionContent(
+        "jobs",
+        strings.labelJobTasks || "Jobs",
+        jobGroupEntries.map(function (entry) {
+          return renderTaskSubsection(entry.title, entry.items);
+        }).join(""),
+        jobTasks.length,
+      );
+    } else {
+      jobSectionHtml = renderTaskSectionContent(
+        "jobs",
+        strings.labelJobTasks || "Jobs",
+        '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + '</div>',
+        0,
+      );
+    }
 
     var leftColumnHtml = "";
     var rightColumnHtml = "";
@@ -5785,11 +5949,21 @@ syncTodoLabelSuggestions();
         manualSessionTasks,
       );
     }
+    if (activeTaskFilter === "all") {
+      leftColumnHtml += jobSectionHtml;
+    }
     if (activeTaskFilter === "all" || activeTaskFilter === "recurring") {
       leftColumnHtml += renderTaskSection(
         "recurring",
         strings.labelRecurringTasks || "Recurring Tasks",
         recurringTasks,
+      );
+    }
+    if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
+      rightColumnHtml += renderTaskSection(
+        "todo-draft",
+        strings.labelTodoTaskDrafts || "Todo Task Drafts",
+        todoDraftTasks,
       );
     }
     if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
@@ -6494,6 +6668,8 @@ syncTodoLabelSuggestions();
   function updateSimpleSelect(selectEl, items, placeholder, selectedValue, getValue, getLabel) {
     if (!selectEl) return;
     var optionItems = Array.isArray(items) ? items : [];
+    var normalizedSelectedValue = selectedValue || "";
+    var hasSelectedOption = !normalizedSelectedValue;
     var html =
       '<option value="">' +
       escapeHtml(placeholder || "") +
@@ -6502,6 +6678,9 @@ syncTodoLabelSuggestions();
         .map(function (item) {
           var value = getValue(item);
           var label = getLabel(item);
+          if (value === normalizedSelectedValue) {
+            hasSelectedOption = true;
+          }
           return (
             '<option value="' +
             escapeAttr(value) +
@@ -6511,9 +6690,12 @@ syncTodoLabelSuggestions();
           );
         })
         .join("");
+    if (normalizedSelectedValue && !hasSelectedOption) {
+      html += '<option value="' + escapeAttr(normalizedSelectedValue) + '" selected>' + escapeHtml(normalizedSelectedValue) + '</option>';
+    }
     selectEl.innerHTML = html;
-    selectEl.value = selectedValue || "";
-    if (selectEl.value !== (selectedValue || "")) {
+    selectEl.value = normalizedSelectedValue;
+    if (selectEl.value !== normalizedSelectedValue) {
       selectEl.value = "";
     }
   }
