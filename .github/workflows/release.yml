@@ -46,6 +46,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ github.ref_name }}" \
-            copilot-scheduler-local-*.vsix \
+            archive/vsix/latest/copilot-cockpit-*.vsix \
             --title "Copilot Cockpit ${{ github.ref_name }}" \
             --notes-file release-notes.md
