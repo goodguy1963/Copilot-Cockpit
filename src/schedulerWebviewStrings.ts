@@ -64,9 +64,9 @@ export function buildSchedulerWebviewStrings(
       "11. Agenten-Ökosystem-Integration",
     ),
     helpAgentEcosystemBody: localize(
-      "Use the intro tutorial to learn the plugin first, then use plan integration to design repo-local skills, prompts, and agent roles around the Todo communication hub and scheduler MCP tools.",
-      "まず Intro Tutorial でプラグインの全体像を理解し、その後 Plan Integration で Todo コミュニケーションハブと scheduler MCP ツールを中心に repo-local のスキル、プロンプト、エージェント役割を設計します。",
-      "Verwenden Sie zuerst das Intro Tutorial, um das Plugin kennenzulernen. Nutzen Sie danach Plan Integration, um repo-lokale Skills, Prompts und Agentenrollen rund um den Todo-Kommunikations-Hub und die Scheduler-MCP-Tools zu entwerfen.",
+      "Use the intro tutorial to learn the plugin first, then use plan integration to design repo-local skills, prompts, and agent roles around the Todo communication hub and scheduler MCP tools. With the right agent, MCP, and skill setup, this plugin can help build almost any company, because a company is ultimately a stream of the right discussions turned into the right work at the right time.",
+      "まず Intro Tutorial でプラグインの全体像を理解し、その後 Plan Integration で Todo コミュニケーションハブと scheduler MCP ツールを中心に repo-local のスキル、プロンプト、エージェント役割を設計します。適切な agent、MCP、skill の構成がそろえば、このプラグインはほとんどあらゆる会社づくりを支えられます。会社とは結局、適切なタイミングで適切な議論を適切な実行へ変えていく流れだからです。",
+      "Verwenden Sie zuerst das Intro Tutorial, um das Plugin kennenzulernen. Nutzen Sie danach Plan Integration, um repo-lokale Skills, Prompts und Agentenrollen rund um den Todo-Kommunikations-Hub und die Scheduler-MCP-Tools zu entwerfen. Mit dem richtigen Zusammenspiel aus agent, MCP und skills kann dieses Plugin helfen, nahezu jedes Unternehmen aufzubauen, denn ein Unternehmen ist letztlich eine Folge der richtigen Gespräche, die zur richtigen Zeit in die richtige Ausführung überführt werden.",
     ),
     helpIntroTutorialBtn: localize("Intro Tutorial", "Intro Tutorial", "Intro Tutorial"),
     helpPlanIntegrationBtn: localize("Plan Integration", "Plan Integration", "Integration planen"),

@@ -12,6 +12,7 @@ import {
 import {
   approveTodoInBoard,
   createCockpitTodo,
+  createTodoInBoard,
   deleteTodoInBoard,
   ensureTaskTodosInBoard,
   finalizeTodoInBoard,
@@ -24,6 +25,26 @@ import {
 import type { ScheduledTask } from "../../types";
 
 suite("Cockpit Board Manager Tests", () => {
+  test("creating a todo adds an initial creation system-event comment", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+
+    const result = createTodoInBoard(board, {
+      title: "Ship change",
+      sectionId: "unsorted",
+      priority: "high",
+    });
+
+    assert.strictEqual(result.todo.comments.length, 1);
+    assert.strictEqual(result.todo.comments[0]?.author, "system");
+    assert.strictEqual(result.todo.comments[0]?.source, "system-event");
+    assert.deepStrictEqual(result.todo.comments[0]?.labels ?? [], ["created"]);
+    assert.strictEqual(
+      result.todo.comments[0]?.body,
+      `Todo created on ${result.todo.createdAt}.`,
+    );
+    assert.strictEqual(result.todo.comments[0]?.createdAt, result.todo.createdAt);
+  });
+
   test("migrates legacy archive buckets into archive sections", () => {
     const board = normalizeCockpitBoard({
       version: 2,
