@@ -859,6 +859,13 @@ export function createTodoInBoard(
     updatedAt: timestamp,
   };
 
+  addSystemEventComment(
+    todo,
+    `Todo created on ${todo.createdAt}.`,
+    ["created"],
+    timestamp,
+  );
+
   if (normalizeOptionalString(input.comment)) {
     appendTodoCommentRecord(todo, {
       body: input.comment!,

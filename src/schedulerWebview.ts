@@ -2707,10 +2707,8 @@ export class SchedulerWebview {
     }
 
     .todo-list-section .cockpit-section-header {
-      position: sticky;
-      top: var(--cockpit-board-sticky-top, 0px);
-      z-index: 8;
       gap: 8px;
+      align-items: flex-start;
     }
 
     .todo-list-section .cockpit-section-title-group {
@@ -2729,6 +2727,7 @@ export class SchedulerWebview {
 
     .todo-list-section .cockpit-section-actions {
       margin-left: 0;
+      align-self: flex-start;
     }
 
     .todo-list-section.is-collapsed .cockpit-section-actions {

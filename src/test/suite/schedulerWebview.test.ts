@@ -423,6 +423,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
     [
       '.todo-list-row {',
       'grid-template-columns: minmax(0, 1fr) auto;',
+      '.todo-list-section .cockpit-section-header {',
+      'align-items: flex-start;',
       '.section-body-wrapper.collapsed {',
       'grid-template-rows: 0fr;',
       '.todo-list-card-details {',
