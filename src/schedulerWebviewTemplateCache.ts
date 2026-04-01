@@ -68,27 +68,31 @@ export async function refreshAgentsAndModels(
     return { agents: cachedAgents, models: cachedModels };
   }
 
-  let agents: AgentInfo[];
-  let models: ModelInfo[];
+  let refreshedAgents: AgentInfo[] | undefined;
+  let refreshedModels: ModelInfo[] | undefined;
 
   try {
-    agents = await CopilotExecutor.getAllAgents();
-  } catch {
-    agents = CopilotExecutor.getBuiltInAgents();
-  }
+    refreshedAgents = await CopilotExecutor.getAllAgents();
+  } catch {}
 
   try {
-    models = await CopilotExecutor.getAvailableModels();
-  } catch {
-    models = CopilotExecutor.getFallbackModels();
-  }
+    refreshedModels = await CopilotExecutor.getAvailableModels();
+  } catch {}
 
-  if (agents.length === 0) {
-    agents = CopilotExecutor.getBuiltInAgents();
-  }
-  if (models.length === 0) {
-    models = CopilotExecutor.getFallbackModels();
-  }
+  const agents =
+    Array.isArray(refreshedAgents) && refreshedAgents.length > 0
+      ? refreshedAgents
+      : cachedAgents.length > 0
+        ? cachedAgents
+        : CopilotExecutor.getBuiltInAgents();
+  const models =
+    Array.isArray(refreshedModels) && refreshedModels.length > 0
+      ? refreshedModels
+      : cachedModels.length > 0
+        ? cachedModels
+        : CopilotExecutor.getFallbackModels();
+
+  return { agents, models };
 
   return { agents, models };
 }
