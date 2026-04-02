@@ -137,6 +137,9 @@ export class ScheduleManager {
   private jobs: Map<string, JobDefinition> = new Map();
   private jobFolders: Map<string, JobFolder> = new Map();
   private suppressedOverdueTaskIds: Set<string> = new Set();
+  private pendingDeletedTaskIds: Set<string> = new Set();
+  private pendingDeletedJobIds: Set<string> = new Set();
+  private pendingDeletedJobFolderIds: Set<string> = new Set();
   private schedulerInterval: ReturnType<typeof setInterval> | undefined;
   private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
   private schedulerTickInProgress = false;
@@ -966,6 +969,12 @@ export class ScheduleManager {
         const config: SchedulerWorkspaceConfig = {
           ...existingConfig,
           tasks: fileTasks,
+          deletedTaskIds: Array.from(new Set([
+            ...(Array.isArray(existingConfig.deletedTaskIds)
+              ? existingConfig.deletedTaskIds
+              : []),
+            ...Array.from(this.pendingDeletedTaskIds),
+          ])).filter((taskId) => !fileTasks.some((task) => task.id === taskId)),
           jobs: this.getAllJobs().map((job) => ({
             ...job,
             runtime: job.runtime
@@ -992,9 +1001,26 @@ export class ScheduleManager {
                   windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
                 }),
           })),
+          deletedJobIds: Array.from(new Set([
+            ...(Array.isArray(existingConfig.deletedJobIds)
+              ? existingConfig.deletedJobIds
+              : []),
+            ...Array.from(this.pendingDeletedJobIds),
+          ])).filter((jobId) => !this.jobs.has(jobId)),
           jobFolders: this.getAllJobFolders().map((folder) => ({ ...folder })),
+          deletedJobFolderIds: Array.from(new Set([
+            ...(Array.isArray(existingConfig.deletedJobFolderIds)
+              ? existingConfig.deletedJobFolderIds
+              : []),
+            ...Array.from(this.pendingDeletedJobFolderIds),
+          ])).filter((folderId) => !this.jobFolders.has(folderId)),
         };
-        writeSchedulerConfig(workspaceRoot, config);
+        writeSchedulerConfig(workspaceRoot, config, {
+          baseConfig: existingConfig,
+        });
+        this.pendingDeletedTaskIds.clear();
+        this.pendingDeletedJobIds.clear();
+        this.pendingDeletedJobFolderIds.clear();
       }
     } catch (e) {
       console.error('[Scheduler] Failed to save to .vscode/scheduler.json:', e);
@@ -1866,6 +1892,7 @@ export class ScheduleManager {
     }
 
     this.jobs.delete(id);
+    this.pendingDeletedJobIds.add(id);
     await this.saveTasks();
     return true;
   }
@@ -2002,6 +2029,7 @@ export class ScheduleManager {
     }
 
     this.jobFolders.delete(id);
+    this.pendingDeletedJobFolderIds.add(id);
     await this.saveTasks();
     return true;
   }
@@ -2498,7 +2526,9 @@ export class ScheduleManager {
       return false;
     }
 
-    writeSchedulerConfig(workspaceRoot, restoredConfig);
+    writeSchedulerConfig(workspaceRoot, restoredConfig, {
+      mode: "replace",
+    });
     this.loadTasks();
     this.notifyTasksChanged();
     return true;
@@ -2680,6 +2710,7 @@ export class ScheduleManager {
 
     const deleted = this.tasks.delete(id);
     if (deleted) {
+      this.pendingDeletedTaskIds.add(id);
       this.suppressedOverdueTaskIds.delete(id);
       this.syncJobTaskSchedules(new Date());
       await this.saveTasks();

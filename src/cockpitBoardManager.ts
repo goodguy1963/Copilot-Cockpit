@@ -642,6 +642,8 @@ function persistBoard(workspaceRoot: string, board: CockpitBoard): CockpitBoard 
   writeSchedulerConfig(workspaceRoot, {
     ...config,
     cockpitBoard: nextBoard,
+  }, {
+    baseConfig: config,
   });
   return nextBoard;
 }
@@ -814,6 +816,8 @@ export function getCockpitBoard(workspaceRoot: string): CockpitBoard {
     writeSchedulerConfig(workspaceRoot, {
       ...config,
       cockpitBoard: nextBoard,
+    }, {
+      baseConfig: config,
     });
     return nextBoard;
   }
@@ -822,6 +826,8 @@ export function getCockpitBoard(workspaceRoot: string): CockpitBoard {
   writeSchedulerConfig(workspaceRoot, {
     ...config,
     cockpitBoard: seededBoard,
+  }, {
+    baseConfig: config,
   });
   return seededBoard;
 }
@@ -878,6 +884,9 @@ export function createTodoInBoard(
     todo.approvedAt = timestamp;
   }
 
+  nextBoard.deletedCardIds = (nextBoard.deletedCardIds ?? []).filter(
+    (cardId) => cardId !== todo.id,
+  );
   nextBoard.cards.push(todo);
   resequenceCards(nextBoard, sectionId);
   touchBoard(nextBoard, timestamp);
@@ -969,6 +978,10 @@ export function purgeTodoInBoard(
   }
 
   const [todo] = nextBoard.cards.splice(todoIndex, 1);
+  nextBoard.deletedCardIds = Array.from(new Set([
+    ...(nextBoard.deletedCardIds ?? []),
+    todo.id,
+  ]));
   resequenceCards(nextBoard, todo.sectionId);
   touchBoard(nextBoard, nowIso());
   return { board: nextBoard, deleted: true };

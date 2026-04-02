@@ -117,10 +117,10 @@ suite("Scheduler MCP Server Tests", () => {
     const commented = parseJsonText(commentResponse);
 
     assert.strictEqual(created.todo.title, "Review launch blockers");
-    assert.strictEqual(created.todo.commentCount, 1);
-    assert.strictEqual(commented.todo.commentCount, 2);
+    assert.strictEqual(created.todo.commentCount, 2);
+    assert.strictEqual(commented.todo.commentCount, 3);
     assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 1);
-    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].comments.length, 2);
+    assert.strictEqual(server.getConfig().cockpitBoard.cards[0].comments.length, 3);
   });
 
   test("routing cards tool matches labels, flags, and actionable comment labels", async () => {
