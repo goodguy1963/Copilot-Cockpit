@@ -158,6 +158,14 @@ suite("SchedulerWebview Message Queue Tests", () => {
       false,
       "unexpected delete-on-rename flag flow",
     );
+    assert.ok(
+      scriptSource.includes("function upsertLocalLabelDefinition(name, color, previousName)"),
+      "expected optimistic local todo label catalog updates",
+    );
+    assert.ok(
+      scriptSource.includes('todoLabelColorInput.value = "#4f8cff";'),
+      "expected new todo labels to reset the editor color when no matching definition exists",
+    );
   });
 
   test("todo editor keeps upload wiring and sticky filter footer anchors", () => {
@@ -333,6 +341,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");',
       "var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));",
       "var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));",
+      "return Math.round(min + range * 0.1);",
+      'w <= getCockpitCompactDetailsThreshold(),',
+      "boardAutoCollapseSettleUntil = Date.now() + 240;",
+      "boardAutoCollapseSettleDistance = Math.max(56, Math.ceil(stickyHeight + 16));",
     ].forEach((snippet) => {
       assert.ok(
         scriptSource.includes(snippet),
