@@ -6,6 +6,8 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+/images/early version.mp4
+
 
 # Local output artifacts
 output_sessions/
