@@ -1,5 +1,6 @@
 import {
   addCockpitTodoComment,
+  deleteCockpitTodoComment,
   addCockpitSection,
   approveCockpitTodo,
   createCockpitTodo,
@@ -169,6 +170,7 @@ type TodoCockpitTaskAction = Extract<
   | "archiveTodo"
   | "moveTodo"
   | "addTodoComment"
+  | "deleteTodoComment"
   | "setTodoFilters"
   | "saveTodoLabelDefinition"
   | "deleteTodoLabelDefinition"
@@ -194,6 +196,7 @@ const TODO_COCKPIT_ACTIONS = new Set<TodoCockpitTaskAction>([
   "archiveTodo",
   "moveTodo",
   "addTodoComment",
+  "deleteTodoComment",
   "setTodoFilters",
   "saveTodoLabelDefinition",
   "deleteTodoLabelDefinition",
@@ -489,6 +492,24 @@ export async function handleTodoCockpitAction(
         workspaceRoot,
         action.todoId,
         action.todoCommentData as AddCockpitTodoCommentInput,
+      );
+      if (!result.todo) {
+        deps.notifyError("Todo Cockpit item not found.");
+        return true;
+      }
+      deps.refreshSchedulerUiState();
+      return true;
+    }
+
+    case "deleteTodoComment": {
+      const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
+      if (!workspaceRoot || !action.todoId || action.todoCommentIndex == null) {
+        return true;
+      }
+      const result = deleteCockpitTodoComment(
+        workspaceRoot,
+        action.todoId,
+        action.todoCommentIndex,
       );
       if (!result.todo) {
         deps.notifyError("Todo Cockpit item not found.");

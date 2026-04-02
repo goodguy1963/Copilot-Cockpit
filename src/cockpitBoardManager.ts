@@ -1077,6 +1077,27 @@ export function addTodoCommentInBoard(
   return { board: nextBoard, todo };
 }
 
+export function deleteTodoCommentInBoard(
+  board: CockpitBoard,
+  todoId: string,
+  commentIndex: number,
+): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
+  const nextBoard = cloneBoard(board);
+  const todo = nextBoard.cards.find((card) => card.id === todoId);
+  if (!todo || !todo.comments) {
+    return { board: nextBoard, todo: undefined };
+  }
+
+  if (commentIndex >= 0 && commentIndex < todo.comments.length) {
+    todo.comments.splice(commentIndex, 1);
+    const timestamp = nowIso();
+    todo.updatedAt = timestamp;
+    touchBoard(nextBoard, timestamp);
+  }
+
+  return { board: nextBoard, todo };
+}
+
 export function setCockpitBoardFiltersInBoard(
   board: CockpitBoard,
   input: UpdateCockpitBoardFiltersInput,
@@ -1272,6 +1293,18 @@ export function addCockpitTodoComment(
   input: AddCockpitTodoCommentInput,
 ): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
   const result = addTodoCommentInBoard(getCockpitBoard(workspaceRoot), todoId, input);
+  return {
+    board: persistBoard(workspaceRoot, result.board),
+    todo: result.todo,
+  };
+}
+
+export function deleteCockpitTodoComment(
+  workspaceRoot: string,
+  todoId: string,
+  commentIndex: number,
+): { board: CockpitBoard; todo: CockpitTodoCard | undefined } {
+  const result = deleteTodoCommentInBoard(getCockpitBoard(workspaceRoot), todoId, commentIndex);
   return {
     board: persistBoard(workspaceRoot, result.board),
     todo: result.todo,
