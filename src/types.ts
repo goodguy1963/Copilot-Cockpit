@@ -161,11 +161,20 @@ export interface SchedulerWorkspaceConfig {
   /** Workspace tasks */
   tasks: any[];
 
+  /** Tombstones for deleted task ids so stale writes cannot resurrect them */
+  deletedTaskIds?: string[];
+
   /** Job workflows */
   jobs?: JobDefinition[];
 
+  /** Tombstones for deleted job ids so stale writes cannot resurrect them */
+  deletedJobIds?: string[];
+
   /** Job folders */
   jobFolders?: JobFolder[];
+
+  /** Tombstones for deleted job folder ids so stale writes cannot resurrect them */
+  deletedJobFolderIds?: string[];
 
   /** Local-only cockpit board state kept in scheduler.private.json */
   cockpitBoard?: CockpitBoard;
@@ -438,6 +447,9 @@ export interface CockpitBoard {
 
   /** Deleted flag keys that should stay hidden even if older cards still reference them */
   deletedFlagCatalogKeys?: string[];
+
+  /** Tombstones for purged cards so stale board writes cannot resurrect them */
+  deletedCardIds?: string[];
 
   /** Legacy archive buckets preserved only for migration from older board data */
   archives?: {

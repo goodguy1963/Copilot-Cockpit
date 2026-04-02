@@ -37,6 +37,7 @@ import {
 } from "./cockpitBoardManager";
 import {
   getResolvedWorkspaceRoots,
+  setSchedulerConflictNotifier,
   wasSchedulerConfigWrittenRecently,
 } from "./schedulerJsonSanitizer";
 import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
@@ -850,6 +851,9 @@ async function runStartupSequence(
  */
 export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
+  setSchedulerConflictNotifier((message) => {
+    void vscode.window.showWarningMessage(message);
+  });
   // Prompt reload when the extension has been updated
   {
     const currentVersion =
@@ -1175,6 +1179,7 @@ export function activate(context: vscode.ExtensionContext): void {
  * Extension deactivation
  */
 export function deactivate(): void {
+  setSchedulerConflictNotifier(undefined);
   scheduleManager?.stopScheduler();
   SchedulerWebview.dispose();
   // promptSyncInterval is cleared by the disposable registered in context.subscriptions.

@@ -182,6 +182,17 @@ function normalizeCatalogKeyList(value: unknown): string[] {
     .filter((entry, index, values) => entry.length > 0 && values.indexOf(entry) === index);
 }
 
+function normalizeIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry, index, values) => entry.length > 0 && values.indexOf(entry) === index);
+}
+
 function normalizeTaskSnapshot(value: unknown): CockpitTaskSnapshot | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
@@ -616,6 +627,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
     deletedLabelCatalogKeys: [],
     flagCatalog: [],
     deletedFlagCatalogKeys: [],
+    deletedCardIds: [],
     filters: {
       labels: [],
       priorities: [],
@@ -694,15 +706,20 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   }
   const deletedLabelCatalogKeys = normalizeCatalogKeyList(record.deletedLabelCatalogKeys);
   const deletedFlagCatalogKeys = normalizeCatalogKeyList(record.deletedFlagCatalogKeys);
+  const deletedCardIds = normalizeIdList(record.deletedCardIds);
+  const visibleCards = deletedCardIds.length > 0
+    ? mergedCards.filter((card) => !deletedCardIds.includes(card.id))
+    : mergedCards;
 
   return {
     version: Number.isFinite(Number(record.version)) ? Math.max(4, Math.floor(Number(record.version))) : 4,
     sections: ensureSpecialSections(ensureUnsortedSection(sections, timestamp), timestamp),
-    cards: mergedCards,
-    labelCatalog: buildLabelCatalog(mergedCards, record.labelCatalog, deletedLabelCatalogKeys),
+    cards: visibleCards,
+    labelCatalog: buildLabelCatalog(visibleCards, record.labelCatalog, deletedLabelCatalogKeys),
     deletedLabelCatalogKeys,
-    flagCatalog: buildFlagCatalog(mergedCards, record.flagCatalog, deletedFlagCatalogKeys),
+    flagCatalog: buildFlagCatalog(visibleCards, record.flagCatalog, deletedFlagCatalogKeys),
     deletedFlagCatalogKeys,
+    deletedCardIds,
     filters: normalizeFilters(record.filters),
     updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim()
       ? record.updatedAt
