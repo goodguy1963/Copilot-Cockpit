@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Package and install Copilot Cockpit (Insiders)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"package:vsix",
+				";",
+				"npm",
+				"run",
+				"install:vsix:insiders"
+			],
+			"isBackground": false
+		}
+	]
+}

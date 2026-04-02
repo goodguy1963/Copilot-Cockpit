@@ -342,10 +342,10 @@ export interface CockpitTodoCard {
   /** Current planning workflow state */
   status: CockpitTodoStatus;
 
-  /** Free-form labels used for workflow routing */
+  /** Free-form user-facing categorization labels */
   labels: string[];
 
-  /** Additional free-form flags for board filtering */
+  /** Single-value agent-state flags used for routing and board filtering */
   flags: string[];
 
   /** Communication trail between user and system */
@@ -521,10 +521,10 @@ export interface CockpitRoutingCard {
   /** Optional linked scheduler task */
   taskId?: string;
 
-  /** Free-form labels used for workflow routing */
+  /** Free-form user-facing categorization labels */
   labels: string[];
 
-  /** Additional free-form flags for board filtering */
+  /** Single-value agent-state flags used for routing and board filtering */
   flags: string[];
 
   /** Comments sorted newest-first for routing inspection */
