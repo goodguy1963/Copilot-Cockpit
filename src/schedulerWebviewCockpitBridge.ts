@@ -113,6 +113,15 @@ export function handleTodoCockpitWebviewMessage(
       });
       return true;
 
+    case "deleteTodoComment":
+      onTaskActionCallback?.({
+        action: "deleteTodoComment",
+        taskId: "__todo__",
+        todoId: message.todoId,
+        todoCommentIndex: message.commentIndex,
+      });
+      return true;
+
     case "setTodoFilters":
       onTaskActionCallback?.({
         action: "setTodoFilters",

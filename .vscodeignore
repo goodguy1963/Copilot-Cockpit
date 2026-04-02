@@ -26,6 +26,7 @@ output_sessions/**
 session/**
 research/**
 .copilot-cockpit-logs/**
+2026-04-02-cockpit-dispatcher-plugin-improvement-plan.md
 
 # Large demo asset (use static PNG in README)
 images/demo-animated.gif

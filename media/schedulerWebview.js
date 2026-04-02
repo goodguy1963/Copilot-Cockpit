@@ -2176,8 +2176,6 @@ syncTodoLabelSuggestions();
     setTodoEditorLabels(currentTodoLabels.concat([label]), true);
     selectedTodoLabelName = label;
     if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
-    syncTodoEditorTransientDraft();
-    syncTodoLabelEditor();
     if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
       upsertLocalLabelDefinition(label, pendingColor);
       vscode.postMessage({
@@ -2185,6 +2183,8 @@ syncTodoLabelSuggestions();
         data: { name: label, color: pendingColor },
       });
     }
+    syncTodoEditorTransientDraft();
+    syncTodoLabelEditor();
   }
 
   function removeEditorLabel(label) {
@@ -3174,7 +3174,10 @@ syncTodoLabelSuggestions();
           return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
             '<div class="todo-comment-header">' +
             '<strong>#' + escapeHtml(String(sequence)) + ' • ' + escapeHtml(sourceLabel) + '</strong>' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
             '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
+            '<button type="button" class="btn-icon todo-comment-delete-btn" data-delete-comment-index="' + escapeAttr(String(commentIndex)) + '" title="' + escapeAttr(strings.boardCommentDelete || "Delete comment") + '">&#128465;</button>' +
+            '</div>' +
             '</div>' +
             '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
             '<div class="note todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
@@ -3496,6 +3499,20 @@ syncTodoLabelSuggestions();
     }
     if (todoCommentList) {
       todoCommentList.onclick = function (event) {
+        var deleteBtn = getClosestEventTarget(event, "[data-delete-comment-index]");
+        if (deleteBtn && selectedTodoId) {
+          event.stopPropagation();
+          var commentIndex = Number(deleteBtn.getAttribute("data-delete-comment-index"));
+          if (!isNaN(commentIndex)) {
+            vscode.postMessage({
+              type: "deleteTodoComment",
+              todoId: selectedTodoId,
+              commentIndex: commentIndex
+            });
+          }
+          return;
+        }
+
         var commentCard = getClosestEventTarget(event, "[data-comment-index]");
         if (!commentCard || !selectedTodoId) {
           return;
@@ -3572,9 +3589,6 @@ syncTodoLabelSuggestions();
             selectedTodoLabelName = def.name;
           } else {
             selectedTodoLabelName = "";
-            if (todoLabelColorInput) {
-              todoLabelColorInput.value = "#4f8cff";
-            }
           }
           if (todoLabelColorInput) todoLabelColorInput.disabled = false;
           syncTodoLabelEditor();

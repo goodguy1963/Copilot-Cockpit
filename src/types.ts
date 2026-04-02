@@ -1351,6 +1351,7 @@ export interface TaskAction {
   | "archiveTodo"
   | "moveTodo"
   | "addTodoComment"
+  | "deleteTodoComment"
   | "setTodoFilters"
   | "saveTodoLabelDefinition"
   | "deleteTodoLabelDefinition"
@@ -1426,6 +1427,9 @@ export interface TaskAction {
 
   /** Todo comment payload */
   todoCommentData?: Partial<AddCockpitTodoCommentInput>;
+
+  /** Todo comment index for deletion */
+  todoCommentIndex?: number;
 
   /** Todo filter payload */
   todoFilters?: Partial<UpdateCockpitBoardFiltersInput>;
@@ -1562,6 +1566,7 @@ export type WebviewToExtensionMessage =
   | { type: "archiveTodo"; todoId: string; archived?: boolean }
   | { type: "moveTodo"; todoId: string; sectionId?: string; targetIndex: number }
   | { type: "addTodoComment"; todoId: string; data: AddCockpitTodoCommentInput }
+  | { type: "deleteTodoComment"; todoId: string; commentIndex: number }
   | { type: "setTodoFilters"; data: UpdateCockpitBoardFiltersInput }
   | { type: "saveTodoLabelDefinition"; data: UpsertCockpitLabelDefinitionInput }
   | { type: "deleteTodoLabelDefinition"; data: { name: string } }
