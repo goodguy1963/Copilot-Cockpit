@@ -172,11 +172,49 @@ suite("Workspace Support Repair Tests", () => {
     const { __testOnly } = await import("../../extension");
     const buildPlan = __testOnly.createWorkspaceSupportRepairPlan as
       | ((
-        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" }>,
+        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" | "stale" }>,
         extensionVersionChanged: boolean,
       ) => {
         mcpRootsNeedingRepair: string[];
+        autoRepairMcpRoots: string[];
+        promptMcpRoots: string[];
         shouldRefreshBundledSkills: boolean;
+        shouldAutoRepair: boolean;
+        needsPrompt: boolean;
+      })
+      | undefined;
+
+    assert.ok(typeof buildPlan === "function");
+
+    const plan = buildPlan!(
+      [
+        { workspaceRoot: "c:/repo-a", status: "configured" },
+        { workspaceRoot: "c:/repo-b", status: "stale" },
+        { workspaceRoot: "c:/repo-c", status: "invalid" },
+      ],
+      true,
+    );
+
+    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b", "c:/repo-c"]);
+    assert.deepStrictEqual(plan.autoRepairMcpRoots, ["c:/repo-b"]);
+    assert.deepStrictEqual(plan.promptMcpRoots, ["c:/repo-c"]);
+    assert.strictEqual(plan.shouldRefreshBundledSkills, true);
+    assert.strictEqual(plan.shouldAutoRepair, true);
+    assert.strictEqual(plan.needsPrompt, true);
+  });
+
+  test("Repair plan prompts for missing MCP roots without an install or update", async () => {
+    const { __testOnly } = await import("../../extension");
+    const buildPlan = __testOnly.createWorkspaceSupportRepairPlan as
+      | ((
+        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" | "stale" }>,
+        extensionVersionChanged: boolean,
+      ) => {
+        mcpRootsNeedingRepair: string[];
+        autoRepairMcpRoots: string[];
+        promptMcpRoots: string[];
+        shouldRefreshBundledSkills: boolean;
+        shouldAutoRepair: boolean;
         needsPrompt: boolean;
       })
       | undefined;
@@ -187,13 +225,15 @@ suite("Workspace Support Repair Tests", () => {
       [
         { workspaceRoot: "c:/repo-a", status: "configured" },
         { workspaceRoot: "c:/repo-b", status: "missing" },
-        { workspaceRoot: "c:/repo-c", status: "invalid" },
       ],
-      true,
+      false,
     );
 
-    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b", "c:/repo-c"]);
-    assert.strictEqual(plan.shouldRefreshBundledSkills, true);
+    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b"]);
+    assert.deepStrictEqual(plan.autoRepairMcpRoots, []);
+    assert.deepStrictEqual(plan.promptMcpRoots, ["c:/repo-b"]);
+    assert.strictEqual(plan.shouldRefreshBundledSkills, false);
+    assert.strictEqual(plan.shouldAutoRepair, false);
     assert.strictEqual(plan.needsPrompt, true);
   });
 });

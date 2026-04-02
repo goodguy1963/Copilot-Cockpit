@@ -60,6 +60,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 1. Download the latest `copilot-cockpit-X.X.X.vsix` from the [Releases page](https://github.com/goodguy1963/Copilot-Cockpit/releases).
 2. Run **Extensions: Install from VSIX…** in VS Code.
 3. Select the VSIX, reload VS Code, and disable or uninstall `yamapan.copilot-scheduler` if it is installed.
+4. After that reload, Copilot Cockpit will create or repair its repo-local support files such as `.vscode/mcp.json` for the current workspace.
 
 ### 🛠️ From Source
 
@@ -74,6 +75,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 
 3. If the VS Code shell command is unavailable, use **Extensions: Install from VSIX…** and select the generated package manually.
 4. Reload VS Code and disable or uninstall `yamapan.copilot-scheduler` if it is installed.
+5. After that reload, Copilot Cockpit will create or repair its repo-local support files such as `.vscode/mcp.json` for the current workspace.
 
 ## 🗂️ Repo-Local Storage And Boundaries
 

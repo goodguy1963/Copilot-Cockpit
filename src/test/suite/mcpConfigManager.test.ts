@@ -15,6 +15,7 @@ suite("MCP Config Manager Tests", () => {
     );
     const extensionRoot = path.join(workspaceRoot, "extension-root");
     fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
 
     try {
       const stateBefore = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
@@ -48,6 +49,7 @@ suite("MCP Config Manager Tests", () => {
     );
     const extensionRoot = path.join(workspaceRoot, "extension-root");
     fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
     fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
     const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
     fs.writeFileSync(
@@ -90,12 +92,51 @@ suite("MCP Config Manager Tests", () => {
     }
   });
 
+  test("marks a mismatched scheduler server entry as stale", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-mcp-stale-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+    const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          servers: {
+            scheduler: {
+              type: "stdio",
+              command: "node",
+              args: [path.join(workspaceRoot, "old-extension", "out", "server.js")],
+            },
+          },
+        },
+        null,
+        4,
+      ),
+      "utf8",
+    );
+
+    try {
+      const state = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      assert.strictEqual(state.status, "stale");
+      if (state.status === "stale") {
+        assert.ok(state.reason.includes("Scheduler MCP entry points to"));
+      }
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("repairs invalid mcp config by backing it up and rewriting a valid scheduler entry", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-mcp-repair-"),
     );
     const extensionRoot = path.join(workspaceRoot, "extension-root");
     fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
     fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
     const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
     fs.writeFileSync(
