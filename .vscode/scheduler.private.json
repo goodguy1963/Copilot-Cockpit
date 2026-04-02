@@ -1,137 +1,5 @@
 {
-    "tasks": [
-        {
-            "id": "task_1774810742815_ntq7vy",
-            "name": "aa",
-            "cron": "0 9 * * *",
-            "prompt": "s",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "gpt-5.3-codex",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774810742815_ntq7vy.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-01T17:14:14.807Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-04-01T07:00:05.403Z",
-            "nextRun": "2026-04-02T07:00:00.000Z",
-            "createdAt": "2026-03-29T18:59:02.815Z",
-            "updatedAt": "2026-03-31T13:41:39.773Z"
-        },
-        {
-            "id": "task_1774820624347_er6ssw",
-            "name": "Research",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Research windows",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "gpt-5-mini",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820624347_er6ssw.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-01T17:14:14.895Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "jobId": "job_1774810756188_5bn3xr",
-            "jobNodeId": "jobnode_1774820624387_y0buu9",
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-02T07:00:00.000Z",
-            "createdAt": "2026-03-29T21:43:44.347Z",
-            "updatedAt": "2026-03-29T21:50:06.240Z"
-        },
-        {
-            "id": "task_1774820637468_uatpgj",
-            "name": "Research",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Research windows",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "gpt-5-mini",
-            "promptSource": "inline",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820637468_uatpgj.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-01T17:14:15.417Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "jobId": "job_1774810756188_5bn3xr",
-            "jobNodeId": "jobnode_1774820637507_73jmam",
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "createdAt": "2026-03-29T21:43:57.468Z",
-            "updatedAt": "2026-03-29T21:43:57.507Z"
-        },
-        {
-            "id": "task_1774820899929_ua1d8h",
-            "name": "assa",
-            "cron": "0 9 * * 1-5",
-            "prompt": "do somthing: 1+ 2 ",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "gpt-5-mini",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820899929_ua1d8h.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-01T17:14:15.429Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-04-01T07:00:06.257Z",
-            "nextRun": "2026-04-02T07:00:00.000Z",
-            "createdAt": "2026-03-29T21:48:19.929Z",
-            "updatedAt": "2026-03-31T13:41:40.789Z"
-        },
-        {
-            "id": "task_1774820991131_24potb",
-            "name": "Do Filter",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Filter csv",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/task_1774820991131_24potb.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-01T17:14:15.451Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "jobId": "job_1774810756188_5bn3xr",
-            "jobNodeId": "jobnode_1774820991174_sjtdkg",
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "lastRun": "2026-03-30T07:30:04.338Z",
-            "createdAt": "2026-03-29T21:49:51.131Z",
-            "updatedAt": "2026-03-29T21:50:17.032Z"
-        },
-        {
-            "id": "task_1774988860431_jhkda0",
-            "name": "2",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Task goal: 2\n\nContext:\nwhats next?\n\nRecent coordination:\n- system: Approved and marked ready for follow-up.\n- system: Completed and moved to the completed archive.\n- system: Restored from archive and marked ready again.\n- user: Test\n\nProduce the approved execution artifact for this todo and keep any unresolved questions explicit.",
-            "enabled": false,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "",
-            "promptSource": "inline",
-            "promptPath": "",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "recurring-task",
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "createdAt": "2026-03-31T20:27:40.431Z",
-            "updatedAt": "2026-03-31T20:31:26.555Z"
-        }
-    ],
+    "tasks": [],
     "jobs": [
         {
             "id": "job_1774810756188_5bn3xr",
@@ -139,33 +7,9 @@
             "cronExpression": "0 9 * * 1-5",
             "paused": false,
             "archived": false,
-            "nodes": [
-                {
-                    "id": "jobnode_1774820624387_y0buu9",
-                    "type": "task",
-                    "taskId": "task_1774820624347_er6ssw",
-                    "windowMinutes": 30
-                },
-                {
-                    "id": "jobnode_1774820631235_4mkln3",
-                    "type": "pause",
-                    "title": "Manual review"
-                },
-                {
-                    "id": "jobnode_1774820991174_sjtdkg",
-                    "type": "task",
-                    "taskId": "task_1774820991131_24potb",
-                    "windowMinutes": 30
-                },
-                {
-                    "id": "jobnode_1774820637507_73jmam",
-                    "type": "task",
-                    "taskId": "task_1774820637468_uatpgj",
-                    "windowMinutes": 30
-                }
-            ],
+            "nodes": [],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-03-31T20:32:02.365Z"
+            "updatedAt": "2026-04-01T17:43:51.954Z"
         }
     ],
     "jobFolders": [],
@@ -695,13 +539,12 @@
                 "id": "todo_mnc4hppm_dztwob",
                 "title": "aa",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "recurring-tasks",
-                "order": 0,
+                "sectionId": "unsorted",
+                "order": 2,
                 "priority": "medium",
                 "status": "active",
                 "labels": [
-                    "scheduled-task",
-                    "recurring-task"
+                    "scheduled-task"
                 ],
                 "flags": [],
                 "comments": [
@@ -726,13 +569,24 @@
                         "source": "system-event",
                         "sequence": 2,
                         "createdAt": "2026-03-29T19:00:56.077Z"
+                    },
+                    {
+                        "id": "comment_mngc3nva_9ty61r",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-04-01T17:43:08.950Z"
                     }
                 ],
                 "taskId": "task_1774810742815_ntq7vy",
                 "archived": false,
                 "approvedAt": "2026-03-29T19:00:55.154Z",
                 "createdAt": "2026-03-29T18:59:02.815Z",
-                "updatedAt": "2026-03-31T13:41:39.773Z"
+                "updatedAt": "2026-04-01T17:43:08.950Z"
             },
             {
                 "id": "todo_mnc49kym_nxxehd",
@@ -907,7 +761,7 @@
                 "title": "sdsd",
                 "description": "sdsd",
                 "sectionId": "unsorted",
-                "order": 0,
+                "order": 1,
                 "priority": "none",
                 "status": "ready",
                 "labels": [],
@@ -998,7 +852,7 @@
                 "id": "todo_mnbnv2qm_uzedu5",
                 "title": "xyyx",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
+                "sectionId": "unsorted",
                 "order": 0,
                 "priority": "none",
                 "status": "ready",
@@ -1043,14 +897,14 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:55.019Z",
                 "createdAt": "2026-03-29T11:13:32.810Z",
-                "updatedAt": "2026-04-01T17:16:19.620Z"
+                "updatedAt": "2026-04-01T17:30:49.380Z"
             },
             {
                 "id": "todo_mnbmrdjq_6ot5nl",
                 "title": "fgfg",
                 "description": "fgfg",
-                "sectionId": "unsorted",
-                "order": 1,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 0,
                 "priority": "medium",
                 "dueAt": "2026-03-05T11:42:00.000Z",
                 "status": "ready",
@@ -1094,7 +948,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:49.936Z",
                 "createdAt": "2026-03-29T10:42:40.598Z",
-                "updatedAt": "2026-03-31T20:40:43.174Z"
+                "updatedAt": "2026-04-01T17:30:47.914Z"
             },
             {
                 "id": "todo_mnbmt2du_vey8le",
@@ -1264,13 +1118,12 @@
                 "id": "todo_mncadick_xfbptq",
                 "title": "Research",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "recurring-tasks",
-                "order": 4,
+                "sectionId": "unsorted",
+                "order": 6,
                 "priority": "medium",
                 "status": "ready",
                 "labels": [
-                    "scheduled-task",
-                    "recurring-task"
+                    "scheduled-task"
                 ],
                 "flags": [],
                 "comments": [
@@ -1284,25 +1137,35 @@
                         "source": "system-event",
                         "sequence": 1,
                         "createdAt": "2026-03-29T23:04:30.395Z"
+                    },
+                    {
+                        "id": "comment_mngc48q3_2xvhin",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-01T17:43:35.979Z"
                     }
                 ],
                 "taskId": "task_1774820624347_er6ssw",
                 "archived": false,
                 "approvedAt": "2026-03-29T23:04:30.395Z",
                 "createdAt": "2026-03-29T21:43:44.347Z",
-                "updatedAt": "2026-03-29T21:50:06.240Z"
+                "updatedAt": "2026-04-01T17:43:35.979Z"
             },
             {
                 "id": "todo_mncadsha_oflulp",
                 "title": "Research",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "recurring-tasks",
-                "order": 2,
+                "sectionId": "unsorted",
+                "order": 4,
                 "priority": "none",
                 "status": "active",
                 "labels": [
-                    "scheduled-task",
-                    "recurring-task"
+                    "scheduled-task"
                 ],
                 "flags": [
                     "NEW"
@@ -1316,50 +1179,83 @@
                         "source": "human-form",
                         "sequence": 1,
                         "createdAt": "2026-03-29T21:46:36.174Z"
+                    },
+                    {
+                        "id": "comment_mngc44ts_lx3bhv",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-01T17:43:30.928Z"
                     }
                 ],
                 "taskId": "task_1774820637468_uatpgj",
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-03-29T21:43:57.507Z"
+                "updatedAt": "2026-04-01T17:43:30.928Z"
             },
             {
                 "id": "todo_mncaldd4_cm0n69",
                 "title": "Do Filter",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "recurring-tasks",
-                "order": 1,
+                "sectionId": "unsorted",
+                "order": 5,
                 "priority": "none",
                 "status": "active",
                 "labels": [
-                    "scheduled-task",
-                    "recurring-task"
+                    "scheduled-task"
                 ],
                 "flags": [],
-                "comments": [],
+                "comments": [
+                    {
+                        "id": "comment_mngc46va_t0jccc",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-01T17:43:33.574Z"
+                    }
+                ],
                 "taskId": "task_1774820991131_24potb",
                 "archived": false,
                 "createdAt": "2026-03-29T21:49:51.131Z",
-                "updatedAt": "2026-03-29T21:50:17.032Z"
+                "updatedAt": "2026-04-01T17:43:33.574Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
                 "title": "assa",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "recurring-tasks",
+                "sectionId": "unsorted",
                 "order": 3,
                 "priority": "medium",
                 "status": "active",
                 "labels": [
-                    "scheduled-task",
-                    "recurring-task"
+                    "scheduled-task"
                 ],
                 "flags": [],
-                "comments": [],
+                "comments": [
+                    {
+                        "id": "comment_mngc3pcs_hx3vg7",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-01T17:43:10.876Z"
+                    }
+                ],
                 "taskId": "task_1774820899929_ua1d8h",
                 "archived": false,
                 "createdAt": "2026-03-29T21:48:19.929Z",
-                "updatedAt": "2026-03-31T13:41:40.789Z"
+                "updatedAt": "2026-04-01T17:43:10.876Z"
             }
         ],
         "labelCatalog": [
@@ -1452,8 +1348,8 @@
             "sortBy": "manual",
             "sortDirection": "desc",
             "viewMode": "board",
-            "showArchived": true
+            "showArchived": false
         },
-        "updatedAt": "2026-04-01T17:18:28.555Z"
+        "updatedAt": "2026-04-01T17:43:35.979Z"
     }
 }

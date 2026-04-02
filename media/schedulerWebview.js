@@ -731,6 +731,7 @@ import {
   var boardStickyMetricsFrame = 0;
   var boardAutoCollapseSettleY = 0;
   var boardAutoCollapseSettleDistance = 0;
+  var boardAutoCollapseSettleUntil = 0;
   var boardCardDetailsHidden = (function () {
     try {
       return localStorage.getItem("cockpit-hide-card-details") === "1";
@@ -761,6 +762,16 @@ import {
     document.documentElement.classList.add(cls);
   }
 
+  function getCockpitCompactDetailsThreshold() {
+    var min = cockpitColSlider ? Number(cockpitColSlider.min) : 180;
+    var max = cockpitColSlider ? Number(cockpitColSlider.max) : 520;
+    var range = max - min;
+    if (!(range > 0)) {
+      return 214;
+    }
+    return Math.round(min + range * 0.1);
+  }
+
   function applyCockpitColumnScale(w) {
     var font = Math.round(10 + (w - 180) * 3 / 340);
     var pad = Math.round(8 + (w - 180) * 6 / 340);
@@ -782,7 +793,10 @@ import {
     document.documentElement.style.setProperty("--cockpit-flag-pad-y", flagPadY + "px");
     document.documentElement.style.setProperty("--cockpit-flag-pad-x", flagPadX + "px");
     setLabelSlotsClass(w);
-    document.documentElement.classList.toggle("cockpit-board-compact-details", w <= 280);
+    document.documentElement.classList.toggle(
+      "cockpit-board-compact-details",
+      w <= getCockpitCompactDetailsThreshold(),
+    );
   }
 
   // Always apply column CSS vars from saved width or slider default
@@ -924,6 +938,7 @@ import {
   function clearBoardAutoCollapseSettle() {
     boardAutoCollapseSettleY = 0;
     boardAutoCollapseSettleDistance = 0;
+    boardAutoCollapseSettleUntil = 0;
   }
 
   function armBoardAutoCollapseSettle(currentY) {
@@ -931,10 +946,14 @@ import {
       ? Math.ceil(boardFilterSticky.getBoundingClientRect().height)
       : 0;
     boardAutoCollapseSettleY = currentY;
-    boardAutoCollapseSettleDistance = Math.max(28, Math.ceil(stickyHeight * 0.45));
+    boardAutoCollapseSettleDistance = Math.max(56, Math.ceil(stickyHeight + 16));
+    boardAutoCollapseSettleUntil = Date.now() + 240;
   }
 
   function shouldIgnoreBoardAutoCollapseScroll(currentY) {
+    if (boardAutoCollapseSettleUntil > Date.now()) {
+      return true;
+    }
     if (boardAutoCollapseSettleDistance <= 0) {
       return false;
     }
@@ -1863,6 +1882,60 @@ import {
       : "var(--vscode-badge-background)";
   }
 
+  function upsertLocalLabelDefinition(name, color, previousName) {
+    var normalizedName = normalizeTodoLabel(name);
+    var nextColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || ""))
+      ? String(color)
+      : "#4f8cff";
+    var nextKey = normalizeTodoLabelKey(normalizedName);
+    var previousKey = normalizeTodoLabelKey(previousName || "");
+    var existingEntry = null;
+    var nextCatalog;
+
+    if (!normalizedName || !nextKey) {
+      return;
+    }
+    if (!cockpitBoard) {
+      cockpitBoard = {
+        version: 4,
+        sections: [],
+        cards: [],
+        labelCatalog: [],
+        filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
+        updatedAt: "",
+      };
+    }
+
+    nextCatalog = Array.isArray(cockpitBoard.labelCatalog)
+      ? cockpitBoard.labelCatalog.slice()
+      : [];
+    nextCatalog = nextCatalog.filter(function (entry) {
+      var entryKey = normalizeTodoLabelKey(entry && (entry.key || entry.name || ""));
+      if (!entryKey) {
+        return false;
+      }
+      if (entryKey === nextKey || (previousKey && entryKey === previousKey)) {
+        if (!existingEntry) {
+          existingEntry = entry;
+        }
+        return false;
+      }
+      return true;
+    });
+    nextCatalog.push({
+      key: nextKey,
+      name: normalizedName,
+      color: nextColor,
+      createdAt: existingEntry && existingEntry.createdAt ? existingEntry.createdAt : undefined,
+      updatedAt: cockpitBoard.updatedAt || (new Date()).toISOString(),
+    });
+    cockpitBoard = Object.assign({}, cockpitBoard, {
+      labelCatalog: nextCatalog.sort(function (left, right) {
+        return String(left.name).localeCompare(String(right.name));
+      }),
+    });
+  }
+
   function clearCatalogDeleteState(kind) {
     if (!kind || kind === "label") {
       pendingDeleteLabelName = "";
@@ -2091,6 +2164,7 @@ syncTodoLabelSuggestions();
         selectedTodoLabelName = label;
       }
       if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+        upsertLocalLabelDefinition(label, pendingColor, prevName);
         vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, previousName: prevName, color: pendingColor } });
       }
       if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
@@ -2105,6 +2179,7 @@ syncTodoLabelSuggestions();
     syncTodoEditorTransientDraft();
     syncTodoLabelEditor();
     if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+      upsertLocalLabelDefinition(label, pendingColor);
       vscode.postMessage({
         type: "saveTodoLabelDefinition",
         data: { name: label, color: pendingColor },
@@ -3494,8 +3569,15 @@ syncTodoLabelSuggestions();
           var def = getLabelDefinition(label);
           if (def && def.color && todoLabelColorInput) {
             todoLabelColorInput.value = def.color;
+            selectedTodoLabelName = def.name;
+          } else {
+            selectedTodoLabelName = "";
+            if (todoLabelColorInput) {
+              todoLabelColorInput.value = "#4f8cff";
+            }
           }
           if (todoLabelColorInput) todoLabelColorInput.disabled = false;
+          syncTodoLabelEditor();
           } else {
             selectedTodoLabelName = "";
             syncTodoLabelEditor();
@@ -3573,6 +3655,7 @@ syncTodoLabelSuggestions();
             color: todoLabelColorInput.value,
             editingExisting: !!previousName,
           });
+          upsertLocalLabelDefinition(normalized, todoLabelColorInput.value, previousName);
           vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: previousName, color: todoLabelColorInput.value } });
           var prevName = previousName;
           if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
