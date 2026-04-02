@@ -101,7 +101,10 @@ const LAST_VERSION_KEY = "lastKnownVersion";
 
 type WorkspaceSupportRepairPlan = {
   mcpRootsNeedingRepair: string[];
+  autoRepairMcpRoots: string[];
+  promptMcpRoots: string[];
   shouldRefreshBundledSkills: boolean;
+  shouldAutoRepair: boolean;
   needsPrompt: boolean;
 };
 
@@ -339,20 +342,37 @@ let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let hasPromptedForMcpSetupThisSession = false;
 let extensionVersionChangedThisSession = false;
+let shouldAutoRepairWorkspaceSupportThisSession = false;
 
 function createWorkspaceSupportRepairPlan(
   states: Array<{ workspaceRoot: string; status: SchedulerMcpSetupState["status"] }>,
-  extensionVersionChanged: boolean,
+  extensionLifecycleChanged: boolean,
 ): WorkspaceSupportRepairPlan {
-  const mcpRootsNeedingRepair = states
-    .filter((state) => state.status !== "configured")
+  const autoRepairMcpRoots = extensionLifecycleChanged
+    ? states
+      .filter((state) => state.status === "missing" || state.status === "stale")
+      .map((state) => state.workspaceRoot)
+    : [];
+  const promptMcpRoots = states
+    .filter((state) =>
+      state.status === "invalid"
+      || (!extensionLifecycleChanged && state.status !== "configured")
+    )
     .map((state) => state.workspaceRoot);
+  const mcpRootsNeedingRepair = Array.from(
+    new Set([...autoRepairMcpRoots, ...promptMcpRoots]),
+  );
+  const shouldRefreshBundledSkills = extensionLifecycleChanged;
+  const shouldAutoRepair =
+    autoRepairMcpRoots.length > 0 || shouldRefreshBundledSkills;
 
   return {
     mcpRootsNeedingRepair,
-    shouldRefreshBundledSkills: extensionVersionChanged,
-    needsPrompt:
-      mcpRootsNeedingRepair.length > 0 || extensionVersionChanged,
+    autoRepairMcpRoots,
+    promptMcpRoots,
+    shouldRefreshBundledSkills,
+    shouldAutoRepair,
+    needsPrompt: promptMcpRoots.length > 0,
   };
 }
 
@@ -560,6 +580,7 @@ async function repairWorkspaceSupportFiles(
   context: vscode.ExtensionContext,
   workspaceRoots: string[],
   mcpRootsNeedingRepair: string[],
+  refreshBundledSkills = true,
 ): Promise<boolean> {
   try {
     let repairedMcpCount = 0;
@@ -569,10 +590,19 @@ async function repairWorkspaceSupportFiles(
     }
 
     ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
-    const syncResult = await syncBundledSkills(context, workspaceRoots);
+    const syncResult = refreshBundledSkills
+      ? await syncBundledSkills(context, workspaceRoots)
+      : {
+        createdPaths: [],
+        updatedPaths: [],
+        skippedPaths: [],
+      };
     if (
-      syncResult.createdPaths.length > 0 ||
-      syncResult.updatedPaths.length > 0
+      refreshBundledSkills
+      && (
+        syncResult.createdPaths.length > 0 ||
+        syncResult.updatedPaths.length > 0
+      )
     ) {
       void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => {});
     }
@@ -640,10 +670,20 @@ async function maybePromptToSetupWorkspaceMcp(
       workspaceRoot: entry.workspaceRoot,
       status: entry.state.status,
     })),
-    extensionVersionChangedThisSession ||
+    shouldAutoRepairWorkspaceSupportThisSession ||
       bundledSkillPreview.createdPaths.length > 0 ||
       bundledSkillPreview.updatedPaths.length > 0,
   );
+
+  if (repairPlan.shouldAutoRepair) {
+    await repairWorkspaceSupportFiles(
+      context,
+      workspaceRoots,
+      repairPlan.autoRepairMcpRoots,
+      repairPlan.shouldRefreshBundledSkills,
+    );
+  }
+
   if (!repairPlan.needsPrompt) {
     hasPromptedForMcpSetupThisSession = true;
     return;
@@ -662,7 +702,8 @@ async function maybePromptToSetupWorkspaceMcp(
     await repairWorkspaceSupportFiles(
       context,
       workspaceRoots,
-      repairPlan.mcpRootsNeedingRepair,
+      repairPlan.promptMcpRoots,
+      false,
     );
   }
 }
@@ -860,6 +901,8 @@ export function activate(context: vscode.ExtensionContext): void {
       (context.extension.packageJSON as { version?: string }).version ??
       "0.0.0";
     const lastVersion = context.globalState.get<string>(LAST_VERSION_KEY);
+    shouldAutoRepairWorkspaceSupportThisSession = !lastVersion
+      || lastVersion !== currentVersion;
     extensionVersionChangedThisSession = !!(
       lastVersion && lastVersion !== currentVersion
     );

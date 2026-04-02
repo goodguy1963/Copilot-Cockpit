@@ -15,6 +15,7 @@ export type McpWorkspaceConfig = {
 export type SchedulerMcpSetupState =
   | { status: "missing"; configPath: string }
   | { status: "configured"; configPath: string }
+  | { status: "stale"; configPath: string; reason: string }
   | { status: "invalid"; configPath: string; reason: string };
 
 export type SchedulerMcpWriteResult = {
@@ -90,19 +91,42 @@ export function getSchedulerMcpSetupState(
     const servers = current.config.servers;
     const scheduler = isPlainObject(servers) ? servers.scheduler : undefined;
     const expected = buildSchedulerMcpServerEntry(extensionRoot);
+    if (!isPlainObject(scheduler)) {
+      return { status: "missing", configPath };
+    }
+
+    const actualType = scheduler.type;
+    const actualCommand = scheduler.command;
+    const actualArgs = Array.isArray(scheduler.args) ? scheduler.args : undefined;
 
     if (
-      isPlainObject(scheduler) &&
-      scheduler.type === expected.type &&
-      scheduler.command === expected.command &&
-      Array.isArray(scheduler.args) &&
-      scheduler.args.length === expected.args.length &&
-      scheduler.args.every((value, index) => value === expected.args[index])
+      actualType === expected.type &&
+      actualCommand === expected.command &&
+      actualArgs &&
+      actualArgs.length === expected.args.length &&
+      actualArgs.every((value, index) => value === expected.args[index])
     ) {
+      if (!fs.existsSync(expected.args[0])) {
+        return {
+          status: "stale",
+          configPath,
+          reason: `Configured server path does not exist: ${expected.args[0]}`,
+        };
+      }
+
       return { status: "configured", configPath };
     }
 
-    return { status: "missing", configPath };
+    return {
+      status: "stale",
+      configPath,
+      reason:
+        `Scheduler MCP entry points to ${JSON.stringify({
+          type: actualType,
+          command: actualCommand,
+          args: actualArgs,
+        })} instead of ${JSON.stringify(expected)}.`,
+    };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error ?? "");
     return { status: "invalid", configPath, reason };
