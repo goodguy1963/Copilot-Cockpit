@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
-  "version": "99.0.64",
+  "version": "99.0.66",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",
@@ -387,7 +387,7 @@
   "scripts": {
     "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
-    "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --platform=node --format=cjs",
+    "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --external:vscode --platform=node --format=cjs",
     "esbuild-webview": "esbuild ./media/schedulerWebview.entry.js --bundle --outfile=media/generated/schedulerWebview.js --format=iife --platform=browser",
     "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap",
     "watch": "npm run esbuild-base -- --sourcemap --watch",

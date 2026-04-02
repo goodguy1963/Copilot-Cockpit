@@ -113,12 +113,6 @@ export function buildCockpitRoutingCard(
   const latestActionableUserComment = getLatestActionableUserComment(card.comments ?? []);
 
   const matchedSignals = new Set<string>();
-  for (const label of normalizeLabelList(card.labels)) {
-    const match = matchesAnySignal([label], signalSet);
-    for (const signal of match) {
-      matchedSignals.add(signal);
-    }
-  }
   for (const flag of normalizeLabelList(card.flags)) {
     const match = matchesAnySignal([flag], signalSet);
     for (const signal of match) {
