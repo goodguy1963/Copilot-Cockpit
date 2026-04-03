@@ -3,7 +3,6 @@ import * as path from "path";
 import { normalizeCockpitBoard } from "./cockpitBoard";
 import { createScheduleHistorySnapshot } from "./scheduleHistory";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
-import { logInfo } from "./logger";
 import type { CockpitBoardFilters, SchedulerWorkspaceConfig } from "./types";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
@@ -76,6 +75,10 @@ export function setSchedulerLockOptionsForTests(
 const schedulerSleepBuffer = typeof SharedArrayBuffer !== "undefined"
     ? new Int32Array(new SharedArrayBuffer(4))
     : undefined;
+
+function logSchedulerSanitizerInfo(...args: unknown[]): void {
+    console.info(...args);
+}
 
 function normalizeSchedulerConfigPath(filePath: string): string {
     const normalized = path.normalize(String(filePath || ""));
@@ -346,7 +349,7 @@ function filterTombstonedRecords<T>(
         .filter((id) => deletedIdSet.has(id));
 
     if (suppressedIds.length > 0) {
-        logInfo(
+        logSchedulerSanitizerInfo(
             "[CopilotScheduler] Suppressed tombstoned records during merge",
             {
                 recordType: recordType ?? "record",
@@ -488,7 +491,7 @@ function mergeFieldwiseRecord(
     }
 
     if (conflictedFields.length > 0) {
-        logInfo(
+        logSchedulerSanitizerInfo(
             `[CopilotScheduler] Resolved concurrent ${recordType} field conflict`,
             {
                 recordType,
@@ -978,11 +981,11 @@ function recoverPendingSchedulerTransaction(workspaceRoot: string, throwOnFailur
             writeFileAtomic(transaction.privatePath, transaction.privateContent);
         }
         schedulerFs.unlinkSync(getSchedulerTransactionPath(workspaceRoot));
-        logInfo("[CopilotScheduler] Recovered pending scheduler config transaction", {
+        logSchedulerSanitizerInfo("[CopilotScheduler] Recovered pending scheduler config transaction", {
             workspaceRoot,
         });
     } catch (error) {
-        logInfo("[CopilotScheduler] Failed to recover pending scheduler config transaction", {
+        logSchedulerSanitizerInfo("[CopilotScheduler] Failed to recover pending scheduler config transaction", {
             workspaceRoot,
             error: error instanceof Error ? error.message : String(error ?? ""),
         });

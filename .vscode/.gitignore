@@ -5,3 +5,6 @@ scheduler-prompt-backups/
 # Copilot Cockpit private config
 cockpit-prompt-backups/
 cockpit-input-uploads/
+
+# Copilot Cockpit private config
+copilot-cockpit-support/

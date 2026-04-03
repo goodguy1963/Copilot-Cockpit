@@ -8,6 +8,7 @@ const VSCODE_IGNORE_ENTRIES = [
   "cockpit-prompt-backups/",
   "cockpit-input-uploads/",
   "scheduler-prompt-backups/",
+  "copilot-cockpit-support/",
 ] as const;
 const VSCODE_IGNORE_COMMENT = "# Copilot Cockpit private config";
 const ROOT_IGNORE_ENTRIES = [".copilot-cockpit-logs/"] as const;

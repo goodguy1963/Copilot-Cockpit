@@ -5,6 +5,8 @@ import * as path from "path";
 import {
   getSchedulerMcpSetupState,
   getWorkspaceMcpConfigPath,
+  getWorkspaceMcpLauncherPath,
+  getWorkspaceMcpLauncherStatePath,
   upsertSchedulerMcpConfig,
 } from "../../mcpConfigManager";
 
@@ -32,8 +34,16 @@ suite("MCP Config Manager Tests", () => {
       };
       assert.strictEqual(saved.servers?.scheduler?.command, "node");
       assert.strictEqual(
+        fs.existsSync(getWorkspaceMcpLauncherPath(workspaceRoot)),
+        true,
+      );
+      assert.strictEqual(
+        fs.existsSync(getWorkspaceMcpLauncherStatePath(workspaceRoot)),
+        true,
+      );
+      assert.strictEqual(
         saved.servers?.scheduler?.args?.[0],
-        path.join(extensionRoot, "out", "server.js"),
+        getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
       const stateAfter = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
@@ -85,8 +95,52 @@ suite("MCP Config Manager Tests", () => {
       assert.strictEqual(saved.servers?.existing?.args?.[0], "existing-server.js");
       assert.strictEqual(
         saved.servers?.scheduler?.args?.[0],
-        path.join(extensionRoot, "out", "server.js"),
+        getWorkspaceMcpLauncherPath(workspaceRoot),
       );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("keeps the stable launcher path configured across extension version changes", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-mcp-version-change-"),
+    );
+    const extensionRootA = path.join(workspaceRoot, "local-dev.copilot-cockpit-99.0.71");
+    const extensionRootB = path.join(workspaceRoot, "local-dev.copilot-cockpit-99.0.72");
+    fs.mkdirSync(path.join(extensionRootA, "out"), { recursive: true });
+    fs.mkdirSync(path.join(extensionRootB, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRootA, "out", "server.js"), "", "utf8");
+    fs.writeFileSync(path.join(extensionRootB, "out", "server.js"), "", "utf8");
+
+    try {
+      upsertSchedulerMcpConfig(workspaceRoot, extensionRootA);
+      const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+      const initial = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        servers?: Record<string, { args?: string[] }>;
+      };
+
+      const stateDuringUpdate = getSchedulerMcpSetupState(workspaceRoot, extensionRootB);
+      assert.strictEqual(stateDuringUpdate.status, "configured");
+
+      upsertSchedulerMcpConfig(workspaceRoot, extensionRootB);
+
+      const updated = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        servers?: Record<string, { args?: string[] }>;
+      };
+      assert.strictEqual(
+        initial.servers?.scheduler?.args?.[0],
+        getWorkspaceMcpLauncherPath(workspaceRoot),
+      );
+      assert.strictEqual(
+        updated.servers?.scheduler?.args?.[0],
+        getWorkspaceMcpLauncherPath(workspaceRoot),
+      );
+
+      const stateFile = JSON.parse(
+        fs.readFileSync(getWorkspaceMcpLauncherStatePath(workspaceRoot), "utf8"),
+      ) as { lastKnownExtensionRoot?: string };
+      assert.strictEqual(stateFile.lastKnownExtensionRoot, extensionRootB);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
@@ -161,7 +215,7 @@ suite("MCP Config Manager Tests", () => {
       assert.strictEqual(repaired.servers?.scheduler?.command, "node");
       assert.strictEqual(
         repaired.servers?.scheduler?.args?.[0],
-        path.join(extensionRoot, "out", "server.js"),
+        getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
       const stateAfter = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);

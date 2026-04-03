@@ -62,6 +62,7 @@ import {
   sendTelegramNotificationTest,
 } from "./telegramNotificationManager";
 import {
+  ensureWorkspaceMcpSupportFiles,
   type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
   upsertSchedulerMcpConfig,
@@ -583,6 +584,10 @@ async function repairWorkspaceSupportFiles(
   refreshBundledSkills = true,
 ): Promise<boolean> {
   try {
+    for (const workspaceRoot of workspaceRoots) {
+      ensureWorkspaceMcpSupportFiles(workspaceRoot, context.extensionUri.fsPath);
+    }
+
     let repairedMcpCount = 0;
     for (const workspaceRoot of mcpRootsNeedingRepair) {
       upsertSchedulerMcpConfig(workspaceRoot, context.extensionUri.fsPath);
