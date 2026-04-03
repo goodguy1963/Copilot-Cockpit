@@ -61,6 +61,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 2. Run **Extensions: Install from VSIX…** in VS Code.
 3. Select the VSIX, reload VS Code, and disable or uninstall `yamapan.copilot-scheduler` if it is installed.
 4. After that reload, Copilot Cockpit will create or repair its repo-local support files such as `.vscode/mcp.json` for the current workspace.
+5. MCP launcher entries now point at a stable repo-local launcher under `.vscode/copilot-cockpit-support/`, so other open VS Code windows can keep starting MCP services even before they reload to the new extension version.
 
 ### 🛠️ From Source
 
@@ -76,6 +77,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 3. If the VS Code shell command is unavailable, use **Extensions: Install from VSIX…** and select the generated package manually.
 4. Reload VS Code and disable or uninstall `yamapan.copilot-scheduler` if it is installed.
 5. After that reload, Copilot Cockpit will create or repair its repo-local support files such as `.vscode/mcp.json` for the current workspace.
+6. MCP launcher entries now point at a stable repo-local launcher under `.vscode/copilot-cockpit-support/`, so other open VS Code windows can keep starting MCP services even before they reload to the new extension version.
 
 ## 🗂️ Repo-Local Storage And Boundaries
 
@@ -136,6 +138,8 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - The extension bundles an embedded MCP server at `out/server.js`.
 - Use `Set Up MCP` from `How To Use` or `Copilot Cockpit: Set Up Workspace MCP` to create or merge `.vscode/mcp.json` safely.
 - `Set Up MCP` only inserts or repairs the local `scheduler` launcher entry. It preserves other MCP servers that are already in `.vscode/mcp.json`.
+- The generated `scheduler` entry points to a stable repo-local launcher in `.vscode/copilot-cockpit-support/mcp/launcher.js`, which then resolves the currently installed Copilot Cockpit runtime.
+- Because that launcher path stays stable across extension updates, unreloaded VS Code windows can keep starting MCP services until they reload onto the new extension host version.
 - Do not store live third-party API keys or tokens directly in `.vscode/mcp.json`. Use top-level `inputs` with `"type": "promptString"` and `"password": true`, then reference them with `${input:NAME}` placeholders.
 - MCP exposure is powerful and high-risk: once tools are visible to Copilot, they can inspect state, modify saved items, and trigger runs.
 - The MCP surface includes scheduler, jobs, research, and Todo Cockpit tools.

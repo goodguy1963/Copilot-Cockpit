@@ -66,5 +66,5 @@ for (const executable of executables) {
 
 console.log(`Installed ${path.basename(vsixPath)} via ${executables.join(", ")}.`);
 console.log(
-  "Reload VS Code now to activate Copilot Cockpit. On first startup after install or update, the extension will create or repair .vscode/mcp.json and other workspace support files.",
+  "Reload this VS Code window now to activate the new Copilot Cockpit version here. Workspace MCP launcher entries now use a stable support path, so other unreloaded VS Code windows can keep starting MCP services until they reload too.",
 );

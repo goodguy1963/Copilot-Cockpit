@@ -72,21 +72,6 @@ function updateBuildNotesVersion(workspaceRoot, version) {
   }
 }
 
-function updateMcpVersionReference(workspaceRoot, version) {
-  const mcpPath = path.join(workspaceRoot, ".vscode", "mcp.json");
-  if (!fs.existsSync(mcpPath)) {
-    return;
-  }
-  const content = fs.readFileSync(mcpPath, "utf8");
-  const next = content.replace(
-    /local-dev\.copilot-cockpit-[0-9]+\.[0-9]+\.[0-9]+/g,
-    `local-dev.copilot-cockpit-${version}`,
-  );
-  if (next !== content) {
-    fs.writeFileSync(mcpPath, next, "utf8");
-  }
-}
-
 function bumpWorkspaceVersion(workspaceRoot) {
   const packageJsonPath = path.join(workspaceRoot, "package.json");
   const packageLockPath = path.join(workspaceRoot, "package-lock.json");
@@ -105,7 +90,6 @@ function bumpWorkspaceVersion(workspaceRoot) {
   }
 
   updateBuildNotesVersion(workspaceRoot, nextVersion);
-  updateMcpVersionReference(workspaceRoot, nextVersion);
 
   return { pkg, version: nextVersion };
 }

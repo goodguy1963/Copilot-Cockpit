@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { renderWorkspaceMcpLauncherScript } from "./mcpLauncherScript";
 
 export type McpServerEntry = {
   type: "stdio";
@@ -27,6 +28,20 @@ export type SchedulerMcpWriteResult = {
   backupPath?: string;
 };
 
+type WorkspaceMcpLauncherState = {
+  extensionIdPrefix?: string;
+  preferredExtensionDir: string;
+  lastKnownExtensionRoot: string;
+  lastKnownServerPath: string;
+  updatedAt: string;
+};
+
+const MCP_SUPPORT_DIR_PARTS = [
+  ".vscode",
+  "copilot-cockpit-support",
+  "mcp",
+] as const;
+
 function stripBom(text: string): string {
   return text.replace(/^\uFEFF/, "");
 }
@@ -46,13 +61,84 @@ export function getWorkspaceMcpConfigPath(workspaceRoot: string): string {
 }
 
 export function buildSchedulerMcpServerEntry(
-  extensionRoot: string,
+  workspaceRoot: string,
 ): McpServerEntry {
   return {
     type: "stdio",
     command: "node",
-    args: [path.join(extensionRoot, "out", "server.js")],
+    args: [getWorkspaceMcpLauncherPath(workspaceRoot)],
   };
+}
+
+export function getWorkspaceMcpSupportDirectory(workspaceRoot: string): string {
+  return path.join(workspaceRoot, ...MCP_SUPPORT_DIR_PARTS);
+}
+
+export function getWorkspaceMcpLauncherPath(workspaceRoot: string): string {
+  return path.join(getWorkspaceMcpSupportDirectory(workspaceRoot), "launcher.js");
+}
+
+export function getWorkspaceMcpLauncherStatePath(workspaceRoot: string): string {
+  return path.join(getWorkspaceMcpSupportDirectory(workspaceRoot), "state.json");
+}
+
+function getExtensionIdPrefix(extensionRoot: string): string | undefined {
+  const packageJsonPath = path.join(extensionRoot, "package.json");
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      const parsed = JSON.parse(stripBom(fs.readFileSync(packageJsonPath, "utf8"))) as {
+        publisher?: unknown;
+        name?: unknown;
+      };
+      if (typeof parsed.publisher === "string" && typeof parsed.name === "string") {
+        return `${parsed.publisher}.${parsed.name}-`;
+      }
+    } catch {
+      // Ignore malformed installed package metadata and fall back to the folder name.
+    }
+  }
+
+  const baseName = path.basename(extensionRoot);
+  const match = baseName.match(/^(.*)-(\d+\.\d+\.\d+)$/);
+  return match ? `${match[1]}-` : undefined;
+}
+
+function buildWorkspaceMcpLauncherState(
+  extensionRoot: string,
+): WorkspaceMcpLauncherState {
+  return {
+    extensionIdPrefix: getExtensionIdPrefix(extensionRoot),
+    preferredExtensionDir: path.dirname(extensionRoot),
+    lastKnownExtensionRoot: extensionRoot,
+    lastKnownServerPath: path.join(extensionRoot, "out", "server.js"),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function ensureWorkspaceMcpSupportFiles(
+  workspaceRoot: string,
+  extensionRoot: string,
+): void {
+  const supportDirectory = getWorkspaceMcpSupportDirectory(workspaceRoot);
+  fs.mkdirSync(supportDirectory, { recursive: true });
+
+  const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+  const launcherContent = `${renderWorkspaceMcpLauncherScript()}\n`;
+  const currentLauncherContent = fs.existsSync(launcherPath)
+    ? stripBom(fs.readFileSync(launcherPath, "utf8"))
+    : undefined;
+  if (currentLauncherContent !== launcherContent) {
+    fs.writeFileSync(launcherPath, launcherContent, "utf8");
+  }
+
+  const statePath = getWorkspaceMcpLauncherStatePath(workspaceRoot);
+  const stateContent = `${JSON.stringify(buildWorkspaceMcpLauncherState(extensionRoot), null, 4)}\n`;
+  const currentStateContent = fs.existsSync(statePath)
+    ? stripBom(fs.readFileSync(statePath, "utf8"))
+    : undefined;
+  if (currentStateContent !== stateContent) {
+    fs.writeFileSync(statePath, stateContent, "utf8");
+  }
 }
 
 export function readWorkspaceMcpConfig(
@@ -90,7 +176,7 @@ export function getSchedulerMcpSetupState(
 
     const servers = current.config.servers;
     const scheduler = isPlainObject(servers) ? servers.scheduler : undefined;
-    const expected = buildSchedulerMcpServerEntry(extensionRoot);
+    const expected = buildSchedulerMcpServerEntry(workspaceRoot);
     if (!isPlainObject(scheduler)) {
       return { status: "missing", configPath };
     }
@@ -111,6 +197,15 @@ export function getSchedulerMcpSetupState(
           status: "stale",
           configPath,
           reason: `Configured server path does not exist: ${expected.args[0]}`,
+        };
+      }
+
+      const launcherStatePath = getWorkspaceMcpLauncherStatePath(workspaceRoot);
+      if (!fs.existsSync(launcherStatePath)) {
+        return {
+          status: "stale",
+          configPath,
+          reason: `Configured launcher state does not exist: ${launcherStatePath}`,
         };
       }
 
@@ -139,7 +234,8 @@ export function upsertSchedulerMcpConfig(
 ): SchedulerMcpWriteResult {
   const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
   const configDir = path.dirname(configPath);
-  const expectedEntry = buildSchedulerMcpServerEntry(extensionRoot);
+  ensureWorkspaceMcpSupportFiles(workspaceRoot, extensionRoot);
+  const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
   const createdDirectory = !fs.existsSync(configDir);
   if (createdDirectory) {
