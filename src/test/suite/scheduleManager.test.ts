@@ -1799,11 +1799,16 @@ suite("ScheduleManager Overdue Task Tests", () => {
 
       const manager = new ScheduleManager(createMockContext(storageRoot));
       manager.setOnExecuteCallback(async () => undefined);
+      let changedCount = 0;
+      manager.setOnTasksChangedCallback(() => {
+        changedCount += 1;
+      });
 
       const executed = await manager.runTaskNow(taskId);
       assert.strictEqual(executed, true);
       assert.strictEqual(manager.getTask(taskId), undefined);
       assert.deepStrictEqual(manager.getAllTasks().map((task) => task.id), []);
+      assert.strictEqual(changedCount, 1);
 
       const persisted = JSON.parse(
         fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
