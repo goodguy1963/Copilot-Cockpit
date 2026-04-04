@@ -1899,6 +1899,207 @@ suite("ScheduleManager Overdue Task Tests", () => {
       }
     }
   });
+
+  test("scheduler tick does not execute disabled tasks", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-disabled-due-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-disabled-due-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    let executeCount = 0;
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: "disabled-due-task",
+                name: "Disabled due task",
+                cron: "*/5 * * * *",
+                prompt: "do not run",
+                enabled: false,
+                createdAt: "2026-03-23T10:00:00.000Z",
+                updatedAt: "2026-03-23T10:00:00.000Z",
+                nextRun: "2026-03-23T10:05:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      await (manager as unknown as { checkAndExecuteTasks: () => Promise<void> }).checkAndExecuteTasks();
+
+      assert.strictEqual(executeCount, 0);
+      assert.strictEqual(manager.getTask("disabled-due-task")?.enabled, false);
+      assert.strictEqual(manager.getTask("disabled-due-task")?.nextRun, undefined);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("scheduler tick removes a successful one-time due task from persisted state", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-tick-one-time-success-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-tick-one-time-success-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    let executeCount = 0;
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: "tick-one-time-success",
+                name: "Tick one-time success",
+                cron: "*/5 * * * *",
+                prompt: "run me once",
+                enabled: true,
+                oneTime: true,
+                createdAt: "2026-03-23T10:00:00.000Z",
+                updatedAt: "2026-03-23T10:00:00.000Z",
+                nextRun: "2026-03-23T10:05:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      await (manager as unknown as { checkAndExecuteTasks: () => Promise<void> }).checkAndExecuteTasks();
+
+      assert.strictEqual(executeCount, 1);
+      assert.strictEqual(manager.getTask("tick-one-time-success"), undefined);
+
+      const persisted = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as { tasks?: Array<{ id: string }> };
+      assert.deepStrictEqual(persisted.tasks ?? [], []);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("scheduler tick keeps a failing one-time due task and schedules a retry", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-tick-one-time-failure-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-tick-one-time-failure-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const beforeTick = new Date();
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: "tick-one-time-failure",
+                name: "Tick one-time failure",
+                cron: "*/5 * * * *",
+                prompt: "run me once",
+                enabled: true,
+                oneTime: true,
+                createdAt: "2026-03-23T10:00:00.000Z",
+                updatedAt: "2026-03-23T10:00:00.000Z",
+                nextRun: "2026-03-23T10:05:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => {
+        throw new Error("tick failure");
+      });
+
+      await (manager as unknown as { checkAndExecuteTasks: () => Promise<void> }).checkAndExecuteTasks();
+
+      const task = manager.getTask("tick-one-time-failure");
+      assert.ok(task);
+      assert.strictEqual(task?.lastError, "tick failure");
+      assert.ok(task?.lastErrorAt instanceof Date);
+      assert.ok(task?.nextRun instanceof Date);
+      assert.ok((task?.nextRun?.getTime() ?? 0) >= beforeTick.getTime());
+
+      const persisted = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as { tasks?: Array<{ id: string; lastError?: string }> };
+      assert.deepStrictEqual((persisted.tasks ?? []).map((task) => task.id), ["tick-one-time-failure"]);
+      assert.strictEqual(persisted.tasks?.[0]?.lastError, "tick failure");
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
 });
 
 suite("ScheduleManager History Snapshot Tests", () => {

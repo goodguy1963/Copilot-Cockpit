@@ -168,6 +168,76 @@ suite("Extension Test Suite", () => {
 
     assert.deepStrictEqual(refreshCalls, [true]);
   });
+
+  test("task execution chat session defaults one-time tasks to new", async () => {
+    const { __testOnly } = await import("../../extension");
+    const resolveTaskExecutionChatSession = __testOnly
+      .resolveTaskExecutionChatSession as
+      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
+      | undefined;
+
+    assert.ok(typeof resolveTaskExecutionChatSession === "function");
+
+    const result = resolveTaskExecutionChatSession!({
+      id: "one-time-task",
+      name: "One-time task",
+      cronExpression: "* * * * *",
+      prompt: "Ping",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: true,
+    } as ScheduledTask);
+
+    assert.strictEqual(result, "new");
+  });
+
+  test("task execution chat session leaves recurring tasks undefined by default", async () => {
+    const { __testOnly } = await import("../../extension");
+    const resolveTaskExecutionChatSession = __testOnly
+      .resolveTaskExecutionChatSession as
+      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
+      | undefined;
+
+    assert.ok(typeof resolveTaskExecutionChatSession === "function");
+
+    const result = resolveTaskExecutionChatSession!({
+      id: "recurring-task",
+      name: "Recurring task",
+      cronExpression: "* * * * *",
+      prompt: "Ping",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: false,
+    } as ScheduledTask);
+
+    assert.strictEqual(result, undefined);
+  });
+
+  test("task execution chat session preserves explicit task setting", async () => {
+    const { __testOnly } = await import("../../extension");
+    const resolveTaskExecutionChatSession = __testOnly
+      .resolveTaskExecutionChatSession as
+      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
+      | undefined;
+
+    assert.ok(typeof resolveTaskExecutionChatSession === "function");
+
+    const result = resolveTaskExecutionChatSession!({
+      id: "explicit-session-task",
+      name: "Explicit session task",
+      cronExpression: "* * * * *",
+      prompt: "Ping",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: true,
+      chatSession: "continue",
+    } as ScheduledTask);
+
+    assert.strictEqual(result, "continue");
+  });
 });
 
 suite("Cron Expression Tests", () => {
