@@ -269,11 +269,24 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       'var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");',
+      'var researchNewBtn = document.getElementById("research-new-btn");',
+      'function handleResearchToolbarAction(actionId) {',
+      'function handleResearchAction(actionId) {',
+      'function selectResearchProfile(researchId) {',
+      'function selectResearchRun(runId) {',
+      'if (actionId === "research-new-btn") {',
       "function getAutoAgentResearchExampleProfile()",
       'editablePaths: ["agent.py", "program.md"]',
       'metricPattern: "(?:score|reward)\\\\s*[:=]\\\\s*([0-9.]+)"',
-      'researchLoadAutoAgentExampleBtn.addEventListener("click", function () {',
+      '#research-new-btn, #research-load-autoagent-example-btn, #research-save-btn, #research-duplicate-btn, #research-delete-btn, #research-start-btn, #research-stop-btn',
+      'handleResearchAction(researchActionButton.id || "")',
       'resetResearchForm(getAutoAgentResearchExampleProfile());',
+      'researchFormDirty = true;',
+      'if (!researchFormDirty && !isCreatingResearchProfile) {',
+      'selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "")',
+      'selectResearchRun(researchRunCard.getAttribute("data-run-id") || "")',
+      'case "focusResearchProfile":',
+      'case "focusResearchRun":',
     ].forEach((snippet) => {
       assert.ok(
         scriptSource.includes(snippet),
@@ -350,6 +363,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "var effectiveSelectedId = selectedId || fallbackSelectedId || \"\";",
       "executionDefaults && executionDefaults.agent",
       "executionDefaults && executionDefaults.model",
+      "var pendingTaskListRender = false;",
+      "pendingTaskListRender = true;",
+      "function replayPendingTaskListRender() {",
+      "taskList.addEventListener(\"focusout\"",
       "renderTaskList(tasks);",
     ].forEach((snippet) => {
       assert.ok(
@@ -524,8 +541,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const templateSource = fs.readFileSync(templatePath, "utf8");
 
     [
-      'var chipMarkup = (cardFlag || visibleLabels.length)',
+      'var chipMarkup = (visibleFlags.length || visibleLabels.length)',
       'class="todo-list-chip-row"',
+      'class="card-flags"',
       'class="cockpit-card-details todo-list-card-details"',
       'class="note todo-list-detail-line todo-list-detail-line-description"',
       'class="note todo-list-detail-line todo-list-detail-line-comment"',
@@ -3097,6 +3115,46 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
       assert.strictEqual(message.type, "focusJob");
       assert.strictEqual(message.jobId, "job-1");
       assert.strictEqual(message.folderId, "folder-1");
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
+
+  test("focusResearchProfile posts research selection message", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = true;
+      wv.pendingMessages = [];
+
+      SchedulerWebview.focusResearchProfile("research-1");
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        researchId?: unknown;
+      };
+      assert.strictEqual(message.type, "focusResearchProfile");
+      assert.strictEqual(message.researchId, "research-1");
     } finally {
       wv.panel = originalPanel;
       wv.webviewReady = originalReady;

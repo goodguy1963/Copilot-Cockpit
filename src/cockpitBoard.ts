@@ -405,9 +405,19 @@ type SystemFlagSeed = {
 
 const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
   { key: "go", name: "go", color: "#22c55e", aliases: ["GO"] },
+  {
+    key: "linked-scheduled-task",
+    name: "Linked scheduled task",
+    color: "#0ea5e9",
+  },
   { key: "needs-bot-review", name: "needs-bot-review", color: "#f59e0b" },
   { key: "needs-user-review", name: "needs-user-review", color: "#3b82f6" },
   { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
+  {
+    key: "on-schedule-list",
+    name: "ON-SCHEDULE-LIST",
+    color: "#14b8a6",
+  },
   { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
 ];
 
@@ -555,22 +565,20 @@ function buildFlagCatalog(
   const catalog = new Map(entries.map((entry) => [entry.key, entry]));
 
   for (const card of cards) {
-    const flag = card.flags[0];
-    if (!flag) {
-      continue;
+    for (const flag of normalizeFlags(card.flags)) {
+      const key = normalizeLabelKey(flag);
+      if (!key || catalog.has(key) || deletedKeySet.has(key)) {
+        continue;
+      }
+      catalog.set(key, {
+        name: normalizeFlagName(flag) ?? flag,
+        key,
+        color: SYSTEM_FLAG_SEED_BY_KEY.get(key)?.color ?? "var(--vscode-badge-background)",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        system: SYSTEM_FLAG_SEED_BY_KEY.has(key),
+      });
     }
-    const key = normalizeLabelKey(flag);
-    if (!key || catalog.has(key) || deletedKeySet.has(key)) {
-      continue;
-    }
-    catalog.set(key, {
-      name: normalizeFlagName(flag) ?? flag,
-      key,
-      color: SYSTEM_FLAG_SEED_BY_KEY.get(key)?.color ?? "var(--vscode-badge-background)",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      system: SYSTEM_FLAG_SEED_BY_KEY.has(key),
-    });
   }
 
   for (const seed of SYSTEM_FLAG_SEEDS) {

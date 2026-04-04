@@ -765,6 +765,20 @@ export class SchedulerWebview {
     });
   }
 
+  static focusResearchProfile(researchId?: string): void {
+    this.postMessage({
+      type: "focusResearchProfile",
+      researchId: researchId || "",
+    });
+  }
+
+  static focusResearchRun(runId?: string): void {
+    this.postMessage({
+      type: "focusResearchRun",
+      runId: runId || "",
+    });
+  }
+
   /**
    * Start editing a specific task (opens edit mode in the webview)
    */

@@ -390,7 +390,7 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].taskId, undefined);
   });
 
-  test("closeout helper keeps only the first requested flag", async () => {
+  test("closeout helper preserves requested flags", async () => {
     const server = createServerContext({
       tasks: [],
       jobs: [],
@@ -433,8 +433,16 @@ suite("Scheduler MCP Server Tests", () => {
     );
     const payload = parseJsonText(response);
 
-    assert.deepStrictEqual(payload.todo.flags, ["needs-user-review"]);
-    assert.deepStrictEqual(server.getConfig().cockpitBoard.cards[0].flags, ["needs-user-review"]);
+    assert.deepStrictEqual(payload.todo.flags, [
+      "needs-user-review",
+      "scheduled-task",
+      "on-schedule-list",
+    ]);
+    assert.deepStrictEqual(server.getConfig().cockpitBoard.cards[0].flags, [
+      "needs-user-review",
+      "scheduled-task",
+      "on-schedule-list",
+    ]);
   });
 
   test("closeout helper does not recreate a missing todo", async () => {

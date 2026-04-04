@@ -2921,7 +2921,12 @@ export class ScheduleManager {
     if (updates.name !== undefined && !updates.name.trim()) {
       throw new Error(messages.taskNameRequired());
     }
-    if (updates.prompt !== undefined && !updates.prompt.trim()) {
+    const nextPromptSource = updates.promptSource ?? task.promptSource ?? "inline";
+    if (
+      updates.prompt !== undefined &&
+      !updates.prompt.trim() &&
+      nextPromptSource === "inline"
+    ) {
       throw new Error(messages.promptRequired());
     }
 

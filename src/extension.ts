@@ -2337,6 +2337,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         notifyInfo(`Research profile created: ${profile.name}`);
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchProfile(profile.id);
         break;
       }
 
@@ -2355,6 +2356,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         notifyInfo(`Research profile updated: ${profile.name}`);
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchProfile(profile.id);
         break;
       }
 
@@ -2379,6 +2381,10 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         await researchManager.deleteProfile(action.researchId);
         notifyInfo(`Research profile deleted: ${profile.name}`);
         refreshSchedulerUiState();
+        SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchProfile(
+          researchManager.getAllProfiles()[0]?.id,
+        );
         break;
       }
 
@@ -2394,6 +2400,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         notifyInfo(`Research profile duplicated: ${duplicate.name}`);
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchProfile(duplicate.id);
         break;
       }
 
@@ -2405,6 +2412,8 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         notifyInfo(`Research run started: ${run.profileName}`);
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchProfile(run.profileId);
+        SchedulerWebview.focusResearchRun(run.id);
         break;
       }
 
@@ -2417,6 +2426,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         notifyInfo("Research run stop requested.");
         refreshSchedulerUiState();
         SchedulerWebview.switchToTab("research");
+        SchedulerWebview.focusResearchRun(researchManager.getRecentRuns(1)[0]?.id);
         break;
       }
     }
