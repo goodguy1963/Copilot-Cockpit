@@ -32,6 +32,15 @@ import {
   readSchedulerConfig,
   writeSchedulerConfig,
 } from "./schedulerJsonSanitizer";
+import {
+  readWorkspaceSchedulerStateFromSqlite,
+  syncGlobalTasksToSqlite,
+  syncWorkspaceSchedulerStateToSqlite,
+} from "./sqliteBootstrap";
+import {
+  getConfiguredSchedulerStorageMode,
+  SQLITE_STORAGE_MODE,
+} from "./sqliteStorage";
 import { selectTaskStore } from "./taskStoreSelection";
 import {
   normalizeForCompare,
@@ -158,6 +167,7 @@ export class ScheduleManager {
   private storageRevision = 0;
 
   private saveQueue: Promise<void> = Promise.resolve();
+  private sqliteHydrationPromise: Promise<void> | undefined;
 
   private static readonly FIRST_RUN_DELAY_MINUTES = 3;
 
@@ -898,6 +908,324 @@ export class ScheduleManager {
         );
       }
     }
+
+    this.scheduleSqliteWorkspaceHydration();
+  }
+
+  private isWorkspaceSqliteModeEnabled(): boolean {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      return false;
+    }
+    return getConfiguredSchedulerStorageMode(vscode.Uri.file(workspaceRoot)) === SQLITE_STORAGE_MODE;
+  }
+
+  private scheduleSqliteWorkspaceHydration(): void {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot || !this.isWorkspaceSqliteModeEnabled()) {
+      return;
+    }
+    if (this.sqliteHydrationPromise) {
+      return;
+    }
+
+    this.sqliteHydrationPromise = this.hydrateWorkspaceTasksFromSqlite(workspaceRoot)
+      .catch((error) =>
+        logDebug(
+          "[CopilotScheduler] SQLite workspace hydration failed:",
+          toSafeErrorDetails(error),
+        ),
+      )
+      .finally(() => {
+        this.sqliteHydrationPromise = undefined;
+      });
+  }
+
+  private async hydrateWorkspaceTasksFromSqlite(workspaceRoot: string): Promise<void> {
+    const sqliteState = this.normalizeWorkspaceSchedulerState(
+      await readWorkspaceSchedulerStateFromSqlite(workspaceRoot),
+      workspaceRoot,
+    );
+
+    if (
+      sqliteState.tasks.length === 0 &&
+      sqliteState.jobs.length === 0 &&
+      sqliteState.jobFolders.length === 0
+    ) {
+      return;
+    }
+
+    const nextTasks = new Map<string, ScheduledTask>();
+    for (const task of this.tasks.values()) {
+      if (task.scope !== "workspace") {
+        nextTasks.set(task.id, task);
+      }
+    }
+    for (const task of sqliteState.tasks) {
+      nextTasks.set(task.id, task);
+    }
+
+    this.jobs = new Map(sqliteState.jobs.map((job) => [job.id, job]));
+    this.jobFolders = new Map(sqliteState.jobFolders.map((folder) => [folder.id, folder]));
+
+    this.tasks.clear();
+    for (const task of nextTasks.values()) {
+      task.createdAt = new Date(task.createdAt);
+      task.updatedAt = new Date(task.updatedAt);
+      if (task.lastRun !== undefined) {
+        task.lastRun = new Date(task.lastRun);
+      }
+      if (task.promptBackupUpdatedAt !== undefined) {
+        task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
+      }
+      if (task.nextRun !== undefined) {
+        task.nextRun = new Date(task.nextRun);
+      }
+      this.tasks.set(task.id, task);
+    }
+
+    this.notifyTasksChanged();
+  }
+
+  private normalizeWorkspaceSchedulerState(
+    config: {
+      tasks?: unknown[];
+      jobs?: unknown[];
+      jobFolders?: unknown[];
+    },
+    workspaceRoot: string,
+  ): WorkspaceSchedulerState {
+    const tasks = Array.isArray(config.tasks)
+      ? config.tasks.map((t: any) => {
+        const workspacePath =
+          typeof t.workspacePath === "string" && t.workspacePath.trim().length > 0
+            ? path.resolve(t.workspacePath)
+            : workspaceRoot;
+        return {
+          id: t.id,
+          name: t.name || t.id,
+          description: t.description || 'Auto-generated from scheduler.json',
+          cronExpression: t.cron,
+          prompt: t.prompt,
+          enabled: t.enabled !== false,
+          agent: t.agent,
+          model: t.model,
+          createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
+          updatedAt: t.updatedAt ? new Date(t.updatedAt) : new Date(),
+          lastRun: t.lastRun ? new Date(t.lastRun) : undefined,
+          lastError: t.lastError,
+          lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt) : undefined,
+          oneTime: t.oneTime === true,
+          manualSession:
+            t.oneTime === true
+              ? undefined
+              : t.manualSession === true
+                ? true
+                : undefined,
+          nextRun: t.nextRun ? new Date(t.nextRun) : undefined,
+          promptSource: t.promptSource || "inline",
+          promptPath: t.promptPath,
+          promptBackupPath: t.promptBackupPath,
+          promptBackupUpdatedAt: t.promptBackupUpdatedAt
+            ? new Date(t.promptBackupUpdatedAt)
+            : undefined,
+          jitterSeconds: t.jitterSeconds,
+          chatSession: this.normalizeTaskChatSession(
+            t.chatSession,
+            t.oneTime === true,
+          ),
+          labels: this.normalizeLabels(t.labels),
+          jobId:
+            typeof t.jobId === "string" && t.jobId.trim().length > 0
+              ? t.jobId.trim()
+              : undefined,
+          jobNodeId:
+            typeof t.jobNodeId === "string" && t.jobNodeId.trim().length > 0
+              ? t.jobNodeId.trim()
+              : undefined,
+          scope: "workspace" as TaskScope,
+          workspacePath,
+        };
+      })
+      : [];
+
+    const rawJobs = Array.isArray(config.jobs) ? config.jobs : [];
+
+    const jobs = rawJobs.reduce<JobDefinition[]>((acc, job) => {
+      if (
+        !job ||
+        typeof job !== "object" ||
+        typeof (job as { id?: unknown }).id !== "string" ||
+        (job as { id: string }).id.trim().length === 0 ||
+        typeof (job as { name?: unknown }).name !== "string" ||
+        (job as { name: string }).name.trim().length === 0 ||
+        typeof (job as { cronExpression?: unknown }).cronExpression !== "string" ||
+        (job as { cronExpression: string }).cronExpression.trim().length === 0
+      ) {
+        return acc;
+      }
+
+      const normalizedJob = job as JobDefinition;
+          const normalizedNodes: JobNode[] = Array.isArray(normalizedJob.nodes)
+            ? normalizedJob.nodes.reduce<JobNode[]>((acc, node) => {
+              if (!node || typeof node.id !== "string" || node.id.trim().length === 0) {
+                return acc;
+              }
+
+              if (node.type === "pause") {
+                const rawTitle = (node as { title?: unknown }).title;
+                if (typeof rawTitle !== "string" || rawTitle.trim().length === 0) {
+                  return acc;
+                }
+
+                acc.push({
+                  id: node.id.trim(),
+                  type: "pause" as const,
+                  title: rawTitle.trim(),
+                });
+                return acc;
+              }
+
+              const rawTaskId = (node as { taskId?: unknown }).taskId;
+              if (typeof rawTaskId !== "string" || rawTaskId.trim().length === 0) {
+                return acc;
+              }
+
+              acc.push({
+                id: node.id.trim(),
+                type: "task" as const,
+                taskId: rawTaskId.trim(),
+                windowMinutes: this.normalizeWindowMinutes(
+                  (node as { windowMinutes?: number }).windowMinutes,
+                ),
+              });
+              return acc;
+            }, [])
+            : [];
+
+          const pauseIds = new Set(
+            normalizedNodes
+              .filter((node): node is JobPauseNode => this.isPauseNode(node))
+              .map((node) => node.id),
+          );
+          const rawRuntime =
+            normalizedJob.runtime && typeof normalizedJob.runtime === "object"
+              ? (normalizedJob.runtime as JobRuntimeState)
+              : undefined;
+          const approvedPauseNodeIds = Array.isArray(rawRuntime?.approvedPauseNodeIds)
+            ? rawRuntime.approvedPauseNodeIds
+              .filter(
+                (value): value is string =>
+                  typeof value === "string" && pauseIds.has(value.trim()),
+              )
+              .map((value) => value.trim())
+            : [];
+          const waitingPause =
+            rawRuntime?.waitingPause && pauseIds.has(rawRuntime.waitingPause.nodeId.trim())
+              ? {
+                nodeId: rawRuntime.waitingPause.nodeId.trim(),
+                previousTaskId:
+                  typeof rawRuntime.waitingPause.previousTaskId === "string" &&
+                  rawRuntime.waitingPause.previousTaskId.trim().length > 0
+                    ? rawRuntime.waitingPause.previousTaskId.trim()
+                    : undefined,
+                activatedAt:
+                  typeof rawRuntime.waitingPause.activatedAt === "string" &&
+                  rawRuntime.waitingPause.activatedAt.trim().length > 0
+                    ? rawRuntime.waitingPause.activatedAt.trim()
+                    : new Date().toISOString(),
+              }
+              : undefined;
+          const runtime =
+            rawRuntime?.cycleStartedAt ||
+            rawRuntime?.currentSegmentStartedAt ||
+            approvedPauseNodeIds.length > 0 ||
+            waitingPause
+              ? {
+                cycleStartedAt:
+                  typeof rawRuntime?.cycleStartedAt === "string" &&
+                  rawRuntime.cycleStartedAt.trim().length > 0
+                    ? rawRuntime.cycleStartedAt.trim()
+                    : undefined,
+                currentSegmentStartedAt:
+                  typeof rawRuntime?.currentSegmentStartedAt === "string" &&
+                  rawRuntime.currentSegmentStartedAt.trim().length > 0
+                    ? rawRuntime.currentSegmentStartedAt.trim()
+                    : undefined,
+                approvedPauseNodeIds,
+                waitingPause,
+              }
+              : undefined;
+
+          acc.push({
+            ...normalizedJob,
+            folderId:
+              typeof normalizedJob.folderId === "string" && normalizedJob.folderId.trim().length > 0
+                ? normalizedJob.folderId.trim()
+                : undefined,
+            paused: normalizedJob.paused === true,
+            archived: normalizedJob.archived === true,
+            archivedAt:
+              typeof normalizedJob.archivedAt === "string" && normalizedJob.archivedAt.trim().length > 0
+                ? normalizedJob.archivedAt.trim()
+                : undefined,
+            lastCompiledTaskId:
+              typeof normalizedJob.lastCompiledTaskId === "string" &&
+              normalizedJob.lastCompiledTaskId.trim().length > 0
+                ? normalizedJob.lastCompiledTaskId.trim()
+                : undefined,
+            nodes: normalizedNodes,
+            runtime,
+            createdAt:
+              typeof normalizedJob.createdAt === "string" && normalizedJob.createdAt.trim().length > 0
+                ? normalizedJob.createdAt
+                : new Date().toISOString(),
+            updatedAt:
+              typeof normalizedJob.updatedAt === "string" && normalizedJob.updatedAt.trim().length > 0
+                ? normalizedJob.updatedAt
+                : new Date().toISOString(),
+          });
+
+      return acc;
+    }, []);
+
+    const rawJobFolders = Array.isArray(config.jobFolders) ? config.jobFolders : [];
+
+    const jobFolders = rawJobFolders.reduce<JobFolder[]>((acc, folder) => {
+      if (
+        !folder ||
+        typeof folder !== "object" ||
+        typeof (folder as { id?: unknown }).id !== "string" ||
+        (folder as { id: string }).id.trim().length === 0 ||
+        typeof (folder as { name?: unknown }).name !== "string" ||
+        (folder as { name: string }).name.trim().length === 0
+      ) {
+        return acc;
+      }
+
+      const normalizedFolder = folder as JobFolder;
+      acc.push({
+          id: normalizedFolder.id.trim(),
+          name: normalizedFolder.name.trim(),
+          parentId:
+            typeof normalizedFolder.parentId === "string" &&
+            normalizedFolder.parentId.trim().length > 0
+              ? normalizedFolder.parentId.trim()
+              : undefined,
+          createdAt:
+            typeof normalizedFolder.createdAt === "string" && normalizedFolder.createdAt.trim().length > 0
+              ? normalizedFolder.createdAt
+              : new Date().toISOString(),
+          updatedAt:
+            typeof normalizedFolder.updatedAt === "string" && normalizedFolder.updatedAt.trim().length > 0
+              ? normalizedFolder.updatedAt
+              : new Date().toISOString(),
+        });
+
+      return acc;
+    }, []);
+
+    return { tasks, jobs, jobFolders };
   }
 
   /**
@@ -1018,6 +1346,9 @@ export class ScheduleManager {
         writeSchedulerConfig(workspaceRoot, config, {
           baseConfig: existingConfig,
         });
+        if (this.isWorkspaceSqliteModeEnabled()) {
+          await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, config);
+        }
         this.pendingDeletedTaskIds.clear();
         this.pendingDeletedJobIds.clear();
         this.pendingDeletedJobFolderIds.clear();
@@ -1042,6 +1373,9 @@ export class ScheduleManager {
     try {
       await this.saveTasksToFile(tasksArray);
       await this.saveMetaToFile(meta);
+      if (this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()) {
+        await syncGlobalTasksToSqlite(this.context.globalStorageUri.fsPath, tasksArray);
+      }
       this.storageRevision = meta.revision;
 
       void Promise.all([
@@ -3193,223 +3527,7 @@ export class ScheduleManager {
         return { tasks: [], jobs: [], jobFolders: [] };
       }
 
-      const tasks: ScheduledTask[] = config.tasks.map((t: any) => {
-        const workspacePath =
-          typeof t.workspacePath === "string" && t.workspacePath.trim().length > 0
-            ? path.resolve(t.workspacePath)
-            : workspaceRoot;
-        return {
-          id: t.id,
-          name: t.name || t.id,
-          description: t.description || 'Auto-generated from scheduler.json',
-          cronExpression: t.cron,
-          prompt: t.prompt,
-          enabled: t.enabled !== false,
-          agent: t.agent,
-          model: t.model,
-          createdAt: t.createdAt ? new Date(t.createdAt) : new Date(),
-          updatedAt: t.updatedAt ? new Date(t.updatedAt) : new Date(),
-          lastRun: t.lastRun ? new Date(t.lastRun) : undefined,
-          lastError: t.lastError,
-          lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt) : undefined,
-          oneTime: t.oneTime === true,
-          manualSession:
-            t.oneTime === true
-              ? undefined
-              : t.manualSession === true
-                ? true
-                : undefined,
-          nextRun: t.nextRun ? new Date(t.nextRun) : undefined,
-          promptSource: t.promptSource || "inline",
-          promptPath: t.promptPath,
-          promptBackupPath: t.promptBackupPath,
-          promptBackupUpdatedAt: t.promptBackupUpdatedAt
-            ? new Date(t.promptBackupUpdatedAt)
-            : undefined,
-          jitterSeconds: t.jitterSeconds,
-          chatSession: this.normalizeTaskChatSession(
-            t.chatSession,
-            t.oneTime === true,
-          ),
-          labels: this.normalizeLabels(t.labels),
-          jobId:
-            typeof t.jobId === "string" && t.jobId.trim().length > 0
-              ? t.jobId.trim()
-              : undefined,
-          jobNodeId:
-            typeof t.jobNodeId === "string" && t.jobNodeId.trim().length > 0
-              ? t.jobNodeId.trim()
-              : undefined,
-          scope: "workspace" as TaskScope,
-          workspacePath,
-        };
-      });
-
-      const jobs = Array.isArray(config.jobs)
-        ? config.jobs
-          .filter(
-            (job): job is JobDefinition =>
-              !!job &&
-              typeof job.id === "string" &&
-              job.id.trim().length > 0 &&
-              typeof job.name === "string" &&
-              job.name.trim().length > 0 &&
-              typeof job.cronExpression === "string" &&
-              job.cronExpression.trim().length > 0,
-          )
-          .map((job) => {
-            const normalizedNodes: JobNode[] = Array.isArray(job.nodes)
-              ? job.nodes.reduce<JobNode[]>((acc, node) => {
-                if (!node || typeof node.id !== "string" || node.id.trim().length === 0) {
-                  return acc;
-                }
-
-                if (node.type === "pause") {
-                  const rawTitle = (node as { title?: unknown }).title;
-                  if (typeof rawTitle !== "string" || rawTitle.trim().length === 0) {
-                    return acc;
-                  }
-
-                  acc.push({
-                    id: node.id.trim(),
-                    type: "pause" as const,
-                    title: rawTitle.trim(),
-                  });
-                  return acc;
-                }
-
-                const rawTaskId = (node as { taskId?: unknown }).taskId;
-                if (typeof rawTaskId !== "string" || rawTaskId.trim().length === 0) {
-                  return acc;
-                }
-
-                acc.push({
-                  id: node.id.trim(),
-                  type: "task" as const,
-                  taskId: rawTaskId.trim(),
-                  windowMinutes: this.normalizeWindowMinutes(
-                    (node as { windowMinutes?: number }).windowMinutes,
-                  ),
-                });
-                return acc;
-              }, [])
-              : [];
-
-            const pauseIds = new Set(
-              normalizedNodes
-                .filter((node): node is JobPauseNode => this.isPauseNode(node))
-                .map((node) => node.id),
-            );
-            const rawRuntime =
-              job.runtime && typeof job.runtime === "object"
-                ? (job.runtime as JobRuntimeState)
-                : undefined;
-            const approvedPauseNodeIds = Array.isArray(rawRuntime?.approvedPauseNodeIds)
-              ? rawRuntime.approvedPauseNodeIds
-                .filter(
-                  (value): value is string =>
-                    typeof value === "string" && pauseIds.has(value.trim()),
-                )
-                .map((value) => value.trim())
-              : [];
-            const waitingPause =
-              rawRuntime?.waitingPause && pauseIds.has(rawRuntime.waitingPause.nodeId.trim())
-                ? {
-                  nodeId: rawRuntime.waitingPause.nodeId.trim(),
-                  previousTaskId:
-                    typeof rawRuntime.waitingPause.previousTaskId === "string" &&
-                    rawRuntime.waitingPause.previousTaskId.trim().length > 0
-                      ? rawRuntime.waitingPause.previousTaskId.trim()
-                      : undefined,
-                  activatedAt:
-                    typeof rawRuntime.waitingPause.activatedAt === "string" &&
-                    rawRuntime.waitingPause.activatedAt.trim().length > 0
-                      ? rawRuntime.waitingPause.activatedAt.trim()
-                      : new Date().toISOString(),
-                }
-                : undefined;
-            const runtime =
-              rawRuntime?.cycleStartedAt ||
-              rawRuntime?.currentSegmentStartedAt ||
-              approvedPauseNodeIds.length > 0 ||
-              waitingPause
-                ? {
-                  cycleStartedAt:
-                    typeof rawRuntime?.cycleStartedAt === "string" &&
-                    rawRuntime.cycleStartedAt.trim().length > 0
-                      ? rawRuntime.cycleStartedAt.trim()
-                      : undefined,
-                  currentSegmentStartedAt:
-                    typeof rawRuntime?.currentSegmentStartedAt === "string" &&
-                    rawRuntime.currentSegmentStartedAt.trim().length > 0
-                      ? rawRuntime.currentSegmentStartedAt.trim()
-                      : undefined,
-                  approvedPauseNodeIds,
-                  waitingPause,
-                }
-                : undefined;
-
-            return {
-              ...job,
-              folderId:
-                typeof job.folderId === "string" && job.folderId.trim().length > 0
-                  ? job.folderId.trim()
-                  : undefined,
-              paused: job.paused === true,
-              archived: job.archived === true,
-              archivedAt:
-                typeof job.archivedAt === "string" && job.archivedAt.trim().length > 0
-                  ? job.archivedAt.trim()
-                  : undefined,
-              lastCompiledTaskId:
-                typeof job.lastCompiledTaskId === "string" &&
-                job.lastCompiledTaskId.trim().length > 0
-                  ? job.lastCompiledTaskId.trim()
-                  : undefined,
-              nodes: normalizedNodes,
-              runtime,
-              createdAt:
-                typeof job.createdAt === "string" && job.createdAt.trim().length > 0
-                  ? job.createdAt
-                  : new Date().toISOString(),
-              updatedAt:
-                typeof job.updatedAt === "string" && job.updatedAt.trim().length > 0
-                  ? job.updatedAt
-                  : new Date().toISOString(),
-            };
-          })
-        : [];
-
-      const jobFolders = Array.isArray(config.jobFolders)
-        ? config.jobFolders
-          .filter(
-            (folder): folder is JobFolder =>
-              !!folder &&
-              typeof folder.id === "string" &&
-              folder.id.trim().length > 0 &&
-              typeof folder.name === "string" &&
-              folder.name.trim().length > 0,
-          )
-          .map((folder) => ({
-            id: folder.id.trim(),
-            name: folder.name.trim(),
-            parentId:
-              typeof folder.parentId === "string" &&
-              folder.parentId.trim().length > 0
-                ? folder.parentId.trim()
-                : undefined,
-            createdAt:
-              typeof folder.createdAt === "string" && folder.createdAt.trim().length > 0
-                ? folder.createdAt
-                : new Date().toISOString(),
-            updatedAt:
-              typeof folder.updatedAt === "string" && folder.updatedAt.trim().length > 0
-                ? folder.updatedAt
-                : new Date().toISOString(),
-          }))
-        : [];
-
-      return { tasks, jobs, jobFolders };
+      return this.normalizeWorkspaceSchedulerState(config, workspaceRoot);
     } catch (e) {
       console.error('Failed to load tasks from scheduler.json:', e);
       return { tasks: [], jobs: [], jobFolders: [] };

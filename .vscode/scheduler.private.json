@@ -9,7 +9,7 @@
             "archived": false,
             "nodes": [],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-04-01T17:43:51.954Z"
+            "updatedAt": "2026-04-04T00:06:20.897Z"
         }
     ],
     "jobFolders": [],
@@ -903,7 +903,7 @@
                 "id": "todo_mnbmrdjq_6ot5nl",
                 "title": "fgfg",
                 "description": "fgfg",
-                "sectionId": "section_mn9hvobp_ttw2do",
+                "sectionId": "section_mnc64kul_2dygkl",
                 "order": 0,
                 "priority": "medium",
                 "dueAt": "2026-03-05T11:42:00.000Z",
@@ -948,7 +948,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:49.936Z",
                 "createdAt": "2026-03-29T10:42:40.598Z",
-                "updatedAt": "2026-04-01T17:30:47.914Z"
+                "updatedAt": "2026-04-03T22:53:31.659Z"
             },
             {
                 "id": "todo_mnbmt2du_vey8le",
@@ -997,7 +997,7 @@
                 "title": "2",
                 "description": "whats next?",
                 "sectionId": "section_mnc64kul_2dygkl",
-                "order": 0,
+                "order": 1,
                 "priority": "none",
                 "status": "ready",
                 "labels": [
@@ -1115,48 +1115,6 @@
                 "updatedAt": "2026-03-29T21:38:31.999Z"
             },
             {
-                "id": "todo_mncadick_xfbptq",
-                "title": "Research",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 6,
-                "priority": "medium",
-                "status": "ready",
-                "labels": [
-                    "scheduled-task"
-                ],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mncd9diz_ct0995",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T23:04:30.395Z"
-                    },
-                    {
-                        "id": "comment_mngc48q3_2xvhin",
-                        "author": "system",
-                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
-                        "labels": [
-                            "scheduled-task"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-04-01T17:43:35.979Z"
-                    }
-                ],
-                "taskId": "task_1774820624347_er6ssw",
-                "archived": false,
-                "approvedAt": "2026-03-29T23:04:30.395Z",
-                "createdAt": "2026-03-29T21:43:44.347Z",
-                "updatedAt": "2026-04-01T17:43:35.979Z"
-            },
-            {
                 "id": "todo_mncadsha_oflulp",
                 "title": "Research",
                 "description": "Auto-generated from scheduler.json",
@@ -1192,40 +1150,9 @@
                         "createdAt": "2026-04-01T17:43:30.928Z"
                     }
                 ],
-                "taskId": "task_1774820637468_uatpgj",
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-04-01T17:43:30.928Z"
-            },
-            {
-                "id": "todo_mncaldd4_cm0n69",
-                "title": "Do Filter",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 5,
-                "priority": "none",
-                "status": "active",
-                "labels": [
-                    "scheduled-task"
-                ],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mngc46va_t0jccc",
-                        "author": "system",
-                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
-                        "labels": [
-                            "scheduled-task"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-04-01T17:43:33.574Z"
-                    }
-                ],
-                "taskId": "task_1774820991131_24potb",
-                "archived": false,
-                "createdAt": "2026-03-29T21:49:51.131Z",
-                "updatedAt": "2026-04-01T17:43:33.574Z"
+                "updatedAt": "2026-04-03T22:53:26.158Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
@@ -1350,6 +1277,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-01T17:43:35.979Z"
+        "updatedAt": "2026-04-03T22:53:31.659Z"
     }
 }

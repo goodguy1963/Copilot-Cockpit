@@ -81,7 +81,7 @@ If the embedded image does not render in your viewer, open the demo directly at 
 
 ## 🗂️ Repo-Local Storage And Boundaries
 
-- Workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
+- Workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`, and can also be mirrored into `.vscode/copilot-cockpit.db` when `copilotCockpit.storageMode` is set to `sqlite`.
 - Todo Cockpit state, local planning notes, Telegram secrets, and approvals stay in `.vscode/scheduler.private.json`.
 - Backup history is stored in `.vscode/scheduler-history`, and inline prompt backups are stored in `.vscode/cockpit-prompt-backups`.
 - Nested repos no longer inherit scheduler data from a parent workspace.
@@ -100,6 +100,7 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - `Approve` marks a todo as `ready`, `Final Accept` or `Complete & Archive` archives it as `completed-successfully`, and `Delete` lets you reject/archive or remove it permanently.
 - Cards support comments, due dates, labels, flags, task links, archive review, drag-drop between sections, and a collapsible filter bar.
 - Existing scheduled tasks can be surfaced into `Unsorted` when they are not already linked to a planning todo.
+- Use MCP tools or the extension UI to mutate Cockpit state. Direct edits to `.vscode/scheduler.private.json` should stay a last-resort recovery path because they bypass the normal validation and closeout flow.
 
 ### 🗓 Tasks
 
@@ -120,7 +121,7 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 
 ### 🔬 Research
 
-- Research profiles are stored in `.vscode/research.json` with history under `.vscode/research-history`.
+- Research profiles are stored in `.vscode/research.json` with history under `.vscode/research-history`; SQLite mode also imports and mirrors that state into `.vscode/copilot-cockpit.db` during bootstrap.
 - Each profile defines a benchmark command, metric extraction regex, optimization direction, run budget, and editable-path allowlist.
 - Runs are bounded by iteration count, elapsed time, benchmark timeout, and consecutive failure limits.
 - This is a benchmark-driven iteration surface, not an unrestricted autonomous code editor.
@@ -143,9 +144,13 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - Do not store live third-party API keys or tokens directly in `.vscode/mcp.json`. Use top-level `inputs` with `"type": "promptString"` and `"password": true`, then reference them with `${input:NAME}` placeholders.
 - MCP exposure is powerful and high-risk: once tools are visible to Copilot, they can inspect state, modify saved items, and trigger runs.
 - The MCP surface includes scheduler, jobs, research, and Todo Cockpit tools.
+- MCP tool semantics stay the same in JSON and SQLite modes. In SQLite mode the extension still keeps compatibility JSON mirrors and a workspace migration journal at `.vscode/copilot-cockpit.db-migration.json`.
 - Repo-local skills live in `.github/skills/cockpit-scheduler-agent/SKILL.md` and `.github/skills/cockpit-todo-agent/SKILL.md`.
+- For remediation or dispatcher work, start with a preflight: confirm the active workspace owns the referenced repo paths, then confirm the required MCP tool exists before mutating state.
 - Dispatcher agents should use `cockpit_list_routing_cards` first. It returns case-insensitive matches across labels, flags, and actionable comment labels so agents do not have to scan the full board payload.
 - In Todo Cockpit, `labels`, `flags`, and `comments[].labels` are distinct. `GO` is a flag here, not a label.
+- `flags` are single-value handoff state. `labels` are multi-value categorization. Do not try to preserve multiple active flags on one card.
+- Prefer `cockpit_closeout_todo` for verified implementation handoff. It can keep the card active for review, add one summary comment, respect missing sections, and clear stale linked task IDs.
 - Skill files are available in this workspace, but they are only applied when explicitly inserted or referenced in prompts.
 
 Manual `.vscode/mcp.json` example:
@@ -341,10 +346,13 @@ Store prompt templates for reuse:
 
 For local dispatcher agents that operate on Todo Cockpit cards:
 
+- Validate that the active workspace matches the referenced repo before touching Cockpit or scheduler state.
+- Check that the needed MCP tools are available before planning around them.
 - Use `cockpit_list_routing_cards` to find routed cards quickly.
 - Treat `labels`, `flags`, and comment labels as separate sources of truth.
 - Use the latest actionable user comment for intent, schedule overrides, and handoff decisions.
 - Do not rely on the raw board payload unless you are debugging the router itself.
+- Do not repair `.vscode/scheduler.json` or `.vscode/scheduler.private.json` directly after partial MCP mutations unless the user explicitly approves a last-resort recovery step.
 
 ## 📋 Requirements
 

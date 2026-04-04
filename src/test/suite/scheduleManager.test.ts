@@ -6,6 +6,7 @@ import * as vscode from "vscode";
 import { ScheduleManager } from "../../scheduleManager";
 import { messages } from "../../i18n";
 import { getScheduleHistoryRoot } from "../../scheduleHistory";
+import { readWorkspaceSchedulerStateFromSqlite } from "../../sqliteBootstrap";
 import {
   getPrivateSchedulerConfigPath,
   REDACTED_DISCORD_WEBHOOK_URL,
@@ -38,6 +39,43 @@ function createMockContext(storageRoot: string): vscode.ExtensionContext {
     globalState: new MockMemento(),
     globalStorageUri: vscode.Uri.file(storageRoot),
   } as unknown as vscode.ExtensionContext;
+}
+
+function setWorkspaceStorageModeForTest(mode: "json" | "sqlite"): () => void {
+  const originalGetConfiguration = vscode.workspace.getConfiguration;
+
+  (vscode.workspace as typeof vscode.workspace & {
+    getConfiguration: typeof vscode.workspace.getConfiguration;
+  }).getConfiguration = ((section?: string, scope?: vscode.ConfigurationScope) => {
+    const original = originalGetConfiguration(section as never, scope as never);
+    if (section !== "copilotCockpit") {
+      return original;
+    }
+
+    return {
+      ...original,
+      get<T>(key: string, defaultValue?: T): T {
+        if (key === "storageMode") {
+          return mode as T;
+        }
+        return original.get<T>(key, defaultValue as T);
+      },
+      inspect<T>(key: string) {
+        if (key === "storageMode") {
+          return {
+            workspaceFolderValue: mode as T,
+          } as ReturnType<typeof original.inspect<T>>;
+        }
+        return original.inspect<T>(key);
+      },
+    } as vscode.WorkspaceConfiguration;
+  }) as typeof vscode.workspace.getConfiguration;
+
+  return () => {
+    (vscode.workspace as typeof vscode.workspace & {
+      getConfiguration: typeof vscode.workspace.getConfiguration;
+    }).getConfiguration = originalGetConfiguration;
+  };
 }
 
 function createMockContextWithGlobalTasks(
@@ -1110,6 +1148,126 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
         });
       } catch {
         // ignore
+      }
+    }
+  });
+
+  test("mirrors workspace tasks into sqlite and hydrates them when sqlite mode is enabled", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const created = await manager.createTask({
+        name: "SQLite workspace task",
+        cronExpression: "0 * * * *",
+        prompt: "sqlite prompt",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      const sqliteState = await readWorkspaceSchedulerStateFromSqlite(workspaceRoot);
+      const sqliteTasks = sqliteState.tasks as Array<{ id: string; name: string }>;
+      assert.ok(sqliteTasks.some((task) => task.id === created.id && task.name === "SQLite workspace task"));
+
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      const schedulerJson = JSON.parse(fs.readFileSync(schedulerJsonPath, "utf8")) as {
+        tasks: Array<Record<string, unknown>>;
+      };
+      schedulerJson.tasks = [{
+        id: created.id,
+        name: "json stale name",
+        cron: "0 * * * *",
+        prompt: "stale json",
+        enabled: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }];
+      fs.writeFileSync(schedulerJsonPath, JSON.stringify(schedulerJson, null, 2), "utf8");
+
+      manager.reloadTasks();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      assert.strictEqual(manager.getTask(created.id)?.name, "SQLite workspace task");
+      assert.strictEqual(manager.getTask(created.id)?.prompt, "sqlite prompt");
+    } finally {
+      restoreMode();
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("hydrates jobs and folders from sqlite when sqlite mode is enabled", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-jobs-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-jobs-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const folder = await manager.createJobFolder({ name: "SQLite Folder" });
+      const job = await manager.createJob({
+        name: "SQLite Job",
+        cronExpression: "0 9 * * 1-5",
+        folderId: folder.id,
+      });
+
+      const sqliteState = await readWorkspaceSchedulerStateFromSqlite(workspaceRoot);
+      const sqliteJobs = sqliteState.jobs as Array<{ id: string; name: string; folderId?: string }>;
+      const sqliteFolders = sqliteState.jobFolders as Array<{ id: string; name: string }>;
+      assert.ok(sqliteJobs.some((entry) => entry.id === job.id && entry.folderId === folder.id));
+      assert.ok(sqliteFolders.some((entry) => entry.id === folder.id && entry.name === "SQLite Folder"));
+
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      const schedulerJson = JSON.parse(fs.readFileSync(schedulerJsonPath, "utf8")) as {
+        tasks: Array<Record<string, unknown>>;
+        jobs: Array<Record<string, unknown>>;
+        jobFolders: Array<Record<string, unknown>>;
+      };
+      schedulerJson.jobs = [];
+      schedulerJson.jobFolders = [];
+      fs.writeFileSync(schedulerJsonPath, JSON.stringify(schedulerJson, null, 2), "utf8");
+
+      manager.reloadTasks();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      assert.strictEqual(manager.getAllJobs().some((entry) => entry.id === job.id), true);
+      assert.strictEqual(manager.getAllJobFolders().some((entry) => entry.id === folder.id), true);
+    } finally {
+      restoreMode();
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
       }
     }
   });

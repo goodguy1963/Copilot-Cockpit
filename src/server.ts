@@ -313,6 +313,10 @@ function summarizeCockpitTodo(board: any, todo: any): Record<string, unknown> {
     };
 }
 
+// Prefer this helper for one-time execution closeout instead of hand-assembling
+// separate card updates, comment writes, and stale task cleanup. It keeps the
+// originating card intact, respects missing sections, and can clear a broken
+// task link in the same supported mutation path.
 function closeoutCockpitTodo(config: SchedulerConfig, args: Record<string, unknown>) {
     const board = getCockpitBoard(config);
     const todoId = ensureString(args.todoId, "todoId");
@@ -717,7 +721,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "scheduler_list_jobs",
-        description: "List all saved jobs and folders from .vscode/scheduler.json.",
+        description: "List all saved jobs and folders from the workspace scheduler store (.vscode/scheduler.json or the mirrored SQLite bootstrap store when SQLite mode is enabled).",
         inputSchema: { type: "object", properties: {} },
     },
     {
@@ -733,7 +737,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "scheduler_create_job",
-        description: "Create a new job definition in .vscode/scheduler.json.",
+        description: "Create a new job definition in the workspace scheduler store and keep compatibility mirrors in sync.",
         inputSchema: {
             type: "object",
             properties: {
@@ -787,7 +791,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "scheduler_list_job_folders",
-        description: "List all job folders from .vscode/scheduler.json.",
+        description: "List all job folders from the workspace scheduler store.",
         inputSchema: { type: "object", properties: {} },
     },
     {
@@ -928,12 +932,12 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_get_board",
-        description: "Get the internal Cockpit board with sections and summarized cards.",
+        description: "Get the internal Cockpit board from the workspace Cockpit store (JSON mirrors or SQLite-backed runtime state, depending on storage mode).",
         inputSchema: { type: "object", properties: {} },
     },
     {
         name: "cockpit_list_todos",
-        description: "List Cockpit todo cards, optionally filtered by section or label.",
+        description: "List Cockpit todo cards from the workspace Cockpit store, optionally filtered by section or label.",
         inputSchema: {
             type: "object",
             properties: {
@@ -967,7 +971,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_create_todo",
-        description: "Create a new Cockpit todo card in a section.",
+        description: "Create a new Cockpit todo card in the workspace Cockpit store and keep compatibility mirrors in sync.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1038,7 +1042,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_update_todo",
-        description: "Update an existing Cockpit todo card, including due date, labels, flags, and section.",
+        description: "Update an existing Cockpit todo card in the workspace Cockpit store, including due date, labels, flags, and section.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1062,7 +1066,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_closeout_todo",
-        description: "Apply an execution closeout update to a Cockpit todo, optionally add one summary comment, and clear a stale linked task when the scheduler task no longer exists.",
+        description: "Apply a deterministic execution closeout update to a Cockpit todo, optionally add one summary comment, and clear a stale linked task when the scheduler task no longer exists.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1110,7 +1114,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_set_filters",
-        description: "Update persisted Todo Cockpit filters and sort options.",
+        description: "Update persisted Todo Cockpit filters and sort options in the workspace Cockpit store.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1187,7 +1191,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "research_list_profiles",
-        description: "List research profiles from .vscode/research.json.",
+        description: "List research profiles from the workspace research store (.vscode/research.json plus mirrored SQLite state when enabled).",
         inputSchema: { type: "object", properties: {} },
     },
     {
@@ -1203,7 +1207,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "research_create_profile",
-        description: "Create a research profile in .vscode/research.json.",
+        description: "Create a research profile in the workspace research store and keep compatibility mirrors in sync.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1248,7 +1252,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "research_list_runs",
-        description: "List recent research runs from .vscode/research.json.",
+        description: "List recent research runs from the workspace research store.",
         inputSchema: { type: "object", properties: {} },
     },
     {

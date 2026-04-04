@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
-  "version": "99.0.74",
+  "version": "99.0.75",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",
@@ -273,6 +273,26 @@
           "default": "",
           "description": "%config.globalAgentsPath%"
         },
+        "copilotCockpit.storageMode": {
+          "type": "string",
+          "default": "json",
+          "scope": "resource",
+          "enum": [
+            "json",
+            "sqlite"
+          ],
+          "enumDescriptions": [
+            "%config.storageMode.json%",
+            "%config.storageMode.sqlite%"
+          ],
+          "description": "%config.storageMode%"
+        },
+        "copilotCockpit.sqliteJsonMirror": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.sqliteJsonMirror%"
+        },
         "copilotCockpit.reportIssue": {
           "type": "null",
           "markdownDescription": "%config.reportIssue%"
@@ -404,6 +424,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "cron-parser": "^4.9.0",
+    "sql.js": "^1.14.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

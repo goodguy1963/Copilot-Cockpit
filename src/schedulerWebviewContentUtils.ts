@@ -12,6 +12,7 @@ import type {
   ScheduleHistoryEntry,
   ScheduledTask,
   SkillReference,
+  StorageSettingsView,
   LogLevel,
   TelegramNotificationView,
 } from "./types";
@@ -90,6 +91,7 @@ type BuildSchedulerWebviewInitialDataParams = {
   currentCockpitBoard: CockpitBoard;
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
+  currentStorageSettings: StorageSettingsView;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
   currentRecentResearchRuns: ResearchRun[];
@@ -119,6 +121,7 @@ export function buildSchedulerWebviewInitialData(
     cockpitBoard: params.currentCockpitBoard,
     telegramNotification: params.currentTelegramNotification,
     executionDefaults: params.currentExecutionDefaults,
+    storageSettings: params.currentStorageSettings,
     researchProfiles: params.currentResearchProfiles,
     activeResearchRun: params.currentActiveResearchRun,
     recentResearchRuns: params.currentRecentResearchRuns,

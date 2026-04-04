@@ -13,7 +13,7 @@ import { SchedulerWebview } from "./schedulerWebview";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
-import { createDefaultCockpitBoard } from "./cockpitBoard";
+import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
 import {
   addCockpitTodoComment,
   addCockpitSection,
@@ -21,6 +21,7 @@ import {
   createCockpitTodo,
   deleteCockpitSection,
   ensureTaskTodos,
+  ensureTaskTodosInBoard,
   finalizeCockpitTodo,
   moveCockpitSection,
   moveCockpitTodo,
@@ -32,10 +33,12 @@ import {
   saveCockpitTodoLabelDefinition,
   saveCockpitFlagDefinition,
   deleteCockpitFlagDefinition,
+  setCockpitBoardPersistenceHooks,
   setCockpitBoardFilters,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
 import {
+  readSchedulerConfig,
   getResolvedWorkspaceRoots,
   setSchedulerConflictNotifier,
   wasSchedulerConfigWrittenRecently,
@@ -56,6 +59,14 @@ import {
   type SchedulerCommandName,
   updateCompatibleConfigurationValue,
 } from "./extensionCompat";
+import {
+  bootstrapConfiguredSqliteStorage,
+  bootstrapGlobalSqliteStorage,
+  bootstrapWorkspaceSqliteStorage,
+  exportWorkspaceSqliteToJsonMirrors,
+  readWorkspaceCockpitBoardFromSqlite,
+  syncWorkspaceCockpitBoardToSqlite,
+} from "./sqliteBootstrap";
 import {
   getTelegramNotificationView,
   saveTelegramNotificationConfig,
@@ -79,10 +90,12 @@ import {
 } from "./todoCockpitActionHandler";
 import type {
   AddCockpitTodoCommentInput,
+  CockpitBoard,
   CreateCockpitTodoInput,
   ScheduledTask,
   CreateTaskInput,
   CreateResearchProfileInput,
+  StorageSettingsView,
   TaskAction,
   ExecutionDefaultsView,
   PromptSource,
@@ -341,6 +354,9 @@ let researchManager: ResearchManager;
 let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
+let currentCockpitBoard: CockpitBoard | undefined;
+let currentCockpitBoardWorkspaceRoot: string | undefined;
+let cockpitBoardSqliteHydrationPromise: Promise<void> | undefined;
 let hasPromptedForMcpSetupThisSession = false;
 let extensionVersionChangedThisSession = false;
 let shouldAutoRepairWorkspaceSupportThisSession = false;
@@ -429,6 +445,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateCockpitBoard(getCurrentCockpitBoard());
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
+  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
   SchedulerWebview.updateResearchState(
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
@@ -455,6 +472,7 @@ async function showSchedulerWebview(
     getCurrentCockpitBoard(),
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
+    getCurrentStorageSettings(),
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
     researchManager.getRecentRuns(),
@@ -469,10 +487,82 @@ function getCurrentCockpitBoard() {
     return createDefaultCockpitBoard();
   }
 
-  return ensureTaskTodos(
+  const ensuredBoard = ensureTaskTodos(
     workspaceRoot,
     scheduleManager?.getAllTasks?.() ?? [],
   ).board;
+  currentCockpitBoard = normalizeCockpitBoard(ensuredBoard);
+  currentCockpitBoardWorkspaceRoot = workspaceRoot;
+  return currentCockpitBoard;
+}
+
+function isWorkspaceSqliteModeEnabled(workspaceRoot: string): boolean {
+  return getSchedulerSetting<string>("storageMode", "json", vscode.Uri.file(workspaceRoot)) === "sqlite";
+}
+
+function loadCockpitBoardFromMirrors(workspaceRoot: string): CockpitBoard {
+  const config = readSchedulerConfig(workspaceRoot);
+  const baseBoard = config.cockpitBoard
+    ? normalizeCockpitBoard(config.cockpitBoard)
+    : createDefaultCockpitBoard();
+  return ensureTaskTodosInBoard(
+    baseBoard,
+    scheduleManager?.getAllTasks?.() ?? [],
+  ).board;
+}
+
+function setCurrentCockpitBoard(
+  workspaceRoot: string,
+  board: CockpitBoard,
+): void {
+  currentCockpitBoardWorkspaceRoot = workspaceRoot;
+  currentCockpitBoard = normalizeCockpitBoard(board);
+}
+
+async function syncCockpitBoardToSqliteIfNeeded(
+  workspaceRoot: string,
+  board: CockpitBoard,
+): Promise<void> {
+  if (!isWorkspaceSqliteModeEnabled(workspaceRoot)) {
+    return;
+  }
+
+  await syncWorkspaceCockpitBoardToSqlite(workspaceRoot, board);
+}
+
+function scheduleCockpitBoardSqliteHydration(immediate = false): void {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot || !isWorkspaceSqliteModeEnabled(workspaceRoot)) {
+    return;
+  }
+  if (cockpitBoardSqliteHydrationPromise) {
+    return;
+  }
+
+  cockpitBoardSqliteHydrationPromise = readWorkspaceCockpitBoardFromSqlite(workspaceRoot)
+    .then((sqliteBoard) => {
+      if (!sqliteBoard) {
+        return;
+      }
+
+      const hydratedBoard = ensureTaskTodosInBoard(
+        normalizeCockpitBoard(sqliteBoard),
+        scheduleManager?.getAllTasks?.() ?? [],
+      ).board;
+      setCurrentCockpitBoard(workspaceRoot, hydratedBoard);
+      refreshSchedulerUiState(immediate);
+    })
+    .catch((error) =>
+      logError(
+        "[CopilotScheduler] SQLite Cockpit board hydration failed:",
+        sanitizeErrorDetailsForLog(
+          error instanceof Error ? error.message : String(error ?? ""),
+        ),
+      ),
+    )
+    .finally(() => {
+      cockpitBoardSqliteHydrationPromise = undefined;
+    });
 }
 
 function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
@@ -518,6 +608,16 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
   };
 }
 
+function getCurrentStorageSettings(): StorageSettingsView {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  return {
+    mode: getSchedulerSetting<string>("storageMode", "json", folderUri) === "sqlite"
+      ? "sqlite"
+      : "json",
+    sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
+  };
+}
+
 async function saveExecutionDefaults(
   input: Partial<ExecutionDefaultsView>,
 ): Promise<ExecutionDefaultsView> {
@@ -534,6 +634,36 @@ async function saveExecutionDefaults(
   await updateSchedulerSetting("defaultModel", nextModel, target, folderUri);
 
   return getCurrentExecutionDefaults();
+}
+
+async function importStorageFromJson(): Promise<void> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    throw new Error(messages.noWorkspaceOpen());
+  }
+
+  const storageSettings = getCurrentStorageSettings();
+  await bootstrapWorkspaceSqliteStorage(
+    workspaceRoot,
+    storageSettings.sqliteJsonMirror,
+  );
+
+  const globalStorageRoot = extensionContext?.globalStorageUri?.fsPath;
+  if (globalStorageRoot) {
+    await bootstrapGlobalSqliteStorage(globalStorageRoot);
+  }
+}
+
+async function exportStorageToJson(): Promise<void> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    throw new Error(messages.noWorkspaceOpen());
+  }
+
+  await exportWorkspaceSqliteToJsonMirrors(
+    workspaceRoot,
+    extensionContext?.globalStorageUri?.fsPath,
+  );
 }
 
 function getCurrentTelegramNotificationView() {
@@ -932,6 +1062,31 @@ export function activate(context: vscode.ExtensionContext): void {
   scheduleManager = new ScheduleManager(context);
   copilotExecutor = new CopilotExecutor();
   researchManager = new ResearchManager(context, copilotExecutor);
+  const initialWorkspaceRoot = getPrimaryWorkspaceRootPath();
+  if (initialWorkspaceRoot) {
+    setCurrentCockpitBoard(
+      initialWorkspaceRoot,
+      loadCockpitBoardFromMirrors(initialWorkspaceRoot),
+    );
+  }
+  setCockpitBoardPersistenceHooks({
+    loadBoard: (workspaceRoot) =>
+      currentCockpitBoardWorkspaceRoot === workspaceRoot
+        ? currentCockpitBoard
+        : undefined,
+    saveBoard: (workspaceRoot, board) => {
+      setCurrentCockpitBoard(workspaceRoot, board);
+      void syncCockpitBoardToSqliteIfNeeded(workspaceRoot, board).catch((error) =>
+        logError(
+          "[CopilotScheduler] SQLite Cockpit board sync failed:",
+          sanitizeErrorDetailsForLog(
+            error instanceof Error ? error.message : String(error ?? ""),
+          ),
+        ),
+      );
+    },
+  });
+  scheduleCockpitBoardSqliteHydration(true);
 
   // --- HBG CUSTOM: Watch .vscode/scheduler*.json ---
   if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -957,7 +1112,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
       try {
         console.log('[Scheduler] Reloading tasks from .vscode/scheduler.json or .vscode/scheduler.private.json');
+        currentCockpitBoard = undefined;
+        currentCockpitBoardWorkspaceRoot = undefined;
         scheduleManager.reloadTasks();
+        scheduleCockpitBoardSqliteHydration(true);
         await syncRecurringPromptBackupsIfNeeded(context, true);
       } catch (error) {
         logError(
@@ -1079,6 +1237,14 @@ export function activate(context: vscode.ExtensionContext): void {
       ),
     ),
   );
+  void bootstrapConfiguredSqliteStorage(context).catch((error) =>
+    logError(
+      "[CopilotScheduler] SQLite storage bootstrap failed:",
+      sanitizeErrorDetailsForLog(
+        error instanceof Error ? error.message : String(error ?? ""),
+      ),
+    ),
+  );
   void maybePromptToSetupWorkspaceMcp(context).catch((error) =>
     logError(
       "[CopilotScheduler] Workspace support repair prompt failed:",
@@ -1172,6 +1338,29 @@ export function activate(context: vscode.ExtensionContext): void {
       affectsCompatibleConfiguration(e, "defaultModel")
     ) {
       SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
+    }
+    const storageModeChanged = affectsCompatibleConfiguration(e, "storageMode");
+    const sqliteJsonMirrorChanged = affectsCompatibleConfiguration(e, "sqliteJsonMirror");
+    if (storageModeChanged || sqliteJsonMirrorChanged) {
+      SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+      if (storageModeChanged && extensionContext) {
+        void bootstrapConfiguredSqliteStorage(extensionContext).catch((error) =>
+          logError(
+            "[CopilotScheduler] SQLite storage bootstrap after settings change failed:",
+            sanitizeErrorDetailsForLog(
+              error instanceof Error ? error.message : String(error ?? ""),
+            ),
+          ),
+        );
+        void vscode.window.showInformationMessage(
+          "Storage backend updated. Reload the window to fully apply runtime storage changes.",
+          "Reload Now",
+        ).then((choice) => {
+          if (choice === "Reload Now") {
+            void vscode.commands.executeCommand("workbench.action.reloadWindow");
+          }
+        });
+      }
     }
     if (
       affectsCompatibleConfiguration(e, "globalPromptsPath") ||
@@ -1967,6 +2156,35 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         await vscode.commands.executeCommand(
           getCockpitCommandId("syncBundledSkills"),
         );
+        break;
+      }
+
+      case "importStorageFromJson": {
+        try {
+          await importStorageFromJson();
+          scheduleManager.reloadTasks();
+          scheduleCockpitBoardSqliteHydration(true);
+          refreshSchedulerUiState(true);
+          notifyInfo("Imported JSON mirrors into SQLite storage. Reload the window if you want every runtime surface to rehydrate immediately.");
+          SchedulerWebview.switchToTab("settings");
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error ?? "Storage import failed.");
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+        }
+        break;
+      }
+
+      case "exportStorageToJson": {
+        try {
+          await exportStorageToJson();
+          notifyInfo("Exported current SQLite state into the JSON compatibility mirrors.");
+          SchedulerWebview.switchToTab("settings");
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error ?? "Storage export failed.");
+          notifyError(msg);
+          SchedulerWebview.showError(msg);
+        }
         break;
       }
 

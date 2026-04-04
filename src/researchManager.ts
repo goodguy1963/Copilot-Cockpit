@@ -6,6 +6,14 @@ import { CopilotExecutor } from "./copilotExecutor";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { logError } from "./logger";
 import { getResolvedWorkspaceRoots } from "./schedulerJsonSanitizer";
+import {
+  readWorkspaceResearchStateFromSqlite,
+  syncWorkspaceResearchStateToSqlite,
+} from "./sqliteBootstrap";
+import {
+  getConfiguredSchedulerStorageMode,
+  SQLITE_STORAGE_MODE,
+} from "./sqliteStorage";
 import type {
   CreateResearchProfileInput,
   ResearchAttempt,
@@ -64,12 +72,14 @@ export class ResearchManager {
   private onChangedCallback: (() => void) | undefined;
   private activeChild: ChildProcess | undefined;
   private stopRequested = false;
+  private sqliteHydrationPromise: Promise<void> | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly copilotExecutor: CopilotExecutor,
   ) {
     this.loadState();
+    this.scheduleSqliteResearchHydration();
   }
 
   setOnChangedCallback(callback: () => void): void {
@@ -860,16 +870,69 @@ export class ResearchManager {
 
     try {
       const raw = fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "");
-      const parsed = JSON.parse(raw) as Partial<ResearchWorkspaceConfig>;
-      const profiles = Array.isArray(parsed.profiles) ? parsed.profiles : [];
-      const runs = Array.isArray(parsed.runs) ? parsed.runs : [];
-      this.profiles = new Map(
-        profiles
-          .filter((profile): profile is ResearchProfile => !!profile && typeof profile.id === "string")
-          .map((profile) => [profile.id, profile]),
-      );
-      this.runs = runs
-        .filter((run): run is ResearchRun => !!run && typeof run.id === "string")
+      const parsed = this.normalizeResearchState(JSON.parse(raw) as Partial<ResearchWorkspaceConfig>);
+      this.profiles = new Map(parsed.profiles.map((profile) => [profile.id, profile]));
+      this.runs = parsed.runs;
+      this.activeRunId = undefined;
+    } catch (error) {
+      logError("[CopilotScheduler] Failed to load research state:", toSafeErrorDetails(error));
+      this.profiles.clear();
+      this.runs = [];
+      this.activeRunId = undefined;
+    }
+  }
+
+  private isWorkspaceSqliteModeEnabled(): boolean {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      return false;
+    }
+    return getConfiguredSchedulerStorageMode(vscode.Uri.file(workspaceRoot)) === SQLITE_STORAGE_MODE;
+  }
+
+  private scheduleSqliteResearchHydration(): void {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot || !this.isWorkspaceSqliteModeEnabled() || this.sqliteHydrationPromise) {
+      return;
+    }
+
+    this.sqliteHydrationPromise = this.hydrateResearchStateFromSqlite(workspaceRoot)
+      .catch((error) =>
+        logError("[CopilotScheduler] SQLite research hydration failed:", toSafeErrorDetails(error)),
+      )
+      .finally(() => {
+        this.sqliteHydrationPromise = undefined;
+      });
+  }
+
+  private async hydrateResearchStateFromSqlite(workspaceRoot: string): Promise<void> {
+    const sqliteState = this.normalizeResearchState(
+      await readWorkspaceResearchStateFromSqlite(workspaceRoot),
+    );
+
+    if (sqliteState.profiles.length === 0 && sqliteState.runs.length === 0) {
+      return;
+    }
+
+    this.profiles = new Map(sqliteState.profiles.map((profile) => [profile.id, profile]));
+    this.runs = sqliteState.runs;
+    this.activeRunId = undefined;
+    this.notifyChanged();
+  }
+
+  private normalizeResearchState(
+    config: {
+      profiles?: unknown[];
+      runs?: unknown[];
+    },
+  ): { profiles: ResearchProfile[]; runs: ResearchRun[] } {
+    const profiles = Array.isArray(config.profiles)
+      ? config.profiles
+        .filter((profile): profile is ResearchProfile => !!profile && typeof (profile as ResearchProfile).id === "string")
+      : [];
+    const runs = Array.isArray(config.runs)
+      ? config.runs
+        .filter((run): run is ResearchRun => !!run && typeof (run as ResearchRun).id === "string")
         .map((run): ResearchRun => {
           if (run.status === "running" || run.status === "stopping") {
             return {
@@ -881,14 +944,10 @@ export class ResearchManager {
           }
           return run;
         })
-        .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
-      this.activeRunId = undefined;
-    } catch (error) {
-      logError("[CopilotScheduler] Failed to load research state:", toSafeErrorDetails(error));
-      this.profiles.clear();
-      this.runs = [];
-      this.activeRunId = undefined;
-    }
+        .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
+      : [];
+
+    return { profiles, runs };
   }
 
   private async saveState(): Promise<void> {
@@ -904,6 +963,9 @@ export class ResearchManager {
       runs: this.runs.slice(0, 30),
     };
     fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), "utf8");
+    if (this.isWorkspaceSqliteModeEnabled()) {
+      await syncWorkspaceResearchStateToSqlite(workspaceRoot, payload);
+    }
 
     for (const run of this.runs.slice(0, 10)) {
       this.writeRunRecord(workspaceRoot, run);

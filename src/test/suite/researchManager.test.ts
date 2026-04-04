@@ -5,6 +5,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ResearchManager } from "../../researchManager";
 import { CopilotExecutor } from "../../copilotExecutor";
+import { readWorkspaceResearchStateFromSqlite } from "../../sqliteBootstrap";
 
 class MockMemento implements vscode.Memento {
   private readonly store = new Map<string, unknown>();
@@ -46,6 +47,43 @@ function setWorkspaceFoldersForTest(root: string): () => void {
       configurable: true,
       value: original,
     });
+  };
+}
+
+function setWorkspaceStorageModeForTest(mode: "json" | "sqlite"): () => void {
+  const originalGetConfiguration = vscode.workspace.getConfiguration;
+
+  (vscode.workspace as typeof vscode.workspace & {
+    getConfiguration: typeof vscode.workspace.getConfiguration;
+  }).getConfiguration = ((section?: string, scope?: vscode.ConfigurationScope) => {
+    const original = originalGetConfiguration(section as never, scope as never);
+    if (section !== "copilotCockpit") {
+      return original;
+    }
+
+    return {
+      ...original,
+      get<T>(key: string, defaultValue?: T): T {
+        if (key === "storageMode") {
+          return mode as T;
+        }
+        return original.get<T>(key, defaultValue as T);
+      },
+      inspect<T>(key: string) {
+        if (key === "storageMode") {
+          return {
+            workspaceFolderValue: mode as T,
+          } as ReturnType<typeof original.inspect<T>>;
+        }
+        return original.inspect<T>(key);
+      },
+    } as vscode.WorkspaceConfiguration;
+  }) as typeof vscode.workspace.getConfiguration;
+
+  return () => {
+    (vscode.workspace as typeof vscode.workspace & {
+      getConfiguration: typeof vscode.workspace.getConfiguration;
+    }).getConfiguration = originalGetConfiguration;
   };
 }
 
@@ -143,6 +181,54 @@ suite("ResearchManager", () => {
       const runPath = path.join(workspaceRoot, ".vscode", "research-history", started.id, "run.json");
       assert.strictEqual(fs.existsSync(runPath), true);
     } finally {
+      restoreWorkspace();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+      fs.rmSync(storageRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+    }
+  });
+
+  test("sqlite mode mirrors research state and rehydrates it over stale json", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-sqlite-"));
+    const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-sqlite-storage-"));
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+    const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+
+    try {
+      const manager = new ResearchManager(
+        createMockContext(storageRoot),
+        { executePrompt: async () => undefined } as unknown as CopilotExecutor,
+      );
+
+      const profile = await manager.createProfile({
+        name: "SQLite research profile",
+        instructions: "Preserve through sqlite hydration.",
+        editablePaths: ["src/example.ts"],
+        benchmarkCommand: `${JSON.stringify(process.execPath)} -e "console.log('score: 1.5')"`,
+        metricPattern: "score:\\s*([0-9.]+)",
+        metricDirection: "maximize",
+      });
+
+      const sqliteState = await readWorkspaceResearchStateFromSqlite(workspaceRoot);
+      const sqliteProfiles = sqliteState.profiles as Array<{ id: string; name: string }>;
+      assert.ok(sqliteProfiles.some((entry) => entry.id === profile.id && entry.name === "SQLite research profile"));
+
+      const configPath = path.join(workspaceRoot, ".vscode", "research.json");
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ version: 1, profiles: [], runs: [] }, null, 2),
+        "utf8",
+      );
+
+      const reloadedManager = new ResearchManager(
+        createMockContext(storageRoot),
+        { executePrompt: async () => undefined } as unknown as CopilotExecutor,
+      );
+      await waitFor(() => reloadedManager.getAllProfiles().some((entry) => entry.id === profile.id));
+
+      assert.strictEqual(reloadedManager.getAllProfiles().some((entry) => entry.id === profile.id), true);
+    } finally {
+      restoreMode();
       restoreWorkspace();
       fs.rmSync(workspaceRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
       fs.rmSync(storageRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });

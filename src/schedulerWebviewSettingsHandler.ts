@@ -8,7 +8,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { notifyError } from "./extension";
-import type { WebviewToExtensionMessage } from "./types";
+import type { StorageSettingsView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { updateCompatibleConfigurationValue } from "./extensionCompat";
@@ -62,6 +62,33 @@ export async function handleSettingsWebviewMessage(
       ctx.postMessage({
         type: "updateLogLevel",
         logLevel: message.logLevel,
+      });
+      return true;
+    }
+    case "setStorageSettings": {
+      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
+      const target = getResourceScopedSettingsTarget();
+      const requested = message.data as Partial<StorageSettingsView> | undefined;
+      const mode = requested?.mode === "sqlite" ? "sqlite" : "json";
+      const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
+      await updateCompatibleConfigurationValue(
+        "storageMode",
+        mode,
+        target,
+        scope,
+      );
+      await updateCompatibleConfigurationValue(
+        "sqliteJsonMirror",
+        sqliteJsonMirror,
+        target,
+        scope,
+      );
+      ctx.postMessage({
+        type: "updateStorageSettings",
+        storageSettings: {
+          mode,
+          sqliteJsonMirror,
+        },
       });
       return true;
     }

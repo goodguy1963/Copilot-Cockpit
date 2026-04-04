@@ -27,6 +27,19 @@ import type {
   UpdateCockpitTodoInput,
 } from "./types";
 
+type CockpitBoardPersistenceHooks = {
+  loadBoard?: (workspaceRoot: string) => CockpitBoard | undefined;
+  saveBoard?: (workspaceRoot: string, board: CockpitBoard) => void;
+};
+
+let cockpitBoardPersistenceHooks: CockpitBoardPersistenceHooks = {};
+
+export function setCockpitBoardPersistenceHooks(
+  hooks?: CockpitBoardPersistenceHooks,
+): void {
+  cockpitBoardPersistenceHooks = hooks ?? {};
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -645,6 +658,7 @@ function persistBoard(workspaceRoot: string, board: CockpitBoard): CockpitBoard 
   }, {
     baseConfig: config,
   });
+  cockpitBoardPersistenceHooks.saveBoard?.(workspaceRoot, nextBoard);
   return nextBoard;
 }
 
@@ -810,6 +824,11 @@ function moveRecurringCardOutOfRecurringSection(
 }
 
 export function getCockpitBoard(workspaceRoot: string): CockpitBoard {
+  const hookedBoard = cockpitBoardPersistenceHooks.loadBoard?.(workspaceRoot);
+  if (hookedBoard) {
+    return normalizeCockpitBoard(hookedBoard);
+  }
+
   const config = readSchedulerConfig(workspaceRoot);
   if (config.cockpitBoard) {
     const nextBoard = normalizeCockpitBoard(config.cockpitBoard);

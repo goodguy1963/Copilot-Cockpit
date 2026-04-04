@@ -5,6 +5,9 @@ const ROOT_GITIGNORE_RELATIVE_PATH = ".gitignore";
 const VSCODE_GITIGNORE_RELATIVE_PATH = path.join(".vscode", ".gitignore");
 const VSCODE_IGNORE_ENTRIES = [
   "scheduler.private.json",
+  "copilot-cockpit.db",
+  "copilot-cockpit.db-migration.json",
+  "copilot-cockpit.private.json",
   "cockpit-prompt-backups/",
   "cockpit-input-uploads/",
   "scheduler-prompt-backups/",

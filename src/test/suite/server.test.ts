@@ -1,4 +1,6 @@
 import * as assert from "assert";
+import * as fs from "fs";
+import * as path from "path";
 import { DEFAULT_ARCHIVE_REJECTED_SECTION_ID } from "../../cockpitBoard";
 import { MCP_TOOL_DEFINITIONS, handleSchedulerToolCall } from "../../server";
 
@@ -75,6 +77,23 @@ suite("Scheduler MCP Server Tests", () => {
     assert.ok(toolNames.includes("research_list_profiles"));
     assert.ok(toolNames.includes("research_create_profile"));
     assert.ok(toolNames.includes("research_list_runs"));
+  });
+
+  test("MCP tool definitions match the dispatch switch cases", () => {
+    const serverSource = fs.readFileSync(
+      path.resolve(__dirname, "../../../src/server.ts"),
+      "utf8",
+    );
+    const dispatchCases = Array.from(
+      serverSource.matchAll(/case\s+"((?:scheduler|cockpit|research)_[^"]+)":/g),
+      (match) => match[1],
+    ).sort();
+    const definedTools = MCP_TOOL_DEFINITIONS
+      .map((tool) => tool.name)
+      .filter((name) => /^(scheduler|cockpit|research)_/.test(name))
+      .sort();
+
+    assert.deepStrictEqual(dispatchCases, definedTools);
   });
 
   test("cockpit tools create and comment on internal todos", async () => {
@@ -353,6 +372,92 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(payload.todo.taskId, undefined);
     assert.strictEqual(payload.todo.commentCount, 1);
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].taskId, undefined);
+  });
+
+  test("closeout helper keeps only the first requested flag", async () => {
+    const server = createServerContext({
+      tasks: [],
+      jobs: [],
+      jobFolders: [],
+      cockpitBoard: {
+        version: 4,
+        sections: [
+          { id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+        ],
+        cards: [
+          {
+            id: "card-flags",
+            title: "Dispatcher closeout",
+            sectionId: "unsorted",
+            order: 0,
+            priority: "medium",
+            status: "active",
+            labels: ["security"],
+            flags: ["go"],
+            comments: [],
+            archived: false,
+            createdAt: "2026-03-30T00:00:00.000Z",
+            updatedAt: "2026-03-30T00:00:00.000Z",
+          },
+        ],
+        filters: {
+          labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false,
+        },
+        updatedAt: "2026-03-30T00:00:00.000Z",
+      },
+    });
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_closeout_todo",
+      {
+        todoId: "card-flags",
+        flags: ["needs-user-review", "scheduled-task", "on-schedule-list"],
+      },
+      server.context as any,
+    );
+    const payload = parseJsonText(response);
+
+    assert.deepStrictEqual(payload.todo.flags, ["needs-user-review"]);
+    assert.deepStrictEqual(server.getConfig().cockpitBoard.cards[0].flags, ["needs-user-review"]);
+  });
+
+  test("closeout helper does not recreate a missing todo", async () => {
+    const server = createServerContext({
+      tasks: [],
+      jobs: [],
+      jobFolders: [],
+      cockpitBoard: {
+        version: 4,
+        sections: [
+          { id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-03-30T00:00:00.000Z", updatedAt: "2026-03-30T00:00:00.000Z" },
+        ],
+        cards: [],
+        filters: {
+          labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false,
+        },
+        updatedAt: "2026-03-30T00:00:00.000Z",
+      },
+    });
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_closeout_todo",
+      {
+        todoId: "missing-card",
+        flags: ["needs-user-review"],
+        summary: "Should not be written.",
+      },
+      server.context as any,
+    );
+    assert.ok(response);
+    assert.ok(Array.isArray(response.content));
+    assert.strictEqual(response.content[0]?.type, "text");
+    assert.strictEqual(response.content[0]?.text, "Cockpit todo 'missing-card' not found.");
+    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 0);
+    return;
+    const payload = parseJsonText(response);
+
+    assert.strictEqual(payload.error, "Cockpit todo 'missing-card' not found.");
+    assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 0);
   });
 
   test("cockpit seed tool surfaces scheduled tasks inside Todo Cockpit", async () => {

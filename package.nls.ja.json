@@ -47,6 +47,10 @@
   "config.minimumIntervalWarning": "30分未満のcron間隔を設定しようとしたときに警告を表示",
   "config.globalPromptsPath": "グローバルプロンプトテンプレートのカスタムパス。デフォルト: VS CodeのUser/promptsフォルダー（Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts または ~/.config/Code/User/prompts）",
   "config.globalAgentsPath": "グローバルエージェントファイル（*.agent.md）のカスタムパス。デフォルト: VS CodeのUser/promptsフォルダー（Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts または ~/.config/Code/User/prompts）",
+  "config.storageMode": "Scheduler と Cockpit の状態で使う主ストレージ方式。ワークスペースで SQLite 移行が完全に有効になるまでは JSON のままにしてください。",
+  "config.storageMode.json": ".vscode 配下の既存 JSON ファイルを正本ストアとして使う",
+  "config.storageMode.sqlite": "ローカル SQLite データベースを正本ストアとして使う",
+  "config.sqliteJsonMirror": "SQLite ストレージモード有効時に、移行とロールバックのため .vscode 配下へ互換 JSON ミラーも出力します。",
   "config.reportIssue": "🐛 バグを見つけた場合は [GitHub で報告](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
   "view.tasks": "スケジュールタスク"
 }

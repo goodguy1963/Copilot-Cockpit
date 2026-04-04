@@ -166,13 +166,12 @@ export class CopilotExecutor {
         "new",
       );
     let selectedModel = effectiveModel;
-    const requiresExplicitChatContext = Boolean(mode || selectedModel);
-    const shouldForceNewChat = chatSession === "new" || requiresExplicitChatContext;
+    const shouldForceNewChat = chatSession === "new";
 
     try {
-      // Explicit agent/model selection should not run inside an arbitrary
-      // existing conversation because that can silently reuse the active
-      // participant/model instead of the task-specific selection.
+      // Only force a fresh session when the task/config explicitly asks for it.
+      // A recurring task configured with `continue` should stay in the current
+      // chat flow even when it carries an agent or model preference.
       if (shouldForceNewChat) {
         const createdNewSession = await this.tryCreateNewChatSession();
         if (!createdNewSession && selectedModel) {
