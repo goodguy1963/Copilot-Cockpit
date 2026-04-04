@@ -3,10 +3,13 @@ const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const {
+  assertReleaseTagMatchesVersion,
   bumpWorkspaceVersion,
   cleanupTempArtifacts,
   cleanupVsixArtifacts,
-  getLatestVsixDirectory,
+  getDefaultVsixPath,
+  incrementPatchVersion,
+  readJson,
 } = require("./release-utils");
 
 function fail(message) {
@@ -22,10 +25,19 @@ if (!fs.existsSync(packageJsonPath)) {
 }
 
 cleanupTempArtifacts(workspaceRoot);
-const { pkg, version } = bumpWorkspaceVersion(workspaceRoot);
-const latestVsixDirectory = getLatestVsixDirectory(workspaceRoot);
+const currentPkg = readJson(packageJsonPath);
+const version = incrementPatchVersion(currentPkg.version);
+try {
+  assertReleaseTagMatchesVersion(
+    process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME,
+    version,
+  );
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
+const { pkg } = bumpWorkspaceVersion(workspaceRoot);
 const vsixFileName = `${pkg.name}-${version}.vsix`;
-const vsixPath = path.join(latestVsixDirectory, vsixFileName);
+const vsixPath = getDefaultVsixPath(workspaceRoot, pkg.name, version);
 const tempVsixDirectory = fs.mkdtempSync(
   path.join(os.tmpdir(), `${pkg.name}-vsix-`),
 );

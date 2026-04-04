@@ -2,7 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 const {
-  getLatestVsixDirectory,
+  getDefaultVsixPath,
+  getInstallExecutables,
   readJson,
 } = require("./release-utils");
 
@@ -21,21 +22,20 @@ if (!fs.existsSync(packageJsonPath)) {
 const pkg = readJson(packageJsonPath);
 const channel = (process.argv[2] || "stable").toLowerCase();
 const explicitVsixPath = process.argv[3];
-const latestVsixDirectory = getLatestVsixDirectory(workspaceRoot);
 const vsixPath = explicitVsixPath
   ? path.resolve(explicitVsixPath)
-  : path.join(latestVsixDirectory, `${pkg.name}-${pkg.version}.vsix`);
+  : getDefaultVsixPath(workspaceRoot, pkg.name, pkg.version);
 
 if (!fs.existsSync(vsixPath)) {
   fail(`VSIX not found: ${vsixPath}. Run 'npm run package:vsix' first.`);
 }
 
-const executables =
-  channel === "both"
-    ? ["code", "code-insiders"]
-    : channel === "insiders"
-      ? ["code-insiders"]
-      : ["code"];
+let executables;
+try {
+  executables = getInstallExecutables(channel);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
 
 for (const executable of executables) {
   const result =

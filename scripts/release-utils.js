@@ -57,6 +57,43 @@ function incrementPatchVersion(version) {
   return parts.join(".");
 }
 
+function normalizeReleaseTag(releaseTag) {
+  const trimmed = String(releaseTag || "").trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.startsWith("v") ? trimmed.slice(1) : trimmed;
+}
+
+function assertReleaseTagMatchesVersion(releaseTag, version) {
+  const normalizedTag = normalizeReleaseTag(releaseTag);
+  if (!normalizedTag) {
+    return;
+  }
+  const normalizedVersion = String(version || "").trim();
+  if (normalizedTag !== normalizedVersion) {
+    throw new Error(
+      `Release tag '${String(releaseTag)}' does not match packaged version '${normalizedVersion}'.`,
+    );
+  }
+}
+
+function extractTopChangelogSection(changelogText) {
+  const text = String(changelogText || "");
+  const headingMatch = text.match(/^## \[[^\n]+\][^\n]*$/m);
+  if (!headingMatch || typeof headingMatch.index !== "number") {
+    return "See CHANGELOG.md for details.";
+  }
+
+  const sectionStart = headingMatch.index + headingMatch[0].length;
+  const remaining = text.slice(sectionStart).replace(/^\r?\n+/, "");
+  const nextHeadingIndex = remaining.search(/\r?\n## \[/);
+  const sectionText =
+    nextHeadingIndex >= 0 ? remaining.slice(0, nextHeadingIndex) : remaining;
+  const normalized = sectionText.trim();
+  return normalized || "See CHANGELOG.md for details.";
+}
+
 function updateBuildNotesVersion(workspaceRoot, version) {
   const buildNotesPath = path.join(workspaceRoot, "BUILD_NOTES.md");
   if (!fs.existsSync(buildNotesPath)) {
@@ -96,6 +133,29 @@ function bumpWorkspaceVersion(workspaceRoot) {
 
 function getLatestVsixDirectory(workspaceRoot) {
   return ensureDirectory(path.join(workspaceRoot, "archive", "vsix", "latest"));
+}
+
+function getDefaultVsixPath(workspaceRoot, packageName, version) {
+  return path.join(
+    getLatestVsixDirectory(workspaceRoot),
+    `${packageName}-${version}.vsix`,
+  );
+}
+
+function getInstallExecutables(channel) {
+  const normalized = String(channel || "stable").trim().toLowerCase();
+  if (normalized === "both") {
+    return ["code", "code-insiders"];
+  }
+  if (normalized === "insiders") {
+    return ["code-insiders"];
+  }
+  if (normalized === "stable") {
+    return ["code"];
+  }
+  throw new Error(
+    `Unknown VSIX install channel '${channel}'. Expected stable, insiders, or both.`,
+  );
 }
 
 function collectVsixArtifacts(workspaceRoot) {
@@ -138,10 +198,17 @@ function cleanupVsixArtifacts(workspaceRoot, keepPaths = []) {
 }
 
 module.exports = {
+  assertReleaseTagMatchesVersion,
   bumpWorkspaceVersion,
   cleanupTempArtifacts,
   cleanupVsixArtifacts,
   ensureDirectory,
+  extractTopChangelogSection,
+  getDefaultVsixPath,
+  getInstallExecutables,
   getLatestVsixDirectory,
+  incrementPatchVersion,
+  normalizeReleaseTag,
+  parseVersion,
   readJson,
 };

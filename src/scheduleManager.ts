@@ -3490,6 +3490,7 @@ export class ScheduleManager {
       this.syncJobTaskSchedules(executedAt);
       if (this.isOneTimeExecutionTask(task)) {
         this.tasks.delete(task.id);
+        this.pendingDeletedTaskIds.add(task.id);
         this.suppressedOverdueTaskIds.delete(task.id);
       } else if (task.enabled) {
         const jobContext = task.jobId ? this.findJobNodeByTaskId(task.id) : undefined;

@@ -14,6 +14,19 @@
 				"install:vsix:insiders"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "Build MCP server bundle",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"esbuild-server",
+				"--",
+				"--sourcemap"
+			],
+			"isBackground": false,
+			"group": "build"
 		}
 	]
 }
