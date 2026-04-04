@@ -8,3 +8,8 @@ cockpit-input-uploads/
 
 # Copilot Cockpit private config
 copilot-cockpit-support/
+
+# Copilot Cockpit private config
+copilot-cockpit.db
+copilot-cockpit.db-migration.json
+copilot-cockpit.private.json

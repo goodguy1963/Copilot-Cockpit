@@ -539,8 +539,8 @@
                 "id": "todo_mnc4hppm_dztwob",
                 "title": "aa",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 2,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 1,
                 "priority": "medium",
                 "status": "active",
                 "labels": [
@@ -586,7 +586,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T19:00:55.154Z",
                 "createdAt": "2026-03-29T18:59:02.815Z",
-                "updatedAt": "2026-04-01T17:43:08.950Z"
+                "updatedAt": "2026-04-04T00:49:54.557Z"
             },
             {
                 "id": "todo_mnc49kym_nxxehd",
@@ -760,8 +760,8 @@
                 "id": "todo_mnbssevh_q7ta3h",
                 "title": "sdsd",
                 "description": "sdsd",
-                "sectionId": "unsorted",
-                "order": 1,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 2,
                 "priority": "none",
                 "status": "ready",
                 "labels": [],
@@ -804,7 +804,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T18:52:33.149Z",
                 "createdAt": "2026-03-29T13:31:26.669Z",
-                "updatedAt": "2026-03-31T20:40:42.549Z"
+                "updatedAt": "2026-04-04T00:49:57.085Z"
             },
             {
                 "id": "todo_mnbssyyg_cfe2tp",
@@ -852,8 +852,8 @@
                 "id": "todo_mnbnv2qm_uzedu5",
                 "title": "xyyx",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 0,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 3,
                 "priority": "none",
                 "status": "ready",
                 "labels": [],
@@ -897,7 +897,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:55.019Z",
                 "createdAt": "2026-03-29T11:13:32.810Z",
-                "updatedAt": "2026-04-01T17:30:49.380Z"
+                "updatedAt": "2026-04-04T00:49:58.761Z"
             },
             {
                 "id": "todo_mnbmrdjq_6ot5nl",
@@ -996,7 +996,7 @@
                 "id": "todo_mnanctyt_pez9mw",
                 "title": "2",
                 "description": "whats next?",
-                "sectionId": "section_mnc64kul_2dygkl",
+                "sectionId": "unsorted",
                 "order": 1,
                 "priority": "none",
                 "status": "ready",
@@ -1052,7 +1052,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T10:05:13.288Z",
                 "createdAt": "2026-03-28T18:11:35.477Z",
-                "updatedAt": "2026-04-01T17:16:29.699Z"
+                "updatedAt": "2026-04-04T00:50:02.605Z"
             },
             {
                 "id": "todo_mn975hc2_ae6w8w",
@@ -1118,8 +1118,8 @@
                 "id": "todo_mncadsha_oflulp",
                 "title": "Research",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 4,
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 0,
                 "priority": "none",
                 "status": "active",
                 "labels": [
@@ -1152,14 +1152,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-04-03T22:53:26.158Z"
+                "updatedAt": "2026-04-04T00:49:53.305Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
                 "title": "assa",
                 "description": "Auto-generated from scheduler.json",
                 "sectionId": "unsorted",
-                "order": 3,
+                "order": 0,
                 "priority": "medium",
                 "status": "active",
                 "labels": [
@@ -1182,7 +1182,7 @@
                 "taskId": "task_1774820899929_ua1d8h",
                 "archived": false,
                 "createdAt": "2026-03-29T21:48:19.929Z",
-                "updatedAt": "2026-04-01T17:43:10.876Z"
+                "updatedAt": "2026-04-04T00:50:04.049Z"
             }
         ],
         "labelCatalog": [
@@ -1277,6 +1277,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-03T22:53:31.659Z"
+        "updatedAt": "2026-04-04T00:50:04.049Z"
     }
 }

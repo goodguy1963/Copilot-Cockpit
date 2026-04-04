@@ -299,6 +299,12 @@
     }
     return options.boardColumns || null;
   }
+  function getBoardSectionElements(boardColumns) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return [];
+    }
+    return boardColumns.querySelectorAll(".board-column[data-section-id], .todo-list-section[data-section-id]");
+  }
   function getBoardTarget(eventOrTarget) {
     return getEventTargetElement(eventOrTarget);
   }
@@ -430,7 +436,7 @@
         dropSectionId = options.getLastDragOverSectionId();
       }
       if (dropSectionId && dropSectionId !== options.getDraggingSectionId()) {
-        var allSections = boardColumns.querySelectorAll("[data-section-id]");
+        var allSections = getBoardSectionElements(boardColumns);
         var targetIndex = -1;
         for (var i = 0; i < allSections.length; i += 1) {
           if (allSections[i].getAttribute("data-section-id") === dropSectionId) {
