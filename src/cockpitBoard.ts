@@ -42,6 +42,10 @@ const ARCHIVE_SECTIONS = [
 export const DEFAULT_ARCHIVE_COMPLETED_SECTION_ID = ARCHIVE_SECTIONS[0].id;
 export const DEFAULT_ARCHIVE_REJECTED_SECTION_ID = ARCHIVE_SECTIONS[1].id;
 
+const DEPRECATED_SECTION_TOKEN_KEYS = new Set([
+  "final-user-check",
+]);
+
 export function isRecurringTasksSectionId(sectionId: string | undefined): boolean {
   return sectionId === DEFAULT_RECURRING_TASKS_SECTION_ID;
 }
@@ -163,6 +167,56 @@ function normalizeOptionalIsoString(value: unknown): string | undefined {
 
 function normalizeLabelKey(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizeSemanticToken(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = normalizeLabelKey(value);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+export type CockpitSectionSemanticIssueCode =
+  | "deprecated-section-token"
+  | "protected-flag-name";
+
+export function getCockpitSectionSemanticIssue(
+  value: string | undefined,
+): CockpitSectionSemanticIssueCode | undefined {
+  const normalized = normalizeSemanticToken(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (DEPRECATED_SECTION_TOKEN_KEYS.has(normalized)) {
+    return "deprecated-section-token";
+  }
+
+  if (isProtectedCockpitFlagKey(normalized)) {
+    return "protected-flag-name";
+  }
+
+  return undefined;
+}
+
+export function describeCockpitSectionSemanticIssue(
+  value: string | undefined,
+): string | undefined {
+  const issue = getCockpitSectionSemanticIssue(value);
+  if (!issue) {
+    return undefined;
+  }
+
+  const requested = typeof value === "string" && value.trim()
+    ? value.trim()
+    : "";
+  if (issue === "deprecated-section-token") {
+    return `Section name '${requested}' is deprecated. Use an existing review-state flag such as 'needs-user-review' instead of 'final-user-check'.`;
+  }
+
+  return `Section name '${requested}' conflicts with a protected routing flag. Use a board section title that is distinct from Cockpit flag names.`;
 }
 
 function normalizeLabelColor(value: unknown): string {

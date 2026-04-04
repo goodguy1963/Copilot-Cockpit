@@ -94,6 +94,29 @@ suite("ScheduleHistory Tests", () => {
     assert.ok(!fs.existsSync(path.join(historyRoot, `scheduler-${baseTimestamp}.private.json`)));
   });
 
+  test("listScheduleHistoryEntries returns empty array when the history directory does not exist", () => {
+    const entries = listScheduleHistoryEntries(workspaceRoot);
+
+    assert.deepStrictEqual(entries, []);
+  });
+
+  test("listScheduleHistoryEntries returns entries in descending order (newest first)", () => {
+    const t1 = new Date(Date.UTC(2026, 3, 4, 9, 0, 0));
+    const t2 = new Date(Date.UTC(2026, 3, 4, 10, 0, 0));
+    const t3 = new Date(Date.UTC(2026, 3, 4, 11, 0, 0));
+
+    createScheduleHistorySnapshot(workspaceRoot, { tasks: [] }, { tasks: [] }, t2);
+    createScheduleHistorySnapshot(workspaceRoot, { tasks: [] }, { tasks: [] }, t1);
+    createScheduleHistorySnapshot(workspaceRoot, { tasks: [] }, { tasks: [] }, t3);
+
+    const entries = listScheduleHistoryEntries(workspaceRoot);
+
+    assert.deepStrictEqual(
+      entries.map((entry) => entry.id),
+      [String(t3.getTime()), String(t2.getTime()), String(t1.getTime())],
+    );
+  });
+
   test("ignores invalid snapshot payloads when reading and listing", () => {
     const historyRoot = getScheduleHistoryRoot(workspaceRoot);
     fs.mkdirSync(historyRoot, { recursive: true });

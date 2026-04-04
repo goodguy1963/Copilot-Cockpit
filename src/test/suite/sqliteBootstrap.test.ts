@@ -136,6 +136,44 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
+  test("bootstraps from the private scheduler mirror when the public mirror is malformed", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-private-fallback-");
+
+    try {
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+      fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
+      fs.writeFileSync(paths.publicSchedulerMirrorPath, "{ invalid json", "utf8");
+      fs.writeFileSync(
+        paths.privateSchedulerMirrorPath,
+        JSON.stringify({
+          tasks: [{ id: "task-private-1", name: "Private Task", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+          deletedTaskIds: ["task-private-deleted"],
+          jobs: [{ id: "job-private-1", name: "Private Job", cronExpression: "0 * * * *", nodes: [], createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+          jobFolders: [{ id: "folder-private-1", name: "Private Folder", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        }, null, 2),
+        "utf8",
+      );
+
+      const result = await bootstrapWorkspaceSqliteStorage(workspaceRoot, true);
+      const db = await openDatabase(paths.databasePath);
+
+      try {
+        assert.strictEqual(result.importCounts.workspaceTasks, 1);
+        assert.strictEqual(result.importCounts.deletedTaskIds, 1);
+        assert.strictEqual(result.importCounts.jobs, 1);
+        assert.strictEqual(result.importCounts.jobFolders, 1);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks"), 1);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_task_tombstones"), 1);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_jobs"), 1);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_job_folders"), 1);
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("bootstraps a global sqlite database file", async () => {
     const globalRoot = createTempRoot("copilot-sqlite-global-");
 
@@ -310,6 +348,177 @@ suite("SQLite Bootstrap Tests", () => {
       assert.strictEqual(researchConfig.profiles.length, 1);
       assert.strictEqual(globalTasks.length, 1);
       assert.ok(typeof globalMeta.revision === "number");
+      assert.ok(typeof globalMeta.savedAt === "string");
+    } finally {
+      cleanup(workspaceRoot);
+      cleanup(globalRoot);
+    }
+  });
+
+  test("bootstraps successfully when both scheduler mirrors are absent (empty state)", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-empty-bootstrap-");
+
+    try {
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+      fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
+
+      const result = await bootstrapWorkspaceSqliteStorage(workspaceRoot, false);
+      const db = await openDatabase(paths.databasePath);
+
+      try {
+        assert.strictEqual(result.created, true);
+        assert.strictEqual(result.importCounts.workspaceTasks, 0);
+        assert.strictEqual(result.importCounts.cockpitCards, 0);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks"), 0);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM cockpit_cards"), 0);
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("export skips global tasks when global sqlite database does not exist", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-export-no-global-");
+    const ghostGlobalRoot = createTempRoot("copilot-sqlite-ghost-global-");
+
+    try {
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-a", name: "Task A", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      // ghostGlobalRoot has no database file at all
+      const summary = await exportWorkspaceSqliteToJsonMirrors(workspaceRoot, ghostGlobalRoot);
+      const globalPaths = getGlobalStoragePaths(ghostGlobalRoot);
+
+      assert.strictEqual(summary.exportedCounts.workspaceTasks, 1);
+      assert.strictEqual(summary.globalTasksPath, undefined);
+      assert.ok(!fs.existsSync(globalPaths.scheduledTasksPath));
+    } finally {
+      cleanup(workspaceRoot);
+      cleanup(ghostGlobalRoot);
+    }
+  });
+
+  test("export preserves tombstones in the public scheduler mirror", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-export-tombstone-");
+    const globalRoot = createTempRoot("copilot-sqlite-export-tombstone-global-");
+
+    try {
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "live-task", name: "Live Task", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: ["dead-task-1", "dead-task-2"],
+        jobs: [{ id: "live-job", name: "Live Job", cronExpression: "0 * * * *", nodes: [], createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedJobIds: ["dead-job"],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      await exportWorkspaceSqliteToJsonMirrors(workspaceRoot, globalRoot);
+
+      const workspacePaths = getWorkspaceStoragePaths(workspaceRoot);
+      const publicConfig = JSON.parse(fs.readFileSync(workspacePaths.publicSchedulerMirrorPath, "utf8"));
+
+      assert.strictEqual(publicConfig.tasks.length, 1);
+      assert.strictEqual(publicConfig.tasks[0].id, "live-task");
+      assert.deepStrictEqual(publicConfig.deletedTaskIds.sort(), ["dead-task-1", "dead-task-2"]);
+      assert.strictEqual(publicConfig.jobs.length, 1);
+      assert.deepStrictEqual(publicConfig.deletedJobIds, ["dead-job"]);
+    } finally {
+      cleanup(workspaceRoot);
+      cleanup(globalRoot);
+    }
+  });
+
+  test("exports authoritative sqlite state into stale mirrors and preserves metadata versions", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-export-preserve-");
+    const globalRoot = createTempRoot("copilot-sqlite-export-preserve-global-");
+
+    try {
+      const workspacePaths = getWorkspaceStoragePaths(workspaceRoot);
+      const globalPaths = getGlobalStoragePaths(globalRoot);
+      fs.mkdirSync(path.dirname(workspacePaths.publicSchedulerMirrorPath), { recursive: true });
+      fs.mkdirSync(globalRoot, { recursive: true });
+
+      fs.writeFileSync(
+        workspacePaths.publicSchedulerMirrorPath,
+        JSON.stringify({
+          tasks: [{ id: "stale-task", name: "Stale Task", createdAt: "2026-04-03T00:00:00.000Z", updatedAt: "2026-04-03T00:00:00.000Z" }],
+          jobs: [],
+          jobFolders: [],
+        }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        workspacePaths.privateSchedulerMirrorPath,
+        JSON.stringify({
+          tasks: [],
+          jobs: [],
+          jobFolders: [],
+          telegramNotification: {
+            enabled: true,
+            botToken: "secret-token",
+            chatId: "12345",
+          },
+        }, null, 2),
+        "utf8",
+      );
+      const now = new Date();
+      fs.utimesSync(workspacePaths.privateSchedulerMirrorPath, now, new Date(now.getTime() + 1000));
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "research.json"),
+        JSON.stringify({
+          version: 7,
+          profiles: [],
+          runs: [],
+        }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        globalPaths.scheduledTasksMetaPath,
+        JSON.stringify({
+          revision: 9,
+          savedAt: "2026-04-03T00:00:00.000Z",
+        }, null, 2),
+        "utf8",
+      );
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Fresh Task", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: ["task-deleted"],
+        jobs: [{ id: "job-1", name: "Fresh Job", cronExpression: "0 * * * *", nodes: [], createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+      await syncWorkspaceResearchStateToSqlite(workspaceRoot, {
+        profiles: [{ id: "research-1", name: "Profile 1", instructions: "Do work", editablePaths: [], benchmarkCommand: "npm test", metricPattern: "ok", metricDirection: "maximize", maxIterations: 1, maxMinutes: 5, maxConsecutiveFailures: 1, benchmarkTimeoutSeconds: 60, editWaitSeconds: 5, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        runs: [],
+      } as any);
+      await syncGlobalTasksToSqlite(globalRoot, [
+        { id: "global-task-1", name: "Global Task 1", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" },
+      ]);
+
+      const summary = await exportWorkspaceSqliteToJsonMirrors(workspaceRoot, globalRoot);
+      const publicConfig = JSON.parse(fs.readFileSync(workspacePaths.publicSchedulerMirrorPath, "utf8"));
+      const privateConfig = JSON.parse(fs.readFileSync(workspacePaths.privateSchedulerMirrorPath, "utf8"));
+      const researchConfig = JSON.parse(fs.readFileSync(path.join(workspaceRoot, ".vscode", "research.json"), "utf8"));
+      const globalMeta = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksMetaPath, "utf8"));
+
+      assert.strictEqual(summary.exportedCounts.workspaceTasks, 1);
+      assert.strictEqual(publicConfig.tasks.length, 1);
+      assert.strictEqual(publicConfig.tasks[0].id, "task-1");
+      assert.deepStrictEqual(publicConfig.deletedTaskIds, ["task-deleted"]);
+      assert.strictEqual(privateConfig.telegramNotification.botToken, "secret-token");
+      assert.strictEqual(researchConfig.version, 7);
+      assert.strictEqual(researchConfig.profiles.length, 1);
+      assert.strictEqual(globalMeta.revision, 10);
       assert.ok(typeof globalMeta.savedAt === "string");
     } finally {
       cleanup(workspaceRoot);

@@ -378,6 +378,10 @@ suite("Scheduler MCP Server Tests", () => {
 
     assert.strictEqual(payload.requestedSectionId, "final-user-check");
     assert.strictEqual(payload.requestedSectionFound, false);
+    assert.strictEqual(
+      payload.sectionValidationError,
+      "Section name 'final-user-check' is deprecated. Use an existing review-state flag such as 'needs-user-review' instead of 'final-user-check'.",
+    );
     assert.strictEqual(payload.checkedTaskId, "task-missing");
     assert.strictEqual(payload.linkedTaskExists, false);
     assert.strictEqual(payload.staleTaskIdCleared, true);

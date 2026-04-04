@@ -1,4 +1,5 @@
 import {
+  describeCockpitSectionSemanticIssue,
   normalizeCockpitDisabledSystemFlagKeys,
   DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
   DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
@@ -1515,8 +1516,15 @@ export function restoreCockpitTodo(
 export function addCockpitSection(
   workspaceRoot: string,
   title: string,
-): CockpitBoard {
+): { board: CockpitBoard; validationError?: string } {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  const validationError = describeCockpitSectionSemanticIssue(title);
+  if (validationError) {
+    return {
+      board: persistBoard(workspaceRoot, nextBoard),
+      validationError,
+    };
+  }
   const timestamp = nowIso();
   const maxOrder = nextBoard.sections.reduce((m, s) => Math.max(m, s.order ?? 0), -1);
   nextBoard.sections.push({
@@ -1527,17 +1535,24 @@ export function addCockpitSection(
     updatedAt: timestamp,
   });
   touchBoard(nextBoard, timestamp);
-  return persistBoard(workspaceRoot, nextBoard);
+  return { board: persistBoard(workspaceRoot, nextBoard) };
 }
 
 export function renameCockpitSection(
   workspaceRoot: string,
   sectionId: string,
   title: string,
-): CockpitBoard {
+): { board: CockpitBoard; validationError?: string } {
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
   if (isArchiveSectionId(sectionId)) {
-    return persistBoard(workspaceRoot, nextBoard);
+    return { board: persistBoard(workspaceRoot, nextBoard) };
+  }
+  const validationError = describeCockpitSectionSemanticIssue(title);
+  if (validationError) {
+    return {
+      board: persistBoard(workspaceRoot, nextBoard),
+      validationError,
+    };
   }
   const section = nextBoard.sections.find((s) => s.id === sectionId);
   if (section && String(title || "").trim()) {
@@ -1545,7 +1560,7 @@ export function renameCockpitSection(
     section.updatedAt = nowIso();
     touchBoard(nextBoard);
   }
-  return persistBoard(workspaceRoot, nextBoard);
+  return { board: persistBoard(workspaceRoot, nextBoard) };
 }
 
 export function deleteCockpitSection(

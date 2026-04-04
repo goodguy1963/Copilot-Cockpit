@@ -406,8 +406,8 @@ Flag capabilities in the editor:
 
 Important flag behavior:
 
-- Only one flag is kept per card.
-- If multiple flags are provided through MCP or updates, only the first is retained.
+- Most handoff flows should keep one explicit review-state flag per card.
+- Live scheduled cards may intentionally keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST` while the scheduler task still exists.
 - Deleting a flag definition strips that flag from existing todo cards.
 
 ### 9.6 Editor actions
@@ -875,10 +875,10 @@ Labels:
 
 Flags:
 
-- Single-value
+- Routing-state
 - Agent-state indicator
 - Displayed as squared chips
-- Only one is retained on a card at a time
+- Final review handoff should normally use one explicit flag, but live scheduled cards may keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST`
 - Can have shared color definitions
 
 This distinction matters in both the UI and the MCP contract.
@@ -889,7 +889,7 @@ A typical implementation-aligned workflow is:
 
 1. Capture work in Todo Cockpit.
 2. Add context in the description and comments.
-3. Tag with labels and a single state flag.
+3. Tag with labels and an explicit review-state flag when needed.
 4. Move it into the right section.
 5. Approve it when the plan is good enough.
 6. Either final-accept/archive it when complete, or convert it into a task draft if it should run on a schedule.
@@ -898,7 +898,7 @@ A typical implementation-aligned workflow is:
 ## 23. Common Mistakes To Avoid
 
 - Do not treat Todo cards and scheduled tasks as interchangeable records. They are separate artifacts with separate MCP tool families.
-- Do not assume multiple flags can be preserved on one card. Only one flag is retained at a time; use labels for multi-value categorization.
+- Do not invent arbitrary multi-flag routing state. Preserve the built-in scheduled pair only for live scheduled cards, and use one explicit review-state flag such as `needs-user-review` for final handoff.
 - Do not use labels as a substitute for agent routing or review-state handoff.
 - Do not recreate a missing card as the default closeout behavior for a completed one-time execution. Prefer deterministic closeout on the originating card.
 - Do not patch `.vscode/scheduler.private.json` directly after a partial MCP workflow unless you are on an explicit last-resort recovery path.

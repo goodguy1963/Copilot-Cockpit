@@ -437,7 +437,11 @@ export async function handleTodoCockpitAction(
       if (!workspaceRoot || !action.sectionTitle) {
         return true;
       }
-      addCockpitSection(workspaceRoot, action.sectionTitle);
+      const result = addCockpitSection(workspaceRoot, action.sectionTitle);
+      if (result.validationError) {
+        deps.notifyError(result.validationError);
+        return true;
+      }
       deps.refreshSchedulerUiState();
       SchedulerWebview.switchToTab("board");
       return true;
@@ -448,7 +452,11 @@ export async function handleTodoCockpitAction(
       if (!workspaceRoot || !action.sectionId || !action.sectionTitle) {
         return true;
       }
-      renameCockpitSection(workspaceRoot, action.sectionId, action.sectionTitle);
+      const result = renameCockpitSection(workspaceRoot, action.sectionId, action.sectionTitle);
+      if (result.validationError) {
+        deps.notifyError(result.validationError);
+        return true;
+      }
       deps.refreshSchedulerUiState();
       SchedulerWebview.switchToTab("board");
       return true;

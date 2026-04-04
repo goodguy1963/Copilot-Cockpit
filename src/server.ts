@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 import {
     createDefaultCockpitBoard,
+    describeCockpitSectionSemanticIssue,
     isProtectedCockpitFlagKey,
     normalizeCockpitBoard,
 } from "./cockpitBoard.js";
@@ -329,6 +330,7 @@ function closeoutCockpitTodo(config: SchedulerConfig, args: Record<string, unkno
     const requestedSectionId = typeof args.sectionId === "string" && args.sectionId.trim()
         ? args.sectionId.trim()
         : undefined;
+    const sectionValidationError = describeCockpitSectionSemanticIssue(requestedSectionId);
     const requestedSectionFound = requestedSectionId
         ? Boolean(getCockpitSection(board, requestedSectionId))
         : undefined;
@@ -400,6 +402,7 @@ function closeoutCockpitTodo(config: SchedulerConfig, args: Record<string, unkno
         todo: result.todo,
         requestedSectionId,
         requestedSectionFound,
+        sectionValidationError,
         checkedTaskId,
         linkedTaskExists,
         staleTaskIdCleared,
@@ -982,7 +985,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string", description: "Optional target section ID." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional labels." },
-                flags: { type: "array", items: { type: "string" }, description: "Single agent-state flag (only first value is kept). Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, but scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'. Use cockpit_save_flag_definition to manage flag colors." },
                 comment: { type: "string", description: "Optional initial comment." },
                 author: { type: "string", description: "Optional initial comment author: user or system." },
                 commentSource: { type: "string", description: "Optional initial comment source: human-form, bot-mcp, bot-manual, or system-event." },
@@ -1055,7 +1058,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 status: { type: "string", description: "active, ready, completed, or rejected." },
                 labels: { type: "array", items: { type: "string" } },
-                flags: { type: "array", items: { type: "string" }, description: "Single agent-state flag (only first value is kept). Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, but scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'. Use cockpit_save_flag_definition to manage flag colors." },
                 order: { type: "number" },
                 taskId: { type: "string" },
                 sessionId: { type: "string" },
@@ -1077,7 +1080,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 status: { type: "string", description: "active, ready, completed, or rejected." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional replacement label list for the card. Use labels for multi-value categorization such as scheduled-task." },
-                flags: { type: "array", items: { type: "string" }, description: "Optional replacement flag list for the card. Only the first value is kept, so pass at most one active review-state or routing flag." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional replacement flag list for the card. Use one explicit review-state flag for final handoff; keep the built-in scheduled pair only while the card still represents a live scheduled item." },
                 taskId: { type: "string", description: "Optional linked task ID to set. Pass an empty string to clear the link explicitly." },
                 clearTaskIdIfMissing: { type: "boolean", description: "When true, clear the linked taskId if the checked scheduler task does not exist." },
                 commentLabels: { type: "array", items: { type: "string" }, description: "Optional labels to attach to the summary comment." },
@@ -1169,7 +1172,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_save_flag_definition",
-        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are single-value agent-state indicators displayed as squared chips (border-radius: 4px). Only one flag per card is kept at a time.",
+        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are squared routing-state chips; review handoff normally uses one explicit flag, while live scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'.",
         inputSchema: {
             type: "object",
             properties: {
@@ -2127,6 +2130,7 @@ export async function handleSchedulerToolCall(
                     todo: summarizeCockpitTodo(result.board, result.todo),
                     requestedSectionId: result.requestedSectionId,
                     requestedSectionFound: result.requestedSectionFound,
+                    sectionValidationError: result.sectionValidationError,
                     checkedTaskId: result.checkedTaskId,
                     linkedTaskExists: result.linkedTaskExists,
                     staleTaskIdCleared: result.staleTaskIdCleared,
