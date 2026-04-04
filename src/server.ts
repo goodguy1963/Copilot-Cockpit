@@ -965,7 +965,7 @@ export const MCP_TOOL_DEFINITIONS = [
         inputSchema: {
             type: "object",
             properties: {
-                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, rejected (legacy alias: abgelehnt), needs-bot-review, and on-schedule-list." },
+                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, Rejected (legacy alias accepted: abgelehnt), needs-bot-review, and on-schedule-list." },
                 includeArchived: { type: "boolean", description: "Set false to exclude archived cards." },
             },
         },
