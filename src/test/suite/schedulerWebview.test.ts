@@ -438,6 +438,35 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("task editor disables native submit blocking and syncs prompt-source required fields", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    assert.ok(
+      templateSource.includes('<form id="task-form" novalidate>'),
+      "expected task form to disable native browser validation so the webview submit handler always runs",
+    );
+
+    [
+      'var usesInlinePrompt = effectiveSource === "inline";',
+      "promptText.required = usesInlinePrompt;",
+      "templateSelect.required = !usesInlinePrompt;",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected prompt-source validation sync snippet ${snippet}`,
+      );
+    });
+  });
+
   test("board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars", () => {
     const templatePath = path.resolve(
       __dirname,

@@ -7062,8 +7062,16 @@ syncTodoLabelSuggestions();
     var effectiveSource = source || "inline";
     var selectedPath =
       keepSelection && templateSelect ? templateSelect.value : "";
+    var usesInlinePrompt = effectiveSource === "inline";
 
-    if (effectiveSource === "inline") {
+    if (promptText) {
+      promptText.required = usesInlinePrompt;
+    }
+    if (templateSelect) {
+      templateSelect.required = !usesInlinePrompt;
+    }
+
+    if (usesInlinePrompt) {
       if (templateSelectGroup) templateSelectGroup.style.display = "none";
       if (promptGroup) promptGroup.style.display = "block";
       if (!keepSelection && templateSelect) {

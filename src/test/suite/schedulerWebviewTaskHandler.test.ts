@@ -18,6 +18,31 @@ suite("Task Handler Tests", () => {
     assert.strictEqual(action?.taskId, "__refresh__");
   });
 
+  test("createTask dispatches edit action for create mode", () => {
+    const action = collectAction({
+      type: "createTask",
+      data: { name: "New task", prompt: "Prompt", cronExpression: "* * * * *" },
+    } as WebviewToExtensionMessage);
+    assert.strictEqual(action?.action, "edit");
+    assert.strictEqual(action?.taskId, "__create__");
+    assert.deepStrictEqual(action?.data, {
+      name: "New task",
+      prompt: "Prompt",
+      cronExpression: "* * * * *",
+    });
+  });
+
+  test("updateTask dispatches edit action for existing tasks", () => {
+    const action = collectAction({
+      type: "updateTask",
+      taskId: "t-edit",
+      data: { name: "Updated task" },
+    } as WebviewToExtensionMessage);
+    assert.strictEqual(action?.action, "edit");
+    assert.strictEqual(action?.taskId, "t-edit");
+    assert.deepStrictEqual(action?.data, { name: "Updated task" });
+  });
+
   test("runTask dispatches run action with taskId", () => {
     const action = collectAction({ type: "runTask", taskId: "t1" } as WebviewToExtensionMessage);
     assert.strictEqual(action?.action, "run");

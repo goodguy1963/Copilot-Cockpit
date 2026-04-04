@@ -17,6 +17,22 @@ export function handleTaskWebviewMessage(
   onTaskActionCallback: TaskActionCallback,
 ): boolean {
   switch (message.type) {
+    case "createTask":
+      onTaskActionCallback?.({
+        action: "edit",
+        taskId: "__create__",
+        data: message.data,
+      });
+      return true;
+
+    case "updateTask":
+      onTaskActionCallback?.({
+        action: "edit",
+        taskId: message.taskId,
+        data: message.data,
+      });
+      return true;
+
     case "refreshTasks":
       onTaskActionCallback?.({
         action: "refresh",
