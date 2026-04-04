@@ -1,4 +1,7 @@
 import {
+  isProtectedCockpitFlagKey,
+} from "./cockpitBoard";
+import {
   addCockpitTodoComment,
   deleteCockpitTodoComment,
   addCockpitSection,
@@ -589,6 +592,10 @@ export async function handleTodoCockpitAction(
     case "deleteTodoFlagDefinition": {
       const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
       if (!workspaceRoot || !action.todoFlagData?.name) {
+        return true;
+      }
+      if (isProtectedCockpitFlagKey(action.todoFlagData.name)) {
+        deps.notifyError("Built-in Todo Cockpit flags cannot be deleted.");
         return true;
       }
       deleteCockpitFlagDefinition(workspaceRoot, action.todoFlagData.name);

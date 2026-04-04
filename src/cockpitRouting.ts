@@ -9,7 +9,7 @@ import type {
 
 export const DEFAULT_ROUTING_SIGNALS = [
   "go",
-  "abgelehnt",
+  "rejected",
   "needs-bot-review",
   "on-schedule-list",
 ];
@@ -23,7 +23,8 @@ const NON_ACTIONABLE_COMMENT_PATTERNS = [
 ];
 
 function normalizeRoutingSignal(value: string): string {
-  return String(value || "").trim().toLowerCase();
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "abgelehnt" ? "rejected" : normalized;
 }
 
 function normalizeSignalList(signals: string[] | undefined): string[] {

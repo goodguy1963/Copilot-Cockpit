@@ -4,6 +4,7 @@ import {
   DEFAULT_RECURRING_TASKS_SECTION_ID,
   DEFAULT_UNSORTED_SECTION_ID,
   createDefaultCockpitBoard,
+  isProtectedCockpitFlagKey,
   isArchiveSectionId,
   isRecurringTasksSectionId,
   normalizeCockpitBoard,
@@ -1379,6 +1380,14 @@ export function saveCockpitFlagDefinition(
   workspaceRoot: string,
   input: UpsertCockpitLabelDefinitionInput,
 ): { board: CockpitBoard; label: CockpitLabelDefinition | undefined } {
+  if (isProtectedCockpitFlagKey(input.previousName || input.name)) {
+    const board = getCockpitBoard(workspaceRoot);
+    const key = normalizeLabelKey(input.previousName || input.name);
+    return {
+      board,
+      label: (board.flagCatalog ?? []).find((entry) => entry.key === key),
+    };
+  }
   const result = upsertFlagDefinitionInBoard(getCockpitBoard(workspaceRoot), input);
   return {
     board: persistBoard(workspaceRoot, result.board),
@@ -1390,6 +1399,9 @@ export function deleteCockpitFlagDefinition(
   workspaceRoot: string,
   name: string,
 ): CockpitBoard {
+  if (isProtectedCockpitFlagKey(name)) {
+    return getCockpitBoard(workspaceRoot);
+  }
   const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
   const key = normalizeLabelKey(name);
   const timestamp = nowIso();

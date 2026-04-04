@@ -311,6 +311,22 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].sectionId, DEFAULT_ARCHIVE_REJECTED_SECTION_ID);
   });
 
+  test("protected cockpit flag definitions cannot be removed", async () => {
+    const server = createServerContext({ tasks: [], jobs: [], jobFolders: [] });
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_delete_flag_definition",
+      { name: "go" },
+      server.context as any,
+    );
+    const payload = parseJsonText(response);
+
+    assert.strictEqual(
+      payload.message,
+      "Flag definition 'go' is built-in and cannot be removed.",
+    );
+  });
+
   test("closeout helper clears stale task links and keeps the current section when the requested section is missing", async () => {
     const server = createServerContext({
       tasks: [],

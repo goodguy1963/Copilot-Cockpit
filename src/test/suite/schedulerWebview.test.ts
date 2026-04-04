@@ -168,6 +168,28 @@ suite("SchedulerWebview Message Queue Tests", () => {
     );
   });
 
+  test("todo flag picker localizes protected flags and hides destructive controls", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "function getFlagDisplayName(flagName)",
+      'strings.boardFlagPresetGo || "Ready"',
+      'strings.boardFlagPresetRejected || "Rejected"',
+      "function isProtectedFlagDefinition(entryOrName)",
+      "entry.system === true",
+      'strings.boardFlagCatalogLockedTitle || "Built-in flag"',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected protected/localized flag snippet ${snippet}`,
+      );
+    });
+  });
+
   test("todo editor keeps upload wiring and sticky filter footer anchors", () => {
     const templatePath = path.resolve(
       __dirname,

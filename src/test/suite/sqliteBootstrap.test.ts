@@ -88,7 +88,7 @@ suite("SQLite Bootstrap Tests", () => {
               updatedAt: "2026-04-04T00:00:00.000Z",
             }],
             labelCatalog: [{ key: "ops", name: "Ops", color: "#112233", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
-            flagCatalog: [{ key: "go", name: "GO", color: "#445566", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+            flagCatalog: [{ key: "go", name: "go", color: "#445566", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z", system: true }],
             deletedCardIds: ["card-deleted"],
             filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false },
             updatedAt: "2026-04-04T00:00:00.000Z",
@@ -226,10 +226,11 @@ suite("SQLite Bootstrap Tests", () => {
         flagCatalog: [
           {
             key: "go",
-            name: "GO",
+            name: "go",
             color: "#445566",
             createdAt: "2026-04-04T00:00:00.000Z",
             updatedAt: "2026-04-04T00:00:00.000Z",
+            system: true,
           },
         ],
         deletedCardIds: ["card-deleted"],
@@ -255,7 +256,7 @@ suite("SQLite Bootstrap Tests", () => {
       assert.strictEqual(board?.cards?.[0]?.title, "SQLite cockpit card");
       assert.strictEqual(board?.cards?.[0]?.comments?.[0]?.body, "hello");
       assert.strictEqual(board?.labelCatalog?.[0]?.name, "Ops");
-      assert.strictEqual(board?.flagCatalog?.[0]?.name, "GO");
+      assert.strictEqual(board?.flagCatalog?.[0]?.name, "go");
       assert.deepStrictEqual(board?.deletedCardIds ?? [], ["card-deleted"]);
     } finally {
       cleanup(workspaceRoot);

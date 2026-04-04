@@ -392,7 +392,105 @@ function normalizeLabelDefinition(
     updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim()
       ? record.updatedAt
       : timestamp,
+    system: record.system === true,
   };
+}
+
+type SystemFlagSeed = {
+  key: string;
+  name: string;
+  color: string;
+  aliases?: string[];
+};
+
+const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
+  { key: "go", name: "go", color: "#22c55e", aliases: ["GO"] },
+  { key: "needs-bot-review", name: "needs-bot-review", color: "#f59e0b" },
+  { key: "needs-user-review", name: "needs-user-review", color: "#3b82f6" },
+  { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
+  { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
+];
+
+const SYSTEM_FLAG_SEED_BY_KEY = new Map(
+  SYSTEM_FLAG_SEEDS.map((seed) => [seed.key, seed]),
+);
+
+const SYSTEM_FLAG_ALIAS_TO_KEY = new Map(
+  SYSTEM_FLAG_SEEDS.flatMap((seed) => [
+    [normalizeLabelKey(seed.key), seed.key] as const,
+    [normalizeLabelKey(seed.name), seed.key] as const,
+    ...((seed.aliases ?? []).map((alias) => [normalizeLabelKey(alias), seed.key] as const)),
+  ]),
+);
+
+function normalizeSystemFlagKey(value: unknown): string | undefined {
+  const key = normalizeLabelKey(typeof value === "string" ? value : String(value ?? ""));
+  return key ? SYSTEM_FLAG_ALIAS_TO_KEY.get(key) ?? key : undefined;
+}
+
+function normalizeFlagName(value: unknown): string | undefined {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) {
+    return undefined;
+  }
+  const key = normalizeSystemFlagKey(text);
+  return key && SYSTEM_FLAG_SEED_BY_KEY.has(key)
+    ? SYSTEM_FLAG_SEED_BY_KEY.get(key)?.name
+    : text;
+}
+
+function normalizeFlags(values: unknown): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return values
+    .map((value) => normalizeFlagName(value))
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => {
+      const key = normalizeSystemFlagKey(value) ?? normalizeLabelKey(value);
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeFlagDefinition(
+  label: unknown,
+  index: number,
+): CockpitLabelDefinition | undefined {
+  const normalized = normalizeLabelDefinition(label, index);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const systemKey = normalizeSystemFlagKey(normalized.key || normalized.name);
+  if (!systemKey || !SYSTEM_FLAG_SEED_BY_KEY.has(systemKey)) {
+    return normalized;
+  }
+
+  const seed = SYSTEM_FLAG_SEED_BY_KEY.get(systemKey)!;
+  return {
+    ...normalized,
+    key: seed.key,
+    name: seed.name,
+    color: seed.color,
+    system: true,
+  };
+}
+
+function normalizeDeletedFlagCatalogKeys(values: unknown): string[] {
+  return normalizeCatalogKeyList(values).filter(
+    (key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key),
+  );
+}
+
+export function isProtectedCockpitFlagKey(value: string): boolean {
+  const key = normalizeSystemFlagKey(value);
+  return Boolean(key && SYSTEM_FLAG_SEED_BY_KEY.has(key));
 }
 
 function buildLabelCatalog(
@@ -431,23 +529,18 @@ function buildLabelCatalog(
   );
 }
 
-const DEFAULT_FLAG_SEEDS: { name: string; color: string }[] = [
-  { name: "GO", color: "#22c55e" },
-  { name: "needs-bot-review", color: "#f59e0b" },
-  { name: "needs-user-review", color: "#3b82f6" },
-  { name: "NEW", color: "#a78bfa" },
-];
-
 function buildFlagCatalog(
   cards: CockpitTodoCard[],
   existingCatalog: unknown,
   deletedKeys: string[] = [],
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
-  const deletedKeySet = new Set(deletedKeys);
+  const deletedKeySet = new Set(
+    deletedKeys.filter((key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key)),
+  );
   const normalizedEntries = Array.isArray(existingCatalog)
     ? existingCatalog
-        .map((entry, index) => normalizeLabelDefinition(entry, index))
+        .map((entry, index) => normalizeFlagDefinition(entry, index))
         .filter((entry): entry is CockpitLabelDefinition => Boolean(entry))
     : [];
   const entries = normalizedEntries.filter((entry) => !deletedKeySet.has(entry.key));
@@ -463,16 +556,17 @@ function buildFlagCatalog(
       continue;
     }
     catalog.set(key, {
-      name: flag,
+      name: normalizeFlagName(flag) ?? flag,
       key,
-      color: "var(--vscode-badge-background)",
+      color: SYSTEM_FLAG_SEED_BY_KEY.get(key)?.color ?? "var(--vscode-badge-background)",
       createdAt: timestamp,
       updatedAt: timestamp,
+      system: SYSTEM_FLAG_SEED_BY_KEY.has(key),
     });
   }
 
-  for (const seed of DEFAULT_FLAG_SEEDS) {
-    const key = normalizeLabelKey(seed.name);
+  for (const seed of SYSTEM_FLAG_SEEDS) {
+    const key = normalizeLabelKey(seed.key);
     if (key && !catalog.has(key) && !deletedKeySet.has(key)) {
       catalog.set(key, {
         name: seed.name,
@@ -480,6 +574,7 @@ function buildFlagCatalog(
         color: seed.color,
         createdAt: timestamp,
         updatedAt: timestamp,
+        system: true,
       });
     }
   }
@@ -546,7 +641,7 @@ function normalizeCard(card: unknown, index: number): CockpitTodoCard {
     dueAt: normalizeOptionalIsoString(record.dueAt),
     status: normalizeStatus(record.status),
     labels: normalizeLabels(record.labels),
-    flags: normalizeLabels(record.flags),
+    flags: normalizeFlags(record.flags),
     comments,
     taskSnapshot: normalizeTaskSnapshot(record.taskSnapshot),
     taskId: typeof record.taskId === "string" && record.taskId.trim() ? record.taskId.trim() : undefined,
@@ -607,7 +702,7 @@ function normalizeFilters(filters: unknown): CockpitBoardFilters {
           .map((entry) => normalizeArchiveOutcome(entry))
           .filter((entry): entry is CockpitArchiveOutcome => Boolean(entry))
       : [],
-    flags: normalizeLabels(record.flags),
+    flags: normalizeFlags(record.flags),
     sectionId: normalizeOptionalIsoString(record.sectionId),
     sortBy: normalizeSortBy(record.sortBy),
     sortDirection: normalizeSortDirection(record.sortDirection),
@@ -705,7 +800,7 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
     seenCardIds.add(archivedCard.id);
   }
   const deletedLabelCatalogKeys = normalizeCatalogKeyList(record.deletedLabelCatalogKeys);
-  const deletedFlagCatalogKeys = normalizeCatalogKeyList(record.deletedFlagCatalogKeys);
+  const deletedFlagCatalogKeys = normalizeDeletedFlagCatalogKeys(record.deletedFlagCatalogKeys);
   const deletedCardIds = normalizeIdList(record.deletedCardIds);
   const visibleCards = deletedCardIds.length > 0
     ? mergedCards.filter((card) => !deletedCardIds.includes(card.id))
