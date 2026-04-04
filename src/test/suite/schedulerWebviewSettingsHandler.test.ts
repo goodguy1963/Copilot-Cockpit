@@ -70,6 +70,10 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           data: {
             mode: "sqlite",
             sqliteJsonMirror: false,
+            appVersion: "99.0.78",
+            mcpSetupStatus: "configured",
+            lastMcpSupportUpdateAt: "",
+            lastBundledSkillsSyncAt: "",
           },
         },
         {

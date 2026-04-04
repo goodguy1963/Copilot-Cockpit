@@ -128,8 +128,12 @@ export class SchedulerWebview {
     model: "",
   };
   private static currentStorageSettings: StorageSettingsView = {
-    mode: "json",
+    mode: "sqlite",
     sqliteJsonMirror: true,
+    appVersion: "",
+    mcpSetupStatus: "workspace-required",
+    lastMcpSupportUpdateAt: "",
+    lastBundledSkillsSyncAt: "",
   };
   private static currentResearchProfiles: ResearchProfile[] = [];
   private static currentActiveResearchRun: ResearchRun | undefined;
@@ -5640,6 +5644,12 @@ export class SchedulerWebview {
           <button type="button" class="btn-primary" id="settings-storage-save-btn">${escapeHtml(strings.settingsStorageSave)}</button>
         </div>
         <p class="note" id="settings-storage-note">${escapeHtml(strings.settingsStorageSaved)}</p>
+        <div class="note" style="display:grid;gap:6px;margin-top:10px;">
+          <div><strong>${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>
+        </div>
       </section>
       <section class="telegram-card">
         <div class="settings-card-header">

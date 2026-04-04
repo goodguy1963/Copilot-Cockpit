@@ -786,6 +786,23 @@ export interface StorageSettingsView {
 
   /** Whether JSON compatibility mirrors stay enabled in sqlite mode */
   sqliteJsonMirror: boolean;
+
+  /** Installed extension version shown in Settings */
+  appVersion: string;
+
+  /** Current MCP support status for the active workspace */
+  mcpSetupStatus:
+    | "configured"
+    | "missing"
+    | "stale"
+    | "invalid"
+    | "workspace-required";
+
+  /** Last time the extension updated MCP support files for this workspace */
+  lastMcpSupportUpdateAt: string;
+
+  /** Last time bundled skills were updated for this workspace */
+  lastBundledSkillsSyncAt: string;
 }
 
 /**
