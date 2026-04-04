@@ -275,7 +275,7 @@
         },
         "copilotCockpit.storageMode": {
           "type": "string",
-          "default": "json",
+          "default": "sqlite",
           "scope": "resource",
           "enum": [
             "json",

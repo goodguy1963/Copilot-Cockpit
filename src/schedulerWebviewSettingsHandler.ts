@@ -69,7 +69,7 @@ export async function handleSettingsWebviewMessage(
       const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
       const target = getResourceScopedSettingsTarget();
       const requested = message.data as Partial<StorageSettingsView> | undefined;
-      const mode = requested?.mode === "sqlite" ? "sqlite" : "json";
+      const mode = requested?.mode === "json" ? "json" : "sqlite";
       const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
       await updateCompatibleConfigurationValue(
         "storageMode",

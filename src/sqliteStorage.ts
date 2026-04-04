@@ -60,7 +60,7 @@ export function getConfiguredSchedulerStorageMode(
   return normalizeSchedulerStorageMode(
     getCompatibleConfigurationValue<SchedulerStorageMode>(
       "storageMode",
-      JSON_STORAGE_MODE,
+      SQLITE_STORAGE_MODE,
       scope,
     ),
   );

@@ -57,6 +57,11 @@ suite("Extension Test Suite", () => {
         "copilotCockpit.defaultModel",
       ),
     );
+    assert.strictEqual(
+      (properties["copilotCockpit.storageMode"] as { default?: unknown } | undefined)
+        ?.default,
+      "sqlite",
+    );
   });
 
   test("Commands should be registered", async () => {

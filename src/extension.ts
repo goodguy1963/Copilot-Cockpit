@@ -105,6 +105,8 @@ import type {
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
+const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
+const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
 const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
 const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
@@ -121,6 +123,8 @@ type WorkspaceSupportRepairPlan = {
   shouldAutoRepair: boolean;
   needsPrompt: boolean;
 };
+
+type WorkspaceTimestampMap = Record<string, string>;
 
 function getSchedulerSetting<T>(
   key: string,
@@ -303,7 +307,57 @@ async function syncBundledSkills(
     BUNDLED_SKILL_SYNC_STATE_KEY,
     syncResult.nextState,
   );
+  if (syncResult.createdPaths.length > 0 || syncResult.updatedPaths.length > 0) {
+    await updateWorkspaceTimestampMap(
+      context,
+      LAST_BUNDLED_SKILLS_SYNC_MAP_KEY,
+      workspaceRoots,
+    );
+  }
   return syncResult;
+}
+
+async function updateWorkspaceTimestampMap(
+  context: vscode.ExtensionContext,
+  key: string,
+  workspaceRoots: string[],
+): Promise<void> {
+  if (workspaceRoots.length === 0) {
+    return;
+  }
+
+  const next = {
+    ...context.globalState.get<WorkspaceTimestampMap>(key, {}),
+  };
+  const timestamp = new Date().toISOString();
+  for (const workspaceRoot of workspaceRoots) {
+    next[workspaceRoot] = timestamp;
+  }
+  await context.globalState.update(key, next);
+}
+
+function getWorkspaceTimestamp(
+  key: string,
+  workspaceRoot: string | undefined,
+): string {
+  if (!workspaceRoot || !extensionContext) {
+    return "";
+  }
+
+  const map = extensionContext.globalState.get<WorkspaceTimestampMap>(key, {});
+  return typeof map[workspaceRoot] === "string" ? map[workspaceRoot] : "";
+}
+
+function getCurrentMcpSetupStatus(): StorageSettingsView["mcpSetupStatus"] {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot || !extensionContext) {
+    return "workspace-required";
+  }
+
+  return getSchedulerMcpSetupState(
+    workspaceRoot,
+    extensionContext.extensionUri.fsPath,
+  ).status;
 }
 
 export function notifyInfo(message: string, timeoutMs = 4000): void {
@@ -497,7 +551,7 @@ function getCurrentCockpitBoard() {
 }
 
 function isWorkspaceSqliteModeEnabled(workspaceRoot: string): boolean {
-  return getSchedulerSetting<string>("storageMode", "json", vscode.Uri.file(workspaceRoot)) === "sqlite";
+  return getSchedulerSetting<string>("storageMode", "sqlite", vscode.Uri.file(workspaceRoot)) === "sqlite";
 }
 
 function loadCockpitBoardFromMirrors(workspaceRoot: string): CockpitBoard {
@@ -610,11 +664,22 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
 
 function getCurrentStorageSettings(): StorageSettingsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
+  const workspaceRoot = folderUri?.fsPath;
   return {
-    mode: getSchedulerSetting<string>("storageMode", "json", folderUri) === "sqlite"
+    mode: getSchedulerSetting<string>("storageMode", "sqlite", folderUri) === "sqlite"
       ? "sqlite"
       : "json",
     sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
+    appVersion: extensionContext?.extension.packageJSON?.version ?? "",
+    mcpSetupStatus: getCurrentMcpSetupStatus(),
+    lastMcpSupportUpdateAt: getWorkspaceTimestamp(
+      LAST_MCP_SUPPORT_UPDATE_MAP_KEY,
+      workspaceRoot,
+    ),
+    lastBundledSkillsSyncAt: getWorkspaceTimestamp(
+      LAST_BUNDLED_SKILLS_SYNC_MAP_KEY,
+      workspaceRoot,
+    ),
   };
 }
 
@@ -692,7 +757,13 @@ async function setupWorkspaceMcpConfig(
       workspaceRoot,
       context.extensionUri.fsPath,
     );
+    await updateWorkspaceTimestampMap(
+      context,
+      LAST_MCP_SUPPORT_UPDATE_MAP_KEY,
+      [workspaceRoot],
+    );
     hasPromptedForMcpSetupThisSession = true;
+    SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
     notifyInfo(messages.mcpSetupCompleted(result.configPath));
     return true;
   } catch (error) {
@@ -717,6 +788,11 @@ async function repairWorkspaceSupportFiles(
     for (const workspaceRoot of workspaceRoots) {
       ensureWorkspaceMcpSupportFiles(workspaceRoot, context.extensionUri.fsPath);
     }
+    await updateWorkspaceTimestampMap(
+      context,
+      LAST_MCP_SUPPORT_UPDATE_MAP_KEY,
+      workspaceRoots,
+    );
 
     let repairedMcpCount = 0;
     for (const workspaceRoot of mcpRootsNeedingRepair) {
@@ -741,6 +817,8 @@ async function repairWorkspaceSupportFiles(
     ) {
       void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => {});
     }
+
+    SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
 
     notifyInfo(
       messages.workspaceSupportRepairCompleted(
@@ -1115,7 +1193,15 @@ export function activate(context: vscode.ExtensionContext): void {
         currentCockpitBoard = undefined;
         currentCockpitBoardWorkspaceRoot = undefined;
         scheduleManager.reloadTasks();
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (workspaceRoot) {
+          setCurrentCockpitBoard(
+            workspaceRoot,
+            loadCockpitBoardFromMirrors(workspaceRoot),
+          );
+        }
         scheduleCockpitBoardSqliteHydration(true);
+        refreshSchedulerUiState(true);
         await syncRecurringPromptBackupsIfNeeded(context, true);
       } catch (error) {
         logError(
@@ -1544,6 +1630,7 @@ export const __testOnly = {
   resolvePromptText,
   sanitizeErrorDetailsForLog,
   ensureSchedulerSkillOnStartup,
+  getCurrentStorageSettings,
 };
 
 function getWorkspaceFolderPaths(): string[] {

@@ -1289,10 +1289,32 @@
       agent: "agent",
       model: ""
     };
-    var storageSettings = {
-      mode: initialData.storageSettings && initialData.storageSettings.mode === "sqlite" ? "sqlite" : "json",
-      sqliteJsonMirror: !initialData.storageSettings || initialData.storageSettings.sqliteJsonMirror !== false
-    };
+    function normalizeMcpSetupStatus(value, previousValue) {
+      switch (value) {
+        case "configured":
+        case "missing":
+        case "stale":
+        case "invalid":
+        case "workspace-required":
+          return value;
+        default:
+          return previousValue || "workspace-required";
+      }
+    }
+    function normalizeStorageSettings(value, previousValue) {
+      return {
+        mode: value && value.mode === "json" ? "json" : "sqlite",
+        sqliteJsonMirror: !value || value.sqliteJsonMirror !== false,
+        appVersion: value && typeof value.appVersion === "string" ? value.appVersion : previousValue && previousValue.appVersion || "",
+        mcpSetupStatus: normalizeMcpSetupStatus(
+          value && value.mcpSetupStatus,
+          previousValue && previousValue.mcpSetupStatus
+        ),
+        lastMcpSupportUpdateAt: value && typeof value.lastMcpSupportUpdateAt === "string" ? value.lastMcpSupportUpdateAt : previousValue && previousValue.lastMcpSupportUpdateAt || "",
+        lastBundledSkillsSyncAt: value && typeof value.lastBundledSkillsSyncAt === "string" ? value.lastBundledSkillsSyncAt : previousValue && previousValue.lastBundledSkillsSyncAt || ""
+      };
+    }
+    var storageSettings = normalizeStorageSettings(initialData.storageSettings);
     var researchProfiles = Array.isArray(initialData.researchProfiles) ? initialData.researchProfiles : [];
     var activeResearchRun = initialData.activeResearchRun || null;
     var recentResearchRuns = Array.isArray(initialData.recentResearchRuns) ? initialData.recentResearchRuns : [];
@@ -1613,6 +1635,10 @@
     var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
     var settingsStorageSaveBtn = document.getElementById("settings-storage-save-btn");
     var settingsStorageNote = document.getElementById("settings-storage-note");
+    var settingsVersionValue = document.getElementById("settings-version-value");
+    var settingsMcpStatusValue = document.getElementById("settings-mcp-status-value");
+    var settingsMcpUpdatedValue = document.getElementById("settings-mcp-updated-value");
+    var settingsSkillsUpdatedValue = document.getElementById("settings-skills-updated-value");
     var settingsLogLevelSelect = document.getElementById("settings-log-level-select");
     var settingsLogDirectoryInput = document.getElementById("settings-log-directory");
     var settingsOpenLogFolderBtn = document.getElementById("settings-open-log-folder-btn");
@@ -1977,6 +2003,30 @@
       }
       return date.toLocaleString(locale);
     }
+    function formatSettingsTimestamp(value) {
+      if (!value) {
+        return strings.settingsStorageNeverUpdated || "Never";
+      }
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function getMcpSetupStatusLabel(status) {
+      switch (status) {
+        case "configured":
+          return strings.settingsStorageMcpStatusConfigured || "Configured";
+        case "missing":
+          return strings.settingsStorageMcpStatusMissing || "Missing";
+        case "stale":
+          return strings.settingsStorageMcpStatusStale || "Needs refresh";
+        case "invalid":
+          return strings.settingsStorageMcpStatusInvalid || "Invalid";
+        default:
+          return strings.settingsStorageMcpStatusWorkspaceRequired || "Open a workspace to inspect";
+      }
+    }
     function collectTelegramFormData() {
       return {
         enabled: !!(telegramEnabledInput && telegramEnabledInput.checked),
@@ -2069,13 +2119,25 @@
     }
     function renderStorageSettingsControls() {
       if (settingsStorageModeSelect) {
-        settingsStorageModeSelect.value = storageSettings.mode === "sqlite" ? "sqlite" : "json";
+        settingsStorageModeSelect.value = storageSettings.mode === "json" ? "json" : "sqlite";
       }
       if (settingsStorageMirrorInput) {
         settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
       }
       if (settingsStorageNote) {
         settingsStorageNote.textContent = strings.settingsStorageSaved || "Storage settings are repo-local. Reload after changing the backend mode.";
+      }
+      if (settingsVersionValue) {
+        settingsVersionValue.textContent = storageSettings.appVersion || "-";
+      }
+      if (settingsMcpStatusValue) {
+        settingsMcpStatusValue.textContent = getMcpSetupStatusLabel(storageSettings.mcpSetupStatus);
+      }
+      if (settingsMcpUpdatedValue) {
+        settingsMcpUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastMcpSupportUpdateAt);
+      }
+      if (settingsSkillsUpdatedValue) {
+        settingsSkillsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledSkillsSyncAt);
       }
     }
     function renderLoggingControls() {
@@ -7712,10 +7774,7 @@
             renderLoggingControls();
             break;
           case "updateStorageSettings":
-            storageSettings = {
-              mode: message.storageSettings && message.storageSettings.mode === "sqlite" ? "sqlite" : "json",
-              sqliteJsonMirror: !message.storageSettings || message.storageSettings.sqliteJsonMirror !== false
-            };
+            storageSettings = normalizeStorageSettings(message.storageSettings, storageSettings);
             renderStorageSettingsControls();
             break;
           case "updateExecutionDefaults":
