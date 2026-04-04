@@ -20,6 +20,7 @@ import {
   restoreArchivedTodoInBoard,
   saveCockpitFlagDefinition,
   saveCockpitTodoLabelDefinition,
+  setCockpitBoardPersistenceHooks,
   setCockpitBoardFilters,
 } from "../../cockpitBoardManager";
 import type { ScheduledTask } from "../../types";
@@ -457,6 +458,67 @@ suite("Cockpit Board Manager Tests", () => {
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Now"), false);
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Focus"), true);
     } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("getCockpitBoard prefers runtime persistence hook over stale json", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-hook-board-"));
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify({ tasks: [] }, null, 2),
+        "utf8",
+      );
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.private.json"),
+        JSON.stringify({
+          tasks: [],
+          cockpitBoard: {
+            version: 4,
+            sections: [
+              {
+                id: "unsorted",
+                title: "Unsorted",
+                order: 0,
+                createdAt: "2026-04-04T00:00:00.000Z",
+                updatedAt: "2026-04-04T00:00:00.000Z",
+              },
+            ],
+            cards: [
+              {
+                id: "json-card",
+                title: "Stale JSON card",
+                sectionId: "unsorted",
+                order: 0,
+                priority: "none",
+                status: "active",
+                labels: [],
+                flags: [],
+                comments: [],
+                archived: false,
+                createdAt: "2026-04-04T00:00:00.000Z",
+                updatedAt: "2026-04-04T00:00:00.000Z",
+              },
+            ],
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+        }, null, 2),
+        "utf8",
+      );
+
+      setCockpitBoardPersistenceHooks({
+        loadBoard: () => createDefaultCockpitBoard("2026-04-04T00:00:00.000Z"),
+      });
+
+      const board = getCockpitBoard(workspaceRoot);
+
+      assert.strictEqual(board.cards.some((card) => card.id === "json-card"), false);
+      assert.ok(board.sections.some((section) => section.id === "unsorted"));
+    } finally {
+      setCockpitBoardPersistenceHooks();
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

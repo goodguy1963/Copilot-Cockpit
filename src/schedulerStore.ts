@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { sanitizeSchedulerJsonValue } from "./schedulerJsonSanitizer";
+import { getWorkspaceSchedulerMirrorPaths } from "./sqliteStorage";
 
 export function getPrivateSchedulerConfigPath(configPath: string): string {
     return path.join(path.dirname(configPath), "scheduler.private.json");
@@ -21,8 +22,10 @@ export function findWorkspaceRoot(startPath: string): string {
 }
 
 export function getActiveSchedulerReadPath(workspaceRoot: string): string {
-    const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
-    const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
+    const {
+        publicSchedulerMirrorPath: configPath,
+        privateSchedulerMirrorPath: privateConfigPath,
+    } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
     let readPath = configPath;
 
     const configExists = fs.existsSync(configPath);
@@ -73,8 +76,10 @@ export function readSchedulerConfig(workspaceRoot: string): { tasks: any[] } {
 }
 
 export function writeSchedulerConfig(workspaceRoot: string, config: { tasks: any[] }): void {
-    const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
-    const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
+    const {
+        publicSchedulerMirrorPath: configPath,
+        privateSchedulerMirrorPath: privateConfigPath,
+    } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
 

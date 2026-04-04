@@ -3,6 +3,7 @@ import * as path from "path";
 import { normalizeCockpitBoard } from "./cockpitBoard";
 import { createScheduleHistorySnapshot } from "./scheduleHistory";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
+import { getWorkspaceSchedulerMirrorPaths } from "./sqliteStorage";
 import type { CockpitBoardFilters, SchedulerWorkspaceConfig } from "./types";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
@@ -1048,8 +1049,10 @@ function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
 
 export function getActiveSchedulerReadPath(workspaceRoot: string): string {
     recoverPendingSchedulerTransaction(workspaceRoot, false);
-    const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
-    const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
+    const {
+        publicSchedulerMirrorPath: configPath,
+        privateSchedulerMirrorPath: privateConfigPath,
+    } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
     let readPath = configPath;
 
     const configExists = schedulerFs.existsSync(configPath);
@@ -1091,9 +1094,7 @@ export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceCo
     }
 
     const readPath = getActiveSchedulerReadPath(workspaceRoot);
-    const privateConfigPath = getPrivateSchedulerConfigPath(
-        path.join(workspaceRoot, ".vscode", "scheduler.json"),
-    );
+    const { privateSchedulerMirrorPath: privateConfigPath } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
     if (!schedulerFs.existsSync(readPath)) {
         return { tasks: [] };
     }
@@ -1116,8 +1117,10 @@ export function writeSchedulerConfig(
     config: SchedulerWorkspaceConfig,
     options?: SchedulerConfigWriteOptions,
 ): SchedulerConfigWriteResult {
-    const configPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
-    const privateConfigPath = getPrivateSchedulerConfigPath(configPath);
+    const {
+        publicSchedulerMirrorPath: configPath,
+        privateSchedulerMirrorPath: privateConfigPath,
+    } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
     const transactionPath = getSchedulerTransactionPath(workspaceRoot);
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });

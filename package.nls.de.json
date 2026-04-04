@@ -47,6 +47,10 @@
   "config.minimumIntervalWarning": "Warnung anzeigen, wenn ein Cron-Intervall kürzer als 30 Minuten ist",
   "config.globalPromptsPath": "Benutzerdefinierter Pfad für globale Prompt-Vorlagen. Standard: VS Codes Ordner User/prompts (Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts oder ~/.config/Code/User/prompts)",
   "config.globalAgentsPath": "Benutzerdefinierter Pfad für globale Agent-Dateien (*.agent.md). Standard: VS Codes Ordner User/prompts (Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts oder ~/.config/Code/User/prompts)",
+  "config.storageMode": "Primäres Persistenz-Backend für Scheduler- und Cockpit-Zustand. Bis der SQLite-Migrationspfad für den Workspace vollständig aktiv ist, sollte dies auf JSON bleiben.",
+  "config.storageMode.json": "Die vorhandenen JSON-Dateien unter .vscode als maßgeblichen Speicher verwenden",
+  "config.storageMode.sqlite": "Die lokale SQLite-Datenbank als maßgeblichen Speicher verwenden",
+  "config.sqliteJsonMirror": "Wenn der SQLite-Speichermodus aktiv ist, zusätzlich kompatible JSON-Spiegel unter .vscode für Migration und Rollback schreiben.",
   "config.reportIssue": "🐛 Einen Fehler gefunden? [Auf GitHub melden](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
   "view.tasks": "Geplante Aufgaben"
 }

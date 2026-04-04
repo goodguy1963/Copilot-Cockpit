@@ -1042,6 +1042,60 @@ suite("SchedulerWebview Message Queue Tests", () => {
     }
   });
 
+  test("Queues storage settings updates until ready", () => {
+    const wv = SchedulerWebview as unknown as {
+      panel?: WebviewPanelLike;
+      webviewReady?: boolean;
+      pendingMessages?: unknown[];
+      updateStorageSettings?: (storageSettings: unknown) => void;
+      flushPendingMessages?: () => void;
+    };
+
+    const originalPanel = wv.panel;
+    const originalReady = wv.webviewReady;
+    const originalPending = wv.pendingMessages;
+    const sent: unknown[] = [];
+
+    try {
+      wv.panel = {
+        webview: {
+          postMessage: (message: unknown) => {
+            sent.push(message);
+            return Promise.resolve(true);
+          },
+        },
+      };
+      wv.webviewReady = false;
+      wv.pendingMessages = [];
+
+      assert.ok(typeof wv.updateStorageSettings === "function");
+      wv.updateStorageSettings!({
+        mode: "sqlite",
+        sqliteJsonMirror: false,
+      });
+
+      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
+      assert.strictEqual(queued.length, 1);
+      assert.strictEqual(queued[0]?.type, "updateStorageSettings");
+
+      wv.webviewReady = true;
+      wv.flushPendingMessages!();
+
+      assert.strictEqual(sent.length, 1);
+      const message = sent[0] as {
+        type?: unknown;
+        storageSettings?: { mode?: string; sqliteJsonMirror?: boolean };
+      };
+      assert.strictEqual(message.type, "updateStorageSettings");
+      assert.strictEqual(message.storageSettings?.mode, "sqlite");
+      assert.strictEqual(message.storageSettings?.sqliteJsonMirror, false);
+    } finally {
+      wv.panel = originalPanel;
+      wv.webviewReady = originalReady;
+      wv.pendingMessages = originalPending;
+    }
+  });
+
   test("Queues cockpit board updates until ready", () => {
     const wv = SchedulerWebview as unknown as {
       panel?: WebviewPanelLike;
@@ -2464,6 +2518,8 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       await wv.handleMessage!({ type: "toggleAutoShowOnStartup" });
       await wv.handleMessage!({ type: "setupMcp" });
       await wv.handleMessage!({ type: "syncBundledSkills" });
+      await wv.handleMessage!({ type: "importStorageFromJson" });
+      await wv.handleMessage!({ type: "exportStorageToJson" });
       await wv.handleMessage!({
         type: "saveTelegramNotification",
         data: { enabled: true, botToken: "token", chatId: "chat", messagePrefix: "prefix" },
@@ -2493,6 +2549,14 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         },
         {
           action: "syncBundledSkills",
+          taskId: "__settings__",
+        },
+        {
+          action: "importStorageFromJson",
+          taskId: "__settings__",
+        },
+        {
+          action: "exportStorageToJson",
           taskId: "__settings__",
         },
         {

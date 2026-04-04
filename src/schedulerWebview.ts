@@ -19,6 +19,7 @@ import type {
   ResearchProfile,
   ResearchRun,
   SkillReference,
+  StorageSettingsView,
   ChatSessionBehavior,
   ExecutionDefaultsView,
   TelegramNotificationView,
@@ -126,6 +127,10 @@ export class SchedulerWebview {
     agent: "agent",
     model: "",
   };
+  private static currentStorageSettings: StorageSettingsView = {
+    mode: "json",
+    sqliteJsonMirror: true,
+  };
   private static currentResearchProfiles: ResearchProfile[] = [];
   private static currentActiveResearchRun: ResearchRun | undefined;
   private static currentRecentResearchRuns: ResearchRun[] = [];
@@ -137,6 +142,7 @@ export class SchedulerWebview {
     "updateCockpitBoard",
     "updateTelegramNotification",
     "updateExecutionDefaults",
+    "updateStorageSettings",
     "updateResearchState",
     "updateScheduleHistory",
     "updateAgents",
@@ -314,6 +320,7 @@ export class SchedulerWebview {
     cockpitBoard: CockpitBoard,
     telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView,
+    storageSettings: StorageSettingsView,
     researchProfiles: ResearchProfile[],
     activeResearchRun: ResearchRun | undefined,
     recentResearchRuns: ResearchRun[],
@@ -327,6 +334,7 @@ export class SchedulerWebview {
     this.currentCockpitBoard = cockpitBoard;
     this.currentTelegramNotification = telegramNotification;
     this.currentExecutionDefaults = executionDefaults;
+    this.currentStorageSettings = storageSettings;
     this.currentResearchProfiles = researchProfiles;
     this.currentActiveResearchRun = activeResearchRun;
     this.currentRecentResearchRuns = recentResearchRuns;
@@ -413,6 +421,7 @@ export class SchedulerWebview {
       this.updateCockpitBoard(cockpitBoard);
       this.updateTelegramNotification(telegramNotification);
       this.updateExecutionDefaults(executionDefaults);
+      this.updateStorageSettings(storageSettings);
       this.updateResearchState(
         researchProfiles,
         activeResearchRun,
@@ -557,6 +566,16 @@ export class SchedulerWebview {
     this.postMessage({
       type: "updateExecutionDefaults",
       executionDefaults,
+    });
+  }
+
+  static updateStorageSettings(
+    storageSettings: StorageSettingsView,
+  ): void {
+    this.currentStorageSettings = storageSettings;
+    this.postMessage({
+      type: "updateStorageSettings",
+      storageSettings,
     });
   }
 
@@ -871,6 +890,20 @@ export class SchedulerWebview {
         });
         break;
 
+      case "importStorageFromJson":
+        this.onTaskActionCallback?.({
+          action: "importStorageFromJson",
+          taskId: "__settings__",
+        });
+        break;
+
+      case "exportStorageToJson":
+        this.onTaskActionCallback?.({
+          action: "exportStorageToJson",
+          taskId: "__settings__",
+        });
+        break;
+
       case "saveTelegramNotification":
         this.onTaskActionCallback?.({
           action: "saveTelegramNotification",
@@ -1080,6 +1113,7 @@ export class SchedulerWebview {
       currentCockpitBoard: this.currentCockpitBoard,
       currentTelegramNotification: this.currentTelegramNotification,
       currentExecutionDefaults: this.currentExecutionDefaults,
+      currentStorageSettings: this.currentStorageSettings,
       currentResearchProfiles: this.currentResearchProfiles,
       currentActiveResearchRun: this.currentActiveResearchRun,
       currentRecentResearchRuns: this.currentRecentResearchRuns,
@@ -5583,6 +5617,32 @@ export class SchedulerWebview {
       </section>
       <section class="telegram-card">
         <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.settingsStorageTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsStorageBody)}</p>
+        </div>
+
+        <div class="form-group" style="margin-top:8px;">
+          <label for="settings-storage-mode-select">${escapeHtml(strings.settingsStorageModeLabel)}</label>
+          <select id="settings-storage-mode-select">
+            <option value="json">${escapeHtml(strings.settingsStorageModeJson)}</option>
+            <option value="sqlite">${escapeHtml(strings.settingsStorageModeSqlite)}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="settings-storage-mirror-input">
+            <span>${escapeHtml(strings.settingsStorageMirrorLabel)}</span>
+          </label>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="settings-storage-save-btn">${escapeHtml(strings.settingsStorageSave)}</button>
+        </div>
+        <p class="note" id="settings-storage-note">${escapeHtml(strings.settingsStorageSaved)}</p>
+      </section>
+      <section class="telegram-card">
+        <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.settingsLoggingTitle)}</div>
           <p class="note">${escapeHtml(strings.settingsLoggingBody)}</p>
         </div>
@@ -5625,8 +5685,11 @@ export class SchedulerWebview {
           <p class="note">${escapeHtml(strings.settingsMaintenanceBody)}</p>
         </div>
         <div class="button-group">
+          <button type="button" class="btn-secondary" id="import-storage-from-json-btn">${escapeHtml(strings.settingsStorageImportJsonToDb)}</button>
+          <button type="button" class="btn-secondary" id="export-storage-to-json-btn">${escapeHtml(strings.settingsStorageExportDbToJson)}</button>
           <button type="button" class="btn-primary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
         </div>
+        <p class="note">${escapeHtml(strings.settingsStorageMaintenanceNote)}</p>
       </section>
     </div>
   </div>

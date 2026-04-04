@@ -352,6 +352,15 @@ import {
     agent: "agent",
     model: "",
   };
+  var storageSettings = {
+    mode:
+      initialData.storageSettings && initialData.storageSettings.mode === "sqlite"
+        ? "sqlite"
+        : "json",
+    sqliteJsonMirror:
+      !initialData.storageSettings
+      || initialData.storageSettings.sqliteJsonMirror !== false,
+  };
   var researchProfiles = Array.isArray(initialData.researchProfiles)
     ? initialData.researchProfiles
     : [];
@@ -524,6 +533,8 @@ import {
   var insertSkillBtn = document.getElementById("insert-skill-btn");
   var setupMcpBtn = document.getElementById("setup-mcp-btn");
   var syncBundledSkillsBtn = document.getElementById("sync-bundled-skills-btn");
+  var importStorageFromJsonBtn = document.getElementById("import-storage-from-json-btn");
+  var exportStorageToJsonBtn = document.getElementById("export-storage-to-json-btn");
   var helpLanguageSelect = document.getElementById("help-language-select");
   var settingsLanguageSelect = document.getElementById("settings-language-select");
   var helpWarpLayer = document.getElementById("help-warp-layer");
@@ -695,6 +706,10 @@ import {
   var defaultModelSelect = document.getElementById("default-model-select");
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
+  var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
+  var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
+  var settingsStorageSaveBtn = document.getElementById("settings-storage-save-btn");
+  var settingsStorageNote = document.getElementById("settings-storage-note");
   var settingsLogLevelSelect = document.getElementById("settings-log-level-select");
   var settingsLogDirectoryInput = document.getElementById("settings-log-directory");
   var settingsOpenLogFolderBtn = document.getElementById("settings-open-log-folder-btn");
@@ -1168,6 +1183,16 @@ import {
     };
   }
 
+  function collectStorageSettingsFormData() {
+    return {
+      mode:
+        settingsStorageModeSelect && settingsStorageModeSelect.value === "sqlite"
+          ? "sqlite"
+          : "json",
+      sqliteJsonMirror: !settingsStorageMirrorInput || settingsStorageMirrorInput.checked !== false,
+    };
+  }
+
   function renderExecutionDefaultsControls() {
     updateSimpleSelect(
       defaultAgentSelect,
@@ -1202,6 +1227,19 @@ import {
     if (executionDefaultsNote) {
       executionDefaultsNote.textContent = strings.executionDefaultsSaved
         || "Workspace default agent and model settings.";
+    }
+  }
+
+  function renderStorageSettingsControls() {
+    if (settingsStorageModeSelect) {
+      settingsStorageModeSelect.value = storageSettings.mode === "sqlite" ? "sqlite" : "json";
+    }
+    if (settingsStorageMirrorInput) {
+      settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
+    }
+    if (settingsStorageNote) {
+      settingsStorageNote.textContent = strings.settingsStorageSaved
+        || "Storage settings are repo-local. Reload after changing the backend mode.";
     }
   }
 
@@ -1685,6 +1723,7 @@ import {
   renderTelegramTab();
   renderCockpitBoard();
   renderExecutionDefaultsControls();
+  renderStorageSettingsControls();
   renderLoggingControls();
 
   function parseTagList(text) {
@@ -4572,6 +4611,15 @@ syncTodoLabelSuggestions();
     });
   }
 
+  if (settingsStorageSaveBtn) {
+    settingsStorageSaveBtn.addEventListener("click", function () {
+      vscode.postMessage({
+        type: "setStorageSettings",
+        data: collectStorageSettingsFormData(),
+      });
+    });
+  }
+
   if (settingsLogLevelSelect) {
     settingsLogLevelSelect.addEventListener("change", function () {
       currentLogLevel = settingsLogLevelSelect.value || "info";
@@ -5405,6 +5453,18 @@ syncTodoLabelSuggestions();
   if (syncBundledSkillsBtn) {
     syncBundledSkillsBtn.addEventListener("click", function () {
       vscode.postMessage({ type: "syncBundledSkills" });
+    });
+  }
+
+  if (importStorageFromJsonBtn) {
+    importStorageFromJsonBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "importStorageFromJson" });
+    });
+  }
+
+  if (exportStorageToJsonBtn) {
+    exportStorageToJsonBtn.addEventListener("click", function () {
+      vscode.postMessage({ type: "exportStorageToJson" });
     });
   }
 
@@ -8016,6 +8076,18 @@ syncTodoLabelSuggestions();
               : "info";
           debugTools.setLogLevel(currentLogLevel);
           renderLoggingControls();
+          break;
+        case "updateStorageSettings":
+          storageSettings = {
+            mode:
+              message.storageSettings && message.storageSettings.mode === "sqlite"
+                ? "sqlite"
+                : "json",
+            sqliteJsonMirror:
+              !message.storageSettings
+              || message.storageSettings.sqliteJsonMirror !== false,
+          };
+          renderStorageSettingsControls();
           break;
         case "updateExecutionDefaults":
           executionDefaults = message.executionDefaults || {

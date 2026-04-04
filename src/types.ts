@@ -775,6 +775,17 @@ export interface ExecutionDefaultsView {
 }
 
 /**
+ * Workspace storage backend settings exposed in the Settings tab.
+ */
+export interface StorageSettingsView {
+  /** Authoritative workspace persistence backend */
+  mode: "json" | "sqlite";
+
+  /** Whether JSON compatibility mirrors stay enabled in sqlite mode */
+  sqliteJsonMirror: boolean;
+}
+
+/**
  * Optimization direction for a research metric.
  */
 export type ResearchMetricDirection = "maximize" | "minimize";
@@ -1332,6 +1343,8 @@ export interface TaskAction {
   | "compileJob"
   | "setupMcp"
   | "syncBundledSkills"
+  | "importStorageFromJson"
+  | "exportStorageToJson"
   | "createResearchProfile"
   | "updateResearchProfile"
   | "deleteResearchProfile"
@@ -1543,6 +1556,8 @@ export type WebviewToExtensionMessage =
   | { type: "refreshPrompts" }
   | { type: "setupMcp" }
   | { type: "syncBundledSkills" }
+  | { type: "importStorageFromJson" }
+  | { type: "exportStorageToJson" }
   | { type: "createResearchProfile"; data: CreateResearchProfileInput }
   | {
     type: "updateResearchProfile";
@@ -1556,6 +1571,7 @@ export type WebviewToExtensionMessage =
   | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
+  | { type: "setStorageSettings"; data: StorageSettingsView }
   | { type: "createTodo"; data: CreateCockpitTodoInput }
   | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }
   | { type: "deleteTodo"; todoId: string }

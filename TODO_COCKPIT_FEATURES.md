@@ -895,7 +895,17 @@ A typical implementation-aligned workflow is:
 6. Either final-accept/archive it when complete, or convert it into a task draft if it should run on a schedule.
 7. Use the Create Task tab when you need direct scheduled execution authoring instead of todo-first planning.
 
-## 23. Bottom Line
+## 23. Common Mistakes To Avoid
+
+- Do not treat Todo cards and scheduled tasks as interchangeable records. They are separate artifacts with separate MCP tool families.
+- Do not assume multiple flags can be preserved on one card. Only one flag is retained at a time; use labels for multi-value categorization.
+- Do not use labels as a substitute for agent routing or review-state handoff.
+- Do not recreate a missing card as the default closeout behavior for a completed one-time execution. Prefer deterministic closeout on the originating card.
+- Do not patch `.vscode/scheduler.private.json` directly after a partial MCP workflow unless you are on an explicit last-resort recovery path.
+- Do not assume a requested section exists. Closeout flows should keep the card in its current section when the preferred section is unavailable.
+- For verified implementation handoff that still needs user review, prefer `cockpit_closeout_todo` so one summary comment, one review-state flag, and stale task cleanup happen in a single supported path.
+
+## 24. Bottom Line
 
 Todo Cockpit currently provides:
 
