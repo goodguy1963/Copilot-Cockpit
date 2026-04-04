@@ -1524,7 +1524,7 @@ async function executeTask(task: ScheduledTask): Promise<void> {
     await copilotExecutor.executePrompt(promptText, {
       agent: task.agent,
       model: task.model,
-      chatSession: task.chatSession,
+      chatSession: resolveTaskExecutionChatSession(task),
     });
   } catch (error) {
     // executePrompt already shows a warning with copy-to-clipboard option,
@@ -1537,6 +1537,20 @@ async function executeTask(task: ScheduledTask): Promise<void> {
     logError(messages.taskExecutionFailed(task.name, safeErrorMessage));
     throw error;
   }
+}
+
+function resolveTaskExecutionChatSession(
+  task: ScheduledTask,
+): ScheduledTask["chatSession"] {
+  if (task.chatSession) {
+    return task.chatSession;
+  }
+
+  if (task.oneTime) {
+    return "new";
+  }
+
+  return undefined;
 }
 
 /**
@@ -1632,6 +1646,7 @@ export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
+  resolveTaskExecutionChatSession,
   resolvePromptText,
   sanitizeErrorDetailsForLog,
   ensureSchedulerSkillOnStartup,

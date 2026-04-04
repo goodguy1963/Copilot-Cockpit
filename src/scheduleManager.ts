@@ -3405,6 +3405,8 @@ export class ScheduleManager {
     // Process deletions for one-time tasks
     for (const id of tasksToDelete) {
       this.tasks.delete(id);
+      this.pendingDeletedTaskIds.add(id);
+      this.suppressedOverdueTaskIds.delete(id);
     }
 
     // Persist once per tick to reduce I/O overhead.
