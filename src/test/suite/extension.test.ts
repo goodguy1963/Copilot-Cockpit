@@ -151,6 +151,23 @@ suite("Extension Test Suite", () => {
     assert.strictEqual(calls.length, 2);
     assert.strictEqual(queue.hasPending(), false);
   });
+
+  test("manual run refresh helper requests an immediate scheduler UI refresh", async () => {
+    const { __testOnly } = await import("../../extension");
+    const createImmediateManualRunRefresh = __testOnly
+      .createImmediateManualRunRefresh as
+      | ((refreshUiState: (immediate?: boolean) => void) => () => void)
+      | undefined;
+
+    assert.ok(typeof createImmediateManualRunRefresh === "function");
+
+    const refreshCalls: boolean[] = [];
+    createImmediateManualRunRefresh!((immediate) => {
+      refreshCalls.push(immediate === true);
+    })();
+
+    assert.deepStrictEqual(refreshCalls, [true]);
+  });
 });
 
 suite("Cron Expression Tests", () => {

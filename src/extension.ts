@@ -1631,11 +1631,20 @@ async function resolvePromptText(
 export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
+  createImmediateManualRunRefresh,
   resolvePromptText,
   sanitizeErrorDetailsForLog,
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
 };
+
+function createImmediateManualRunRefresh(
+  refreshUiState: (immediate?: boolean) => void,
+): () => void {
+  return () => {
+    refreshUiState(true);
+  };
+}
 
 function getWorkspaceFolderPaths(): string[] {
   const startPaths = (vscode.workspace.workspaceFolders ?? [])
@@ -1677,6 +1686,10 @@ async function confirmManualRunIfWorkspaceMismatch(
 }
 
 async function handleTaskActionAsync(action: TaskAction): Promise<void> {
+  const refreshUiAfterManualRun = createImmediateManualRunRefresh(
+    refreshSchedulerUiState,
+  );
+
   try {
     if (action.taskId === "__toggleAutoShowOnStartup__") {
       const nextValue = !isAutoShowOnStartupEnabled();
@@ -1722,7 +1735,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         // On failure, executePrompt already shows a user-facing warning, so we do
         // not retry (which would show the same error notification a second time).
         await scheduleManager.runTaskNow(action.taskId);
-        SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+        refreshUiAfterManualRun();
         break;
       }
 
@@ -2853,6 +2866,10 @@ function registerDisableTaskCommand(): vscode.Disposable {
 }
 
 function registerRunNowCommand(): vscode.Disposable {
+  const refreshUiAfterManualRun = createImmediateManualRunRefresh(
+    refreshSchedulerUiState,
+  );
+
   return registerSchedulerCommand(
     "runNow",
     async (item?: ScheduledTaskItem) => {
@@ -2890,7 +2907,7 @@ function registerRunNowCommand(): vscode.Disposable {
         // Manual run: no jitter / no daily limit. Persist lastRun when possible.
         // Do not retry on failure — executePrompt already shows a warning.
         await scheduleManager.runTaskNow(task.id);
-        SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+        refreshUiAfterManualRun();
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
