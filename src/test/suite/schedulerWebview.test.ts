@@ -288,6 +288,34 @@ suite("SchedulerWebview Message Queue Tests", () => {
     );
   });
 
+  test("webview runtime persists the active tab and per-tab scroll positions", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "var activeTabName = \"\";",
+      "var tabScrollPositions = Object.create(null);",
+      "function isPersistedTabName(value)",
+      "function captureTabScrollPosition(tabName)",
+      "function restoreTabScrollPosition(tabName)",
+      "if (state && isPersistedTabName(state.activeTab)) {",
+      "next.activeTab = activeTabName;",
+      "next.tabScrollPositions = tabScrollPositions;",
+      "captureTabScrollPosition(activeTabName);",
+      "persistTaskFilter();",
+      "restoreTabScrollPosition(tabName);",
+      "if (isPersistedTabName(activeTabName)) {",
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected active-tab scroll persistence snippet ${snippet}`,
+      );
+    });
+  });
+
   test("webview runtime keeps pending recurring filter state across stale board refreshes", () => {
     const scriptPath = path.resolve(
       __dirname,

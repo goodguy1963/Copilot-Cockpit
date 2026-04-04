@@ -785,6 +785,8 @@ import {
   var selectedJobId = "";
   var selectedResearchId = "";
   var selectedResearchRunId = "";
+  var activeTabName = "";
+  var tabScrollPositions = Object.create(null);
   var draggedJobNodeId = "";
   var draggedJobId = "";
   var draggingSectionId = null;
@@ -885,6 +887,57 @@ import {
     return value === "manual" || value === "jobs" || value === "recurring" || value === "todo-draft" || value === "one-time";
   }
 
+  function isPersistedTabName(value) {
+    return value === "help"
+      || value === "settings"
+      || value === "research"
+      || value === "jobs"
+      || value === "jobs-edit"
+      || value === "list"
+      || value === "create"
+      || value === "board"
+      || value === "todo-edit";
+  }
+
+  function getWindowScrollY() {
+    if (typeof window.scrollY === "number") {
+      return Math.max(0, Math.round(window.scrollY));
+    }
+    var scrollingElement = document.scrollingElement || document.documentElement || document.body;
+    return scrollingElement && typeof scrollingElement.scrollTop === "number"
+      ? Math.max(0, Math.round(scrollingElement.scrollTop))
+      : 0;
+  }
+
+  function setWindowScrollY(value) {
+    var next = Number(value);
+    if (!isFinite(next) || next < 0) {
+      next = 0;
+    }
+    window.scrollTo(0, Math.round(next));
+  }
+
+  function captureTabScrollPosition(tabName) {
+    if (!isPersistedTabName(tabName)) {
+      return;
+    }
+    tabScrollPositions[tabName] = getWindowScrollY();
+  }
+
+  function restoreTabScrollPosition(tabName) {
+    var nextScroll = 0;
+    if (isPersistedTabName(tabName) && typeof tabScrollPositions[tabName] === "number") {
+      nextScroll = tabScrollPositions[tabName];
+    }
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(function () {
+        setWindowScrollY(nextScroll);
+      });
+      return;
+    }
+    setWindowScrollY(nextScroll);
+  }
+
   function restoreTaskFilter() {
     if (!vscode || typeof vscode.getState !== "function") return;
     try {
@@ -921,6 +974,17 @@ import {
       if (state && typeof state.selectedResearchRunId === "string") {
         selectedResearchRunId = state.selectedResearchRunId;
       }
+      if (state && isPersistedTabName(state.activeTab)) {
+        activeTabName = state.activeTab;
+      }
+      if (state && state.tabScrollPositions && typeof state.tabScrollPositions === "object") {
+        Object.keys(state.tabScrollPositions).forEach(function (key) {
+          var value = state.tabScrollPositions[key];
+          if (isPersistedTabName(key) && typeof value === "number" && isFinite(value) && value >= 0) {
+            tabScrollPositions[key] = Math.round(value);
+          }
+        });
+      }
     } catch (_e) {
       // ignore state restore failures
     }
@@ -948,6 +1012,8 @@ import {
       next.boardFiltersCollapsed = boardFiltersManualCollapsed;
       next.selectedResearchId = selectedResearchId;
       next.selectedResearchRunId = selectedResearchRunId;
+      next.activeTab = activeTabName;
+      next.tabScrollPositions = tabScrollPositions;
       vscode.setState(next);
     } catch (_e) {
       // ignore state persist failures
@@ -4579,6 +4645,12 @@ syncTodoLabelSuggestions();
 
   // Tab switching function
   function switchTab(tabName) {
+    if (!isPersistedTabName(tabName)) {
+      tabName = "help";
+    }
+    if (activeTabName) {
+      captureTabScrollPosition(activeTabName);
+    }
     document.querySelectorAll(".tab-button").forEach(function (b) {
       b.classList.remove("active");
     });
@@ -4591,6 +4663,7 @@ syncTodoLabelSuggestions();
     var targetContent = document.getElementById(tabName + "-tab");
     if (targetBtn) targetBtn.classList.add("active");
     if (targetContent) targetContent.classList.add("active");
+    activeTabName = tabName;
     if (jobsToggleSidebarBtn) {
       jobsToggleSidebarBtn.style.display = "";
     }
@@ -4600,29 +4673,21 @@ syncTodoLabelSuggestions();
     if (tabName === "list") {
       refreshTaskCountdowns();
     }
+    persistTaskFilter();
+    restoreTabScrollPosition(tabName);
     updateBoardAutoCollapseFromScroll(true);
     scheduleBoardStickyMetrics();
     maybePlayInitialHelpWarp(tabName);
   }
 
   function getInitialTabName() {
+    if (isPersistedTabName(activeTabName)) {
+      return activeTabName;
+    }
     var tabName = typeof initialData.initialTab === "string"
       ? initialData.initialTab
       : "help";
-    switch (tabName) {
-      case "help":
-      case "settings":
-      case "research":
-      case "jobs":
-      case "jobs-edit":
-      case "list":
-      case "create":
-      case "board":
-      case "todo-edit":
-        return tabName;
-      default:
-        return "help";
-    }
+    return isPersistedTabName(tabName) ? tabName : "help";
   }
 
   // Keep pending values in sync when the user explicitly changes selection
@@ -8533,6 +8598,10 @@ syncTodoLabelSuggestions();
 
   switchTab(getInitialTabName());
   window.addEventListener("scroll", function () {
+    if (activeTabName) {
+      captureTabScrollPosition(activeTabName);
+      persistTaskFilter();
+    }
     updateBoardAutoCollapseFromScroll(false);
   }, { passive: true });
   window.addEventListener("resize", scheduleBoardStickyMetrics);
