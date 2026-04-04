@@ -411,6 +411,8 @@ const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
   { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
 ];
 
+export const DEFAULT_SYSTEM_FLAG_KEYS = SYSTEM_FLAG_SEEDS.map((seed) => seed.key);
+
 const SYSTEM_FLAG_SEED_BY_KEY = new Map(
   SYSTEM_FLAG_SEEDS.map((seed) => [seed.key, seed]),
 );
@@ -488,6 +490,10 @@ function normalizeDeletedFlagCatalogKeys(values: unknown): string[] {
   );
 }
 
+export function normalizeCockpitDisabledSystemFlagKeys(values: unknown): string[] {
+  return normalizeCatalogKeyList(values).filter((key) => SYSTEM_FLAG_SEED_BY_KEY.has(key));
+}
+
 export function isProtectedCockpitFlagKey(value: string): boolean {
   const key = normalizeSystemFlagKey(value);
   return Boolean(key && SYSTEM_FLAG_SEED_BY_KEY.has(key));
@@ -533,11 +539,13 @@ function buildFlagCatalog(
   cards: CockpitTodoCard[],
   existingCatalog: unknown,
   deletedKeys: string[] = [],
+  disabledSystemFlagKeys: string[] = [],
 ): CockpitLabelDefinition[] {
   const timestamp = nowIso();
   const deletedKeySet = new Set(
     deletedKeys.filter((key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key)),
   );
+  const disabledSystemFlagKeySet = new Set(disabledSystemFlagKeys);
   const normalizedEntries = Array.isArray(existingCatalog)
     ? existingCatalog
         .map((entry, index) => normalizeFlagDefinition(entry, index))
@@ -567,7 +575,12 @@ function buildFlagCatalog(
 
   for (const seed of SYSTEM_FLAG_SEEDS) {
     const key = normalizeLabelKey(seed.key);
-    if (key && !catalog.has(key) && !deletedKeySet.has(key)) {
+    if (
+      key
+      && !catalog.has(key)
+      && !deletedKeySet.has(key)
+      && !disabledSystemFlagKeySet.has(key)
+    ) {
       catalog.set(key, {
         name: seed.name,
         key,
@@ -722,6 +735,7 @@ export function createDefaultCockpitBoard(timestamp = nowIso()): CockpitBoard {
     deletedLabelCatalogKeys: [],
     flagCatalog: [],
     deletedFlagCatalogKeys: [],
+    disabledSystemFlagKeys: [],
     deletedCardIds: [],
     filters: {
       labels: [],
@@ -801,6 +815,7 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   }
   const deletedLabelCatalogKeys = normalizeCatalogKeyList(record.deletedLabelCatalogKeys);
   const deletedFlagCatalogKeys = normalizeDeletedFlagCatalogKeys(record.deletedFlagCatalogKeys);
+  const disabledSystemFlagKeys = normalizeCockpitDisabledSystemFlagKeys(record.disabledSystemFlagKeys);
   const deletedCardIds = normalizeIdList(record.deletedCardIds);
   const visibleCards = deletedCardIds.length > 0
     ? mergedCards.filter((card) => !deletedCardIds.includes(card.id))
@@ -812,8 +827,14 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
     cards: visibleCards,
     labelCatalog: buildLabelCatalog(visibleCards, record.labelCatalog, deletedLabelCatalogKeys),
     deletedLabelCatalogKeys,
-    flagCatalog: buildFlagCatalog(visibleCards, record.flagCatalog, deletedFlagCatalogKeys),
+    flagCatalog: buildFlagCatalog(
+      visibleCards,
+      record.flagCatalog,
+      deletedFlagCatalogKeys,
+      disabledSystemFlagKeys,
+    ),
     deletedFlagCatalogKeys,
+    disabledSystemFlagKeys,
     deletedCardIds,
     filters: normalizeFilters(record.filters),
     updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim()

@@ -23,6 +23,7 @@ import {
   saveCockpitTodoLabelDefinition,
   setCockpitBoardPersistenceHooks,
   setCockpitBoardFilters,
+  setCockpitDisabledSystemFlagKeys,
 } from "../../cockpitBoardManager";
 import type { ScheduledTask } from "../../types";
 
@@ -530,6 +531,32 @@ suite("Cockpit Board Manager Tests", () => {
 
       assert.strictEqual(afterDelete.flagCatalog?.some((entry) => entry.key === "go"), true);
       assert.deepStrictEqual(afterDelete.cards[0]?.flags, beforeDelete.cards[0]?.flags);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("can disable built-in default flags without deleting protected behavior", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-flag-disable-"));
+
+    try {
+      const board = setCockpitDisabledSystemFlagKeys(workspaceRoot, ["go", "rejected"]);
+
+      assert.strictEqual(board.disabledSystemFlagKeys?.includes("go"), true);
+      assert.strictEqual(board.disabledSystemFlagKeys?.includes("rejected"), true);
+      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "go"), false);
+      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "rejected"), false);
+
+      createCockpitTodo(workspaceRoot, {
+        title: "Disabled preset still works on cards",
+        sectionId: "unsorted",
+        priority: "none",
+        flags: ["go"],
+      });
+      const updatedBoard = getCockpitBoard(workspaceRoot);
+
+      assert.deepStrictEqual(updatedBoard.cards[0]?.flags, ["go"]);
+      assert.strictEqual(updatedBoard.flagCatalog?.some((entry) => entry.key === "go"), true);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

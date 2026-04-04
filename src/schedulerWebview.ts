@@ -130,6 +130,7 @@ export class SchedulerWebview {
   private static currentStorageSettings: StorageSettingsView = {
     mode: "sqlite",
     sqliteJsonMirror: true,
+    disabledSystemFlagKeys: [],
     appVersion: "",
     mcpSetupStatus: "workspace-required",
     lastMcpSupportUpdateAt: "",
@@ -799,6 +800,9 @@ export class SchedulerWebview {
       postMessage: (m) => this.postMessage(m),
       launchHelpChat: (p) => this.launchHelpChat(p),
       backupGithubFolder: (r) => this.backupGithubFolder(r),
+      updateStorageSettings: (settings) => this.updateStorageSettings(settings),
+      updateCockpitBoard: (board) => this.updateCockpitBoard(board as any),
+      getCurrentStorageSettings: () => this.currentStorageSettings,
     })) {
       return;
     }
@@ -5637,6 +5641,31 @@ export class SchedulerWebview {
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="settings-storage-mirror-input">
             <span>${escapeHtml(strings.settingsStorageMirrorLabel)}</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <div style="font-weight:600;margin-bottom:6px;">${escapeHtml(strings.settingsDefaultFlagsTitle)}</div>
+          <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.settingsDefaultFlagsBody)}</p>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-flag-go-input">
+            <span>${escapeHtml(strings.boardFlagPresetGo)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-flag-needs-bot-review-input">
+            <span>${escapeHtml(strings.boardFlagPresetNeedsBotReview)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-flag-needs-user-review-input">
+            <span>${escapeHtml(strings.boardFlagPresetNeedsUserReview)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-flag-new-input">
+            <span>${escapeHtml(strings.boardFlagPresetNew)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="settings-flag-rejected-input">
+            <span>${escapeHtml(strings.boardFlagPresetRejected)}</span>
           </label>
         </div>
 

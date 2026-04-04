@@ -451,6 +451,9 @@ export interface CockpitBoard {
   /** Deleted flag keys that should stay hidden even if older cards still reference them */
   deletedFlagCatalogKeys?: string[];
 
+  /** Built-in system flag keys that should not be auto-seeded into the palette */
+  disabledSystemFlagKeys?: string[];
+
   /** Tombstones for purged cards so stale board writes cannot resurrect them */
   deletedCardIds?: string[];
 
@@ -786,6 +789,9 @@ export interface StorageSettingsView {
 
   /** Whether JSON compatibility mirrors stay enabled in sqlite mode */
   sqliteJsonMirror: boolean;
+
+  /** Built-in system flag keys that should stay hidden from the default palette */
+  disabledSystemFlagKeys: string[];
 
   /** Installed extension version shown in Settings */
   appVersion: string;
