@@ -2174,6 +2174,152 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.strictEqual(draggingTodoId, null);
     assert.strictEqual(isBoardDragging, false);
   });
+
+  test("board interaction binding reorders sections using only section elements", () => {
+    const helpers = loadBoardInteractionModule();
+    const postedMessages: Array<Record<string, unknown>> = [];
+    const windowListeners: Record<string, (event: Record<string, unknown>) => void> = {};
+    let draggingSectionId: string | null = null;
+    let lastDragOverSectionId: string | null = null;
+    let isBoardDragging = false;
+    let pointTarget: unknown = null;
+
+    const draggedSection = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-section-id" ? "section-a" : ""),
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => (selector === "[data-section-id]" ? draggedSection : null),
+    });
+    const nestedTodoCard = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "section-a";
+        if (name === "data-todo-id") return "todo-1";
+        return "";
+      },
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return nestedTodoCard;
+        if (selector === "[data-section-id]") return draggedSection;
+        return null;
+      },
+    };
+    const dropSection = {
+      getAttribute: (name: string) => (name === "data-section-id" ? "section-b" : ""),
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => (selector === "[data-section-id]" ? dropSection : null),
+    };
+    const sectionHandle = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-section-drag-handle" ? "section-a" : ""),
+      closest: (selector: string) => {
+        if (selector === "[data-section-drag-handle]") return sectionHandle;
+        if (selector === "[data-section-id]") return draggedSection;
+        return null;
+      },
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === sectionHandle || value === draggedSection || value === nestedTodoCard || value === dropSection,
+      querySelectorAll: (selector: string) => {
+        if (selector === ".board-column[data-section-id], .todo-list-section[data-section-id]") {
+          return [draggedSection, dropSection];
+        }
+        if (selector === "[data-section-id].section-drag-over") return [];
+        if (selector === "[data-section-id].section-dragging") return [];
+        if (selector === "[data-todo-id].todo-dragging") return [];
+        if (selector === "[data-todo-id].todo-drop-target") return [];
+        if (selector === "[data-section-drag-handle]") return [sectionHandle];
+        if (selector === "[data-todo-id]") return [nestedTodoCard];
+        if (selector === "[data-section-id]") {
+          return [draggedSection, nestedTodoCard as any, dropSection];
+        }
+        return [];
+      },
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {
+        elementFromPoint: () => pointTarget,
+        body: {
+          classList: { toggle: () => undefined },
+          style: { userSelect: "", webkitUserSelect: "", cursor: "" },
+        },
+      },
+      window: {
+        addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => {
+          windowListeners[name] = handler;
+        },
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          postedMessages.push(message);
+        },
+      },
+      renderCockpitBoard: () => undefined,
+      openTodoEditor: () => undefined,
+      openTodoDeleteModal: () => undefined,
+      handleSectionCollapse: () => undefined,
+      handleSectionRename: () => undefined,
+      handleSectionDelete: () => undefined,
+      handleTodoCompletion: () => undefined,
+      setSelectedTodoId: () => undefined,
+      getDraggingSectionId: () => draggingSectionId,
+      setDraggingSectionId: (value: string | null) => {
+        draggingSectionId = value;
+      },
+      getLastDragOverSectionId: () => lastDragOverSectionId,
+      setLastDragOverSectionId: (value: string | null) => {
+        lastDragOverSectionId = value;
+      },
+      getDraggingTodoId: () => null,
+      setDraggingTodoId: () => undefined,
+      setIsBoardDragging: (value: boolean) => {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => {
+        draggingSectionId = null;
+        lastDragOverSectionId = null;
+        isBoardDragging = false;
+      },
+      isArchiveTodoSectionId: () => false,
+    });
+
+    assert.ok(typeof sectionHandle.listeners.pointerdown === "function");
+
+    sectionHandle.listeners.pointerdown({
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      target: sectionHandle,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    assert.strictEqual(draggingSectionId, "section-a");
+    assert.strictEqual(isBoardDragging, true);
+
+    pointTarget = dropSection;
+    windowListeners.pointermove({ clientX: 24, clientY: 24 });
+    windowListeners.pointerup({ clientX: 24, clientY: 24 });
+
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [{
+      type: "reorderCockpitSection",
+      sectionId: "section-a",
+      targetIndex: 1,
+    }]);
+    assert.strictEqual(draggingSectionId, null);
+    assert.strictEqual(lastDragOverSectionId, null);
+    assert.strictEqual(isBoardDragging, false);
+  });
 });
 
 suite("SchedulerWebview Jobs Request Tests", () => {
