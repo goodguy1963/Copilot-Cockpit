@@ -251,7 +251,7 @@ suite("Skill Bootstrap Tests", () => {
     }
   });
 
-  test("does not overwrite unmanaged existing bundled skill files", async () => {
+  test("updates existing bundled skill files when they are not explicitly marked as customized", async () => {
     const extensionRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-extension-root-skip-"),
     );
@@ -278,11 +278,53 @@ suite("Skill Bootstrap Tests", () => {
       );
 
       assert.strictEqual(result.createdPaths.length, 0);
+      assert.strictEqual(result.updatedPaths.length, 1);
+      assert.strictEqual(result.skippedPaths.length, 0);
+      assert.strictEqual(
+        fs.readFileSync(workspaceSkillPath, "utf8"),
+        "bundled\n",
+      );
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("does not overwrite bundled skill files explicitly marked as customized", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-protected-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-protected-"),
+    );
+
+    try {
+      const relativePath = path.join(
+        BUNDLED_SKILLS_RELATIVE_PATH,
+        "copilot-scheduler-intro",
+        "SKILL.md",
+      );
+      const bundledSkillPath = path.join(extensionRoot, relativePath);
+      const workspaceSkillPath = path.join(workspaceRoot, relativePath);
+      fs.mkdirSync(path.dirname(bundledSkillPath), { recursive: true });
+      fs.writeFileSync(bundledSkillPath, "---\nname: copilot-scheduler-intro\n---\n\nbundled\n", "utf8");
+      fs.mkdirSync(path.dirname(workspaceSkillPath), { recursive: true });
+      fs.writeFileSync(
+        workspaceSkillPath,
+        "---\nname: copilot-scheduler-intro\ncopilotCockpitCustomize: true\n---\n\nworkspace-custom\n",
+        "utf8",
+      );
+
+      const result = await syncBundledSkillsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      assert.strictEqual(result.createdPaths.length, 0);
       assert.strictEqual(result.updatedPaths.length, 0);
       assert.strictEqual(result.skippedPaths.length, 1);
       assert.strictEqual(
         fs.readFileSync(workspaceSkillPath, "utf8"),
-        "workspace-custom\n",
+        "---\nname: copilot-scheduler-intro\ncopilotCockpitCustomize: true\n---\n\nworkspace-custom\n",
       );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);

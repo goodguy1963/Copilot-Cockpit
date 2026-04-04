@@ -34,6 +34,8 @@ export interface BundledSkillSyncResult {
   nextState: BundledSkillSyncState;
 }
 
+const BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY = "copilotCockpitCustomize";
+
 async function collectBundledSkillSyncResult(
   extensionRoot: string,
   workspaceRoots: string[],
@@ -123,6 +125,15 @@ async function collectBundledSkillSyncResult(
         continue;
       }
 
+      if (!isBundledSkillCustomizationProtected(currentContent)) {
+        if (applyChanges) {
+          await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        }
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[relativePath] = bundledHash;
+        continue;
+      }
+
       result.skippedPaths.push(targetPath);
       if (previousManagedHash) {
         nextWorkspaceState[relativePath] = previousManagedHash;
@@ -149,6 +160,20 @@ export function getBundledCockpitTodoSkillPath(extensionRoot: string): string {
 
 function createContentHash(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+function isBundledSkillCustomizationProtected(content: string): boolean {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch) {
+    return false;
+  }
+
+  const frontmatter = frontmatterMatch[1];
+  const customizePattern = new RegExp(
+    `^${BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY}\\s*:\\s*true\\s*$`,
+    "mi",
+  );
+  return customizePattern.test(frontmatter);
 }
 
 function normalizeSyncState(
