@@ -834,22 +834,6 @@ export class SchedulerWebview {
     }
 
     switch (message.type) {
-      case "createTask":
-        this.onTaskActionCallback?.({
-          action: "edit",
-          taskId: "__create__",
-          data: message.data,
-        });
-        break;
-
-      case "updateTask":
-        this.onTaskActionCallback?.({
-          action: "edit",
-          taskId: message.taskId,
-          data: message.data,
-        });
-        break;
-
       case "testPrompt":
         this.onTestPromptCallback?.(
           message.prompt,
@@ -4813,7 +4797,7 @@ export class SchedulerWebview {
         </div>
       </div>
 
-      <form id="task-form">
+      <form id="task-form" novalidate>
         <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
         <input type="hidden" id="edit-task-id" value="">
 
