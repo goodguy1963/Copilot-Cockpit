@@ -10,6 +10,7 @@ import {
   normalizeCockpitBoard,
 } from "../../cockpitBoard";
 import {
+  addCockpitSection,
   approveTodoInBoard,
   createCockpitTodo,
   createTodoInBoard,
@@ -18,6 +19,7 @@ import {
   ensureTaskTodosInBoard,
   finalizeTodoInBoard,
   getCockpitBoard,
+  renameCockpitSection,
   restoreArchivedTodoInBoard,
   saveCockpitFlagDefinition,
   saveCockpitTodoLabelDefinition,
@@ -659,6 +661,45 @@ suite("Cockpit Board Manager Tests", () => {
       assert.ok(board.sections.some((section) => section.id === "unsorted"));
     } finally {
       setCockpitBoardPersistenceHooks();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+  test("rejects deprecated and protected section names during section mutations", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-section-"));
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2),
+        "utf8",
+      );
+
+      const invalidAdd = addCockpitSection(workspaceRoot, "final-user-check");
+      assert.strictEqual(
+        invalidAdd.validationError,
+        "Section name 'final-user-check' is deprecated. Use an existing review-state flag such as 'needs-user-review' instead of 'final-user-check'.",
+      );
+      assert.strictEqual(
+        invalidAdd.board.sections.some((section) => section.title === "final-user-check"),
+        false,
+      );
+
+      const added = addCockpitSection(workspaceRoot, "Delivery");
+      assert.strictEqual(added.validationError, undefined);
+      const addedSection = added.board.sections.find((section) => section.title === "Delivery");
+      assert.ok(addedSection);
+
+      const invalidRename = renameCockpitSection(workspaceRoot, addedSection!.id, "ON-SCHEDULE-LIST");
+      assert.strictEqual(
+        invalidRename.validationError,
+        "Section name 'ON-SCHEDULE-LIST' conflicts with a protected routing flag. Use a board section title that is distinct from Cockpit flag names.",
+      );
+      assert.strictEqual(
+        invalidRename.board.sections.find((section) => section.id === addedSection!.id)?.title,
+        "Delivery",
+      );
+    } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

@@ -214,4 +214,101 @@ suite("MCP Launcher Script Tests", () => {
     launcher.mockChild.emit("exit", 0);
     assert.deepStrictEqual(launcher.exits, [0]);
   });
+
+  test("listVersionedCandidates returns empty array for a directory with no matching entries", () => {
+    const root = path.resolve("mock-empty-extensions-root");
+
+    const launcher = loadLauncher({
+      state: {},
+      existingPaths: [],
+      directoryEntries: {
+        [root]: [
+          createDirEntry("other-extension-1.0.0"),
+          createDirEntry("completely-different-publisher.some-plugin-3.2.1"),
+        ],
+      },
+    });
+
+    const candidates = launcher.exports.listVersionedCandidates(root, "local-dev.copilot-cockpit-");
+
+    assert.strictEqual(candidates.length, 0);
+  });
+
+  test("main forwards SIGINT and SIGHUP to the child process", () => {
+    const root = path.resolve("mock-launcher-signals-root");
+    const extensionRoot = path.join(root, "local-dev.copilot-cockpit-99.0.90");
+    const serverPath = path.join(extensionRoot, "out", "server.js");
+
+    const launcher = loadLauncher({
+      state: {
+        preferredExtensionDir: root,
+        extensionIdPrefix: "local-dev.copilot-cockpit-",
+      },
+      existingPaths: [root, serverPath],
+      directoryEntries: {
+        [root]: [createDirEntry("local-dev.copilot-cockpit-99.0.90")],
+      },
+    });
+
+    launcher.exports.main();
+
+    launcher.signalHandlers.get("SIGINT")?.();
+    assert.ok(launcher.mockChild.killCalls.includes("SIGINT"), "Expected SIGINT to be forwarded");
+
+    launcher.mockChild.emit("exit", 1);
+    assert.deepStrictEqual(launcher.exits, [1]);
+  });
+
+  test("main exits with the child process exit code on non-zero exit", () => {
+    const root = path.resolve("mock-launcher-exit-root");
+    const extensionRoot = path.join(root, "local-dev.copilot-cockpit-99.0.90");
+    const serverPath = path.join(extensionRoot, "out", "server.js");
+
+    const launcher = loadLauncher({
+      state: {
+        preferredExtensionDir: root,
+        extensionIdPrefix: "local-dev.copilot-cockpit-",
+      },
+      existingPaths: [root, serverPath],
+      directoryEntries: {
+        [root]: [createDirEntry("local-dev.copilot-cockpit-99.0.90")],
+      },
+    });
+
+    launcher.exports.main();
+
+    launcher.mockChild.emit("exit", 42);
+    assert.deepStrictEqual(launcher.exits, [42]);
+  });
+
+  test("resolveServerPath prefers the version with the greater patch number", () => {
+    const root = path.resolve("mock-patch-comparison-root");
+
+    const make = (ver: string) => {
+      const base = path.join(root, `local-dev.copilot-cockpit-${ver}`);
+      return { dir: base, server: path.join(base, "out", "server.js") };
+    };
+
+    const v88 = make("99.0.88");
+    const v100 = make("99.0.100");
+    const v90 = make("99.0.90");
+
+    const launcher = loadLauncher({
+      state: {
+        preferredExtensionDir: root,
+        extensionIdPrefix: "local-dev.copilot-cockpit-",
+      },
+      existingPaths: [root, v88.server, v100.server, v90.server],
+      directoryEntries: {
+        [root]: [
+          createDirEntry("local-dev.copilot-cockpit-99.0.88"),
+          createDirEntry("local-dev.copilot-cockpit-99.0.100"),
+          createDirEntry("local-dev.copilot-cockpit-99.0.90"),
+        ],
+      },
+    });
+
+    // 99.0.100 > 99.0.90 > 99.0.88 by version parts
+    assert.strictEqual(launcher.exports.resolveServerPath(), v100.server);
+  });
 });

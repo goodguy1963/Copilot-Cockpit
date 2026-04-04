@@ -100,7 +100,7 @@ const SQLITE_MIGRATION_JOURNAL_VERSION = 1;
 let sqlJsModulePromise: Promise<SqlJsModule> | undefined;
 
 function getSqlJsWasmPath(): string {
-  return require.resolve("sql.js/dist/sql-wasm.wasm");
+  return path.join(__dirname, "sql-wasm.wasm");
 }
 
 async function getSqlJsModule(): Promise<SqlJsModule> {

@@ -124,4 +124,32 @@ suite("SchedulerStore Tests", () => {
       /Invalid config format: 'tasks' array is missing\./,
     );
   });
+
+  test("readSchedulerConfig returns empty tasks list when no config files exist", () => {
+    const result = readSchedulerConfig(workspaceRoot);
+
+    assert.deepStrictEqual(result, { tasks: [] });
+  });
+
+  test("readSchedulerConfig returns empty tasks list when the file contains malformed JSON", () => {
+    const vscodeDir = path.join(workspaceRoot, ".vscode");
+    const publicPath = path.join(vscodeDir, "scheduler.json");
+
+    fs.mkdirSync(vscodeDir, { recursive: true });
+    fs.writeFileSync(publicPath, "{ this is not JSON }", "utf8");
+
+    const result = readSchedulerConfig(workspaceRoot);
+
+    assert.deepStrictEqual(result, { tasks: [] });
+  });
+
+  test("getActiveSchedulerReadPath returns the private path when only the private file exists", () => {
+    const vscodeDir = path.join(workspaceRoot, ".vscode");
+    const privatePath = path.join(vscodeDir, "scheduler.private.json");
+
+    fs.mkdirSync(vscodeDir, { recursive: true });
+    fs.writeFileSync(privatePath, JSON.stringify({ tasks: [{ id: "only-private" }] }), "utf8");
+
+    assert.strictEqual(getActiveSchedulerReadPath(workspaceRoot), privatePath);
+  });
 });

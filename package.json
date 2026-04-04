@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
-  "version": "99.0.90",
+  "version": "99.0.92",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",
@@ -405,11 +405,12 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify",
+    "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify && npm run copy:sql-wasm",
+    "copy:sql-wasm": "node ./scripts/copy-sql-wasm.js",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --external:vscode --platform=node --format=cjs",
     "esbuild-webview": "esbuild ./media/schedulerWebview.entry.js --bundle --outfile=media/generated/schedulerWebview.js --format=iife --platform=browser",
-    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap",
+    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap && npm run copy:sql-wasm",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "watch:server": "npm run esbuild-server -- --sourcemap --watch",
     "watch:webview": "npm run esbuild-webview -- --sourcemap --watch",
@@ -417,7 +418,7 @@
     "install:vsix": "node ./scripts/install-vsix.js stable",
     "install:vsix:insiders": "node ./scripts/install-vsix.js insiders",
     "install:vsix:both": "node ./scripts/install-vsix.js both",
-    "pretest": "npm run esbuild-webview && tsc -p ./",
+    "pretest": "npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts"
   },

@@ -348,7 +348,7 @@ export interface CockpitTodoCard {
   /** Free-form user-facing categorization labels */
   labels: string[];
 
-  /** Single-value agent-state flags used for routing and board filtering */
+  /** Agent-state flags used for routing and board filtering; scheduled cards may keep a built-in paired system state */
   flags: string[];
 
   /** Communication trail between user and system */
