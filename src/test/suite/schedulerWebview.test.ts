@@ -229,6 +229,65 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("research tab exposes the AutoAgent example loader without host-side profile creation", () => {
+    const templatePath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebview.ts",
+    );
+    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const stringsPath = path.resolve(
+      __dirname,
+      "../../../src/schedulerWebviewStrings.ts",
+    );
+    const stringsSource = fs.readFileSync(stringsPath, "utf8");
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'id="research-load-autoagent-example-btn"',
+      'strings.researchLoadAutoAgentExample',
+    ].forEach((snippet) => {
+      assert.ok(
+        templateSource.includes(snippet),
+        `expected AutoAgent example template snippet ${snippet}`,
+      );
+    });
+
+    [
+      "researchLoadAutoAgentExample: localize(",
+      "researchAutoAgentExampleName: localize(",
+      "researchAutoAgentExampleInstructions: localize(",
+    ].forEach((snippet) => {
+      assert.ok(
+        stringsSource.includes(snippet),
+        `expected AutoAgent example string snippet ${snippet}`,
+      );
+    });
+
+    [
+      'var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");',
+      "function getAutoAgentResearchExampleProfile()",
+      'editablePaths: ["agent.py", "program.md"]',
+      'metricPattern: "(?:score|reward)\\\\s*[:=]\\\\s*([0-9.]+)"',
+      'researchLoadAutoAgentExampleBtn.addEventListener("click", function () {',
+      'resetResearchForm(getAutoAgentResearchExampleProfile());',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected AutoAgent example runtime snippet ${snippet}`,
+      );
+    });
+
+    assert.strictEqual(
+      scriptSource.includes('type: "createResearchProfile"'),
+      true,
+      "expected normal explicit save flow to remain in place",
+    );
+  });
+
   test("webview runtime keeps pending recurring filter state across stale board refreshes", () => {
     const scriptPath = path.resolve(
       __dirname,

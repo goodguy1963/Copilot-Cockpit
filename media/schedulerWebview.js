@@ -699,6 +699,7 @@ import {
   var jobsStepLabelsInput = document.getElementById("jobs-step-labels-input");
   var jobsCreateStepBtn = document.getElementById("jobs-create-step-btn");
   var researchNewBtn = document.getElementById("research-new-btn");
+  var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");
   var researchSaveBtn = document.getElementById("research-save-btn");
   var researchDuplicateBtn = document.getElementById("research-duplicate-btn");
   var researchDeleteBtn = document.getElementById("research-delete-btn");
@@ -5110,6 +5111,13 @@ syncTodoLabelSuggestions();
     });
   }
 
+  if (researchLoadAutoAgentExampleBtn) {
+    researchLoadAutoAgentExampleBtn.addEventListener("click", function () {
+      resetResearchForm(getAutoAgentResearchExampleProfile());
+      renderResearchTab();
+    });
+  }
+
   if (researchSaveBtn) {
     researchSaveBtn.addEventListener("click", function () {
       var data = collectResearchFormData();
@@ -7217,6 +7225,25 @@ syncTodoLabelSuggestions();
     if (status === "failed") return strings.researchStatusFailed || "Failed";
     if (status === "stopped") return strings.researchStatusStopped || "Stopped";
     return strings.researchStatusIdle || "Idle";
+  }
+
+  function getAutoAgentResearchExampleProfile() {
+    return {
+      name: strings.researchAutoAgentExampleName || "AutoAgent Harbor Example",
+      instructions: strings.researchAutoAgentExampleInstructions
+        || "Use this preset inside the autoagent repo to improve the Harbor agent harness score by editing agent.py while refining the experiment directive in program.md. Start with one representative task, keep the editable surface small, and make sure the benchmark command prints a final numeric score or reward line that matches the regex before you run the loop.",
+      editablePaths: ["agent.py", "program.md"],
+      benchmarkCommand: "uv run harbor run -p tasks/ --task-name \"<task-name>\" -l 1 -n 1 --agent-import-path agent:AutoAgent -o jobs --job-name latest",
+      metricPattern: "(?:score|reward)\\s*[:=]\\s*([0-9.]+)",
+      metricDirection: "maximize",
+      maxIterations: 8,
+      maxMinutes: 90,
+      maxConsecutiveFailures: 3,
+      benchmarkTimeoutSeconds: 900,
+      editWaitSeconds: 45,
+      agent: "",
+      model: "",
+    };
   }
 
   function resetResearchForm(profile) {

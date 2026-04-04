@@ -5420,6 +5420,7 @@ export class SchedulerWebview {
           </div>
           <div class="research-toolbar">
             <button type="button" class="btn-secondary" id="research-new-btn">${escapeHtml(strings.researchNewProfile)}</button>
+            <button type="button" class="btn-secondary" id="research-load-autoagent-example-btn">${escapeHtml(strings.researchLoadAutoAgentExample)}</button>
           </div>
           <div id="research-profile-list" class="research-profile-list"></div>
         </section>
