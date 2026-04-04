@@ -315,6 +315,9 @@ export interface CockpitLabelDefinition {
 
   /** Last update timestamp */
   updatedAt: string;
+
+  /** Built-in palette entry that should stay protected from user deletion */
+  system?: boolean;
 }
 
 export interface CockpitTodoCard {

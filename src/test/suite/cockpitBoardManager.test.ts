@@ -13,6 +13,7 @@ import {
   approveTodoInBoard,
   createCockpitTodo,
   createTodoInBoard,
+  deleteCockpitFlagDefinition,
   deleteTodoInBoard,
   ensureTaskTodosInBoard,
   finalizeTodoInBoard,
@@ -457,6 +458,78 @@ suite("Cockpit Board Manager Tests", () => {
       assert.deepStrictEqual(board.filters?.flags ?? [], ["Focus"]);
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Now"), false);
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Focus"), true);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("normalizes protected flags and keeps them undeletable", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-flag-protected-"));
+
+    try {
+      const normalized = normalizeCockpitBoard({
+        version: 4,
+        sections: [
+          {
+            id: "unsorted",
+            title: "Unsorted",
+            order: 0,
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+        ],
+        cards: [
+          {
+            id: "card-go",
+            title: "Legacy go",
+            sectionId: "unsorted",
+            order: 0,
+            priority: "none",
+            status: "active",
+            labels: [],
+            flags: ["GO"],
+            comments: [],
+            archived: false,
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+          {
+            id: "card-rejected",
+            title: "Legacy rejected",
+            sectionId: "unsorted",
+            order: 1,
+            priority: "none",
+            status: "active",
+            labels: [],
+            flags: ["abgelehnt"],
+            comments: [],
+            archived: false,
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+        ],
+        deletedFlagCatalogKeys: ["go", "rejected"],
+        updatedAt: "2026-04-04T00:00:00.000Z",
+      });
+
+      assert.deepStrictEqual(normalized.cards[0]?.flags, ["go"]);
+      assert.deepStrictEqual(normalized.cards[1]?.flags, ["rejected"]);
+      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "go" && entry.system === true), true);
+      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "rejected" && entry.system === true), true);
+      assert.strictEqual(normalized.deletedFlagCatalogKeys?.includes("go"), false);
+      assert.strictEqual(normalized.deletedFlagCatalogKeys?.includes("rejected"), false);
+
+      createCockpitTodo(workspaceRoot, {
+        title: "Protected flag todo",
+        sectionId: "unsorted",
+        priority: "none",
+        flags: ["go"],
+      });
+      const beforeDelete = getCockpitBoard(workspaceRoot);
+      const afterDelete = deleteCockpitFlagDefinition(workspaceRoot, "go");
+
+      assert.strictEqual(afterDelete.flagCatalog?.some((entry) => entry.key === "go"), true);
+      assert.deepStrictEqual(afterDelete.cards[0]?.flags, beforeDelete.cards[0]?.flags);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

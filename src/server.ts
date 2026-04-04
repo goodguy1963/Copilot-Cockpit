@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 import {
     createDefaultCockpitBoard,
+    isProtectedCockpitFlagKey,
     normalizeCockpitBoard,
 } from "./cockpitBoard.js";
 import {
@@ -964,7 +965,7 @@ export const MCP_TOOL_DEFINITIONS = [
         inputSchema: {
             type: "object",
             properties: {
-                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, abgelehnt, needs-bot-review, and on-schedule-list." },
+                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, rejected (legacy alias: abgelehnt), needs-bot-review, and on-schedule-list." },
                 includeArchived: { type: "boolean", description: "Set false to exclude archived cards." },
             },
         },
@@ -2241,6 +2242,9 @@ export async function handleSchedulerToolCall(
 
             case "cockpit_delete_flag_definition": {
                 const name = ensureString(args.name, "name");
+                if (isProtectedCockpitFlagKey(name)) {
+                    return textResponse({ message: `Flag definition '${name}' is built-in and cannot be removed.` });
+                }
                 const board = deleteCockpitFlagDefinition(context.workspaceRoot, name);
                 config.cockpitBoard = board;
                 return textResponse({ message: `Flag definition '${name}' removed.` });

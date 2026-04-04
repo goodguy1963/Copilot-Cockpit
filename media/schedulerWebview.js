@@ -1903,6 +1903,47 @@ import {
       : "#f59e0b";
   }
 
+  function getFlagDisplayName(flagName) {
+    var key = normalizeTodoLabelKey(flagName);
+    if (key === "go") {
+      return strings.boardFlagPresetGo || "Ready";
+    }
+    if (key === "rejected" || key === "abgelehnt") {
+      return strings.boardFlagPresetRejected || "Rejected";
+    }
+    if (key === "needs-bot-review") {
+      return strings.boardFlagPresetNeedsBotReview || "Needs bot review";
+    }
+    if (key === "needs-user-review") {
+      return strings.boardFlagPresetNeedsUserReview || "Needs user review";
+    }
+    if (key === "new") {
+      return strings.boardFlagPresetNew || "New";
+    }
+    var definition = getFlagDefinition(flagName);
+    return definition && definition.name ? definition.name : flagName;
+  }
+
+  function isProtectedFlagDefinition(entryOrName) {
+    var entry = entryOrName && typeof entryOrName === "object"
+      ? entryOrName
+      : getFlagDefinition(entryOrName);
+    if (entry && entry.system === true) {
+      return true;
+    }
+    var key = normalizeTodoLabelKey(
+      entry && (entry.key || entry.name)
+        ? (entry.key || entry.name)
+        : entryOrName,
+    );
+    return key === "go"
+      || key === "rejected"
+      || key === "abgelehnt"
+      || key === "needs-bot-review"
+      || key === "needs-user-review"
+      || key === "new";
+  }
+
   function getLabelDefinition(label) {
     var key = normalizeTodoLabelKey(label);
     var catalog = getLabelCatalog();
@@ -2047,9 +2088,10 @@ import {
   function renderFlagChip(flagName, removable) {
     var color = getFlagColor(flagName);
     var textColor = getReadableTextColor(color);
+    var displayName = getFlagDisplayName(flagName);
     return (
       '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;">' +
-      '<span>' + escapeHtml(flagName) + '</span>' +
+      '<span>' + escapeHtml(displayName) + '</span>' +
       (removable
         ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">×</button>'
         : "") +
@@ -2460,7 +2502,7 @@ syncTodoLabelSuggestions();
       if (currentTodoFlag) {
         todoflagCurrentEl.innerHTML = renderFlagChip(currentTodoFlag, true);
       } else {
-        todoflagCurrentEl.innerHTML = '<span class="note">No flag set.</span>';
+        todoflagCurrentEl.innerHTML = '<span class="note">' + escapeHtml(strings.boardFlagNone || "No flag set.") + '</span>';
       }
     }
     if (todoFlagPickerEl) {
@@ -2474,9 +2516,13 @@ syncTodoLabelSuggestions();
           var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
           var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
           var pendingDelete = isPendingCatalogDelete("flag", entry.name);
+          var protectedFlag = isProtectedFlagDefinition(entry);
+          var displayName = getFlagDisplayName(entry.name);
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
-            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(entry.name) + '</button>'
-            + (pendingDelete
+            + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + '</button>'
+            + (protectedFlag
+              ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">🔒</span>'
+              : pendingDelete
               ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
               : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
               + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>')
