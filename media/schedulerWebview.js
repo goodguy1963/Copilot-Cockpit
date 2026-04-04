@@ -3833,8 +3833,17 @@ syncTodoLabelSuggestions();
         var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards)
           ? cockpitBoard.cards.find(function (card) { return card && card.id === selectedTodoId; })
           : null;
+        var actionType = getTodoCompletionActionType(selectedTodo);
+        if (actionType === "finalizeTodo") {
+          var finalizeConfirmed = typeof window.confirm === "function"
+            ? window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")
+            : true;
+          if (!finalizeConfirmed) {
+            return;
+          }
+        }
         vscode.postMessage({
-          type: getTodoCompletionActionType(selectedTodo),
+          type: actionType,
           todoId: selectedTodoId,
         });
       };

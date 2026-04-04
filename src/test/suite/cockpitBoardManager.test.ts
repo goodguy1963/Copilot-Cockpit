@@ -572,6 +572,42 @@ suite("Cockpit Board Manager Tests", () => {
     }
   });
 
+  test("default built-in flags use workflow order and seed FINAL-USER-CHECK instead of Linked scheduled task", () => {
+    const normalized = normalizeCockpitBoard({
+      version: 4,
+      sections: [
+        {
+          id: "unsorted",
+          title: "Unsorted",
+          order: 0,
+          createdAt: "2026-04-04T00:00:00.000Z",
+          updatedAt: "2026-04-04T00:00:00.000Z",
+        },
+      ],
+      cards: [],
+      labelCatalog: [],
+      flagCatalog: [],
+      updatedAt: "2026-04-04T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(
+      normalized.flagCatalog?.map((entry) => entry.name),
+      [
+        "new",
+        "needs-bot-review",
+        "needs-user-review",
+        "go",
+        "ON-SCHEDULE-LIST",
+        "FINAL-USER-CHECK",
+        "rejected",
+      ],
+    );
+    assert.strictEqual(
+      normalized.flagCatalog?.some((entry) => entry.key === "linked-scheduled-task"),
+      false,
+    );
+  });
+
   test("task-linked todos keep both scheduled-task default flags in the catalog", () => {
     const board = createDefaultCockpitBoard("2026-04-04T00:00:00.000Z");
     const recurringTask: ScheduledTask = {

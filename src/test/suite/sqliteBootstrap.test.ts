@@ -294,7 +294,7 @@ suite("SQLite Bootstrap Tests", () => {
       assert.strictEqual(board?.cards?.[0]?.title, "SQLite cockpit card");
       assert.strictEqual(board?.cards?.[0]?.comments?.[0]?.body, "hello");
       assert.strictEqual(board?.labelCatalog?.[0]?.name, "Ops");
-      assert.strictEqual(board?.flagCatalog?.[0]?.name, "go");
+      assert.strictEqual(board?.flagCatalog?.[0]?.name, "new");
       assert.deepStrictEqual(board?.deletedCardIds ?? [], ["card-deleted"]);
     } finally {
       cleanup(workspaceRoot);
