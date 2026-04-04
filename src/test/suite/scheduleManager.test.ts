@@ -1717,6 +1717,141 @@ suite("ScheduleManager Overdue Task Tests", () => {
       }
     }
   });
+
+  test("manual run removes a one-time overdue task from persisted state", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-manual-one-time-run-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-manual-one-time-run-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const taskId = "overdue-one-time-manual-run";
+    const now = new Date("2026-03-23T10:20:00.000Z");
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: taskId,
+                name: "One-time overdue",
+                cron: "*/5 * * * *",
+                prompt: "run me once",
+                enabled: true,
+                oneTime: true,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
+                nextRun: "2026-03-23T10:15:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => undefined);
+
+      const executed = await manager.runTaskNow(taskId);
+      assert.strictEqual(executed, true);
+      assert.strictEqual(manager.getTask(taskId), undefined);
+      assert.deepStrictEqual(manager.getAllTasks().map((task) => task.id), []);
+
+      const persisted = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as { tasks?: Array<{ id: string }> };
+      assert.deepStrictEqual(
+        (persisted.tasks ?? []).map((task) => task.id),
+        [],
+      );
+
+      const deleted = await manager.deleteTask(taskId);
+      assert.strictEqual(deleted, false);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+
+  test("reload does not resurrect a manually run one-time overdue task", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-manual-one-time-reload-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-manual-one-time-reload-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const taskId = "overdue-one-time-reload";
+    const now = new Date("2026-03-23T10:20:00.000Z");
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: taskId,
+                name: "One-time overdue reload",
+                cron: "*/5 * * * *",
+                prompt: "run me once",
+                enabled: true,
+                oneTime: true,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
+                nextRun: "2026-03-23T10:15:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => undefined);
+
+      const executed = await manager.runTaskNow(taskId);
+      assert.strictEqual(executed, true);
+      manager.reloadTasks();
+
+      assert.strictEqual(manager.getTask(taskId), undefined);
+      assert.deepStrictEqual(manager.getAllTasks().map((task) => task.id), []);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
 });
 
 suite("ScheduleManager History Snapshot Tests", () => {

@@ -1,6 +1,5 @@
 import * as path from "path";
-import * as vscode from "vscode";
-import { getCompatibleConfigurationValue } from "./extensionCompat";
+import type * as vscode from "vscode";
 
 export const JSON_STORAGE_MODE = "json" as const;
 export const SQLITE_STORAGE_MODE = "sqlite" as const;
@@ -57,6 +56,7 @@ export function normalizeSqliteJsonMirrorEnabled(value: unknown): boolean {
 export function getConfiguredSchedulerStorageMode(
   scope?: vscode.ConfigurationScope,
 ): SchedulerStorageMode {
+  const { getCompatibleConfigurationValue } = require("./extensionCompat") as typeof import("./extensionCompat");
   return normalizeSchedulerStorageMode(
     getCompatibleConfigurationValue<SchedulerStorageMode>(
       "storageMode",
@@ -69,6 +69,7 @@ export function getConfiguredSchedulerStorageMode(
 export function getConfiguredSqliteJsonMirrorEnabled(
   scope?: vscode.ConfigurationScope,
 ): boolean {
+  const { getCompatibleConfigurationValue } = require("./extensionCompat") as typeof import("./extensionCompat");
   return normalizeSqliteJsonMirrorEnabled(
     getCompatibleConfigurationValue<boolean>(
       "sqliteJsonMirror",

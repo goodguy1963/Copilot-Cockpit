@@ -28,18 +28,13 @@ jobs:
 
       # vsce package auto-calls vscode:prepublish (esbuild minify) before packing
       - name: Build & package VSIX
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: npm run package:vsix
 
       # Pull the top section from CHANGELOG.md as release notes
       - name: Extract changelog section
-        run: |
-          node -e "
-            const fs = require('fs');
-            const text = fs.readFileSync('CHANGELOG.md', 'utf8');
-            const match = text.match(/^## \[[\s\S]*?\n([\s\S]*?)(?=\n## \[|$)/m);
-            const notes = match ? match[1].trim() : 'See CHANGELOG.md for details.';
-            fs.writeFileSync('release-notes.md', notes);
-          "
+        run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md
 
       - name: Create GitHub Release with VSIX
         env:
