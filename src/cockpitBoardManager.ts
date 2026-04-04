@@ -1,4 +1,5 @@
 import {
+  normalizeCockpitDisabledSystemFlagKeys,
   DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
   DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
   DEFAULT_RECURRING_TASKS_SECTION_ID,
@@ -1419,6 +1420,21 @@ export function deleteCockpitFlagDefinition(
     key,
   ]));
   touchBoard(nextBoard, timestamp);
+  return persistBoard(workspaceRoot, nextBoard);
+}
+
+export function setCockpitDisabledSystemFlagKeys(
+  workspaceRoot: string,
+  keys: string[],
+): CockpitBoard {
+  const nextBoard = cloneBoard(getCockpitBoard(workspaceRoot));
+  const disabledKeys = normalizeCockpitDisabledSystemFlagKeys(keys);
+  const disabledKeySet = new Set(disabledKeys);
+  nextBoard.disabledSystemFlagKeys = disabledKeys;
+  nextBoard.flagCatalog = (nextBoard.flagCatalog ?? []).filter(
+    (entry) => !disabledKeySet.has(entry.key),
+  );
+  touchBoard(nextBoard, nowIso());
   return persistBoard(workspaceRoot, nextBoard);
 }
 

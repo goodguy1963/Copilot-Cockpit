@@ -665,11 +665,15 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
 function getCurrentStorageSettings(): StorageSettingsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
   const workspaceRoot = folderUri?.fsPath;
+  const board = getCurrentCockpitBoard();
   return {
     mode: getSchedulerSetting<string>("storageMode", "sqlite", folderUri) === "sqlite"
       ? "sqlite"
       : "json",
     sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
+    disabledSystemFlagKeys: Array.isArray(board.disabledSystemFlagKeys)
+      ? board.disabledSystemFlagKeys.slice()
+      : [],
     appVersion: extensionContext?.extension.packageJSON?.version ?? "",
     mcpSetupStatus: getCurrentMcpSetupStatus(),
     lastMcpSupportUpdateAt: getWorkspaceTimestamp(

@@ -366,6 +366,13 @@ import {
   }
 
   function normalizeStorageSettings(value, previousValue) {
+    var disabledSystemFlagKeys = Array.isArray(value && value.disabledSystemFlagKeys)
+      ? value.disabledSystemFlagKeys
+        .map(function (entry) { return normalizeTodoLabelKey(entry); })
+        .filter(function (entry, index, values) {
+          return !!entry && values.indexOf(entry) === index;
+        })
+      : ((previousValue && previousValue.disabledSystemFlagKeys) || []).slice();
     return {
       mode:
         value && value.mode === "json"
@@ -373,6 +380,7 @@ import {
           : "sqlite",
       sqliteJsonMirror:
         !value || value.sqliteJsonMirror !== false,
+      disabledSystemFlagKeys: disabledSystemFlagKeys,
       appVersion:
         value && typeof value.appVersion === "string"
           ? value.appVersion
@@ -740,6 +748,11 @@ import {
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
   var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
   var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
+  var settingsFlagGoInput = document.getElementById("settings-flag-go-input");
+  var settingsFlagNeedsBotReviewInput = document.getElementById("settings-flag-needs-bot-review-input");
+  var settingsFlagNeedsUserReviewInput = document.getElementById("settings-flag-needs-user-review-input");
+  var settingsFlagNewInput = document.getElementById("settings-flag-new-input");
+  var settingsFlagRejectedInput = document.getElementById("settings-flag-rejected-input");
   var settingsStorageSaveBtn = document.getElementById("settings-storage-save-btn");
   var settingsStorageNote = document.getElementById("settings-storage-note");
   var settingsVersionValue = document.getElementById("settings-version-value");
@@ -1246,12 +1259,29 @@ import {
   }
 
   function collectStorageSettingsFormData() {
+    var disabledSystemFlagKeys = [];
+    if (settingsFlagGoInput && settingsFlagGoInput.checked === false) {
+      disabledSystemFlagKeys.push("go");
+    }
+    if (settingsFlagNeedsBotReviewInput && settingsFlagNeedsBotReviewInput.checked === false) {
+      disabledSystemFlagKeys.push("needs-bot-review");
+    }
+    if (settingsFlagNeedsUserReviewInput && settingsFlagNeedsUserReviewInput.checked === false) {
+      disabledSystemFlagKeys.push("needs-user-review");
+    }
+    if (settingsFlagNewInput && settingsFlagNewInput.checked === false) {
+      disabledSystemFlagKeys.push("new");
+    }
+    if (settingsFlagRejectedInput && settingsFlagRejectedInput.checked === false) {
+      disabledSystemFlagKeys.push("rejected");
+    }
     return {
       mode:
         settingsStorageModeSelect && settingsStorageModeSelect.value === "sqlite"
           ? "sqlite"
           : "json",
       sqliteJsonMirror: !settingsStorageMirrorInput || settingsStorageMirrorInput.checked !== false,
+      disabledSystemFlagKeys: disabledSystemFlagKeys,
     };
   }
 
@@ -1293,11 +1323,30 @@ import {
   }
 
   function renderStorageSettingsControls() {
+    var disabledSystemFlagKeySet = Object.create(null);
+    (storageSettings.disabledSystemFlagKeys || []).forEach(function (key) {
+      disabledSystemFlagKeySet[normalizeTodoLabelKey(key)] = true;
+    });
     if (settingsStorageModeSelect) {
       settingsStorageModeSelect.value = storageSettings.mode === "json" ? "json" : "sqlite";
     }
     if (settingsStorageMirrorInput) {
       settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
+    }
+    if (settingsFlagGoInput) {
+      settingsFlagGoInput.checked = !disabledSystemFlagKeySet.go;
+    }
+    if (settingsFlagNeedsBotReviewInput) {
+      settingsFlagNeedsBotReviewInput.checked = !disabledSystemFlagKeySet["needs-bot-review"];
+    }
+    if (settingsFlagNeedsUserReviewInput) {
+      settingsFlagNeedsUserReviewInput.checked = !disabledSystemFlagKeySet["needs-user-review"];
+    }
+    if (settingsFlagNewInput) {
+      settingsFlagNewInput.checked = !disabledSystemFlagKeySet.new;
+    }
+    if (settingsFlagRejectedInput) {
+      settingsFlagRejectedInput.checked = !disabledSystemFlagKeySet.rejected;
     }
     if (settingsStorageNote) {
       settingsStorageNote.textContent = strings.settingsStorageSaved

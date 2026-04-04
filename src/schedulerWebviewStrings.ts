@@ -177,6 +177,12 @@ export function buildSchedulerWebviewStrings(
     settingsStorageModeJson: localize("JSON mirrors as primary store", "JSON ミラーを正本ストアにする", "JSON-Mirror als Primärspeicher verwenden"),
     settingsStorageModeSqlite: localize("SQLite as primary store", "SQLite を正本ストアにする", "SQLite als Primärspeicher verwenden"),
     settingsStorageMirrorLabel: localize("Keep JSON compatibility mirrors in sqlite mode", "sqlite mode でも JSON 互換ミラーを維持", "JSON-Kompatibilitäts-Mirror im sqlite mode beibehalten"),
+    settingsDefaultFlagsTitle: localize("Built-in Cockpit flags", "組み込み Cockpit フラグ", "Integrierte Cockpit-Flags"),
+    settingsDefaultFlagsBody: localize(
+      "Turn built-in flags on or off for the default palette. Existing cards keep any flag they already use.",
+      "組み込みフラグの既定パレット表示をオン/オフします。既存カードがすでに使っているフラグは保持されます。",
+      "Schalten Sie integrierte Flags für die Standardpalette ein oder aus. Bereits auf Karten verwendete Flags bleiben erhalten.",
+    ),
     settingsStorageSave: localize("Save Storage Settings", "保存設定を保存", "Speichereinstellungen speichern"),
     settingsStorageSaved: localize("Storage settings are repo-local. Reload after changing the backend mode.", "保存設定はリポジトリローカルです。バックエンド mode を変更した後は再読み込みしてください。", "Die Speichereinstellungen sind repository-lokal. Nach einem Wechsel des Backend-Modus neu laden."),
     settingsStorageVersionLabel: localize("Extension version", "拡張機能バージョン", "Erweiterungsversion"),

@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { notifyError } from "./extension";
+import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
 import type { StorageSettingsView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
@@ -22,6 +23,9 @@ export interface SettingsHandlerContext {
   postMessage: PostMessageFn;
   launchHelpChat: LaunchHelpChatFn;
   backupGithubFolder: BackupGithubFolderFn;
+  updateStorageSettings?: (settings: StorageSettingsView) => void;
+  updateCockpitBoard?: (board: unknown) => void;
+  getCurrentStorageSettings?: () => StorageSettingsView;
 }
 
 export function getResourceScopedSettingsTarget(): vscode.ConfigurationTarget {
@@ -71,6 +75,9 @@ export async function handleSettingsWebviewMessage(
       const requested = message.data as Partial<StorageSettingsView> | undefined;
       const mode = requested?.mode === "json" ? "json" : "sqlite";
       const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
+      const disabledSystemFlagKeys = Array.isArray(requested?.disabledSystemFlagKeys)
+        ? requested!.disabledSystemFlagKeys
+        : [];
       await updateCompatibleConfigurationValue(
         "storageMode",
         mode,
@@ -83,13 +90,35 @@ export async function handleSettingsWebviewMessage(
         target,
         scope,
       );
-      ctx.postMessage({
-        type: "updateStorageSettings",
-        storageSettings: {
-          mode,
-          sqliteJsonMirror,
-        },
-      });
+      let updatedBoard: unknown;
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (workspaceRoot) {
+        updatedBoard = setCockpitDisabledSystemFlagKeys(
+          workspaceRoot,
+          disabledSystemFlagKeys,
+        );
+      }
+      const current = ctx.getCurrentStorageSettings?.();
+      const nextSettings: StorageSettingsView = {
+        mode,
+        sqliteJsonMirror,
+        disabledSystemFlagKeys,
+        appVersion: current?.appVersion ?? "",
+        mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",
+        lastMcpSupportUpdateAt: current?.lastMcpSupportUpdateAt ?? "",
+        lastBundledSkillsSyncAt: current?.lastBundledSkillsSyncAt ?? "",
+      };
+      if (updatedBoard && ctx.updateCockpitBoard) {
+        ctx.updateCockpitBoard(updatedBoard);
+      }
+      if (ctx.updateStorageSettings) {
+        ctx.updateStorageSettings(nextSettings);
+      } else {
+        ctx.postMessage({
+          type: "updateStorageSettings",
+          storageSettings: nextSettings,
+        });
+      }
       return true;
     }
     case "openLogFolder": {

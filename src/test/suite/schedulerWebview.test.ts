@@ -1094,6 +1094,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.updateStorageSettings!({
         mode: "sqlite",
         sqliteJsonMirror: false,
+        disabledSystemFlagKeys: ["go"],
+        appVersion: "99.0.78",
+        mcpSetupStatus: "configured",
+        lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
+        lastBundledSkillsSyncAt: "2026-04-04T10:01:00.000Z",
       });
 
       const queued = wv.pendingMessages as Array<{ type?: unknown }>;
@@ -1106,11 +1111,16 @@ suite("SchedulerWebview Message Queue Tests", () => {
       assert.strictEqual(sent.length, 1);
       const message = sent[0] as {
         type?: unknown;
-        storageSettings?: { mode?: string; sqliteJsonMirror?: boolean };
+        storageSettings?: {
+          mode?: string;
+          sqliteJsonMirror?: boolean;
+          disabledSystemFlagKeys?: string[];
+        };
       };
       assert.strictEqual(message.type, "updateStorageSettings");
       assert.strictEqual(message.storageSettings?.mode, "sqlite");
       assert.strictEqual(message.storageSettings?.sqliteJsonMirror, false);
+      assert.deepStrictEqual(message.storageSettings?.disabledSystemFlagKeys, ["go"]);
     } finally {
       wv.panel = originalPanel;
       wv.webviewReady = originalReady;

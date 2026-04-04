@@ -1,4 +1,7 @@
 import * as assert from "assert";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import * as vscode from "vscode";
 import * as extensionCompat from "../../extensionCompat";
 import {
@@ -48,7 +51,8 @@ suite("Scheduler Webview Settings Handler Tests", () => {
   });
 
   test("setStorageSettings updates storage settings and posts the normalized state", async () => {
-    const restoreWorkspace = setWorkspaceFoldersForTest(__dirname);
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-handler-"));
+    const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
     const originalUpdate = extensionCompat.updateCompatibleConfigurationValue;
     const calls: Array<{ key: string; value: unknown; target: vscode.ConfigurationTarget }> = [];
     const posted: Array<Record<string, unknown>> = [];
@@ -70,6 +74,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           data: {
             mode: "sqlite",
             sqliteJsonMirror: false,
+            disabledSystemFlagKeys: ["go", "rejected"],
             appVersion: "99.0.78",
             mcpSetupStatus: "configured",
             lastMcpSupportUpdateAt: "",
@@ -102,6 +107,11 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           storageSettings: {
             mode: "sqlite",
             sqliteJsonMirror: false,
+            disabledSystemFlagKeys: ["go", "rejected"],
+            appVersion: "",
+            mcpSetupStatus: "workspace-required",
+            lastMcpSupportUpdateAt: "",
+            lastBundledSkillsSyncAt: "",
           },
         },
       ]);
@@ -110,6 +120,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
         updateCompatibleConfigurationValue: typeof extensionCompat.updateCompatibleConfigurationValue;
       }).updateCompatibleConfigurationValue = originalUpdate;
       restoreWorkspace();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });
