@@ -9,6 +9,7 @@ const {
   cleanupVsixArtifacts,
   getDefaultVsixPath,
   incrementPatchVersion,
+  normalizeReleaseTag,
   readJson,
 } = require("./release-utils");
 
@@ -26,16 +27,20 @@ if (!fs.existsSync(packageJsonPath)) {
 
 cleanupTempArtifacts(workspaceRoot);
 const currentPkg = readJson(packageJsonPath);
-const version = incrementPatchVersion(currentPkg.version);
+const releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME;
+const normalizedReleaseTag = normalizeReleaseTag(releaseTag);
+const version = normalizedReleaseTag || incrementPatchVersion(currentPkg.version);
 try {
   assertReleaseTagMatchesVersion(
-    process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME,
+    releaseTag,
     version,
   );
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error));
 }
-const { pkg } = bumpWorkspaceVersion(workspaceRoot);
+const { pkg } = normalizedReleaseTag
+  ? { pkg: currentPkg }
+  : bumpWorkspaceVersion(workspaceRoot);
 const vsixFileName = `${pkg.name}-${version}.vsix`;
 const vsixPath = getDefaultVsixPath(workspaceRoot, pkg.name, version);
 const tempVsixDirectory = fs.mkdtempSync(
