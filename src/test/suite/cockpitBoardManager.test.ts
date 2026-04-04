@@ -306,6 +306,10 @@ suite("Cockpit Board Manager Tests", () => {
     const oneTimeCard = result.board.cards.find((card) => card.taskId === oneTimeTask.id);
     assert.ok(recurringCard);
     assert.strictEqual(recurringCard?.sectionId, DEFAULT_RECURRING_TASKS_SECTION_ID);
+    assert.deepStrictEqual(recurringCard?.flags, [
+      "Linked scheduled task",
+      "ON-SCHEDULE-LIST",
+    ]);
     assert.ok(recurringCard?.comments.some((comment) => comment.body.includes("Recurring task linked")));
     assert.strictEqual(oneTimeCard, undefined);
   });
@@ -394,6 +398,10 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(disabledCard?.status, "active");
     assert.strictEqual(disabledCard?.approvedAt, undefined);
     assert.strictEqual(disabledCard?.taskSnapshot?.enabled, false);
+    assert.deepStrictEqual(disabledCard?.flags, [
+      "Linked scheduled task",
+      "ON-SCHEDULE-LIST",
+    ]);
     assert.strictEqual(
       disabledCard?.comments.some((comment) => (comment.labels ?? []).includes("task-enabled")),
       false,
@@ -560,6 +568,38 @@ suite("Cockpit Board Manager Tests", () => {
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
+  });
+
+  test("task-linked todos keep both scheduled-task default flags in the catalog", () => {
+    const board = createDefaultCockpitBoard("2026-04-04T00:00:00.000Z");
+    const recurringTask: ScheduledTask = {
+      id: "task-linked",
+      name: "Linked recurring task",
+      description: "Track scheduled work",
+      cronExpression: "0 9 * * *",
+      prompt: "Run the scheduled work",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: false,
+      createdAt: new Date("2026-04-04T00:00:00.000Z"),
+      updatedAt: new Date("2026-04-04T00:00:00.000Z"),
+    };
+
+    const result = ensureTaskTodosInBoard(board, [recurringTask]);
+
+    assert.strictEqual(
+      result.board.flagCatalog?.some((entry) => entry.key === "linked-scheduled-task" && entry.system === true),
+      true,
+    );
+    assert.strictEqual(
+      result.board.flagCatalog?.some((entry) => entry.key === "on-schedule-list" && entry.system === true),
+      true,
+    );
+    assert.deepStrictEqual(
+      result.board.cards.find((card) => card.taskId === recurringTask.id)?.flags,
+      ["Linked scheduled task", "ON-SCHEDULE-LIST"],
+    );
   });
 
   test("getCockpitBoard prefers runtime persistence hook over stale json", () => {

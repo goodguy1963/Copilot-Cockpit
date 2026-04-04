@@ -118,7 +118,7 @@ function renderTodoListRow(card, sectionId, options) {
   var latestCommentText = latestComment && latestComment.body
     ? '#' + String(latestComment.sequence || 1) + ' • ' + helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + ' • ' + helpers.getTodoDescriptionPreview(latestComment.body)
     : (strings.boardCommentsEmpty || "No comments yet.");
-  var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
+  var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
   var metaParts = [
     '<span data-card-meta>' + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + '</span>',
     '<span data-card-meta>' + helpers.escapeHtml(helpers.getTodoStatusLabel(card.status || "active")) + '</span>'
@@ -130,9 +130,13 @@ function renderTodoListRow(card, sectionId, options) {
     metaParts.push('<span data-card-meta>' + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + '</span>');
   }
   var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 6) : [];
-  var chipMarkup = (cardFlag || visibleLabels.length)
+  var chipMarkup = (visibleFlags.length || visibleLabels.length)
     ? '<div class="todo-list-chip-row">' +
-      (cardFlag ? helpers.renderFlagChip(cardFlag, false) : '') +
+      (visibleFlags.length
+        ? '<div class="card-flags">' + visibleFlags.map(function (flag, idx) {
+            return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + '</span>';
+          }).join("") + '</div>'
+        : '') +
       (visibleLabels.length
         ? '<div class="card-labels">' + visibleLabels.map(function (label, idx) {
             return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + '</span>';
@@ -240,10 +244,14 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
         (sectionCards.length
           ? sectionCards.map(function (card) {
             var isSelected = card.id === selectedTodoId;
-            var cardFlag = Array.isArray(card.flags) && card.flags[0] ? card.flags[0] : "";
-            var chipMarkup = (cardFlag || (Array.isArray(card.labels) && card.labels.length))
+            var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
+            var chipMarkup = (visibleFlags.length || (Array.isArray(card.labels) && card.labels.length))
               ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' +
-                (cardFlag ? helpers.renderFlagChip(cardFlag, false) : '') +
+                (visibleFlags.length
+                  ? '<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:6px;">' + visibleFlags.map(function (flag, idx) {
+                      return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + '</span>';
+                    }).join("") + '</div>'
+                  : '') +
                 (Array.isArray(card.labels) && card.labels.length
                   ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function (label, idx) {
                       return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + '</span>';

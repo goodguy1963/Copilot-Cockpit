@@ -547,6 +547,7 @@ import {
       ? initialData.locale
       : undefined;
   var lastRenderedTasksHtml = "";
+  var pendingTaskListRender = false;
 
   // DOM elements - with null safety
   var taskForm = document.getElementById("task-form");
@@ -5061,7 +5062,15 @@ syncTodoLabelSuggestions();
       }
 
       var promptValue = (taskData.prompt || "").trim();
-      if (!promptValue) {
+      if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
+        var editingTask = getTaskByIdLocal(editingTaskId);
+        taskData.prompt = editingTask && typeof editingTask.prompt === "string"
+          ? editingTask.prompt
+          : "";
+        promptValue = (taskData.prompt || "").trim();
+      }
+
+      if (promptSourceValue === "inline" && !promptValue) {
         if (formErr) {
           formErr.textContent = strings.promptRequired || "";
           formErr.style.display = "block";
@@ -5167,29 +5176,45 @@ syncTodoLabelSuggestions();
     });
   }
 
-  if (researchNewBtn) {
-    researchNewBtn.addEventListener("click", function () {
+  function handleResearchToolbarAction(actionId) {
+    if (actionId === "research-new-btn") {
       isCreatingResearchProfile = true;
       selectedResearchId = "";
+      selectedResearchRunId = activeResearchRun && activeResearchRun.id
+        ? activeResearchRun.id
+        : selectedResearchRunId;
       resetResearchForm(null);
       renderResearchTab();
-    });
-  }
+      if (researchNameInput && typeof researchNameInput.focus === "function") {
+        researchNameInput.focus();
+      }
+      return true;
+    }
 
-  if (researchLoadAutoAgentExampleBtn) {
-    researchLoadAutoAgentExampleBtn.addEventListener("click", function () {
+    if (actionId === "research-load-autoagent-example-btn") {
       resetResearchForm(getAutoAgentResearchExampleProfile());
+      researchFormDirty = true;
       renderResearchTab();
-    });
+      if (researchNameInput && typeof researchNameInput.focus === "function") {
+        researchNameInput.focus();
+      }
+      return true;
+    }
+
+    return false;
   }
 
-  if (researchSaveBtn) {
-    researchSaveBtn.addEventListener("click", function () {
+  function handleResearchAction(actionId) {
+    if (handleResearchToolbarAction(actionId)) {
+      return true;
+    }
+
+    if (actionId === "research-save-btn") {
       var data = collectResearchFormData();
       var errorMessage = validateResearchFormData(data);
       if (errorMessage) {
         showResearchFormError(errorMessage);
-        return;
+        return true;
       }
       clearResearchFormError();
       if (selectedResearchId) {
@@ -5204,77 +5229,57 @@ syncTodoLabelSuggestions();
           data: data,
         });
       }
-    });
-  }
+      return true;
+    }
 
-  if (researchDuplicateBtn) {
-    researchDuplicateBtn.addEventListener("click", function () {
-      if (!selectedResearchId) return;
+    if (actionId === "research-duplicate-btn") {
+      if (!selectedResearchId) return true;
       vscode.postMessage({
         type: "duplicateResearchProfile",
         researchId: selectedResearchId,
       });
-    });
-  }
+      return true;
+    }
 
-  if (researchDeleteBtn) {
-    researchDeleteBtn.addEventListener("click", function () {
-      if (!selectedResearchId) return;
+    if (actionId === "research-delete-btn") {
+      if (!selectedResearchId) return true;
       vscode.postMessage({
         type: "deleteResearchProfile",
         researchId: selectedResearchId,
       });
-    });
-  }
+      return true;
+    }
 
-  if (researchStartBtn) {
-    researchStartBtn.addEventListener("click", function () {
-      if (!selectedResearchId) return;
+    if (actionId === "research-start-btn") {
+      if (!selectedResearchId) return true;
       vscode.postMessage({
         type: "startResearchRun",
         researchId: selectedResearchId,
       });
-    });
-  }
+      return true;
+    }
 
-  if (researchStopBtn) {
-    researchStopBtn.addEventListener("click", function () {
+    if (actionId === "research-stop-btn") {
       vscode.postMessage({ type: "stopResearchRun" });
-    });
+      return true;
+    }
+
+    return false;
   }
 
-  if (researchProfileList) {
-    researchProfileList.addEventListener("click", function (e) {
-      var target = e && e.target;
-      while (target && target !== researchProfileList) {
-        if (target.getAttribute && target.getAttribute("data-research-id")) {
-          break;
-        }
-        target = target.parentElement;
-      }
-      if (!target || target === researchProfileList) return;
-      isCreatingResearchProfile = false;
-      selectedResearchId = target.getAttribute("data-research-id") || "";
-      var profile = getSelectedResearchProfile();
-      resetResearchForm(profile || null);
-      renderResearchTab();
-    });
+  function selectResearchProfile(researchId) {
+    selectedResearchId = researchId || "";
+    isCreatingResearchProfile = !selectedResearchId;
+    var profile = getSelectedResearchProfile();
+    resetResearchForm(profile || null);
+    renderResearchTab();
+    return !!profile;
   }
 
-  if (researchRunList) {
-    researchRunList.addEventListener("click", function (e) {
-      var target = e && e.target;
-      while (target && target !== researchRunList) {
-        if (target.getAttribute && target.getAttribute("data-run-id")) {
-          break;
-        }
-        target = target.parentElement;
-      }
-      if (!target || target === researchRunList) return;
-      selectedResearchRunId = target.getAttribute("data-run-id") || "";
-      persistTaskFilter();
-      renderResearchTab();
-    });
+  function selectResearchRun(runId) {
+    selectedResearchRunId = runId || "";
+    persistTaskFilter();
+    renderResearchTab();
   }
 
   if (jobsNewFolderBtn) {
@@ -5459,6 +5464,34 @@ syncTodoLabelSuggestions();
 
   document.addEventListener("click", function (e) {
     var target = e && e.target;
+    var researchActionButton = getClosestEventTarget(
+      e,
+      "#research-new-btn, #research-load-autoagent-example-btn, #research-save-btn, #research-duplicate-btn, #research-delete-btn, #research-start-btn, #research-stop-btn",
+    );
+    if (researchActionButton) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (handleResearchAction(researchActionButton.id || "")) {
+        return;
+      }
+    }
+
+    var researchProfileCard = getClosestEventTarget(e, "[data-research-id]");
+    if (researchProfileCard && researchProfileList && researchProfileList.contains(researchProfileCard)) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "");
+      return;
+    }
+
+    var researchRunCard = getClosestEventTarget(e, "[data-run-id]");
+    if (researchRunCard && researchRunList && researchRunList.contains(researchRunCard)) {
+      e.preventDefault();
+      e.stopPropagation();
+      selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
+      return;
+    }
+
     var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
     if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
       selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
@@ -6398,12 +6431,22 @@ syncTodoLabelSuggestions();
     // Avoid replacing an open inline select while the user is choosing an
     // agent or model.
     if (isInlineTaskSelectActive()) {
+      pendingTaskListRender = true;
       return;
     }
 
+    pendingTaskListRender = false;
     lastRenderedTasksHtml = renderedTasks;
     taskList.innerHTML = renderedTasks;
     refreshTaskCountdowns();
+  }
+
+  function replayPendingTaskListRender() {
+    if (!pendingTaskListRender || isInlineTaskSelectActive()) {
+      return;
+    }
+    pendingTaskListRender = false;
+    renderTaskList(tasks);
   }
 
   function postTaskInlineChange(taskId, field, value) {
@@ -6442,6 +6485,22 @@ syncTodoLabelSuggestions();
           target.value || "",
         );
       }
+    });
+
+    taskList.addEventListener("focusout", function (event) {
+      var target = event && event.target;
+      if (!target || !target.classList) {
+        return;
+      }
+      if (
+        !target.classList.contains("task-agent-select") &&
+        !target.classList.contains("task-model-select")
+      ) {
+        return;
+      }
+      setTimeout(function () {
+        replayPendingTaskListRender();
+      }, 0);
     });
   }
 
@@ -7444,7 +7503,9 @@ syncTodoLabelSuggestions();
     });
     if (profiles.length === 0) {
       researchProfileList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyProfiles || "No research profiles yet.") + "</div>";
-      resetResearchForm(null);
+      if (!researchFormDirty && !isCreatingResearchProfile) {
+        resetResearchForm(null);
+      }
       return;
     }
 
@@ -8317,7 +8378,7 @@ syncTodoLabelSuggestions();
           } else {
             ensureValidResearchRunSelection();
           }
-          if (!selectedResearchId && !isCreatingResearchProfile) {
+          if (!selectedResearchId) {
             ensureValidResearchSelection();
           }
           renderResearchTab();
@@ -8523,6 +8584,46 @@ syncTodoLabelSuggestions();
               : null;
             if (jobCard && typeof jobCard.scrollIntoView === "function") {
               jobCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+          }, 50);
+          break;
+        case "focusResearchProfile":
+          switchTab("research");
+          if (message.researchId) {
+            selectResearchProfile(message.researchId);
+          } else {
+            isCreatingResearchProfile = true;
+            selectedResearchId = "";
+            resetResearchForm(null);
+            renderResearchTab();
+          }
+          setTimeout(function () {
+            var selector = message.researchId
+              ? '[data-research-id="' + message.researchId + '"]'
+              : "#research-name";
+            var element = document.querySelector(selector);
+            if (!element) {
+              return;
+            }
+            if (typeof element.scrollIntoView === "function") {
+              element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+            if (!message.researchId && typeof element.focus === "function") {
+              element.focus();
+            }
+          }, 50);
+          break;
+        case "focusResearchRun":
+          switchTab("research");
+          if (message.runId) {
+            selectResearchRun(message.runId);
+          }
+          setTimeout(function () {
+            var runCard = message.runId
+              ? document.querySelector('[data-run-id="' + message.runId + '"]')
+              : null;
+            if (runCard && typeof runCard.scrollIntoView === "function") {
+              runCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
             }
           }, 50);
           break;

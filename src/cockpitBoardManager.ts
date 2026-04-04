@@ -151,12 +151,26 @@ function renameFlagOnTodoCards(
   for (const card of cards) {
     const currentFlags = normalizeStringList(card.flags);
     const renamedFlags = renameLabelValues(currentFlags, previousKey, nextName);
-    const nextFlags = renamedFlags[0] ? [renamedFlags[0]] : [];
+    const nextFlags = renamedFlags;
     if (!areStringListsEqual(currentFlags, nextFlags)) {
       card.flags = nextFlags;
       card.updatedAt = timestamp;
     }
   }
+}
+
+const LINKED_SCHEDULED_TASK_FLAG = "Linked scheduled task";
+const ON_SCHEDULE_LIST_FLAG = "ON-SCHEDULE-LIST";
+
+function ensureCardFlag(card: CockpitTodoCard, flag: string): void {
+  const flags = new Set(normalizeStringList(card.flags));
+  flags.add(flag);
+  card.flags = Array.from(flags);
+}
+
+function ensureScheduledTaskFlags(card: CockpitTodoCard): void {
+  ensureCardFlag(card, LINKED_SCHEDULED_TASK_FLAG);
+  ensureCardFlag(card, ON_SCHEDULE_LIST_FLAG);
 }
 
 function getArchiveSectionId(outcome: CockpitArchiveOutcome): string {
@@ -321,6 +335,7 @@ function normalizeTaskLinkedTodoForTask(
 ): boolean {
   let changed = false;
   const nextSnapshot = buildTaskSnapshot(task);
+  const previousFlags = normalizeStringList(card.flags);
   const filteredComments = card.comments.filter((comment) =>
     !isStaleDisabledLifecycleComment(comment, nextSnapshot.enabled),
   );
@@ -338,6 +353,11 @@ function normalizeTaskLinkedTodoForTask(
 
   if (!card.taskSnapshot || JSON.stringify(card.taskSnapshot) !== JSON.stringify(nextSnapshot)) {
     card.taskSnapshot = nextSnapshot;
+    changed = true;
+  }
+
+  ensureScheduledTaskFlags(card);
+  if (!areStringListsEqual(previousFlags, card.flags)) {
     changed = true;
   }
 
@@ -525,7 +545,7 @@ function upsertFlagDefinitionInBoard(
         previousKey,
         name,
       );
-      nextBoard.filters.flags = renamedFlags[0] ? [renamedFlags[0]] : [];
+      nextBoard.filters.flags = renamedFlags;
     }
   }
 
@@ -698,7 +718,7 @@ function createRecurringTaskTodoCard(
     dueAt: undefined,
     status: "active",
     labels: ["scheduled-task", "recurring-task"],
-    flags: [],
+    flags: [LINKED_SCHEDULED_TASK_FLAG, ON_SCHEDULE_LIST_FLAG],
     comments: [],
     taskSnapshot: buildTaskSnapshot(task),
     taskId: task.id,
@@ -815,6 +835,7 @@ function moveRecurringCardOutOfRecurringSection(
   card.taskSnapshot = buildTaskSnapshot(task);
   card.updatedAt = timestamp;
   dropCardLabel(card, "recurring-task");
+  ensureScheduledTaskFlags(card);
   addSystemEventComment(
     card,
     "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
@@ -953,9 +974,7 @@ export function updateTodoInBoard(
     todo.labels = normalizeStringList(updates.labels);
   }
   if (updates.flags) {
-    // Single-value: only keep the first flag
-    const firstFlag = normalizeStringList(updates.flags)[0];
-    todo.flags = firstFlag ? [firstFlag] : [];
+    todo.flags = normalizeStringList(updates.flags);
   }
   if (updates.taskId !== undefined) {
     todo.taskId = normalizeOptionalString(updates.taskId ?? undefined);

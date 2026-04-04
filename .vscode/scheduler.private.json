@@ -9,7 +9,7 @@
             "archived": false,
             "nodes": [],
             "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-04-04T00:06:20.897Z"
+            "updatedAt": "2026-04-04T13:55:08.493Z"
         }
     ],
     "jobFolders": [],
@@ -1126,7 +1126,7 @@
                     "scheduled-task"
                 ],
                 "flags": [
-                    "NEW"
+                    "new"
                 ],
                 "comments": [
                     {
@@ -1227,7 +1227,7 @@
         ],
         "flagCatalog": [
             {
-                "name": "GO",
+                "name": "go",
                 "key": "go",
                 "color": "#22c55e",
                 "createdAt": "2026-03-31T20:23:48.542Z",
@@ -1236,23 +1236,30 @@
             {
                 "name": "needs-bot-review",
                 "key": "needs-bot-review",
-                "color": "#8a8a8a",
+                "color": "#f59e0b",
                 "createdAt": "2026-03-27T23:05:28.048Z",
                 "updatedAt": "2026-03-28T17:13:23.583Z"
             },
             {
                 "name": "needs-user-review",
                 "key": "needs-user-review",
-                "color": "#f7ce3b",
+                "color": "#3b82f6",
                 "createdAt": "2026-03-27T23:05:28.048Z",
                 "updatedAt": "2026-03-28T17:13:31.362Z"
             },
             {
-                "name": "NEW",
+                "name": "new",
                 "key": "new",
                 "color": "#a78bfa",
                 "createdAt": "2026-03-28T09:21:44.331Z",
                 "updatedAt": "2026-03-28T09:21:44.331Z"
+            },
+            {
+                "name": "rejected",
+                "key": "rejected",
+                "color": "#ef4444",
+                "createdAt": "2026-04-04T12:09:14.117Z",
+                "updatedAt": "2026-04-04T12:09:14.117Z"
             }
         ],
         "deletedFlagCatalogKeys": [

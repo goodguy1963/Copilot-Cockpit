@@ -263,6 +263,48 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     }
   });
 
+  test("allows updating a local template task without resubmitting inline prompt text", async () => {
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-template-task-update-"),
+    );
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Template task",
+        cronExpression: "0 * * * *",
+        prompt: "stored fallback prompt",
+        enabled: false,
+        scope: "global",
+        promptSource: "local",
+        promptPath: ".github/prompts/template.md",
+      });
+
+      const updated = await manager.updateTask(task.id, {
+        name: "Template task updated",
+        prompt: "",
+        promptSource: "local",
+        promptPath: ".github/prompts/template.md",
+      });
+
+      assert.strictEqual(updated?.name, "Template task updated");
+      assert.strictEqual(updated?.promptSource, "local");
+      assert.strictEqual(updated?.promptPath, ".github/prompts/template.md");
+      assert.strictEqual(updated?.prompt, "");
+    } finally {
+      try {
+        fs.rmSync(storageRoot, {
+          recursive: true,
+          force: true,
+          maxRetries: 3,
+          retryDelay: 50,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  });
+
   test("persists manualSession separately from recurring and clears it for one-time tasks", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-manual-session-workspace-"),
