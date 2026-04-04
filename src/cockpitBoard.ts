@@ -454,24 +454,27 @@ type SystemFlagSeed = {
   key: string;
   name: string;
   color: string;
+  defaultEnabled?: boolean;
   aliases?: string[];
 };
 
 const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
-  { key: "go", name: "go", color: "#22c55e", aliases: ["GO"] },
-  {
-    key: "linked-scheduled-task",
-    name: "Linked scheduled task",
-    color: "#0ea5e9",
-  },
+  { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
   { key: "needs-bot-review", name: "needs-bot-review", color: "#f59e0b" },
   { key: "needs-user-review", name: "needs-user-review", color: "#3b82f6" },
-  { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
+  { key: "go", name: "go", color: "#22c55e", aliases: ["GO"] },
   {
     key: "on-schedule-list",
     name: "ON-SCHEDULE-LIST",
     color: "#14b8a6",
   },
+  {
+    key: "linked-scheduled-task",
+    name: "Linked scheduled task",
+    color: "#0ea5e9",
+    defaultEnabled: false,
+  },
+  { key: "final-user-check", name: "FINAL-USER-CHECK", color: "#8b5cf6" },
   { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
 ];
 
@@ -487,6 +490,10 @@ const SYSTEM_FLAG_ALIAS_TO_KEY = new Map(
     [normalizeLabelKey(seed.name), seed.key] as const,
     ...((seed.aliases ?? []).map((alias) => [normalizeLabelKey(alias), seed.key] as const)),
   ]),
+);
+
+const SYSTEM_FLAG_ORDER_BY_KEY = new Map(
+  SYSTEM_FLAG_SEEDS.map((seed, index) => [seed.key, index]),
 );
 
 function normalizeSystemFlagKey(value: unknown): string | undefined {
@@ -620,7 +627,7 @@ function buildFlagCatalog(
 
   for (const card of cards) {
     for (const flag of normalizeFlags(card.flags)) {
-      const key = normalizeLabelKey(flag);
+      const key = normalizeSystemFlagKey(flag) ?? normalizeLabelKey(flag);
       if (!key || catalog.has(key) || deletedKeySet.has(key)) {
         continue;
       }
@@ -639,6 +646,7 @@ function buildFlagCatalog(
     const key = normalizeLabelKey(seed.key);
     if (
       key
+      && seed.defaultEnabled !== false
       && !catalog.has(key)
       && !deletedKeySet.has(key)
       && !disabledSystemFlagKeySet.has(key)
@@ -655,8 +663,28 @@ function buildFlagCatalog(
   }
 
   return Array.from(catalog.values()).sort((left, right) =>
-    left.name.localeCompare(right.name),
+    compareFlagCatalogEntries(left, right),
   );
+}
+
+function compareFlagCatalogEntries(
+  left: CockpitLabelDefinition,
+  right: CockpitLabelDefinition,
+): number {
+  const leftSystemOrder = SYSTEM_FLAG_ORDER_BY_KEY.get(normalizeLabelKey(left.key));
+  const rightSystemOrder = SYSTEM_FLAG_ORDER_BY_KEY.get(normalizeLabelKey(right.key));
+
+  if (leftSystemOrder !== undefined && rightSystemOrder !== undefined) {
+    return leftSystemOrder - rightSystemOrder;
+  }
+  if (leftSystemOrder !== undefined) {
+    return -1;
+  }
+  if (rightSystemOrder !== undefined) {
+    return 1;
+  }
+
+  return left.name.localeCompare(right.name);
 }
 
 function normalizeLegacyArchivedCards(

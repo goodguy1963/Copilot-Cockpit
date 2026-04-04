@@ -1774,6 +1774,26 @@ suite("SchedulerWebview Message Queue Tests", () => {
     assert.strictEqual(readyCardElement.style.pointerEvents, "none");
   });
 
+  test("todo editor completion requires a confirm step before finalizing ready cards", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'var actionType = getTodoCompletionActionType(selectedTodo);',
+      'if (actionType === "finalizeTodo") {',
+      'window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")',
+      'type: actionType,',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected todo editor finalize confirm snippet ${snippet}`,
+      );
+    });
+  });
+
   test("archived todo completion button restores instead of completing again", () => {
     const scriptPath = path.resolve(
       __dirname,

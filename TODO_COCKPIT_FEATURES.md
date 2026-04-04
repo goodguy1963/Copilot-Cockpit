@@ -1,48 +1,50 @@
-# Todo Cockpit Feature Reference
+# Todo Cockpit Current-State Reference
 
-This file documents the current Todo Cockpit feature set in detail, including the Create Task tab, the How To guidance, README guidance, and the current MCP setup/check workflow.
+This file documents the current Todo Cockpit feature set as implemented in the extension today.
+
+It is not a roadmap and it is not meant to preserve older behavior. Where README wording, help copy, old notes, or earlier mental models differ from the live implementation, this file treats the implementation and localized UI strings as the source of truth.
 
 Source basis used for this document:
 
-- README.md top-level Copilot Cockpit guidance
-- How To / Help tab copy in src/i18n.ts and src/schedulerWebviewStrings.ts
-- Todo Cockpit board model and defaults in src/cockpitBoard.ts
-- Todo mutation and persistence logic in src/cockpitBoardManager.ts and src/todoCockpitActionHandler.ts
-- Todo UI and Create Task UI in src/schedulerWebview.ts and media/schedulerWebviewBoardRendering.js
-- MCP tool registration and MCP config handling in src/server.ts and src/mcpConfigManager.ts
-
-Where README/help wording and implementation differ, this file treats the implementation as the current source of truth.
+- README.md top-level Copilot Cockpit workflow and MCP guidance
+- How To / Help copy in src/i18n.ts and src/schedulerWebviewStrings.ts
+- Board defaults, normalization, and semantic validation in src/cockpitBoard.ts
+- Todo lifecycle, recurring-task card syncing, and filter persistence in src/cockpitBoardManager.ts
+- Todo board/editor UI in src/schedulerWebview.ts and src/schedulerWebviewStrings.ts
+- Todo host actions in src/todoCockpitActionHandler.ts
+- Routing-card logic in src/cockpitRouting.ts
+- MCP tool registration and dispatch in src/server.ts
 
 ## 1. What Todo Cockpit Is
 
-Todo Cockpit is the repo-local planning, approval, and coordination surface inside Copilot Cockpit.
+Todo Cockpit is the repo-local planning, review, and approval surface inside Copilot Cockpit.
 
-It is intentionally separate from scheduled task execution:
+It is intentionally separate from scheduled execution:
 
-- Todos are planning and coordination artifacts.
-- Tasks are execution artifacts.
-- Jobs are multi-step execution workflows.
+- Todo cards are planning and coordination artifacts.
+- Scheduled tasks are execution artifacts.
+- Jobs are ordered multi-step execution workflows.
 - Research profiles are bounded optimization loops.
 
-Todo Cockpit is the place where work is first captured, clarified, reviewed, approved, commented on, and optionally converted into downstream execution artifacts.
+The intended flow is Todo first, scheduled execution second. Users and agents can capture work on a card, comment on it, label it, move it through review, and only then hand it off into downstream execution.
 
 ## 2. Storage, Privacy, and Scope
 
-Todo Cockpit data is local-first and repo-scoped.
+Todo Cockpit is local-first and repo-scoped.
 
-- Todo Cockpit state is stored in .vscode/scheduler.private.json.
-- It is not intended to be shared through git.
-- Scheduled tasks live separately in .vscode/scheduler.json.
-- The extension bootstraps private storage boundaries so planning data and secrets do not leak accidentally.
-- The design assumption is a local, single-user, repo-specific planning surface.
+- Workspace scheduler state lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
+- Todo Cockpit state belongs to the private workspace state, not the shared task file.
+- In `copilotCockpit.storageMode=sqlite`, the runtime authority can move into `.vscode/copilot-cockpit.db`, while the extension still keeps compatibility JSON mirrors and a workspace migration journal.
+- The extension bootstraps repo-local ignore rules so private cockpit state, prompt backups, uploads, and support files do not leak accidentally.
+- The design assumption remains local, repo-scoped, and primarily single-user.
 
-This split matters because a todo can survive independently from its linked task, and a task can exist without replacing the planning card that led to it.
+This boundary matters because a todo can outlive a linked task, a task can exist without replacing the todo that produced it, and recurring scheduled work can keep its own persistent board history card.
 
-## 3. Default Board Structure
+## 3. Board Model and Default Structure
 
 When the board is first created, it is seeded with named sections.
 
-Default working sections:
+Default visible working sections:
 
 - Unsorted
 - Bugs
@@ -52,40 +54,43 @@ Default working sections:
 - Automation
 - Future
 
-Default archive sections:
+System sections:
 
+- Recurring Tasks
 - Archive: Completed
 - Archive: Rejected
 
-Important board structure rules:
+Important structure rules:
 
 - Unsorted is guaranteed to exist.
-- Archive sections are also guaranteed to exist.
-- Archive sections are special-purpose system sections.
-- Archive sections are protected from normal section rename/delete/reorder flows.
+- The archive sections are guaranteed to exist.
+- The Recurring Tasks section is a dedicated system section for recurring scheduled-task history cards.
+- Archive sections are protected from normal rename, delete, and reorder flows.
+- Recurring-task cards are hidden by default unless the user enables `showRecurringTasks`.
 - If a non-archive section is deleted, its cards are reassigned to a fallback section.
-- If Unsorted itself is deleted, cards are reassigned to the first remaining non-deleted section.
 - Section order is persisted.
+- Section add and rename flows reject names that collide with protected routing flag semantics such as deprecated or protected token names.
 
-## 4. Todo Data Model
+## 4. Todo Card Data Model
 
-Each todo card can store the following fields:
+Each todo card can carry:
 
 - Stable todo ID
 - Title
-- Description
+- Optional description
 - Section ID
 - Manual order within a section
 - Priority
-- Due date/time
+- Optional due date/time
 - Workflow status
 - Labels
-- Flag
+- Flags
 - Comment history
-- Linked scheduled task ID
+- Optional linked task ID
+- Optional task snapshot for scheduled-task history cards
 - Optional session ID
 - Archived state
-- Archive outcome
+- Optional archive outcome
 - Created timestamp
 - Updated timestamp
 - Approved timestamp
@@ -93,24 +98,51 @@ Each todo card can store the following fields:
 - Rejected timestamp
 - Archived timestamp
 
-The card also supports comment metadata:
+Comment records carry:
 
 - Comment ID
-- Author: user or system
-- Comment body
-- Optional labels attached to the comment
+- Author
+- Body
+- Optional comment labels
 - Source type
 - Sequence number
 - Created timestamp
 
-Supported comment source values:
+Supported comment sources:
 
 - human-form
 - bot-mcp
 - bot-manual
 - system-event
 
-## 5. Status and Workflow Model
+## 5. Labels, Flags, and Routing Semantics
+
+Todo Cockpit distinguishes labels from flags deliberately.
+
+Labels:
+
+- Multi-value
+- Categorization and workflow metadata
+- Rendered as pill-shaped chips
+- Managed through a shared label catalog with optional colors
+
+Flags:
+
+- Routing and review-state markers
+- Usually a small explicit set per card
+- Rendered as squared chips
+- Managed through a shared flag catalog with optional colors
+
+Important behavioral rules:
+
+- Most handoff flows should use one explicit review-state flag such as `needs-user-review` or `needs-bot-review`.
+- Live scheduled cards may intentionally keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST` together.
+- `labels`, `flags`, and `comments[].labels` are distinct surfaces.
+- Routing-card queries can match labels, flags, and actionable comment labels.
+- Deleting a shared label or flag definition also strips it from existing cards.
+- Built-in protected flags cannot be deleted.
+
+## 6. Status and Workflow Model
 
 Supported todo statuses:
 
@@ -124,20 +156,21 @@ Supported archive outcomes:
 - completed-successfully
 - rejected
 
-Current implementation workflow:
+The current workflow is:
 
-1. New cards usually start as active.
-2. Approve changes the card to ready.
-3. Final Accept / Complete archives the card as completed-successfully.
-4. Reject / Delete archives the card as rejected unless the user chooses permanent purge.
+1. A new card normally starts as `active`.
+2. `Approve` moves the card to `ready` and stamps `approvedAt`.
+3. `Final Accept` or `Complete & Archive` archives the card as `completed-successfully`.
+4. `Decline` or the archive path of `Delete` archives the card as `rejected`.
+5. `Restore` can reopen an archived card.
+6. Permanent purge is a separate destructive removal path.
 
-Workflow side effects:
+Workflow side effects include:
 
-- Approving stamps approvedAt.
-- Finalizing stamps completedAt and archivedAt.
-- Rejecting stamps rejectedAt and archivedAt.
-- Archive actions move the card into the matching archive section.
-- System-event comments are added for workflow transitions.
+- System-event comments are appended for important transitions.
+- Finalized cards move to `Archive: Completed`.
+- Rejected cards move to `Archive: Rejected`.
+- Archived cards become review-oriented instead of normal active-edit items.
 
 Examples of system-generated workflow comments:
 
@@ -145,7 +178,7 @@ Examples of system-generated workflow comments:
 - Completed and moved to the completed archive.
 - Rejected and moved to the rejected archive.
 
-## 6. Priority Model
+## 7. Priority Model
 
 Supported priorities:
 
@@ -155,35 +188,31 @@ Supported priorities:
 - high
 - urgent
 
-Priority is used both as metadata and as a visual signal in list/board rendering.
+Priority is both metadata and a visual signal.
 
-When existing scheduled tasks are seeded into the board, their priority is derived automatically from the next execution time:
+For scheduled-task history cards, priority can be derived automatically from the next execution time:
 
-- urgent if due very soon
-- high if due within a few hours
-- medium if due within roughly a day
+- urgent when due very soon
+- high when due within a few hours
+- medium when due within roughly a day
 - low otherwise
 
-## 7. Core Board Features
+## 8. Board UI Features
 
-Todo Cockpit supports both management and review workflows directly in the main board tab.
+Todo Cockpit supports both management and review directly in the board surface.
 
-### 7.1 Board and list views
+### 8.1 View modes
 
-The board can be rendered in two modes:
+The board can render in:
 
 - Board view
 - List view
 
-Board view emphasizes sections as columns.
+Board view emphasizes sections as columns. List view emphasizes compact scanning of grouped cards. The selected view mode is persisted in board filters.
 
-List view emphasizes compact scanning of cards grouped by section.
+### 8.2 Filters and search
 
-The current view mode is persisted in board filters.
-
-### 7.2 Search and filter bar
-
-The board has a persistent filter state with a collapsible filter bar.
+The board has a persisted filter state with a collapsible filter bar.
 
 Supported filter fields:
 
@@ -198,19 +227,17 @@ Supported filter fields:
 - Sort direction
 - View mode
 - Show archived
+- Show recurring tasks
+- Hide card details
 
-Search behavior is intended to cover:
+Search intent is broad discovery across:
 
 - Title
 - Description
 - Labels
-- Flags
+- Comments
 
-The UI placeholder also describes comments as part of search intent, so the board presents search as a broad discovery mechanism.
-
-Filter state is stored in the board record and survives rerenders.
-
-### 7.3 Sort options
+### 8.3 Sorting
 
 Supported sort keys:
 
@@ -225,23 +252,23 @@ Supported sort directions:
 - asc
 - desc
 
-### 7.4 Archived visibility
+### 8.4 Visibility controls
 
 Archived cards are hidden by default.
 
 Users can enable archived visibility to:
 
-- Review completed items
-- Review rejected items
+- Review completed work
+- Review rejected work
 - Inspect history and outcomes
 
-Archived items are treated as read-only in the editor flow.
+Recurring scheduled-task history cards are also hidden by default and are revealed with the `showRecurringTasks` toggle.
 
-### 7.5 Section management
+The `hideCardDetails` toggle suppresses longer previews such as descriptions and latest comments for denser scanning.
 
-The board supports section management directly from the UI.
+### 8.5 Section management
 
-Available section actions:
+The board supports:
 
 - Add section
 - Rename section
@@ -252,18 +279,9 @@ Available section actions:
 - Collapse section
 - Expand section
 
-Section deletion behavior:
+Archive sections stay protected from normal destructive or reorder flows.
 
-- Archive sections cannot be deleted.
-- The last remaining section is not removed.
-- Cards in the deleted section are reassigned to a fallback section.
-
-Section reordering behavior:
-
-- Archive sections are protected from normal reordering.
-- Reorder operations clamp to valid indexes.
-
-### 7.6 Drag and drop
+### 8.6 Drag and drop
 
 The board supports pointer-driven drag behavior for cards and sections.
 
@@ -273,63 +291,48 @@ Supported drag behaviors:
 - Move cards across sections
 - Reorder sections
 
-Notable implementation details:
+Notable implementation characteristics:
 
-- Cards are marked draggable=false and use custom drag-start handling.
-- Drag begins from the card body after a movement threshold or from dedicated drag handles.
-- Interactive controls are excluded from drag-start logic.
+- Cards use custom drag-start handling instead of raw browser drag behavior.
+- Interactive controls are excluded from drag start.
 - Pointer drag state suppresses accidental text selection while dragging.
 
-### 7.7 Section collapse
+### 8.7 Layout and summary affordances
 
-Sections can be collapsed and expanded.
+The board includes:
 
-This exists in both board/list rendering layers and is meant to improve scanability for large boards.
+- Per-section collapse state
+- A column-width slider
+- Board summary and count information
+- Per-section card counts
 
-### 7.8 Column width control
+This makes the board both a work surface and a lightweight dashboard.
 
-The board includes a column-width slider so dense boards can be widened or compacted without changing the underlying data.
+## 9. Card Presentation Features
 
-### 7.9 Summary and counts
+Cards surface compact metadata in both board and list renderers.
 
-The UI shows board summary/count information and per-section card counts.
-
-Cards and sections therefore work as both content containers and lightweight dashboard elements.
-
-## 8. Card Presentation Features
-
-Cards surface compact metadata in both list and board renderers.
-
-Displayed card cues include:
+Displayed cues include:
 
 - Title
 - Priority label
 - Status label
 - Due date when present
 - Archive outcome when archived
-- Flag chip
-- Up to a small number of label chips for compact display
+- Flag chips
+- A subset of label chips for compact display
 - Description preview
 - Latest comment preview
-- Linked task indication
+- Linked-task indication
+- Missing-linked-task warning when the referenced task no longer exists in the task list
 
-The renderer also exposes compact action buttons for:
+The board also exposes compact actions such as edit, delete, decline, restore, and completion-oriented controls depending on state.
 
-- Edit
-- Delete
+## 10. Todo Editor Features
 
-The list renderer includes completion-oriented affordances and drag handles where appropriate.
+Todo Cockpit has a dedicated editor flow for both create and edit operations.
 
-## 9. Todo Editor Features
-
-Todo Cockpit has a dedicated editor/create tab for cards.
-
-This editor is used for both:
-
-- Creating a new todo
-- Editing an existing todo
-
-### 9.1 Main fields
+### 10.1 Main fields
 
 The editor supports:
 
@@ -340,108 +343,105 @@ The editor supports:
 - Section
 - Linked scheduled task
 - Labels
-- Flag
+- Flags
 
-### 9.2 Comment history and commenting
+### 10.2 Comments
 
-The editor includes a comment history panel and an inline add-comment flow.
+The editor includes a comment history panel and inline add-comment flow.
 
-Commenting capabilities:
+Comment capabilities:
 
 - View existing comments in sequence order
 - Add a new comment
-- Preserve provenance through comment source types
-- Store labels implied by a comment
+- Preserve provenance through author and source fields
+- Attach labels to comments when needed
 
-Comments are an important coordination layer because they preserve reasoning, approvals, feedback, and system events without turning the main description into a running log.
+Comments are the coordination log for feedback, approvals, bot notes, and workflow transitions.
 
-### 9.3 Linked task support
+### 10.3 Upload files
+
+The editor includes an `Upload Files` flow.
+
+Current behavior:
+
+- Opens a file picker from the host side
+- Copies selected files into `.vscode/cockpit-input-uploads`
+- Ensures the private config ignore rules cover that folder
+- Inserts workspace-local relative paths back into the todo description
+
+This keeps the todo self-contained without storing outside absolute file paths.
+
+### 10.4 Linked-task support
 
 Each card can reference a linked scheduled task.
 
-Linked-task features:
+Linked-task capabilities:
 
-- Select a linked scheduled task from the current task list
+- Select a task from the current task list
 - Clear the link
-- Show a note if no task is linked yet
-- Indicate when a linked task cannot be found in the task list anymore
+- Show when no task is linked yet
+- Warn when the linked task is missing from the current task list
 
-This allows the todo to remain the planning artifact while the task becomes the execution artifact.
+### 10.5 Label catalog
 
-### 9.4 Labels
-
-Labels are multi-value workflow tags.
-
-Label capabilities in the editor:
+Label capabilities in the editor include:
 
 - Add labels by typing
-- Add labels with Enter/add button
-- Show label chips on the current card
+- Add labels with Enter or the add button
+- Show label chips on the card
 - Suggest reusable labels
 - Save shared label definitions with color
 - Edit shared label definitions
 - Delete shared label definitions
-- Display shared label catalog entries
 
-Important label behavior:
+Todo label suggestions merge board-owned label knowledge with reusable task-derived labels surfaced in the UI.
 
-- Labels are multi-value.
-- Shared label definitions are stored in a board-owned label catalog.
-- Deleting a board-owned label definition also strips that label from existing todo cards.
-- Todo label suggestions/catalog merge board catalog knowledge with task-derived label reuse in the UI.
+### 10.6 Flag catalog
 
-### 9.5 Flags
+Flag capabilities in the editor include:
 
-Flags represent a single agent-state indicator.
-
-Flag capabilities in the editor:
-
-- Set the current flag
-- Clear the current flag
-- Add a new flag name
+- Set the current card flags
+- Clear flags
+- Add a new flag definition
 - Save shared flag definitions with color
 - Edit shared flag definitions
-- Delete shared flag definitions
+- Delete shared flag definitions when not protected
 - Pick from the saved flag palette
 
-Important flag behavior:
+### 10.7 Editor actions
 
-- Most handoff flows should keep one explicit review-state flag per card.
-- Live scheduled cards may intentionally keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST` while the scheduler task still exists.
-- Deleting a flag definition strips that flag from existing todo cards.
-
-### 9.6 Editor actions
-
-The editor exposes different actions depending on mode and card state.
-
-Available actions include:
+Available actions vary by card state, but the editor and board flow together expose:
 
 - Create Todo
 - Save Todo
+- Add Comment
 - Create Task Draft
 - Approve
-- Complete & Archive
 - Final Accept
+- Complete & Archive
+- Decline
+- Restore
 - Delete Todo
 - Back to Cockpit
 
-Archived behavior:
+Important behavior:
 
-- Archived cards are review-only.
-- Archived cards are meant for outcome/history inspection, not active editing.
+- Archived cards are not normal active-edit records.
+- `Restore` is the supported reopen path.
+- `Delete` in the normal board flow presents archive-reject versus permanent-delete choices rather than silently hard-deleting.
 
-## 10. Todo Creation Behavior
+## 11. Todo Creation Behavior
 
 Creating a todo can include more than a title.
 
-A newly created todo may include:
+A new card may include:
 
 - Title
 - Description
 - Section
 - Priority
 - Labels
-- Flag
+- Flags
 - Initial comment
 - Initial comment author
 - Initial comment source
@@ -449,314 +449,204 @@ A newly created todo may include:
 - Linked task ID
 - Session ID
 
-Creation-specific behavior:
+Creation behavior:
 
-- Blank or missing titles are normalized to Untitled todo when created through the lower-level board API.
-- If the card is created with status ready, approvedAt is stamped immediately.
-- If a creation would be hidden by current board filters, the action handler can clear conflicting filters so the new card becomes visible.
-- After create, the UI is refreshed and the board view is re-opened.
+- Blank titles normalize to `Untitled todo` in the lower-level board API.
+- Creating a card directly in `ready` stamps `approvedAt` immediately.
+- If the new card would be hidden by the current filters, the action handler can reveal it by clearing conflicting filters.
+- After create, the board UI refreshes and returns to the board tab.
 
-## 11. Workflow Actions in Detail
+## 12. Workflow Actions in Detail
 
-### 11.1 Approve
+### 12.1 Approve
 
-Approve moves a non-archived card from active to ready.
-
-Side effects:
-
-- Status becomes ready.
-- approvedAt is set.
-- A system comment is appended.
-
-### 11.2 Final Accept / Complete
-
-Finalize archives the card as completed-successfully.
+Approve moves a non-archived card from `active` to `ready`.
 
 Side effects:
 
-- Card is removed from the active card collection.
-- Card is marked archived.
-- archiveOutcome becomes completed-successfully.
-- Status becomes completed.
-- completedAt and archivedAt are stamped.
-- Card is moved into Archive: Completed.
-- A system comment is appended.
+- `status` becomes `ready`
+- `approvedAt` is set
+- A system comment is appended
 
-### 11.3 Reject / Delete
+### 12.2 Final Accept / Complete & Archive
 
-Reject archives the card as rejected.
+Finalize archives the card as `completed-successfully`.
 
 Side effects:
 
-- Card is marked archived.
-- archiveOutcome becomes rejected.
-- Status becomes rejected.
-- rejectedAt and archivedAt are stamped.
-- Card is moved into Archive: Rejected.
-- A system comment is appended.
+- `archived` becomes true
+- `archiveOutcome` becomes `completed-successfully`
+- `status` becomes `completed`
+- `completedAt` and `archivedAt` are stamped
+- The card moves to `Archive: Completed`
+- A system comment is appended
 
-UI delete behavior is more nuanced than a simple hard delete:
+### 12.3 Decline / Reject
 
-- Users can reject/archive the card.
-- Users can permanently purge the card.
+Decline archives the card as `rejected`.
 
-### 11.4 Permanent purge
+Side effects:
 
-Permanent purge removes the card from the board entirely instead of archiving it.
+- `archived` becomes true
+- `archiveOutcome` becomes `rejected`
+- `status` becomes `rejected`
+- `rejectedAt` and `archivedAt` are stamped
+- The card moves to `Archive: Rejected`
+- A system comment is appended
 
-This is the only destructive removal path for a todo.
+### 12.4 Delete versus purge
 
-## 12. Existing Scheduled Tasks Surfacing Into Todo Cockpit
+Delete is not the same as permanent removal.
 
-Todo Cockpit can surface existing scheduled tasks as task-linked cards under Unsorted.
+- The normal delete flow can reject and archive the card.
+- Permanent purge removes the card from the board entirely.
+- Purge is the only fully destructive removal path.
+- Tombstones are retained so stale writes cannot resurrect a purged card.
 
-This feature exists so task execution artifacts are visible in the planning surface when they are not already linked to a planning card.
+### 12.5 Restore
 
-Seeding behavior:
+Restore reopens an archived card instead of creating a replacement card.
 
-- Only tasks without an existing linked todo are seeded.
-- Seeded items go to Unsorted.
-- Seeded items are labeled with scheduled-task.
-- Seeded items are linked back to the original task ID.
-- If a task has a recorded last error, the seeded todo includes a system comment describing that error.
+This matters because the board preserves the same card identity and history instead of duplicating work during closeout or review loops.
 
-This lets users review already-existing task drafts in the same approval surface as manually created todos.
+## 13. Scheduled-Task Integration Inside Todo Cockpit
 
-## 13. Create Task Draft From Todo
+Todo Cockpit is aware of scheduled tasks, but it does not collapse them into the same artifact model.
 
-Todo Cockpit can generate a downstream scheduled task draft directly from a todo.
+### 13.1 Recurring-task history cards
 
-Current behavior of Create Task Draft:
+Recurring scheduled tasks can keep one persistent history card in the dedicated `Recurring Tasks` section.
 
-- Uses the todo title as the task name.
-- Uses the todo description as task description.
-- Builds an inline prompt from the todo content.
-- Includes the most recent coordination comments in the generated prompt.
-- Adds a default cron expression of 0 9 * * 1-5.
-- Creates the task disabled by default.
-- Adds a from-todo-cockpit label.
-- Preserves existing todo labels on the new task.
-- Stores the created task ID back on the todo.
-- Switches the UI to the task list and focuses the newly created task.
+Current behavior:
 
-The generated prompt structure currently includes:
+- `cockpit_seed_todos_from_tasks` and the board sync logic ensure recurring tasks have linked history cards.
+- The created recurring card uses the recurring system section rather than `Unsorted`.
+- The card stores a task snapshot and records future schedule, prompt, model, and label changes through system comments.
+- The card is labeled with `scheduled-task` and `recurring-task`.
+- The card intentionally keeps both built-in system flags: `Linked scheduled task` and `ON-SCHEDULE-LIST`.
+- The card can include a system comment for an existing task error.
 
-- Task goal line
-- Optional context block from description
-- Recent coordination block from recent comments
-- Final instruction telling the downstream run to produce the approved execution artifact and keep unresolved questions explicit
+### 13.2 One-time task behavior
 
-This reinforces the planning-to-execution handoff model.
+One-time tasks do not stay in the recurring history section.
 
-## 14. Create Task Tab Features
+When a linked recurring task becomes one-time:
 
-The Create Task tab is not part of the Todo Cockpit board itself, but it is directly downstream from it and is part of the same user workflow. The How To tab explicitly positions Todo first and Create Task second.
+- The card is moved out of `Recurring Tasks`
+- The card is kept as the linked planning record
+- The `recurring-task` label is dropped
+- The scheduled-task flag pair is preserved as appropriate for the live scheduled item
+- A system comment explains the transition
 
-### 14.1 Purpose
+### 13.3 Existing task linkage versus todo-first planning
 
-The Create Task tab is the compact editor for scheduled execution units.
+The board can surface scheduled-task context without treating scheduled tasks as replacements for todos.
 
-It is intended for:
+The practical split is:
 
-- Turning a known prompt into a scheduled run
-- Setting runtime defaults and overrides
-- Choosing prompt source and reuse strategy
-- Testing a prompt before saving it as a task
+- Todo stays the planning and approval record.
+- The scheduled task stays the execution record.
+- Recurring tasks get persistent history cards.
+- One-time work usually stays linked to its originating todo.
 
-### 14.2 Prompt and identity fields
+## 14. Create Task Draft From Todo
 
-The Create Task editor supports:
+Todo Cockpit can generate a downstream scheduled task draft directly from a card.
 
-- Task name
-- Task labels
+Current `Create Task Draft` behavior:
+
+- Uses the todo title as the task name
+- Uses the todo description as the task description
+- Builds an inline prompt from the todo content
+- Includes recent coordination comments in the generated prompt
+- Uses the default cron expression `0 9 * * 1-5`
+- Creates the task disabled by default
+- Creates the task as one-time by default
+- Preserves existing todo labels and adds `from-todo-cockpit`
+- Writes the created task ID back to the todo
+- Switches the UI to the task list and focuses the new task
+
+Generated prompt structure currently includes:
+
+- A task goal line
+- An optional context block from the description
+- A recent coordination block from recent comments
+- A final instruction to produce the approved execution artifact and keep unresolved questions explicit
+
+## 15. Create Task Tab In The Downstream Workflow
+
+The Create Task tab is downstream from Todo Cockpit, not a replacement for it.
+
+It is used when the user already knows the execution unit they want to schedule.
+
+Relevant Create Task capabilities include:
+
+- Task name and labels
 - Prompt source selection
-- Prompt body or template selection
+- Inline prompt editing or template selection
 - Skill insertion
+- Cron preset and raw cron editing
+- Friendly schedule builder
+- Agent and model selection
+- Scope, jitter, Run First, One-Time, and chat session options
+- Create, Save, New, and Test Prompt actions
 
-Supported prompt source modes:
+The built-in help still positions the intended order as Todo first, Create Task second.
 
-- inline
-- local template
-- global template
+## 16. How To And README Alignment
 
-Inline mode:
+The help surface and README already capture the broad mental model correctly:
 
-- User types prompt content directly into the textarea.
+- Todo Cockpit is the communication and approval hub.
+- Tasks are downstream execution units.
+- Jobs and research are separate orchestration surfaces.
+- MCP is optional but powerful.
+- Storage stays repo-local and private by default.
 
-Local template mode:
+Implementation-aligned clarifications that matter here:
 
-- Loads from repo-local prompt templates.
-- README/help describes .github/prompts/ as the local template source.
+- The current workflow is `Approve -> ready -> Final Accept / Complete & Archive -> completed-successfully archive`.
+- `Decline` and the reject branch of `Delete` archive a card as rejected.
+- `Restore` is a first-class reopen path.
+- Recurring scheduled work is represented through a dedicated hidden recurring section, not only by seeding cards into `Unsorted`.
 
-Global template mode:
+## 17. MCP Integration Overview
 
-- Uses the user/global VS Code prompt template location.
-
-Template management affordances:
-
-- Template select dropdown
-- Refresh templates button
-
-Skill affordances:
-
-- Skill select dropdown
-- Insert Skill button
-- Inline note explaining that skills are appended to prompts, not auto-applied just because the files exist
-
-### 14.3 Schedule configuration
-
-The Create Task tab supports both direct cron editing and a friendly builder.
-
-Direct schedule controls:
-
-- Cron preset dropdown
-- Raw cron expression input
-- Friendly preview text
-- Open in Guru button
-
-Friendly builder supported frequency modes:
-
-- every-n
-- hourly
-- daily
-- weekly
-- monthly
-
-Friendly builder supported fields:
-
-- Interval
-- Minute
-- Hour
-- Day of week
-- Day of month
-
-Friendly builder action:
-
-- Generate cron expression
-
-### 14.4 Runtime controls
-
-Runtime controls include:
-
-- Agent selection
-- Model selection
-
-Behavioral notes:
-
-- Leaving agent/model blank means the task inherits the current VS Code or repo defaults.
-- Setting them explicitly locks that task to a specific agent/model combination.
-- The webview can refresh cached agent/model lists without rebuilding the entire UI.
-
-### 14.5 Options controls
-
-The Create Task tab includes task-level options for execution behavior.
-
-Available options:
-
-- Scope: workspace or global
-- Jitter seconds
-- Run First
-- One-Time
-- Chat session mode
-
-Behavioral notes:
-
-- Run First schedules an initial near-term run after save.
-- One-Time causes the task to be deleted after one successful run.
-- Chat session override applies to recurring tasks and can choose new or continue.
-- Workspace scope and global scope determine where the task is persisted.
-
-### 14.6 Create Task actions
-
-Actions available in the editor:
-
-- Create / Save task
-- New task
-- Test prompt
-
-This means the tab supports both authoring and quick validation.
-
-## 15. How To Tab Guidance Relevant To Todo Cockpit
-
-The built-in How To tab explains the intended workflow order.
-
-Key workflow guidance from the help surface:
-
-1. Todo comes first as the communication hub.
-2. Create Task comes second when work is ready to execute on its own.
-3. Jobs are for chained steps.
-4. Research is for bounded iteration.
-
-Todo-specific help emphasis:
-
-- Copilot can create cards through MCP.
-- Copilot can update labels and flags through MCP.
-- Copilot can move cards across sections through MCP.
-- Copilot can leave comments through MCP.
-- Users should review, give feedback, and approve work on the board before it becomes a scheduled task.
-
-Create-tab help emphasis:
-
-- Enter task name.
-- Write prompt.
-- Set cron schedule directly or with the friendly builder.
-- Choose scope.
-- Use Free Input, Local Template, or Global Template.
-- Insert a skill when needed.
-- Leave agent/model blank to inherit defaults or set them explicitly per task.
-- Use Run First and One-Time when that behavior is intended.
-
-## 16. README Alignment Notes
-
-The README already captures the broad mental model correctly:
-
-- Todos are for planning, communication, and approval.
-- Tasks are downstream scheduled execution units.
-- MCP is optional and powerful.
-- Todo Cockpit lives in private repo-local state.
-
-Important implementation-aligned clarification:
-
-- The current implementation uses Approve -> ready.
-- Final Accept / Complete performs the completed-successfully archive.
-- Reject / Delete performs the rejected archive unless permanently purged.
-
-If any README sentence suggests a different approval-to-archive transition, the code path in src/cockpitBoardManager.ts and src/todoCockpitActionHandler.ts reflects the current behavior.
-
-## 17. MCP Integration: What It Is
-
-Copilot Cockpit includes an embedded MCP server.
+Copilot Cockpit bundles an embedded MCP server, but Todo Cockpit MCP tools are opt-in per workspace.
 
 Important facts:
 
-- The server is bundled with the extension.
-- The server entrypoint is out/server.js inside the installed extension.
-- MCP tools are not active by default in a workspace.
-- A workspace launcher file such as .vscode/mcp.json must register the server.
+- The runtime server is bundled with the extension.
+- Workspace MCP setup does not point directly at the installed extension every time.
+- The workspace entry points to a stable repo-local launcher in `.vscode/copilot-cockpit-support/mcp/launcher.js`.
+- That launcher resolves the currently installed Copilot Cockpit runtime.
+- This stable launcher path allows unreloaded VS Code windows to keep starting MCP services across extension updates.
 
-README and How To both position MCP as optional because it materially expands what an agent can inspect and change.
-
-## 18. MCP Setup: How To Enable It
+## 18. MCP Setup And Validation
 
 Recommended setup path:
 
-1. Open the workspace folder in VS Code.
+1. Open the workspace in VS Code.
 2. Open Copilot Cockpit.
-3. Go to How To Use.
-4. Click Set Up MCP.
+3. Go to `How To Use`.
+4. Click `Set Up MCP`.
 
-Alternative setup path:
+Alternative path:
 
-1. Run the command Copilot Cockpit: Set Up Workspace MCP.
+1. Run `Copilot Cockpit: Set Up Workspace MCP`.
 
-What the automatic setup does:
+What setup does:
 
-- Ensures .vscode exists.
-- Creates .vscode/mcp.json if missing.
-- Merges a scheduler server entry if the file already exists.
-- Repairs invalid JSON by backing up the old file and writing a fresh valid config.
+- Ensures `.vscode` exists
+- Ensures the repo-local MCP support directory exists
+- Writes or refreshes `.vscode/copilot-cockpit-support/mcp/launcher.js`
+- Writes or refreshes the corresponding launcher state file
+- Creates `.vscode/mcp.json` if missing
+- Merges or repairs the `scheduler` server entry if the file already exists
+- Preserves unrelated MCP server entries already present in the file
+- Backs up invalid JSON before repairing it
 
-Expected generated server entry shape:
+Expected generated scheduler entry shape:
 
 ```json
 {
@@ -765,156 +655,112 @@ Expected generated server entry shape:
             "type": "stdio",
             "command": "node",
             "args": [
-                "<installed extension path>/out/server.js"
+                "<absolute workspace path>/.vscode/copilot-cockpit-support/mcp/launcher.js"
             ]
         }
     }
 }
 ```
 
-## 19. MCP Check: How To Verify It Is Correct
+Practical checks:
 
-Use this checklist to verify MCP registration.
+- `.vscode/mcp.json` exists
+- `servers.scheduler` exists
+- `type` is `stdio`
+- `command` is `node`
+- `args[0]` points at the repo-local launcher path
+- The launcher and launcher state files actually exist
 
-### 19.1 Quick user-level check
+Secret-handling guidance:
 
-Confirm that:
+- Do not put live third-party secrets directly into `.vscode/mcp.json`
+- Use top-level `inputs` with `promptString` and `password: true`
+- Reference them via `${input:NAME}` placeholders
 
-- .vscode/mcp.json exists in the workspace
-- It contains servers.scheduler
-- servers.scheduler.type is stdio
-- servers.scheduler.command is node
-- servers.scheduler.args points to the installed extension's out/server.js
+## 19. Todo Cockpit MCP Tool Surface
 
-### 19.2 Extension-side logic check
+The current Todo Cockpit MCP tools exposed by the server are:
 
-The extension's MCP config manager treats the workspace as:
+- `cockpit_get_board`
+- `cockpit_list_todos`
+- `cockpit_get_todo`
+- `cockpit_list_routing_cards`
+- `cockpit_create_todo`
+- `cockpit_add_todo_comment`
+- `cockpit_approve_todo`
+- `cockpit_finalize_todo`
+- `cockpit_reject_todo`
+- `cockpit_update_todo`
+- `cockpit_closeout_todo`
+- `cockpit_delete_todo`
+- `cockpit_move_todo`
+- `cockpit_set_filters`
+- `cockpit_seed_todos_from_tasks`
+- `cockpit_save_label_definition`
+- `cockpit_delete_label_definition`
+- `cockpit_save_flag_definition`
+- `cockpit_delete_flag_definition`
 
-- configured when the scheduler entry exactly matches the expected installed-extension path
-- missing when the entry is absent or mismatched
-- invalid when the JSON file cannot be parsed as a plain JSON object
+What these cover:
 
-That means a stale path still counts as missing and should be repaired with Set Up MCP.
-
-### 19.3 Practical recovery check
-
-If MCP looks wrong:
-
-1. Run Set Up MCP again.
-2. Re-open .vscode/mcp.json.
-3. Confirm the scheduler entry was updated.
-
-If the file was invalid JSON beforehand:
-
-- The extension creates a timestamped backup such as mcp.invalid-<timestamp>.json before rewriting.
-
-### 19.4 Risk check
-
-Before leaving MCP enabled, confirm you actually want agents to have this level of access.
-
-Once visible to Copilot, MCP tools can allow an agent to:
-
-- Read board state
-- Read task state
-- Modify todos
-- Modify tasks
-- Trigger executions
-- Potentially chain into new AI sessions through downstream task behavior
-
-## 20. Todo Cockpit MCP Tool Surface
-
-Current Todo Cockpit MCP tools exposed by the server include:
-
-- cockpit_get_board
-- cockpit_list_todos
-- cockpit_get_todo
-- cockpit_create_todo
-- cockpit_add_todo_comment
-- cockpit_approve_todo
-- cockpit_finalize_todo
-- cockpit_reject_todo
-- cockpit_update_todo
-- cockpit_delete_todo
-- cockpit_move_todo
-- cockpit_set_filters
-- cockpit_seed_todos_from_tasks
-- cockpit_save_label_definition
-- cockpit_delete_label_definition
-- cockpit_save_flag_definition
-- cockpit_delete_flag_definition
-
-What these tools cover:
-
-- Reading the whole board
-- Reading filtered card lists
-- Reading one card in detail
+- Reading the full board
+- Reading cards by list or detail
+- Reading routing-relevant cards without scanning the full board payload
 - Creating cards
 - Updating cards
-- Rejecting or finalizing cards
-- Moving cards
 - Appending comments
-- Updating persisted filter state
-- Seeding task-backed cards into the board
-- Managing shared label palette entries
-- Managing shared flag palette entries
+- Moving cards
+- Approving, finalizing, rejecting, and closeout flows
+- Updating persisted filters
+- Seeding recurring-task history cards from tasks
+- Managing shared label and flag palettes
 
 Important limitation of the current MCP surface:
 
-- Section add/rename/delete/reorder actions exist in the UI and extension action handler, but they are not part of the currently registered MCP tool surface in src/server.ts.
+- Section add, rename, delete, and reorder flows exist in the UI and host action layer, but they are not part of the currently registered Todo Cockpit MCP tools.
 
-## 21. MCP Semantics For Labels and Flags
+## 20. MCP Semantics That Matter In Practice
 
-Todo MCP distinguishes labels from flags clearly.
+Several semantics are easy to misuse if you treat the tool names too casually.
 
-Labels:
+- `cockpit_delete_todo` archives a card via the reject path in the MCP server. It is not the permanent purge path.
+- `cockpit_closeout_todo` is the deterministic handoff helper for execution results. It can update status and flags, add one summary comment, respect missing sections, and clear stale linked task IDs when the scheduler task no longer exists.
+- `cockpit_list_routing_cards` is the preferred routing preflight surface because it matches labels, flags, and actionable user-comment labels case-insensitively.
+- Requested closeout sections are validated. If the preferred section does not exist, the card stays where it is and the response reports that fact.
+- Closeout does not recreate missing cards.
 
-- Multi-value
-- Workflow tags
-- Displayed as pill-shaped chips
-- Can have shared color definitions
+## 21. Practical Workflow Summary
 
-Flags:
-
-- Routing-state
-- Agent-state indicator
-- Displayed as squared chips
-- Final review handoff should normally use one explicit flag, but live scheduled cards may keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST`
-- Can have shared color definitions
-
-This distinction matters in both the UI and the MCP contract.
-
-## 22. Practical Workflow Summary
-
-A typical implementation-aligned workflow is:
+An implementation-aligned workflow looks like this:
 
 1. Capture work in Todo Cockpit.
-2. Add context in the description and comments.
-3. Tag with labels and an explicit review-state flag when needed.
-4. Move it into the right section.
-5. Approve it when the plan is good enough.
-6. Either final-accept/archive it when complete, or convert it into a task draft if it should run on a schedule.
-7. Use the Create Task tab when you need direct scheduled execution authoring instead of todo-first planning.
+2. Add context in the description, comments, and uploaded workspace-local inputs if needed.
+3. Categorize with labels and set an explicit review-state flag when handoff matters.
+4. Move the card into the appropriate section.
+5. Approve it when the plan is ready.
+6. Either create a downstream task draft, keep it active for more review, or finalize it into the completed archive.
+7. Use deterministic MCP closeout when execution has happened elsewhere and the board needs a verified summary update.
 
-## 23. Common Mistakes To Avoid
+## 22. Common Mistakes To Avoid
 
-- Do not treat Todo cards and scheduled tasks as interchangeable records. They are separate artifacts with separate MCP tool families.
-- Do not invent arbitrary multi-flag routing state. Preserve the built-in scheduled pair only for live scheduled cards, and use one explicit review-state flag such as `needs-user-review` for final handoff.
-- Do not use labels as a substitute for agent routing or review-state handoff.
-- Do not recreate a missing card as the default closeout behavior for a completed one-time execution. Prefer deterministic closeout on the originating card.
-- Do not patch `.vscode/scheduler.private.json` directly after a partial MCP workflow unless you are on an explicit last-resort recovery path.
-- Do not assume a requested section exists. Closeout flows should keep the card in its current section when the preferred section is unavailable.
-- For verified implementation handoff that still needs user review, prefer `cockpit_closeout_todo` so one summary comment, one review-state flag, and stale task cleanup happen in a single supported path.
+- Do not treat todo cards and scheduled tasks as interchangeable records.
+- Do not assume all task-linked cards live under `Unsorted`; recurring scheduled work has a dedicated hidden section.
+- Do not use labels as a substitute for review-state or routing flags.
+- Do not collapse `labels`, `flags`, and `comments[].labels` into one bucket.
+- Do not assume `cockpit_delete_todo` is a hard delete.
+- Do not recreate a missing card during closeout; use the existing originating card or stop.
+- Do not patch `.vscode/scheduler.private.json` directly unless you are on an explicit last-resort recovery path.
 
-## 24. Bottom Line
+## 23. Bottom Line
 
 Todo Cockpit currently provides:
 
-- A repo-local board for planning and approvals
-- A dedicated todo editor with comments, labels, flags, due dates, sections, and linked tasks
-- Board/list review modes with filters, sorting, archived review, drag-drop, and section controls
-- A clear approval/archive workflow
-- Downstream handoff into scheduled tasks
-- A Create Task tab for direct execution authoring
-- An embedded but opt-in MCP surface for agent-driven inspection and mutation
+- A repo-local board for planning, review, and approval
+- A dedicated todo editor with comments, uploads, labels, flags, due dates, sections, and task links
+- Board and list views with filters, sorting, visibility toggles, counts, drag-drop, and section controls
+- A staged approval and archive workflow with restore and purge distinctions
+- Persistent recurring-task history cards for recurring scheduled work
+- Downstream task-draft generation from approved planning context
+- An opt-in MCP surface for agent-driven inspection, routing, closeout, and mutation
 
-That makes it both a human review surface and an agent coordination surface, while still keeping execution as a separate, explicit downstream step.
+That makes Todo Cockpit the human-and-agent coordination layer, while scheduled execution remains a separate downstream step by design.

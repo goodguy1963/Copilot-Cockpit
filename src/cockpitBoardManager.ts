@@ -1266,7 +1266,12 @@ export function ensureTaskTodosInBoard(
 
   if (changed) {
     touchBoard(nextBoard);
+    return {
+      board: normalizeCockpitBoard(nextBoard),
+      createdTodoIds,
+    };
   }
+
   return { board: nextBoard, createdTodoIds };
 }
 
