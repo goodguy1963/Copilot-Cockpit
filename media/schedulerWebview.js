@@ -9,6 +9,11 @@ import {
 import { createWebviewDebugTools } from "./schedulerWebviewDebug.js";
 import { renderTodoBoardMarkup } from "./schedulerWebviewBoardRendering.js";
 import {
+  buildFriendlyCronExpression,
+  summarizeCronExpression,
+  syncFriendlyFieldVisibility,
+} from "./schedulerWebviewCronUtils.js";
+import {
   selectHasOptionValue,
   updateAgentOptions as updateTaskAgentOptions,
   updateModelOptions as updateTaskModelOptions,
@@ -6997,156 +7002,8 @@ syncTodoLabelSuggestions();
     return active.classList.contains("task-agent-select") || active.classList.contains("task-model-select");
   }
 
-  var dayNames = [
-    strings.daySun || "",
-    strings.dayMon || "",
-    strings.dayTue || "",
-    strings.dayWed || "",
-    strings.dayThu || "",
-    strings.dayFri || "",
-    strings.daySat || "",
-  ];
-
-  function padNumber(value) {
-    var num = parseInt(String(value), 10);
-    if (isNaN(num)) num = 0;
-    return num < 10 ? "0" + num : String(num);
-  }
-
-  function boundedNumber(value, min, max, fallback) {
-    var num = parseInt(String(value), 10);
-    if (isNaN(num)) {
-      num = fallback;
-    }
-    num = Math.max(min, Math.min(max, num));
-    return num;
-  }
-
-  function normalizeDow(value) {
-    var normalized = String(value || "")
-      .trim()
-      .toLowerCase();
-    if (/^\d+$/.test(normalized)) {
-      var asNumber = parseInt(normalized, 10);
-      if (asNumber === 7) asNumber = 0;
-      if (asNumber >= 0 && asNumber <= 6) return asNumber;
-    }
-
-    var map = {
-      sun: 0,
-      mon: 1,
-      tue: 2,
-      wed: 3,
-      thu: 4,
-      fri: 5,
-      sat: 6,
-    };
-
-    if (map.hasOwnProperty(normalized)) {
-      return map[normalized];
-    }
-
-    return null;
-  }
-
-  function formatTime(hour, minute) {
-    return padNumber(hour) + ":" + padNumber(minute);
-  }
-
   function getCronSummary(expression) {
-    var fallback = strings.labelFriendlyFallback || "";
-    var expr = (expression || "").trim();
-    if (!expr) return fallback;
-
-    var parts = expr.split(/\s+/);
-    if (parts.length !== 5) {
-      return fallback;
-    }
-
-    var minute = parts[0];
-    var hour = parts[1];
-    var dom = parts[2];
-    var mon = parts[3];
-    var dow = parts[4];
-
-    var isNumber = function (value) {
-      return /^\d+$/.test(String(value));
-    };
-    var dowLower = String(dow || "").toLowerCase();
-    var isWeekdays = dowLower === "1-5" || dowLower === "mon-fri";
-    var everyN = /^\*\/(\d+)$/.exec(minute);
-
-    if (everyN && hour === "*" && dom === "*" && mon === "*" && dow === "*") {
-      var tplEveryN = strings.cronPreviewEveryNMinutes || "";
-      return tplEveryN ? tplEveryN.replace("{n}", String(everyN[1])) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      hour === "*" &&
-      dom === "*" &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplHourly = strings.cronPreviewHourlyAtMinute || "";
-      return tplHourly ? tplHourly.replace("{m}", String(minute)) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplDaily = strings.cronPreviewDailyAt || "";
-      var t = formatTime(hour, minute);
-      return tplDaily ? tplDaily.replace("{t}", String(t)) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      isWeekdays
-    ) {
-      var tplWeekdays = strings.cronPreviewWeekdaysAt || "";
-      var t = formatTime(hour, minute);
-      return tplWeekdays ? tplWeekdays.replace("{t}", String(t)) : fallback;
-    }
-
-    var dowValue = normalizeDow(dow);
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      dowValue !== null
-    ) {
-      var dayLabel = dayNames[dowValue] || String(dowValue);
-      var tplWeekly = strings.cronPreviewWeeklyOnAt || "";
-      var t = formatTime(hour, minute);
-      return tplWeekly
-        ? tplWeekly.replace("{d}", String(dayLabel)).replace("{t}", String(t))
-        : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      isNumber(dom) &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplMonthly = strings.cronPreviewMonthlyOnAt || "";
-      var t = formatTime(hour, minute);
-      return tplMonthly
-        ? tplMonthly.replace("{dom}", String(dom)).replace("{t}", String(t))
-        : fallback;
-    }
-
-    return fallback;
+    return summarizeCronExpression(expression, strings);
   }
 
   function updateCronPreview() {
@@ -7161,174 +7018,28 @@ syncTodoLabelSuggestions();
   }
 
   function updateFriendlyVisibility() {
-    var selection = friendlyFrequency ? friendlyFrequency.value : "";
-    var fields = [];
-    switch (selection) {
-      case "every-n":
-        fields = ["interval"];
-        break;
-      case "hourly":
-        fields = ["minute"];
-        break;
-      case "daily":
-        fields = ["hour", "minute"];
-        break;
-      case "weekly":
-        fields = ["dow", "hour", "minute"];
-        break;
-      case "monthly":
-        fields = ["dom", "hour", "minute"];
-        break;
-      default:
-        fields = [];
-    }
-
-    var friendlyFields = friendlyBuilder
-      ? friendlyBuilder.querySelectorAll(".friendly-field")
-      : [];
-    for (var i = 0; i < friendlyFields.length; i++) {
-      var el = friendlyFields[i];
-      if (!el || !el.getAttribute) continue;
-      var fieldName = el.getAttribute("data-field");
-      if (fields.indexOf(fieldName) !== -1) {
-        if (el.classList) el.classList.add("visible");
-        if (el.style) el.style.display = "block";
-      } else {
-        if (el.classList) el.classList.remove("visible");
-        if (el.style) el.style.display = "none";
-      }
-    }
+    syncFriendlyFieldVisibility(
+      friendlyBuilder,
+      friendlyFrequency ? friendlyFrequency.value : "",
+    );
   }
 
   function updateJobsFriendlyVisibility() {
-    var selection = jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "";
-    var fields = [];
-    switch (selection) {
-      case "every-n":
-        fields = ["interval"];
-        break;
-      case "hourly":
-        fields = ["minute"];
-        break;
-      case "daily":
-        fields = ["hour", "minute"];
-        break;
-      case "weekly":
-        fields = ["dow", "hour", "minute"];
-        break;
-      case "monthly":
-        fields = ["dom", "hour", "minute"];
-        break;
-      default:
-        fields = [];
-    }
-
-    var friendlyFields = jobsFriendlyBuilder
-      ? jobsFriendlyBuilder.querySelectorAll(".friendly-field")
-      : [];
-    for (var i = 0; i < friendlyFields.length; i++) {
-      var el = friendlyFields[i];
-      if (!el || !el.getAttribute) continue;
-      var fieldName = el.getAttribute("data-field");
-      if (fields.indexOf(fieldName) !== -1) {
-        if (el.classList) el.classList.add("visible");
-        if (el.style) el.style.display = "block";
-      } else {
-        if (el.classList) el.classList.remove("visible");
-        if (el.style) el.style.display = "none";
-      }
-    }
+    syncFriendlyFieldVisibility(
+      jobsFriendlyBuilder,
+      jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "",
+    );
   }
 
   function generateCronFromFriendly() {
     if (!friendlyFrequency || !cronExpression) return;
-    var selection = friendlyFrequency.value;
-    var expr = "";
-
-    switch (selection) {
-      case "every-n": {
-        var interval = boundedNumber(
-          friendlyInterval ? friendlyInterval.value : "",
-          1,
-          59,
-          5,
-        );
-        expr = "*/" + interval + " * * * *";
-        break;
-      }
-      case "hourly": {
-        var minuteValue = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        expr = minuteValue + " * * * *";
-        break;
-      }
-      case "daily": {
-        var dailyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var dailyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        expr = dailyMinute + " " + dailyHour + " * * *";
-        break;
-      }
-      case "weekly": {
-        var weeklyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var weeklyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var dowValue = boundedNumber(
-          friendlyDow ? friendlyDow.value : "",
-          0,
-          6,
-          1,
-        );
-        expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
-        break;
-      }
-      case "monthly": {
-        var monthlyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var monthlyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var domValue = boundedNumber(
-          friendlyDom ? friendlyDom.value : "",
-          1,
-          31,
-          1,
-        );
-        expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
-        break;
-      }
-      default:
-        expr = "";
-    }
+    var expr = buildFriendlyCronExpression(friendlyFrequency.value, {
+      interval: friendlyInterval ? friendlyInterval.value : "",
+      minute: friendlyMinute ? friendlyMinute.value : "",
+      hour: friendlyHour ? friendlyHour.value : "",
+      dow: friendlyDow ? friendlyDow.value : "",
+      dom: friendlyDom ? friendlyDom.value : "",
+    });
 
     if (expr) {
       cronExpression.value = expr;
@@ -7339,93 +7050,13 @@ syncTodoLabelSuggestions();
 
   function generateJobsCronFromFriendly() {
     if (!jobsFriendlyFrequency || !jobsCronInput) return;
-    var selection = jobsFriendlyFrequency.value;
-    var expr = "";
-
-    switch (selection) {
-      case "every-n": {
-        var interval = boundedNumber(
-          jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
-          1,
-          59,
-          5,
-        );
-        expr = "*/" + interval + " * * * *";
-        break;
-      }
-      case "hourly": {
-        var minuteValue = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        expr = minuteValue + " * * * *";
-        break;
-      }
-      case "daily": {
-        var dailyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var dailyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        expr = dailyMinute + " " + dailyHour + " * * *";
-        break;
-      }
-      case "weekly": {
-        var weeklyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var weeklyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var dowValue = boundedNumber(
-          jobsFriendlyDow ? jobsFriendlyDow.value : "",
-          0,
-          6,
-          1,
-        );
-        expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
-        break;
-      }
-      case "monthly": {
-        var monthlyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var monthlyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var domValue = boundedNumber(
-          jobsFriendlyDom ? jobsFriendlyDom.value : "",
-          1,
-          31,
-          1,
-        );
-        expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
-        break;
-      }
-      default:
-        expr = "";
-    }
+    var expr = buildFriendlyCronExpression(jobsFriendlyFrequency.value, {
+      interval: jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
+      minute: jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+      hour: jobsFriendlyHour ? jobsFriendlyHour.value : "",
+      dow: jobsFriendlyDow ? jobsFriendlyDow.value : "",
+      dom: jobsFriendlyDom ? jobsFriendlyDom.value : "",
+    });
 
     if (expr) {
       jobsCronInput.value = expr;

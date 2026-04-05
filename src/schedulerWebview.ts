@@ -76,6 +76,15 @@ import {
   refreshSkillReferences,
   loadPromptTemplateContent,
 } from "./schedulerWebviewTemplateCache";
+import {
+  createDefaultExecutionDefaults,
+  createDefaultReviewDefaults,
+  createDefaultStorageSettings,
+  createEmptyCockpitBoard,
+  createEmptyTelegramNotification,
+  postSchedulerCatalogMessages,
+  runSchedulerCatalogRefreshTasks,
+} from "./schedulerWebviewState";
 
 type OutgoingWebviewMessage = { type: string;[key: string]: unknown };
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
@@ -99,55 +108,15 @@ export class SchedulerWebview {
   private static currentTasks: ScheduledTask[] = [];
   private static currentJobs: JobDefinition[] = [];
   private static currentJobFolders: JobFolder[] = [];
-  private static currentCockpitBoard: CockpitBoard = {
-    version: 4,
-    sections: [],
-    cards: [],
-    labelCatalog: [],
-    archives: {
-      completedSuccessfully: [],
-      rejected: [],
-    },
-    filters: {
-      labels: [],
-      priorities: [],
-      statuses: [],
-      archiveOutcomes: [],
-      flags: [],
-      sortBy: "manual",
-      sortDirection: "asc",
-      viewMode: "board",
-      showArchived: false,
-      showRecurringTasks: false,
-      hideCardDetails: false,
-    },
-    updatedAt: "",
-  };
-  private static currentTelegramNotification: TelegramNotificationView = {
-    enabled: false,
-    hasBotToken: false,
-    hookConfigured: false,
-  };
-  private static currentExecutionDefaults: ExecutionDefaultsView = {
-    agent: "agent",
-    model: "",
-  };
-  private static currentReviewDefaults: ReviewDefaultsView = {
-    spotReviewTemplate: "",
-    botReviewPromptTemplate: "",
-    botReviewAgent: "agent",
-    botReviewModel: "",
-    botReviewChatSession: "new",
-  };
-  private static currentStorageSettings: StorageSettingsView = {
-    mode: "sqlite",
-    sqliteJsonMirror: true,
-    disabledSystemFlagKeys: [],
-    appVersion: "",
-    mcpSetupStatus: "workspace-required",
-    lastMcpSupportUpdateAt: "",
-    lastBundledSkillsSyncAt: "",
-  };
+  private static currentCockpitBoard: CockpitBoard = createEmptyCockpitBoard();
+  private static currentTelegramNotification: TelegramNotificationView =
+    createEmptyTelegramNotification();
+  private static currentExecutionDefaults: ExecutionDefaultsView =
+    createDefaultExecutionDefaults();
+  private static currentReviewDefaults: ReviewDefaultsView =
+    createDefaultReviewDefaults();
+  private static currentStorageSettings: StorageSettingsView =
+    createDefaultStorageSettings();
   private static currentResearchProfiles: ResearchProfile[] = [];
   private static currentActiveResearchRun: ResearchRun | undefined;
   private static currentRecentResearchRuns: ResearchRun[] = [];
@@ -370,57 +339,39 @@ export class SchedulerWebview {
     }
 
     const refreshInBackground = (): void => {
-      void this.refreshAgentsAndModelsCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updateAgents",
-            agents: this.cachedAgents,
-          });
-          this.postMessage({
-            type: "updateModels",
-            models: this.cachedModels,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh agents/models:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
-
-      void this.refreshPromptTemplatesCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updatePromptTemplates",
-            templates: this.cachedPromptTemplates,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh prompt templates:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
-
-      void this.refreshSkillReferencesCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updateSkills",
-            skills: this.cachedSkillReferences,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh skills:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
+      runSchedulerCatalogRefreshTasks({
+        tasks: [
+          {
+            refresh: () => this.refreshAgentsAndModelsCache(true),
+            getMessages: () => [
+              { type: "updateAgents", agents: this.cachedAgents },
+              { type: "updateModels", models: this.cachedModels },
+            ],
+            errorPrefix: "[CopilotScheduler] Failed to refresh agents/models:",
+          },
+          {
+            refresh: () => this.refreshPromptTemplatesCache(true),
+            getMessages: () => [
+              {
+                type: "updatePromptTemplates",
+                templates: this.cachedPromptTemplates,
+              },
+            ],
+            errorPrefix:
+              "[CopilotScheduler] Failed to refresh prompt templates:",
+          },
+          {
+            refresh: () => this.refreshSkillReferencesCache(true),
+            getMessages: () => [
+              { type: "updateSkills", skills: this.cachedSkillReferences },
+            ],
+            errorPrefix: "[CopilotScheduler] Failed to refresh skills:",
+          },
+        ],
+        postMessage: (message) => this.postMessage(message),
+        logError,
+        sanitizeError: (details) => this.sanitizeErrorDetailsForUser(details),
+      });
     };
 
     if (this.panel) {
@@ -449,22 +400,7 @@ export class SchedulerWebview {
         recentResearchRuns,
       );
       // Send already-cached agents/models/templates without rescanning
-      this.postMessage({
-        type: "updateAgents",
-        agents: this.cachedAgents,
-      });
-      this.postMessage({
-        type: "updateModels",
-        models: this.cachedModels,
-      });
-      this.postMessage({
-        type: "updatePromptTemplates",
-        templates: this.cachedPromptTemplates,
-      });
-      this.postMessage({
-        type: "updateSkills",
-        skills: this.cachedSkillReferences,
-      });
+      this.postCachedCatalogMessages();
     } else {
       // Create new panel
       this.panel = vscode.window.createWebviewPanel(
@@ -650,22 +586,15 @@ export class SchedulerWebview {
   }
 
   private static postCachedCatalogMessages(): void {
-    this.postMessage({
-      type: "updateAgents",
-      agents: this.cachedAgents,
-    });
-    this.postMessage({
-      type: "updateModels",
-      models: this.cachedModels,
-    });
-    this.postMessage({
-      type: "updatePromptTemplates",
-      templates: this.cachedPromptTemplates,
-    });
-    this.postMessage({
-      type: "updateSkills",
-      skills: this.cachedSkillReferences,
-    });
+    postSchedulerCatalogMessages(
+      (message) => this.postMessage(message),
+      {
+        agents: this.cachedAgents,
+        models: this.cachedModels,
+        promptTemplates: this.cachedPromptTemplates,
+        skillReferences: this.cachedSkillReferences,
+      },
+    );
   }
 
   /**
