@@ -1,50 +1,62 @@
-export function readInitialWebviewBootstrap(documentRef) {
-  var initialData = {};
-  try {
-    var initialScript = documentRef.getElementById("initial-data");
-    if (initialScript && initialScript.textContent) {
-      initialData = JSON.parse(initialScript.textContent) || {};
-    }
-  } catch (_error) {
-    initialData = {};
+function parseBootstrapPayload(documentRef) {
+  var scriptNode = documentRef.getElementById("initial-data");
+  if (!scriptNode || !scriptNode.textContent) {
+    return {};
   }
 
+  try {
+    return JSON.parse(scriptNode.textContent) || {};
+  } catch (_error) {
+    return {};
+  }
+}
+
+function resolveLogLevel(payload) {
+  return typeof payload.logLevel === "string" && payload.logLevel
+    ? payload.logLevel
+    : "info";
+}
+
+function resolveLogDirectory(payload) {
+  return typeof payload.logDirectory === "string" ? payload.logDirectory : "";
+}
+
+export function readInitialWebviewBootstrap(documentRef) {
+  var payload = parseBootstrapPayload(documentRef);
+  var strings = payload && payload.strings ? payload.strings : {};
+
   return {
-    initialData: initialData,
-    strings: initialData.strings || {},
-    currentLogLevel:
-      typeof initialData.logLevel === "string" && initialData.logLevel
-        ? initialData.logLevel
-        : "info",
-    currentLogDirectory:
-      typeof initialData.logDirectory === "string"
-        ? initialData.logDirectory
-        : "",
+    initialData: payload,
+    strings: strings,
+    currentLogLevel: resolveLogLevel(payload),
+    currentLogDirectory: resolveLogDirectory(payload),
   };
 }
 
 function firstErrorLine(reason, unknownText) {
   var raw = unknownText || "";
-  if (reason) {
-    if (typeof reason === "string") {
-      raw = reason;
-    } else if (typeof reason === "object" && reason.message) {
-      raw = String(reason.message);
-    } else {
-      raw = String(reason);
-    }
+  var resolvedReason = reason;
+  if (typeof resolvedReason === "string") {
+    raw = resolvedReason;
+  } else if (resolvedReason) {
+    var reasonMessage =
+      typeof resolvedReason === "object" &&
+      "message" in resolvedReason
+        ? resolvedReason.message
+        : resolvedReason;
+    raw = String(reasonMessage);
   }
   return String(raw).split(/\r?\n/)[0];
 }
 
 export function installGlobalErrorHandlers(params) {
-  params.window.onerror = function (msg, _url, line) {
+  params.window.onerror = function (messageText, _url, line) {
     var prefix = params.strings.webviewScriptErrorPrefix || "";
     var linePrefix = params.strings.webviewLinePrefix || "";
     var lineSuffix = params.strings.webviewLineSuffix || "";
     params.showGlobalError(
       prefix +
-      params.sanitizeAbsolutePaths(String(msg)) +
+      params.sanitizeAbsolutePaths(String(messageText)) +
       linePrefix +
       String(line) +
       lineSuffix,

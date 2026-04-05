@@ -12,9 +12,8 @@ function padFriendlyNumber(value) {
 }
 
 function normalizeDayOfWeekValue(value) {
-  var normalized = String(value || "")
-    .trim()
-    .toLowerCase();
+  var normalizedSource = String(value || "");
+  var normalized = normalizedSource.trim().toLowerCase();
 
   if (/^\d+$/.test(normalized)) {
     var numericValue = parseInt(normalized, 10);
@@ -26,19 +25,17 @@ function normalizeDayOfWeekValue(value) {
     }
   }
 
-  var aliases = {
-    sun: 0,
-    mon: 1,
-    tue: 2,
-    wed: 3,
-    thu: 4,
-    fri: 5,
-    sat: 6,
-  };
+  var aliases = new Map([
+    ["sun", 0],
+    ["mon", 1],
+    ["tue", 2],
+    ["wed", 3],
+    ["thu", 4],
+    ["fri", 5],
+    ["sat", 6],
+  ]);
 
-  return Object.prototype.hasOwnProperty.call(aliases, normalized)
-    ? aliases[normalized]
-    : null;
+  return aliases.has(normalized) ? aliases.get(normalized) : null;
 }
 
 function formatFriendlyTime(hour, minute) {
@@ -140,16 +137,16 @@ export function summarizeCronExpression(expression, strings) {
     return fallback;
   }
 
-  var parts = normalizedExpression.split(/\s+/);
-  if (parts.length !== 5) {
+  var cronParts = normalizedExpression.split(/\s+/);
+  if (cronParts.length !== 5) {
     return fallback;
   }
 
-  var minute = parts[0];
-  var hour = parts[1];
-  var dayOfMonth = parts[2];
-  var month = parts[3];
-  var dayOfWeek = parts[4];
+  var minute = cronParts[0];
+  var hour = cronParts[1];
+  var dayOfMonth = cronParts[2];
+  var month = cronParts[3];
+  var dayOfWeek = cronParts[4];
   var isWholeNumber = function (value) {
     return /^\d+$/.test(String(value));
   };

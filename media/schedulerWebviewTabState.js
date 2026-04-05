@@ -1,8 +1,12 @@
+function forEachTabElement(document, selector, callback) {
+  Array.prototype.forEach.call(document.querySelectorAll(selector), callback);
+}
+
 export function activateSchedulerTab(document, tabName) {
-  document.querySelectorAll(".tab-button").forEach(function (button) {
+  forEachTabElement(document, ".tab-button", function (button) {
     button.classList.remove("active");
   });
-  document.querySelectorAll(".tab-content").forEach(function (content) {
+  forEachTabElement(document, ".tab-content", function (content) {
     content.classList.remove("active");
   });
 
@@ -43,10 +47,11 @@ export function bindTabButtons(document, switchTab) {
     function (button) {
       button.addEventListener("click", function (event) {
         event.preventDefault();
-        event.stopPropagation();
-        var tabName = button.getAttribute("data-tab");
-        if (tabName) {
-          switchTab(tabName);
+        var stopEvent = event.stopImmediatePropagation || event.stopPropagation;
+        stopEvent.call(event);
+        var selectedTabName = button.getAttribute("data-tab");
+        if (selectedTabName) {
+          switchTab(selectedTabName);
         }
       });
     },
@@ -61,7 +66,7 @@ export function bindTaskFilterBar(taskFilterBar, options) {
   options.syncTaskFilterButtons();
   taskFilterBar.addEventListener("click", function (event) {
     var target = event && event.target;
-    var filterButton = target;
+    var filterButton = target || null;
     while (filterButton && filterButton !== taskFilterBar) {
       if (
         filterButton.getAttribute &&

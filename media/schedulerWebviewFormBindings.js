@@ -1,8 +1,10 @@
 export function bindPromptSourceDelegation(document, applyPromptSource) {
   document.addEventListener("change", function (event) {
     var target = event && event.target;
-    if (target && target.name === "prompt-source" && target.checked) {
-      applyPromptSource(target.value);
+    var isPromptSourceRadio =
+      target && target.name === "prompt-source" && target.checked;
+    if (isPromptSourceRadio) {
+      applyPromptSource(String(target.value || ""));
     }
   });
 }
@@ -17,8 +19,9 @@ export function bindCronPresetPair(
   }
 
   presetControl.addEventListener("change", function () {
-    if (presetControl.value) {
-      valueControl.value = presetControl.value;
+    var nextPresetValue = presetControl.value;
+    if (nextPresetValue) {
+      valueControl.value = nextPresetValue;
     }
     onSynchronized();
   });
@@ -40,13 +43,14 @@ export function bindTemplateSelectionLoader(templateSelect, document, vscode) {
       return;
     }
 
-    var sourceEl = document.querySelector(
+    var promptSourceControl = document.querySelector(
       'input[name="prompt-source"]:checked',
     );
-    vscode.postMessage({
+    var templateMessage = {
       type: "loadPromptTemplate",
       path: selectedPath,
-      source: sourceEl ? sourceEl.value : "inline",
-    });
+      source: promptSourceControl ? promptSourceControl.value : "inline",
+    };
+    vscode.postMessage(templateMessage);
   });
 }

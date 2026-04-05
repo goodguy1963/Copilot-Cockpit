@@ -1,5 +1,17 @@
 import { bindClickAction } from "./schedulerWebviewBindings.js";
 
+function postRefreshMessages(vscode) {
+  ["refreshTasks", "refreshAgents", "refreshPrompts"].forEach(function (type) {
+    vscode.postMessage({ type: type });
+  });
+}
+
+function findHistoryEntry(entries, snapshotId) {
+  return (Array.isArray(entries) ? entries : []).find(function (entry) {
+    return entry && entry.id === snapshotId;
+  });
+}
+
 export function bindTaskTestButton(button, options) {
   bindClickAction(button, function () {
     var promptTextEl = options.document.getElementById("prompt-text");
@@ -11,20 +23,17 @@ export function bindTaskTestButton(button, options) {
       return;
     }
 
-    options.vscode.postMessage({
-      type: "testPrompt",
-      prompt: prompt,
-      agent: agent,
-      model: model,
-    });
+    var promptMessage = Object.assign(
+      { type: "testPrompt" },
+      { prompt: prompt, agent: agent, model: model },
+    );
+    options.vscode.postMessage(promptMessage);
   });
 }
 
 export function bindRefreshButton(button, vscode) {
   bindClickAction(button, function () {
-    vscode.postMessage({ type: "refreshTasks" });
-    vscode.postMessage({ type: "refreshAgents" });
-    vscode.postMessage({ type: "refreshPrompts" });
+    postRefreshMessages(vscode);
   });
 }
 
@@ -47,11 +56,7 @@ export function bindRestoreHistoryButton(button, options) {
       return;
     }
 
-    var selectedEntry = (Array.isArray(options.scheduleHistory)
-      ? options.scheduleHistory
-      : []).find(function (entry) {
-      return entry && entry.id === snapshotId;
-    });
+    var selectedEntry = findHistoryEntry(options.scheduleHistory, snapshotId);
     var selectedLabel = options.formatHistoryLabel(selectedEntry);
     var confirmText = (
       options.strings.scheduleHistoryRestoreConfirm ||
