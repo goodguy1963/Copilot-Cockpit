@@ -16,9 +16,9 @@ import {
 import {
   createMockContext,
   createTempDir,
-  overrideWorkspaceFolders,
   removeTestPath,
   removeTestPaths,
+  overrideWorkspaceFolders,
   setWorkspaceStorageModeForTest,
 } from "./helpers/vscodeTestHarness";
 
@@ -30,12 +30,19 @@ function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager 
   return manager;
 }
 
+function checkMinimumIntervalWithInvalidTimezone(
+  storageRoot: string,
+  cronExpression: string,
+): string | undefined {
+  const manager = createManagerWithInvalidTimezone(storageRoot);
+  return manager.checkMinimumInterval(cronExpression);
+}
+
 suite("ScheduleManager Minimum Interval Tests", () => {
   test("checkMinimumInterval falls back to local time when timezone is invalid", () => {
     const tmp = createTempDir("copilot-scheduler-");
     try {
-      const manager = createManagerWithInvalidTimezone(tmp);
-      const warning = manager.checkMinimumInterval("*/5 * * * *");
+      const warning = checkMinimumIntervalWithInvalidTimezone(tmp, "*/5 * * * *");
       assert.strictEqual(warning, messages.minimumIntervalWarning());
     } finally {
       removeTestPath(tmp);
@@ -45,8 +52,7 @@ suite("ScheduleManager Minimum Interval Tests", () => {
   test("checkMinimumInterval returns undefined for long intervals even with invalid timezone", () => {
     const tmp = createTempDir("copilot-scheduler-");
     try {
-      const manager = createManagerWithInvalidTimezone(tmp);
-      const warning = manager.checkMinimumInterval("0 * * * *");
+      const warning = checkMinimumIntervalWithInvalidTimezone(tmp, "0 * * * *");
       assert.strictEqual(warning, undefined);
     } finally {
       removeTestPath(tmp);
@@ -633,15 +639,15 @@ suite("ScheduleManager Prompt Source Migration Tests", () => {
         createdAt: string;
         updatedAt: string;
       } = {
+        enabled: false,
         id: taskId,
         name: "t",
         prompt: "OLD",
-        cronExpression: "0 * * * *",
-        enabled: false,
-        scope: "global",
         promptPath: templatePath,
-        createdAt: now.toISOString(),
+        scope: "global",
+        cronExpression: "0 * * * *",
         updatedAt: now.toISOString(),
+        createdAt: now.toISOString(),
       };
       if (promptSource) {
         rawTask.promptSource = promptSource;
@@ -944,12 +950,12 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       id: "t-inline-backup-only",
       name: "Inline backup",
       prompt: "INLINE",
-      cronExpression: "0 * * * *",
       enabled: false,
       scope: "global",
       promptSource: "inline",
       promptBackupPath: ".github/scheduler-prompt-backups/t-inline-backup-only.prompt.md",
       promptBackupUpdatedAt: now.toISOString(),
+      cronExpression: "0 * * * *",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -1103,10 +1109,10 @@ suite("ScheduleManager Overdue Task Tests", () => {
       id: "overdue-workspace",
       name: "Overdue workspace",
       prompt: "run me",
-      cronExpression: "*/5 * * * *",
       enabled: true,
-      scope: "global",
       promptSource: "inline",
+      scope: "global",
+      cronExpression: "*/5 * * * *",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
       nextRun: "2026-03-23T10:15:00.000Z",
