@@ -58,6 +58,35 @@ suite("SchedulerWebview Cockpit Bridge Tests", () => {
     ]);
   });
 
+  test("routes linked-task lifecycle messages through the cockpit bridge", () => {
+    const received: TaskAction[] = [];
+
+    const handledLink = handleTodoCockpitWebviewMessage(
+      { type: "linkTodoTask", todoId: "todo-1", taskId: "task-1" },
+      (action) => received.push(action),
+    );
+    const handledCreate = handleTodoCockpitWebviewMessage(
+      { type: "createTaskFromTodo", todoId: "todo-1" },
+      (action) => received.push(action),
+    );
+
+    assert.strictEqual(handledLink, true);
+    assert.strictEqual(handledCreate, true);
+    assert.deepStrictEqual(received, [
+      {
+        action: "linkTodoTask",
+        taskId: "__todo__",
+        todoId: "todo-1",
+        linkedTaskId: "task-1",
+      },
+      {
+        action: "createTaskFromTodo",
+        taskId: "__todo__",
+        todoId: "todo-1",
+      },
+    ]);
+  });
+
   test("ignores non-cockpit webview messages", () => {
     const handled = handleTodoCockpitWebviewMessage(
       { type: "refreshTasks" },

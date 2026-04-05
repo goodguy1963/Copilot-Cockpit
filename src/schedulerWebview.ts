@@ -5897,8 +5897,8 @@ export class SchedulerWebview {
           <div style="font-weight:600;margin-bottom:6px;">${escapeHtml(strings.settingsDefaultFlagsTitle)}</div>
           <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.settingsDefaultFlagsBody)}</p>
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
-            <input type="checkbox" id="settings-flag-go-input">
-            <span>${escapeHtml(strings.boardFlagPresetGo)}</span>
+            <input type="checkbox" id="settings-flag-ready-input">
+            <span>${escapeHtml(strings.boardFlagPresetReady)}</span>
           </label>
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
             <input type="checkbox" id="settings-flag-needs-bot-review-input">
@@ -5912,9 +5912,13 @@ export class SchedulerWebview {
             <input type="checkbox" id="settings-flag-new-input">
             <span>${escapeHtml(strings.boardFlagPresetNew)}</span>
           </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-flag-on-schedule-list-input">
+            <span>${escapeHtml(strings.boardFlagPresetOnScheduleList)}</span>
+          </label>
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="settings-flag-rejected-input">
-            <span>${escapeHtml(strings.boardFlagPresetRejected)}</span>
+            <input type="checkbox" id="settings-flag-final-user-check-input">
+            <span>${escapeHtml(strings.boardFlagPresetFinalUserCheck)}</span>
           </label>
         </div>
 

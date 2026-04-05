@@ -98,11 +98,16 @@ export async function handleSettingsWebviewMessage(
           disabledSystemFlagKeys,
         );
       }
+      const normalizedDisabledSystemFlagKeys = updatedBoard
+        && typeof updatedBoard === "object"
+        && Array.isArray((updatedBoard as { disabledSystemFlagKeys?: string[] }).disabledSystemFlagKeys)
+        ? (updatedBoard as { disabledSystemFlagKeys: string[] }).disabledSystemFlagKeys.slice()
+        : disabledSystemFlagKeys;
       const current = ctx.getCurrentStorageSettings?.();
       const nextSettings: StorageSettingsView = {
         mode,
         sqliteJsonMirror,
-        disabledSystemFlagKeys,
+        disabledSystemFlagKeys: normalizedDisabledSystemFlagKeys,
         appVersion: current?.appVersion ?? "",
         mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",
         lastMcpSupportUpdateAt: current?.lastMcpSupportUpdateAt ?? "",

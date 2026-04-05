@@ -138,7 +138,7 @@ Important behavioral rules:
 - Most handoff flows should use one explicit review-state flag such as `needs-user-review` or `needs-bot-review`.
 - Live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag.
 - `labels`, `flags`, and `comments[].labels` are distinct surfaces.
-- Routing-card queries can match labels, flags, and actionable comment labels.
+- Routing-card queries match canonical workflow flags only; actionable user comments remain context, not routing state.
 - Deleting a shared label or flag definition also strips it from existing cards.
 - Built-in protected flags cannot be deleted.
 
@@ -147,9 +147,17 @@ Important behavioral rules:
 Supported todo statuses:
 
 - active
-- ready
 - completed
 - rejected
+
+Supported active workflow flags:
+
+- new
+- needs-bot-review
+- needs-user-review
+- ready
+- ON-SCHEDULE-LIST
+- FINAL-USER-CHECK
 
 Supported archive outcomes:
 
@@ -159,11 +167,14 @@ Supported archive outcomes:
 The current workflow is:
 
 1. A new card normally starts as `active`.
-2. `Approve` moves the card to `ready` and stamps `approvedAt`.
-3. `Final Accept` or `Complete & Archive` archives the card as `completed-successfully`.
-4. `Decline` or the archive path of `Delete` archives the card as `rejected`.
-5. `Restore` can reopen an archived card.
-6. Permanent purge is a separate destructive removal path.
+2. The live handoff state is represented by one canonical workflow flag on active cards.
+3. `Approve` moves the card to the `ready` workflow flag and stamps `approvedAt`.
+4. Creating or linking a live scheduled task moves the card to `ON-SCHEDULE-LIST`.
+5. `Final Accept` or `Complete & Archive` archives the card as `completed-successfully`.
+6. A final review handoff can use `FINAL-USER-CHECK` before archival.
+7. `Decline` or the archive path of `Delete` archives the card as `rejected`.
+8. `Restore` can reopen an archived card.
+9. Permanent purge is a separate destructive removal path.
 
 Workflow side effects include:
 

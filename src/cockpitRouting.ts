@@ -2,16 +2,34 @@ import type {
   CockpitBoard,
   CockpitRoutingCard,
   CockpitRoutingComment,
+  CockpitDeterministicStateMode,
   CockpitTodoCard,
   CockpitTodoComment,
   CockpitRoutingQuery,
 } from "./types";
+import {
+  COCKPIT_FINAL_USER_CHECK_FLAG,
+  COCKPIT_NEEDS_BOT_REVIEW_FLAG,
+  COCKPIT_NEEDS_USER_REVIEW_FLAG,
+  COCKPIT_NEW_FLAG,
+  COCKPIT_ON_SCHEDULE_LIST_FLAG,
+  COCKPIT_READY_FLAG,
+  getCockpitWorkflowFlagName,
+} from "./cockpitBoard";
+import {
+  DEFAULT_COCKPIT_STATE_MODE,
+  isLegacyRoutingPrimaryMode,
+  shouldLogCockpitRoutingReconciliation,
+} from "./cockpitStateMode";
+import { appendStructuredLogEntry, logDebug } from "./logger";
 
 export const DEFAULT_ROUTING_SIGNALS = [
-  "go",
-  "rejected",
-  "needs-bot-review",
-  "on-schedule-list",
+  COCKPIT_NEW_FLAG,
+  COCKPIT_NEEDS_BOT_REVIEW_FLAG,
+  COCKPIT_NEEDS_USER_REVIEW_FLAG,
+  COCKPIT_READY_FLAG,
+  COCKPIT_ON_SCHEDULE_LIST_FLAG,
+  COCKPIT_FINAL_USER_CHECK_FLAG,
 ];
 
 const NON_ACTIONABLE_COMMENT_PATTERNS = [
@@ -23,8 +41,24 @@ const NON_ACTIONABLE_COMMENT_PATTERNS = [
 ];
 
 function normalizeRoutingSignal(value: string): string {
-  const normalized = String(value || "").trim().toLowerCase();
-  return normalized === "abgelehnt" ? "rejected" : normalized;
+  return getCockpitWorkflowFlagName(value) ?? "";
+}
+
+function normalizeLegacyRoutingSignal(value: string): string {
+  switch (String(value || "").trim().toLowerCase()) {
+    case "ready":
+    case "go":
+      return "go";
+    case "rejected":
+    case "abgelehnt":
+      return "rejected";
+    case "on-schedule-list":
+      return "on-schedule-list";
+    case "final-user-check":
+      return "final-user-check";
+    default:
+      return String(value || "").trim().toLowerCase();
+  }
 }
 
 function normalizeSignalList(signals: string[] | undefined): string[] {
@@ -98,6 +132,85 @@ function matchesAnySignal(values: string[], signalSet: Set<string>): string[] {
   return Array.from(matches);
 }
 
+function matchesAnyLegacySignal(values: string[], signalSet: Set<string>): string[] {
+  const matches = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeLegacyRoutingSignal(value);
+    if (normalized && signalSet.has(normalized)) {
+      matches.add(normalized);
+    }
+  }
+  return Array.from(matches);
+}
+
+function collectCanonicalMatchedSignals(
+  card: CockpitTodoCard,
+  signalSet: Set<string>,
+): string[] {
+  const matchedSignals = new Set<string>();
+  for (const flag of normalizeLabelList(card.flags)) {
+    const match = matchesAnySignal([flag], signalSet);
+    for (const signal of match) {
+      matchedSignals.add(signal);
+    }
+  }
+  return Array.from(matchedSignals).sort((left, right) => left.localeCompare(right));
+}
+
+function collectLegacyMatchedSignals(
+  card: CockpitTodoCard,
+  latestActionableUserComment: CockpitRoutingComment | undefined,
+  signalSet: Set<string>,
+): string[] {
+  const matchedSignals = new Set<string>();
+  for (const label of normalizeLabelList(card.labels)) {
+    const match = matchesAnyLegacySignal([label], signalSet);
+    for (const signal of match) {
+      matchedSignals.add(signal);
+    }
+  }
+  for (const flag of normalizeLabelList(card.flags)) {
+    const match = matchesAnyLegacySignal([flag], signalSet);
+    for (const signal of match) {
+      matchedSignals.add(signal);
+    }
+  }
+  if (latestActionableUserComment) {
+    const match = matchesAnyLegacySignal(latestActionableUserComment.labels ?? [], signalSet);
+    for (const signal of match) {
+      matchedSignals.add(signal);
+    }
+  }
+  return Array.from(matchedSignals).sort((left, right) => left.localeCompare(right));
+}
+
+function reconcileRoutingSignals(
+  mode: CockpitDeterministicStateMode,
+  card: CockpitTodoCard,
+  canonicalMatchedSignals: string[],
+  legacyMatchedSignals: string[],
+): void {
+  if (!shouldLogCockpitRoutingReconciliation(mode)) {
+    return;
+  }
+  if (JSON.stringify(canonicalMatchedSignals) === JSON.stringify(legacyMatchedSignals)) {
+    return;
+  }
+
+  const payload = {
+    kind: "routing-mismatch",
+    mode,
+    todoId: card.id,
+    title: card.title,
+    canonicalMatchedSignals,
+    legacyMatchedSignals,
+    labels: normalizeLabelList(card.labels),
+    flags: normalizeLabelList(card.flags),
+  };
+  logDebug("[CopilotScheduler] Cockpit routing mismatch", payload);
+  appendStructuredLogEntry("cockpit-state-reconciliation", payload);
+}
+
 function getSectionTitle(board: CockpitBoard, sectionId: string): string | undefined {
   return Array.isArray(board.sections)
     ? board.sections.find((section) => section.id === sectionId)?.title
@@ -109,31 +222,27 @@ export function buildCockpitRoutingCard(
   card: CockpitTodoCard,
   query: CockpitRoutingQuery = {},
 ): CockpitRoutingCard | undefined {
+  const mode = query.deterministicStateMode ?? DEFAULT_COCKPIT_STATE_MODE;
   const signalSet = new Set(normalizeSignalList(query.signals));
+  const legacySignalSet = new Set(
+    (Array.isArray(query.signals) && query.signals.length > 0
+      ? query.signals
+      : DEFAULT_ROUTING_SIGNALS)
+      .map((signal) => normalizeLegacyRoutingSignal(signal))
+      .filter((signal) => signal.length > 0),
+  );
   const comments = sortCommentsNewestFirst(card.comments ?? []);
   const latestActionableUserComment = getLatestActionableUserComment(card.comments ?? []);
 
-  const matchedSignals = new Set<string>();
-    for (const label of normalizeLabelList(card.labels)) {
-      const match = matchesAnySignal([label], signalSet);
-      for (const signal of match) {
-        matchedSignals.add(signal);
-      }
-    }
-  for (const flag of normalizeLabelList(card.flags)) {
-    const match = matchesAnySignal([flag], signalSet);
-    for (const signal of match) {
-      matchedSignals.add(signal);
-    }
-  }
-  if (latestActionableUserComment) {
-    const match = matchesAnySignal(latestActionableUserComment.labels ?? [], signalSet);
-    for (const signal of match) {
-      matchedSignals.add(signal);
-    }
-  }
+  const canonicalMatchedSignals = collectCanonicalMatchedSignals(card, signalSet);
+  const legacyMatchedSignals = collectLegacyMatchedSignals(card, latestActionableUserComment, legacySignalSet);
+  reconcileRoutingSignals(mode, card, canonicalMatchedSignals, legacyMatchedSignals);
 
-  if (matchedSignals.size === 0) {
+  const matchedSignals = isLegacyRoutingPrimaryMode(mode)
+    ? legacyMatchedSignals
+    : canonicalMatchedSignals;
+
+  if (matchedSignals.length === 0) {
     return undefined;
   }
 
@@ -152,7 +261,7 @@ export function buildCockpitRoutingCard(
     comments,
     latestComment: comments[0],
     latestActionableUserComment,
-    matchedSignals: Array.from(matchedSignals).sort((left, right) => left.localeCompare(right)),
+    matchedSignals,
     commentCount: comments.length,
   };
 }

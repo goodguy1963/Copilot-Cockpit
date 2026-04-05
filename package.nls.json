@@ -51,6 +51,12 @@
   "config.storageMode.json": "Use the existing JSON files in .vscode as the authoritative store",
   "config.storageMode.sqlite": "Use the local SQLite database as the authoritative store",
   "config.sqliteJsonMirror": "When SQLite storage mode is enabled, also emit compatibility JSON mirrors under .vscode for migration and rollback workflows.",
+  "config.deterministicCockpitStateMode": "Rollout mode for deterministic Cockpit state routing and reconciliation diagnostics.",
+  "config.deterministicCockpitStateMode.off": "Use legacy routing signals only and skip deterministic routing enforcement",
+  "config.deterministicCockpitStateMode.shadow": "Keep canonical routing active but log mismatches against legacy-style routing",
+  "config.deterministicCockpitStateMode.dualWrite": "Keep canonical routing active and emit extra reconciliation logs for migration monitoring",
+  "config.deterministicCockpitStateMode.canonicalPrimary": "Use canonical workflow-flag routing as the primary behavior",
+  "config.legacyFallbackOnError": "If deterministic routing throws, retry Cockpit routing with legacy signal matching for recovery.",
   "config.reportIssue": "🐛 Found a bug? [Report an issue on GitHub](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
   "view.tasks": "Scheduled Tasks"
 }

@@ -1718,6 +1718,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       await handleTodoCockpitAction(action, {
         getPrimaryWorkspaceRootPath,
         getCurrentCockpitBoard,
+        getCurrentTasks: () => scheduleManager.getAllTasks(),
         createTask: (input) => scheduleManager.createTask(input),
         removeLabelFromAllTasks: (labelName) =>
           scheduleManager.removeLabelFromAllTasks(labelName),

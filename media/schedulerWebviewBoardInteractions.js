@@ -136,7 +136,19 @@ export function handleBoardTodoCompletion(completeToggle, options) {
       }
     }
   }
-  var isReadyTodo = !!(todoCard && todoCard.status === "ready");
+  var workflowFlag = "";
+  if (todoCard && Array.isArray(todoCard.flags)) {
+    todoCard.flags.forEach(function (flag) {
+      var key = String(flag || "").trim().toLowerCase();
+      if (key === "go") {
+        key = "ready";
+      }
+      if (["new", "needs-bot-review", "needs-user-review", "ready", "on-schedule-list", "final-user-check"].indexOf(key) >= 0) {
+        workflowFlag = key;
+      }
+    });
+  }
+  var isReadyTodo = workflowFlag === "final-user-check";
   function clearCompletionConfirmState() {
     completeToggle.removeAttribute("data-confirming");
     completeToggle.classList.remove("is-confirming");

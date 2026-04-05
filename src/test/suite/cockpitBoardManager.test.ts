@@ -148,7 +148,8 @@ suite("Cockpit Board Manager Tests", () => {
     const result = approveTodoInBoard(board, "todo-1");
 
     assert.ok(result.todo);
-    assert.strictEqual(result.todo?.status, "ready");
+    assert.strictEqual(result.todo?.status, "active");
+    assert.deepStrictEqual(result.todo?.flags, ["ready"]);
     assert.strictEqual(result.todo?.archived, false);
     assert.strictEqual(result.todo?.sectionId, "unsorted");
     assert.ok(result.todo?.approvedAt);
@@ -163,9 +164,9 @@ suite("Cockpit Board Manager Tests", () => {
       sectionId: "unsorted",
       order: 0,
       priority: "high",
-      status: "ready",
+      status: "active",
       labels: [],
-      flags: [],
+      flags: ["ready"],
       comments: [],
       approvedAt: "2026-03-28T10:05:00.000Z",
       archived: false,
@@ -178,6 +179,7 @@ suite("Cockpit Board Manager Tests", () => {
     assert.ok(result.todo);
     assert.strictEqual(result.todo?.status, "completed");
     assert.strictEqual(result.todo?.archived, true);
+    assert.deepStrictEqual(result.todo?.flags, []);
     assert.strictEqual(result.todo?.sectionId, DEFAULT_ARCHIVE_COMPLETED_SECTION_ID);
     assert.ok(result.todo?.comments.some((comment) => comment.body.includes("completed archive")));
     assert.strictEqual(result.board.cards[0]?.id, "todo-1");
@@ -206,6 +208,7 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(result.deleted, true);
     assert.strictEqual(archived?.status, "rejected");
     assert.strictEqual(archived?.archived, true);
+    assert.deepStrictEqual(archived?.flags, []);
     assert.strictEqual(archived?.sectionId, DEFAULT_ARCHIVE_REJECTED_SECTION_ID);
     assert.ok(archived?.comments.some((comment) => comment.body.includes("rejected archive")));
   });
@@ -236,6 +239,7 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(result.todo?.archived, false);
     assert.strictEqual(result.todo?.archiveOutcome, undefined);
     assert.strictEqual(result.todo?.status, "active");
+    assert.deepStrictEqual(result.todo?.flags, ["needs-user-review"]);
     assert.strictEqual(result.todo?.sectionId, "unsorted");
     assert.ok(result.todo?.comments.some((comment) => comment.body.includes("reopened for follow-up")));
   });
@@ -265,7 +269,8 @@ suite("Cockpit Board Manager Tests", () => {
 
     assert.ok(result.todo);
     assert.strictEqual(result.todo?.archived, false);
-    assert.strictEqual(result.todo?.status, "ready");
+    assert.strictEqual(result.todo?.status, "active");
+    assert.deepStrictEqual(result.todo?.flags, ["ready"]);
     assert.strictEqual(result.todo?.sectionId, "unsorted");
     assert.ok(result.todo?.comments.some((comment) => comment.body.includes("marked ready again")));
   });
@@ -372,7 +377,8 @@ suite("Cockpit Board Manager Tests", () => {
     const recurringCard = seeded.cards.find((card) => card.taskId === baseTask.id);
     assert.ok(recurringCard);
 
-    recurringCard!.status = "ready";
+    recurringCard!.status = "active";
+    recurringCard!.flags = ["ready"];
     recurringCard!.approvedAt = "2026-03-28T10:05:00.000Z";
     recurringCard!.comments.push({
       id: "comment-enabled",
@@ -405,6 +411,129 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(
       disabledCard?.comments.filter((comment) => comment.body.includes("Recurring task updated")).length,
       1,
+    );
+  });
+
+  test("linked one-time task drafts stay ready until they are enabled", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-draft",
+      title: "Draft task",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "medium",
+      status: "active",
+      labels: [],
+      flags: ["ready"],
+      comments: [],
+      taskId: "task-draft",
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:00:00.000Z",
+    });
+
+    const result = ensureTaskTodosInBoard(board, [{
+      id: "task-draft",
+      name: "Draft task",
+      description: "Prepare work",
+      cronExpression: "0 9 * * 1-5",
+      prompt: "Do the work",
+      enabled: false,
+      oneTime: true,
+      scope: "workspace",
+      promptSource: "inline",
+      createdAt: new Date("2026-03-28T10:00:00.000Z"),
+      updatedAt: new Date("2026-03-28T10:05:00.000Z"),
+    }]);
+
+    const card = result.board.cards.find((entry) => entry.id === "todo-draft");
+    assert.ok(card);
+    assert.deepStrictEqual(card?.flags, ["ready"]);
+    assert.strictEqual(card?.taskSnapshot?.enabled, false);
+    assert.strictEqual(
+      card?.comments.some((comment) => comment.body.includes("active execution artifact")),
+      false,
+    );
+  });
+
+  test("linked one-time tasks move to ON-SCHEDULE-LIST only after enablement", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-execution",
+      title: "Execute task",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "medium",
+      status: "active",
+      labels: [],
+      flags: ["ready"],
+      comments: [],
+      taskId: "task-execution",
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:00:00.000Z",
+    });
+
+    const result = ensureTaskTodosInBoard(board, [{
+      id: "task-execution",
+      name: "Execute task",
+      description: "Run now",
+      cronExpression: "0 9 * * 1-5",
+      prompt: "Do the work",
+      enabled: true,
+      oneTime: true,
+      scope: "workspace",
+      promptSource: "inline",
+      createdAt: new Date("2026-03-28T10:00:00.000Z"),
+      updatedAt: new Date("2026-03-28T10:05:00.000Z"),
+    }]);
+
+    const card = result.board.cards.find((entry) => entry.id === "todo-execution");
+    assert.ok(card);
+    assert.deepStrictEqual(card?.flags, ["ON-SCHEDULE-LIST"]);
+    assert.strictEqual(card?.taskSnapshot?.enabled, true);
+    assert.strictEqual(
+      card?.comments.some((comment) => comment.body.includes("active execution artifact")),
+      true,
+    );
+  });
+
+  test("missing linked one-time execution moves the todo to FINAL-USER-CHECK", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-finished",
+      title: "Finished task",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "medium",
+      status: "active",
+      labels: [],
+      flags: ["ON-SCHEDULE-LIST"],
+      comments: [],
+      taskId: "task-finished",
+      taskSnapshot: {
+        name: "Finished task",
+        cronExpression: "0 9 * * 1-5",
+        enabled: true,
+        oneTime: true,
+        labels: [],
+        promptHash: "1:1",
+      },
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:05:00.000Z",
+    });
+
+    const result = ensureTaskTodosInBoard(board, []);
+    const card = result.board.cards.find((entry) => entry.id === "todo-finished");
+
+    assert.ok(card);
+    assert.deepStrictEqual(card?.flags, ["FINAL-USER-CHECK"]);
+    assert.strictEqual(card?.taskId, undefined);
+    assert.strictEqual(card?.taskSnapshot?.enabled, false);
+    assert.strictEqual(
+      card?.comments.some((comment) => comment.body.includes("FINAL-USER-CHECK")),
+      true,
     );
   });
 
@@ -459,7 +588,7 @@ suite("Cockpit Board Manager Tests", () => {
       const board = getCockpitBoard(workspaceRoot);
 
       assert.strictEqual(result.label?.name, "Focus");
-      assert.deepStrictEqual(board.cards[0]?.flags, ["Focus"]);
+      assert.deepStrictEqual(board.cards[0]?.flags, ["Focus", "new"]);
       assert.deepStrictEqual(board.filters?.flags ?? [], ["Focus"]);
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Now"), false);
       assert.strictEqual(board.flagCatalog?.some((entry) => entry.name === "Focus"), true);
@@ -517,11 +646,13 @@ suite("Cockpit Board Manager Tests", () => {
         updatedAt: "2026-04-04T00:00:00.000Z",
       });
 
-      assert.deepStrictEqual(normalized.cards[0]?.flags, ["go"]);
-      assert.deepStrictEqual(normalized.cards[1]?.flags, ["rejected"]);
-      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "go" && entry.system === true), true);
-      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "rejected" && entry.system === true), true);
-      assert.strictEqual(normalized.deletedFlagCatalogKeys?.includes("go"), false);
+      assert.deepStrictEqual(normalized.cards[0]?.flags, ["ready"]);
+      assert.deepStrictEqual(normalized.cards[1]?.flags, []);
+      assert.strictEqual(normalized.cards[1]?.archived, true);
+      assert.strictEqual(normalized.cards[1]?.archiveOutcome, "rejected");
+      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "ready" && entry.system === true), true);
+      assert.strictEqual(normalized.flagCatalog?.some((entry) => entry.key === "rejected" && entry.system === true), false);
+      assert.strictEqual(normalized.deletedFlagCatalogKeys?.includes("go"), true);
       assert.strictEqual(normalized.deletedFlagCatalogKeys?.includes("rejected"), false);
 
       createCockpitTodo(workspaceRoot, {
@@ -533,7 +664,7 @@ suite("Cockpit Board Manager Tests", () => {
       const beforeDelete = getCockpitBoard(workspaceRoot);
       const afterDelete = deleteCockpitFlagDefinition(workspaceRoot, "go");
 
-      assert.strictEqual(afterDelete.flagCatalog?.some((entry) => entry.key === "go"), true);
+      assert.strictEqual(afterDelete.flagCatalog?.some((entry) => entry.key === "ready"), true);
       assert.deepStrictEqual(afterDelete.cards[0]?.flags, beforeDelete.cards[0]?.flags);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -544,12 +675,12 @@ suite("Cockpit Board Manager Tests", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-flag-disable-"));
 
     try {
-      const board = setCockpitDisabledSystemFlagKeys(workspaceRoot, ["go", "rejected"]);
+      const board = setCockpitDisabledSystemFlagKeys(workspaceRoot, ["go", "final-user-check"]);
 
-      assert.strictEqual(board.disabledSystemFlagKeys?.includes("go"), true);
-      assert.strictEqual(board.disabledSystemFlagKeys?.includes("rejected"), true);
-      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "go"), false);
-      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "rejected"), false);
+      assert.strictEqual(board.disabledSystemFlagKeys?.includes("ready"), true);
+      assert.strictEqual(board.disabledSystemFlagKeys?.includes("final-user-check"), true);
+      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "ready"), false);
+      assert.strictEqual(board.flagCatalog?.some((entry) => entry.key === "final-user-check"), false);
 
       createCockpitTodo(workspaceRoot, {
         title: "Disabled preset still works on cards",
@@ -559,8 +690,8 @@ suite("Cockpit Board Manager Tests", () => {
       });
       const updatedBoard = getCockpitBoard(workspaceRoot);
 
-      assert.deepStrictEqual(updatedBoard.cards[0]?.flags, ["go"]);
-      assert.strictEqual(updatedBoard.flagCatalog?.some((entry) => entry.key === "go"), true);
+      assert.deepStrictEqual(updatedBoard.cards[0]?.flags, ["ready"]);
+      assert.strictEqual(updatedBoard.flagCatalog?.some((entry) => entry.key === "ready"), true);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
@@ -590,10 +721,9 @@ suite("Cockpit Board Manager Tests", () => {
         "new",
         "needs-bot-review",
         "needs-user-review",
-        "go",
+        "ready",
         "ON-SCHEDULE-LIST",
         "FINAL-USER-CHECK",
-        "rejected",
       ],
     );
     assert.strictEqual(

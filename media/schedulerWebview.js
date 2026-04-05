@@ -759,11 +759,12 @@ import {
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
   var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
   var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
-  var settingsFlagGoInput = document.getElementById("settings-flag-go-input");
+  var settingsFlagReadyInput = document.getElementById("settings-flag-ready-input");
   var settingsFlagNeedsBotReviewInput = document.getElementById("settings-flag-needs-bot-review-input");
   var settingsFlagNeedsUserReviewInput = document.getElementById("settings-flag-needs-user-review-input");
   var settingsFlagNewInput = document.getElementById("settings-flag-new-input");
-  var settingsFlagRejectedInput = document.getElementById("settings-flag-rejected-input");
+  var settingsFlagOnScheduleListInput = document.getElementById("settings-flag-on-schedule-list-input");
+  var settingsFlagFinalUserCheckInput = document.getElementById("settings-flag-final-user-check-input");
   var settingsStorageSaveBtn = document.getElementById("settings-storage-save-btn");
   var settingsStorageNote = document.getElementById("settings-storage-note");
   var settingsVersionValue = document.getElementById("settings-version-value");
@@ -1353,8 +1354,8 @@ import {
 
   function collectStorageSettingsFormData() {
     var disabledSystemFlagKeys = [];
-    if (settingsFlagGoInput && settingsFlagGoInput.checked === false) {
-      disabledSystemFlagKeys.push("go");
+    if (settingsFlagReadyInput && settingsFlagReadyInput.checked === false) {
+      disabledSystemFlagKeys.push("ready");
     }
     if (settingsFlagNeedsBotReviewInput && settingsFlagNeedsBotReviewInput.checked === false) {
       disabledSystemFlagKeys.push("needs-bot-review");
@@ -1365,8 +1366,11 @@ import {
     if (settingsFlagNewInput && settingsFlagNewInput.checked === false) {
       disabledSystemFlagKeys.push("new");
     }
-    if (settingsFlagRejectedInput && settingsFlagRejectedInput.checked === false) {
-      disabledSystemFlagKeys.push("rejected");
+    if (settingsFlagOnScheduleListInput && settingsFlagOnScheduleListInput.checked === false) {
+      disabledSystemFlagKeys.push("on-schedule-list");
+    }
+    if (settingsFlagFinalUserCheckInput && settingsFlagFinalUserCheckInput.checked === false) {
+      disabledSystemFlagKeys.push("final-user-check");
     }
     return {
       mode:
@@ -1426,8 +1430,8 @@ import {
     if (settingsStorageMirrorInput) {
       settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
     }
-    if (settingsFlagGoInput) {
-      settingsFlagGoInput.checked = !disabledSystemFlagKeySet.go;
+    if (settingsFlagReadyInput) {
+      settingsFlagReadyInput.checked = !disabledSystemFlagKeySet.ready;
     }
     if (settingsFlagNeedsBotReviewInput) {
       settingsFlagNeedsBotReviewInput.checked = !disabledSystemFlagKeySet["needs-bot-review"];
@@ -1438,8 +1442,11 @@ import {
     if (settingsFlagNewInput) {
       settingsFlagNewInput.checked = !disabledSystemFlagKeySet.new;
     }
-    if (settingsFlagRejectedInput) {
-      settingsFlagRejectedInput.checked = !disabledSystemFlagKeySet.rejected;
+    if (settingsFlagOnScheduleListInput) {
+      settingsFlagOnScheduleListInput.checked = !disabledSystemFlagKeySet["on-schedule-list"];
+    }
+    if (settingsFlagFinalUserCheckInput) {
+      settingsFlagFinalUserCheckInput.checked = !disabledSystemFlagKeySet["final-user-check"];
     }
     if (settingsStorageNote) {
       settingsStorageNote.textContent = strings.settingsStorageSaved
@@ -2121,11 +2128,8 @@ import {
 
   function getFlagDisplayName(flagName) {
     var key = normalizeTodoLabelKey(flagName);
-    if (key === "go") {
-      return strings.boardFlagPresetGo || "Ready";
-    }
-    if (key === "rejected" || key === "abgelehnt") {
-      return strings.boardFlagPresetRejected || "Rejected";
+    if (key === "ready" || key === "go") {
+      return strings.boardFlagPresetReady || "Ready";
     }
     if (key === "needs-bot-review") {
       return strings.boardFlagPresetNeedsBotReview || "Needs bot review";
@@ -2135,6 +2139,12 @@ import {
     }
     if (key === "new") {
       return strings.boardFlagPresetNew || "New";
+    }
+    if (key === "on-schedule-list") {
+      return strings.boardFlagPresetOnScheduleList || "On Schedule List";
+    }
+    if (key === "final-user-check") {
+      return strings.boardFlagPresetFinalUserCheck || "Final User Check";
     }
     var definition = getFlagDefinition(flagName);
     return definition && definition.name ? definition.name : flagName;
@@ -2152,12 +2162,32 @@ import {
         ? (entry.key || entry.name)
         : entryOrName,
     );
-    return key === "go"
-      || key === "rejected"
-      || key === "abgelehnt"
+    return key === "ready"
       || key === "needs-bot-review"
       || key === "needs-user-review"
-      || key === "new";
+      || key === "new"
+      || key === "on-schedule-list"
+      || key === "final-user-check";
+  }
+
+  function getTodoWorkflowFlag(card) {
+    if (!card || !Array.isArray(card.flags)) {
+      return "";
+    }
+    var workflowKeys = ["new", "needs-bot-review", "needs-user-review", "ready", "on-schedule-list", "final-user-check"];
+    var seen = Object.create(null);
+    var matched = [];
+    card.flags.forEach(function (flag) {
+      var key = normalizeTodoLabelKey(flag);
+      if (key === "go") {
+        key = "ready";
+      }
+      if (workflowKeys.indexOf(key) >= 0 && !seen[key]) {
+        seen[key] = true;
+        matched.push(key);
+      }
+    });
+    return matched.length ? matched[matched.length - 1] : "";
   }
 
   function getLabelDefinition(label) {
@@ -2870,9 +2900,8 @@ syncTodoLabelSuggestions();
 
   function getTodoStatusLabel(status) {
     switch (status) {
-      case "ready": return strings.boardStatusReady || "Ready";
       case "completed": return strings.boardStatusCompleted || "Completed";
-      case "rejected": return strings.boardStatusRejected || "Rejected";
+      case "rejected": return strings.boardArchiveRejected || "Rejected";
       default: return strings.boardStatusActive || "Active";
     }
   }
@@ -3176,7 +3205,7 @@ syncTodoLabelSuggestions();
   }
 
   function isTodoReadyForFinalize(card) {
-    return !!(card && !card.archived && card.status === "ready");
+    return !!(card && !card.archived && getTodoWorkflowFlag(card) === "final-user-check");
   }
 
   function getTodoCompletionActionType(card) {
@@ -3390,7 +3419,6 @@ syncTodoLabelSuggestions();
       todoStatusFilter.innerHTML = [
         { value: "", label: strings.boardAllStatuses || "All statuses" },
         { value: "active", label: getTodoStatusLabel("active") },
-        { value: "ready", label: getTodoStatusLabel("ready") },
         { value: "completed", label: getTodoStatusLabel("completed") },
         { value: "rejected", label: getTodoStatusLabel("rejected") },
       ].map(function (option) {
@@ -3514,7 +3542,7 @@ syncTodoLabelSuggestions();
         todoLabelColorInput.value = todoDraft.labelColor;
       }
       currentTodoFlag = isEditingTodo
-        ? ((selectedTodo.flags || [])[0] || "")
+        ? (getTodoWorkflowFlag(selectedTodo) || ((selectedTodo.flags || [])[0] || ""))
         : (todoDraft.flag || "");
       if (todoFlagNameInput) todoFlagNameInput.value = isEditingTodo ? "" : (todoDraft.flagInput || "");
       if (todoFlagColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.flagColor || "")) {
@@ -3541,9 +3569,13 @@ syncTodoLabelSuggestions();
           " • " +
           getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
       } else {
+        var workflowFlag = getTodoWorkflowFlag(selectedTodo);
         todoDetailStatus.textContent =
           (strings.boardStatusLabel || "Status") + ": " +
-          getTodoStatusLabel(selectedTodo.status || "active");
+          getTodoStatusLabel(selectedTodo.status || "active") +
+          " • " +
+          (strings.boardWorkflowLabel || "Workflow") + ": " +
+          getFlagDisplayName(workflowFlag || "new");
       }
     }
 
@@ -3588,7 +3620,7 @@ syncTodoLabelSuggestions();
       todoSaveBtn.disabled = isArchivedTodo;
     }
     if (todoCreateTaskBtn) {
-      todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo;
+      todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo || getTodoWorkflowFlag(selectedTodo) !== "ready";
     }
     if (todoCompleteBtn) {
       todoCompleteBtn.textContent = isEditingTodo
@@ -3608,7 +3640,7 @@ syncTodoLabelSuggestions();
         todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
       } else if (selectedTodo.archived) {
         todoLinkedTaskNote.textContent = strings.boardReadOnlyArchived || "Archived items are read-only.";
-      } else if (selectedTodo.status === "ready") {
+      } else if (getTodoWorkflowFlag(selectedTodo) === "ready") {
         todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
       } else if (selectedTodo.taskId && !linkedTask) {
         todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";

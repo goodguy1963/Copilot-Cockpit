@@ -21,11 +21,12 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
       required: [
         "needs-user-review",
         "ON-SCHEDULE-LIST",
+        "FINAL-USER-CHECK",
       ],
       forbidden: [
         /Linked scheduled task/,
-        /FINAL-USER-CHECK/,
-        /final-user-check state/i,
+        /comments\[\]\.labels are comment-implied routing hints/i,
+        /Treat `go`, `GO`, `rejected`, `Rejected`/,
       ],
     },
     {
@@ -33,32 +34,34 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
       required: [
         "needs-user-review",
         "ON-SCHEDULE-LIST",
+        "FINAL-USER-CHECK",
       ],
       forbidden: [
         /Linked scheduled task/,
         /only the first value will survive/i,
-        /only one flag per card is kept/i,
+        /Cards move through explicit workflow states: `active`, `ready`, `completed`, and `rejected`\./,
       ],
     },
     {
       relativePath: ".github/prompts/cockpit-scheduler-router.prompt.md",
       required: [
         "needs-user-review",
-        "Treat labels, flags, and comment labels as separate routing signals.",
+        "Treat canonical workflow flags as the routing state.",
+        "FINAL-USER-CHECK",
       ],
       forbidden: [
-        /FINAL-USER-CHECK/,
-        /final-user-check/i,
+        /Treat labels, flags, and comment labels as separate routing signals\./,
       ],
     },
     {
       relativePath: "README.md",
       required: [
         "live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag",
+        "FINAL-USER-CHECK",
       ],
       forbidden: [
         /Linked scheduled task/,
-        /Do not try to preserve multiple active flags on one card\./,
+        /returns case-insensitive matches across labels, flags, and actionable comment labels/i,
       ],
     },
     {
@@ -66,12 +69,13 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
       required: [
         "Live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag",
         "needs-user-review",
+        "FINAL-USER-CHECK",
       ],
       forbidden: [
         /Linked scheduled task/,
         /Only one flag is kept per card\./,
         /If multiple flags are provided through MCP or updates, only the first is retained\./,
-        /Only one is retained on a card at a time/,
+        /Routing-card queries can match labels, flags, and actionable comment labels\./,
       ],
     },
   ];

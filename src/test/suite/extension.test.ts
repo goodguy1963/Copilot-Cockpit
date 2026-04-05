@@ -62,6 +62,16 @@ suite("Extension Test Suite", () => {
         ?.default,
       "sqlite",
     );
+    assert.strictEqual(
+      (properties["copilotCockpit.deterministicCockpitStateMode"] as { default?: unknown } | undefined)
+        ?.default,
+      "canonical-primary",
+    );
+    assert.strictEqual(
+      (properties["copilotCockpit.legacyFallbackOnError"] as { default?: unknown } | undefined)
+        ?.default,
+      true,
+    );
   });
 
   test("Commands should be registered", async () => {

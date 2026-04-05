@@ -38,6 +38,7 @@ suite("Todo Cockpit Action Handler", () => {
         },
         updatedAt: "",
       }) as CockpitBoard,
+      getCurrentTasks: () => [],
       createTask: async (_input: CreateTaskInput) => ({ id: "task-1", name: "Task" }),
       removeLabelFromAllTasks: async () => undefined,
       refreshSchedulerUiState: () => undefined,
@@ -354,6 +355,100 @@ suite("Todo Cockpit Action Handler", () => {
       assert.strictEqual(restored?.archiveOutcome, undefined);
     } finally {
       webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("linkTodoTask keeps ready when the linked one-time task is still draft-only", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Draft todo",
+        sectionId: "unsorted",
+        priority: "medium",
+        flags: ["ready"],
+      });
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "linkTodoTask",
+          taskId: "",
+          todoId: created.todo.id,
+          linkedTaskId: "task-draft",
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard,
+          getCurrentTasks: () => [{
+            id: "task-draft",
+            name: "Draft task",
+            cronExpression: "0 9 * * 1-5",
+            prompt: "Do the work",
+            enabled: false,
+            oneTime: true,
+            scope: "workspace",
+            promptSource: "inline",
+            createdAt: new Date("2026-04-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-05T00:05:00.000Z"),
+          }],
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      const linked = readSchedulerConfig(workspaceRoot).cockpitBoard?.cards.find(
+        (card) => card.id === created.todo.id,
+      );
+      assert.strictEqual(linked?.taskId, "task-draft");
+      assert.deepStrictEqual(linked?.flags, ["ready"]);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("linkTodoTask moves to ON-SCHEDULE-LIST when the linked one-time task is enabled", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Scheduled todo",
+        sectionId: "unsorted",
+        priority: "medium",
+        flags: ["ready"],
+      });
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "linkTodoTask",
+          taskId: "",
+          todoId: created.todo.id,
+          linkedTaskId: "task-enabled",
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard,
+          getCurrentTasks: () => [{
+            id: "task-enabled",
+            name: "Enabled task",
+            cronExpression: "0 9 * * 1-5",
+            prompt: "Do the work",
+            enabled: true,
+            oneTime: true,
+            scope: "workspace",
+            promptSource: "inline",
+            createdAt: new Date("2026-04-05T00:00:00.000Z"),
+            updatedAt: new Date("2026-04-05T00:05:00.000Z"),
+          }],
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      const linked = readSchedulerConfig(workspaceRoot).cockpitBoard?.cards.find(
+        (card) => card.id === created.todo.id,
+      );
+      assert.strictEqual(linked?.taskId, "task-enabled");
+      assert.deepStrictEqual(linked?.flags, ["ON-SCHEDULE-LIST"]);
+    } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
