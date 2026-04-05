@@ -1525,8 +1525,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-05T13:11:05.784Z",
-                "updatedAt": "2026-04-05T13:11:05.784Z"
+                "createdAt": "2026-04-05T17:29:48.490Z",
+                "updatedAt": "2026-04-05T17:29:48.490Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1593,6 +1593,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-05T13:11:05.715Z"
+        "updatedAt": "2026-04-05T17:29:48.403Z"
     }
 }
