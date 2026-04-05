@@ -96,15 +96,32 @@ import {
   truncateDateToMinute,
 } from "./scheduleManagerTiming";
 
-const STORAGE_KEY = "scheduledTasks";
-const STORAGE_FILE_NAME = "scheduledTasks.json";
-const STORAGE_META_FILE_NAME = "scheduledTasks.meta.json";
-const STORAGE_REVISION_KEY = "scheduledTasksRevision";
-const STORAGE_SAVED_AT_KEY = "scheduledTasksSavedAt";
-const DAILY_EXEC_COUNT_KEY = "dailyExecCount";
-const DAILY_EXEC_DATE_KEY = "dailyExecDate";
-const DAILY_LIMIT_NOTIFIED_DATE_KEY = "dailyLimitNotifiedDate";
-const DISCLAIMER_ACCEPTED_KEY = "disclaimerAccepted";
+const TASK_STORAGE = {
+  stateKey: "scheduledTasks",
+  fileName: "scheduledTasks.json",
+  metaFileName: "scheduledTasks.meta.json",
+  revisionKey: "scheduledTasksRevision",
+  savedAtKey: "scheduledTasksSavedAt",
+} as const;
+const DAILY_EXEC_STATE_KEYS = {
+  count: "dailyExecCount",
+  date: "dailyExecDate",
+  notifiedDate: "dailyLimitNotifiedDate",
+} as const;
+const DISCLAIMER_ACCEPTED_STATE_KEY = "disclaimerAccepted";
+
+type TaskExecutionOutcome = {
+  executedCount: number;
+  needsSave: boolean;
+  deleteTask: boolean;
+};
+
+interface CompiledJobPrompt {
+  labels: string[];
+  prompt: string;
+  agent?: string;
+  model?: string;
+}
 
 function clearScheduledHandle<T>(
   handle: T | undefined,
@@ -168,12 +185,12 @@ export class ScheduleManager {
   private context: vscode.ExtensionContext;
   private storageFilePath: string;
   private storageMetaFilePath: string;
-  private schedulerInterval: ReturnType<typeof setInterval> | undefined;
-  private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
+  private schedulerInterval?: ReturnType<typeof setInterval>;
+  private schedulerTimeout?: ReturnType<typeof setTimeout>;
   private schedulerTickInProgress = false;
   private schedulerTickPending = false;
-  private onTasksChangedCallback: (() => void) | undefined;
-  private onExecuteCallback: ((task: ScheduledTask) => Promise<void>) | undefined;
+  private onTasksChangedCallback?: () => void;
+  private onExecuteCallback?: (task: ScheduledTask) => Promise<void>;
   private dailyExecCount = 0;
   private dailyExecDate = "";
   private dailyLimitNotifiedDate = "";
@@ -205,8 +222,8 @@ export class ScheduleManager {
     this.context = context;
     const storagePaths = resolveScheduleManagerStoragePaths(
       this.context.globalStorageUri.fsPath,
-      STORAGE_FILE_NAME,
-      STORAGE_META_FILE_NAME,
+      TASK_STORAGE.fileName,
+      TASK_STORAGE.metaFileName,
     );
     this.storageFilePath = storagePaths.storageFilePath;
     this.storageMetaFilePath = storagePaths.storageMetaFilePath;
@@ -231,7 +248,7 @@ export class ScheduleManager {
   ): Promise<void> {
     await updateMementoWithTimeout(
       this.context.globalState,
-      STORAGE_KEY,
+      TASK_STORAGE.stateKey,
       tasksArray,
       10000,
       messages.storageWriteTimeout(),
@@ -245,9 +262,7 @@ export class ScheduleManager {
    */
   private loadDailyExecCount(): void {
     const state = loadDailyExecState(this.context.globalState, {
-      count: DAILY_EXEC_COUNT_KEY,
-      date: DAILY_EXEC_DATE_KEY,
-      notifiedDate: DAILY_LIMIT_NOTIFIED_DATE_KEY,
+      ...DAILY_EXEC_STATE_KEYS,
     });
     this.dailyExecCount = state.count;
     this.dailyExecDate = state.date;
@@ -266,10 +281,7 @@ export class ScheduleManager {
   private async persistDailyExecCount(): Promise<void> {
     await persistDailyExecState(
       this.context.globalState,
-      {
-        count: DAILY_EXEC_COUNT_KEY,
-        date: DAILY_EXEC_DATE_KEY,
-      },
+      DAILY_EXEC_STATE_KEYS,
       {
         count: this.dailyExecCount,
         date: this.dailyExecDate,
@@ -283,9 +295,13 @@ export class ScheduleManager {
   async updateTaskPrompts(
     updates: Array<{ id: string; prompt: string }>,
   ): Promise<number> {
-    if (!Array.isArray(updates) || updates.length === 0) return 0;
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return 0;
+    }
     const changedCount = applyTaskPromptUpdates(this.tasks, updates, new Date());
-    if (changedCount < 1) return 0;
+    if (changedCount < 1) {
+      return 0;
+    }
     await this.saveTasks();
     return changedCount;
   }
@@ -392,7 +408,7 @@ export class ScheduleManager {
       todayKey,
       maxDailyLimit,
       globalState: this.context.globalState,
-      notifiedDateKey: DAILY_LIMIT_NOTIFIED_DATE_KEY,
+      notifiedDateKey: DAILY_EXEC_STATE_KEYS.notifiedDate,
     });
   }
 
@@ -519,13 +535,15 @@ export class ScheduleManager {
   /**
    * Check if the user has accepted the disclaimer
    */
-  isDisclaimerAccepted(): boolean { return this.context.globalState.get<boolean>(DISCLAIMER_ACCEPTED_KEY, false); }
+  isDisclaimerAccepted(): boolean {
+    return this.context.globalState.get<boolean>(DISCLAIMER_ACCEPTED_STATE_KEY, false);
+  }
 
   /**
    * Set disclaimer accepted state
    */
   async setDisclaimerAccepted(accepted: boolean): Promise<void> {
-    await this.context.globalState.update(DISCLAIMER_ACCEPTED_KEY, accepted);
+    await this.context.globalState.update(DISCLAIMER_ACCEPTED_STATE_KEY, accepted);
   }
 
   /**
@@ -561,16 +579,16 @@ export class ScheduleManager {
    */
   private loadTasks(): void {
     const savedTasks = this.context.globalState.get<ScheduledTask[]>(
-      STORAGE_KEY,
+      TASK_STORAGE.stateKey,
       [],
     );
     const fileLoad = this.loadTasksFromFile();
     const selection = selectScheduleManagerTaskStore({
       globalState: this.context.globalState,
       keys: {
-        taskList: STORAGE_KEY,
-        revision: STORAGE_REVISION_KEY,
-        savedAt: STORAGE_SAVED_AT_KEY,
+        taskList: TASK_STORAGE.stateKey,
+        revision: TASK_STORAGE.revisionKey,
+        savedAt: TASK_STORAGE.savedAtKey,
       },
       savedTasks: savedTasks,
       fileLoad: fileLoad,
@@ -1130,8 +1148,8 @@ export class ScheduleManager {
       storageMetaFilePath: this.storageMetaFilePath,
       globalState: this.context.globalState,
       keys: {
-        revision: STORAGE_REVISION_KEY,
-        savedAt: STORAGE_SAVED_AT_KEY,
+        revision: TASK_STORAGE.revisionKey,
+        savedAt: TASK_STORAGE.savedAtKey,
       },
       saveTasksToFile: (nextTasks) => this.saveTasksToFile(nextTasks),
       saveTasksToGlobalState: (nextTasks) => this.saveTasksToGlobalState(nextTasks),
@@ -1194,9 +1212,9 @@ export class ScheduleManager {
   }
 
   private getNextRunForTask(cronExpression: string, baseTime: Date): Date {
-    const parsed = this.getNextRun(cronExpression, baseTime);
-    if (parsed) {
-      return parsed;
+    const nextRun = this.getNextRun(cronExpression, baseTime);
+    if (nextRun) {
+      return nextRun;
     }
 
     const fallbackRun = new Date(baseTime.getTime() + 60 * 60 * 1000);
@@ -1302,6 +1320,141 @@ export class ScheduleManager {
     this.armSchedulerInterval();
   }
 
+  private createTaskUpdateContext() {
+    return {
+      getPrimaryWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+      clampJitterSeconds: clampScheduleJitterSeconds,
+      normalizeTaskManualSession: normalizeScheduledTaskManualSession,
+      normalizeTaskChatSession: normalizeScheduledTaskChatSession,
+      normalizeLabels: normalizeScheduledTaskLabels,
+    };
+  }
+
+  private clearTaskSchedulingState(taskId: string): void {
+    this.pendingDeletedTaskIds.add(taskId);
+    this.suppressedOverdueTaskIds.delete(taskId);
+  }
+
+  private updateTaskWorkspacePath(
+    task: ScheduledTask,
+    workspacePath: string,
+  ): ScheduledTask {
+    task.workspacePath = workspacePath;
+    this.markTaskModified(task);
+    return task;
+  }
+
+  private getScheduledTaskWorkspaceKey(task: ScheduledTask): string {
+    return task.workspacePath ? normalizeForCompare(task.workspacePath) : "";
+  }
+
+  private getEnabledTaskArray(): ScheduledTask[] {
+    return [...this.tasks.values()].filter(({ enabled }) => enabled);
+  }
+
+  private buildDailyLimitSkipOutcome(
+    task: ScheduledTask,
+    maxDailyLimit: number,
+    now: Date,
+  ): TaskExecutionOutcome {
+    logDebug(
+      `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
+    );
+    this.notifyDailyLimitReachedOnce(getSchedulerLocalDateKey(), maxDailyLimit);
+    task.nextRun = this.getScheduledTaskNextRun(task, now);
+    return { executedCount: 0, needsSave: true, deleteTask: false };
+  }
+
+  private buildTaskExecutionRetryOutcome(): TaskExecutionOutcome {
+    return {
+      executedCount: 0,
+      needsSave: true,
+      deleteTask: false,
+    };
+  }
+
+  private handleSuccessfulTaskExecution(
+    task: ScheduledTask,
+    executedAt: Date,
+  ): TaskExecutionOutcome {
+    this.incrementDailyExecCountInMemory(executedAt);
+    task.lastRun = executedAt;
+    task.lastError = undefined;
+    task.lastErrorAt = undefined;
+    this.handleSuccessfulJobTaskExecution(task, executedAt);
+    this.syncJobTaskSchedules(executedAt);
+
+    if (this.isOneTimeExecutionTask(task)) {
+      return { executedCount: 1, needsSave: true, deleteTask: true };
+    }
+
+    task.nextRun = this.getScheduledTaskNextRun(task, new Date());
+    return { executedCount: 1, needsSave: true, deleteTask: false };
+  }
+
+  private handleFailedTaskExecution(
+    task: ScheduledTask,
+    error: unknown,
+    now: Date,
+  ): TaskExecutionOutcome {
+    const details = toSafeSchedulerErrorDetails(error);
+    logError("[CopilotScheduler] Task execution error:", {
+      taskId: task.id,
+      taskName: task.name,
+      error: details,
+    });
+    task.lastError = details;
+    task.lastErrorAt = new Date();
+    task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
+    return this.buildTaskExecutionRetryOutcome();
+  }
+
+  private finalizeTaskUpdate(
+    task: ScheduledTask,
+    taskId: string,
+    updatedAt: Date,
+  ): Promise<void> {
+    task.updatedAt = updatedAt;
+    this.suppressedOverdueTaskIds.delete(taskId);
+    return this.saveTasksAndSyncRecurringPromptBackups();
+  }
+
+  private async deleteTaskAndPersist(taskId: string): Promise<boolean> {
+    const deleted = this.tasks.delete(taskId);
+    if (!deleted) {
+      return false;
+    }
+
+    this.clearTaskSchedulingState(taskId);
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return true;
+  }
+
+  private resolveCurrentWorkspaceRootOrThrow(): string {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      throw new Error(messages.noWorkspaceOpen());
+    }
+
+    return workspaceRoot;
+  }
+
+  private scheduleAlignedSchedulerStart(): void {
+    const delayUntilNextMinute = this.getMillisecondsUntilNextMinute();
+    this.schedulerTimeout = setTimeout(
+      () => this.beginAlignedSchedulerLoop(),
+      delayUntilNextMinute,
+    );
+  }
+
+  private logSchedulerTickFailure(error: unknown): void {
+    logError(
+      "[CopilotScheduler] Scheduler tick failed:",
+      toSafeSchedulerErrorDetails(error),
+    );
+  }
+
   private getSchedulerTickSettings(): {
     maxDailyLimit: number;
     defaultJitterSeconds: number;
@@ -1310,12 +1463,15 @@ export class ScheduleManager {
       "maxDailyExecutions",
       24,
     );
-    const safeMaxDaily = Number.isFinite(configuredDailyLimit)
+    const normalizedDailyLimit = Number.isFinite(configuredDailyLimit)
       ? configuredDailyLimit
       : 24;
 
     return {
-      maxDailyLimit: safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100),
+      maxDailyLimit:
+        normalizedDailyLimit === 0
+          ? 0
+          : Math.min(Math.max(normalizedDailyLimit, 1), 100),
       defaultJitterSeconds: getCompatibleConfigurationValue<number>("jitterSeconds", 0),
     };
   }
@@ -1339,67 +1495,40 @@ export class ScheduleManager {
     nowMinute: Date,
     maxDailyLimit: number,
     defaultJitterSeconds: number,
-  ): Promise<{ executedCount: number; needsSave: boolean; deleteTask: boolean }> {
+  ): Promise<TaskExecutionOutcome> {
     if (!this.isTaskDueAt(task, nowMinute)) {
       return { executedCount: 0, needsSave: false, deleteTask: false };
     }
 
     if (this.isDailyLimitReached(maxDailyLimit)) {
-      logDebug(
-        `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
-      );
-      const todayKey = getSchedulerLocalDateKey();
-      this.notifyDailyLimitReachedOnce(todayKey, maxDailyLimit);
-      task.nextRun = this.getScheduledTaskNextRun(task, now);
-      return { executedCount: 0, needsSave: true, deleteTask: false };
+      return this.buildDailyLimitSkipOutcome(task, maxDailyLimit, now);
     }
 
     const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
     await applyScheduleJitter(maxJitterSeconds);
 
-    let executedAt: Date | undefined;
     if (this.onExecuteCallback) {
       try {
         await this.onExecuteCallback(task);
-        executedAt = new Date();
-        this.incrementDailyExecCountInMemory(new Date());
-        task.lastRun = executedAt;
-        task.lastError = undefined;
-        task.lastErrorAt = undefined;
-        this.handleSuccessfulJobTaskExecution(task, executedAt);
-        this.syncJobTaskSchedules(executedAt);
-        if (this.isOneTimeExecutionTask(task)) {
-          return { executedCount: 1, needsSave: true, deleteTask: true };
-        }
-
-        task.nextRun = this.getScheduledTaskNextRun(task, new Date());
-        return { executedCount: 1, needsSave: true, deleteTask: false };
+        return this.handleSuccessfulTaskExecution(task, new Date());
       } catch (error) {
-        const details = toSafeSchedulerErrorDetails(error);
-        logError("[CopilotScheduler] Task execution error:", {
-          taskId: task.id,
-          taskName: task.name,
-          error: details,
-        });
-        task.lastError = details;
-        task.lastErrorAt = new Date();
+        return this.handleFailedTaskExecution(task, error, now);
       }
     }
 
     task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
-    return { executedCount: 0, needsSave: true, deleteTask: false };
+    return this.buildTaskExecutionRetryOutcome();
   }
 
   private applyScheduledTaskDeletions(taskIds: readonly string[]): void {
     for (const taskId of taskIds) {
       this.tasks.delete(taskId);
-      this.pendingDeletedTaskIds.add(taskId);
-      this.suppressedOverdueTaskIds.delete(taskId);
+      this.clearTaskSchedulingState(taskId);
     }
   }
 
   private async persistDailyExecCountSafely(executedCount: number): Promise<void> {
-    if (executedCount < 1) {
+    if (executedCount <= 0) {
       return;
     }
 
@@ -1799,8 +1928,8 @@ export class ScheduleManager {
   /**
    * Get a task by ID
    */
-  getTask(id: string): ScheduledTask | undefined {
-    return this.tasks.get(id);
+  getTask(taskId: string): ScheduledTask | undefined {
+    return this.tasks.get(taskId);
   }
 
   getOverdueTasks(referenceTime = new Date()): ScheduledTask[] {
@@ -1871,7 +2000,7 @@ export class ScheduleManager {
    * Get all tasks
    */
   getAllTasks(): ScheduledTask[] {
-    return Array.from(this.tasks.values());
+    return [...this.tasks.values()];
   }
 
   async removeLabelFromAllTasks(labelName: string): Promise<number> {
@@ -2487,12 +2616,7 @@ export class ScheduleManager {
     return normalized === "bundled jobs" || normalized === "archive";
   }
 
-  private buildCompiledJobPrompt(job: JobDefinition): {
-    prompt: string;
-    agent?: string;
-    model?: string;
-    labels: string[];
-  } {
+  private buildCompiledJobPrompt(job: JobDefinition): CompiledJobPrompt {
     const sections: string[] = [
       `Job: ${job.name}`,
       "Execute the following workflow as one combined task. Keep the sections in order and preserve explicit checkpoints before continuing.",
@@ -2657,8 +2781,7 @@ export class ScheduleManager {
    */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
-    const changed = Array.from(this.tasks.values())
-      .filter((task) => task.enabled)
+    const changed = this.getEnabledTaskArray()
       .reduce((didChange, task) => {
         const nextRun = this.getScheduledTaskNextRun(task, now);
         return this.replaceTaskNextRun(task, nextRun) || didChange;
@@ -2694,11 +2817,7 @@ export class ScheduleManager {
     const { cronChanged } = applyTaskUpdatesToTask({
       task,
       updates,
-      getPrimaryWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
-      clampJitterSeconds: clampScheduleJitterSeconds,
-      normalizeTaskManualSession: normalizeScheduledTaskManualSession,
-      normalizeTaskChatSession: normalizeScheduledTaskChatSession,
-      normalizeLabels: normalizeScheduledTaskLabels,
+      ...this.createTaskUpdateContext(),
     });
 
     this.refreshTaskNextRunAfterUpdate(task, {
@@ -2707,12 +2826,7 @@ export class ScheduleManager {
       runFirstInOneMinute: updates.runFirstInOneMinute,
       referenceTime: now,
     });
-
-    task.updatedAt = now;
-    this.suppressedOverdueTaskIds.delete(id);
-
-    await this.saveTasksAndSyncRecurringPromptBackups();
-
+    await this.finalizeTaskUpdate(task, id, now);
     return task;
   }
 
@@ -2721,15 +2835,7 @@ export class ScheduleManager {
    */
   async deleteTask(id: string): Promise<boolean> {
     this.unlinkTaskFromOwningJob(id);
-
-    const deleted = this.tasks.delete(id);
-    if (deleted) {
-      this.pendingDeletedTaskIds.add(id);
-      this.suppressedOverdueTaskIds.delete(id);
-      this.syncJobTaskSchedules(new Date());
-      await this.saveTasks();
-    }
-    return deleted;
+    return this.deleteTaskAndPersist(id);
   }
 
   /**
@@ -2775,13 +2881,7 @@ export class ScheduleManager {
       throw new Error(messages.moveOnlyWorkspaceTasks());
     }
 
-    const workspaceRoot = this.getPrimaryWorkspaceRoot();
-    if (!workspaceRoot) {
-      throw new Error(messages.noWorkspaceOpen());
-    }
-
-    task.workspacePath = workspaceRoot;
-    this.markTaskModified(task);
+    this.updateTaskWorkspacePath(task, this.resolveCurrentWorkspaceRootOrThrow());
     await this.saveTasksAndSyncRecurringPromptBackups();
     return task;
   }
@@ -2790,20 +2890,23 @@ export class ScheduleManager {
    * Check if task should run in current workspace
    */
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
-    // Global tasks run in all workspaces
     if (task.scope === "global") {
       return true;
     }
 
-    // Workspace-specific tasks only run in their workspace
     const workspacePaths = this.getResolvedWorkspaceRoots();
     if (workspacePaths.length === 0) {
       return false;
     }
 
-    const a = task.workspacePath ? normalizeForCompare(task.workspacePath) : "";
-    if (a === "") return false;
-    return workspacePaths.some((p) => normalizeForCompare(p) === a);
+    const taskWorkspaceKey = this.getScheduledTaskWorkspaceKey(task);
+    if (taskWorkspaceKey.length === 0) {
+      return false;
+    }
+
+    return workspacePaths.some(
+      (workspacePath) => normalizeForCompare(workspacePath) === taskWorkspaceKey,
+    );
   }
 
   /**
@@ -2811,12 +2914,8 @@ export class ScheduleManager {
    */
   startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
     this.setOnExecuteCallback(onExecute);
-
-    // Stop existing scheduler if running
     this.stopScheduler();
-
-    // Start after alignment
-    this.schedulerTimeout = setTimeout(() => this.beginAlignedSchedulerLoop(), this.getMillisecondsUntilNextMinute());
+    this.scheduleAlignedSchedulerStart();
   }
 
   private async runSchedulerTick(): Promise<void> {
@@ -2829,10 +2928,7 @@ export class ScheduleManager {
     try {
       await this.flushSchedulerTicks();
     } catch (error) {
-      logError(
-        "[CopilotScheduler] Scheduler tick failed:",
-        toSafeSchedulerErrorDetails(error),
-      );
+      this.logSchedulerTickFailure(error);
     } finally {
       this.schedulerTickInProgress = false;
     }
