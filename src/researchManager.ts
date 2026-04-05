@@ -1,6 +1,6 @@
-import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
+import * as vscode from "vscode";
 import { spawn, type ChildProcess } from "child_process";
 import { CopilotExecutor } from "./copilotExecutor";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";

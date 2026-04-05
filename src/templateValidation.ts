@@ -1,78 +1,95 @@
-import * as path from "path";
 import type { PromptSource, PromptTemplate } from "./types";
+import * as path from "path";
 import { isPathInsideBaseDir, normalizeForCompare } from "./promptResolver";
 
+const PROMPTS_DIRECTORY_PARTS = [".github", "prompts"] as const;
+const VALID_TEMPLATE_SOURCES: readonly PromptSource[] = ["local", "global"];
+
 export type TemplateLoadValidationInput = {
+  cachedTemplates: PromptTemplate[];
+  globalPromptsPath?: string;
   templatePath: string;
   source: PromptSource;
-  cachedTemplates: PromptTemplate[];
   workspaceFolderPaths: string[];
-  globalPromptsPath?: string;
 };
 
-export type TemplateLoadValidationResult =
-  | { ok: true }
-  | {
-      ok: false;
-      reason:
-        | "invalidPath"
-        | "notMarkdown"
-        | "invalidSource"
-        | "notInCache"
-        | "noAllowedRoots"
-        | "notAllowed";
-    };
+type TemplateValidationFailureReason =
+  | "invalidPath"
+  | "invalidSource"
+  | "noAllowedRoots"
+  | "notAllowed"
+  | "notInCache"
+  | "notMarkdown";
 
-export function validateTemplateLoadRequest(
-  input: TemplateLoadValidationInput,
-): TemplateLoadValidationResult {
-  const { templatePath, source } = input;
+export type TemplateLoadValidationResult = { ok: true } | {
+  ok: false;
+  reason: TemplateValidationFailureReason;
+};
 
-  if (!templatePath || typeof templatePath !== "string") {
-    return { ok: false, reason: "invalidPath" };
+function invalid(reason: TemplateValidationFailureReason): TemplateLoadValidationResult {
+  return { ok: false, reason };
+}
+
+function isPromptTemplatePath(templatePath: string): boolean {
+  const lowerPath = templatePath.toLowerCase();
+  return lowerPath.endsWith(".md") && !lowerPath.endsWith(".agent.md");
+}
+
+function resolveAllowedRoots(
+  source: PromptSource,
+  workspaceFolderPaths: string[],
+  globalPromptsPath?: string,
+): string[] {
+  if (source === "global") {
+    return globalPromptsPath ? [globalPromptsPath] : [];
   }
 
-  if (!templatePath.toLowerCase().endsWith(".md")) {
-    return { ok: false, reason: "notMarkdown" };
+  return workspaceFolderPaths
+    .filter((folderPath) => Boolean(folderPath))
+    .map((folderPath) => path.join(folderPath, ...PROMPTS_DIRECTORY_PARTS));
+}
+
+function isCachedTemplate(
+  cachedTemplates: PromptTemplate[],
+  source: PromptSource,
+  normalizedPath: string,
+): boolean {
+  return cachedTemplates.some((template) =>
+    template.source === source
+    && normalizeForCompare(template.path) === normalizedPath);
+}
+
+export function validateTemplateLoadRequest(input: TemplateLoadValidationInput): TemplateLoadValidationResult {
+  const { source, templatePath } = input;
+
+  if (typeof templatePath !== "string" || templatePath.length === 0) {
+    return invalid("invalidPath");
   }
 
-  // Do not allow agent definitions to be loaded as prompt templates.
-  if (templatePath.toLowerCase().endsWith(".agent.md")) {
-    return { ok: false, reason: "notMarkdown" };
+  if (!isPromptTemplatePath(templatePath)) {
+    return invalid("notMarkdown");
   }
 
-  if (source !== "local" && source !== "global") {
-    return { ok: false, reason: "invalidSource" };
+  if (!VALID_TEMPLATE_SOURCES.includes(source)) {
+    return invalid("invalidSource");
   }
 
-  // Only allow paths from our cached template list to prevent arbitrary file reads
   const resolvedTarget = path.resolve(templatePath);
   const normalizedTarget = normalizeForCompare(resolvedTarget);
-  const cached = input.cachedTemplates.find(
-    (t) =>
-      t.source === source && normalizeForCompare(t.path) === normalizedTarget,
+  if (!isCachedTemplate(input.cachedTemplates, source, normalizedTarget)) {
+    return invalid("notInCache");
+  }
+
+  const allowedRoots = resolveAllowedRoots(
+    source,
+    input.workspaceFolderPaths ?? [],
+    input.globalPromptsPath,
   );
-  if (!cached) {
-    return { ok: false, reason: "notInCache" };
+  if (allowedRoots.length === 0) {
+    return invalid("noAllowedRoots");
   }
 
-  const baseDirs =
-    source === "local"
-      ? (input.workspaceFolderPaths ?? [])
-          .filter(Boolean)
-          .map((folder) => path.join(folder, ".github", "prompts"))
-      : (() => {
-          const globalBase = input.globalPromptsPath;
-          return globalBase ? [globalBase] : [];
-        })();
-
-  if (baseDirs.length === 0) {
-    return { ok: false, reason: "noAllowedRoots" };
-  }
-
-  if (!baseDirs.some((d) => isPathInsideBaseDir(d, resolvedTarget))) {
-    return { ok: false, reason: "notAllowed" };
-  }
-
-  return { ok: true };
+  const isInsideAllowedRoot = allowedRoots.some((rootPath) =>
+    isPathInsideBaseDir(rootPath, resolvedTarget));
+  return isInsideAllowedRoot ? { ok: true } : invalid("notAllowed");
 }

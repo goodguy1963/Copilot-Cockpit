@@ -1,54 +1,56 @@
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
 import * as path from "path";
+import * as os from "os";
 import {
   ensurePrivateConfigIgnoredForWorkspaceRoot,
   ensurePrivateConfigIgnoredForWorkspaceRoots,
 } from "../../privateConfigIgnore";
 
-suite("Private Config Ignore Tests", () => {
-  function createWorkspaceRoot(): string {
-    return fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-private-ignore-"),
-    );
-  }
+function createWorkspaceRoot(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "copilot-cockpit-private-ignore-"));
+}
 
-  function cleanup(root: string): void {
-    try {
-      fs.rmSync(root, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 50,
-      });
-    } catch {
-      // ignore
-    }
+function removeWorkspaceRoot(root: string): void {
+  try {
+    const cleanupOptions: fs.RmOptions = {};
+    cleanupOptions.recursive = true;
+    cleanupOptions.force = true;
+    cleanupOptions.maxRetries = 3;
+    cleanupOptions.retryDelay = 50;
+    fs.rmSync(root, cleanupOptions);
+  } catch {
+    // Best effort cleanup for temp fixtures.
   }
+}
 
-  test("creates ignore files for private config, prompt backups, and logs", () => {
+function readUtf8(filePath: string): string {
+  return fs.readFileSync(filePath, "utf8");
+}
+
+suite("Private config ignore behavior", () => {
+  test("creates both ignore files with cockpit-private defaults", () => {
     const workspaceRoot = createWorkspaceRoot();
     const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
     const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
 
     try {
-      const ignorePath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(ignorePath, vscodeIgnorePath);
+      const returnedPath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
+      assert.strictEqual(returnedPath, vscodeIgnorePath);
       assert.strictEqual(
-        fs.readFileSync(vscodeIgnorePath, "utf8"),
+        readUtf8(vscodeIgnorePath),
         "# Copilot Cockpit private config\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\ncopilot-cockpit-support/\n",
       );
       assert.strictEqual(
-        fs.readFileSync(rootIgnorePath, "utf8"),
+        readUtf8(rootIgnorePath),
         "# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
       );
     } finally {
-      cleanup(workspaceRoot);
+      removeWorkspaceRoot(workspaceRoot);
     }
   });
 
-  test("appends missing ignore entries without clobbering existing content", () => {
+  test("preserves existing ignore content while appending missing cockpit entries", () => {
     const workspaceRoot = createWorkspaceRoot();
     const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
     const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
@@ -61,40 +63,44 @@ suite("Private Config Ignore Tests", () => {
       const updatedPath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
       assert.strictEqual(updatedPath, vscodeIgnorePath);
       assert.strictEqual(
-        fs.readFileSync(vscodeIgnorePath, "utf8"),
+        readUtf8(vscodeIgnorePath),
         "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\ncopilot-cockpit-support/\n",
       );
       assert.strictEqual(
-        fs.readFileSync(rootIgnorePath, "utf8"),
+        readUtf8(rootIgnorePath),
         "node_modules/\nout/\n\n# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
       );
-
-      const secondResult = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(secondResult, undefined);
+      assert.strictEqual(
+        ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot),
+        undefined,
+      );
     } finally {
-      cleanup(workspaceRoot);
+      removeWorkspaceRoot(workspaceRoot);
     }
   });
 
-  test("updates multiple workspace roots in one pass", () => {
-    const workspaceRootA = createWorkspaceRoot();
-    const workspaceRootB = createWorkspaceRoot();
+  test("updates several workspace roots in one pass", () => {
+    const firstRoot = createWorkspaceRoot();
+    const secondRoot = createWorkspaceRoot();
 
     try {
-      const updated = ensurePrivateConfigIgnoredForWorkspaceRoots([
-        workspaceRootA,
-        workspaceRootB,
+      const updatedPaths = ensurePrivateConfigIgnoredForWorkspaceRoots([
+        firstRoot,
+        secondRoot,
       ]);
 
-      assert.deepStrictEqual(updated.sort(), [
-        path.join(workspaceRootA, ".gitignore"),
-        path.join(workspaceRootA, ".vscode", ".gitignore"),
-        path.join(workspaceRootB, ".gitignore"),
-        path.join(workspaceRootB, ".vscode", ".gitignore"),
-      ].sort());
+      assert.deepStrictEqual(
+        updatedPaths.sort(),
+        [
+          path.join(firstRoot, ".gitignore"),
+          path.join(firstRoot, ".vscode", ".gitignore"),
+          path.join(secondRoot, ".gitignore"),
+          path.join(secondRoot, ".vscode", ".gitignore"),
+        ].sort(),
+      );
     } finally {
-      cleanup(workspaceRootA);
-      cleanup(workspaceRootB);
+      removeWorkspaceRoot(firstRoot);
+      removeWorkspaceRoot(secondRoot);
     }
   });
 });

@@ -9,134 +9,99 @@ import {
 import { createWebviewDebugTools } from "./schedulerWebviewDebug.js";
 import { renderTodoBoardMarkup } from "./schedulerWebviewBoardRendering.js";
 import {
+  buildFriendlyCronExpression,
+  summarizeCronExpression,
+  syncFriendlyFieldVisibility,
+} from "./schedulerWebviewCronUtils.js";
+import {
+  applyPromptSourceUi,
+  restorePendingSelectValue,
+  syncPromptTemplatesFromMessage,
+  updatePromptTemplateOptions,
+} from "./schedulerWebviewPromptState.js";
+import {
+  buildBaseTaskActionsMarkup,
+  buildTaskConfigRowMarkup,
+} from "./schedulerWebviewTaskCards.js";
+import { handleTaskListClick } from "./schedulerWebviewTaskActions.js";
+import {
   selectHasOptionValue,
   updateAgentOptions as updateTaskAgentOptions,
   updateModelOptions as updateTaskModelOptions,
 } from "./schedulerWebviewTaskSelectState.js";
+import {
+  formatCountdown,
+  formatModelLabel,
+  getNextRunCountdownText,
+  normalizeDefaultJitterSeconds,
+  sanitizeAbsolutePaths,
+} from "./schedulerWebviewDisplayUtils.js";
+import {
+  installGlobalErrorHandlers,
+  readInitialWebviewBootstrap,
+} from "./schedulerWebviewBootstrap.js";
+import { createInitialSchedulerWebviewState } from "./schedulerWebviewInitialState.js";
+import { createSchedulerWebviewDomRefs } from "./schedulerWebviewDomRefs.js";
+import {
+  createBoardRenderState,
+  finishBoardDrag,
+  requestBoardRender,
+} from "./schedulerWebviewBoardState.js";
+import {
+  createStorageSettingsNormalizer,
+  resolveInitialSchedulerCollections,
+} from "./schedulerWebviewDefaults.js";
+import {
+  activateSchedulerTab,
+  bindGenericChange,
+  bindTabButtons,
+  bindTaskFilterBar,
+  bindSelectValueChange,
+} from "./schedulerWebviewTabState.js";
+import {
+  bindClickAction,
+  bindDocumentValueDelegates,
+  bindInlineTaskQuickUpdate,
+  bindInputFeedbackClear,
+  bindOpenCronGuruButton,
+  bindSelectChange,
+} from "./schedulerWebviewBindings.js";
+import {
+  bindCronPresetPair,
+  bindPromptSourceDelegation,
+  bindTemplateSelectionLoader,
+} from "./schedulerWebviewFormBindings.js";
+import {
+  buildTaskSubmissionData,
+  postTaskSubmission,
+  validateTaskSubmission,
+} from "./schedulerWebviewTaskSubmit.js";
+import {
+  bindAutoShowStartupButton,
+  bindRefreshButton,
+  bindRestoreHistoryButton,
+  bindTaskTestButton,
+} from "./schedulerWebviewToolbarBindings.js";
+import { bindJobToolbarButtons } from "./schedulerWebviewJobBindings.js";
+import {
+  bindLanguageSelectors,
+  bindTemplateRefreshButton,
+  bindUtilityActionButtons,
+} from "./schedulerWebviewUtilityBindings.js";
+import {
+  bindJobDragAndDrop,
+  bindJobNodeWindowChange,
+  handleSchedulerDetailClick,
+} from "./schedulerWebviewJobInteractions.js";
+import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransientState.js";
 
 (function () {
   var vscode = null;
-  var strings = {};
-
-  // Initial data (JSON from inline script tag)
-  var initialData = {};
-  try {
-    var initialScript = document.getElementById("initial-data");
-    if (initialScript && initialScript.textContent) {
-      initialData = JSON.parse(initialScript.textContent) || {};
-    }
-  } catch (e) {
-    initialData = {};
-  }
-
-  strings = initialData.strings || {};
-  var currentLogLevel =
-    typeof initialData.logLevel === "string" && initialData.logLevel
-      ? initialData.logLevel
-      : "info";
-  var currentLogDirectory =
-    typeof initialData.logDirectory === "string"
-      ? initialData.logDirectory
-      : "";
-
-  function basenameAny(p) {
-    if (!p) return "";
-    var s = String(p);
-    var i1 = s.lastIndexOf("\\");
-    var i2 = s.lastIndexOf("/");
-    return s.substring(Math.max(i1, i2) + 1);
-  }
-
-  function basenameFromPathLike(p) {
-    if (!p) return "";
-    var s = String(p);
-    if (/^file:\/\/\/?/i.test(s)) {
-      try {
-        var u = new URL(s);
-        if (u.protocol === "file:") {
-          s = decodeURIComponent(u.pathname || "");
-        } else {
-          s = s.replace(/^file:\/\/\/?/i, "");
-        }
-      } catch (_e) {
-        s = s.replace(/^file:\/\/\/?/i, "");
-      }
-    }
-    return basenameAny(s);
-  }
-
-  function getModelSourceLabel(model) {
-    var id = model && model.id ? String(model.id).trim() : "";
-    var name = model && model.name ? String(model.name).trim() : "";
-    var vendor = model && model.vendor ? String(model.vendor).trim() : "";
-    var description = model && model.description ? String(model.description).trim() : "";
-    var normalized = (id + " " + name + " " + vendor + " " + description).toLowerCase();
-
-    if (normalized.indexOf("openrouter") >= 0) {
-      return "OpenRouter";
-    }
-
-    if (
-      normalized.indexOf("copilot") >= 0 ||
-      normalized.indexOf("codex") >= 0 ||
-      normalized.indexOf("github") >= 0 ||
-      normalized.indexOf("microsoft") >= 0
-    ) {
-      return "Copilot";
-    }
-
-    return vendor;
-  }
-
-  function formatModelLabel(model) {
-    var name = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
-    var source = getModelSourceLabel(model);
-    if (!source || source.toLowerCase() === name.toLowerCase()) {
-      return name;
-    }
-    return name + " • " + source;
-  }
-
-  function formatCountdown(totalSec) {
-    var remaining = Math.max(0, Math.floor(totalSec));
-    var units = [
-      { label: "y", seconds: 365 * 24 * 60 * 60 },
-      { label: "mo", seconds: 30 * 24 * 60 * 60 },
-      { label: "w", seconds: 7 * 24 * 60 * 60 },
-      { label: "d", seconds: 24 * 60 * 60 },
-      { label: "h", seconds: 60 * 60 },
-      { label: "m", seconds: 60 },
-      { label: "s", seconds: 1 },
-    ];
-    var parts = [];
-
-    for (var i = 0; i < units.length; i += 1) {
-      var unit = units[i];
-      var value = Math.floor(remaining / unit.seconds);
-      if (value <= 0) {
-        continue;
-      }
-      parts.push(String(value) + unit.label);
-      remaining -= value * unit.seconds;
-    }
-
-    if (parts.length === 0) {
-      return "0s";
-    }
-
-    return parts.join(" ");
-  }
-
-  function getNextRunCountdownText(enabled, nextRunMs) {
-    if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
-      return "";
-    }
-    var diffMs = nextRunMs - Date.now();
-    if (diffMs > 0) {
-      return " (in " + formatCountdown(Math.floor(diffMs / 1000)) + ")";
-    }
-    return " (due now)";
-  }
+  var bootstrapData = readInitialWebviewBootstrap(document);
+  var initialData = bootstrapData.initialData;
+  var strings = bootstrapData.strings;
+  var currentLogLevel = bootstrapData.currentLogLevel;
+  var currentLogDirectory = bootstrapData.currentLogDirectory;
 
   function refreshTaskCountdowns() {
     if (!taskList || !taskList.isConnected) {
@@ -150,50 +115,6 @@ import {
       var enabled = node.getAttribute("data-enabled") === "true";
       node.textContent = getNextRunCountdownText(enabled, nextRunMs);
     });
-  }
-
-  function sanitizeAbsolutePaths(text) {
-    if (!text) return "";
-    var s = String(text);
-    return (
-      s
-        // Quoted file URIs (may include spaces)
-        .replace(/'(file:\/\/[^']+)'/gi, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"(file:\/\/[^"]+)"/gi, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted file URIs (no spaces)
-        .replace(/file:\/\/[^\s"'`]+/gi, function (m) {
-          return basenameFromPathLike(m);
-        })
-        // Quoted Windows absolute paths / UNC (may include spaces)
-        .replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted Windows absolute paths / UNC (no spaces)
-        .replace(
-          /(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,
-          function (_m, prefix, p1) {
-            return String(prefix) + basenameFromPathLike(p1);
-          },
-        )
-        // Quoted POSIX absolute paths (may include spaces)
-        .replace(/'(\/[^']+)'/g, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"(\/[^\"]+)"/g, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted POSIX absolute paths (no spaces) — only when preceded by start/whitespace/(
-        .replace(/(^|[\s(])(\/[^\s"'`]+)/g, function (_m, prefix, p1) {
-          return String(prefix) + basenameFromPathLike(p1);
-        })
-    );
   }
 
   var globalErrorHideTimer = 0;
@@ -245,44 +166,21 @@ import {
     }
   }
 
-  // Global error handler for debugging (kept minimal to avoid breaking the UI)
-  window.onerror = function (msg, url, line, col, error) {
-    var prefix = strings.webviewScriptErrorPrefix || "";
-    var linePrefix = strings.webviewLinePrefix || "";
-    var lineSuffix = strings.webviewLineSuffix || "";
-    showGlobalError(
-      prefix +
-      sanitizeAbsolutePaths(String(msg)) +
-      linePrefix +
-      String(line) +
-      lineSuffix,
-    );
-  };
+  installGlobalErrorHandlers({
+    window: window,
+    strings: strings,
+    showGlobalError: showGlobalError,
+    sanitizeAbsolutePaths: sanitizeAbsolutePaths,
+  });
 
-  window.onunhandledrejection = function (ev) {
-    var prefix = strings.webviewUnhandledErrorPrefix || "";
-    var unknown = strings.webviewUnknown || "";
-    var reason = ev && ev.reason ? ev.reason : null;
-    var raw = unknown;
-    if (reason) {
-      if (typeof reason === "string") {
-        raw = reason;
-      } else if (typeof reason === "object" && reason.message) {
-        raw = String(reason.message);
-      } else {
-        raw = String(reason);
-      }
-    }
-    // Avoid showing multi-line stack traces in UI; keep only the first line.
-    raw = String(raw).split(/\r?\n/)[0];
-    showGlobalError(prefix + sanitizeAbsolutePaths(raw));
-  };
+  function createFallbackVsCodeApi() {
+    return { postMessage: function () { } };
+  }
 
-  if (typeof acquireVsCodeApi === "function") {
-    vscode = acquireVsCodeApi();
-  } else {
-    // Keep UI usable even if VS Code API is unavailable
-    vscode = { postMessage: function () { } };
+  var hasVsCodeApi = typeof acquireVsCodeApi === "function";
+  vscode = hasVsCodeApi ? acquireVsCodeApi() : createFallbackVsCodeApi();
+  if (!hasVsCodeApi) {
+    vscode = createFallbackVsCodeApi();
     showGlobalError(strings.webviewApiUnavailable || "", { durationMs: 0 });
   }
 
@@ -318,6 +216,16 @@ import {
     }, true);
   }
 
+<<<<<<< HEAD
+  var initialCollections = resolveInitialSchedulerCollections(initialData);
+  var tasks = initialCollections.tasks;
+  var jobs = initialCollections.jobs;
+  var jobFolders = initialCollections.jobFolders;
+  var cockpitBoard = initialCollections.cockpitBoard;
+  var telegramNotification = initialCollections.telegramNotification;
+  var executionDefaults = initialCollections.executionDefaults;
+  var reviewDefaults = initialCollections.reviewDefaults;
+=======
   var tasks = Array.isArray(initialData.tasks) ? initialData.tasks : [];
   var jobs = Array.isArray(initialData.jobs) ? initialData.jobs : [];
   var jobFolders = Array.isArray(initialData.jobFolders)
@@ -372,130 +280,99 @@ import {
         return previousValue || "workspace-required";
     }
   }
+>>>>>>> main
 
-  function normalizeStorageSettings(value, previousValue) {
-    var disabledSystemFlagKeys = Array.isArray(value && value.disabledSystemFlagKeys)
-      ? value.disabledSystemFlagKeys
-        .map(function (entry) { return normalizeTodoLabelKey(entry); })
-        .filter(function (entry, index, values) {
-          return !!entry && values.indexOf(entry) === index;
-        })
-      : ((previousValue && previousValue.disabledSystemFlagKeys) || []).slice();
-    return {
-      mode:
-        value && value.mode === "json"
-          ? "json"
-          : "sqlite",
-      sqliteJsonMirror:
-        !value || value.sqliteJsonMirror !== false,
-      disabledSystemFlagKeys: disabledSystemFlagKeys,
-      appVersion:
-        value && typeof value.appVersion === "string"
-          ? value.appVersion
-          : (previousValue && previousValue.appVersion) || "",
-      mcpSetupStatus: normalizeMcpSetupStatus(
-        value && value.mcpSetupStatus,
-        previousValue && previousValue.mcpSetupStatus,
-      ),
-      lastMcpSupportUpdateAt:
-        value && typeof value.lastMcpSupportUpdateAt === "string"
-          ? value.lastMcpSupportUpdateAt
-          : (previousValue && previousValue.lastMcpSupportUpdateAt) || "",
-      lastBundledSkillsSyncAt:
-        value && typeof value.lastBundledSkillsSyncAt === "string"
-          ? value.lastBundledSkillsSyncAt
-          : (previousValue && previousValue.lastBundledSkillsSyncAt) || "",
-    };
-  }
-
-  var storageSettings = normalizeStorageSettings(initialData.storageSettings);
-  var researchProfiles = Array.isArray(initialData.researchProfiles)
-    ? initialData.researchProfiles
-    : [];
-  var activeResearchRun = initialData.activeResearchRun || null;
-  var recentResearchRuns = Array.isArray(initialData.recentResearchRuns)
-    ? initialData.recentResearchRuns
-    : [];
-  var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
-  var models = Array.isArray(initialData.models) ? initialData.models : [];
-  var promptTemplates = Array.isArray(initialData.promptTemplates)
-    ? initialData.promptTemplates
-    : [];
-  var skills = Array.isArray(initialData.skills) ? initialData.skills : [];
-  var scheduleHistory = Array.isArray(initialData.scheduleHistory)
-    ? initialData.scheduleHistory
-    : [];
-  var defaultChatSession =
-    initialData.defaultChatSession === "continue" ? "continue" : "new";
-  var autoShowOnStartup = !!initialData.autoShowOnStartup;
-  var workspacePaths = Array.isArray(initialData.workspacePaths)
-    ? initialData.workspacePaths
-    : [];
-  var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
+  var initialState = createInitialSchedulerWebviewState(
+    initialData,
+    createStorageSettingsNormalizer(normalizeTodoLabelKey),
+  );
+  var storageSettings = initialState.storageSettings;
+  var researchProfiles = initialState.researchProfiles;
+  var activeResearchRun = initialState.activeResearchRun;
+  var recentResearchRuns = initialState.recentResearchRuns;
+  var agents = initialState.agents;
+  var models = initialState.models;
+  var promptTemplates = initialState.promptTemplates;
+  var skills = initialState.skills;
+  var scheduleHistory = initialState.scheduleHistory;
+  var defaultChatSession = initialState.defaultChatSession;
+  var autoShowOnStartup = initialState.autoShowOnStartup;
+  var workspacePaths = initialState.workspacePaths;
+  var caseInsensitivePaths = initialState.caseInsensitivePaths;
   var editingTaskId = null;
   var selectedTodoId = null;
   var EDITOR_CREATE_SYMBOL = "+";
   var EDITOR_EDIT_SYMBOL = "⚙";
+  var boardRenderState = createBoardRenderState();
   var draggingTodoId = null;
   var isBoardDragging = false;
   var pendingBoardRender = false;
   var scheduledBoardRenderFrame = 0;
   function requestCockpitBoardRender() {
-    if (isBoardDragging) {
-      pendingBoardRender = true;
-      return;
-    }
-    if (scheduledBoardRenderFrame) {
-      return;
-    }
-    scheduledBoardRenderFrame = requestAnimationFrame(function () {
-      scheduledBoardRenderFrame = 0;
-      if (isBoardDragging) {
-        pendingBoardRender = true;
-        return;
-      }
+    boardRenderState.draggingTodoId = draggingTodoId;
+    boardRenderState.isBoardDragging = isBoardDragging;
+    boardRenderState.pendingBoardRender = pendingBoardRender;
+    boardRenderState.scheduledBoardRenderFrame = scheduledBoardRenderFrame;
+    requestBoardRender(boardRenderState, requestAnimationFrame, function () {
       renderCockpitBoard();
     });
+    draggingTodoId = boardRenderState.draggingTodoId;
+    isBoardDragging = boardRenderState.isBoardDragging;
+    pendingBoardRender = boardRenderState.pendingBoardRender;
+    scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
   }
   function finishBoardDragState() {
-    draggingTodoId = null;
-    draggingSectionId = null;
-    lastDragOverSectionId = null;
-    isBoardDragging = false;
-    if (pendingBoardRender) {
-      pendingBoardRender = false;
-      requestCockpitBoardRender();
-    }
+    boardRenderState.draggingTodoId = draggingTodoId;
+    boardRenderState.isBoardDragging = isBoardDragging;
+    boardRenderState.pendingBoardRender = pendingBoardRender;
+    boardRenderState.scheduledBoardRenderFrame = scheduledBoardRenderFrame;
+    finishBoardDrag(
+      boardRenderState,
+      function () {
+        draggingSectionId = null;
+        lastDragOverSectionId = null;
+      },
+      function () {
+        draggingTodoId = boardRenderState.draggingTodoId;
+        isBoardDragging = boardRenderState.isBoardDragging;
+        pendingBoardRender = boardRenderState.pendingBoardRender;
+        scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
+        requestCockpitBoardRender();
+      },
+    );
+    draggingTodoId = boardRenderState.draggingTodoId;
+    isBoardDragging = boardRenderState.isBoardDragging;
+    pendingBoardRender = boardRenderState.pendingBoardRender;
+    scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
   }
-  var currentTodoLabels = [];
-  var currentTodoDraft = createEmptyTodoDraft();
-  var selectedTodoLabelName = "";
-  var currentTodoFlag = "";
-  var pendingTodoFilters = null;
-  var pendingDeleteLabelName = "";
-  var pendingDeleteFlagName = "";
-  var pendingTodoDeleteId = "";
-  var pendingBoardDeleteTodoId = "";
-  var pendingBoardDeletePermanentOnly = false;
-  var todoDeleteModalRoot = null;
-  var todoCommentModalRoot = null;
-  var pendingAgentValue = "";
-  var pendingModelValue = "";
-  var pendingTemplatePath = "";
-  var editingTaskEnabled = true;
-  var pendingSubmit = false;
   var HELP_WARP_SEEN_KEY = "copilot-scheduler-help-warp-seen-v1";
-  var helpWarpIntroPending = (function () {
-    try {
-      return localStorage.getItem(HELP_WARP_SEEN_KEY) !== "1";
-    } catch (_e) {
-      return true;
-    }
-  })();
-  var helpWarpFadeTimeout = 0;
-  var helpWarpCleanupTimeout = 0;
-  var isCreatingJob = false;
-  var todoEditorListenersBound = false;
+  var transientState = createSchedulerWebviewTransientState(
+    createEmptyTodoDraft,
+    localStorage,
+    HELP_WARP_SEEN_KEY,
+  );
+  var currentTodoLabels = transientState.currentTodoLabels;
+  var currentTodoDraft = transientState.currentTodoDraft;
+  var selectedTodoLabelName = transientState.selectedTodoLabelName;
+  var currentTodoFlag = transientState.currentTodoFlag;
+  var pendingTodoFilters = transientState.pendingTodoFilters;
+  var pendingDeleteLabelName = transientState.pendingDeleteLabelName;
+  var pendingDeleteFlagName = transientState.pendingDeleteFlagName;
+  var pendingTodoDeleteId = transientState.pendingTodoDeleteId;
+  var pendingBoardDeleteTodoId = transientState.pendingBoardDeleteTodoId;
+  var pendingBoardDeletePermanentOnly = transientState.pendingBoardDeletePermanentOnly;
+  var todoDeleteModalRoot = transientState.todoDeleteModalRoot;
+  var todoCommentModalRoot = transientState.todoCommentModalRoot;
+  var pendingAgentValue = transientState.pendingAgentValue;
+  var pendingModelValue = transientState.pendingModelValue;
+  var pendingTemplatePath = transientState.pendingTemplatePath;
+  var editingTaskEnabled = transientState.editingTaskEnabled;
+  var pendingSubmit = transientState.pendingSubmit;
+  var helpWarpIntroPending = transientState.helpWarpIntroPending;
+  var helpWarpFadeTimeout = transientState.helpWarpFadeTimeout;
+  var helpWarpCleanupTimeout = transientState.helpWarpCleanupTimeout;
+  var isCreatingJob = transientState.isCreatingJob;
+  var todoEditorListenersBound = transientState.todoEditorListenersBound;
 
   function resetTodoDraft(reason) {
     currentTodoDraft = debugTools.resetTodoDraft(reason);
@@ -542,23 +419,254 @@ import {
       : (currentTodoDraft.flagColor || "#f59e0b");
   }
 
-  var defaultJitterSeconds = (function () {
-    var raw = initialData.defaultJitterSeconds;
-    var n = typeof raw === "number" ? raw : Number(raw);
-    if (!isFinite(n)) return 600;
-    var i = Math.floor(n);
-    if (i < 0) return 0;
-    if (i > 1800) return 1800;
-    return i;
-  })();
-  var locale =
-    typeof initialData.locale === "string" && initialData.locale
-      ? initialData.locale
-      : undefined;
+  var defaultJitterSeconds = normalizeDefaultJitterSeconds(
+    initialData.defaultJitterSeconds,
+  );
+  var locale = (typeof initialData.locale === "string" && initialData.locale) || undefined;
   var lastRenderedTasksHtml = "";
   var pendingTaskListRender = false;
 
   // DOM elements - with null safety
+<<<<<<< HEAD
+  var {
+    taskForm,
+    taskList,
+    editTaskIdInput,
+    submitBtn,
+    testBtn,
+    refreshBtn,
+    autoShowStartupBtn,
+    scheduleHistorySelect,
+    restoreHistoryBtn,
+    autoShowStartupNote,
+    friendlyBuilder,
+    cronPreset,
+    cronExpression,
+    agentSelect,
+    modelSelect,
+    chatSessionGroup,
+    chatSessionSelect,
+    templateSelect,
+    templateSelectGroup,
+    templateRefreshBtn,
+    skillSelect,
+    insertSkillBtn,
+    setupMcpBtn,
+    syncBundledSkillsBtn,
+    importStorageFromJsonBtn,
+    exportStorageToJsonBtn,
+    helpLanguageSelect,
+    settingsLanguageSelect,
+    helpWarpLayer,
+    helpIntroRocket,
+    promptGroup,
+    promptTextEl,
+    jitterSecondsInput,
+    friendlyFrequency,
+    friendlyInterval,
+    friendlyMinute,
+    friendlyHour,
+    friendlyDow,
+    friendlyDom,
+    friendlyGenerate,
+    openGuruBtn,
+    cronPreviewText,
+    newTaskBtn,
+    taskFilterBar,
+    taskLabelFilter,
+    taskLabelsInput,
+    jobsFolderList,
+    jobsCurrentFolderBanner,
+    jobsList,
+    jobsEmptyState,
+    jobsDetails,
+    jobsLayout,
+    jobsToggleSidebarBtn,
+    jobsShowSidebarBtn,
+    jobsNewFolderBtn,
+    jobsRenameFolderBtn,
+    jobsDeleteFolderBtn,
+    jobsNewJobBtn,
+    jobsSaveBtn,
+    jobsSaveDeckBtn,
+    jobsDuplicateBtn,
+    jobsPauseBtn,
+    jobsCompileBtn,
+    jobsDeleteBtn,
+    jobsBackBtn,
+    jobsOpenEditorBtn,
+    tabBar,
+    boardFilterSticky,
+    boardSummary,
+    boardColumns,
+    todoToggleFiltersBtn,
+    todoSearchInput,
+    todoSectionFilter,
+    todoLabelFilter,
+    todoFlagFilter,
+    todoPriorityFilter,
+    todoStatusFilter,
+    todoArchiveOutcomeFilter,
+    todoSortBy,
+    todoSortDirection,
+    todoViewMode,
+    todoShowRecurringTasks,
+    todoShowArchived,
+    todoHideCardDetails,
+    todoNewBtn,
+    todoClearSelectionBtn,
+    todoClearFiltersBtn,
+    todoBackBtn,
+    todoDetailTitle,
+    todoDetailModeNote,
+    todoDetailForm,
+    todoDetailId,
+    todoTitleInput,
+    todoDescriptionInput,
+    todoDueInput,
+    todoPriorityInput,
+    todoSectionInput,
+    todoLinkedTaskSelect,
+    todoDetailStatus,
+    todoLabelChipList,
+    todoLabelsInput,
+    todoLabelSuggestions,
+    todoLabelColorInput,
+    todoLabelAddBtn,
+    todoLabelColorSaveBtn,
+    todoLabelCatalog,
+    todoFlagNameInput,
+    todoFlagColorInput,
+    todoFlagAddBtn,
+    todoFlagColorSaveBtn,
+    todoLinkedTaskNote,
+    todoSaveBtn,
+    todoCreateTaskBtn,
+    todoCompleteBtn,
+    todoDeleteBtn,
+    todoUploadFilesBtn,
+    todoUploadFilesNote,
+    todoCommentList,
+    todoCommentInput,
+    todoAddCommentBtn,
+    todoCommentCountBadge,
+    todoCommentModePill,
+    todoCommentContextNote,
+    todoCommentComposerTitle,
+    todoCommentComposerNote,
+    todoCommentDraftStatus,
+    todoCommentThreadNote,
+    jobsNameInput,
+    jobsCronPreset,
+    jobsCronInput,
+    jobsCronPreviewText,
+    jobsOpenGuruBtn,
+    jobsFriendlyBuilder,
+    jobsFriendlyFrequency,
+    jobsFriendlyInterval,
+    jobsFriendlyMinute,
+    jobsFriendlyHour,
+    jobsFriendlyDow,
+    jobsFriendlyDom,
+    jobsFriendlyGenerate,
+    jobsFolderSelect,
+    jobsStatusPill,
+    jobsTimelineInline,
+    jobsWorkflowMetrics,
+    jobsStepList,
+    jobsPauseNameInput,
+    jobsCreatePauseBtn,
+    jobsExistingTaskSelect,
+    jobsExistingWindowInput,
+    jobsAttachBtn,
+    jobsStepNameInput,
+    jobsStepWindowInput,
+    jobsStepPromptInput,
+    jobsStepAgentSelect,
+    jobsStepModelSelect,
+    jobsStepLabelsInput,
+    jobsCreateStepBtn,
+    researchNewBtn,
+    researchLoadAutoAgentExampleBtn,
+    researchSaveBtn,
+    researchDuplicateBtn,
+    researchDeleteBtn,
+    researchStartBtn,
+    researchStopBtn,
+    researchEditIdInput,
+    researchNameInput,
+    researchInstructionsInput,
+    researchEditablePathsInput,
+    researchBenchmarkInput,
+    researchMetricPatternInput,
+    researchMetricDirectionSelect,
+    researchMaxIterationsInput,
+    researchMaxMinutesInput,
+    researchMaxFailuresInput,
+    researchBenchmarkTimeoutInput,
+    researchEditWaitInput,
+    researchAgentSelect,
+    researchModelSelect,
+    researchProfileList,
+    researchRunList,
+    researchRunTitle,
+    researchFormError,
+    researchActiveEmpty,
+    researchActiveDetails,
+    researchActiveStatus,
+    researchActiveBest,
+    researchActiveAttempts,
+    researchActiveLastOutcome,
+    researchActiveMeta,
+    researchAttemptList,
+    telegramEnabledInput,
+    telegramBotTokenInput,
+    telegramChatIdInput,
+    telegramMessagePrefixInput,
+    telegramSaveBtn,
+    telegramTestBtn,
+    telegramFeedback,
+    telegramTokenStatus,
+    telegramChatStatus,
+    telegramHookStatus,
+    telegramUpdatedAt,
+    telegramStatusNote,
+    defaultAgentSelect,
+    defaultModelSelect,
+    executionDefaultsSaveBtn,
+    executionDefaultsNote,
+    spotReviewTemplateInput,
+    botReviewPromptTemplateInput,
+    botReviewAgentSelect,
+    botReviewModelSelect,
+    botReviewChatSessionSelect,
+    reviewDefaultsSaveBtn,
+    reviewDefaultsNote,
+    settingsStorageModeSelect,
+    settingsStorageMirrorInput,
+    settingsFlagReadyInput,
+    settingsFlagNeedsBotReviewInput,
+    settingsFlagNeedsUserReviewInput,
+    settingsFlagNewInput,
+    settingsFlagOnScheduleListInput,
+    settingsFlagFinalUserCheckInput,
+    settingsStorageSaveBtn,
+    settingsStorageNote,
+    settingsVersionValue,
+    settingsMcpStatusValue,
+    settingsMcpUpdatedValue,
+    settingsSkillsUpdatedValue,
+    settingsLogLevelSelect,
+    settingsLogDirectoryInput,
+    settingsOpenLogFolderBtn,
+    boardAddSectionBtn,
+    boardSectionInlineForm,
+    boardSectionNameInput,
+    boardSectionSaveBtn,
+    boardSectionCancelBtn,
+    cockpitColSlider,
+  } = createSchedulerWebviewDomRefs(document);
+=======
   var taskForm = document.getElementById("task-form");
   var taskList = document.getElementById("task-list");
   var editTaskIdInput = document.getElementById("edit-task-id");
@@ -796,6 +904,7 @@ import {
   var boardSectionSaveBtn = document.getElementById("board-section-save-btn");
   var boardSectionCancelBtn = document.getElementById("board-section-cancel-btn");
   var cockpitColSlider = document.getElementById("cockpit-col-slider");
+>>>>>>> main
 
   // Restore persisted column width\n  (function () {\n    var savedWidth = localStorage.getItem(\"cockpit-col-width\");\n    if (savedWidth) {\n      var w = Number(savedWidth);\n      document.documentElement.style.setProperty(\"--cockpit-col-width\", w + \"px\");\n      var font = Math.round(10 + (w - 180) * 3 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-col-font\", font + \"px\");\n      var pad = Math.round(8 + (w - 180) * 6 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-card-pad\", pad + \"px\");\n      if (cockpitColSlider) cockpitColSlider.value = savedWidth;\n    }\n  })();
 
@@ -4499,11 +4608,12 @@ syncTodoLabelSuggestions();
   function getCurrentTaskEditorState() {
     var taskNameEl = document.getElementById("task-name");
     var promptTextEl = document.getElementById("prompt-text");
-    var scopeEl = document.querySelector('input[name="scope"]:checked');
-    var promptSourceEl = document.querySelector('input[name="prompt-source"]:checked');
+    var checkedInputs = getCheckedTaskEditorInputs();
     var oneTimeEl = document.getElementById("one-time");
     var manualSessionEl = document.getElementById("manual-session");
-    var promptSourceValue = promptSourceEl ? String(promptSourceEl.value || "inline") : "inline";
+    var promptSourceValue = checkedInputs.promptSource
+      ? String(checkedInputs.promptSource.value || "inline")
+      : "inline";
     var promptPathValue = templateSelect ? String(templateSelect.value || "") : "";
     if (promptSourceValue !== "inline" && !promptPathValue && pendingTemplatePath) {
       promptPathValue = pendingTemplatePath;
@@ -4525,7 +4635,7 @@ syncTodoLabelSuggestions();
       labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
       agent: agentValue,
       model: modelValue,
-      scope: scopeEl ? String(scopeEl.value || "workspace") : "workspace",
+      scope: checkedInputs.scope ? String(checkedInputs.scope.value || "workspace") : "workspace",
       promptSource: promptSourceValue,
       promptPath: promptPathValue,
       oneTime: oneTime,
@@ -4708,14 +4818,9 @@ syncTodoLabelSuggestions();
     editingTaskId = taskId || null;
     if (editTaskIdInput) editTaskIdInput.value = editingTaskId || "";
     syncEditorTabLabels();
-
-    if (submitBtn) {
-      var label = editingTaskId ? strings.actionSave : strings.actionCreate;
-      if (label) submitBtn.textContent = label;
-    }
-    if (newTaskBtn) {
-      newTaskBtn.style.display = editingTaskId ? "inline-flex" : "none";
-    }
+    var isEditingTask = !!editingTaskId;
+    setTaskSubmitButtonText(isEditingTask);
+    setNewTaskButtonVisibility(isEditingTask);
   }
 
   function openTodoEditor(todoId) {
@@ -5028,18 +5133,7 @@ syncTodoLabelSuggestions();
     if (activeTabName) {
       captureTabScrollPosition(activeTabName);
     }
-    document.querySelectorAll(".tab-button").forEach(function (b) {
-      b.classList.remove("active");
-    });
-    document.querySelectorAll(".tab-content").forEach(function (c) {
-      c.classList.remove("active");
-    });
-    var targetBtn = document.querySelector(
-      '.tab-button[data-tab="' + tabName + '"]',
-    );
-    var targetContent = document.getElementById(tabName + "-tab");
-    if (targetBtn) targetBtn.classList.add("active");
-    if (targetContent) targetContent.classList.add("active");
+    activateSchedulerTab(document, tabName);
     activeTabName = tabName;
     if (jobsToggleSidebarBtn) {
       jobsToggleSidebarBtn.style.display = "";
@@ -5068,498 +5162,210 @@ syncTodoLabelSuggestions();
   }
 
   // Keep pending values in sync when the user explicitly changes selection
-  if (agentSelect) {
-    agentSelect.addEventListener("change", function () {
-      pendingAgentValue = agentSelect ? String(agentSelect.value || "") : "";
-      emitWebviewDebug("taskAgentChanged", { value: pendingAgentValue });
-    });
-  }
-  if (modelSelect) {
-    modelSelect.addEventListener("change", function () {
-      pendingModelValue = modelSelect ? String(modelSelect.value || "") : "";
-      emitWebviewDebug("taskModelChanged", { value: pendingModelValue });
-    });
-  }
-  if (templateSelect) {
-    templateSelect.addEventListener("change", function () {
-      pendingTemplatePath = templateSelect ? templateSelect.value : "";
-    });
-  }
+  bindSelectValueChange(agentSelect, function (control) {
+    pendingAgentValue = control ? String(control.value || "") : "";
+    emitWebviewDebug("taskAgentChanged", { value: pendingAgentValue });
+  });
+  bindSelectValueChange(modelSelect, function (control) {
+    pendingModelValue = control ? String(control.value || "") : "";
+    emitWebviewDebug("taskModelChanged", { value: pendingModelValue });
+  });
+  bindSelectValueChange(templateSelect, function (control) {
+    pendingTemplatePath = control ? control.value : "";
+  });
 
   var oneTimeToggle = document.getElementById("one-time");
-  if (oneTimeToggle) {
-    oneTimeToggle.addEventListener("change", function () {
-      syncRecurringChatSessionUi();
-    });
-  }
+  bindGenericChange(oneTimeToggle, function () {
+    syncRecurringChatSessionUi();
+  });
   var manualSessionToggle = document.getElementById("manual-session");
-  if (manualSessionToggle) {
-    manualSessionToggle.addEventListener("change", function () {
-      syncRecurringChatSessionUi();
-    });
-  }
-
-  Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function (button) {
-    button.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var tabName = button.getAttribute("data-tab");
-      if (tabName) {
-        switchTab(tabName);
-      }
-    });
+  bindGenericChange(manualSessionToggle, function () {
+    syncRecurringChatSessionUi();
   });
 
-  if (taskFilterBar) {
-    syncTaskFilterButtons();
-    taskFilterBar.addEventListener("click", function (e) {
-      var target = e && e.target;
-      var filterButton = target;
-      while (filterButton && filterButton !== taskFilterBar) {
-        if (
-          filterButton.getAttribute &&
-          filterButton.getAttribute("data-filter")
-        ) {
-          break;
-        }
-        filterButton = filterButton.parentElement;
-      }
-      if (!filterButton || filterButton === taskFilterBar) return;
-      var filterValue = filterButton.getAttribute("data-filter");
-      if (!isValidTaskFilter(filterValue)) return;
-      activeTaskFilter = filterValue;
-      syncTaskFilterButtons();
-      persistTaskFilter();
-      renderTaskList(tasks);
-    });
-  }
+  bindTabButtons(document, switchTab);
 
-  if (taskLabelFilter) {
-    taskLabelFilter.addEventListener("change", function () {
-      activeLabelFilter = taskLabelFilter.value || "";
-      persistTaskFilter();
+  bindTaskFilterBar(taskFilterBar, {
+    syncTaskFilterButtons: syncTaskFilterButtons,
+    isValidTaskFilter: isValidTaskFilter,
+    setActiveTaskFilter: function (value) {
+      activeTaskFilter = value;
+    },
+    persistTaskFilter: persistTaskFilter,
+    renderTaskList: function () {
       renderTaskList(tasks);
-    });
-  }
+    },
+  });
+
+  bindSelectValueChange(taskLabelFilter, function (control) {
+    activeLabelFilter = control.value || "";
+    persistTaskFilter();
+    renderTaskList(tasks);
+  });
 
   // Use event delegation for prompt source radio buttons
-  document.addEventListener("change", function (e) {
-    var target = e.target;
-    if (target && target.name === "prompt-source" && target.checked) {
-      applyPromptSource(target.value);
-    }
-  });
+  bindPromptSourceDelegation(document, applyPromptSource);
 
   // Cron preset handling with null check
-  if (cronPreset && cronExpression) {
-    cronPreset.addEventListener("change", function () {
-      if (cronPreset.value) {
-        cronExpression.value = cronPreset.value;
-      }
-      updateCronPreview();
-    });
-
-    cronExpression.addEventListener("input", function () {
-      cronPreset.value = "";
-      updateCronPreview();
-    });
-  }
-
-  if (jobsCronPreset && jobsCronInput) {
-    jobsCronPreset.addEventListener("change", function () {
-      if (jobsCronPreset.value) {
-        jobsCronInput.value = jobsCronPreset.value;
-      }
-      updateJobsCronPreview();
-      syncEditorTabLabels();
-    });
-
-    jobsCronInput.addEventListener("input", function () {
-      jobsCronPreset.value = "";
-      updateJobsCronPreview();
-      syncEditorTabLabels();
-    });
-  }
-
-  if (friendlyFrequency) {
-    friendlyFrequency.addEventListener("change", function () {
-      updateFriendlyVisibility();
-    });
-  }
-
-  if (jobsFriendlyFrequency) {
-    jobsFriendlyFrequency.addEventListener("change", function () {
-      updateJobsFriendlyVisibility();
-      syncEditorTabLabels();
-    });
-  }
-
-  [telegramEnabledInput, telegramBotTokenInput, telegramChatIdInput, telegramMessagePrefixInput].forEach(function (element) {
-    if (!element || typeof element.addEventListener !== "function") {
-      return;
-    }
-    element.addEventListener("input", clearTelegramFeedback);
-    element.addEventListener("change", clearTelegramFeedback);
+  bindCronPresetPair(cronPreset, cronExpression, function () {
+    updateCronPreview();
+  });
+  bindCronPresetPair(jobsCronPreset, jobsCronInput, function () {
+    updateJobsCronPreview();
+    syncEditorTabLabels();
   });
 
-  if (telegramSaveBtn) {
-    telegramSaveBtn.addEventListener("click", function () {
-      submitTelegramForm("saveTelegramNotification");
-    });
-  }
+  bindSelectValueChange(friendlyFrequency, function () {
+    updateFriendlyVisibility();
+  });
 
-  if (telegramTestBtn) {
-    telegramTestBtn.addEventListener("click", function () {
-      submitTelegramForm("testTelegramNotification");
-    });
-  }
+  bindSelectValueChange(jobsFriendlyFrequency, function () {
+    updateJobsFriendlyVisibility();
+    syncEditorTabLabels();
+  });
 
-  if (executionDefaultsSaveBtn) {
-    executionDefaultsSaveBtn.addEventListener("click", function () {
-      vscode.postMessage({
-        type: "saveExecutionDefaults",
-        data: collectExecutionDefaultsFormData(),
-      });
-    });
-  }
+  bindInputFeedbackClear(
+    [
+      telegramEnabledInput,
+      telegramBotTokenInput,
+      telegramChatIdInput,
+      telegramMessagePrefixInput,
+    ],
+    clearTelegramFeedback,
+  );
 
-  if (reviewDefaultsSaveBtn) {
-    reviewDefaultsSaveBtn.addEventListener("click", function () {
-      vscode.postMessage({
-        type: "saveReviewDefaults",
-        data: collectReviewDefaultsFormData(),
-      });
+  bindClickAction(telegramSaveBtn, function () {
+    submitTelegramForm("saveTelegramNotification");
+  });
+  bindClickAction(telegramTestBtn, function () {
+    submitTelegramForm("testTelegramNotification");
+  });
+  bindClickAction(executionDefaultsSaveBtn, function () {
+    vscode.postMessage({
+      type: "saveExecutionDefaults",
+      data: collectExecutionDefaultsFormData(),
     });
-  }
-
-  if (settingsStorageSaveBtn) {
-    settingsStorageSaveBtn.addEventListener("click", function () {
-      vscode.postMessage({
-        type: "setStorageSettings",
-        data: collectStorageSettingsFormData(),
-      });
+  });
+  bindClickAction(reviewDefaultsSaveBtn, function () {
+    vscode.postMessage({
+      type: "saveReviewDefaults",
+      data: collectReviewDefaultsFormData(),
     });
-  }
-
-  if (settingsLogLevelSelect) {
-    settingsLogLevelSelect.addEventListener("change", function () {
-      currentLogLevel = settingsLogLevelSelect.value || "info";
-      debugTools.setLogLevel(currentLogLevel);
-      renderLoggingControls();
-      vscode.postMessage({
-        type: "setLogLevel",
-        logLevel: currentLogLevel,
-      });
+  });
+  bindClickAction(settingsStorageSaveBtn, function () {
+    vscode.postMessage({
+      type: "setStorageSettings",
+      data: collectStorageSettingsFormData(),
     });
-  }
-
-  if (settingsOpenLogFolderBtn) {
-    settingsOpenLogFolderBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "openLogFolder" });
+  });
+  bindSelectChange(settingsLogLevelSelect, function (control) {
+    currentLogLevel = control.value || "info";
+    debugTools.setLogLevel(currentLogLevel);
+    renderLoggingControls();
+    vscode.postMessage({
+      type: "setLogLevel",
+      logLevel: currentLogLevel,
     });
-  }
+  });
+  bindClickAction(settingsOpenLogFolderBtn, function () {
+    vscode.postMessage({ type: "openLogFolder" });
+  });
 
   // Some environments may miss direct events on the select; keep it in sync via delegation.
-  document.addEventListener("change", function (e) {
-    var target = e && e.target;
-    if (target && target.id === "friendly-frequency") {
+  bindDocumentValueDelegates(document, "change", {
+    "friendly-frequency": function () {
       updateFriendlyVisibility();
-    }
-    if (target && target.id === "jobs-friendly-frequency") {
+    },
+    "jobs-friendly-frequency": function () {
       updateJobsFriendlyVisibility();
-    }
+    },
+  });
+  bindDocumentValueDelegates(document, "input", {
+    "friendly-frequency": function () {
+      updateFriendlyVisibility();
+    },
+    "jobs-friendly-frequency": function () {
+      updateJobsFriendlyVisibility();
+    },
   });
 
-  document.addEventListener("input", function (e) {
-    var target = e && e.target;
-    if (target && target.id === "friendly-frequency") {
-      updateFriendlyVisibility();
-    }
-    if (target && target.id === "jobs-friendly-frequency") {
-      updateJobsFriendlyVisibility();
-    }
+  bindClickAction(friendlyGenerate, function () {
+    generateCronFromFriendly();
+  });
+  bindClickAction(jobsFriendlyGenerate, function () {
+    generateJobsCronFromFriendly();
+    syncEditorTabLabels();
   });
 
-  if (friendlyGenerate) {
-    friendlyGenerate.addEventListener("click", function () {
-      generateCronFromFriendly();
-    });
-  }
-
-  if (jobsFriendlyGenerate) {
-    jobsFriendlyGenerate.addEventListener("click", function () {
-      generateJobsCronFromFriendly();
-      syncEditorTabLabels();
-    });
-  }
-
-  if (openGuruBtn) {
-    openGuruBtn.addEventListener("click", function () {
-      var expression = cronExpression ? cronExpression.value.trim() : "";
-      if (!expression) {
-        expression = "* * * * *";
-      }
-      var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
-      window.open(targetUrl, "_blank");
-    });
-  }
-
-  if (jobsOpenGuruBtn) {
-    jobsOpenGuruBtn.addEventListener("click", function () {
-      var expression = jobsCronInput ? jobsCronInput.value.trim() : "";
-      if (!expression) {
-        expression = "* * * * *";
-      }
-      var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
-      window.open(targetUrl, "_blank");
-    });
-  }
+  bindOpenCronGuruButton(openGuruBtn, function () {
+    return cronExpression ? cronExpression.value : "";
+  }, window);
+  bindOpenCronGuruButton(jobsOpenGuruBtn, function () {
+    return jobsCronInput ? jobsCronInput.value : "";
+  }, window);
 
   // Handle inline Agent and Model selection changes
-  document.addEventListener("change", function (e) {
-    var target = e.target;
-    if (!target) return;
-
-    if (target.classList.contains("task-agent-select")) {
-      var taskId = target.getAttribute("data-id");
-      var value = target.value;
-      vscode.postMessage({
-        type: "updateTask",
-        taskId: taskId,
-        data: { agent: value }
-      });
-    } else if (target.classList.contains("task-model-select")) {
-      var taskId = target.getAttribute("data-id");
-      var value = target.value;
-      vscode.postMessage({
-        type: "updateTask",
-        taskId: taskId,
-        data: { model: value }
-      });
-    }
-  });
+  bindInlineTaskQuickUpdate(document, vscode);
 
   // Template selection with null check
-  if (templateSelect) {
-    templateSelect.addEventListener("change", function () {
-      var selectedPath = templateSelect.value;
-      if (selectedPath) {
-        var sourceEl = document.querySelector(
-          'input[name="prompt-source"]:checked',
-        );
-        var source = sourceEl ? sourceEl.value : "inline";
-        vscode.postMessage({
-          type: "loadPromptTemplate",
-          path: selectedPath,
-          source: source,
-        });
-      }
+  bindTemplateSelectionLoader(templateSelect, document, vscode);
+
+  function handleTaskFormSubmit(e) {
+    e.preventDefault();
+    hideGlobalError();
+
+    var formErr = clearTaskFormError();
+    var runFirstEl = document.getElementById("run-first");
+    var editorState = getCurrentTaskEditorState();
+    var taskData = buildTaskSubmissionData({
+      editorState: editorState,
+      parseLabels: parseLabels,
+      editingTaskId: editingTaskId,
+      editingTaskEnabled: editingTaskEnabled,
+      runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
     });
+
+    if (!validateTaskSubmission({
+      taskData: taskData,
+      promptSourceValue: editorState.promptSource,
+      formErr: formErr,
+      strings: strings,
+      editingTaskId: editingTaskId,
+      getTaskByIdLocal: getTaskByIdLocal,
+    })) {
+      return;
+    }
+
+    startPendingTaskSubmit();
+    postTaskSubmission(vscode, editingTaskId, taskData);
   }
 
   // Form submission with null checks
   if (taskForm) {
-    taskForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      hideGlobalError();
-
-      var formErr = document.getElementById("form-error");
-      if (formErr) {
-        formErr.style.display = "none";
-      }
-
-      var taskNameEl = document.getElementById("task-name");
-      var promptTextEl = document.getElementById("prompt-text");
-      var scopeEl = document.querySelector('input[name="scope"]:checked');
-      var promptSourceEl = document.querySelector(
-        'input[name="prompt-source"]:checked',
-      );
-      var runFirstEl = document.getElementById("run-first");
-      var oneTimeEl = document.getElementById("one-time");
-      var manualSessionEl = document.getElementById("manual-session");
-
-      var promptSourceValue = promptSourceEl ? promptSourceEl.value : "inline";
-
-      // Preserve values if dropdown options are not loaded yet
-      var agentValue = agentSelect ? agentSelect.value : "";
-      if (!agentValue && pendingAgentValue) {
-        agentValue = pendingAgentValue;
-      }
-      var modelValue = modelSelect ? modelSelect.value : "";
-      if (!modelValue && pendingModelValue) {
-        modelValue = pendingModelValue;
-      }
-      var promptPathValue = templateSelect ? templateSelect.value : "";
-      if (
-        promptSourceValue !== "inline" &&
-        editingTaskId &&
-        !promptPathValue &&
-        pendingTemplatePath
-      ) {
-        promptPathValue = pendingTemplatePath;
-      }
-
-      var taskData = {
-        name: taskNameEl ? taskNameEl.value : "",
-        prompt: promptTextEl ? promptTextEl.value : "",
-        cronExpression: cronExpression ? cronExpression.value : "",
-        labels: parseLabels(taskLabelsInput ? taskLabelsInput.value : ""),
-        agent: agentValue,
-        model: modelValue,
-        scope: scopeEl ? scopeEl.value : "workspace",
-        promptSource: promptSourceValue,
-        promptPath: promptPathValue,
-        runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
-        oneTime: oneTimeEl ? oneTimeEl.checked : false,
-        manualSession:
-          oneTimeEl && oneTimeEl.checked
-            ? false
-            : !!(manualSessionEl && manualSessionEl.checked),
-        jitterSeconds: jitterSecondsInput
-          ? Number(jitterSecondsInput.value || 0)
-          : 0,
-        enabled: editingTaskId ? editingTaskEnabled : true,
-      };
-
-      if (!taskData.oneTime) {
-        taskData.chatSession =
-          chatSessionSelect && chatSessionSelect.value === "continue"
-            ? "continue"
-            : "new";
-      }
-
-      var nameValue = (taskData.name || "").trim();
-      if (!nameValue) {
-        if (formErr) {
-          formErr.textContent = strings.taskNameRequired || "";
-          formErr.style.display = "block";
-        }
-        return;
-      }
-
-      var templateValue = (taskData.promptPath || "").trim();
-      if (promptSourceValue !== "inline" && !templateValue) {
-        if (formErr) {
-          formErr.textContent = strings.templateRequired || "";
-          formErr.style.display = "block";
-        }
-        return;
-      }
-
-      var promptValue = (taskData.prompt || "").trim();
-      if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
-        var editingTask = getTaskByIdLocal(editingTaskId);
-        taskData.prompt = editingTask && typeof editingTask.prompt === "string"
-          ? editingTask.prompt
-          : "";
-        promptValue = (taskData.prompt || "").trim();
-      }
-
-      if (promptSourceValue === "inline" && !promptValue) {
-        if (formErr) {
-          formErr.textContent = strings.promptRequired || "";
-          formErr.style.display = "block";
-        }
-        return;
-      }
-
-      var cronValue = (taskData.cronExpression || "").trim();
-      if (!cronValue) {
-        if (formErr) {
-          formErr.textContent =
-            strings.cronExpressionRequired ||
-            strings.invalidCronExpression ||
-            "";
-          formErr.style.display = "block";
-        }
-        return;
-      }
-
-      pendingSubmit = true;
-      if (submitBtn) submitBtn.disabled = true;
-
-      if (editingTaskId) {
-        vscode.postMessage({
-          type: "updateTask",
-          taskId: editingTaskId,
-          data: taskData,
-        });
-      } else {
-        vscode.postMessage({
-          type: "createTask",
-          data: taskData,
-        });
-      }
-    });
+    taskForm.addEventListener("submit", handleTaskFormSubmit);
   }
 
   // Test button with null check
-  if (testBtn) {
-    testBtn.addEventListener("click", function () {
-      var promptTextEl = document.getElementById("prompt-text");
-      var prompt = promptTextEl ? promptTextEl.value : "";
-      var agent = agentSelect ? agentSelect.value : "";
-      var model = modelSelect ? modelSelect.value : "";
-
-      if (prompt) {
-        vscode.postMessage({
-          type: "testPrompt",
-          prompt: prompt,
-          agent: agent,
-          model: model,
-        });
-      }
-    });
-  }
+  bindTaskTestButton(testBtn, {
+    document: document,
+    agentSelect: agentSelect,
+    modelSelect: modelSelect,
+    vscode: vscode,
+  });
 
   // Refresh button with null check
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "refreshTasks" });
-      vscode.postMessage({ type: "refreshAgents" });
-      vscode.postMessage({ type: "refreshPrompts" });
-    });
-  }
+  bindRefreshButton(refreshBtn, vscode);
 
-  if (autoShowStartupBtn) {
-    autoShowStartupBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "toggleAutoShowOnStartup" });
-    });
-  }
+  bindAutoShowStartupButton(autoShowStartupBtn, vscode);
 
-  if (restoreHistoryBtn) {
-    restoreHistoryBtn.addEventListener("click", function () {
-      var snapshotId = scheduleHistorySelect ? scheduleHistorySelect.value : "";
-      if (!snapshotId) {
-        window.alert(
-          strings.scheduleHistoryRestoreSelectRequired ||
-            "Select a backup version first",
-        );
-        return;
-      }
-
-      var selectedEntry = (Array.isArray(scheduleHistory) ? scheduleHistory : []).find(
-        function (entry) {
-          return entry && entry.id === snapshotId;
-        },
-      );
-      var selectedLabel = formatHistoryLabel(selectedEntry);
-      var confirmText =
-        (strings.scheduleHistoryRestoreConfirm ||
-          "Restore the repo schedule from {createdAt}? The current state will be backed up first.")
-          .replace("{createdAt}", selectedLabel)
-          .replace("{timestamp}", selectedLabel);
-
-      if (!window.confirm(confirmText)) {
-        return;
-      }
-
-      vscode.postMessage({
-        type: "restoreScheduleHistory",
-        snapshotId: snapshotId,
-      });
-    });
-  }
+  bindRestoreHistoryButton(restoreHistoryBtn, {
+    scheduleHistorySelect: scheduleHistorySelect,
+    scheduleHistory: scheduleHistory,
+    strings: strings,
+    formatHistoryLabel: formatHistoryLabel,
+    window: window,
+    vscode: vscode,
+  });
 
   function handleResearchToolbarAction(actionId) {
     if (actionId === "research-new-btn") {
@@ -5667,185 +5473,64 @@ syncTodoLabelSuggestions();
     renderResearchTab();
   }
 
-  if (jobsNewFolderBtn) {
-    jobsNewFolderBtn.addEventListener("click", function () {
-      vscode.postMessage({
-        type: "requestCreateJobFolder",
-        parentFolderId: selectedJobFolderId || undefined,
-      });
-    });
-  }
-
-  if (jobsRenameFolderBtn) {
-    jobsRenameFolderBtn.addEventListener("click", function () {
-      if (!selectedJobFolderId) return;
-      vscode.postMessage({
-        type: "requestRenameJobFolder",
-        folderId: selectedJobFolderId,
-      });
-    });
-  }
-
-  if (jobsDeleteFolderBtn) {
-    jobsDeleteFolderBtn.addEventListener("click", function () {
-      if (!selectedJobFolderId) return;
-      vscode.postMessage({ type: "requestDeleteJobFolder", folderId: selectedJobFolderId });
-    });
-  }
-
-  if (jobsNewJobBtn) {
-    jobsNewJobBtn.addEventListener("click", function () {
-      isCreatingJob = true;
-      syncEditorTabLabels();
-      vscode.postMessage({
-        type: "requestCreateJob",
-        folderId: selectedJobFolderId || undefined,
-      });
-      switchTab("jobs-edit");
-    });
-  }
-
   var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
-  if (jobsEmptyNewBtn) {
-    jobsEmptyNewBtn.addEventListener("click", function () {
-      isCreatingJob = true;
-      syncEditorTabLabels();
-      vscode.postMessage({
-        type: "requestCreateJob",
-        folderId: selectedJobFolderId || undefined,
-      });
-    });
-  }
-
-  if (jobsBackBtn) {
-    jobsBackBtn.addEventListener("click", function () {
-      switchTab("jobs");
-    });
-  }
-
-  if (jobsOpenEditorBtn) {
-    jobsOpenEditorBtn.addEventListener("click", function () {
-      openJobEditor(selectedJobId || "");
-    });
-  }
-
-  if (jobsSaveBtn) {
-    jobsSaveBtn.addEventListener("click", submitJobEditor);
-  }
-
-  if (jobsSaveDeckBtn) {
-    jobsSaveDeckBtn.addEventListener("click", submitJobEditor);
-  }
-
-  if (jobsDuplicateBtn) {
-    jobsDuplicateBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsPauseBtn) {
-    jobsPauseBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsCompileBtn) {
-    jobsCompileBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsStatusPill) {
-    jobsStatusPill.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsToggleSidebarBtn) {
-    jobsToggleSidebarBtn.addEventListener("click", function () {
+  bindJobToolbarButtons({
+    jobsNewFolderBtn: jobsNewFolderBtn,
+    jobsRenameFolderBtn: jobsRenameFolderBtn,
+    jobsDeleteFolderBtn: jobsDeleteFolderBtn,
+    jobsNewJobBtn: jobsNewJobBtn,
+    jobsEmptyNewBtn: jobsEmptyNewBtn,
+    jobsBackBtn: jobsBackBtn,
+    jobsOpenEditorBtn: jobsOpenEditorBtn,
+    jobsSaveBtn: jobsSaveBtn,
+    jobsSaveDeckBtn: jobsSaveDeckBtn,
+    jobsDuplicateBtn: jobsDuplicateBtn,
+    jobsPauseBtn: jobsPauseBtn,
+    jobsCompileBtn: jobsCompileBtn,
+    jobsStatusPill: jobsStatusPill,
+    jobsToggleSidebarBtn: jobsToggleSidebarBtn,
+    jobsShowSidebarBtn: jobsShowSidebarBtn,
+    jobsDeleteBtn: jobsDeleteBtn,
+    jobsAttachBtn: jobsAttachBtn,
+    jobsExistingTaskSelect: jobsExistingTaskSelect,
+    jobsExistingWindowInput: jobsExistingWindowInput,
+    jobsCreateStepBtn: jobsCreateStepBtn,
+    jobsStepNameInput: jobsStepNameInput,
+    jobsStepPromptInput: jobsStepPromptInput,
+    jobsStepWindowInput: jobsStepWindowInput,
+    jobsStepAgentSelect: jobsStepAgentSelect,
+    jobsStepModelSelect: jobsStepModelSelect,
+    jobsStepLabelsInput: jobsStepLabelsInput,
+    jobsCreatePauseBtn: jobsCreatePauseBtn,
+    jobsPauseNameInput: jobsPauseNameInput,
+    defaultPauseTitle: strings.jobsPauseDefaultTitle || "Manual review",
+    getSelectedJobFolderId: function () {
+      return selectedJobFolderId;
+    },
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    setCreatingJob: function (value) {
+      isCreatingJob = value;
+    },
+    syncEditorTabLabels: syncEditorTabLabels,
+    switchTab: switchTab,
+    openJobEditor: openJobEditor,
+    submitJobEditor: submitJobEditor,
+    toggleJobsSidebar: function () {
       jobsSidebarHidden = !jobsSidebarHidden;
       applyJobsSidebarState();
       persistTaskFilter();
-    });
-  }
-
-  if (jobsShowSidebarBtn) {
-    jobsShowSidebarBtn.addEventListener("click", function () {
+    },
+    showJobsSidebar: function () {
       jobsSidebarHidden = false;
       applyJobsSidebarState();
       persistTaskFilter();
-    });
-  }
-
-  if (jobsDeleteBtn) {
-    jobsDeleteBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsAttachBtn) {
-    jobsAttachBtn.addEventListener("click", function () {
-      if (!selectedJobId || !jobsExistingTaskSelect || !jobsExistingTaskSelect.value) return;
-      vscode.postMessage({
-        type: "attachTaskToJob",
-        jobId: selectedJobId,
-        taskId: jobsExistingTaskSelect.value,
-        windowMinutes: jobsExistingWindowInput ? Number(jobsExistingWindowInput.value || 30) : 30,
-      });
-    });
-  }
-
-  if (jobsCreateStepBtn) {
-    jobsCreateStepBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      var name = jobsStepNameInput ? jobsStepNameInput.value.trim() : "";
-      var prompt = jobsStepPromptInput ? jobsStepPromptInput.value.trim() : "";
-      if (!name || !prompt) return;
-      var selectedJob = getJobById(selectedJobId);
-      vscode.postMessage({
-        type: "createJobTask",
-        jobId: selectedJobId,
-        windowMinutes: jobsStepWindowInput ? Number(jobsStepWindowInput.value || 30) : 30,
-        data: {
-          name: name,
-          prompt: prompt,
-          cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
-          agent: jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
-          model: jobsStepModelSelect ? jobsStepModelSelect.value : "",
-          labels: parseLabels(jobsStepLabelsInput ? jobsStepLabelsInput.value : ""),
-          scope: "workspace",
-          promptSource: "inline",
-          oneTime: false,
-        },
-      });
-      if (jobsStepNameInput) jobsStepNameInput.value = "";
-      if (jobsStepPromptInput) jobsStepPromptInput.value = "";
-      if (jobsStepLabelsInput) jobsStepLabelsInput.value = "";
-      if (jobsStepWindowInput) jobsStepWindowInput.value = "30";
-    });
-  }
-
-  if (jobsCreatePauseBtn) {
-    jobsCreatePauseBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      var title = jobsPauseNameInput ? jobsPauseNameInput.value.trim() : "";
-      vscode.postMessage({
-        type: "createJobPause",
-        jobId: selectedJobId,
-        data: {
-          title: title || strings.jobsPauseDefaultTitle || "Manual review",
-        },
-      });
-      if (jobsPauseNameInput) {
-        jobsPauseNameInput.value = "";
-      }
-    });
-  }
+    },
+    getJobById: getJobById,
+    parseLabels: parseLabels,
+    vscode: vscode,
+  });
 
   document.addEventListener("click", function (e) {
     var target = e && e.target;
@@ -5860,310 +5545,89 @@ syncTodoLabelSuggestions();
         return;
       }
     }
-
-    var researchProfileCard = getClosestEventTarget(e, "[data-research-id]");
-    if (researchProfileCard && researchProfileList && researchProfileList.contains(researchProfileCard)) {
-      e.preventDefault();
-      e.stopPropagation();
-      selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "");
+    if (handleSchedulerDetailClick(e, {
+      getClosestEventTarget: getClosestEventTarget,
+      researchProfileList: researchProfileList,
+      researchRunList: researchRunList,
+      selectResearchProfile: selectResearchProfile,
+      selectResearchRun: selectResearchRun,
+      jobsFolderList: jobsFolderList,
+      jobsList: jobsList,
+      setSelectedJobFolderId: function (value) {
+        selectedJobFolderId = value;
+      },
+      setSelectedJobId: function (value) {
+        selectedJobId = value;
+      },
+      getSelectedJobId: function () {
+        return selectedJobId;
+      },
+      persistTaskFilter: persistTaskFilter,
+      renderJobsTab: renderJobsTab,
+      openJobEditor: openJobEditor,
+      editTask: typeof window.editTask === "function" ? window.editTask : undefined,
+      runTask: typeof window.runTask === "function" ? window.runTask : undefined,
+      getJobById: getJobById,
+      vscode: vscode,
+    })) {
       return;
-    }
-
-    var researchRunCard = getClosestEventTarget(e, "[data-run-id]");
-    if (researchRunCard && researchRunList && researchRunList.contains(researchRunCard)) {
-      e.preventDefault();
-      e.stopPropagation();
-      selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
-      return;
-    }
-
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
-      selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
-      selectedJobId = "";
-      persistTaskFilter();
-      renderJobsTab();
-      return;
-    }
-
-    var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
-    if (openJobEditorButton && jobsList && jobsList.contains(openJobEditorButton)) {
-      openJobEditor(openJobEditorButton.getAttribute("data-job-open-editor") || "");
-      return;
-    }
-
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobsList && jobsList.contains(jobItem)) {
-      selectedJobId = jobItem.getAttribute("data-job-id") || "";
-      persistTaskFilter();
-      renderJobsTab();
-      return;
-    }
-
-    var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
-    if (!jobAction) return;
-
-    if (jobAction === "detach-node") {
-      var detachNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && detachNodeId) {
-        vscode.postMessage({ type: "requestDeleteJobTask", jobId: selectedJobId, nodeId: detachNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "edit-task") {
-      var editTaskId = target.getAttribute("data-job-task-id") || "";
-      if (editTaskId && typeof window.editTask === "function") {
-        window.editTask(editTaskId);
-      }
-      return;
-    }
-
-    if (jobAction === "edit-pause") {
-      var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && editPauseNodeId) {
-        vscode.postMessage({ type: "requestRenameJobPause", jobId: selectedJobId, nodeId: editPauseNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "delete-pause") {
-      var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && deletePauseNodeId) {
-        vscode.postMessage({ type: "requestDeleteJobPause", jobId: selectedJobId, nodeId: deletePauseNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "approve-pause") {
-      var approveNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && approveNodeId) {
-        vscode.postMessage({ type: "approveJobPause", jobId: selectedJobId, nodeId: approveNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "reject-pause") {
-      var rejectNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && rejectNodeId) {
-        vscode.postMessage({ type: "rejectJobPause", jobId: selectedJobId, nodeId: rejectNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "run-task") {
-      var runTaskId = target.getAttribute("data-job-task-id") || "";
-      if (runTaskId && typeof window.runTask === "function") {
-        window.runTask(runTaskId);
-      }
     }
   });
 
-  document.addEventListener("change", function (e) {
-    var target = e && e.target;
-    if (!target) return;
-    if (target.classList && target.classList.contains("job-node-window-input")) {
-      if (!selectedJobId) return;
-      var nodeId = target.getAttribute("data-job-node-window-id") || "";
-      if (!nodeId) return;
-      vscode.postMessage({
-        type: "updateJobNodeWindow",
-        jobId: selectedJobId,
-        nodeId: nodeId,
-        windowMinutes: Number(target.value || 30),
-      });
-    }
+  bindJobNodeWindowChange(document, {
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    vscode: vscode,
   });
 
-  document.addEventListener("dragstart", function (e) {
-    var target = e && e.target;
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobsList && jobsList.contains(jobItem)) {
-      draggedJobId = jobItem.getAttribute("data-job-id") || "";
-      if (jobItem.classList) jobItem.classList.add("dragging");
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = "move";
-      }
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card) return;
-    draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
-    if (card.classList) card.classList.add("dragging");
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-    }
-  });
-
-  document.addEventListener("dragend", function (e) {
-    var target = e && e.target;
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (card && card.classList) card.classList.remove("dragging");
-    draggedJobId = "";
-    draggedJobNodeId = "";
-    Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function (item) {
-      if (item && item.classList) item.classList.remove("drag-over");
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"), function (item) {
-      if (item && item.classList) item.classList.remove("drag-over");
-    });
-  });
-
-  document.addEventListener("dragover", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && draggedJobId) {
-      e.preventDefault();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
-      }
-      if (folderItem.classList) folderItem.classList.add("drag-over");
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card || !draggedJobNodeId) return;
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "move";
-    }
-    if (card.classList) card.classList.add("drag-over");
-  });
-
-  document.addEventListener("dragleave", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (card && card.classList) card.classList.remove("drag-over");
-  });
-
-  document.addEventListener("drop", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && draggedJobId) {
-      e.preventDefault();
-      if (folderItem.classList) folderItem.classList.remove("drag-over");
-      var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
-      var draggedJob = getJobById(draggedJobId);
-      if (!draggedJob) return;
-      if ((draggedJob.folderId || "") === droppedFolderId) return;
-      vscode.postMessage({
-        type: "updateJob",
-        jobId: draggedJobId,
-        data: {
-          folderId: droppedFolderId || undefined,
-        },
-      });
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card || !draggedJobNodeId || !selectedJobId) return;
-    e.preventDefault();
-    if (card.classList) card.classList.remove("drag-over");
-    var targetNodeId = card.getAttribute("data-job-node-id") || "";
-    var selectedJob = getJobById(selectedJobId);
-    if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
-    var targetIndex = selectedJob.nodes.findIndex(function (node) {
-      return node && node.id === targetNodeId;
-    });
-    if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
-    vscode.postMessage({
-      type: "reorderJobNode",
-      jobId: selectedJobId,
-      nodeId: draggedJobNodeId,
-      targetIndex: targetIndex,
-    });
+  bindJobDragAndDrop(document, {
+    jobsList: jobsList,
+    getDraggedJobId: function () {
+      return draggedJobId;
+    },
+    setDraggedJobId: function (value) {
+      draggedJobId = value;
+    },
+    getDraggedJobNodeId: function () {
+      return draggedJobNodeId;
+    },
+    setDraggedJobNodeId: function (value) {
+      draggedJobNodeId = value;
+    },
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    getJobById: getJobById,
+    vscode: vscode,
   });
 
   // Template refresh button (Create tab)
-  if (templateRefreshBtn) {
-    templateRefreshBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "refreshPrompts" });
+  bindTemplateRefreshButton(templateRefreshBtn, {
+    templateSelect: templateSelect,
+    document: document,
+    vscode: vscode,
+  });
 
-      // If a template is currently selected, re-load its content as well.
-      var selectedPath = templateSelect ? templateSelect.value : "";
-      var sourceEl = document.querySelector(
-        'input[name="prompt-source"]:checked',
-      );
-      var source = sourceEl ? sourceEl.value : "inline";
-      if (selectedPath && (source === "local" || source === "global")) {
-        vscode.postMessage({
-          type: "loadPromptTemplate",
-          path: selectedPath,
-          source: source,
-        });
-      }
-    });
-  }
+  bindClickAction(insertSkillBtn, function () {
+    insertSelectedSkillReference();
+  });
 
-  if (insertSkillBtn) {
-    insertSkillBtn.addEventListener("click", function () {
-      insertSelectedSkillReference();
-    });
-  }
+  bindUtilityActionButtons(vscode, {
+    setupMcp: setupMcpBtn,
+    syncBundledSkills: syncBundledSkillsBtn,
+    importStorageFromJson: importStorageFromJsonBtn,
+    exportStorageToJson: exportStorageToJsonBtn,
+  });
 
-  if (setupMcpBtn) {
-    setupMcpBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "setupMcp" });
-    });
-  }
-
-  if (syncBundledSkillsBtn) {
-    syncBundledSkillsBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "syncBundledSkills" });
-    });
-  }
-
-  if (importStorageFromJsonBtn) {
-    importStorageFromJsonBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "importStorageFromJson" });
-    });
-  }
-
-  if (exportStorageToJsonBtn) {
-    exportStorageToJsonBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "exportStorageToJson" });
-    });
-  }
-
-  function syncLanguageSelectors(value) {
-    var nextValue = value || "auto";
-    if (helpLanguageSelect) {
-      helpLanguageSelect.value = nextValue;
-    }
-    if (settingsLanguageSelect) {
-      settingsLanguageSelect.value = nextValue;
-    }
-  }
-
-  function saveLanguageSelection(value) {
-    var nextValue = value || "auto";
-    syncLanguageSelectors(nextValue);
-    vscode.postMessage({
-      type: "setLanguage",
-      language: nextValue,
-    });
-  }
-
-  syncLanguageSelectors(
+  bindLanguageSelectors(
+    helpLanguageSelect,
+    settingsLanguageSelect,
+    vscode,
     typeof initialData.languageSetting === "string" && initialData.languageSetting
       ? initialData.languageSetting
-      : "auto"
+      : "auto",
   );
-
-  if (helpLanguageSelect) {
-    helpLanguageSelect.addEventListener("change", function () {
-      saveLanguageSelection(helpLanguageSelect.value);
-    });
-  }
-
-  if (settingsLanguageSelect) {
-    settingsLanguageSelect.addEventListener("change", function () {
-      saveLanguageSelection(settingsLanguageSelect.value);
-    });
-  }
 
   var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
   if (btnIntroTutorial) {
@@ -6217,18 +5681,542 @@ syncTodoLabelSuggestions();
 
   // Task action delegation (single listener)
   function resolveActionTarget(node) {
-    var el = node && node.nodeType === 3 ? node.parentElement : node;
-    while (el && el !== document.body) {
-      if (
-        el.hasAttribute &&
-        el.hasAttribute("data-action") &&
-        (el.hasAttribute("data-id") || el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))
-      ) {
-        return el;
+    var current = node && node.nodeType === 3 ? node.parentElement : node;
+    while (current && current !== document.body) {
+      var hasAction = current.hasAttribute && current.hasAttribute("data-action");
+      var hasIdentifier = hasAction && (
+        current.hasAttribute("data-id") ||
+        current.hasAttribute("data-task-id") ||
+        current.hasAttribute("data-job-id") ||
+        current.hasAttribute("data-profile-id")
+      );
+      if (hasIdentifier) {
+        return current;
       }
-      el = el.parentElement;
+      current = current.parentElement;
     }
     return null;
+  }
+
+  function normalizeWorkspacePathValue(rawPath) {
+    if (!rawPath) return "";
+    var normalized = String(rawPath).replace(/\\/g, "/");
+    if (normalized === "/") return "/";
+    normalized = normalized.replace(/\/+$/, "");
+    if (!normalized) return "/";
+    return caseInsensitivePaths ? normalized.toLowerCase() : normalized;
+  }
+
+  function getPathLeafName(rawPath) {
+    if (!rawPath) return "";
+    var normalized = String(rawPath).replace(/[/\\]+$/, "");
+    var segments = normalized.split(/[/\\]+/);
+    return segments.length ? segments[segments.length - 1] || "" : normalized;
+  }
+
+  function getTaskNextRunPresentation(task) {
+    var nextRunDate = task && task.nextRun ? new Date(task.nextRun) : null;
+    var hasNextRun = nextRunDate && !isNaN(nextRunDate.getTime());
+    return {
+      millis: hasNextRun ? nextRunDate.getTime() : 0,
+      text: hasNextRun ? nextRunDate.toLocaleString(locale) : strings.labelNever,
+    };
+  }
+
+  function getTaskScopePresentation(task) {
+    var scopeValue = task && task.scope ? task.scope : "workspace";
+    var workspacePath = scopeValue === "workspace" ? task.workspacePath || "" : "";
+    var workspaceName = workspacePath ? getPathLeafName(workspacePath) : "";
+    var inCurrentWorkspace = scopeValue !== "workspace"
+      ? true
+      : !!workspacePath && (workspacePaths || []).some(function (candidatePath) {
+        return normalizeWorkspacePathValue(candidatePath) === normalizeWorkspacePathValue(workspacePath);
+      });
+    var scopeLabel = scopeValue === "global"
+      ? strings.labelScopeGlobal || ""
+      : strings.labelScopeWorkspace || "";
+    var scopeText = scopeValue === "global"
+      ? "🌐 " + escapeHtml(scopeLabel)
+      : "📁 " + escapeHtml(scopeLabel) + (workspaceName ? " • " + escapeHtml(workspaceName) : "");
+    if (scopeValue === "workspace") {
+      var workspaceBadgeText = inCurrentWorkspace
+        ? strings.labelThisWorkspaceShort || ""
+        : strings.labelOtherWorkspaceShort || "";
+      scopeText += " • " + escapeHtml(workspaceBadgeText);
+    }
+    return {
+      inThisWorkspace: inCurrentWorkspace,
+      scopeInfo: scopeText,
+      scopeValue: scopeValue,
+    };
+  }
+
+  function appendTaskActionIcon(markup, options) {
+    return (
+      markup +
+      '<button class="' + options.className + '" data-action="' + options.action + '" data-id="' +
+      options.taskId +
+      '" title="' +
+      escapeAttr(options.title) +
+      '">' +
+      options.icon +
+      "</button>"
+    );
+  }
+
+  function renderEmptyTaskState() {
+    return '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + "</div>";
+  }
+
+  function renderTaskSectionShell(sectionKey, title, countMarkup, bodyMarkup) {
+    var isCollapsed = taskSectionCollapseState[sectionKey] === true;
+    var toggleTitle = isCollapsed
+      ? (strings.boardSectionExpand || "Expand section")
+      : (strings.boardSectionCollapse || "Collapse section");
+    return (
+      '<div class="task-section' + (isCollapsed ? " is-collapsed" : "") + '" data-task-section="' + escapeAttr(sectionKey) + '">' +
+      '<div class="task-section-title">' +
+      '<button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? "false" : "true") + '" title="' + escapeAttr(toggleTitle) + '">&#9660;</button>' +
+      "<span>" +
+      escapeHtml(title) +
+      "</span>" +
+      countMarkup +
+      "</div>" +
+      '<div class="task-section-body"><div class="task-section-body-inner">' +
+      bodyMarkup +
+      "</div></div>" +
+      "</div>"
+    );
+  }
+
+  function getTaskActionHandlers() {
+    var actionEntries = [
+      ["toggle", window.toggleTask],
+      ["run", window.runTask],
+      ["edit", window.editTask],
+      ["copy", window.copyPrompt],
+      ["duplicate", window.duplicateTask],
+      ["move", window.moveTaskToCurrentWorkspace],
+      ["delete", window.deleteTask],
+    ];
+    return actionEntries.reduce(function (handlers, entry) {
+      handlers[entry[0]] = entry[1];
+      return handlers;
+    }, {});
+  }
+
+  function getTaskStatusPresentation(task) {
+    var enabled = task.enabled || false;
+    return {
+      enabled: enabled,
+      statusClass: enabled ? "enabled" : "disabled",
+      statusText: enabled ? strings.labelEnabled : strings.labelDisabled,
+      toggleIcon: enabled ? "⏸️" : "▶️",
+      toggleTitle: enabled ? strings.actionDisable : strings.actionEnable,
+    };
+  }
+
+  function renderTaskLabelBadges(task) {
+    return getEffectiveLabels(task)
+      .map(function (label) {
+        return '<span class="task-badge label">' + escapeHtml(label) + "</span>";
+      })
+      .join("");
+  }
+
+  function renderTaskErrorMarkup(lastErrorText, lastErrorAt) {
+    if (!lastErrorText) {
+      return "";
+    }
+    return (
+      '<div class="task-prompt" style="color: var(--vscode-errorForeground);">' +
+      "Last error" +
+      (lastErrorAt ? " (" + escapeHtml(lastErrorAt) + ")" : "") +
+      ": " +
+      escapeHtml(lastErrorText) +
+      "</div>"
+    );
+  }
+
+  function showSuccessToast(messageText) {
+    var toast = document.getElementById("success-toast");
+    if (!toast) {
+      return;
+    }
+    var prefix = strings.webviewSuccessPrefix || "\u2714 ";
+    toast.textContent = prefix + messageText;
+    updateToastVisibility(toast, "block", "1");
+    scheduleToastVisibility(toast, "0", 3000);
+    scheduleToastHide(toast, 3500);
+  }
+
+  function setSubmitIdleState() {
+    pendingSubmit = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+    }
+  }
+
+  function updateToastVisibility(toast, display, opacity) {
+    toast.style.display = display;
+    toast.style.opacity = opacity;
+  }
+
+  function scheduleToastVisibility(toast, opacity, delayMs) {
+    setTimeout(function () {
+      toast.style.opacity = opacity;
+    }, delayMs);
+  }
+
+  function scheduleToastHide(toast, delayMs) {
+    setTimeout(function () {
+      updateToastVisibility(toast, "none", "1");
+    }, delayMs);
+  }
+
+  function scrollSelectorIntoView(selector, focusWhenPresent) {
+    var element = selector ? document.querySelector(selector) : null;
+    if (!element) {
+      return;
+    }
+    if (typeof element.scrollIntoView === "function") {
+      element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    if (focusWhenPresent && typeof element.focus === "function") {
+      element.focus();
+    }
+  }
+
+  function getPromptTemplateSourceValue() {
+    var sourceElement = document.querySelector('input[name="prompt-source"]:checked');
+    return sourceElement ? sourceElement.value : "inline";
+  }
+
+  function getCheckedTaskEditorInputs() {
+    return {
+      promptSource: document.querySelector('input[name="prompt-source"]:checked'),
+      scope: document.querySelector('input[name="scope"]:checked'),
+    };
+  }
+
+  function renderOneTimeBadge(task, taskIdEscaped) {
+    if (task.oneTime !== true) {
+      return "";
+    }
+    return (
+      '<span class="task-badge clickable" data-action="toggle" data-id="' +
+      taskIdEscaped +
+      '">' +
+      escapeHtml(strings.labelOneTime || "One-time") +
+      "</span>"
+    );
+  }
+
+  function renderManualSessionBadge(task) {
+    if (task.oneTime === true || task.manualSession !== true) {
+      return "";
+    }
+    var label = strings.labelManualSession || "Manual session";
+    return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(label) + "</span>";
+  }
+
+  function renderChatSessionBadge(task) {
+    if (task.oneTime === true) {
+      return "";
+    }
+    var label = strings.labelChatSession || "Recurring chat session";
+    var badgeText = task.chatSession === "continue"
+      ? strings.labelChatSessionBadgeContinue || "Chat: Continue"
+      : strings.labelChatSessionBadgeNew || "Chat: New";
+    return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(badgeText) + "</span>";
+  }
+
+  function sortVisibleSectionsForRecurringTasks() {
+    if (filters.showRecurringTasks !== true) {
+      return;
+    }
+    visibleSections.sort(function (left, right) {
+      var leftRecurring = isRecurringTodoSectionId(left.id);
+      var rightRecurring = isRecurringTodoSectionId(right.id);
+      if (leftRecurring === rightRecurring) {
+        return 0;
+      }
+      return leftRecurring ? -1 : 1;
+    });
+  }
+
+  function buildTaskActionMarkup(taskIdEscaped, toggleTitle, toggleIcon, scopeValue, inThisWorkspace) {
+    var actionsHtml = buildBaseTaskActionsMarkup({
+      taskId: taskIdEscaped,
+      toggleTitle: toggleTitle,
+      toggleIcon: toggleIcon,
+      strings: strings,
+      escapeAttr: escapeAttr,
+    });
+    if (scopeValue === "workspace" && !inThisWorkspace) {
+      actionsHtml = appendTaskActionIcon(actionsHtml, {
+        className: "btn-secondary btn-icon",
+        action: "move",
+        taskId: taskIdEscaped,
+        title: strings.actionMoveToCurrentWorkspace || "",
+        icon: "📌",
+      });
+      sortVisibleSectionsForRecurringTasks();
+    }
+    if (scopeValue === "global" || inThisWorkspace) {
+      actionsHtml = appendTaskActionIcon(actionsHtml, {
+        className: "btn-danger btn-icon",
+        action: "delete",
+        taskId: taskIdEscaped,
+        title: strings.actionDelete,
+        icon: "🗑️",
+      });
+    }
+    return actionsHtml;
+  }
+
+  function setPromptTextValue(content) {
+    var promptTextEl = document.getElementById("prompt-text");
+    if (promptTextEl) {
+      promptTextEl.value = content;
+    }
+  }
+
+  function setTaskSubmitButtonText(editing) {
+    if (!submitBtn) {
+      return;
+    }
+    var label = editing ? strings.actionSave : strings.actionCreate;
+    if (label) {
+      submitBtn.textContent = label;
+    }
+  }
+
+  function setNewTaskButtonVisibility(isVisible) {
+    if (newTaskBtn) {
+      newTaskBtn.style.display = isVisible ? "inline-flex" : "none";
+    }
+  }
+
+  function normalizeIncomingTaskList(nextTasks) {
+    if (Array.isArray(nextTasks)) {
+      tasks = nextTasks.filter(Boolean);
+    }
+    return Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+  }
+
+  function updateConnectedTaskListElement() {
+    if (!taskList || !taskList.isConnected) {
+      taskList = document.getElementById("task-list");
+    }
+    return taskList;
+  }
+
+  function filterTaskItemsByActiveLabel(taskItems) {
+    if (!activeLabelFilter) {
+      return taskItems;
+    }
+    return taskItems.filter(function (task) {
+      return getEffectiveLabels(task).indexOf(activeLabelFilter) !== -1;
+    });
+  }
+
+  function getTaskPromptPreview(promptText) {
+    return promptText.length > 100
+      ? promptText.substring(0, 100) + "..."
+      : promptText;
+  }
+
+  function getTaskCardClassName(enabled, scopeValue, inThisWorkspace) {
+    var classNames = ["task-card"];
+    if (!enabled) {
+      classNames.push("disabled");
+    }
+    if (scopeValue === "workspace" && !inThisWorkspace) {
+      classNames.push("other-workspace");
+    }
+    return classNames.join(" ");
+  }
+
+  function renderTaskStatusMarkup(taskIdEscaped, statusClass, statusText) {
+    var statusParts = [
+      '<span class="task-status ',
+      statusClass,
+      '" data-action="toggle" data-id="',
+      taskIdEscaped,
+      '">',
+      escapeHtml(statusText),
+      "</span>",
+    ];
+    return statusParts.join("");
+  }
+
+  function renderTaskHeaderMarkup(options) {
+    return (
+      '<div class="task-header">' +
+      '<div class="task-header-main">' +
+      '<span class="task-name clickable" data-action="toggle" data-id="' +
+      options.taskId +
+      '">' +
+      options.taskName +
+      "</span>" +
+      options.manualSessionBadgeHtml +
+      options.chatSessionBadgeHtml +
+      options.oneTimeBadgeHtml +
+      "</div>" +
+      renderTaskStatusMarkup(
+        options.taskId,
+        options.statusClass,
+        options.statusText,
+      ) +
+      "</div>"
+    );
+  }
+
+  function renderTaskTimingMarkup(enabled, cronSummary, nextRunPresentation, scopeInfo) {
+    var countdownMarkup =
+      '<span class="task-next-run-countdown" data-enabled="' +
+      (enabled ? "true" : "false") +
+      '" data-next-run-ms="' +
+      escapeAttr(nextRunPresentation.millis > 0 ? String(nextRunPresentation.millis) : "") +
+      '"></span>';
+    var nextRunMarkup =
+      "<span>" +
+      escapeHtml(strings.labelNextRun) +
+      ': <span class="task-next-run-label">' +
+      escapeHtml(nextRunPresentation.text) +
+      "</span>" +
+      countdownMarkup +
+      "</span>";
+    return (
+      '<div class="task-info">' +
+      "<span>⏰ " +
+      escapeHtml(cronSummary) +
+      "</span>" +
+      nextRunMarkup +
+      renderTaskScopeMarkup(scopeInfo) +
+      "</div>"
+    );
+  }
+
+  function renderTaskScopeMarkup(scopeInfo) {
+    return "<span>" + scopeInfo + "</span>";
+  }
+
+  function renderTaskCardMarkup(options) {
+    return (
+      '<div class="' +
+      getTaskCardClassName(
+        options.enabled,
+        options.scopeValue,
+        options.inThisWorkspace,
+      ) +
+      '" data-id="' +
+      options.taskId +
+      '">' +
+      renderTaskHeaderMarkup(options) +
+      renderTaskTimingMarkup(
+        options.enabled,
+        options.cronSummary,
+        options.nextRunPresentation,
+        options.scopeInfo,
+      ) +
+      '<div class="task-info"><span>Cron: ' + options.cronText + '</span></div>' +
+      (options.labelBadgesHtml
+        ? '<div class="task-badges">' + options.labelBadgesHtml + "</div>"
+        : "") +
+      options.configRow +
+      '<div class="task-prompt">' +
+      escapeHtml(options.promptPreview) +
+      "</div>" +
+      renderTaskErrorMarkup(options.lastErrorText, options.lastErrorAt) +
+      '<div class="task-actions">' +
+      options.actionsHtml +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function switchToListView(successMessage) {
+    setSubmitIdleState();
+    hideGlobalError();
+    resetForm();
+    switchTab("list");
+    if (successMessage) {
+      showSuccessToast(successMessage);
+    }
+  }
+
+  function focusJobView(folderId, jobId) {
+    selectedJobFolderId = typeof folderId === "string" ? folderId : "";
+    isCreatingJob = true;
+    selectedJobId = "";
+    persistTaskFilter();
+    renderJobsTab();
+    switchTab("jobs");
+    setTimeout(function () {
+      scrollSelectorIntoView(
+        jobId ? '[data-job-id="' + jobId + '"]' : "",
+        false,
+      );
+    }, 50);
+  }
+
+  function focusResearchProfileView(researchId) {
+    switchTab("research");
+    if (researchId) {
+      selectResearchProfile(researchId);
+    } else {
+      isCreatingResearchProfile = true;
+      selectedResearchId = "";
+      resetResearchForm(null);
+      renderResearchTab();
+    }
+    setTimeout(function () {
+      scrollSelectorIntoView(
+        researchId ? '[data-research-id="' + researchId + '"]' : "#research-name",
+        !researchId,
+      );
+    }, 50);
+  }
+
+  function focusTaskView(taskId) {
+    switchTab("list");
+    setTimeout(function () {
+      scrollTaskCardIntoView(taskId);
+    }, 100);
+  }
+
+  function focusResearchRunView(runId) {
+    switchTab("research");
+    if (runId) {
+      selectResearchRun(runId);
+    }
+    setTimeout(function () {
+      scrollSelectorIntoView(runId ? '[data-run-id="' + runId + '"]' : "", false);
+    }, 50);
+  }
+
+  function syncPromptTemplateOptions(templates) {
+    promptTemplates = Array.isArray(templates) ? templates : [];
+    pendingTemplatePath = syncPromptTemplatesFromMessage({
+      promptTemplates: promptTemplates,
+      pendingTemplatePath: pendingTemplatePath,
+      templateSelect: templateSelect,
+      templateSelectGroup: templateSelectGroup,
+      currentSource: getPromptTemplateSourceValue(),
+      strings: strings,
+      escapeHtml: escapeHtml,
+      escapeAttr: escapeAttr,
+    });
+  }
+
+  function showWebviewClientError(error) {
+    var prefix = strings.webviewClientErrorPrefix || "";
+    var rawError = error && error.message ? error.message : error;
+    var singleLineError = String(rawError).split(/\r?\n/)[0];
+    showGlobalError(prefix + sanitizeAbsolutePaths(singleLineError));
+    setSubmitIdleState();
   }
 
   document.addEventListener("click", function (e) {
@@ -6271,121 +6259,46 @@ syncTodoLabelSuggestions();
       }
     }
 
-    var readyTodoOpenTarget = getClosestEventTarget(e, "[data-ready-todo-open]");
-    if (readyTodoOpenTarget) {
-      if (!taskList || !taskList.isConnected) {
+    if (handleTaskListClick({
+      event: e,
+      taskList: taskList,
+      getTaskList: function () {
         taskList = document.getElementById("task-list");
-      }
-      if (taskList && taskList.contains(readyTodoOpenTarget)) {
-        e.preventDefault();
-        var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
-        if (openTodoId) {
-          openTodoEditor(openTodoId);
-        }
-        return;
-      }
-    }
-
-    var actionTarget = resolveActionTarget(e.target);
-    if (!actionTarget) {
+        return taskList;
+      },
+      getClosestEventTarget: getClosestEventTarget,
+      resolveActionTarget: resolveActionTarget,
+      openTodoEditor: openTodoEditor,
+      actionHandlers: getTaskActionHandlers(),
+    })) {
       return;
-    }
-
-    if (!taskList || !taskList.isConnected) {
-      taskList = document.getElementById("task-list");
-    }
-    if (taskList && !taskList.contains(actionTarget)) {
-      return;
-    }
-
-    var action = actionTarget.getAttribute("data-action");
-    var taskId = actionTarget.getAttribute("data-id");
-    if (!action || !taskId) {
-      return;
-    }
-
-    var actionHandlers = {
-      toggle: window.toggleTask,
-      run: window.runTask,
-      edit: window.editTask,
-      copy: window.copyPrompt,
-      duplicate: window.duplicateTask,
-      move: window.moveTaskToCurrentWorkspace,
-      delete: window.deleteTask,
-    };
-
-    var handler = actionHandlers[action];
-    if (typeof handler === "function") {
-      e.preventDefault();
-      handler(taskId);
     }
   });
 
   // Render task list
   function renderTaskList(nextTasks) {
-    if (Array.isArray(nextTasks)) {
-      tasks = nextTasks.filter(Boolean);
-    }
-
-    if (!taskList || !taskList.isConnected) {
-      taskList = document.getElementById("task-list");
-    }
+    var taskItems = normalizeIncomingTaskList(nextTasks);
+    taskList = updateConnectedTaskListElement();
     if (!taskList) return;
 
-    var taskItems = Array.isArray(tasks) ? tasks.filter(Boolean) : [];
     taskItems = sortTasksByNextRun(taskItems);
-    if (activeLabelFilter) {
-      taskItems = taskItems.filter(function (task) {
-        return getEffectiveLabels(task).indexOf(activeLabelFilter) !== -1;
-      });
-    }
+    taskItems = filterTaskItemsByActiveLabel(taskItems);
     var renderedTasks = "";
-
-    function normalizePath(p) {
-      if (!p) return "";
-      var s = String(p).replace(/\\/g, "/");
-      // Preserve POSIX root path ("/") and avoid collapsing it to empty.
-      if (s === "/") return "/";
-      s = s.replace(/\/+$/, "");
-      if (s === "") return "/";
-      return caseInsensitivePaths ? s.toLowerCase() : s;
-    }
-
-    function basename(p) {
-      if (!p) return "";
-      var s = String(p).replace(/[/\\]+$/, "");
-      var parts = s.split(/[/\\]+/);
-      return parts.length ? parts[parts.length - 1] || "" : s;
-    }
 
     function renderTaskCard(task) {
       if (!task || !task.id) {
         return "";
       }
 
-      var enabled = task.enabled || false;
-      var statusClass = enabled ? "enabled" : "disabled";
-      var statusText = enabled
-        ? strings.labelEnabled
-        : strings.labelDisabled;
-      var toggleIcon = enabled ? "⏸️" : "▶️";
-      var toggleTitle = enabled
-        ? strings.actionDisable
-        : strings.actionEnable;
-      var nextRunDate = task.nextRun ? new Date(task.nextRun) : null;
-      var nextRunMs =
-        nextRunDate && !isNaN(nextRunDate.getTime())
-          ? nextRunDate.getTime()
-          : 0;
-      var nextRun =
-        nextRunDate && !isNaN(nextRunDate.getTime())
-          ? nextRunDate.toLocaleString(locale)
-          : strings.labelNever;
+      var statusState = getTaskStatusPresentation(task);
+      var enabled = statusState.enabled;
+      var statusClass = statusState.statusClass;
+      var statusText = statusState.statusText;
+      var toggleIcon = statusState.toggleIcon;
+      var toggleTitle = statusState.toggleTitle;
+      var nextRunPresentation = getTaskNextRunPresentation(task);
       var promptText = typeof task.prompt === "string" ? task.prompt : "";
-      var promptPreview =
-        promptText.length > 100
-          ? promptText.substring(0, 100) + "..."
-          : promptText;
+      var promptPreview = getTaskPromptPreview(promptText);
       var lastErrorText = typeof task.lastError === "string" ? task.lastError : "";
       var lastErrorAtDate = task.lastErrorAt ? new Date(task.lastErrorAt) : null;
       var lastErrorAt =
@@ -6396,300 +6309,85 @@ syncTodoLabelSuggestions();
       var cronSummary = getCronSummary(task.cronExpression || "");
       var taskName = escapeHtml(task.name || "");
 
-      var scopeValue = task.scope || "workspace";
-      var scopeLabel =
-        scopeValue === "global"
-          ? strings.labelScopeGlobal || ""
-          : strings.labelScopeWorkspace || "";
-      var wsPath =
-        scopeValue === "workspace" ? task.workspacePath || "" : "";
-      var wsName = wsPath ? basename(wsPath) : "";
-      var inThisWorkspace =
-        scopeValue === "global"
-          ? true
-          : !!wsPath &&
-          (workspacePaths || []).some(function (p) {
-            return normalizePath(p) === normalizePath(wsPath);
-          });
-      var otherWsLabel = strings.labelOtherWorkspaceShort || "";
-      var thisWsLabel = strings.labelThisWorkspaceShort || "";
-      var scopeInfo =
-        scopeValue === "global"
-          ? "🌐 " + escapeHtml(scopeLabel)
-          : "📁 " +
-          escapeHtml(scopeLabel) +
-          (wsName ? " • " + escapeHtml(wsName) : "");
-      if (scopeValue === "workspace") {
-        scopeInfo +=
-          " • " + escapeHtml(inThisWorkspace ? thisWsLabel : otherWsLabel);
-      }
-      var oneTimeBadgeHtml =
-        task.oneTime === true
-          ? '<span class="task-badge clickable" data-action="toggle" data-id="' +
-          escapeAttr(task.id || "") +
-          '">' +
-          escapeHtml(strings.labelOneTime || "One-time") +
-          "</span>"
-          : "";
-      var manualSessionBadgeHtml =
-        task.oneTime === true || task.manualSession !== true
-          ? ""
-          : '<span class="task-badge" title="' +
-            escapeAttr(strings.labelManualSession || "Manual session") +
-            '">' +
-            escapeHtml(strings.labelManualSession || "Manual session") +
-            "</span>";
-      var chatSessionBadgeHtml =
-        task.oneTime === true
-          ? ""
-          : '<span class="task-badge" title="' +
-            escapeAttr(strings.labelChatSession || "Recurring chat session") +
-            '">' +
-            escapeHtml(
-              task.chatSession === "continue"
-                ? strings.labelChatSessionBadgeContinue || "Chat: Continue"
-                : strings.labelChatSessionBadgeNew || "Chat: New",
-            ) +
-            "</span>";
-      var labelBadgesHtml = getEffectiveLabels(task)
-        .map(function (label) {
-          return (
-            '<span class="task-badge label">' +
-            escapeHtml(label) +
-            "</span>"
-          );
-        })
-        .join("");
-
-      // Escape for HTML attributes to avoid broken inline handlers
+      var scopeState = getTaskScopePresentation(task);
+      var scopeValue = scopeState.scopeValue;
+      var inThisWorkspace = scopeState.inThisWorkspace;
+      var scopeInfo = scopeState.scopeInfo;
       var taskIdEscaped = escapeAttr(task.id || "");
+      var oneTimeBadgeHtml = renderOneTimeBadge(task, taskIdEscaped);
+      var manualSessionBadgeHtml = renderManualSessionBadge(task);
+      var chatSessionBadgeHtml = renderChatSessionBadge(task);
+      var labelBadgesHtml = renderTaskLabelBadges(task);
+      var configRow = buildTaskConfigRowMarkup({
+        task: task,
+        taskId: taskIdEscaped,
+        agents: agents,
+        models: models,
+        executionDefaults: executionDefaults,
+        strings: strings,
+        escapeAttr: escapeAttr,
+        escapeHtml: escapeHtml,
+        formatModelLabel: formatModelLabel,
+      });
 
-      // --- Model & Agent Selection Logic ---
-      function createSelect(items, selectedId, cls, placeholder, fallbackSelectedId) {
-        var effectiveSelectedId = selectedId || fallbackSelectedId || "";
-        var preservedSelectedId = selectedId || "";
-        var hasSelectedOption = !preservedSelectedId;
-        var options = '<option value="">' + escapeHtml(placeholder) + '</option>';
-        if (Array.isArray(items)) {
-          items.forEach(function (item) {
-            var id = item.id || item.slug;
-            if (!id) {
-              return;
-            }
-            var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : (item.name || id);
-            if (id === preservedSelectedId) {
-              hasSelectedOption = true;
-            }
-            var sel = (id === effectiveSelectedId) ? ' selected' : '';
-            options += '<option value="' + escapeAttr(id) + '"' + sel + '>' + escapeHtml(label) + '</option>';
-          });
-        }
-        if (preservedSelectedId && !hasSelectedOption) {
-          options += '<option value="' + escapeAttr(preservedSelectedId) + '" selected>' + escapeHtml(preservedSelectedId) + '</option>';
-        }
-        return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + '</select>';
-      }
-
-      var agentSelect = createSelect(
-        agents,
-        task.agent,
-        "task-agent-select",
-        strings.placeholderSelectAgent || "Agent",
-        executionDefaults && executionDefaults.agent
-      );
-      var modelSelect = createSelect(
-        models,
-        task.model,
-        "task-model-select",
-        strings.placeholderSelectModel || "Model",
-        executionDefaults && executionDefaults.model
+      var actionsHtml = buildTaskActionMarkup(
+        taskIdEscaped,
+        toggleTitle,
+        toggleIcon,
+        scopeValue,
+        inThisWorkspace,
       );
 
-      var configRow = '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' +
-        agentSelect + modelSelect +
-        '</div>';
-      // -------------------------------------
-
-      var actionsHtml =
-        '<button class="btn-secondary btn-icon" data-action="toggle" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(toggleTitle) +
-        '">' +
-        toggleIcon +
-        "</button>" +
-        '<button class="btn-secondary btn-icon" data-action="run" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionRun) +
-        '">🚀</button>' +
-        '<button class="btn-secondary btn-icon" data-action="edit" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionEdit) +
-        '">✏️</button>' +
-        '<button class="btn-secondary btn-icon" data-action="copy" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionCopyPrompt) +
-        '">📋</button>' +
-        '<button class="btn-secondary btn-icon" data-action="duplicate" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionDuplicate) +
-        '">📄</button>';
-
-      if (scopeValue === "workspace" && !inThisWorkspace) {
-        actionsHtml +=
-          '<button class="btn-secondary btn-icon" data-action="move" data-id="' +
-          taskIdEscaped +
-          '" title="' +
-          escapeAttr(strings.actionMoveToCurrentWorkspace || "") +
-          '">📌</button>';
-          if (filters.showRecurringTasks === true) {
-            visibleSections.sort(function (left, right) {
-              var leftRecurring = isRecurringTodoSectionId(left.id);
-              var rightRecurring = isRecurringTodoSectionId(right.id);
-              if (leftRecurring === rightRecurring) {
-                return 0;
-              }
-              return leftRecurring ? -1 : 1;
-            });
-          }
-      }
-
-      if (scopeValue === "global" || inThisWorkspace) {
-        actionsHtml +=
-          '<button class="btn-danger btn-icon" data-action="delete" data-id="' +
-          taskIdEscaped +
-          '" title="' +
-          escapeAttr(strings.actionDelete) +
-          '">🗑️</button>';
-      }
-
-      return (
-        '<div class="task-card ' +
-        (enabled ? "" : "disabled") +
-        (scopeValue === "workspace" && !inThisWorkspace
-          ? " other-workspace"
-          : "") +
-        '" data-id="' +
-        taskIdEscaped +
-        '">' +
-        '<div class="task-header">' +
-        '<div class="task-header-main">' +
-        '<span class="task-name clickable" data-action="toggle" data-id="' +
-        taskIdEscaped +
-        '">' +
-        taskName +
-        "</span>" +
-        manualSessionBadgeHtml +
-        chatSessionBadgeHtml +
-        oneTimeBadgeHtml +
-        "</div>" +
-        '<span class="task-status ' +
-        statusClass +
-        '" data-action="toggle" data-id="' +
-        taskIdEscaped +
-        '">' +
-        escapeHtml(statusText) +
-        "</span>" +
-        "</div>" +
-        '<div class="task-info">' +
-        "<span>⏰ " +
-        escapeHtml(cronSummary) +
-        "</span>" +
-        "<span>" +
-        escapeHtml(strings.labelNextRun) +
-        ': <span class="task-next-run-label">' +
-        escapeHtml(nextRun) +
-        '</span><span class="task-next-run-countdown" data-enabled="' +
-        (enabled ? "true" : "false") +
-        '" data-next-run-ms="' +
-        escapeAttr(nextRunMs > 0 ? String(nextRunMs) : "") +
-        '"></span>' +
-        "</span>" +
-        "<span>" +
-        scopeInfo +
-        "</span>" +
-        "</div>" +
-        '<div class="task-info"><span>Cron: ' + cronText + '</span></div>' +
-        (labelBadgesHtml
-          ? '<div class="task-badges">' + labelBadgesHtml + "</div>"
-          : "") +
-        configRow +
-        '<div class="task-prompt">' +
-        escapeHtml(promptPreview) +
-        "</div>" +
-        (lastErrorText
-          ? '<div class="task-prompt" style="color: var(--vscode-errorForeground);">' +
-          "Last error" +
-          (lastErrorAt ? " (" + escapeHtml(lastErrorAt) + ")" : "") +
-          ": " +
-          escapeHtml(lastErrorText) +
-          "</div>"
-          : "") +
-        '<div class="task-actions">' +
-        actionsHtml +
-        "</div>" +
-        "</div>"
-      );
+      return renderTaskCardMarkup({
+        actionsHtml: actionsHtml,
+        chatSessionBadgeHtml: chatSessionBadgeHtml,
+        configRow: configRow,
+        cronSummary: cronSummary,
+        cronText: cronText,
+        enabled: enabled,
+        inThisWorkspace: inThisWorkspace,
+        labelBadgesHtml: labelBadgesHtml,
+        lastErrorAt: lastErrorAt,
+        lastErrorText: lastErrorText,
+        manualSessionBadgeHtml: manualSessionBadgeHtml,
+        nextRunPresentation: nextRunPresentation,
+        oneTimeBadgeHtml: oneTimeBadgeHtml,
+        promptPreview: promptPreview,
+        scopeInfo: scopeInfo,
+        scopeValue: scopeValue,
+        statusClass: statusClass,
+        statusText: statusText,
+        taskId: taskIdEscaped,
+        taskName: taskName,
+      });
     }
 
     function renderTaskSection(sectionKey, title, items) {
       var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
       if (!listHtml) {
-        listHtml =
-          '<div class="empty-state">' +
-          escapeHtml(strings.noTasksFound) +
-          "</div>";
+        listHtml = renderEmptyTaskState();
       }
-      var isCollapsed = taskSectionCollapseState[sectionKey] === true;
-      return (
-        '<div class="task-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-task-section="' + escapeAttr(sectionKey) + '">' +
-        '<div class="task-section-title">' +
-        '<button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || 'Expand section') : (strings.boardSectionCollapse || 'Collapse section')) + '">&#9660;</button>' +
-        '<span>' +
-        escapeHtml(title) +
-        "</span>" +
-        "<span>" +
-        String(items.length) +
-        "</span>" +
-        "</div>" +
-        '<div class="task-section-body"><div class="task-section-body-inner">' +
-        listHtml +
-        '</div></div>' +
-        "</div>"
+      return renderTaskSectionShell(
+        sectionKey,
+        title,
+        "<span>" + String(items.length) + "</span>",
+        listHtml,
       );
     }
 
     function renderTaskSectionContent(sectionKey, title, contentHtml, itemCount) {
-      var isCollapsed = taskSectionCollapseState[sectionKey] === true;
-      return (
-        '<div class="task-section' + (isCollapsed ? ' is-collapsed' : '') + '" data-task-section="' + escapeAttr(sectionKey) + '">' +
-        '<div class="task-section-title">' +
-        '<button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? 'false' : 'true') + '" title="' + escapeAttr(isCollapsed ? (strings.boardSectionExpand || 'Expand section') : (strings.boardSectionCollapse || 'Collapse section')) + '">&#9660;</button>' +
-        '<span>' +
-        escapeHtml(title) +
-        "</span>" +
-        '<span class="task-section-count">' +
-        String(itemCount) +
-        "</span>" +
-        "</div>" +
-        '<div class="task-section-body"><div class="task-section-body-inner">' +
-        contentHtml +
-        '</div></div>' +
-        "</div>"
+      return renderTaskSectionShell(
+        sectionKey,
+        title,
+        '<span class="task-section-count">' + String(itemCount) + "</span>",
+        contentHtml,
       );
     }
 
     function renderTaskSubsection(title, items) {
       var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
       if (!listHtml) {
-        listHtml =
-          '<div class="empty-state">' +
-          escapeHtml(strings.noTasksFound) +
-          "</div>";
+        listHtml = renderEmptyTaskState();
       }
       return (
         '<div class="task-subsection">' +
@@ -6900,10 +6598,15 @@ syncTodoLabelSuggestions();
         '<div class="task-sections-column task-sections-column-secondary">' + rightColumnHtml + '</div>'
       : leftColumnHtml + rightColumnHtml;
 
-    renderedTasks =
-      '<div class="' + containerClass + '"' + containerStyle + ">" +
-      sectionHtml +
-      "</div>";
+    renderedTasks = [
+      '<div class="',
+      containerClass,
+      '"',
+      containerStyle,
+      ">",
+      sectionHtml,
+      "</div>",
+    ].join("");
 
     if (renderedTasks === lastRenderedTasksHtml) {
       return;
@@ -6986,21 +6689,26 @@ syncTodoLabelSuggestions();
   }
 
   // Helper functions
+  var htmlEscapeNode = document.createElement("div");
+
   function escapeHtml(text) {
     if (text == null) return "";
-    var div = document.createElement("div");
-    div.textContent = String(text);
-    return div.innerHTML;
+    htmlEscapeNode.textContent = String(text);
+    return htmlEscapeNode.innerHTML;
   }
 
   function escapeAttr(text) {
-    if (typeof text !== "string") text = String(text || "");
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    var normalized = typeof text === "string" ? text : String(text || "");
+    var replacements = [
+      [/&/g, "&amp;"],
+      [/"/g, "&quot;"],
+      [/'/g, "&#39;"],
+      [/</g, "&lt;"],
+      [/>/g, "&gt;"],
+    ];
+    return replacements.reduce(function (value, replacement) {
+      return value.replace(replacement[0], replacement[1]);
+    }, normalized);
   }
 
   function isInlineTaskSelectActive() {
@@ -7009,558 +6717,414 @@ syncTodoLabelSuggestions();
     return active.classList.contains("task-agent-select") || active.classList.contains("task-model-select");
   }
 
-  var dayNames = [
-    strings.daySun || "",
-    strings.dayMon || "",
-    strings.dayTue || "",
-    strings.dayWed || "",
-    strings.dayThu || "",
-    strings.dayFri || "",
-    strings.daySat || "",
-  ];
-
-  function padNumber(value) {
-    var num = parseInt(String(value), 10);
-    if (isNaN(num)) num = 0;
-    return num < 10 ? "0" + num : String(num);
-  }
-
-  function boundedNumber(value, min, max, fallback) {
-    var num = parseInt(String(value), 10);
-    if (isNaN(num)) {
-      num = fallback;
-    }
-    num = Math.max(min, Math.min(max, num));
-    return num;
-  }
-
-  function normalizeDow(value) {
-    var normalized = String(value || "")
-      .trim()
-      .toLowerCase();
-    if (/^\d+$/.test(normalized)) {
-      var asNumber = parseInt(normalized, 10);
-      if (asNumber === 7) asNumber = 0;
-      if (asNumber >= 0 && asNumber <= 6) return asNumber;
-    }
-
-    var map = {
-      sun: 0,
-      mon: 1,
-      tue: 2,
-      wed: 3,
-      thu: 4,
-      fri: 5,
-      sat: 6,
-    };
-
-    if (map.hasOwnProperty(normalized)) {
-      return map[normalized];
-    }
-
-    return null;
-  }
-
-  function formatTime(hour, minute) {
-    return padNumber(hour) + ":" + padNumber(minute);
-  }
-
   function getCronSummary(expression) {
-    var fallback = strings.labelFriendlyFallback || "";
-    var expr = (expression || "").trim();
-    if (!expr) return fallback;
+    return summarizeCronExpression(expression, strings);
+  }
 
-    var parts = expr.split(/\s+/);
-    if (parts.length !== 5) {
-      return fallback;
-    }
-
-    var minute = parts[0];
-    var hour = parts[1];
-    var dom = parts[2];
-    var mon = parts[3];
-    var dow = parts[4];
-
-    var isNumber = function (value) {
-      return /^\d+$/.test(String(value));
-    };
-    var dowLower = String(dow || "").toLowerCase();
-    var isWeekdays = dowLower === "1-5" || dowLower === "mon-fri";
-    var everyN = /^\*\/(\d+)$/.exec(minute);
-
-    if (everyN && hour === "*" && dom === "*" && mon === "*" && dow === "*") {
-      var tplEveryN = strings.cronPreviewEveryNMinutes || "";
-      return tplEveryN ? tplEveryN.replace("{n}", String(everyN[1])) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      hour === "*" &&
-      dom === "*" &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplHourly = strings.cronPreviewHourlyAtMinute || "";
-      return tplHourly ? tplHourly.replace("{m}", String(minute)) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplDaily = strings.cronPreviewDailyAt || "";
-      var t = formatTime(hour, minute);
-      return tplDaily ? tplDaily.replace("{t}", String(t)) : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      isWeekdays
-    ) {
-      var tplWeekdays = strings.cronPreviewWeekdaysAt || "";
-      var t = formatTime(hour, minute);
-      return tplWeekdays ? tplWeekdays.replace("{t}", String(t)) : fallback;
-    }
-
-    var dowValue = normalizeDow(dow);
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      dom === "*" &&
-      mon === "*" &&
-      dowValue !== null
-    ) {
-      var dayLabel = dayNames[dowValue] || String(dowValue);
-      var tplWeekly = strings.cronPreviewWeeklyOnAt || "";
-      var t = formatTime(hour, minute);
-      return tplWeekly
-        ? tplWeekly.replace("{d}", String(dayLabel)).replace("{t}", String(t))
-        : fallback;
-    }
-
-    if (
-      isNumber(minute) &&
-      isNumber(hour) &&
-      isNumber(dom) &&
-      mon === "*" &&
-      dow === "*"
-    ) {
-      var tplMonthly = strings.cronPreviewMonthlyOnAt || "";
-      var t = formatTime(hour, minute);
-      return tplMonthly
-        ? tplMonthly.replace("{dom}", String(dom)).replace("{t}", String(t))
-        : fallback;
-    }
-
-    return fallback;
+  function setCronPreviewText(previewElement, expressionValue) {
+    if (!previewElement) return;
+    previewElement.textContent = getCronSummary(expressionValue || "");
   }
 
   function updateCronPreview() {
-    if (!cronPreviewText || !cronExpression) return;
-    cronPreviewText.textContent = getCronSummary(cronExpression.value || "");
+    if (!cronExpression) return;
+    setCronPreviewText(cronPreviewText, cronExpression.value);
   }
 
   function updateJobsCronPreview() {
-    if (!jobsCronPreviewText || !jobsCronInput) return;
-    jobsCronPreviewText.textContent = getCronSummary(jobsCronInput.value || "");
+    if (!jobsCronInput) return;
+    setCronPreviewText(jobsCronPreviewText, jobsCronInput.value);
     updateJobsCadenceMetric();
   }
 
   function updateFriendlyVisibility() {
-    var selection = friendlyFrequency ? friendlyFrequency.value : "";
-    var fields = [];
-    switch (selection) {
-      case "every-n":
-        fields = ["interval"];
-        break;
-      case "hourly":
-        fields = ["minute"];
-        break;
-      case "daily":
-        fields = ["hour", "minute"];
-        break;
-      case "weekly":
-        fields = ["dow", "hour", "minute"];
-        break;
-      case "monthly":
-        fields = ["dom", "hour", "minute"];
-        break;
-      default:
-        fields = [];
-    }
-
-    var friendlyFields = friendlyBuilder
-      ? friendlyBuilder.querySelectorAll(".friendly-field")
-      : [];
-    for (var i = 0; i < friendlyFields.length; i++) {
-      var el = friendlyFields[i];
-      if (!el || !el.getAttribute) continue;
-      var fieldName = el.getAttribute("data-field");
-      if (fields.indexOf(fieldName) !== -1) {
-        if (el.classList) el.classList.add("visible");
-        if (el.style) el.style.display = "block";
-      } else {
-        if (el.classList) el.classList.remove("visible");
-        if (el.style) el.style.display = "none";
-      }
-    }
+    syncFriendlyFieldVisibility(
+      friendlyBuilder,
+      friendlyFrequency ? friendlyFrequency.value : "",
+    );
   }
 
   function updateJobsFriendlyVisibility() {
-    var selection = jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "";
-    var fields = [];
-    switch (selection) {
-      case "every-n":
-        fields = ["interval"];
-        break;
-      case "hourly":
-        fields = ["minute"];
-        break;
-      case "daily":
-        fields = ["hour", "minute"];
-        break;
-      case "weekly":
-        fields = ["dow", "hour", "minute"];
-        break;
-      case "monthly":
-        fields = ["dom", "hour", "minute"];
-        break;
-      default:
-        fields = [];
-    }
-
-    var friendlyFields = jobsFriendlyBuilder
-      ? jobsFriendlyBuilder.querySelectorAll(".friendly-field")
-      : [];
-    for (var i = 0; i < friendlyFields.length; i++) {
-      var el = friendlyFields[i];
-      if (!el || !el.getAttribute) continue;
-      var fieldName = el.getAttribute("data-field");
-      if (fields.indexOf(fieldName) !== -1) {
-        if (el.classList) el.classList.add("visible");
-        if (el.style) el.style.display = "block";
-      } else {
-        if (el.classList) el.classList.remove("visible");
-        if (el.style) el.style.display = "none";
-      }
-    }
+    syncFriendlyFieldVisibility(
+      jobsFriendlyBuilder,
+      jobsFriendlyFrequency ? jobsFriendlyFrequency.value : "",
+    );
   }
 
   function generateCronFromFriendly() {
     if (!friendlyFrequency || !cronExpression) return;
-    var selection = friendlyFrequency.value;
-    var expr = "";
-
-    switch (selection) {
-      case "every-n": {
-        var interval = boundedNumber(
-          friendlyInterval ? friendlyInterval.value : "",
-          1,
-          59,
-          5,
-        );
-        expr = "*/" + interval + " * * * *";
-        break;
-      }
-      case "hourly": {
-        var minuteValue = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        expr = minuteValue + " * * * *";
-        break;
-      }
-      case "daily": {
-        var dailyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var dailyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        expr = dailyMinute + " " + dailyHour + " * * *";
-        break;
-      }
-      case "weekly": {
-        var weeklyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var weeklyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var dowValue = boundedNumber(
-          friendlyDow ? friendlyDow.value : "",
-          0,
-          6,
-          1,
-        );
-        expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
-        break;
-      }
-      case "monthly": {
-        var monthlyMinute = boundedNumber(
-          friendlyMinute ? friendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var monthlyHour = boundedNumber(
-          friendlyHour ? friendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var domValue = boundedNumber(
-          friendlyDom ? friendlyDom.value : "",
-          1,
-          31,
-          1,
-        );
-        expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
-        break;
-      }
-      default:
-        expr = "";
-    }
-
-    if (expr) {
-      cronExpression.value = expr;
-      if (cronPreset) cronPreset.value = "";
-      updateCronPreview();
-    }
+    applyFriendlyCronResult({
+      frequency: friendlyFrequency.value,
+      interval: friendlyInterval ? friendlyInterval.value : "",
+      minute: friendlyMinute ? friendlyMinute.value : "",
+      hour: friendlyHour ? friendlyHour.value : "",
+      dow: friendlyDow ? friendlyDow.value : "",
+      dom: friendlyDom ? friendlyDom.value : "",
+      cronInput: cronExpression,
+      cronPresetInput: cronPreset,
+      onUpdate: updateCronPreview,
+    });
   }
 
   function generateJobsCronFromFriendly() {
     if (!jobsFriendlyFrequency || !jobsCronInput) return;
-    var selection = jobsFriendlyFrequency.value;
-    var expr = "";
-
-    switch (selection) {
-      case "every-n": {
-        var interval = boundedNumber(
-          jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
-          1,
-          59,
-          5,
-        );
-        expr = "*/" + interval + " * * * *";
-        break;
-      }
-      case "hourly": {
-        var minuteValue = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        expr = minuteValue + " * * * *";
-        break;
-      }
-      case "daily": {
-        var dailyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var dailyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        expr = dailyMinute + " " + dailyHour + " * * *";
-        break;
-      }
-      case "weekly": {
-        var weeklyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var weeklyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var dowValue = boundedNumber(
-          jobsFriendlyDow ? jobsFriendlyDow.value : "",
-          0,
-          6,
-          1,
-        );
-        expr = weeklyMinute + " " + weeklyHour + " * * " + dowValue;
-        break;
-      }
-      case "monthly": {
-        var monthlyMinute = boundedNumber(
-          jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
-          0,
-          59,
-          0,
-        );
-        var monthlyHour = boundedNumber(
-          jobsFriendlyHour ? jobsFriendlyHour.value : "",
-          0,
-          23,
-          9,
-        );
-        var domValue = boundedNumber(
-          jobsFriendlyDom ? jobsFriendlyDom.value : "",
-          1,
-          31,
-          1,
-        );
-        expr = monthlyMinute + " " + monthlyHour + " " + domValue + " * *";
-        break;
-      }
-      default:
-        expr = "";
-    }
-
-    if (expr) {
-      jobsCronInput.value = expr;
-      if (jobsCronPreset) jobsCronPreset.value = "";
-      updateJobsCronPreview();
-    }
+    applyFriendlyCronResult({
+      frequency: jobsFriendlyFrequency.value,
+      interval: jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
+      minute: jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+      hour: jobsFriendlyHour ? jobsFriendlyHour.value : "",
+      dow: jobsFriendlyDow ? jobsFriendlyDow.value : "",
+      dom: jobsFriendlyDom ? jobsFriendlyDom.value : "",
+      cronInput: jobsCronInput,
+      cronPresetInput: jobsCronPreset,
+      onUpdate: updateJobsCronPreview,
+    });
   }
 
-  function resetForm() {
-    if (taskForm) taskForm.reset();
-    setEditingMode(null);
-    pendingAgentValue = "";
-    pendingModelValue = "";
-    pendingTemplatePath = "";
+  function applyFriendlyCronResult(options) {
+    var expr = buildFriendlyCronExpression(options.frequency, {
+      interval: options.interval,
+      minute: options.minute,
+      hour: options.hour,
+      dow: options.dow,
+      dom: options.dom,
+    });
+    if (!expr) {
+      return;
+    }
+    options.cronInput.value = expr;
+    if (options.cronPresetInput) {
+      options.cronPresetInput.value = "";
+    }
+    options.onUpdate();
+  }
+
+  function resetTaskFormSessionState() {
+    [pendingAgentValue, pendingModelValue, pendingTemplatePath] = ["", "", ""];
     editingTaskEnabled = true;
-    applyPromptSource("inline");
-    if (friendlyFrequency) friendlyFrequency.value = "";
-    if (jitterSecondsInput)
-      jitterSecondsInput.value = String(defaultJitterSeconds);
-    if (taskLabelsInput) taskLabelsInput.value = "";
+  }
+
+  function resetTaskFormToggles() {
     var runFirstEl = document.getElementById("run-first");
     if (runFirstEl) runFirstEl.checked = false;
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = false;
     var manualSessionEl = document.getElementById("manual-session");
     if (manualSessionEl) manualSessionEl.checked = false;
+  }
+
+  function focusTaskNameField() {
+    focusElementById("task-name");
+  }
+
+  function refreshTaskEditorDerivedState() {
+    [syncRecurringChatSessionUi, updateFriendlyVisibility, updateCronPreview].forEach(function (refreshFn) {
+      refreshFn();
+    });
+  }
+
+  function resetForm() {
+    if (taskForm) taskForm.reset();
+    resetTaskFormBaseState();
+    resetTaskFormToggles();
     if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
     if (agentSelect) agentSelect.value = executionDefaults.agent || "";
     if (modelSelect) modelSelect.value = executionDefaults.model || "";
-    syncRecurringChatSessionUi();
-    updateFriendlyVisibility();
-    updateCronPreview();
+    refreshTaskEditorDerivedState();
+  }
+
+  function getTaskExecutionOptionContext() {
+    return {
+      executionDefaults: executionDefaults,
+      escapeAttr: escapeAttr,
+      escapeHtml: escapeHtml,
+      strings: strings,
+    };
   }
 
   function updateAgentOptions() {
-    updateTaskAgentOptions({
+    updateTaskAgentOptions(Object.assign({
       agentSelect: agentSelect,
       agents: agents,
-      escapeAttr: escapeAttr,
-      escapeHtml: escapeHtml,
-      executionDefaults: executionDefaults,
-      strings: strings,
-    });
+    }, getTaskExecutionOptionContext()));
   }
 
   function updateModelOptions() {
-    updateTaskModelOptions({
-      escapeAttr: escapeAttr,
-      escapeHtml: escapeHtml,
-      executionDefaults: executionDefaults,
+    updateTaskModelOptions(Object.assign({
       formatModelLabel: formatModelLabel,
       modelSelect: modelSelect,
       models: models,
-      strings: strings,
+    }, getTaskExecutionOptionContext()));
+  }
+
+  function getTaskArrayForEditing() {
+    return Array.isArray(tasks) ? tasks : [];
+  }
+
+  function findTaskById(taskId) {
+    return getTaskArrayForEditing().find(function (task) {
+      return task && task.id === taskId;
     });
+  }
+
+  function restoreTaskSelectValue(selectElement, pendingValue) {
+    if (!selectElement) {
+      return pendingValue;
+    }
+    if (pendingValue && !selectHasOptionValue(selectElement, pendingValue)) {
+      selectElement.value = "";
+      return pendingValue;
+    }
+    return restorePendingSelectValue(selectElement, pendingValue);
+  }
+
+  function getExecutionSelectCurrentValue(selectElement, pendingValue) {
+    return pendingValue || (selectElement ? selectElement.value : "");
+  }
+
+  function refreshExecutionSelectTargets(options) {
+    var currentValue = getExecutionSelectCurrentValue(
+      options.selectElement,
+      options.pendingValue,
+    );
+    return refreshExecutionTargets({
+      eventName: options.eventName,
+      debugData: options.createDebugData(currentValue),
+      assignItems: options.assignItems,
+      updateOptions: options.updateOptions,
+      selectElement: options.selectElement,
+      currentValue: currentValue,
+      pendingValue: options.pendingValue,
+    });
+  }
+
+  function initializeTaskEditorState() {
+    updateAgentOptions();
+    updateModelOptions();
+    var selectedPromptSource = document.querySelector('input[name="prompt-source"]:checked');
+    if (selectedPromptSource) {
+      applyPromptSource(selectedPromptSource.value);
+    }
+    if (chatSessionSelect && !chatSessionSelect.value) {
+      chatSessionSelect.value = defaultChatSession;
+    }
+    syncRecurringChatSessionUi();
+    updateFriendlyVisibility();
+    updateCronPreview();
+    updateSkillOptions();
+    syncTaskLabelFilterOptions();
+    syncJobsStepSelectors();
+    syncJobsFolderSelect("");
+    syncJobsExistingTaskSelect();
+    renderJobsTab();
+    syncEditorTabLabels();
+  }
+
+  function openCreateTaskTab() {
+    resetForm();
+    switchTab("create");
+    focusTaskNameField();
+  }
+
+  function startCreateTaskFlow() {
+    hideGlobalError();
+    setSubmitIdleState();
+    openCreateTaskTab();
+    setTimeout(function () {
+      focusTaskNameField();
+    }, 0);
+  }
+
+  function clearTaskFormError() {
+    var formErr = document.getElementById("form-error");
+    if (formErr) formErr.style.display = "none";
+    return formErr;
+  }
+
+  function startPendingTaskSubmit() {
+    pendingSubmit = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+    }
+  }
+
+  function setRadioValue(groupName, selectedValue) {
+    var radio = document.querySelector(
+      'input[name="' + groupName + '"][value="' + selectedValue + '"]',
+    );
+    if (radio) {
+      radio.checked = true;
+    }
+  }
+
+  function getTaskChatSessionValue(task) {
+    if (task.chatSession === "continue") {
+      return "continue";
+    }
+    if (task.chatSession === "new") {
+      return "new";
+    }
+    return defaultChatSession;
+  }
+
+  function syncGlobalErrorMessage(text) {
+    if (!text) {
+      return;
+    }
+    showGlobalError(text);
+    setSubmitIdleState();
+  }
+
+  function editTaskFromHost(taskId) {
+    if (taskId && typeof window.editTask === "function") {
+      window.editTask(taskId);
+    }
+  }
+
+  function focusElementById(elementId) {
+    var element = document.getElementById(elementId);
+    if (element && typeof element.focus === "function") {
+      element.focus();
+    }
+  }
+
+  function resetTaskFormFieldValues() {
+    applyPromptSource("inline");
+    if (friendlyFrequency) friendlyFrequency.value = "";
+    if (jitterSecondsInput) {
+      jitterSecondsInput.value = String(defaultJitterSeconds);
+    }
+    if (taskLabelsInput) {
+      taskLabelsInput.value = "";
+    }
+  }
+
+  function resetTaskFormBaseState() {
+    setEditingMode(null);
+    resetTaskFormSessionState();
+    resetTaskFormFieldValues();
+  }
+
+  function getHostMessage(event) {
+    return event.data;
+  }
+
+  function populateTaskEditor(task, taskId) {
+    var nameInput = document.getElementById("task-name");
+    var promptInput = document.getElementById("prompt-text");
+    var promptSourceValue = task.promptSource || "inline";
+
+    setEditingMode(taskId);
+    if (nameInput) nameInput.value = task.name || "";
+    if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
+    if (promptInput) {
+      promptInput.value = typeof task.prompt === "string" ? task.prompt : "";
+    }
+    if (cronExpression) {
+      cronExpression.value = task.cronExpression || "";
+    }
+    if (cronPreset) {
+      cronPreset.value = "";
+    }
+    updateCronPreview();
+
+    pendingAgentValue = restoreTaskSelectValue(agentSelect, task.agent || "");
+    pendingModelValue = restoreTaskSelectValue(modelSelect, task.model || "");
+    editingTaskEnabled = task.enabled !== false;
+    setRadioValue("scope", task.scope || "workspace");
+    setRadioValue("prompt-source", promptSourceValue);
+
+    applyPromptSource(promptSourceValue, true);
+    pendingTemplatePath = task.promptPath || "";
+    if (templateSelect) {
+      pendingTemplatePath = restoreTaskSelectValue(templateSelect, pendingTemplatePath);
+    }
+    if (jitterSecondsInput) {
+      jitterSecondsInput.value = String(task.jitterSeconds ?? defaultJitterSeconds);
+    }
+
+    var runFirstEl = document.getElementById("run-first");
+    if (runFirstEl) runFirstEl.checked = false;
+
+    var oneTimeEl = document.getElementById("one-time");
+    if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+    var manualSessionEl = document.getElementById("manual-session");
+    if (manualSessionEl) {
+      manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
+    }
+    if (chatSessionSelect) {
+      chatSessionSelect.value = getTaskChatSessionValue(task);
+    }
+    refreshTaskEditorDerivedState();
+    switchTab("create");
+  }
+
+  function postTaskMessage(type, taskId) {
+    vscode.postMessage({ type: type, taskId: taskId });
+  }
+
+  function restoreUpdatedTaskSelector(selectElement, currentValue, pendingValueRef) {
+    if (!selectElement || !currentValue) {
+      return pendingValueRef;
+    }
+    return restorePendingSelectValue(selectElement, currentValue);
+  }
+
+  function refreshExecutionTargets(options) {
+    emitWebviewDebug(options.eventName, options.debugData);
+    options.assignItems();
+    options.updateOptions();
+    renderExecutionDefaultsControls();
+    renderReviewDefaultsControls();
+    syncJobsStepSelectors();
+    syncResearchSelectors();
+    options.pendingValue = restoreUpdatedTaskSelector(
+      options.selectElement,
+      options.currentValue,
+      options.pendingValue,
+    );
+    renderTaskList(tasks);
+    return options.pendingValue;
+  }
+
+  function scrollTaskCardIntoView(taskId) {
+    var selector = '.task-card[data-id="' + taskId + '"]';
+    var card = document.querySelector(selector);
+    if (card && typeof card.scrollIntoView === "function") {
+      card.scrollIntoView({ behavior: "smooth" });
+    }
   }
 
   function updateTemplateOptions(source, selectedPath) {
-    if (!templateSelect) return;
-    selectedPath = selectedPath || "";
-    var templates = Array.isArray(promptTemplates) ? promptTemplates : [];
-    var filtered = templates.filter(function (t) {
-      return t.source === source;
+    updatePromptTemplateOptions({
+      templateSelect: templateSelect,
+      promptTemplates: promptTemplates,
+      source: source,
+      selectedPath: selectedPath,
+      strings: strings,
+      escapeHtml: escapeHtml,
+      escapeAttr: escapeAttr,
     });
-    var selectText = strings.placeholderSelectTemplate || "";
-    var placeholder =
-      '<option value="">' + escapeHtml(selectText) + "</option>";
-    templateSelect.innerHTML =
-      placeholder +
-      filtered
-        .map(function (t) {
-          return (
-            '<option value="' +
-            escapeAttr(t.path) +
-            '">' +
-            escapeHtml(t.name) +
-            "</option>"
-          );
-        })
-        .join("");
-
-    if (!selectedPath) {
-      templateSelect.value = "";
-      return;
-    }
-
-    templateSelect.value = selectedPath;
-    if (templateSelect.value !== selectedPath) {
-      templateSelect.value = "";
-    }
   }
 
   function applyPromptSource(source, keepSelection) {
-    var effectiveSource = source || "inline";
-    var selectedPath =
-      keepSelection && templateSelect ? templateSelect.value : "";
-    var usesInlinePrompt = effectiveSource === "inline";
-
-    if (promptTextEl) {
-      promptTextEl.required = usesInlinePrompt;
-    }
-    if (templateSelect) {
-      templateSelect.required = !usesInlinePrompt;
-    }
-
-    if (usesInlinePrompt) {
-      if (templateSelectGroup) templateSelectGroup.style.display = "none";
-      if (promptGroup) promptGroup.style.display = "block";
-      if (!keepSelection && templateSelect) {
-        templateSelect.value = "";
-      }
-      return;
-    }
-
-    if (templateSelectGroup) {
-      templateSelectGroup.style.display = "block";
-    } else {
-      console.warn(
-        "[CopilotScheduler] Template select group missing; template selection is disabled.",
-      );
-    }
-    if (promptGroup) promptGroup.style.display = "block";
-    updateTemplateOptions(effectiveSource, selectedPath);
+    applyPromptSourceUi({
+      source: source,
+      keepSelection: keepSelection,
+      templateSelect: templateSelect,
+      promptTextEl: promptTextEl,
+      templateSelectGroup: templateSelectGroup,
+      promptGroup: promptGroup,
+      promptTemplates: promptTemplates,
+      strings: strings,
+      escapeHtml: escapeHtml,
+      escapeAttr: escapeAttr,
+      warnMissingTemplateGroup: function () {
+        console.warn(
+          "[CopilotScheduler] Template select group missing; template selection is disabled.",
+        );
+      },
+    });
   }
 
   function updateSkillOptions() {
@@ -8597,27 +8161,7 @@ syncTodoLabelSuggestions();
   }
 
   // Initialize dropdowns with cached data
-  updateAgentOptions();
-  updateModelOptions();
-  var initialPromptSource = document.querySelector(
-    'input[name="prompt-source"]:checked',
-  );
-  if (initialPromptSource) {
-    applyPromptSource(initialPromptSource.value);
-  }
-  if (chatSessionSelect && !chatSessionSelect.value) {
-    chatSessionSelect.value = defaultChatSession;
-  }
-  syncRecurringChatSessionUi();
-  updateFriendlyVisibility();
-  updateCronPreview();
-  updateSkillOptions();
-  syncTaskLabelFilterOptions();
-  syncJobsStepSelectors();
-  syncJobsFolderSelect("");
-  syncJobsExistingTaskSelect();
-  renderJobsTab();
-  syncEditorTabLabels();
+  initializeTaskEditorState();
 
   // Global functions for onclick handlers
   window.runTask = function (id) {
@@ -8625,157 +8169,52 @@ syncTodoLabelSuggestions();
   };
 
   window.editTask = function (id) {
-    var taskListArray = Array.isArray(tasks) ? tasks : [];
-    var task = taskListArray.find(function (t) {
-      return t && t.id === id;
-    });
+    var task = findTaskById(id);
     if (!task) return;
-
-    setEditingMode(id);
-    var taskNameEl = document.getElementById("task-name");
-    var promptTextEl = document.getElementById("prompt-text");
-    if (taskNameEl) taskNameEl.value = task.name || "";
-    if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
-    if (promptTextEl)
-      promptTextEl.value = typeof task.prompt === "string" ? task.prompt : "";
-    if (cronExpression) cronExpression.value = task.cronExpression || "";
-    if (cronPreset) cronPreset.value = "";
-    updateCronPreview();
-
-    // Restore agent/model — if options not loaded yet, store as pending
-    pendingAgentValue = task.agent || "";
-    pendingModelValue = task.model || "";
-    if (agentSelect) {
-      if (
-        pendingAgentValue &&
-        selectHasOptionValue(agentSelect, pendingAgentValue)
-      ) {
-        agentSelect.value = pendingAgentValue;
-        pendingAgentValue = "";
-      } else if (pendingAgentValue) {
-        // Option not yet loaded — will be applied when updateAgents arrives
-        agentSelect.value = "";
-      }
-    }
-    if (modelSelect) {
-      if (
-        pendingModelValue &&
-        selectHasOptionValue(modelSelect, pendingModelValue)
-      ) {
-        modelSelect.value = pendingModelValue;
-        pendingModelValue = "";
-      } else if (pendingModelValue) {
-        modelSelect.value = "";
-      }
-    }
-    editingTaskEnabled = task.enabled !== false;
-    var scopeValue = task.scope || "workspace";
-    var scopeRadio = document.querySelector(
-      'input[name="scope"][value="' + scopeValue + '"]',
-    );
-    if (scopeRadio) {
-      scopeRadio.checked = true;
-    }
-    var sourceValue = task.promptSource || "inline";
-    var sourceRadio = document.querySelector(
-      'input[name="prompt-source"][value="' + sourceValue + '"]',
-    );
-    if (sourceRadio) {
-      sourceRadio.checked = true;
-    }
-
-    applyPromptSource(sourceValue, true);
-    pendingTemplatePath = task.promptPath || "";
-    if (templateSelect) {
-      if (
-        pendingTemplatePath &&
-        selectHasOptionValue(templateSelect, pendingTemplatePath)
-      ) {
-        templateSelect.value = pendingTemplatePath;
-        pendingTemplatePath = "";
-      } else if (pendingTemplatePath) {
-        templateSelect.value = "";
-      }
-    }
-
-    if (jitterSecondsInput) {
-      jitterSecondsInput.value = String(
-        task.jitterSeconds ?? defaultJitterSeconds,
-      );
-    }
-
-    // Clear "run first" checkbox in edit mode (not applicable for existing tasks)
-    var runFirstEl = document.getElementById("run-first");
-    if (runFirstEl) runFirstEl.checked = false;
-
-    var oneTimeEl = document.getElementById("one-time");
-    if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
-    var manualSessionEl = document.getElementById("manual-session");
-    if (manualSessionEl) manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
-    if (chatSessionSelect) {
-      chatSessionSelect.value = task.chatSession === "continue"
-        ? "continue"
-        : task.chatSession === "new"
-          ? "new"
-          : defaultChatSession;
-    }
-    syncRecurringChatSessionUi();
-
-    // Switch to edit tab (same form)
-    switchTab("create");
+    populateTaskEditor(task, id);
   };
 
   if (newTaskBtn) {
     newTaskBtn.addEventListener("click", function () {
-      resetForm();
-      switchTab("create");
-      try {
-        var taskNameEl = document.getElementById("task-name");
-        if (taskNameEl && typeof taskNameEl.focus === "function") {
-          taskNameEl.focus();
-        }
-      } catch (e) {
-        // ignore
-      }
+      openCreateTaskTab();
     });
   }
 
   window.copyPrompt = function (id) {
     // Route through the action callback so that template-based prompts
     // are resolved from the file (consistent with tree view copy).
-    vscode.postMessage({ type: "copyTask", taskId: id });
+    postTaskMessage("copyTask", id);
   };
 
   window.duplicateTask = function (id) {
-    vscode.postMessage({ type: "duplicateTask", taskId: id });
+    postTaskMessage("duplicateTask", id);
   };
 
   window.moveTaskToCurrentWorkspace = function (id) {
-    vscode.postMessage({ type: "moveTaskToCurrentWorkspace", taskId: id });
+    postTaskMessage("moveTaskToCurrentWorkspace", id);
   };
 
   window.toggleTask = function (id) {
-    vscode.postMessage({ type: "toggleTask", taskId: id });
+    postTaskMessage("toggleTask", id);
   };
 
   window.deleteTask = function (id) {
-    var task = tasks.find(function (t) {
-      return t && t.id === id;
-    });
+    var task = findTaskById(id);
     if (!task) {
       return;
     }
 
     // Send delete request to extension (confirmation will be handled there)
-    vscode.postMessage({ type: "deleteTask", taskId: id });
+    postTaskMessage("deleteTask", id);
   };
 
   // Handle messages from extension
   window.addEventListener("message", function (event) {
-    var message = event.data;
+    var message = getHostMessage(event);
+    var messageType = message && message.type;
 
     try {
-      switch (message.type) {
+      switch (messageType) {
         case "updateTasks":
           tasks = Array.isArray(message.tasks) ? message.tasks : [];
           emitWebviewDebug("updateTasks", {
@@ -8927,83 +8366,41 @@ syncTodoLabelSuggestions();
           renderReviewDefaultsControls();
           break;
         case "updateAgents":
-          {
-            var currentAgentValue =
-              pendingAgentValue || (agentSelect ? agentSelect.value : "");
-            emitWebviewDebug("updateAgents", {
-              currentAgentValue: currentAgentValue,
-              agentCount: Array.isArray(message.agents) ? message.agents.length : 0,
-            });
-            agents = Array.isArray(message.agents) ? message.agents : [];
-            updateAgentOptions();
-            renderExecutionDefaultsControls();
-            renderReviewDefaultsControls();
-            syncJobsStepSelectors();
-            syncResearchSelectors();
-            if (agentSelect && currentAgentValue) {
-              agentSelect.value = currentAgentValue;
-              if (agentSelect.value === currentAgentValue) {
-                pendingAgentValue = "";
-              } else {
-                pendingAgentValue = currentAgentValue;
-              }
-            }
-            renderTaskList(tasks);
-          }
+          pendingAgentValue = refreshExecutionSelectTargets({
+            eventName: "updateAgents",
+            selectElement: agentSelect,
+            pendingValue: pendingAgentValue,
+            createDebugData: function (currentValue) {
+              return {
+                currentAgentValue: currentValue,
+                agentCount: Array.isArray(message.agents) ? message.agents.length : 0,
+              };
+            },
+            assignItems: function () {
+              agents = Array.isArray(message.agents) ? message.agents : [];
+            },
+            updateOptions: updateAgentOptions,
+          });
           break;
         case "updateModels":
-          {
-            var currentModelValue =
-              pendingModelValue || (modelSelect ? modelSelect.value : "");
-            emitWebviewDebug("updateModels", {
-              currentModelValue: currentModelValue,
-              modelCount: Array.isArray(message.models) ? message.models.length : 0,
-            });
-            models = Array.isArray(message.models) ? message.models : [];
-            updateModelOptions();
-            renderExecutionDefaultsControls();
-            renderReviewDefaultsControls();
-            syncJobsStepSelectors();
-            syncResearchSelectors();
-            if (modelSelect && currentModelValue) {
-              modelSelect.value = currentModelValue;
-              if (modelSelect.value === currentModelValue) {
-                pendingModelValue = "";
-              } else {
-                pendingModelValue = currentModelValue;
-              }
-            }
-            renderTaskList(tasks);
-          }
+          pendingModelValue = refreshExecutionSelectTargets({
+            eventName: "updateModels",
+            selectElement: modelSelect,
+            pendingValue: pendingModelValue,
+            createDebugData: function (currentValue) {
+              return {
+                currentModelValue: currentValue,
+                modelCount: Array.isArray(message.models) ? message.models.length : 0,
+              };
+            },
+            assignItems: function () {
+              models = Array.isArray(message.models) ? message.models : [];
+            },
+            updateOptions: updateModelOptions,
+          });
           break;
         case "updatePromptTemplates":
-          promptTemplates = Array.isArray(message.templates)
-            ? message.templates
-            : [];
-          {
-            var sourceElement = document.querySelector(
-              'input[name="prompt-source"]:checked',
-            );
-            var currentSource = sourceElement ? sourceElement.value : "inline";
-            var currentTemplateValue =
-              pendingTemplatePath ||
-              (templateSelect ? templateSelect.value : "");
-            updateTemplateOptions(currentSource, currentTemplateValue);
-            if (templateSelect && currentTemplateValue) {
-              if (templateSelect.value === currentTemplateValue) {
-                pendingTemplatePath = "";
-              } else {
-                pendingTemplatePath = currentTemplateValue;
-              }
-            }
-            if (currentSource === "local" || currentSource === "global") {
-              if (templateSelectGroup)
-                templateSelectGroup.style.display = "block";
-            } else {
-              if (templateSelectGroup)
-                templateSelectGroup.style.display = "none";
-            }
-          }
+          syncPromptTemplateOptions(message.templates);
           break;
         case "updateSkills":
           skills = Array.isArray(message.skills) ? message.skills : [];
@@ -9020,31 +8417,10 @@ syncTodoLabelSuggestions();
           syncScheduleHistoryOptions();
           break;
         case "promptTemplateLoaded":
-          var promptTextEl = document.getElementById("prompt-text");
-          if (promptTextEl) promptTextEl.value = message.content;
+          setPromptTextValue(message.content);
           break;
         case "switchToList":
-          pendingSubmit = false;
-          if (submitBtn) submitBtn.disabled = false;
-          hideGlobalError();
-          resetForm();
-          switchTab("list");
-          if (message.successMessage) {
-            var toast = document.getElementById("success-toast");
-            if (toast) {
-              var prefix = strings.webviewSuccessPrefix || "\u2714 ";
-              toast.textContent = prefix + message.successMessage;
-              toast.style.display = "block";
-              toast.style.opacity = "1";
-              setTimeout(function () {
-                toast.style.opacity = "0";
-              }, 3000);
-              setTimeout(function () {
-                toast.style.display = "none";
-                toast.style.opacity = "1";
-              }, 3500);
-            }
-          }
+          switchToListView(message.successMessage);
           break;
         case "switchToTab":
           if (message.tab) {
@@ -9052,104 +8428,22 @@ syncTodoLabelSuggestions();
           }
           break;
         case "focusTask":
-          switchTab("list");
-          setTimeout(function () {
-            var list = document.querySelectorAll(".task-card");
-            var card = null;
-            for (var i = 0; i < list.length; i++) {
-              var el = list[i];
-              if (
-                el &&
-                el.getAttribute &&
-                el.getAttribute("data-id") === message.taskId
-              ) {
-                card = el;
-                break;
-              }
-            }
-            if (card) card.scrollIntoView({ behavior: "smooth" });
-          }, 100);
+          focusTaskView(message.taskId);
           break;
         case "focusJob":
-          selectedJobFolderId = typeof message.folderId === "string"
-            ? message.folderId
-            : "";
-          var focusedJobId = message.jobId || "";
-          isCreatingJob = true;
-          selectedJobId = "";
-          persistTaskFilter();
-          renderJobsTab();
-          switchTab("jobs");
-          setTimeout(function () {
-            var jobCard = focusedJobId
-              ? document.querySelector('[data-job-id="' + focusedJobId + '"]')
-              : null;
-            if (jobCard && typeof jobCard.scrollIntoView === "function") {
-              jobCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }
-          }, 50);
+          focusJobView(message.folderId, message.jobId || "");
           break;
         case "focusResearchProfile":
-          switchTab("research");
-          if (message.researchId) {
-            selectResearchProfile(message.researchId);
-          } else {
-            isCreatingResearchProfile = true;
-            selectedResearchId = "";
-            resetResearchForm(null);
-            renderResearchTab();
-          }
-          setTimeout(function () {
-            var selector = message.researchId
-              ? '[data-research-id="' + message.researchId + '"]'
-              : "#research-name";
-            var element = document.querySelector(selector);
-            if (!element) {
-              return;
-            }
-            if (typeof element.scrollIntoView === "function") {
-              element.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }
-            if (!message.researchId && typeof element.focus === "function") {
-              element.focus();
-            }
-          }, 50);
+          focusResearchProfileView(message.researchId);
           break;
         case "focusResearchRun":
-          switchTab("research");
-          if (message.runId) {
-            selectResearchRun(message.runId);
-          }
-          setTimeout(function () {
-            var runCard = message.runId
-              ? document.querySelector('[data-run-id="' + message.runId + '"]')
-              : null;
-            if (runCard && typeof runCard.scrollIntoView === "function") {
-              runCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }
-          }, 50);
+          focusResearchRunView(message.runId);
           break;
         case "editTask":
-          if (message.taskId && typeof window.editTask === "function") {
-            window.editTask(message.taskId);
-          }
+          editTaskFromHost(message.taskId);
           break;
         case "startCreateTask":
-          pendingSubmit = false;
-          if (submitBtn) submitBtn.disabled = false;
-          hideGlobalError();
-          resetForm();
-          switchTab("create");
-          setTimeout(function () {
-            try {
-              var taskNameEl = document.getElementById("task-name");
-              if (taskNameEl && typeof taskNameEl.focus === "function") {
-                taskNameEl.focus();
-              }
-            } catch (e) {
-              // ignore
-            }
-          }, 0);
+          startCreateTaskFlow();
           break;
         case "startCreateTodo":
           emitWebviewDebug("startCreateTodo", { reason: "host" });
@@ -9160,11 +8454,7 @@ syncTodoLabelSuggestions();
           resetJobEditor();
           break;
         case "showError":
-          if (message.text) {
-            showGlobalError(message.text);
-            pendingSubmit = false;
-            if (submitBtn) submitBtn.disabled = false;
-          }
+          syncGlobalErrorMessage(message.text);
           break;
         case "todoFileUploadResult":
           if (message.ok && message.insertedText) {
@@ -9187,12 +8477,7 @@ syncTodoLabelSuggestions();
           break;
       }
     } catch (e) {
-      var prefix = strings.webviewClientErrorPrefix || "";
-      var rawError = e && e.message ? e.message : e;
-      rawError = String(rawError).split(/\r?\n/)[0];
-      showGlobalError(prefix + sanitizeAbsolutePaths(rawError));
-      pendingSubmit = false;
-      if (submitBtn) submitBtn.disabled = false;
+      showWebviewClientError(e);
     }
   });
 

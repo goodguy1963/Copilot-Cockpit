@@ -1,10 +1,11 @@
 export function selectHasOptionValue(selectEl, value) {
-  if (!selectEl || !value) return false;
-  var opts = selectEl.options;
-  if (!opts || typeof opts.length !== "number") return false;
-  for (var i = 0; i < opts.length; i++) {
-    var opt = opts[i];
-    if (opt && opt.value === value) return true;
+  if (!selectEl) return false;
+  if (!value) return false;
+  var optionCollection = selectEl.options;
+  if (!optionCollection || typeof optionCollection.length !== "number") return false;
+  for (var index = 0; index < optionCollection.length; index++) {
+    var currentOption = optionCollection[index];
+    if (currentOption && currentOption.value === value) return true;
   }
   return false;
 }

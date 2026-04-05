@@ -1,7 +1,7 @@
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
 import * as path from "path";
+import * as os from "os";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import {
   getPrivateSchedulerConfigPath,
@@ -77,12 +77,12 @@ suite("Scheduler Json Sanitizer Tests", () => {
 
   function cleanup(root: string): void {
     try {
-      fs.rmSync(root, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 50,
-      });
+      const cleanupOptions: fs.RmOptions = {};
+      cleanupOptions.recursive = true;
+      cleanupOptions.force = true;
+      cleanupOptions.maxRetries = 3;
+      cleanupOptions.retryDelay = 50;
+      fs.rmSync(root, cleanupOptions);
     } catch {
       // ignore
     }

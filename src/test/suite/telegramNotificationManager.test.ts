@@ -1,7 +1,7 @@
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
 import * as path from "path";
+import * as os from "os";
 import {
   REDACTED_TELEGRAM_BOT_TOKEN,
   getPrivateSchedulerConfigPath,
@@ -11,42 +11,40 @@ import {
   saveTelegramNotificationConfig,
 } from "../../telegramNotificationManager";
 
-suite("Telegram Notification Manager Tests", () => {
-  function createWorkspaceRoot(): string {
-    return fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-telegram-"),
-    );
-  }
+function createWorkspaceRoot(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "copilot-cockpit-telegram-"));
+}
 
-  function cleanup(root: string): void {
-    try {
-      fs.rmSync(root, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 50,
-      });
-    } catch {
-      // ignore
-    }
+function cleanupWorkspace(root: string): void {
+  try {
+    const cleanupOptions: fs.RmOptions = {};
+    cleanupOptions.recursive = true;
+    cleanupOptions.force = true;
+    cleanupOptions.maxRetries = 3;
+    cleanupOptions.retryDelay = 50;
+    fs.rmSync(root, cleanupOptions);
+  } catch {
+    // Temp cleanup only.
   }
+}
 
-  test("saves Telegram config privately and redacts the public scheduler file", () => {
+suite("Telegram notification manager behavior", () => {
+  test("stores Telegram secrets privately while keeping the public file redacted", () => {
     const workspaceRoot = createWorkspaceRoot();
 
     try {
-      const view = saveTelegramNotificationConfig(workspaceRoot, {
+      const savedView = saveTelegramNotificationConfig(workspaceRoot, {
         enabled: true,
         botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
         chatId: "-1001234567890",
         messagePrefix: "Scheduler update",
       });
 
-      assert.strictEqual(view.enabled, true);
-      assert.strictEqual(view.chatId, "-1001234567890");
-      assert.strictEqual(view.messagePrefix, "Scheduler update");
-      assert.strictEqual(view.hasBotToken, true);
-      assert.strictEqual(view.hookConfigured, true);
+      assert.strictEqual(savedView.enabled, true);
+      assert.strictEqual(savedView.chatId, "-1001234567890");
+      assert.strictEqual(savedView.messagePrefix, "Scheduler update");
+      assert.strictEqual(savedView.hasBotToken, true);
+      assert.strictEqual(savedView.hookConfigured, true);
 
       const publicConfigPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
       const privateConfigPath = getPrivateSchedulerConfigPath(publicConfigPath);
@@ -60,21 +58,20 @@ suite("Telegram Notification Manager Tests", () => {
 
       const publicContent = fs.readFileSync(publicConfigPath, "utf8");
       const privateContent = fs.readFileSync(privateConfigPath, "utf8");
-
       assert.ok(publicContent.includes(REDACTED_TELEGRAM_BOT_TOKEN));
       assert.ok(!publicContent.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"));
       assert.ok(privateContent.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"));
 
-      const persistedView = getTelegramNotificationView(workspaceRoot);
-      assert.strictEqual(persistedView.enabled, true);
-      assert.strictEqual(persistedView.hasBotToken, true);
-      assert.strictEqual(persistedView.hookConfigured, true);
+      const reloadedView = getTelegramNotificationView(workspaceRoot);
+      assert.strictEqual(reloadedView.enabled, true);
+      assert.strictEqual(reloadedView.hasBotToken, true);
+      assert.strictEqual(reloadedView.hookConfigured, true);
     } finally {
-      cleanup(workspaceRoot);
+      cleanupWorkspace(workspaceRoot);
     }
   });
 
-  test("disabling Telegram notifications removes generated hook files", () => {
+  test("turning Telegram notifications off removes generated hook files", () => {
     const workspaceRoot = createWorkspaceRoot();
 
     try {
@@ -97,7 +94,7 @@ suite("Telegram Notification Manager Tests", () => {
       assert.ok(!fs.existsSync(hookConfigPath));
       assert.ok(!fs.existsSync(hookScriptPath));
     } finally {
-      cleanup(workspaceRoot);
+      cleanupWorkspace(workspaceRoot);
     }
   });
 });

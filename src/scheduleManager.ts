@@ -1,31 +1,23 @@
-/**
- * Copilot Cockpit - Schedule Manager
- * Handles task CRUD operations, cron scheduling, and persistence
- */
-
-import * as vscode from "vscode";
-import * as fs from "fs";
 import * as path from "path";
-import { parseExpression } from "cron-parser";
+import * as fs from "fs";
+import * as vscode from "vscode";
 import type {
-  ScheduledTask,
   CreateTaskInput,
-  TaskScope,
-  ChatSessionBehavior,
+  ScheduledTask,
   JobDefinition,
   JobFolder,
   JobNode,
   JobPauseNode,
   JobRuntimeState,
   JobTaskNode,
-  SchedulerWorkspaceConfig,
   CreateJobInput,
-  CreateJobPauseInput,
   CreateJobFolderInput,
+  CreateJobPauseInput,
+  SchedulerWorkspaceConfig,
+  TaskScope,
 } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
-import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
   getResolvedWorkspaceRoots,
   getPrivateSchedulerConfigPath,
@@ -42,12 +34,7 @@ import {
   SQLITE_STORAGE_MODE,
 } from "./sqliteStorage";
 import { selectTaskStore } from "./taskStoreSelection";
-import {
-  normalizeForCompare,
-  resolveGlobalPromptPath,
-  resolveGlobalPromptsRoot,
-  resolveLocalPromptPath,
-} from "./promptResolver";
+import { normalizeForCompare } from "./promptResolver";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
 import {
   getCanonicalPromptBackupPath,
@@ -57,48 +44,94 @@ import {
   resolvePromptBackupPath,
   toWorkspaceRelativePromptBackupPath,
 } from "./promptBackup";
-import {
-  createScheduleHistorySnapshot,
-  listScheduleHistoryEntries,
-  readScheduleHistorySnapshot,
-} from "./scheduleHistory";
+import { createScheduleHistorySnapshot, listScheduleHistoryEntries, readScheduleHistorySnapshot } from "./scheduleHistory";
 import type { ScheduleHistoryEntry } from "./types";
+import {
+  getSchedulerLocalDateKey,
+  readScheduledTasksFromStorageFile,
+  readTaskStorageMetaFromFile,
+  readTaskStorageMetaFromState,
+  reviveScheduledTaskDates,
+  TaskStorageMeta,
+  toSafeSchedulerErrorDetails,
+  updateMementoWithTimeout,
+  writeScheduledTasksToStorageFile,
+  writeTaskStorageMetaToFile,
+  writeTaskStorageMetaToState,
+} from "./scheduleManagerPersistence";
+import {
+  incrementDailyExecState,
+  loadDailyExecState,
+  notifyDailyLimitReachedOnce,
+  persistDailyExecState,
+  persistGlobalStateValueBestEffort,
+  syncRecurringPromptBackupsForTasks,
+} from "./scheduleManagerMaintenance";
+import {
+  persistScheduleManagerTaskStore,
+  resolveScheduleManagerStoragePaths,
+  selectScheduleManagerTaskStore,
+} from "./scheduleManagerStoragePolicy";
+import {
+  applyTaskUpdatesToTask,
+  applyTaskPromptUpdates,
+  createDuplicateTaskInput,
+  repairStoredTaskPromptSource,
+  resolveCreatedTaskNextRun,
+  setTaskEnabledState,
+} from "./scheduleManagerTaskOps";
+import {
+  applyScheduleJitter,
+  clampScheduleJitterSeconds,
+  normalizeScheduledTaskChatSession,
+  normalizeScheduledTaskLabels,
+  normalizeScheduledTaskManualSession,
+  normalizeScheduledWindowMinutes,
+} from "./scheduleManagerTaskConfig";
+import {
+  assertValidCronExpression,
+  getCronIntervalWarning,
+  resolveNextCronRun,
+  resolvePreviousCronRun,
+  truncateDateToMinute,
+} from "./scheduleManagerTiming";
 
-// Node.js globals
-declare const setTimeout: (callback: () => void, ms: number) => NodeJS.Timeout;
-declare const clearTimeout: (timeoutId: NodeJS.Timeout) => void;
-declare const setInterval: (callback: () => void, ms: number) => NodeJS.Timeout;
-declare const clearInterval: (intervalId: NodeJS.Timeout) => void;
-declare const console: {
-  error: (...args: unknown[]) => void;
-  log: (...args: unknown[]) => void;
+const TASK_STORAGE = {
+  stateKey: "scheduledTasks",
+  fileName: "scheduledTasks.json",
+  metaFileName: "scheduledTasks.meta.json",
+  revisionKey: "scheduledTasksRevision",
+  savedAtKey: "scheduledTasksSavedAt",
+} as const;
+const DAILY_EXEC_STATE_KEYS = {
+  count: "dailyExecCount",
+  date: "dailyExecDate",
+  notifiedDate: "dailyLimitNotifiedDate",
+} as const;
+const DISCLAIMER_ACCEPTED_STATE_KEY = "disclaimerAccepted";
+
+type TaskExecutionOutcome = {
+  executedCount: number;
+  needsSave: boolean;
+  deleteTask: boolean;
 };
 
-const STORAGE_KEY = "scheduledTasks";
-const STORAGE_FILE_NAME = "scheduledTasks.json";
-const STORAGE_META_FILE_NAME = "scheduledTasks.meta.json";
-const STORAGE_REVISION_KEY = "scheduledTasksRevision";
-const STORAGE_SAVED_AT_KEY = "scheduledTasksSavedAt";
-const DAILY_EXEC_COUNT_KEY = "dailyExecCount";
-const DAILY_EXEC_DATE_KEY = "dailyExecDate";
-const DAILY_LIMIT_NOTIFIED_DATE_KEY = "dailyLimitNotifiedDate";
-const DISCLAIMER_ACCEPTED_KEY = "disclaimerAccepted";
-
-type TaskStorageMeta = {
-  revision: number;
-  savedAt: string; // ISO string
-};
-
-function getLocalDateKey(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+interface CompiledJobPrompt {
+  prompt: string;
+  labels: string[];
+  model?: string;
+  agent?: string;
 }
 
-function toSafeErrorDetails(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error ?? "");
-  return sanitizeAbsolutePathDetails(raw) || raw;
+function clearScheduledHandle<T>(
+  handle: T | undefined,
+  clear: (value: T) => void,
+): undefined {
+  if (handle !== undefined) {
+    clear(handle);
+  }
+
+  return undefined;
 }
 
 function readSchedulerJsonFile(
@@ -149,22 +182,19 @@ export class ScheduleManager {
   private pendingDeletedTaskIds: Set<string> = new Set();
   private pendingDeletedJobIds: Set<string> = new Set();
   private pendingDeletedJobFolderIds: Set<string> = new Set();
-  private schedulerInterval: ReturnType<typeof setInterval> | undefined;
-  private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
+  private storageFilePath: string;
+  private context: vscode.ExtensionContext;
+  private storageMetaFilePath: string;
+  private schedulerInterval?: ReturnType<typeof setInterval>;
+  private schedulerTimeout?: ReturnType<typeof setTimeout>;
   private schedulerTickInProgress = false;
   private schedulerTickPending = false;
-  private context: vscode.ExtensionContext;
-  private storageFilePath: string;
-  private storageMetaFilePath: string;
-  private onTasksChangedCallback: (() => void) | undefined;
-  private onExecuteCallback:
-    | ((task: ScheduledTask) => Promise<void>)
-    | undefined;
+  private onTasksChangedCallback?: () => void;
+  private onExecuteCallback?: (task: ScheduledTask) => Promise<void>;
   private dailyExecCount = 0;
   private dailyExecDate = "";
-  private dailyLimitNotifiedDate = "";
-
   private storageRevision = 0;
+  private dailyLimitNotifiedDate = "";
 
   private saveQueue: Promise<void> = Promise.resolve();
   private sqliteHydrationPromise: Promise<void> | undefined;
@@ -189,120 +219,38 @@ export class ScheduleManager {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    this.storageFilePath = path.join(
+    const storagePaths = resolveScheduleManagerStoragePaths(
       this.context.globalStorageUri.fsPath,
-      STORAGE_FILE_NAME,
+      TASK_STORAGE.fileName,
+      TASK_STORAGE.metaFileName,
     );
-    this.storageMetaFilePath = path.join(
-      this.context.globalStorageUri.fsPath,
-      STORAGE_META_FILE_NAME,
-    );
+    this.storageFilePath = storagePaths.storageFilePath;
+    this.storageMetaFilePath = storagePaths.storageMetaFilePath;
     this.loadDailyExecCount();
-    this.dailyLimitNotifiedDate = this.context.globalState.get<string>(
-      DAILY_LIMIT_NOTIFIED_DATE_KEY,
-      "",
-    );
     this.loadTasks();
   }
 
-  private loadMetaFromFile(): TaskStorageMeta | undefined {
-    try {
-      if (!this.storageMetaFilePath) return undefined;
-      if (!fs.existsSync(this.storageMetaFilePath)) return undefined;
-      const raw = fs.readFileSync(this.storageMetaFilePath, "utf8");
-      if (!raw.trim()) return undefined;
-      const parsed = JSON.parse(raw) as Partial<TaskStorageMeta>;
-      const revision =
-        typeof parsed.revision === "number" ? parsed.revision : 0;
-      const savedAt = typeof parsed.savedAt === "string" ? parsed.savedAt : "";
-      return { revision, savedAt };
-    } catch {
-      return undefined;
-    }
-  }
-
-  private loadMetaFromGlobalState(): TaskStorageMeta {
-    const revision = this.context.globalState.get<number>(
-      STORAGE_REVISION_KEY,
-      0,
-    );
-    const savedAt = this.context.globalState.get<string>(
-      STORAGE_SAVED_AT_KEY,
-      "",
-    );
-    return { revision: typeof revision === "number" ? revision : 0, savedAt };
-  }
-
-  private async saveMetaToFile(meta: TaskStorageMeta): Promise<void> {
-    const dir = path.dirname(this.storageMetaFilePath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(
-      this.storageMetaFilePath,
-      JSON.stringify(meta),
-      "utf8",
-    );
-  }
-
-  private async saveMetaToGlobalState(meta: TaskStorageMeta): Promise<void> {
-    await this.context.globalState.update(STORAGE_REVISION_KEY, meta.revision);
-    await this.context.globalState.update(STORAGE_SAVED_AT_KEY, meta.savedAt);
-  }
-
   private loadTasksFromFile(): { tasks: ScheduledTask[]; ok: boolean } {
-    try {
-      if (!this.storageFilePath) return { tasks: [], ok: false };
-      if (!fs.existsSync(this.storageFilePath)) return { tasks: [], ok: false };
-      const raw = fs.readFileSync(this.storageFilePath, "utf8");
-      if (!raw.trim()) return { tasks: [], ok: true };
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return { tasks: [], ok: false };
-      return { tasks: parsed as ScheduledTask[], ok: true };
-    } catch (error) {
-      logDebug(
-        "[CopilotScheduler] Failed to load tasks from file:",
-        toSafeErrorDetails(error),
-      );
-      return { tasks: [], ok: false };
+    const loaded = readScheduledTasksFromStorageFile(this.storageFilePath);
+    if (loaded.error) {
+      logDebug("[CopilotScheduler] Failed to load tasks from file:", loaded.error);
     }
+    return loaded;
   }
 
   private async saveTasksToFile(tasksArray: ScheduledTask[]): Promise<void> {
-    const dir = path.dirname(this.storageFilePath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(
-      this.storageFilePath,
-      JSON.stringify(tasksArray),
-      "utf8",
-    );
+    await writeScheduledTasksToStorageFile(this.storageFilePath, tasksArray);
   }
 
-  private async saveTasksToGlobalState(
-    tasksArray: ScheduledTask[],
-  ): Promise<void> {
-    const timeoutMs = 10000;
-
-    const updateThenable = this.context.globalState.update(
-      STORAGE_KEY,
-      tasksArray,
+  private async saveTasksToGlobalState(storedTasks: ScheduledTask[]): Promise<void> {
+    const globalState = this.context.globalState;
+    await updateMementoWithTimeout(
+      globalState,
+      TASK_STORAGE.stateKey,
+      storedTasks,
+      10000,
+      messages.storageWriteTimeout(),
     );
-    const updatePromise = Promise.resolve(updateThenable);
-
-    let timerId: NodeJS.Timeout | undefined;
-    const result = await Promise.race([
-      updatePromise.then(() => "ok" as const),
-      new Promise<"timeout">((resolve) => {
-        timerId = setTimeout(() => resolve("timeout"), timeoutMs);
-      }),
-    ]);
-
-    if (timerId !== undefined) {
-      clearTimeout(timerId);
-    }
-
-    if (result === "timeout") {
-      void updatePromise.catch(() => undefined);
-      throw new Error(messages.storageWriteTimeout());
-    }
   }
 
   // ==================== Safety: Daily Execution Limit ====================
@@ -311,203 +259,56 @@ export class ScheduleManager {
    * Load daily execution count from globalState
    */
   private loadDailyExecCount(): void {
-    const today = getLocalDateKey();
-    const savedDate = this.context.globalState.get<string>(
-      DAILY_EXEC_DATE_KEY,
-      "",
-    );
-    if (savedDate === today) {
-      this.dailyExecCount = this.context.globalState.get<number>(
-        DAILY_EXEC_COUNT_KEY,
-        0,
-      );
-    } else {
-      // New day, reset counter
-      this.dailyExecCount = 0;
-      void this.context.globalState
-        .update(DAILY_EXEC_COUNT_KEY, 0)
-        .then(undefined, (error: unknown) =>
-          logError(
-            "[CopilotScheduler] Failed to reset daily execution count:",
-            toSafeErrorDetails(error),
-          ),
-        );
-      void this.context.globalState
-        .update(DAILY_EXEC_DATE_KEY, today)
-        .then(undefined, (error: unknown) =>
-          logError(
-            "[CopilotScheduler] Failed to reset daily execution date:",
-            toSafeErrorDetails(error),
-          ),
-        );
-    }
-    this.dailyExecDate = today;
+    const state = loadDailyExecState(this.context.globalState, {
+      ...DAILY_EXEC_STATE_KEYS,
+    });
+    this.dailyExecCount = state.count;
+    this.dailyExecDate = state.date;
+    this.dailyLimitNotifiedDate = state.notifiedDate;
   }
 
   private incrementDailyExecCountInMemory(date = new Date()): void {
-    const today = getLocalDateKey(date);
-    if (this.dailyExecDate !== today) {
-      this.dailyExecCount = 0;
-      this.dailyExecDate = today;
-    }
-    this.dailyExecCount++;
+    const state = incrementDailyExecState(
+      { count: this.dailyExecCount, date: this.dailyExecDate },
+      date,
+    );
+    this.dailyExecCount = state.count;
+    this.dailyExecDate = state.date;
   }
 
   private async persistDailyExecCount(): Promise<void> {
-    const today = this.dailyExecDate || getLocalDateKey();
-    await this.context.globalState.update(
-      DAILY_EXEC_COUNT_KEY,
-      this.dailyExecCount,
+    await persistDailyExecState(
+      this.context.globalState,
+      DAILY_EXEC_STATE_KEYS,
+      {
+        count: this.dailyExecCount,
+        date: this.dailyExecDate,
+      },
     );
-    await this.context.globalState.update(DAILY_EXEC_DATE_KEY, today);
   }
 
-  /**
-   * Bulk update task prompts (used by template sync) and save once.
-   */
-  async updateTaskPrompts(
-    updates: Array<{ id: string; prompt: string }>,
-  ): Promise<number> {
-    if (!Array.isArray(updates) || updates.length === 0) {
+  async updateTaskPrompts(updates: Array<{ id: string; prompt: string }>): Promise<number> {
+    const updateCount = Array.isArray(updates) ? updates.length : 0;
+    if (updateCount < 1) {
       return 0;
     }
-
-    const now = new Date();
-    let changed = 0;
-
-    for (const item of updates) {
-      if (!item || typeof item.id !== "string") continue;
-      const nextPrompt = typeof item.prompt === "string" ? item.prompt : "";
-      if (!nextPrompt.trim()) continue;
-
-      const task = this.tasks.get(item.id);
-      if (!task) continue;
-      if (task.prompt === nextPrompt) continue;
-      task.prompt = nextPrompt;
-      task.updatedAt = now;
-      changed++;
+    const changedCount = applyTaskPromptUpdates(this.tasks, updates, new Date());
+    if (changedCount < 1) {
+      return 0;
     }
-
-    if (changed > 0) {
-      await this.saveTasks();
-    }
-
-    return changed;
+    await this.saveTasks();
+    return changedCount;
   }
 
   async ensureRecurringPromptBackups(): Promise<number> {
-    const changed = await this.syncRecurringPromptBackupsInPlace();
-
-    if (changed.metadataChanged > 0) {
-      await this.saveTasks({ bumpRevision: false });
-    }
-
-    return changed.metadataChanged;
+    const { metadataChanged } = await this.syncRecurringPromptBackupsInPlace();
+    if (metadataChanged < 1) return 0;
+    await this.saveTasks({ bumpRevision: false });
+    return metadataChanged;
   }
 
-  private async syncRecurringPromptBackupsInPlace(): Promise<{
-    metadataChanged: number;
-  }> {
-    let metadataChanged = 0;
-
-    for (const task of this.tasks.values()) {
-      if (!isRecurringPromptBackupCandidate(task)) {
-        continue;
-      }
-
-      const workspaceRoot =
-        (task.scope === "workspace" && task.workspacePath) ||
-        this.getPrimaryWorkspaceRoot();
-      if (!workspaceRoot) {
-        continue;
-      }
-
-      const backupPathCandidate =
-        typeof task.promptBackupPath === "string" &&
-          task.promptBackupPath.trim().length > 0
-          ? task.promptBackupPath.trim()
-          : getDefaultPromptBackupRelativePath(task.id);
-
-      const resolvedExistingBackupPath =
-        resolvePromptBackupPath(workspaceRoot, backupPathCandidate) ??
-        resolvePromptBackupPath(
-          workspaceRoot,
-          getDefaultPromptBackupRelativePath(task.id),
-        );
-
-      const resolvedBackupPath =
-        getCanonicalPromptBackupPath(workspaceRoot, backupPathCandidate) ??
-        getCanonicalPromptBackupPath(
-          workspaceRoot,
-          getDefaultPromptBackupRelativePath(task.id),
-        );
-
-      if (!resolvedBackupPath) {
-        continue;
-      }
-
-      const relativeBackupPath = toWorkspaceRelativePromptBackupPath(
-        workspaceRoot,
-        resolvedBackupPath,
-      );
-
-      const storedBackupUpdatedAt =
-        task.promptBackupUpdatedAt instanceof Date &&
-          !Number.isNaN(task.promptBackupUpdatedAt.getTime())
-          ? task.promptBackupUpdatedAt
-          : undefined;
-
-      const expectedContent = storedBackupUpdatedAt
-        ? renderPromptBackupContent(task, storedBackupUpdatedAt)
-        : undefined;
-
-      let needsWrite = !expectedContent;
-
-      if (expectedContent) {
-        try {
-          const existingContent = await fs.promises.readFile(
-            resolvedBackupPath,
-            "utf8",
-          );
-          needsWrite = existingContent !== expectedContent;
-        } catch {
-          needsWrite = true;
-        }
-      }
-
-      if (needsWrite) {
-        const syncedAt = new Date();
-        await fs.promises.mkdir(path.dirname(resolvedBackupPath), {
-          recursive: true,
-        });
-        await fs.promises.writeFile(
-          resolvedBackupPath,
-          renderPromptBackupContent(task, syncedAt),
-          "utf8",
-        );
-        task.promptBackupUpdatedAt = syncedAt;
-        metadataChanged++;
-      }
-
-      if (task.promptBackupPath !== relativeBackupPath) {
-        task.promptBackupPath = relativeBackupPath;
-        metadataChanged++;
-      }
-
-      if (
-        resolvedExistingBackupPath &&
-        normalizeForCompare(resolvedExistingBackupPath) !==
-          normalizeForCompare(resolvedBackupPath)
-      ) {
-        try {
-          await fs.promises.rm(resolvedExistingBackupPath, { force: true });
-        } catch {
-          // ignore best-effort legacy cleanup failures
-        }
-      }
-    }
-
-    return { metadataChanged };
+  private async syncRecurringPromptBackupsInPlace(): Promise<{ metadataChanged: number }> {
+    return syncRecurringPromptBackupsForTasks(this.tasks.values(), () => this.getPrimaryWorkspaceRoot());
   }
 
   /**
@@ -515,39 +316,197 @@ export class ScheduleManager {
    * @param maxDailyLimit - Pre-computed limit (0 = unlimited). Pass from caller to avoid redundant config reads.
    */
   private isDailyLimitReached(maxDailyLimit: number): boolean {
-    // 0 = unlimited (no daily limit, use at your own risk)
-    if (maxDailyLimit === 0) {
-      return false;
-    }
-    const today = getLocalDateKey();
-    if (this.dailyExecDate !== today) {
+    if (maxDailyLimit === 0) return false;
+    const todayKey = getSchedulerLocalDateKey();
+    if (this.dailyExecDate !== todayKey) {
       this.dailyExecCount = 0;
-      this.dailyExecDate = today;
+      this.dailyExecDate = todayKey;
     }
     return this.dailyExecCount >= maxDailyLimit;
   }
 
-  // ==================== Safety: Jitter (Random Delay) ====================
+  private getScheduledTaskNextRun(
+    task: ScheduledTask,
+    referenceTime: Date,
+  ): Date | undefined {
+    if (!task.jobId) {
+      return this.getNextRunForTask(task.cronExpression, referenceTime);
+    }
 
-  private clampJitterSeconds(value: unknown): number {
-    const n = typeof value === "number" ? value : Number(value);
-    if (!Number.isFinite(n)) return 0;
-    const i = Math.floor(n);
-    return Math.min(Math.max(i, 0), 1800);
+    const jobContext = this.findJobNodeByTaskId(task.id);
+    return jobContext
+      ? this.getNextRunForJobNode(
+          jobContext.job,
+          jobContext.nodeIndex,
+          referenceTime,
+        )
+      : this.getNextRunForTask(task.cronExpression, referenceTime);
   }
 
-  /**
-   * Apply random jitter delay to reduce machine-like patterns
-   */
-  private async applyJitter(maxJitterSeconds: number): Promise<void> {
-    const clamped = this.clampJitterSeconds(maxJitterSeconds);
-    if (clamped <= 0) return;
+  private refreshTaskNextRunAfterUpdate(
+    task: ScheduledTask,
+    options: {
+      enabledBefore: boolean;
+      cronChanged: boolean;
+      runFirstInOneMinute?: boolean;
+      referenceTime: Date;
+    },
+  ): void {
+    if (!task.enabled) {
+      task.nextRun = undefined;
+      return;
+    }
 
-    const jitterMs = Math.floor(Math.random() * clamped * 1000);
-    const jitterSec = Math.round(jitterMs / 1000);
-    if (jitterSec > 0) {
-      logDebug(`[CopilotScheduler] Jitter: waiting ${jitterSec}s`);
-      await new Promise<void>((resolve) => setTimeout(resolve, jitterMs));
+    const { cronChanged, enabledBefore, referenceTime, runFirstInOneMinute } =
+      options;
+    if (runFirstInOneMinute) {
+      task.nextRun = this.truncateToMinute(
+        new Date(
+          referenceTime.getTime() +
+            ScheduleManager.FIRST_RUN_DELAY_MINUTES * 60 * 1000,
+        ),
+      );
+      return;
+    }
+
+    if (cronChanged || !enabledBefore || !task.nextRun) {
+      task.nextRun = this.getNextRunForTask(task.cronExpression, referenceTime);
+    }
+  }
+
+  private getMillisecondsUntilNextMinute(referenceTime = new Date()): number {
+    const elapsedMsThisMinute =
+      referenceTime.getSeconds() * 1000 + referenceTime.getMilliseconds();
+    return 60_000 - elapsedMsThisMinute;
+  }
+
+  private persistGlobalStateValueBestEffort<T>(
+    key: string,
+    value: T,
+    failurePrefix: string,
+  ): void {
+    persistGlobalStateValueBestEffort(
+      this.context.globalState,
+      key,
+      value,
+      failurePrefix,
+    );
+  }
+
+  private notifyDailyLimitReachedOnce(
+    todayKey: string,
+    maxDailyLimit: number,
+  ): void {
+    this.dailyLimitNotifiedDate = notifyDailyLimitReachedOnce({
+      currentNotifiedDate: this.dailyLimitNotifiedDate,
+      todayKey,
+      maxDailyLimit,
+      globalState: this.context.globalState,
+      notifiedDateKey: DAILY_EXEC_STATE_KEYS.notifiedDate,
+    });
+  }
+
+  private replaceTaskNextRun(
+    task: ScheduledTask,
+    nextRun: Date | undefined,
+  ): boolean {
+    const currentTime = task.nextRun?.getTime();
+    const nextTime = nextRun?.getTime();
+    if (currentTime === nextTime) {
+      return false;
+    }
+
+    task.nextRun = nextRun;
+    return true;
+  }
+
+  private disableStoredTaskIfCronInvalid(task: ScheduledTask): boolean {
+    try {
+      this.validateCronExpression(task.cronExpression);
+      return false;
+    } catch {
+      const changed = task.enabled || task.nextRun !== undefined;
+      task.enabled = false;
+      task.nextRun = undefined;
+      const logContext = { taskId: task.id, taskName: task.name, cronExpression: task.cronExpression };
+      logError("[CopilotScheduler] Invalid cron expression found in stored task; disabling:", logContext);
+      return changed;
+    }
+  }
+
+  private reconcileLoadedTaskNextRun(task: ScheduledTask): boolean {
+    if (task.jobId) {
+      return false;
+    }
+
+    if (!task.enabled) {
+      return this.replaceTaskNextRun(task, undefined);
+    }
+
+    const hasValidNextRun =
+      task.nextRun instanceof Date && !Number.isNaN(task.nextRun.getTime());
+    if (hasValidNextRun) {
+      return false;
+    }
+
+    return this.replaceTaskNextRun(
+      task,
+      this.getNextRunForTask(task.cronExpression, new Date()),
+    );
+  }
+
+  private armSchedulerInterval(): void {
+    this.schedulerInterval = setInterval(() => void this.runSchedulerTick(), 60 * 1000);
+  }
+
+  private syncEnabledTaskState(
+    task: ScheduledTask,
+    enabled: boolean,
+    referenceTime = new Date(),
+  ): void {
+    setTaskEnabledState(task, enabled, referenceTime, (cronExpression, when) =>
+      this.getNextRunForTask(cronExpression, when),
+    );
+  }
+
+  private markTaskModified(task: ScheduledTask): void {
+    task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(task.id);
+  }
+
+  private scheduleBackgroundSave(
+    message: string,
+    options?: { bumpRevision?: boolean },
+    debugOnly = false,
+  ): void {
+    void this.saveTasks(options).catch((error) => {
+      const details = toSafeSchedulerErrorDetails(error);
+      if (debugOnly) {
+        logDebug(message, details);
+        return;
+      }
+      logError(message, details);
+    });
+  }
+
+  private async persistEnabledTaskChange(
+    task: ScheduledTask,
+    enabled: boolean,
+  ): Promise<ScheduledTask> {
+    task.enabled = enabled;
+    this.markTaskModified(task);
+    this.syncEnabledTaskState(task, enabled);
+    await this.saveTasks();
+    return task;
+  }
+
+  private async flushSchedulerTicks(): Promise<void> {
+    while (true) {
+      this.schedulerTickPending = false;
+      await this.checkAndExecuteTasks();
+      if (!this.schedulerTickPending) {
+        return;
+      }
     }
   }
 
@@ -557,37 +516,12 @@ export class ScheduleManager {
    * Check if a cron expression has a short interval and return warning if so
    */
   checkMinimumInterval(cronExpression: string): string | undefined {
-    const currentDate = new Date();
-    const tz = this.getTimeZone();
-
-    const check = (options: {
-      currentDate: Date;
-      tz?: string;
-    }): string | undefined => {
-      const interval = parseExpression(cronExpression, options);
-      const first = interval.next().toDate();
-      const second = interval.next().toDate();
-      const diffMinutes = (second.getTime() - first.getTime()) / (1000 * 60);
-
-      if (diffMinutes < 30) {
-        return messages.minimumIntervalWarning();
-      }
-      return undefined;
-    };
-
-    try {
-      return check(tz ? { currentDate, tz } : { currentDate });
-    } catch {
-      // If parsing fails with the configured timezone, fall back to local time (U9).
-      if (tz) {
-        try {
-          return check({ currentDate });
-        } catch {
-          // If parsing fails, skip interval check
-        }
-      }
-      return undefined;
-    }
+    return getCronIntervalWarning(
+      cronExpression,
+      new Date(),
+      messages.minimumIntervalWarning(),
+      this.getTimeZone(),
+    );
   }
 
   // ==================== Safety: Disclaimer ====================
@@ -596,25 +530,20 @@ export class ScheduleManager {
    * Check if the user has accepted the disclaimer
    */
   isDisclaimerAccepted(): boolean {
-    return this.context.globalState.get<boolean>(
-      DISCLAIMER_ACCEPTED_KEY,
-      false,
-    );
+    return this.context.globalState.get<boolean>(DISCLAIMER_ACCEPTED_STATE_KEY, false);
   }
 
   /**
    * Set disclaimer accepted state
    */
   async setDisclaimerAccepted(accepted: boolean): Promise<void> {
-    await this.context.globalState.update(DISCLAIMER_ACCEPTED_KEY, accepted);
+    await this.context.globalState.update(DISCLAIMER_ACCEPTED_STATE_KEY, accepted);
   }
 
   /**
    * Set callback for when tasks change
    */
-  setOnTasksChangedCallback(callback: () => void): void {
-    this.onTasksChangedCallback = callback;
-  }
+  setOnTasksChangedCallback(callback: () => void): void { this.onTasksChangedCallback = callback; }
 
   setOnExecuteCallback(callback: (task: ScheduledTask) => Promise<void>): void {
     this.onExecuteCallback = callback;
@@ -644,45 +573,24 @@ export class ScheduleManager {
    */
   private loadTasks(): void {
     const savedTasks = this.context.globalState.get<ScheduledTask[]>(
-      STORAGE_KEY,
+      TASK_STORAGE.stateKey,
       [],
     );
     const fileLoad = this.loadTasksFromFile();
-    const fileTasks = fileLoad.tasks;
-
-    const globalMeta = this.loadMetaFromGlobalState();
-    const fileMeta = this.loadMetaFromFile() || { revision: 0, savedAt: "" };
-
-    const globalStoreExists =
-      (Array.isArray(savedTasks) && savedTasks.length > 0) ||
-      (typeof globalMeta.revision === "number" && globalMeta.revision > 0);
-
-    const fileStoreExists =
-      fileLoad.ok ||
-      fs.existsSync(this.storageMetaFilePath) ||
-      (typeof fileMeta.revision === "number" && fileMeta.revision > 0);
-
-    const selection = selectTaskStore<ScheduledTask>(
-      {
-        kind: "globalState",
-        exists: globalStoreExists,
-        ok: true,
-        tasks: savedTasks,
-        revision: globalMeta.revision,
+    const selection = selectScheduleManagerTaskStore({
+      globalState: this.context.globalState,
+      keys: {
+        taskList: TASK_STORAGE.stateKey,
+        revision: TASK_STORAGE.revisionKey,
+        savedAt: TASK_STORAGE.savedAtKey,
       },
-      {
-        kind: "file",
-        exists: fileStoreExists,
-        ok: fileLoad.ok,
-        tasks: fileTasks,
-        revision: fileMeta.revision,
-      },
-    );
+      savedTasks: savedTasks,
+      fileLoad: fileLoad,
+      storageMetaFilePath: this.storageMetaFilePath,
+    });
 
-    // Choose newer store by revision (handles deletes correctly).
-    // IMPORTANT: an empty task array can still be the newest state (e.g., deleting the last task).
-    const tasksToLoad = selection.chosenTasks;
-    this.storageRevision = selection.chosenRevision || 0;
+    const tasksToLoad = selection.tasksToLoad;
+    this.storageRevision = selection.revision;
 
     /* --- HBG Custom: Load from .vscode/scheduler.json --- */
     const workspaceState = this.loadWorkspaceSchedulerState();
@@ -716,47 +624,9 @@ export class ScheduleManager {
     const loadedTaskIds = new Set<string>();
 
     for (const task of tasksToLoad) {
-      // Restore Date objects from JSON serialization
-      task.createdAt = new Date(task.createdAt);
-      task.updatedAt = new Date(task.updatedAt);
-      if (task.lastRun !== undefined) {
-        task.lastRun = new Date(task.lastRun);
-      }
-      if (task.promptBackupUpdatedAt !== undefined) {
-        task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
-      }
-      if (task.nextRun !== undefined) {
-        task.nextRun = new Date(task.nextRun);
-      }
+      needsSave = reviveScheduledTaskDates(task) || needsSave;
 
-      // Recovery: avoid keeping Invalid Date objects (would break JSON serialization).
-      // When dates are corrupted/missing, heal them and persist once.
-      const healedNow = new Date();
-      if (Number.isNaN(task.createdAt.getTime())) {
-        task.createdAt = healedNow;
-        needsSave = true;
-      }
-      if (Number.isNaN(task.updatedAt.getTime())) {
-        task.updatedAt = task.createdAt;
-        needsSave = true;
-      }
-      if (task.lastRun && Number.isNaN(task.lastRun.getTime())) {
-        task.lastRun = undefined;
-        needsSave = true;
-      }
-      if (
-        task.promptBackupUpdatedAt &&
-        Number.isNaN(task.promptBackupUpdatedAt.getTime())
-      ) {
-        task.promptBackupUpdatedAt = undefined;
-        needsSave = true;
-      }
-      if (task.nextRun && Number.isNaN(task.nextRun.getTime())) {
-        task.nextRun = undefined;
-        needsSave = true;
-      }
-
-      const normalizedChatSession = this.normalizeTaskChatSession(
+      const normalizedChatSession = normalizeScheduledTaskChatSession(
         task.chatSession,
         task.oneTime === true,
       );
@@ -765,7 +635,7 @@ export class ScheduleManager {
         needsSave = true;
       }
 
-      const normalizedLabels = this.normalizeLabels(task.labels);
+      const normalizedLabels = normalizeScheduledTaskLabels(task.labels);
       if (
         JSON.stringify(task.labels ?? []) !== JSON.stringify(normalizedLabels ?? [])
       ) {
@@ -780,54 +650,15 @@ export class ScheduleManager {
       }
 
       // Migration: add missing fields for older tasks
-      if (!task.scope) {
-        task.scope = "global";
-      }
-      {
-        const promptPath =
-          typeof task.promptPath === "string" ? task.promptPath.trim() : "";
-        const hasPromptPath = promptPath.length > 0;
-
-        const inferPromptSource = (): "inline" | "local" | "global" => {
-          if (!hasPromptPath) return "inline";
-
-          const workspaceFolderPaths = this.getResolvedWorkspaceRoots();
-
-          // Prefer global if it matches the configured (or default) global prompts root.
-          const globalRoot = resolveGlobalPromptsRoot(
-            getCompatibleConfigurationValue<string>("globalPromptsPath", ""),
-          );
-          if (resolveGlobalPromptPath(globalRoot, promptPath)) {
-            return "global";
-          }
-
-          if (resolveLocalPromptPath(workspaceFolderPaths, promptPath)) {
-            return "local";
-          }
-
-          return "inline";
-        };
-
-        // Migration: promptSource was introduced later; infer it from promptPath.
-        // Also heal inconsistent data where promptSource is inline but promptPath exists.
-        const isKnownSource =
-          task.promptSource === "inline" ||
-          task.promptSource === "local" ||
-          task.promptSource === "global";
-
-        if (!task.promptSource || !isKnownSource) {
-          task.promptSource = inferPromptSource();
-          if (task.promptSource === "inline" && !hasPromptPath) {
-            task.promptPath = undefined;
-          }
-          needsSave = true;
-        } else if (task.promptSource === "inline" && hasPromptPath) {
-          const inferred = inferPromptSource();
-          if (inferred !== "inline") {
-            task.promptSource = inferred;
-            needsSave = true;
-          }
-        }
+      if (!task.scope) task.scope = "global";
+      if (
+        repairStoredTaskPromptSource(
+          task,
+          this.getResolvedWorkspaceRoots(),
+          getCompatibleConfigurationValue<string>("globalPromptsPath", ""),
+        )
+      ) {
+        needsSave = true;
       }
 
       // Migration: add jitterSeconds if missing
@@ -835,45 +666,8 @@ export class ScheduleManager {
         task.jitterSeconds = 0;
       }
 
-      // Safety: if a stored task has an invalid cron expression (e.g., manual edits or corruption),
-      // disable it to prevent runaway execution loops.
-      try {
-        this.validateCronExpression(task.cronExpression);
-      } catch {
-        if (task.enabled) {
-          task.enabled = false;
-          needsSave = true;
-        }
-        if (task.nextRun !== undefined) {
-          task.nextRun = undefined;
-          needsSave = true;
-        }
-        logError(
-          "[CopilotScheduler] Invalid cron expression found in stored task; disabling:",
-          {
-            taskId: task.id,
-            taskName: task.name,
-            cronExpression: task.cronExpression,
-          },
-        );
-      }
-
-      // Keep persisted nextRun to allow catch-up execution after reload.
-      // Only compute nextRun when it's missing or invalid.
-      if (task.jobId) {
-        // Job-managed tasks are synchronized after the load pass.
-      } else if (task.enabled) {
-        const hasValidNextRun =
-          task.nextRun instanceof Date && !Number.isNaN(task.nextRun.getTime());
-        if (!hasValidNextRun) {
-          const now = new Date();
-          task.nextRun = this.getNextRunForTask(task.cronExpression, now);
-          needsSave = true;
-        }
-      } else if (task.nextRun !== undefined) {
-        task.nextRun = undefined;
-        needsSave = true;
-      }
+      needsSave = this.disableStoredTaskIfCronInvalid(task) || needsSave;
+      needsSave = this.reconcileLoadedTaskNextRun(task) || needsSave;
 
       this.tasks.set(task.id, task);
       loadedTaskIds.add(task.id);
@@ -891,20 +685,13 @@ export class ScheduleManager {
 
     // Save if any changes were made
     if (needsSave) {
-      void this.saveTasks().catch((error) =>
-        logError(
-          "[CopilotScheduler] Failed to save migrated tasks:",
-          toSafeErrorDetails(error),
-        ),
-      );
+      this.scheduleBackgroundSave("[CopilotScheduler] Failed to save migrated tasks:");
     } else {
-      // Heal the other store if needed (best effort, do not bump revision)
       if (selection.shouldHealFile || selection.shouldHealGlobalState) {
-        void this.saveTasks({ bumpRevision: false }).catch((error) =>
-          logDebug(
-            "[CopilotScheduler] Failed to sync task stores:",
-            toSafeErrorDetails(error),
-          ),
+        this.scheduleBackgroundSave(
+          "[CopilotScheduler] Failed to sync task stores:",
+          { bumpRevision: false },
+          true,
         );
       }
     }
@@ -933,7 +720,7 @@ export class ScheduleManager {
       .catch((error) =>
         logDebug(
           "[CopilotScheduler] SQLite workspace hydration failed:",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         ),
       )
       .finally(() => {
@@ -970,17 +757,7 @@ export class ScheduleManager {
 
     this.tasks.clear();
     for (const task of nextTasks.values()) {
-      task.createdAt = new Date(task.createdAt);
-      task.updatedAt = new Date(task.updatedAt);
-      if (task.lastRun !== undefined) {
-        task.lastRun = new Date(task.lastRun);
-      }
-      if (task.promptBackupUpdatedAt !== undefined) {
-        task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
-      }
-      if (task.nextRun !== undefined) {
-        task.nextRun = new Date(task.nextRun);
-      }
+      reviveScheduledTaskDates(task);
       this.tasks.set(task.id, task);
     }
 
@@ -1030,11 +807,11 @@ export class ScheduleManager {
             ? new Date(t.promptBackupUpdatedAt)
             : undefined,
           jitterSeconds: t.jitterSeconds,
-          chatSession: this.normalizeTaskChatSession(
+          chatSession: normalizeScheduledTaskChatSession(
             t.chatSession,
             t.oneTime === true,
           ),
-          labels: this.normalizeLabels(t.labels),
+          labels: normalizeScheduledTaskLabels(t.labels),
           jobId:
             typeof t.jobId === "string" && t.jobId.trim().length > 0
               ? t.jobId.trim()
@@ -1095,7 +872,7 @@ export class ScheduleManager {
                 id: node.id.trim(),
                 type: "task" as const,
                 taskId: rawTaskId.trim(),
-                windowMinutes: this.normalizeWindowMinutes(
+                windowMinutes: normalizeScheduledWindowMinutes(
                   (node as { windowMinutes?: number }).windowMinutes,
                 ),
               });
@@ -1232,16 +1009,14 @@ export class ScheduleManager {
    * Save tasks to globalState
    */
   private async saveTasks(options?: { bumpRevision?: boolean }): Promise<void> {
-    // Serialize saves to avoid last-write-wins races across concurrent callers.
-    const op = this.saveQueue.then(() => this.saveTasksInternal(options));
-    // Recover the chain so that a failed save does not block all subsequent saves.
-    this.saveQueue = op.catch((error) => {
+    const queuedSave = this.saveQueue.then(() => this.saveTasksInternal(options));
+    this.saveQueue = queuedSave.catch((error) => {
       logError(
         "[CopilotScheduler] Save failed (chain recovered):",
-        toSafeErrorDetails(error),
+        toSafeSchedulerErrorDetails(error),
       );
     });
-    return op;
+    return queuedSave;
   }
 
   private async saveTasksAndSyncRecurringPromptBackups(options?: {
@@ -1251,11 +1026,11 @@ export class ScheduleManager {
     await this.ensureRecurringPromptBackups();
   }
 
-  private async saveTasksInternal(options?: {
-    bumpRevision?: boolean;
-  }): Promise<void> {
+  private async saveTasksInternal(
+    options?: { bumpRevision?: boolean },
+  ): Promise<void> {
     const bumpRevision = options?.bumpRevision !== false;
-    const tasksArray: ScheduledTask[] = Array.from(this.tasks.values());
+    const tasksArray = [...this.tasks.values()];
 
     /* --- HBG CUSTOM: Write tasks to .vscode/scheduler.json --- */
     try {
@@ -1326,7 +1101,7 @@ export class ScheduleManager {
                   id: node.id,
                   type: "task" as const,
                   taskId: node.taskId,
-                  windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
+                  windowMinutes: normalizeScheduledWindowMinutes(node.windowMinutes),
                 }),
           })),
           deletedJobIds: Array.from(new Set([
@@ -1360,62 +1135,30 @@ export class ScheduleManager {
     }
     /* -------------------------------------------------------- */
 
-    const nextRevision = bumpRevision
-      ? this.storageRevision + 1
-      : this.storageRevision;
-    const meta: TaskStorageMeta = {
-      revision: nextRevision,
-      savedAt: new Date().toISOString(),
-    };
-
-    // Prefer file persistence for responsiveness and reliability.
-    // If file save succeeds, return immediately and sync globalState in background.
-    try {
-      await this.saveTasksToFile(tasksArray);
-      await this.saveMetaToFile(meta);
-      if (this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()) {
-        await syncGlobalTasksToSqlite(this.context.globalStorageUri.fsPath, tasksArray);
-      }
-      this.storageRevision = meta.revision;
-
-      void Promise.all([
-        this.saveTasksToGlobalState(tasksArray),
-        this.saveMetaToGlobalState(meta),
-      ]).catch((error) =>
-        logDebug(
-          "[CopilotScheduler] Task save to globalState failed (file succeeded):",
-          toSafeErrorDetails(error),
-        ),
-      );
-
-      this.notifyTasksChanged();
-      return;
-    } catch (fileError) {
-      // If file persistence fails, fall back to globalState (await so at least one store succeeds).
-      try {
-        await this.saveTasksToGlobalState(tasksArray);
-        await this.saveMetaToGlobalState(meta);
-        this.storageRevision = meta.revision;
-      } catch (globalStateError) {
-        throw globalStateError instanceof Error
-          ? globalStateError
-          : new Error(String(globalStateError ?? ""));
-      }
-
-      // Best-effort background file sync for future reliability.
-      void Promise.all([
-        this.saveTasksToFile(tasksArray),
-        this.saveMetaToFile(meta),
-      ]).catch((error) =>
-        logDebug(
-          "[CopilotScheduler] Task save to file failed (globalState succeeded):",
-          {
-            fileError: toSafeErrorDetails(fileError),
-            syncError: toSafeErrorDetails(error),
-          },
-        ),
-      );
-    }
+    this.storageRevision = await persistScheduleManagerTaskStore({
+      tasksArray: tasksArray,
+      bumpRevision: bumpRevision,
+      currentRevision: this.storageRevision,
+      storageMetaFilePath: this.storageMetaFilePath,
+      globalState: this.context.globalState,
+      keys: {
+        revision: TASK_STORAGE.revisionKey,
+        savedAt: TASK_STORAGE.savedAtKey,
+      },
+      saveTasksToFile: (nextTasks) => this.saveTasksToFile(nextTasks),
+      saveTasksToGlobalState: (nextTasks) => this.saveTasksToGlobalState(nextTasks),
+      syncGlobalTasksToSqlite:
+        this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()
+          ? async () => {
+              await syncGlobalTasksToSqlite(
+                this.context.globalStorageUri.fsPath,
+                tasksArray,
+              );
+            }
+          : undefined,
+      logDebug: logDebug,
+      toSafeSchedulerErrorDetails: toSafeSchedulerErrorDetails,
+    });
 
     this.notifyTasksChanged();
   }
@@ -1423,11 +1166,7 @@ export class ScheduleManager {
   /**
    * Generate unique task ID
    */
-  private generateId(): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    return `task_${timestamp}_${random}`;
-  }
+  private generateId(): string { return this.generateScopedId("task"); }
 
   /**
    * Get timezone from configuration
@@ -1440,46 +1179,20 @@ export class ScheduleManager {
   /**
    * Calculate next run time from cron expression
    */
-  private getNextRun(
-    cronExpression: string,
-    baseTime?: Date,
-  ): Date | undefined {
-    const currentDate = baseTime || new Date();
-    const tz = this.getTimeZone();
-
-    try {
-      const options: { currentDate: Date; tz?: string } = { currentDate };
-      if (tz) {
-        options.tz = tz;
-      }
-
-      const interval = parseExpression(cronExpression, options);
-      return interval.next().toDate();
-    } catch {
-      // If the configured timezone is invalid, fall back to local time (U9).
-      if (tz) {
+  private getNextRun(cronExpression: string, baseTime?: Date): Date | undefined {
+    return resolveNextCronRun(
+      cronExpression,
+      baseTime || new Date(),
+      this.getTimeZone(),
+      (tz) =>
         logDebug(
           `[CopilotScheduler] Invalid timezone "${tz}", falling back to local time`,
-        );
-        try {
-          const interval = parseExpression(cronExpression, { currentDate });
-          return interval.next().toDate();
-        } catch {
-          return undefined;
-        }
-      }
-      return undefined;
-    }
+        ),
+    );
   }
 
   private truncateToMinute(date: Date): Date {
-    return new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      date.getHours(),
-      date.getMinutes(),
-    );
+    return truncateDateToMinute(date);
   }
 
   private isTaskDueAt(task: ScheduledTask, referenceTime: Date): boolean {
@@ -1493,22 +1206,14 @@ export class ScheduleManager {
   }
 
   private getNextRunForTask(cronExpression: string, baseTime: Date): Date {
-    // Always use cron-parser to stay aligned with the cron grid.
-    // A previous "*/N" fixed-interval optimisation was removed because it
-    // drifted from the grid when jitter or execution time shifted baseTime
-    // away from a grid-aligned minute (e.g., */5 starting at :03 → :08
-    // instead of :05, compounding on every subsequent execution).
-    const parsed = this.getNextRun(cronExpression, baseTime);
-    if (parsed) {
-      return parsed;
+    const nextRun = this.getNextRun(cronExpression, baseTime);
+    if (nextRun) {
+      return nextRun;
     }
 
-    // Fallback: if cron parsing fails unexpectedly, schedule 60 min in the
-    // future instead of "now" to prevent rapid-fire execution loops.
-    logError(
-      `[CopilotScheduler] Failed to parse cron "${cronExpression}"; falling back to +60 min`,
-    );
-    return this.truncateToMinute(new Date(baseTime.getTime() + 60 * 60 * 1000));
+    const fallbackRun = new Date(baseTime.getTime() + 60 * 60 * 1000);
+    logError(`[CopilotScheduler] Failed to parse cron "${cronExpression}"; falling back to +60 min`);
+    return this.truncateToMinute(fallbackRun);
   }
 
   /**
@@ -1516,88 +1221,332 @@ export class ScheduleManager {
    * @throws Error if invalid
    */
   validateCronExpression(expression: string): void {
-    if (!expression || !expression.trim()) {
-      throw new Error(messages.invalidCronExpression());
+    assertValidCronExpression(
+      expression,
+      new Date(),
+      messages.invalidCronExpression(),
+      this.getTimeZone(),
+    );
+  }
+
+  private assertTaskUpdateInput(
+    task: ScheduledTask,
+    updates: Partial<CreateTaskInput>,
+  ): void {
+    if (updates.name !== undefined) {
+      const nextName = updates.name.trim();
+      if (!nextName) throw new Error(messages.taskNameRequired());
     }
 
-    const currentDate = new Date();
-    const tz = this.getTimeZone();
+    const nextPromptSource = updates.promptSource ?? task.promptSource ?? "inline";
+    const inlinePromptCleared =
+      updates.prompt !== undefined &&
+      nextPromptSource === "inline" &&
+      updates.prompt.trim().length === 0;
+    if (inlinePromptCleared) throw new Error(messages.promptRequired());
+    if (updates.cronExpression !== undefined) this.validateCronExpression(updates.cronExpression);
+  }
 
-    // First, validate with timezone if configured.
-    try {
-      const options: { currentDate: Date; tz?: string } = { currentDate };
-      if (tz) {
-        options.tz = tz;
-      }
-      parseExpression(expression, options);
+  private createScheduledTaskRecord(
+    input: CreateTaskInput,
+    params: {
+      id: string;
+      enabled: boolean;
+      effectiveScope: TaskScope;
+      workspacePath: string | undefined;
+      jitterSeconds: number;
+      oneTime: boolean;
+      nextRun: Date | undefined;
+      now: Date;
+    },
+  ): ScheduledTask {
+    const {
+      id,
+      enabled,
+      effectiveScope,
+      workspacePath,
+      jitterSeconds,
+      oneTime,
+      nextRun,
+      now,
+    } = params;
+    const sessionState = {
+      manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
+      chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
+      labels: normalizeScheduledTaskLabels(input.labels),
+    };
+
+    const createdTask: ScheduledTask = {
+      prompt: input.prompt,
+      agent: input.agent,
+      createdAt: now,
+      cronExpression: input.cronExpression,
+      enabled,
+      id,
+      oneTime,
+      jitterSeconds,
+      model: input.model,
+      name: input.name,
+      nextRun,
+      promptPath: input.promptPath,
+      promptSource: input.promptSource || "inline",
+      scope: effectiveScope,
+      updatedAt: now,
+      workspacePath,
+      ...sessionState,
+    };
+    return createdTask;
+  }
+
+  private unlinkTaskFromOwningJob(taskId: string): void {
+    const jobContext = this.findJobNodeByTaskId(taskId);
+    if (!jobContext) {
       return;
-    } catch {
-      // If timezone is invalid, retry without tz.
-      if (tz) {
-        try {
-          parseExpression(expression, { currentDate });
-          return;
-        } catch {
-          // Fall through to throw
-        }
+    }
+
+    const removedNodeId = jobContext.node.id;
+    jobContext.job.nodes = jobContext.job.nodes.filter(
+      ({ id }) => id !== removedNodeId,
+    );
+    this.clearJobRuntime(jobContext.job);
+    jobContext.job.updatedAt = new Date().toISOString();
+  }
+
+  private beginAlignedSchedulerLoop(): void {
+    this.schedulerTimeout = undefined;
+    void this.runSchedulerTick();
+    this.armSchedulerInterval();
+  }
+
+  private createTaskUpdateContext() {
+    const taskUpdateContext = {
+      getPrimaryWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
+      clampJitterSeconds: clampScheduleJitterSeconds,
+      normalizeTaskManualSession: normalizeScheduledTaskManualSession,
+      normalizeTaskChatSession: normalizeScheduledTaskChatSession,
+      normalizeLabels: normalizeScheduledTaskLabels,
+    };
+    return taskUpdateContext;
+  }
+
+  private clearTaskSchedulingState(taskId: string): void {
+    this.pendingDeletedTaskIds.add(taskId);
+    this.suppressedOverdueTaskIds.delete(taskId);
+  }
+
+  private updateTaskWorkspacePath(
+    task: ScheduledTask,
+    workspacePath: string,
+  ): ScheduledTask {
+    task.workspacePath = workspacePath;
+    this.markTaskModified(task);
+    return task;
+  }
+
+  private getScheduledTaskWorkspaceKey(task: ScheduledTask): string {
+    return task.workspacePath ? normalizeForCompare(task.workspacePath) : "";
+  }
+
+  private getEnabledTaskArray(): ScheduledTask[] {
+    return [...this.tasks.values()].filter(({ enabled }) => enabled);
+  }
+
+  private buildDailyLimitSkipOutcome(
+    task: ScheduledTask,
+    maxDailyLimit: number,
+    now: Date,
+  ): TaskExecutionOutcome {
+    logDebug(
+      `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
+    );
+    this.notifyDailyLimitReachedOnce(getSchedulerLocalDateKey(), maxDailyLimit);
+    const rescheduledAt = this.getScheduledTaskNextRun(task, now);
+    task.nextRun = rescheduledAt;
+    return { executedCount: 0, needsSave: true, deleteTask: false };
+  }
+
+  private buildTaskExecutionRetryOutcome(): TaskExecutionOutcome {
+    return {
+      executedCount: 0,
+      needsSave: true,
+      deleteTask: false,
+    };
+  }
+
+  private handleSuccessfulTaskExecution(
+    task: ScheduledTask,
+    executedAt: Date,
+  ): TaskExecutionOutcome {
+    this.incrementDailyExecCountInMemory(executedAt);
+    task.lastRun = executedAt;
+    task.lastError = undefined;
+    task.lastErrorAt = undefined;
+    this.handleSuccessfulJobTaskExecution(task, executedAt);
+    this.syncJobTaskSchedules(executedAt);
+
+    if (this.isOneTimeExecutionTask(task)) {
+      return { executedCount: 1, needsSave: true, deleteTask: true };
+    }
+
+    task.nextRun = this.getScheduledTaskNextRun(task, new Date());
+    return { executedCount: 1, needsSave: true, deleteTask: false };
+  }
+
+  private handleFailedTaskExecution(
+    task: ScheduledTask,
+    error: unknown,
+    now: Date,
+  ): TaskExecutionOutcome {
+    const details = toSafeSchedulerErrorDetails(error);
+    const failureContext = { error: details, taskId: task.id, taskName: task.name };
+    logError("[CopilotScheduler] Task execution error:", failureContext);
+    task.lastError = details;
+    task.lastErrorAt = new Date();
+    task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
+    return this.buildTaskExecutionRetryOutcome();
+  }
+
+  private finalizeTaskUpdate(
+    task: ScheduledTask,
+    taskId: string,
+    updatedAt: Date,
+  ): Promise<void> {
+    task.updatedAt = updatedAt;
+    this.suppressedOverdueTaskIds.delete(taskId);
+    return this.saveTasksAndSyncRecurringPromptBackups();
+  }
+
+  private async deleteTaskAndPersist(taskId: string): Promise<boolean> {
+    const deleted = this.tasks.delete(taskId);
+    if (!deleted) {
+      return false;
+    }
+
+    this.clearTaskSchedulingState(taskId);
+    this.syncJobTaskSchedules(new Date());
+    await this.saveTasks();
+    return true;
+  }
+
+  private resolveCurrentWorkspaceRootOrThrow(): string {
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    if (!workspaceRoot) {
+      throw new Error(messages.noWorkspaceOpen());
+    }
+
+    return workspaceRoot;
+  }
+
+  private scheduleAlignedSchedulerStart(): void {
+    const delayUntilNextMinute = this.getMillisecondsUntilNextMinute();
+    this.schedulerTimeout = setTimeout(
+      () => this.beginAlignedSchedulerLoop(),
+      delayUntilNextMinute,
+    );
+  }
+
+  private logSchedulerTickFailure(error: unknown): void {
+    logError(
+      "[CopilotScheduler] Scheduler tick failed:",
+      toSafeSchedulerErrorDetails(error),
+    );
+  }
+
+  private getSchedulerTickSettings(): {
+    maxDailyLimit: number;
+    defaultJitterSeconds: number;
+  } {
+    const configuredDailyLimit = getCompatibleConfigurationValue<number>(
+      "maxDailyExecutions",
+      24,
+    );
+    const normalizedDailyLimit = Number.isFinite(configuredDailyLimit)
+      ? configuredDailyLimit
+      : 24;
+
+    const defaultJitterSeconds = getCompatibleConfigurationValue<number>(
+      "jitterSeconds",
+      0,
+    );
+    const maxDailyLimit =
+      normalizedDailyLimit === 0
+        ? 0
+        : Math.min(Math.max(normalizedDailyLimit, 1), 100);
+
+    return { defaultJitterSeconds, maxDailyLimit };
+  }
+
+  private shouldSkipScheduledTask(task: ScheduledTask): boolean {
+    if (!task.enabled || !task.nextRun) {
+      return true;
+    }
+    if (this.isTaskSuppressedByJob(task)) {
+      return true;
+    }
+    if (!this.shouldTaskRunInCurrentWorkspace(task)) {
+      return true;
+    }
+    return this.suppressedOverdueTaskIds.has(task.id);
+  }
+
+  private async executeDueTask(
+    task: ScheduledTask,
+    now: Date,
+    nowMinute: Date,
+    maxDailyLimit: number,
+    defaultJitterSeconds: number,
+  ): Promise<TaskExecutionOutcome> {
+    if (!this.isTaskDueAt(task, nowMinute)) {
+      return { executedCount: 0, needsSave: false, deleteTask: false };
+    }
+
+    if (this.isDailyLimitReached(maxDailyLimit)) {
+      return this.buildDailyLimitSkipOutcome(task, maxDailyLimit, now);
+    }
+
+    const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
+    await applyScheduleJitter(maxJitterSeconds);
+
+    const executeTask = this.onExecuteCallback;
+    if (executeTask) {
+      try {
+        await executeTask(task);
+        return this.handleSuccessfulTaskExecution(task, new Date());
+      } catch (error) {
+        return this.handleFailedTaskExecution(task, error, now);
       }
-      throw new Error(messages.invalidCronExpression());
+    }
+
+    task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
+    return this.buildTaskExecutionRetryOutcome();
+  }
+
+  private applyScheduledTaskDeletions(taskIds: readonly string[]): void {
+    for (const taskId of taskIds) {
+      this.tasks.delete(taskId);
+      this.clearTaskSchedulingState(taskId);
     }
   }
 
-  private normalizeTaskChatSession(
-    chatSession: unknown,
-    oneTime: boolean,
-  ): ChatSessionBehavior | undefined {
-    if (oneTime) {
-      return undefined;
+  private async persistDailyExecCountSafely(executedCount: number): Promise<void> {
+    if (executedCount <= 0) {
+      return;
     }
 
-    return chatSession === "new" || chatSession === "continue"
-      ? chatSession
-      : undefined;
+    try {
+      const persistDailyCount = this.persistDailyExecCount.bind(this);
+      await persistDailyCount();
+    } catch (error) {
+      const failureDetails = toSafeSchedulerErrorDetails(error);
+      logError(
+        "[CopilotScheduler] Failed to persist daily execution count:",
+        failureDetails,
+      );
+    }
   }
 
-  private normalizeTaskManualSession(
-    manualSession: unknown,
-    oneTime: boolean,
-  ): boolean | undefined {
-    if (oneTime) {
-      return undefined;
-    }
-
-    return manualSession === true ? true : undefined;
-  }
-
-  private normalizeLabels(labels: unknown): string[] | undefined {
-    const values = Array.isArray(labels)
-      ? labels
-      : typeof labels === "string"
-        ? labels.split(",")
-        : [];
-
-    const normalized = values
-      .map((value) => (typeof value === "string" ? value.trim() : ""))
-      .filter((value) => value.length > 0);
-
-    if (normalized.length === 0) {
-      return undefined;
-    }
-
-    return Array.from(new Set(normalized));
-  }
-
-  private normalizeWindowMinutes(windowMinutes: unknown): number {
-    const numeric =
-      typeof windowMinutes === "number"
-        ? windowMinutes
-        : Number(windowMinutes ?? 30);
-    if (!Number.isFinite(numeric)) {
-      return 30;
-    }
-
-    const rounded = Math.floor(numeric);
-    return Math.min(Math.max(rounded, 1), 24 * 60);
+  private findStoredTask(id: string): ScheduledTask | undefined {
+    return this.tasks.get(id);
   }
 
   private generateScopedId(prefix: string): string {
@@ -1691,7 +1640,7 @@ export class ScheduleManager {
         return total;
       }
 
-      return total + this.normalizeWindowMinutes(node.windowMinutes);
+      return total + normalizeScheduledWindowMinutes(node.windowMinutes);
     }, 0);
   }
 
@@ -1783,25 +1732,11 @@ export class ScheduleManager {
     cronExpression: string,
     referenceTime: Date,
   ): Date | undefined {
-    const currentDate = new Date(referenceTime.getTime() + 1);
-    const tz = this.getTimeZone();
-
-    try {
-      const options: { currentDate: Date; tz?: string } = { currentDate };
-      if (tz) {
-        options.tz = tz;
-      }
-      return parseExpression(cronExpression, options).prev().toDate();
-    } catch {
-      if (tz) {
-        try {
-          return parseExpression(cronExpression, { currentDate }).prev().toDate();
-        } catch {
-          return undefined;
-        }
-      }
-      return undefined;
-    }
+    return resolvePreviousCronRun(
+      cronExpression,
+      new Date(referenceTime.getTime() + 1),
+      this.getTimeZone(),
+    );
   }
 
   private getNextRunForJobNode(
@@ -1940,14 +1875,10 @@ export class ScheduleManager {
    * Create a new task
    */
   async createTask(input: CreateTaskInput): Promise<ScheduledTask> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error(messages.taskNameRequired());
-    }
-    if (!input.prompt || !input.prompt.trim()) {
-      throw new Error(messages.promptRequired());
-    }
-
-    // Validate cron expression
+    const trimmedName = input.name?.trim();
+    const trimmedPrompt = input.prompt?.trim();
+    if (!trimmedName) throw new Error(messages.taskNameRequired());
+    if (!trimmedPrompt) throw new Error(messages.promptRequired());
     this.validateCronExpression(input.cronExpression);
 
     const now = new Date();
@@ -1958,55 +1889,42 @@ export class ScheduleManager {
       "defaultScope",
       "workspace",
     );
-    const defaultJitter = this.clampJitterSeconds(
+    const defaultJitter = clampScheduleJitterSeconds(
       getCompatibleConfigurationValue<number>("jitterSeconds", 0),
     );
 
     const enabled = input.enabled !== false;
     const effectiveScope = input.scope || defaultScope;
     const oneTime = input.oneTime ?? id.startsWith("exec-");
-
-    // Calculate next run (disabled tasks must not keep nextRun)
-    let nextRun: Date | undefined;
-    if (enabled) {
-      if (input.runFirstInOneMinute) {
-        nextRun = this.truncateToMinute(
-          new Date(
-            now.getTime() + ScheduleManager.FIRST_RUN_DELAY_MINUTES * 60 * 1000,
-          ),
-        );
-      } else {
-        nextRun = this.getNextRunForTask(input.cronExpression, now);
-      }
-    }
-
-    const task: ScheduledTask = {
-      id,
-      name: input.name,
-      cronExpression: input.cronExpression,
-      prompt: input.prompt,
+    const workspacePath =
+      effectiveScope === "workspace"
+        ? this.getPrimaryWorkspaceRoot()
+        : undefined;
+    const jitterSeconds =
+      input.jitterSeconds !== undefined
+        ? clampScheduleJitterSeconds(input.jitterSeconds)
+        : defaultJitter;
+    const nextRun = resolveCreatedTaskNextRun({
       enabled,
-      agent: input.agent,
-      model: input.model,
-      scope: effectiveScope,
-      workspacePath:
-        effectiveScope === "workspace"
-          ? this.getPrimaryWorkspaceRoot()
-          : undefined,
-      promptSource: input.promptSource || "inline",
-      promptPath: input.promptPath,
-      jitterSeconds:
-        input.jitterSeconds !== undefined
-          ? this.clampJitterSeconds(input.jitterSeconds)
-          : defaultJitter,
+      runFirstInOneMinute: input.runFirstInOneMinute,
+      now,
+      firstRunDelayMinutes: ScheduleManager.FIRST_RUN_DELAY_MINUTES,
+      cronExpression: input.cronExpression,
+      truncateToMinute: (date) => this.truncateToMinute(date),
+      getNextRun: (cronExpression, referenceTime) =>
+        this.getNextRunForTask(cronExpression, referenceTime),
+    });
+
+    const task = this.createScheduledTaskRecord(input, {
+      id,
+      enabled,
+      effectiveScope,
+      workspacePath,
+      jitterSeconds,
       oneTime,
-      manualSession: this.normalizeTaskManualSession(input.manualSession, oneTime),
-      chatSession: this.normalizeTaskChatSession(input.chatSession, oneTime),
-      labels: this.normalizeLabels(input.labels),
       nextRun,
-      createdAt: now,
-      updatedAt: now,
-    };
+      now,
+    });
 
     this.tasks.set(id, task);
     await this.saveTasksAndSyncRecurringPromptBackups();
@@ -2017,8 +1935,8 @@ export class ScheduleManager {
   /**
    * Get a task by ID
    */
-  getTask(id: string): ScheduledTask | undefined {
-    return this.tasks.get(id);
+  getTask(taskId: string): ScheduledTask | undefined {
+    return this.tasks.get(taskId);
   }
 
   getOverdueTasks(referenceTime = new Date()): ScheduledTask[] {
@@ -2089,7 +2007,7 @@ export class ScheduleManager {
    * Get all tasks
    */
   getAllTasks(): ScheduledTask[] {
-    return Array.from(this.tasks.values());
+    return [...this.tasks.values()];
   }
 
   async removeLabelFromAllTasks(labelName: string): Promise<number> {
@@ -2108,7 +2026,7 @@ export class ScheduleManager {
       if (nextLabels.length === existingLabels.length) {
         continue;
       }
-      task.labels = this.normalizeLabels(nextLabels);
+      task.labels = normalizeScheduledTaskLabels(nextLabels);
       task.updatedAt = timestamp;
       changedCount += 1;
     }
@@ -2557,7 +2475,7 @@ export class ScheduleManager {
         id: nodeId,
         type: "task",
         taskId,
-        windowMinutes: this.normalizeWindowMinutes(windowMinutes),
+        windowMinutes: normalizeScheduledWindowMinutes(windowMinutes),
       });
       task.jobId = jobId;
       task.jobNodeId = nodeId;
@@ -2668,7 +2586,7 @@ export class ScheduleManager {
       return undefined;
     }
 
-    node.windowMinutes = this.normalizeWindowMinutes(windowMinutes);
+    node.windowMinutes = normalizeScheduledWindowMinutes(windowMinutes);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
@@ -2705,12 +2623,7 @@ export class ScheduleManager {
     return normalized === "bundled jobs" || normalized === "archive";
   }
 
-  private buildCompiledJobPrompt(job: JobDefinition): {
-    prompt: string;
-    agent?: string;
-    model?: string;
-    labels: string[];
-  } {
+  private buildCompiledJobPrompt(job: JobDefinition): CompiledJobPrompt {
     const sections: string[] = [
       `Job: ${job.name}`,
       "Execute the following workflow as one combined task. Keep the sections in order and preserve explicit checkpoints before continuing.",
@@ -2751,7 +2664,7 @@ export class ScheduleManager {
 
       sections.push(
         `Step ${taskCount}: ${task.name}`,
-        `Original window: ${this.normalizeWindowMinutes(node.windowMinutes)} minutes`,
+        `Original window: ${normalizeScheduledWindowMinutes(node.windowMinutes)} minutes`,
         task.prompt,
       );
     }
@@ -2822,7 +2735,7 @@ export class ScheduleManager {
       .catch((error) => {
         logError(
           "[CopilotScheduler] Restore history failed (chain recovered):",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         );
       });
     return op;
@@ -2868,385 +2781,134 @@ export class ScheduleManager {
     return true;
   }
 
-  /**
-   * Recalculate nextRun for all enabled tasks.
-   * Call when timezone configuration changes so that persisted nextRun values
-   * (computed under the old timezone) are recomputed under the new one.
-   */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
-    let changed = false;
-    for (const task of this.tasks.values()) {
-      if (!task.enabled) continue;
-      const jobContext = task.jobId ? this.findJobNodeByTaskId(task.id) : undefined;
-      const newNextRun = jobContext
-        ? this.getNextRunForJobNode(jobContext.job, jobContext.nodeIndex, now)
-        : this.getNextRunForTask(task.cronExpression, now);
-      if (!newNextRun) {
-        if (task.nextRun) {
-          task.nextRun = undefined;
-          changed = true;
-        }
-        continue;
-      }
-      if (!task.nextRun || task.nextRun.getTime() !== newNextRun.getTime()) {
-        task.nextRun = newNextRun;
-        changed = true;
-      }
+    let didChange = false;
+    const enabledTasks = this.getEnabledTaskArray();
+    for (const task of enabledTasks) {
+      const nextRun = this.getScheduledTaskNextRun(task, now);
+      didChange = this.replaceTaskNextRun(task, nextRun) || didChange;
     }
-    if (changed) {
-      await this.saveTasks();
+    if (!didChange) {
+      return;
     }
+    await this.saveTasks();
   }
 
-  /**
-   * Get tasks by scope
-   */
   getTasksByScope(scope: TaskScope): ScheduledTask[] {
     return this.getAllTasks().filter((task) => task.scope === scope);
   }
 
-  /**
-   * Update a task
-   */
-  async updateTask(
-    id: string,
-    updates: Partial<CreateTaskInput>,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    if (updates.name !== undefined && !updates.name.trim()) {
-      throw new Error(messages.taskNameRequired());
-    }
-    const nextPromptSource = updates.promptSource ?? task.promptSource ?? "inline";
-    if (
-      updates.prompt !== undefined &&
-      !updates.prompt.trim() &&
-      nextPromptSource === "inline"
-    ) {
-      throw new Error(messages.promptRequired());
-    }
-
-    // Validate cron expression if being updated (including empty string)
-    if (updates.cronExpression !== undefined) {
-      this.validateCronExpression(updates.cronExpression);
-    }
+  async updateTask(taskId: string, updates: Partial<CreateTaskInput>): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
+    if (task === undefined) return undefined;
+    this.assertTaskUpdateInput(task, updates);
 
     const now = new Date();
     const enabledBefore = task.enabled;
-    let cronChanged = false;
+    const { cronChanged } = applyTaskUpdatesToTask({
+      task,
+      updates,
+      ...this.createTaskUpdateContext(),
+    });
 
-    // Apply updates
-    if (updates.name !== undefined) {
-      task.name = updates.name;
-    }
-    if (updates.cronExpression !== undefined) {
-      task.cronExpression = updates.cronExpression;
-      cronChanged = true;
-    }
-    if (updates.prompt !== undefined) {
-      task.prompt = updates.prompt;
-    }
-    if (updates.enabled !== undefined) {
-      task.enabled = updates.enabled;
-    }
-    if (updates.agent !== undefined) {
-      task.agent = updates.agent;
-    }
-    if (updates.model !== undefined) {
-      task.model = updates.model;
-    }
-    if (updates.scope !== undefined) {
-      const nextScope = updates.scope;
-
-      // Only adjust workspacePath when scope actually changes (or workspacePath is missing).
-      // Webview submits scope on every save; we must not overwrite workspacePath on edits.
-      if (nextScope !== task.scope) {
-        task.scope = nextScope;
-        if (nextScope === "workspace") {
-          task.workspacePath = this.getPrimaryWorkspaceRoot();
-        } else {
-          task.workspacePath = undefined;
-        }
-      } else if (nextScope === "workspace" && !task.workspacePath) {
-        task.workspacePath = this.getPrimaryWorkspaceRoot();
-      }
-    }
-    if (updates.promptSource !== undefined) {
-      task.promptSource = updates.promptSource;
-    }
-    if (updates.promptPath !== undefined) {
-      task.promptPath = updates.promptPath;
-    }
-    if (updates.jitterSeconds !== undefined) {
-      task.jitterSeconds = this.clampJitterSeconds(updates.jitterSeconds);
-    }
-    if (updates.oneTime !== undefined) {
-      task.oneTime = updates.oneTime;
-    }
-    if (updates.manualSession !== undefined || updates.oneTime !== undefined) {
-      task.manualSession = this.normalizeTaskManualSession(
-        updates.manualSession !== undefined
-          ? updates.manualSession
-          : task.manualSession,
-        task.oneTime === true,
-      );
-    }
-    if (updates.chatSession !== undefined || updates.oneTime !== undefined) {
-      task.chatSession = this.normalizeTaskChatSession(
-        updates.chatSession !== undefined ? updates.chatSession : task.chatSession,
-        task.oneTime === true,
-      );
-    }
-    if (updates.labels !== undefined) {
-      task.labels = this.normalizeLabels(updates.labels);
-    }
-
-    const enabledAfter = task.enabled;
-
-    // Keep nextRun consistent with enabled state
-    if (!enabledAfter) {
-      task.nextRun = undefined;
-    } else {
-      // One-time immediate scheduling on update (only for enabled tasks)
-      if (updates.runFirstInOneMinute) {
-        task.nextRun = this.truncateToMinute(
-          new Date(
-            now.getTime() + ScheduleManager.FIRST_RUN_DELAY_MINUTES * 60 * 1000,
-          ),
-        );
-      } else if (cronChanged || (!enabledBefore && enabledAfter)) {
-        task.nextRun = this.getNextRunForTask(task.cronExpression, now);
-      } else if (!task.nextRun) {
-        // Ensure nextRun exists for enabled tasks
-        task.nextRun = this.getNextRunForTask(task.cronExpression, now);
-      }
-    }
-
-    task.updatedAt = now;
-  this.suppressedOverdueTaskIds.delete(id);
-
-    await this.saveTasksAndSyncRecurringPromptBackups();
-
+    this.refreshTaskNextRunAfterUpdate(task, {
+      enabledBefore,
+      cronChanged,
+      runFirstInOneMinute: updates.runFirstInOneMinute,
+      referenceTime: now,
+    });
+    await this.finalizeTaskUpdate(task, taskId, now);
     return task;
   }
 
-  /**
-   * Delete a task
-   */
   async deleteTask(id: string): Promise<boolean> {
-    const jobContext = this.findJobNodeByTaskId(id);
-    if (jobContext) {
-      jobContext.job.nodes = jobContext.job.nodes.filter(
-        (node) => node.id !== jobContext.node.id,
-      );
-      this.clearJobRuntime(jobContext.job);
-      jobContext.job.updatedAt = new Date().toISOString();
-    }
-
-    const deleted = this.tasks.delete(id);
-    if (deleted) {
-      this.pendingDeletedTaskIds.add(id);
-      this.suppressedOverdueTaskIds.delete(id);
-      this.syncJobTaskSchedules(new Date());
-      await this.saveTasks();
-    }
-    return deleted;
+    this.unlinkTaskFromOwningJob(id);
+    return this.deleteTaskAndPersist(id);
   }
 
-  /**
-   * Toggle task enabled/disabled
-   */
   async toggleTask(id: string): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    task.enabled = !task.enabled;
-    task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
-
-    // Keep nextRun consistent with enabled state
-    if (task.enabled) {
-      task.nextRun = this.getNextRunForTask(task.cronExpression, new Date());
-    } else {
-      task.nextRun = undefined;
-    }
-
-    await this.saveTasks();
-
-    return task;
+    const task = this.findStoredTask(id);
+    if (task === undefined) return undefined;
+    return this.persistEnabledTaskChange(task, !task.enabled);
   }
 
-  /**
-   * Set task enabled state explicitly
-   */
-  async setTaskEnabled(
-    id: string,
-    enabled: boolean,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    task.enabled = enabled;
-    task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
-
-    // Keep nextRun consistent with enabled state
-    if (task.enabled) {
-      task.nextRun = this.getNextRunForTask(task.cronExpression, new Date());
-    } else {
-      task.nextRun = undefined;
-    }
-
-    await this.saveTasks();
-
-    return task;
+  async setTaskEnabled(taskId: string, enabled: boolean): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
+    if (task === undefined) return undefined;
+    return this.persistEnabledTaskChange(task, enabled);
   }
 
-  /**
-   * Duplicate a task
-   */
   async duplicateTask(id: string): Promise<ScheduledTask | undefined> {
-    const original = this.tasks.get(id);
-    if (!original) {
-      return undefined;
-    }
-
-    const input: CreateTaskInput = {
-      name: `${original.name} ${messages.taskCopySuffix()}`,
-      cronExpression: original.cronExpression,
-      prompt: original.prompt,
-      enabled: false, // Start disabled
-      agent: original.agent,
-      model: original.model,
-      scope: original.scope,
-      oneTime: original.oneTime,
-      manualSession: original.oneTime === true ? undefined : original.manualSession,
-      chatSession: original.oneTime === true ? undefined : original.chatSession,
-      labels: original.labels,
-      promptSource: original.promptSource,
-      promptPath: original.promptPath,
-      jitterSeconds: original.jitterSeconds,
-    };
-
-    return this.createTask(input);
+    const original = this.findStoredTask(id);
+    if (original === undefined) return undefined;
+    return this.createTask(createDuplicateTaskInput(original, messages.taskCopySuffix()));
   }
 
-  /**
-   * Move a workspace-scoped task to the current workspace (updates workspacePath).
-   */
-  async moveTaskToCurrentWorkspace(
-    id: string,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
+  async moveTaskToCurrentWorkspace(taskId: string): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
+    if (task === undefined) return undefined;
 
     if (task.scope !== "workspace") {
       throw new Error(messages.moveOnlyWorkspaceTasks());
     }
 
-    const workspaceRoot = this.getPrimaryWorkspaceRoot();
-    if (!workspaceRoot) {
-      throw new Error(messages.noWorkspaceOpen());
-    }
-
-    task.workspacePath = workspaceRoot;
-    task.updatedAt = new Date();
-  this.suppressedOverdueTaskIds.delete(id);
+    const workspaceRoot = this.resolveCurrentWorkspaceRootOrThrow();
+    this.updateTaskWorkspacePath(task, workspaceRoot);
     await this.saveTasksAndSyncRecurringPromptBackups();
     return task;
   }
 
-  /**
-   * Check if task should run in current workspace
-   */
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
-    // Global tasks run in all workspaces
-    if (task.scope === "global") {
+    if (task.scope !== "workspace") {
       return true;
     }
 
-    // Workspace-specific tasks only run in their workspace
-    const workspacePaths = this.getResolvedWorkspaceRoots();
-    if (workspacePaths.length === 0) {
+    const taskWorkspaceKey = this.getScheduledTaskWorkspaceKey(task);
+    if (taskWorkspaceKey.length === 0) {
       return false;
     }
 
-    const a = task.workspacePath ? normalizeForCompare(task.workspacePath) : "";
-    if (a === "") return false;
-    return workspacePaths.some((p) => normalizeForCompare(p) === a);
+    const openWorkspaceKeys = this.getResolvedWorkspaceRoots().map((workspacePath) => {
+      return normalizeForCompare(workspacePath);
+    });
+    return openWorkspaceKeys.includes(taskWorkspaceKey);
   }
 
-  /**
-   * Start the scheduler
-   */
   startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
     this.setOnExecuteCallback(onExecute);
-
-    // Stop existing scheduler if running
     this.stopScheduler();
-
-    // Align to next minute boundary
-    const now = new Date();
-    const msToNextMinute =
-      (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-
-    // Start after alignment
-    this.schedulerTimeout = setTimeout(() => {
-      this.schedulerTimeout = undefined;
-      // Execute immediately on first aligned minute
-      void this.runSchedulerTick();
-
-      // Then run every minute
-      this.schedulerInterval = setInterval(() => {
-        void this.runSchedulerTick();
-      }, 60 * 1000);
-    }, msToNextMinute);
+    this.scheduleAlignedSchedulerStart();
   }
 
   private async runSchedulerTick(): Promise<void> {
-    if (this.schedulerTickInProgress) {
+    if (this.schedulerTickInProgress !== false) {
       this.schedulerTickPending = true;
       return;
     }
 
-    this.schedulerTickInProgress = true;
+    const markTickRunning = (): void => {
+      this.schedulerTickInProgress = true;
+    };
+    markTickRunning();
     try {
-      do {
-        this.schedulerTickPending = false;
-        await this.checkAndExecuteTasks();
-      } while (this.schedulerTickPending);
+      await this.flushSchedulerTicks();
     } catch (error) {
-      logError(
-        "[CopilotScheduler] Scheduler tick failed:",
-        toSafeErrorDetails(error),
-      );
+      this.logSchedulerTickFailure(error);
     } finally {
       this.schedulerTickInProgress = false;
     }
   }
 
-  /**
-   * Stop the scheduler
-   */
   stopScheduler(): void {
-    if (this.schedulerTimeout) {
-      clearTimeout(this.schedulerTimeout);
-      this.schedulerTimeout = undefined;
-    }
-    if (this.schedulerInterval) {
-      clearInterval(this.schedulerInterval);
-      this.schedulerInterval = undefined;
-    }
+    this.schedulerTimeout = clearScheduledHandle(
+      this.schedulerTimeout,
+      clearTimeout,
+    );
+    this.schedulerInterval = clearScheduledHandle(
+      this.schedulerInterval,
+      clearInterval,
+    );
     this.schedulerTickPending = false;
   }
 
@@ -3262,164 +2924,39 @@ export class ScheduleManager {
    * Check and execute tasks that are due
    */
   private async checkAndExecuteTasks(): Promise<void> {
-    const enabled = getCompatibleConfigurationValue<boolean>("enabled", true);
-
-    if (!enabled) {
+    if (!getCompatibleConfigurationValue<boolean>("enabled", true)) {
       return;
     }
 
     const now = new Date();
-    // Truncate to minute for comparison
-    const nowMinute = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      now.getHours(),
-      now.getMinutes(),
-    );
-
-    // Read config values once per tick (avoid redundant reads inside the loop)
-    const rawMaxDaily = getCompatibleConfigurationValue<number>(
-      "maxDailyExecutions",
-      24,
-    );
-    const safeMaxDaily = Number.isFinite(rawMaxDaily) ? rawMaxDaily : 24;
-    const maxDailyLimit =
-      safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100);
-    const defaultJitterSeconds = getCompatibleConfigurationValue<number>(
-      "jitterSeconds",
-      0,
-    );
+    const nowMinute = this.truncateToMinute(now);
+    const { maxDailyLimit, defaultJitterSeconds } = this.getSchedulerTickSettings();
 
     let needsSave = false;
     let executedCount = 0;
     const tasksToDelete: string[] = [];
 
     for (const task of this.tasks.values()) {
-      if (!task.enabled || !task.nextRun) {
+      if (this.shouldSkipScheduledTask(task)) {
         continue;
       }
 
-      if (this.isTaskSuppressedByJob(task)) {
-        continue;
-      }
-
-      // Check if task should run in current workspace
-      if (!this.shouldTaskRunInCurrentWorkspace(task)) {
-        continue;
-      }
-
-      if (this.suppressedOverdueTaskIds.has(task.id)) {
-        continue;
-      }
-
-      // Check if due
-      if (this.isTaskDueAt(task, nowMinute)) {
-        // Safety: Check daily execution limit
-        if (this.isDailyLimitReached(maxDailyLimit)) {
-          logDebug(
-            `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
-          );
-          const todayKey = getLocalDateKey();
-          if (this.dailyLimitNotifiedDate !== todayKey) {
-            this.dailyLimitNotifiedDate = todayKey;
-            void this.context.globalState
-              .update(DAILY_LIMIT_NOTIFIED_DATE_KEY, todayKey)
-              .then(undefined, (error: unknown) =>
-                logError(
-                  "[CopilotScheduler] Failed to persist daily limit notified date:",
-                  toSafeErrorDetails(error),
-                ),
-              );
-            void vscode.window.showInformationMessage(
-              messages.dailyLimitReached(maxDailyLimit),
-            );
-          }
-          // Still advance nextRun so it doesn't keep retrying
-          const jobContext = task.jobId ? this.findJobNodeByTaskId(task.id) : undefined;
-          task.nextRun = jobContext
-            ? this.getNextRunForJobNode(jobContext.job, jobContext.nodeIndex, now)
-            : this.getNextRunForTask(task.cronExpression, now);
-          needsSave = true;
-          continue;
-        }
-
-        // Safety: Apply jitter (random delay)
-        const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
-        await this.applyJitter(maxJitterSeconds);
-
-        // Execute
-        let executedSuccessfully = false;
-        if (this.onExecuteCallback) {
-          try {
-            await this.onExecuteCallback(task);
-            // Track daily execution count
-            this.incrementDailyExecCountInMemory(new Date());
-            executedCount++;
-            // Only record lastRun on successful execution
-            task.lastRun = new Date();
-            task.lastError = undefined;
-            task.lastErrorAt = undefined;
-            this.handleSuccessfulJobTaskExecution(task, task.lastRun);
-            needsSave = this.syncJobTaskSchedules(task.lastRun) || needsSave;
-            executedSuccessfully = true;
-          } catch (error) {
-            const details = toSafeErrorDetails(error);
-            logError("[CopilotScheduler] Task execution error:", {
-              taskId: task.id,
-              taskName: task.name,
-              error: details,
-            });
-            task.lastError = details;
-            task.lastErrorAt = new Date();
-          }
-        }
-
-        // Advance to cron-based next run only on success.
-        // On failure, retry in one minute so the run does not silently disappear.
-        if (executedSuccessfully) {
-          if (this.isOneTimeExecutionTask(task)) {
-            tasksToDelete.push(task.id);
-            needsSave = true;
-          } else {
-            const nextReferenceTime = new Date();
-            const jobContext = task.jobId
-              ? this.findJobNodeByTaskId(task.id)
-              : undefined;
-            task.nextRun = jobContext
-              ? this.getNextRunForJobNode(
-                jobContext.job,
-                jobContext.nodeIndex,
-                nextReferenceTime,
-              )
-              : this.getNextRunForTask(task.cronExpression, nextReferenceTime);
-            needsSave = true;
-          }
-        } else {
-          task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
-          needsSave = true;
-        }
+      const outcome = await this.executeDueTask(
+        task,
+        now,
+        nowMinute,
+        maxDailyLimit,
+        defaultJitterSeconds,
+      );
+      executedCount += outcome.executedCount;
+      needsSave = outcome.needsSave || needsSave;
+      if (outcome.deleteTask) {
+        tasksToDelete.push(task.id);
       }
     }
 
-    // Process deletions for one-time tasks
-    for (const id of tasksToDelete) {
-      this.tasks.delete(id);
-      this.pendingDeletedTaskIds.add(id);
-      this.suppressedOverdueTaskIds.delete(id);
-    }
-
-    // Persist once per tick to reduce I/O overhead.
-    if (executedCount > 0) {
-      try {
-        await this.persistDailyExecCount();
-      } catch (error) {
-        logError(
-          "[CopilotScheduler] Failed to persist daily execution count:",
-          toSafeErrorDetails(error),
-        );
-      }
-    }
+    this.applyScheduledTaskDeletions(tasksToDelete);
+    await this.persistDailyExecCountSafely(executedCount);
 
     if (needsSave) {
       await this.saveTasks();
@@ -3500,10 +3037,7 @@ export class ScheduleManager {
         this.pendingDeletedTaskIds.add(task.id);
         this.suppressedOverdueTaskIds.delete(task.id);
       } else if (task.enabled) {
-        const jobContext = task.jobId ? this.findJobNodeByTaskId(task.id) : undefined;
-        task.nextRun = jobContext
-          ? this.getNextRunForJobNode(jobContext.job, jobContext.nodeIndex, executedAt)
-          : this.getNextRunForTask(task.cronExpression, executedAt);
+        task.nextRun = this.getScheduledTaskNextRun(task, executedAt);
         this.suppressedOverdueTaskIds.delete(task.id);
       }
       await this.saveTasks();
@@ -3512,9 +3046,9 @@ export class ScheduleManager {
     } catch (error) {
       logError(
         "[CopilotScheduler] runTaskNow failed:",
-        toSafeErrorDetails(error),
+        toSafeSchedulerErrorDetails(error),
       );
-      task.lastError = toSafeErrorDetails(error);
+      task.lastError = toSafeSchedulerErrorDetails(error);
       task.lastErrorAt = new Date();
       await this.saveTasks();
       return false;
