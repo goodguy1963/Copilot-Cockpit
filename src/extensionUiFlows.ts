@@ -43,11 +43,11 @@ export async function maybeShowDisclaimerOnce(options: {
     return;
   }
 
-  const choice = await vscode.window.showInformationMessage(
-    messages.disclaimerMessage(),
+  const disclaimerOptions = [
     messages.disclaimerAccept(),
     messages.disclaimerDecline(),
-  );
+  ] as const;
+  const choice = await vscode.window.showInformationMessage(messages.disclaimerMessage(), ...disclaimerOptions);
   if (choice !== messages.disclaimerAccept()) {
     return;
   }
@@ -64,10 +64,7 @@ export function maybePromptReloadAfterUpdate(
   }
 
   void vscode.window
-    .showInformationMessage(
-      messages.reloadAfterUpdate(currentVersion),
-      messages.reloadNow(),
-    )
+    .showInformationMessage(messages.reloadAfterUpdate(currentVersion), messages.reloadNow())
     .then((choice) => {
       if (choice === messages.reloadNow()) {
         void vscode.commands.executeCommand("workbench.action.reloadWindow");
@@ -88,14 +85,16 @@ export function notifyInfo(options: {
   const timeoutMs = options.timeoutMs ?? 4000;
   switch (options.mode) {
     case "silentStatus":
-      vscode.window.setStatusBarMessage(options.message, timeoutMs);
-      break;
+      return void vscode.window.setStatusBarMessage(options.message, timeoutMs);
     case "silentToast":
       void vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: options.message },
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: options.message,
+        },
         () => new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
       );
-      break;
+      return;
     default:
       void vscode.window.showInformationMessage(options.message);
   }
@@ -121,10 +120,7 @@ export function notifyError(options: {
 
   if (options.mode === "silentToast") {
     void vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `⚠ ${displayMessage}`,
-      },
+      { location: vscode.ProgressLocation.Notification, title: `⚠ ${displayMessage}` },
       () => new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
     );
     options.logError(displayMessage);

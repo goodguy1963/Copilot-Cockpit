@@ -1,8 +1,5 @@
-import {
-  resolveGlobalPromptPath,
-  resolveGlobalPromptsRoot,
-  resolveLocalPromptPath,
-} from "./promptResolver";
+import { resolveGlobalPromptPath, resolveGlobalPromptsRoot } from "./promptResolver";
+import { resolveLocalPromptPath } from "./promptResolver";
 import type { CreateTaskInput, PromptSource, ScheduledTask } from "./types";
 
 type NextRunResolver = (
@@ -168,8 +165,7 @@ export function createDuplicateTaskInput(
     cronExpression: original.cronExpression,
     prompt: original.prompt,
     enabled: false,
-    agent: original.agent,
-    model: original.model,
+    agent: original.agent, model: original.model,
     scope: original.scope,
     oneTime: original.oneTime,
     manualSession: recurringTask ? original.manualSession : undefined,
@@ -207,49 +203,31 @@ export function applyTaskUpdatesToTask(params: {
   } = params;
 
   let cronChanged = false;
-  if (updates.name !== undefined) {
-    task.name = updates.name;
-  }
+  if (updates.name !== undefined) task.name = updates.name;
   if (updates.cronExpression !== undefined) {
-    task.cronExpression = updates.cronExpression;
-    cronChanged = true;
+    task.cronExpression = updates.cronExpression; cronChanged = true;
   }
-  if (updates.prompt !== undefined) {
-    task.prompt = updates.prompt;
-  }
-  if (updates.enabled !== undefined) {
-    task.enabled = updates.enabled;
-  }
-  if (updates.agent !== undefined) {
-    task.agent = updates.agent;
-  }
-  if (updates.model !== undefined) {
-    task.model = updates.model;
-  }
+  if (updates.prompt !== undefined) task.prompt = updates.prompt;
+  if (updates.enabled !== undefined) task.enabled = updates.enabled;
+  if (updates.agent !== undefined) task.agent = updates.agent;
+  if (updates.model !== undefined) task.model = updates.model;
 
   const nextScope = updates.scope;
   if (nextScope !== undefined) {
     const workspaceRoot = getPrimaryWorkspaceRoot();
     if (task.scope !== nextScope) {
       task.scope = nextScope;
-      task.workspacePath = nextScope === "workspace" ? workspaceRoot : undefined;
+      task.workspacePath =
+        nextScope === "workspace" ? workspaceRoot : undefined;
     } else if (nextScope === "workspace" && !task.workspacePath) {
       task.workspacePath = workspaceRoot;
     }
   }
 
-  if (updates.promptSource !== undefined) {
-    task.promptSource = updates.promptSource;
-  }
-  if (updates.promptPath !== undefined) {
-    task.promptPath = updates.promptPath;
-  }
-  if (updates.jitterSeconds !== undefined) {
-    task.jitterSeconds = clampJitterSeconds(updates.jitterSeconds);
-  }
-  if (updates.oneTime !== undefined) {
-    task.oneTime = updates.oneTime;
-  }
+  if (updates.promptSource !== undefined) task.promptSource = updates.promptSource;
+  if (updates.promptPath !== undefined) task.promptPath = updates.promptPath;
+  if (updates.jitterSeconds !== undefined) task.jitterSeconds = clampJitterSeconds(updates.jitterSeconds);
+  if (updates.oneTime !== undefined) task.oneTime = updates.oneTime;
 
   const oneTimeExecution = task.oneTime === true;
   if (updates.manualSession !== undefined || updates.oneTime !== undefined) {

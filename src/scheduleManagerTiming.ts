@@ -10,13 +10,10 @@ function buildCronOptions(currentDate: Date, tz?: string): CronParseOptions {
 }
 
 export function truncateDateToMinute(date: Date): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    date.getHours(),
-    date.getMinutes(),
-  );
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const dayOfMonth = date.getDate();
+  return new Date(year, month, dayOfMonth, date.getHours(), date.getMinutes());
 }
 
 export function resolveNextCronRun(
@@ -73,9 +70,9 @@ export function getCronIntervalWarning(
 ): string | undefined {
   const checkInterval = (options: CronParseOptions): string | undefined => {
     const interval = parseExpression(cronExpression, options);
-    const first = interval.next().toDate();
-    const second = interval.next().toDate();
-    const diffMinutes = (second.getTime() - first.getTime()) / (1000 * 60);
+    const firstRun = interval.next().toDate();
+    const secondRun = interval.next().toDate();
+    const diffMinutes = (secondRun.getTime() - firstRun.getTime()) / 60000;
     return diffMinutes < 30 ? warningMessage : undefined;
   };
 
@@ -106,10 +103,10 @@ export function assertValidCronExpression(
 
   try {
     parseExpression(expression, buildCronOptions(currentDate, tz));
-  } catch {
-    if (tz) {
+  } catch { if (tz) {
       try {
-        parseExpression(expression, { currentDate });
+        const fallbackOptions: CronParseOptions = { currentDate };
+        parseExpression(expression, fallbackOptions);
         return;
       } catch {
         // fall through
