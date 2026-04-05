@@ -4,9 +4,9 @@
  * methods on the main class.
  */
 
-import * as vscode from "vscode";
-import * as path from "path";
 import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
 import { notifyError } from "./extension";
 import type {
   PromptTemplate,
@@ -275,38 +275,35 @@ export async function loadPromptTemplateContent(
   postMessage: PostMessageFn,
 ): Promise<void> {
   try {
-    const validation = validateTemplateLoadRequest({
+    const request = {
       templatePath,
       source,
       cachedTemplates,
       workspaceFolderPaths: getResolvedWorkspaceRootPaths(),
       globalPromptsPath: getGlobalPromptsPath(),
-    });
+    };
+    const validation = validateTemplateLoadRequest(request);
 
     if (!validation.ok) {
       throw new Error(`Template load rejected: ${validation.reason}`);
     }
 
-    const resolvedPath = path.resolve(templatePath);
-    const bytes = await vscode.workspace.fs.readFile(
-      vscode.Uri.file(resolvedPath),
-    );
-    const content = Buffer.from(bytes).toString("utf8");
+    const uri = vscode.Uri.file(path.resolve(templatePath));
+    const fileBuffer = await vscode.workspace.fs.readFile(uri);
+    const content = Buffer.from(fileBuffer).toString("utf8");
     postMessage({
       type: "promptTemplateLoaded",
-      content: content,
+      content,
       path: templatePath,
     });
   } catch (error) {
     const templateFile = path.basename(templatePath);
-    const rawError =
-      error instanceof Error ? error.message : String(error ?? "");
-    const safeError =
-      sanitizeAbsolutePathDetails(rawError) || messages.webviewUnknown();
+    const rawError = error instanceof Error ? error.message : String(error ?? "");
+    const safeErrorMessage = sanitizeAbsolutePathDetails(rawError);
     logError("[CopilotScheduler] Template load failed:", {
       templateFile,
       source,
-      error: safeError,
+      error: safeErrorMessage || messages.webviewUnknown(),
     });
     notifyError(messages.templateLoadError());
   }

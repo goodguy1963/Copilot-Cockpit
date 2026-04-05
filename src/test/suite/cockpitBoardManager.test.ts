@@ -1,6 +1,7 @@
-import * as assert from "assert";
 import * as fs from "fs";
+import * as assert from "assert";
 import * as os from "os";
+import type { CockpitBoardSection, ScheduledTask } from "../../types";
 import * as path from "path";
 import {
   DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
@@ -27,7 +28,10 @@ import {
   setCockpitBoardFilters,
   setCockpitDisabledSystemFlagKeys,
 } from "../../cockpitBoardManager";
-import type { ScheduledTask } from "../../types";
+
+function toSectionIds(sections: CockpitBoardSection[]): string[] {
+  return sections.map((section) => section.id);
+}
 
 suite("Cockpit Board Manager Tests", () => {
   test("creating a todo adds an initial creation system-event comment", () => {
@@ -113,9 +117,10 @@ suite("Cockpit Board Manager Tests", () => {
 
     assert.strictEqual(board.version, 4);
     assert.strictEqual(board.archives, undefined);
-    assert.ok(board.sections.some((section) => section.id === DEFAULT_RECURRING_TASKS_SECTION_ID));
-    assert.ok(board.sections.some((section) => section.id === DEFAULT_ARCHIVE_COMPLETED_SECTION_ID));
-    assert.ok(board.sections.some((section) => section.id === DEFAULT_ARCHIVE_REJECTED_SECTION_ID));
+    const sectionIds = toSectionIds(board.sections);
+    assert.ok(sectionIds.includes(DEFAULT_RECURRING_TASKS_SECTION_ID));
+    assert.ok(sectionIds.includes(DEFAULT_ARCHIVE_COMPLETED_SECTION_ID));
+    assert.ok(sectionIds.includes(DEFAULT_ARCHIVE_REJECTED_SECTION_ID));
     assert.strictEqual(board.cards.length, 3);
 
     const completed = board.cards.find((card) => card.id === "done-card");
