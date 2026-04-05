@@ -15,10 +15,106 @@ type WebviewPanelLike = {
   webview: WebviewLike;
 };
 
+type SchedulerWebviewInternals = {
+  panel?: WebviewPanelLike;
+  webviewReady?: boolean;
+  pendingMessages?: unknown[];
+  lastBatchedMessageSignatures?: Map<string, string>;
+  pendingMessageFlushTimer?: ReturnType<typeof setTimeout>;
+  [key: string]: unknown;
+};
+
+function resolveWorkspacePath(...segments: string[]): string {
+  return path.resolve(__dirname, ...segments);
+}
+
+function readWorkspaceFile(...segments: string[]): string {
+  return fs.readFileSync(resolveWorkspacePath(...segments), "utf8");
+}
+
+function expectSourceToIncludeSnippets(
+  source: string,
+  snippets: readonly string[],
+  contextLabel: string,
+): void {
+  for (const snippet of snippets) {
+    assert.ok(
+      source.includes(snippet),
+      `expected ${contextLabel} snippet ${snippet}`,
+    );
+  }
+}
+
+function expectSourceToExcludeSnippets(
+  source: string,
+  snippets: readonly string[],
+  contextLabel: string,
+): void {
+  for (const snippet of snippets) {
+    assert.strictEqual(
+      source.includes(snippet),
+      false,
+      `unexpected ${contextLabel} snippet ${snippet}`,
+    );
+  }
+}
+
+function withPostedWebviewMessages<T>(
+  options: {
+    ready?: boolean;
+    resetBatchState?: boolean;
+  },
+  run: (ctx: { wv: SchedulerWebviewInternals; sent: unknown[] }) => T,
+): T {
+  const wv = SchedulerWebview as unknown as SchedulerWebviewInternals;
+  const originalPanel = wv.panel;
+  const originalReady = wv.webviewReady;
+  const originalPending = wv.pendingMessages;
+  const originalSignatures = wv.lastBatchedMessageSignatures;
+  const originalTimer = wv.pendingMessageFlushTimer;
+  const sent: unknown[] = [];
+
+  try {
+    wv.panel = {
+      webview: {
+        postMessage: (message: unknown) => {
+          sent.push(message);
+          return Promise.resolve(true);
+        },
+      },
+    };
+    wv.webviewReady = options.ready ?? false;
+    wv.pendingMessages = [];
+
+    if (options.resetBatchState) {
+      wv.lastBatchedMessageSignatures = new Map();
+      wv.pendingMessageFlushTimer = undefined;
+    }
+
+    return run({ wv, sent });
+  } finally {
+    if (wv.pendingMessageFlushTimer) {
+      clearTimeout(wv.pendingMessageFlushTimer);
+    }
+    wv.panel = originalPanel;
+    wv.webviewReady = originalReady;
+    wv.pendingMessages = originalPending;
+    wv.lastBatchedMessageSignatures = originalSignatures;
+    wv.pendingMessageFlushTimer = originalTimer;
+  }
+}
+
+type QueuedUpdateCase = {
+  name: string;
+  method: string;
+  args: unknown[];
+  messageType: string;
+  verify: (message: Record<string, unknown>) => void;
+};
+
 suite("SchedulerWebview Message Queue Tests", () => {
   function loadBoardInteractionModule() {
-    const scriptPath = path.resolve(
-      __dirname,
+    const scriptPath = resolveWorkspacePath(
       "../../../media/schedulerWebviewBoardInteractions.js",
     );
     const scriptSource = fs
@@ -54,11 +150,12 @@ suite("SchedulerWebview Message Queue Tests", () => {
   }
 
   test("webview client script parses", () => {
-    const scriptPath = path.resolve(
-      __dirname,
+    const scriptPath = resolveWorkspacePath(
       "../../../media/generated/schedulerWebview.js",
     );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile(
+      "../../../media/generated/schedulerWebview.js",
+    );
 
     assert.doesNotThrow(() => {
       new vm.Script(scriptSource, { filename: scriptPath });
@@ -66,11 +163,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo editor click handlers use normalized event target lookups", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
     const selectors = [
       "[data-flag-chip-remove]",
       "[data-flag-catalog-select]",
@@ -103,11 +196,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo create draft keeps transient label and flag editor fields", () => {
-    const debugScriptPath = path.resolve(
-      __dirname,
+    const debugScriptSource = readWorkspaceFile(
       "../../../media/schedulerWebviewDebug.js",
     );
-    const debugScriptSource = fs.readFileSync(debugScriptPath, "utf8");
 
     ["labelInput", "labelColor", "flagInput", "flagColor"].forEach((field) => {
       assert.ok(
@@ -116,24 +207,15 @@ suite("SchedulerWebview Message Queue Tests", () => {
       );
     });
 
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "todoDraft.labelInput || \"\"",
       "todoDraft.labelColor",
       "todoDraft.flagInput || \"\"",
       "todoDraft.flagColor",
       "syncTodoEditorTransientDraft();",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected transient draft restoration snippet ${snippet}`,
-      );
-    });
+    ], "transient draft restoration");
   });
 
   test("settings tab includes editable spot-review defaults plumbing", () => {
@@ -161,87 +243,57 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
 
     assert.ok(
       scriptSource.includes("previousName: prevName || undefined")
       || scriptSource.includes("previousName: editingLabelOriginalName || undefined"),
       "expected rename-aware previousName payloads for todo label and flag saves",
     );
-    assert.strictEqual(
-      scriptSource.includes('vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });'),
-      false,
-      "unexpected delete-on-rename label flow",
+    expectSourceToExcludeSnippets(
+      scriptSource,
+      [
+        'vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: prevName } });',
+        'vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });',
+      ],
+      "delete-on-rename flow",
     );
-    assert.strictEqual(
-      scriptSource.includes('vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: prevName } });'),
-      false,
-      "unexpected delete-on-rename flag flow",
-    );
-    assert.ok(
-      scriptSource.includes("function upsertLocalLabelDefinition(name, color, previousName)"),
-      "expected optimistic local todo label catalog updates",
-    );
-    assert.ok(
-      scriptSource.includes("var existingDefinition = getLabelDefinition(label);"),
-      "expected normal todo label adds to check for an existing definition before saving color",
-    );
-    assert.ok(
-      scriptSource.includes("if (!existingDefinition && pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {"),
-      "expected existing todo label definitions to keep their saved color on normal add",
-    );
-    assert.ok(
-      scriptSource.includes('todoLabelColorInput.value = "#4f8cff";'),
-      "expected new todo labels to reset the editor color when no matching definition exists",
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
+        "function upsertLocalLabelDefinition(name, color, previousName)",
+        "var existingDefinition = getLabelDefinition(label);",
+        "if (!existingDefinition && pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {",
+        'todoLabelColorInput.value = "#4f8cff";',
+      ],
+      "rename-aware todo label flow",
     );
   });
 
   test("todo label catalog edit and add flows preserve shared definition colors", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "function getValidLabelColorValue(color, fallbackColor)",
       'todoLabelColorInput.value = getValidLabelColorValue(eEntry && eEntry.color, "#4f8cff");',
       'selectedTodoLabelName = eEntry ? eEntry.name : eName;',
       'editingLabelOriginalName = eEntry ? eEntry.name : eName;',
       "syncTodoLabelEditor();",
       'todoLabelColorInput.value = getValidLabelColorValue(definition && definition.color, todoLabelColorInput.value || "#4f8cff");',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected shared label color preservation snippet ${snippet}`,
-      );
-    });
+    ], "shared label color preservation");
   });
 
   test("todo flag picker localizes protected flags and hides destructive controls", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "function getFlagDisplayName(flagName)",
       'strings.boardFlagPresetReady || "Ready"',
       'strings.boardFlagPresetFinalUserCheck || "Final User Check"',
       "function isProtectedFlagDefinition(entryOrName)",
       "entry.system === true",
       'strings.boardFlagCatalogLockedTitle || "Built-in flag"',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected protected/localized flag snippet ${snippet}`,
-      );
-    });
+    ], "protected/localized flag handling");
   });
 
   test("todo editor keeps upload wiring and sticky filter footer anchors", () => {
@@ -887,463 +939,164 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("Queues messages until ready and flushes (dedup by type)", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      postMessage?: (message: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
+    withPostedWebviewMessages({}, ({ sent, wv }) => {
       assert.ok(typeof wv.postMessage === "function");
       assert.ok(typeof wv.flushPendingMessages === "function");
 
-      wv.postMessage({ type: "updateTasks", tasks: [1] });
-      wv.postMessage({ type: "updateTasks", tasks: [2] });
-      wv.postMessage({ type: "updateAgents", agents: ["a"] });
+      (wv.postMessage as (message: unknown) => void)({ type: "updateTasks", tasks: [1] });
+      (wv.postMessage as (message: unknown) => void)({ type: "updateTasks", tasks: [2] });
+      (wv.postMessage as (message: unknown) => void)({ type: "updateAgents", agents: ["a"] });
 
-      const queued = wv.pendingMessages as Array<{
+      const queued = (wv.pendingMessages ?? []) as Array<{
         type?: unknown;
-        [k: string]: unknown;
+        [key: string]: unknown;
       }>;
       assert.strictEqual(queued.length, 2);
 
-      const updateTasks = queued.find((m) => m.type === "updateTasks") as
-        | { tasks?: unknown }
-        | undefined;
-      assert.ok(updateTasks);
-      assert.deepStrictEqual(updateTasks?.tasks, [2]);
+      const queuedTasks = queued.find((message) => message.type === "updateTasks");
+      assert.deepStrictEqual(queuedTasks?.tasks, [2]);
 
       wv.webviewReady = true;
-      wv.flushPendingMessages();
+      (wv.flushPendingMessages as () => void)();
 
       assert.strictEqual(sent.length, 2);
-
-      const sentMessages = sent as Array<{
-        type?: unknown;
-        [k: string]: unknown;
-      }>;
-      const sentUpdateTasks = sentMessages.find(
-        (m) => m.type === "updateTasks",
-      ) as { tasks?: unknown } | undefined;
-      assert.ok(sentUpdateTasks);
-      assert.deepStrictEqual(sentUpdateTasks?.tasks, [2]);
-
-      const sentUpdateAgents = sentMessages.find(
-        (m) => m.type === "updateAgents",
-      ) as { agents?: unknown } | undefined;
-      assert.ok(sentUpdateAgents);
-      assert.deepStrictEqual(sentUpdateAgents?.agents, ["a"]);
-
+      const sentMessages = sent as Array<{ type?: unknown; [key: string]: unknown }>;
+      assert.deepStrictEqual(
+        sentMessages.find((message) => message.type === "updateTasks")?.tasks,
+        [2],
+      );
+      assert.deepStrictEqual(
+        sentMessages.find((message) => message.type === "updateAgents")?.agents,
+        ["a"],
+      );
       assert.strictEqual((wv.pendingMessages ?? []).length, 0);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
-  });
-
-  test("Queues schedule history updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateScheduleHistory?: (entries: unknown[]) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateScheduleHistory === "function");
-      wv.updateScheduleHistory!([{ id: "1", createdAt: "2026-03-23T00:00:00.000Z", hasPrivate: true }]);
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateScheduleHistory");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as { type?: unknown; entries?: unknown[] };
-      assert.strictEqual(message.type, "updateScheduleHistory");
-      assert.strictEqual(Array.isArray(message.entries), true);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
+    });
   });
 
   test("Batches repeated update messages while ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      lastBatchedMessageSignatures?: Map<string, string>;
-      pendingMessages?: unknown[];
-      pendingMessageFlushTimer?: ReturnType<typeof setTimeout> | undefined;
-      postMessage?: (message: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
+    withPostedWebviewMessages(
+      { ready: true, resetBatchState: true },
+      ({ sent, wv }) => {
+        assert.ok(typeof wv.postMessage === "function");
+        assert.ok(typeof wv.flushPendingMessages === "function");
 
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalSignatures = wv.lastBatchedMessageSignatures;
-    const originalPending = wv.pendingMessages;
-    const originalTimer = wv.pendingMessageFlushTimer;
-    const sent: unknown[] = [];
+        (wv.postMessage as (message: unknown) => void)({ type: "updateTasks", tasks: [1] });
+        (wv.postMessage as (message: unknown) => void)({ type: "updateTasks", tasks: [2] });
+        (wv.postMessage as (message: unknown) => void)({
+          type: "updateExecutionDefaults",
+          executionDefaults: { agent: "agent", model: "gpt" },
+        });
 
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.lastBatchedMessageSignatures = new Map();
-      wv.pendingMessages = [];
-      wv.pendingMessageFlushTimer = undefined;
+        const queued = (wv.pendingMessages ?? []) as Array<{
+          type?: unknown;
+          [key: string]: unknown;
+        }>;
+        assert.strictEqual(sent.length, 0);
+        assert.strictEqual(queued.length, 2);
+        assert.deepStrictEqual(
+          queued.find((message) => message.type === "updateTasks")?.tasks,
+          [2],
+        );
 
-      assert.ok(typeof wv.postMessage === "function");
-      assert.ok(typeof wv.flushPendingMessages === "function");
+        (wv.flushPendingMessages as () => void)();
 
-      wv.postMessage!({ type: "updateTasks", tasks: [1] });
-      wv.postMessage!({ type: "updateTasks", tasks: [2] });
-      wv.postMessage!({
-        type: "updateExecutionDefaults",
-        executionDefaults: { agent: "agent", model: "gpt" },
-      });
-
-      const queued = wv.pendingMessages as Array<{
-        type?: unknown;
-        [k: string]: unknown;
-      }>;
-      assert.strictEqual(sent.length, 0);
-      assert.strictEqual(queued.length, 2);
-
-      const queuedTasks = queued.find((m) => m.type === "updateTasks") as
-        | { tasks?: unknown }
-        | undefined;
-      assert.deepStrictEqual(queuedTasks?.tasks, [2]);
-
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 2);
-      const sentMessages = sent as Array<{
-        type?: unknown;
-        [k: string]: unknown;
-      }>;
-      const sentTasks = sentMessages.find((m) => m.type === "updateTasks") as
-        | { tasks?: unknown }
-        | undefined;
-      assert.deepStrictEqual(sentTasks?.tasks, [2]);
-      assert.strictEqual((wv.pendingMessages ?? []).length, 0);
-      assert.strictEqual(wv.pendingMessageFlushTimer, undefined);
-    } finally {
-      if (wv.pendingMessageFlushTimer) {
-        clearTimeout(wv.pendingMessageFlushTimer);
-      }
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-      wv.lastBatchedMessageSignatures = originalSignatures;
-      wv.pendingMessageFlushTimer = originalTimer;
-    }
+        assert.strictEqual(sent.length, 2);
+        assert.deepStrictEqual(
+          (sent as Array<{ type?: unknown; [key: string]: unknown }>).find(
+            (message) => message.type === "updateTasks",
+          )?.tasks,
+          [2],
+        );
+        assert.strictEqual((wv.pendingMessages ?? []).length, 0);
+        assert.strictEqual(wv.pendingMessageFlushTimer, undefined);
+      },
+    );
   });
 
   test("Skips identical batched update payloads after they were already sent", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      lastBatchedMessageSignatures?: Map<string, string>;
-      pendingMessages?: unknown[];
-      pendingMessageFlushTimer?: ReturnType<typeof setTimeout> | undefined;
-      postMessage?: (message: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
+    withPostedWebviewMessages(
+      { ready: true, resetBatchState: true },
+      ({ sent, wv }) => {
+        assert.ok(typeof wv.postMessage === "function");
+        assert.ok(typeof wv.flushPendingMessages === "function");
 
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalSignatures = wv.lastBatchedMessageSignatures;
-    const originalPending = wv.pendingMessages;
-    const originalTimer = wv.pendingMessageFlushTimer;
-    const sent: unknown[] = [];
+        (wv.postMessage as (message: unknown) => void)({
+          type: "updateTasks",
+          tasks: [{ id: "task-1" }],
+        });
+        (wv.flushPendingMessages as () => void)();
+        assert.strictEqual(sent.length, 1);
 
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.lastBatchedMessageSignatures = new Map();
-      wv.pendingMessages = [];
-      wv.pendingMessageFlushTimer = undefined;
+        (wv.postMessage as (message: unknown) => void)({
+          type: "updateTasks",
+          tasks: [{ id: "task-1" }],
+        });
+        (wv.flushPendingMessages as () => void)();
 
-      assert.ok(typeof wv.postMessage === "function");
-      assert.ok(typeof wv.flushPendingMessages === "function");
-
-      wv.postMessage!({ type: "updateTasks", tasks: [{ id: "task-1" }] });
-      wv.flushPendingMessages!();
-      assert.strictEqual(sent.length, 1);
-
-      wv.postMessage!({ type: "updateTasks", tasks: [{ id: "task-1" }] });
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      assert.strictEqual((wv.pendingMessages ?? []).length, 0);
-    } finally {
-      if (wv.pendingMessageFlushTimer) {
-        clearTimeout(wv.pendingMessageFlushTimer);
-      }
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.lastBatchedMessageSignatures = originalSignatures;
-      wv.pendingMessages = originalPending;
-      wv.pendingMessageFlushTimer = originalTimer;
-    }
+        assert.strictEqual(sent.length, 1);
+        assert.strictEqual((wv.pendingMessages ?? []).length, 0);
+      },
+    );
   });
 
-  test("Queues research state updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateResearchState?: (
-        profiles: unknown[],
-        activeRun: unknown,
-        recentRuns: unknown[],
-      ) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateResearchState === "function");
-      wv.updateResearchState!(
+  const queuedUpdateCases: QueuedUpdateCase[] = [
+    {
+      name: "Queues schedule history updates until ready",
+      method: "updateScheduleHistory",
+      args: [[{ id: "1", createdAt: "2026-03-23T00:00:00.000Z", hasPrivate: true }]],
+      messageType: "updateScheduleHistory",
+      verify: (message) => {
+        assert.strictEqual(Array.isArray(message.entries), true);
+      },
+    },
+    {
+      name: "Queues research state updates until ready",
+      method: "updateResearchState",
+      args: [
         [{ id: "profile-1", name: "Research" }],
         { id: "run-1", status: "running" },
         [{ id: "run-1", status: "running" }],
-      );
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateResearchState");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
-        type?: unknown;
-        profiles?: unknown[];
-        recentRuns?: unknown[];
-        activeRun?: { id?: string };
-      };
-      assert.strictEqual(message.type, "updateResearchState");
-      assert.strictEqual(Array.isArray(message.profiles), true);
-      assert.strictEqual(Array.isArray(message.recentRuns), true);
-      assert.strictEqual(message.activeRun?.id, "run-1");
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
-  });
-
-  test("Queues Telegram notification updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateTelegramNotification?: (telegramNotification: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateTelegramNotification === "function");
-      wv.updateTelegramNotification!({
-        enabled: true,
-        chatId: "123456789",
-        hasBotToken: true,
-        hookConfigured: true,
-      });
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateTelegramNotification");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
-        type?: unknown;
-        telegramNotification?: { enabled?: boolean; hasBotToken?: boolean };
-      };
-      assert.strictEqual(message.type, "updateTelegramNotification");
-      assert.strictEqual(message.telegramNotification?.enabled, true);
-      assert.strictEqual(message.telegramNotification?.hasBotToken, true);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
-  });
-
-  test("Queues execution default updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateExecutionDefaults?: (executionDefaults: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateExecutionDefaults === "function");
-      wv.updateExecutionDefaults!({
-        agent: "agent",
-        model: "gpt-test",
-      });
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateExecutionDefaults");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
-        type?: unknown;
-        executionDefaults?: { agent?: string; model?: string };
-      };
-      assert.strictEqual(message.type, "updateExecutionDefaults");
-      assert.strictEqual(message.executionDefaults?.agent, "agent");
-      assert.strictEqual(message.executionDefaults?.model, "gpt-test");
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
-  });
-
-  test("Queues storage settings updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateStorageSettings?: (storageSettings: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateStorageSettings === "function");
-      wv.updateStorageSettings!({
+      ],
+      messageType: "updateResearchState",
+      verify: (message) => {
+        assert.strictEqual(Array.isArray(message.profiles), true);
+        assert.strictEqual(Array.isArray(message.recentRuns), true);
+        assert.strictEqual(
+          (message.activeRun as { id?: string } | undefined)?.id,
+          "run-1",
+        );
+      },
+    },
+    {
+      name: "Queues Telegram notification updates until ready",
+      method: "updateTelegramNotification",
+      args: [{ enabled: true, chatId: "123456789", hasBotToken: true, hookConfigured: true }],
+      messageType: "updateTelegramNotification",
+      verify: (message) => {
+        const telegramNotification = message.telegramNotification as
+          | { enabled?: boolean; hasBotToken?: boolean }
+          | undefined;
+        assert.strictEqual(telegramNotification?.enabled, true);
+        assert.strictEqual(telegramNotification?.hasBotToken, true);
+      },
+    },
+    {
+      name: "Queues execution default updates until ready",
+      method: "updateExecutionDefaults",
+      args: [{ agent: "agent", model: "gpt-test" }],
+      messageType: "updateExecutionDefaults",
+      verify: (message) => {
+        const executionDefaults = message.executionDefaults as
+          | { agent?: string; model?: string }
+          | undefined;
+        assert.strictEqual(executionDefaults?.agent, "agent");
+        assert.strictEqual(executionDefaults?.model, "gpt-test");
+      },
+    },
+    {
+      name: "Queues storage settings updates until ready",
+      method: "updateStorageSettings",
+      args: [{
         mode: "sqlite",
         sqliteJsonMirror: false,
         disabledSystemFlagKeys: ["ready"],
@@ -1351,88 +1104,61 @@ suite("SchedulerWebview Message Queue Tests", () => {
         mcpSetupStatus: "configured",
         lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
         lastBundledSkillsSyncAt: "2026-04-04T10:01:00.000Z",
-      });
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateStorageSettings");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
-        type?: unknown;
-        storageSettings?: {
-          mode?: string;
-          sqliteJsonMirror?: boolean;
-          disabledSystemFlagKeys?: string[];
-        };
-      };
-      assert.strictEqual(message.type, "updateStorageSettings");
-      assert.strictEqual(message.storageSettings?.mode, "sqlite");
-      assert.strictEqual(message.storageSettings?.sqliteJsonMirror, false);
-      assert.deepStrictEqual(message.storageSettings?.disabledSystemFlagKeys, ["ready"]);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
-  });
-
-  test("Queues cockpit board updates until ready", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      updateCockpitBoard?: (cockpitBoard: unknown) => void;
-      flushPendingMessages?: () => void;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = false;
-      wv.pendingMessages = [];
-
-      assert.ok(typeof wv.updateCockpitBoard === "function");
-      wv.updateCockpitBoard!({
+      }],
+      messageType: "updateStorageSettings",
+      verify: (message) => {
+        const storageSettings = message.storageSettings as
+          | {
+              mode?: string;
+              sqliteJsonMirror?: boolean;
+              disabledSystemFlagKeys?: string[];
+            }
+          | undefined;
+        assert.strictEqual(storageSettings?.mode, "sqlite");
+        assert.strictEqual(storageSettings?.sqliteJsonMirror, false);
+        assert.deepStrictEqual(storageSettings?.disabledSystemFlagKeys, ["ready"]);
+      },
+    },
+    {
+      name: "Queues cockpit board updates until ready",
+      method: "updateCockpitBoard",
+      args: [{
         version: 1,
         sections: [{ id: "section_0", title: "Bugs", order: 0 }],
         cards: [{ id: "card_1", title: "Fix config leak", sectionId: "section_0", order: 0 }],
+      }],
+      messageType: "updateCockpitBoard",
+      verify: (message) => {
+        const cockpitBoard = message.cockpitBoard as
+          | { sections?: unknown[]; cards?: unknown[] }
+          | undefined;
+        assert.strictEqual(cockpitBoard?.sections?.length, 1);
+        assert.strictEqual(cockpitBoard?.cards?.length, 1);
+      },
+    },
+  ];
+
+  queuedUpdateCases.forEach(({ args, messageType, method, name, verify }) => {
+    test(name, () => {
+      withPostedWebviewMessages({}, ({ sent, wv }) => {
+        const updater = wv[method];
+        assert.ok(typeof updater === "function");
+
+        (updater as (...values: unknown[]) => void)(...args);
+
+        const queued = (wv.pendingMessages ?? []) as Array<{ type?: unknown }>;
+        assert.strictEqual(queued.length, 1);
+        assert.strictEqual(queued[0]?.type, messageType);
+
+        wv.webviewReady = true;
+        (wv.flushPendingMessages as () => void)();
+
+        assert.strictEqual(sent.length, 1);
+        const message = sent[0] as { type?: unknown } & Record<string, unknown>;
+        assert.strictEqual(message.type, messageType);
+        verify(message);
       });
-
-      const queued = wv.pendingMessages as Array<{ type?: unknown }>;
-      assert.strictEqual(queued.length, 1);
-      assert.strictEqual(queued[0]?.type, "updateCockpitBoard");
-
-      wv.webviewReady = true;
-      wv.flushPendingMessages!();
-
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
-        type?: unknown;
-        cockpitBoard?: { sections?: unknown[]; cards?: unknown[] };
-      };
-      assert.strictEqual(message.type, "updateCockpitBoard");
-      assert.strictEqual(message.cockpitBoard?.sections?.length, 1);
-      assert.strictEqual(message.cockpitBoard?.cards?.length, 1);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
+    });
   });
 
   test("board target helpers resolve text-node button clicks", () => {

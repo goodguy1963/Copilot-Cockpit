@@ -14,31 +14,27 @@ import {
   REDACTED_DISCORD_WEBHOOK_URL,
 } from "../../schedulerJsonSanitizer";
 
-class MockMemento implements vscode.Memento {
-  private readonly store = new Map<string, unknown>();
-
-  keys(): readonly string[] {
-    return Array.from(this.store.keys());
-  }
-
-  get<T>(key: string): T | undefined;
-  get<T>(key: string, defaultValue: T): T;
-  get<T>(key: string, defaultValue?: T): T | undefined {
-    if (!this.store.has(key)) {
-      return defaultValue;
-    }
-    return this.store.get(key) as T;
-  }
-
-  update(key: string, value: unknown): Thenable<void> {
-    this.store.set(key, value);
-    return Promise.resolve();
-  }
+function createMockMemento(seedEntries: ReadonlyArray<[string, unknown]> = []): vscode.Memento {
+  const store = new Map<string, unknown>(seedEntries);
+  return {
+    keys(): readonly string[] {
+      return [...store.keys()];
+    },
+    get<T>(key: string, defaultValue?: T): T | undefined {
+      return store.has(key) ? (store.get(key) as T) : defaultValue;
+    },
+    update(key: string, value: unknown): Thenable<void> {
+      store.set(key, value);
+      return Promise.resolve();
+    },
+  } as vscode.Memento;
 }
 
-function createMockContext(storageRoot: string): vscode.ExtensionContext {
+function createMockContext(storageRoot: string, scheduledTasks: unknown[] = []): vscode.ExtensionContext {
+  const seedEntries: Array<[string, unknown]> =
+    scheduledTasks.length > 0 ? [["scheduledTasks", scheduledTasks]] : [];
   return {
-    globalState: new MockMemento(),
+    globalState: createMockMemento(seedEntries),
     globalStorageUri: vscode.Uri.file(storageRoot),
   } as unknown as vscode.ExtensionContext;
 }
@@ -80,19 +76,6 @@ function setWorkspaceStorageModeForTest(mode: "json" | "sqlite"): () => void {
   };
 }
 
-function createMockContextWithGlobalTasks(
-  storageRoot: string,
-  tasks: unknown[],
-): vscode.ExtensionContext {
-  const memento = new MockMemento();
-  // Seed globalState before ScheduleManager constructor runs.
-  void memento.update("scheduledTasks", tasks);
-  return {
-    globalState: memento,
-    globalStorageUri: vscode.Uri.file(storageRoot),
-  } as unknown as vscode.ExtensionContext;
-}
-
 function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager {
   const manager = new ScheduleManager(createMockContext(storageRoot));
   // Avoid VS Code configuration writes in tests; patch the instance instead.
@@ -101,82 +84,83 @@ function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager 
   return manager;
 }
 
-suite("ScheduleManager Minimum Interval Tests", () => {
-  test("checkMinimumInterval falls back to local time when timezone is invalid", () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-"));
-    try {
-      const manager = createManagerWithInvalidTimezone(tmp);
-      const warning = manager.checkMinimumInterval("*/5 * * * *");
-      assert.strictEqual(warning, messages.minimumIntervalWarning());
-    } finally {
-      try {
-        fs.rmSync(tmp, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-    }
-  });
+function createTempDir(prefix: string): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+}
 
-  test("checkMinimumInterval returns undefined for long intervals even with invalid timezone", () => {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-"));
-    try {
-      const manager = createManagerWithInvalidTimezone(tmp);
-      const warning = manager.checkMinimumInterval("0 * * * *");
-      assert.strictEqual(warning, undefined);
-    } finally {
-      try {
-        fs.rmSync(tmp, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-    }
-  });
-});
+function removeTestPath(targetPath: string): void {
+  try {
+    fs.rmSync(targetPath, {
+      recursive: true,
+      force: true,
+      maxRetries: 3,
+      retryDelay: 50,
+    });
+  } catch {
+    // ignore cleanup failures in temp test fixtures
+  }
+}
 
-suite("ScheduleManager Recurring Chat Session Tests", () => {
-  function setWorkspaceFoldersForRecurringTest(root: string): () => void {
-    const wsAny = vscode.workspace as unknown as {
-      workspaceFolders?: Array<{ uri: vscode.Uri }>;
-    };
-    const original = wsAny.workspaceFolders;
+function removeTestPaths(...targetPaths: string[]): void {
+  targetPaths.forEach((targetPath) => removeTestPath(targetPath));
+}
+
+function overrideWorkspaceFolders(...roots: string[]): () => void {
+  const workspace = vscode.workspace as unknown as {
+    workspaceFolders?: Array<{ uri: vscode.Uri }>;
+  };
+  const originalWorkspaceFolders = workspace.workspaceFolders;
+
+  try {
+    Object.defineProperty(vscode.workspace, "workspaceFolders", {
+      value: roots.map((root) => ({ uri: vscode.Uri.file(root) })),
+      configurable: true,
+    });
+  } catch {
+    // ignore
+  }
+
+  return () => {
     try {
       Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
+        value: originalWorkspaceFolders,
         configurable: true,
       });
     } catch {
       // ignore
     }
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
+  };
+}
 
+suite("ScheduleManager Minimum Interval Tests", () => {
+  test("checkMinimumInterval falls back to local time when timezone is invalid", () => {
+    const tmp = createTempDir("copilot-scheduler-");
+    try {
+      const manager = createManagerWithInvalidTimezone(tmp);
+      const warning = manager.checkMinimumInterval("*/5 * * * *");
+      assert.strictEqual(warning, messages.minimumIntervalWarning());
+    } finally {
+      removeTestPath(tmp);
+    }
+  });
+
+  test("checkMinimumInterval returns undefined for long intervals even with invalid timezone", () => {
+    const tmp = createTempDir("copilot-scheduler-");
+    try {
+      const manager = createManagerWithInvalidTimezone(tmp);
+      const warning = manager.checkMinimumInterval("0 * * * *");
+      assert.strictEqual(warning, undefined);
+    } finally {
+      removeTestPath(tmp);
+    }
+  });
+});
+
+suite("ScheduleManager Recurring Chat Session Tests", () => {
   test("persists chatSession only for recurring tasks", async () => {
-    const workspaceRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-chat-session-ws-"),
-    );
-    const storageRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-chat-session-storage-"),
-    );
-    const restoreWs = setWorkspaceFoldersForRecurringTest(workspaceRoot);
+    const workspaceRoot = createTempDir("copilot-scheduler-chat-session-ws-");
+    const storageRoot = createTempDir("copilot-scheduler-chat-session-storage-");
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
 
     try {
@@ -214,18 +198,7 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
       assert.strictEqual(oneTimeJson?.chatSession, undefined);
     } finally {
       restoreWs();
-      for (const dir of [workspaceRoot, storageRoot]) {
-        try {
-          fs.rmSync(dir, {
-            recursive: true,
-            force: true,
-            maxRetries: 3,
-            retryDelay: 50,
-          });
-        } catch {
-          // ignore
-        }
-      }
+      removeTestPaths(workspaceRoot, storageRoot);
     }
   });
 
@@ -314,7 +287,7 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-manual-session-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForRecurringTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
 
     try {
@@ -910,178 +883,93 @@ suite("ScheduleManager Jobs Tests", () => {
 });
 
 suite("ScheduleManager Prompt Source Migration Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const wsAny = vscode.workspace as unknown as {
-      workspaceFolders?: Array<{ uri: vscode.Uri }>;
-    };
-    const original = wsAny.workspaceFolders;
+  type PromptSourceMigrationCase = {
+    name: string;
+    taskId: string;
+    promptPathName: string;
+    promptSource?: "inline";
+  };
+
+  function runPromptSourceMigrationCase({
+    name,
+    promptPathName,
+    promptSource,
+    taskId,
+  }: PromptSourceMigrationCase): void {
+    const wsRoot = createTempDir("copilot-scheduler-ws-");
+    const restoreWs = overrideWorkspaceFolders(wsRoot);
+    const promptsDir = path.join(wsRoot, ".github", "prompts");
+    fs.mkdirSync(promptsDir, { recursive: true });
+    const templatePath = path.join(promptsDir, promptPathName);
+
     try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // Best-effort: some VS Code versions may not allow redefining; leave as-is.
-    }
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
+      fs.writeFileSync(templatePath, "hello", "utf8");
+
+      const now = new Date();
+      const rawTask: {
+        id: string;
+        name: string;
+        prompt: string;
+        cronExpression: string;
+        enabled: boolean;
+        scope: string;
+        promptPath: string;
+        promptSource?: "inline";
+        createdAt: string;
+        updatedAt: string;
+      } = {
+        id: taskId,
+        name: "t",
+        prompt: "OLD",
+        cronExpression: "0 * * * *",
+        enabled: false,
+        scope: "global",
+        promptPath: templatePath,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+      if (promptSource) {
+        rawTask.promptSource = promptSource;
       }
-    };
+
+      const tmp = createTempDir(`copilot-scheduler-${name}-`);
+      try {
+        const manager = new ScheduleManager(
+          createMockContext(tmp, [rawTask]),
+        );
+        const loaded = manager.getTask(rawTask.id);
+        assert.ok(loaded);
+        assert.strictEqual(loaded?.promptSource, "local");
+        assert.strictEqual(loaded?.promptPath, templatePath);
+      } finally {
+        removeTestPath(tmp);
+      }
+    } finally {
+      restoreWs();
+      removeTestPath(wsRoot);
+    }
   }
 
-  test("migrates missing promptSource to local when promptPath is under .github/prompts", () => {
-    const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-ws-"));
-    const restoreWs = setWorkspaceFoldersForTest(wsRoot);
-    const promptsDir = path.join(wsRoot, ".github", "prompts");
-    fs.mkdirSync(promptsDir, { recursive: true });
-
-    const templatePath = path.join(promptsDir, "__test_prompt_source_migration__.md");
-
-    try {
-      fs.writeFileSync(templatePath, "hello", "utf8");
-
-      const now = new Date();
-      const rawTask = {
-        id: "t-migrate-missing",
-        name: "t",
-        prompt: "OLD",
-        cronExpression: "0 * * * *",
-        enabled: false,
-        scope: "global",
-        promptPath: templatePath,
-        // promptSource intentionally missing
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-"));
-      try {
-        const manager = new ScheduleManager(
-          createMockContextWithGlobalTasks(tmp, [rawTask]),
-        );
-        const loaded = manager.getTask(rawTask.id);
-        assert.ok(loaded);
-        assert.strictEqual(loaded?.promptSource, "local");
-        assert.strictEqual(loaded?.promptPath, templatePath);
-      } finally {
-        try {
-          fs.rmSync(tmp, {
-            recursive: true,
-            force: true,
-            maxRetries: 3,
-            retryDelay: 50,
-          });
-        } catch {
-          // ignore
-        }
-      }
-    } finally {
-      restoreWs();
-      try {
-        fs.rmSync(wsRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-    }
-  });
-
-  test("heals inline promptSource to local when promptPath exists under .github/prompts", () => {
-    const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-ws-"));
-    const restoreWs = setWorkspaceFoldersForTest(wsRoot);
-    const promptsDir = path.join(wsRoot, ".github", "prompts");
-    fs.mkdirSync(promptsDir, { recursive: true });
-
-    const templatePath = path.join(promptsDir, "__test_prompt_source_heal__.md");
-
-    try {
-      fs.writeFileSync(templatePath, "hello", "utf8");
-
-      const now = new Date();
-      const rawTask = {
-        id: "t-migrate-inline",
-        name: "t",
-        prompt: "OLD",
-        cronExpression: "0 * * * *",
-        enabled: false,
-        scope: "global",
-        promptSource: "inline",
-        promptPath: templatePath,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-"));
-      try {
-        const manager = new ScheduleManager(
-          createMockContextWithGlobalTasks(tmp, [rawTask]),
-        );
-        const loaded = manager.getTask(rawTask.id);
-        assert.ok(loaded);
-        assert.strictEqual(loaded?.promptSource, "local");
-        assert.strictEqual(loaded?.promptPath, templatePath);
-      } finally {
-        try {
-          fs.rmSync(tmp, {
-            recursive: true,
-            force: true,
-            maxRetries: 3,
-            retryDelay: 50,
-          });
-        } catch {
-          // ignore
-        }
-      }
-    } finally {
-      restoreWs();
-      try {
-        fs.rmSync(wsRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-    }
+  [
+    {
+      name: "migrates missing promptSource to local when promptPath is under .github/prompts",
+      taskId: "t-migrate-missing",
+      promptPathName: "__test_prompt_source_migration__.md",
+    },
+    {
+      name: "heals inline promptSource to local when promptPath exists under .github/prompts",
+      taskId: "t-migrate-inline",
+      promptPathName: "__test_prompt_source_heal__.md",
+      promptSource: "inline" as const,
+    },
+  ].forEach((testCase) => {
+    test(testCase.name, () => {
+      runPromptSourceMigrationCase(testCase);
+    });
   });
 });
 
 suite("ScheduleManager Workspace JSON Sanitization Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
-
   test("redacts Discord webhook URLs when persisting workspace scheduler JSON", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-workspace-"),
@@ -1089,7 +977,7 @@ suite("ScheduleManager Workspace JSON Sanitization Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
     const liveWebhookUrl =
       "https://discord.com/api/webhooks/0000000000000000000/FAKE_WEBHOOK_TOKEN_FOR_TEST_SANITIZER_1234567890";
@@ -1133,26 +1021,7 @@ suite("ScheduleManager Workspace JSON Sanitization Tests", () => {
       assert.strictEqual(manager.getTask(task.id)?.prompt, prompt);
     } finally {
       restoreWs();
-      try {
-        fs.rmSync(workspaceRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(storageRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
+      removeTestPaths(workspaceRoot, storageRoot);
     }
   });
 });
@@ -1163,29 +1032,6 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     return process.platform === "win32"
       ? normalized.toLowerCase()
       : normalized;
-  }
-
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
   }
 
   test("keeps workspace tasks isolated to the opened workspace root", async () => {
@@ -1215,7 +1061,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
       "utf8",
     );
 
-    const restoreWs = setWorkspaceFoldersForTest(childWorkspace);
+    const restoreWs = overrideWorkspaceFolders(childWorkspace);
 
     try {
       const manager = new ScheduleManager(createMockContext(storageRoot));
@@ -1267,26 +1113,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
       assert.ok(savedConfig.tasks.every((task) => task.id !== createdTask.id));
     } finally {
       restoreWs();
-      try {
-        fs.rmSync(parentRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(storageRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
+      removeTestPaths(parentRoot, storageRoot);
     }
   });
 
@@ -1297,7 +1124,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const restoreMode = setWorkspaceStorageModeForTest("sqlite");
 
     try {
@@ -1359,7 +1186,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-jobs-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const restoreMode = setWorkspaceStorageModeForTest("sqlite");
 
     try {
@@ -1412,35 +1239,12 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
 });
 
 suite("ScheduleManager Prompt Backup Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
-
   test("keeps inline promptSource when only backup metadata is present", () => {
     const wsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-ws-"));
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(wsRoot);
+    const restoreWs = overrideWorkspaceFolders(wsRoot);
     const now = new Date("2026-03-15T12:00:00.000Z");
 
     const rawTask = {
@@ -1459,7 +1263,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
 
     try {
       const manager = new ScheduleManager(
-        createMockContextWithGlobalTasks(storageRoot, [rawTask]),
+        createMockContext(storageRoot, [rawTask]),
       );
       const loaded = manager.getTask(rawTask.id);
 
@@ -1470,26 +1274,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       assert.ok(loaded?.promptBackupUpdatedAt instanceof Date);
     } finally {
       restoreWs();
-      try {
-        fs.rmSync(wsRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(storageRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
+      removeTestPaths(wsRoot, storageRoot);
     }
   });
 
@@ -1500,7 +1285,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
 
     try {
@@ -1548,26 +1333,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       assert.ok(backupContent.endsWith("Recurring backup body\n"));
     } finally {
       restoreWs();
-      try {
-        fs.rmSync(workspaceRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(storageRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
+      removeTestPaths(workspaceRoot, storageRoot);
     }
   });
 
@@ -1578,7 +1344,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-migrate-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
 
     try {
       const manager = new ScheduleManager(createMockContext(storageRoot));
@@ -1624,54 +1390,12 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       );
     } finally {
       restoreWs();
-      try {
-        fs.rmSync(workspaceRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(storageRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
+      removeTestPaths(workspaceRoot, storageRoot);
     }
   });
 });
 
 suite("ScheduleManager Overdue Task Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
-
   test("lists overdue tasks only for the current workspace", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-ws-overdue-"),
@@ -1679,7 +1403,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const now = new Date("2026-03-23T10:20:00.000Z");
 
     const overdueWorkspaceTask = {
@@ -1727,7 +1451,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
       );
 
       const manager = new ScheduleManager(
-        createMockContextWithGlobalTasks(storageRoot, [
+        createMockContext(storageRoot, [
           futureWorkspaceTask,
         ]),
       );
@@ -1758,7 +1482,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const now = new Date("2026-03-23T10:20:00.000Z");
 
     const recurringTask = {
@@ -1863,7 +1587,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-manual-one-time-run-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const taskId = "overdue-one-time-manual-run";
     const now = new Date("2026-03-23T10:20:00.000Z");
 
@@ -1940,7 +1664,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-manual-one-time-reload-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const taskId = "overdue-one-time-reload";
     const now = new Date("2026-03-23T10:20:00.000Z");
 
@@ -2003,7 +1727,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-disabled-due-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     let executeCount = 0;
 
     try {
@@ -2065,7 +1789,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-tick-one-time-success-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     let executeCount = 0;
 
     try {
@@ -2132,7 +1856,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-storage-tick-one-time-failure-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const beforeTick = new Date();
 
     try {
@@ -2199,29 +1923,6 @@ suite("ScheduleManager Overdue Task Tests", () => {
 });
 
 suite("ScheduleManager History Snapshot Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
-
   function getHistoryFilePaths(workspaceRoot: string, snapshotId: string): {
     publicPath: string;
     privatePath: string;
@@ -2240,7 +1941,7 @@ suite("ScheduleManager History Snapshot Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-history-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
     const liveWebhookUrl =
       "https://discord.com/api/webhooks/0000000000000000000/FAKE_HISTORY_TOKEN_1234567890";
@@ -2316,7 +2017,7 @@ suite("ScheduleManager History Snapshot Tests", () => {
     const storageRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-history-restore-storage-"),
     );
-    const restoreWs = setWorkspaceFoldersForTest(workspaceRoot);
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
     const manager = new ScheduleManager(createMockContext(storageRoot));
 
     try {
