@@ -50,9 +50,6 @@ export function isJapanese(): boolean {
   return getCurrentLanguage() === "ja";
 }
 
-/**
- * Get localized string helper
- */
 function t(en: string, ja: string, de = en): string {
   switch (getCurrentLanguage()) {
     case "ja":
@@ -63,6 +60,173 @@ function t(en: string, ja: string, de = en): string {
       return en;
   }
 }
+
+type LocalizedText = readonly [english: string, japanese: string, german?: string];
+
+function localize(entry: LocalizedText): string {
+  return t(entry[0], entry[1], entry[2] ?? entry[0]);
+}
+
+function buildStaticMessageMap<T extends Record<string, LocalizedText>>(
+  entries: T,
+): { [K in keyof T]: () => string } {
+  const built = {} as { [K in keyof T]: () => string };
+
+  for (const key of Object.keys(entries) as Array<keyof T>) {
+    const localized = entries[key];
+    built[key] = () => localize(localized);
+  }
+
+  return built;
+}
+
+const agentAndModelMessageEntries = {
+  agentNoneName: ["None", "なし"],
+  agentNoneDesc: ["Default behavior", "デフォルトの動作"],
+  agentAgentName: ["Agent", "エージェント"],
+  agentAskName: ["Ask", "質問"],
+  agentEditName: ["Edit", "編集"],
+  agentModeDesc: ["Agent mode with tool use", "ツール利用のエージェントモード"],
+  agentAskDesc: ["Questions about code", "コードに関する質問"],
+  agentEditDesc: ["AI code editing", "AIでコード編集"],
+  agentWorkspaceDesc: ["Codebase search", "コードベース検索"],
+  agentTerminalDesc: ["Terminal operations", "ターミナル操作"],
+  agentVscodeDesc: ["VS Code settings and commands", "VS Code設定とコマンド"],
+  agentCustomDesc: ["Custom agent", "カスタムエージェント"],
+  agentAgentsMdDesc: ["Defined in AGENTS.md", "AGENTS.mdで定義"],
+  agentGlobalDesc: ["Global agent", "グローバルエージェント"],
+  modelDefaultName: ["Default", "デフォルト"],
+  modelDefaultDesc: ["Use default model", "デフォルトモデルを使用"],
+} as const satisfies Record<string, LocalizedText>;
+
+const tabMessageEntries = {
+  tabCreate: ["Create Task", "タスク作成"],
+  tabEdit: ["Edit Task", "タスク編集"],
+  tabList: ["Task List", "タスク一覧"],
+  tabHowTo: ["How To Use", "使い方"],
+} as const satisfies Record<string, LocalizedText>;
+
+const schedulerUiMessageEntries = {
+  promptCopied: ["Prompt copied to clipboard", "プロンプトをクリップボードにコピーしました"],
+  labelTaskName: ["Task Name", "タスク名", "Task-Name"],
+  labelPromptType: ["Prompt Type", "プロンプト種別", "Prompt-Typ"],
+  labelPromptInline: ["Free Input", "自由入力", "Freie Eingabe"],
+  labelPromptLocal: ["Local Template", "ローカルテンプレート", "Lokales Template"],
+  labelPromptGlobal: ["Global Template", "グローバルテンプレート", "Globales Template"],
+  labelPrompt: ["Prompt", "プロンプト", "Prompt"],
+  labelSchedule: ["Schedule", "スケジュール", "Zeitplan"],
+  labelCronExpression: ["Cron Expression", "Cron式", "Cron-Ausdruck"],
+  labelPreset: ["Preset", "プリセット", "Preset"],
+  labelCustom: ["Custom", "カスタム", "Benutzerdefiniert"],
+  labelAdvanced: ["Advanced", "詳細設定", "Erweitert"],
+  labelFrequency: ["Frequency", "頻度", "Häufigkeit"],
+  labelFrequencyMinute: ["Every X minutes", "X分ごと", "Alle X Minuten"],
+  labelFrequencyHourly: ["Hourly", "毎時", "Stündlich"],
+  labelFrequencyDaily: ["Daily", "毎日", "Täglich"],
+  labelFrequencyWeekly: ["Weekly", "毎週", "Wöchentlich"],
+  labelFrequencyMonthly: ["Monthly", "毎月", "Monatlich"],
+  labelSelectDays: ["Select days", "曜日を選択", "Tage auswählen"],
+  labelSelectTime: ["Time", "時刻", "Uhrzeit"],
+  labelSelectHour: ["Hour", "時", "Stunde"],
+  labelSelectMinute: ["Minute", "分", "Minute"],
+  labelSelectDay: ["Day of month", "日", "Tag des Monats"],
+  labelInterval: ["Interval", "間隔", "Intervall"],
+  labelAgent: ["Agent", "エージェント", "agent"],
+  labelModel: ["Model", "モデル", "model"],
+  labelScope: ["Scope", "スコープ", "Scope"],
+  labelScopeGlobal: ["Global (All Workspaces)", "グローバル（全ワークスペース）", "Global (alle Workspaces)"],
+  labelScopeWorkspace: ["Workspace Only", "ワークスペースのみ", "Nur Workspace"],
+  labelEnabled: ["Enabled", "有効", "Aktiv"],
+  labelDisabled: ["Disabled", "無効", "Inaktiv"],
+  labelStatus: ["Status", "ステータス", "Status"],
+  labelNextRun: ["Next Run", "次回実行", "Nächster Lauf"],
+  labelLastRun: ["Last Run", "前回実行", "Letzter Lauf"],
+  labelNever: ["Never", "なし", "Nie"],
+  labelRunFirstInOneMinute: ["Run first execution in 3 minutes", "3分後に初回実行する", "Erste Ausführung in 3 Minuten starten"],
+  labelOneTime: ["Run once and delete", "一度だけ実行して削除", "Einmal ausführen und löschen"],
+  labelChatSession: ["Recurring chat session", "繰り返しタスクのチャットセッション", "Wiederkehrende Chat-Session"],
+  labelChatSessionNew: ["Start a new chat every run", "毎回新しいチャットを開始", "Bei jedem Lauf einen neuen Chat starten"],
+  labelChatSessionContinue: ["Continue the active chat", "現在のチャットを継続", "Aktiven Chat fortsetzen"],
+  labelChatSessionBadgeNew: ["Chat: New", "チャット: 新規", "Chat: Neu"],
+  labelChatSessionBadgeContinue: ["Chat: Continue", "チャット: 継続", "Chat: Fortsetzen"],
+  labelManualSession: ["Manual session", "手動セッション", "Manuelle Session"],
+  labelManualSessions: ["Manual Sessions", "手動セッション", "Manuelle Sessions"],
+  labelAllTasks: ["All", "すべて", "Alle"],
+  labelJobTasks: ["Jobs", "ジョブ", "Jobs"],
+  labelRecurringTasks: ["Recurring Tasks", "繰り返しタスク", "Wiederkehrende Tasks"],
+  labelTodoTaskDrafts: ["Todo Task Drafts", "Todo Task Draft", "Todo-Task-Entwürfe"],
+  labelOneTimeTasks: ["One-time Tasks", "一度きりタスク", "Einmalige Tasks"],
+  labelJitterSeconds: ["Jitter (max seconds, 0=off)", "ジッター(最大秒数, 0=無効)", "Jitter (max. Sekunden, 0=aus)"],
+  webviewJitterNote: ["0 disables jitter. Adds a random delay between 0 and the specified seconds before execution.", "0で無効。値を入れると0〜その秒数でランダム遅延します。"],
+  daySun: ["Sun", "日", "So"],
+  dayMon: ["Mon", "月", "Mo"],
+  dayTue: ["Tue", "火", "Di"],
+  dayWed: ["Wed", "水", "Mi"],
+  dayThu: ["Thu", "木", "Do"],
+  dayFri: ["Fri", "金", "Fr"],
+  daySat: ["Sat", "土", "Sa"],
+  labelFriendlyBuilder: ["Friendly cron builder", "かんたんCron", "Friendly Cron Builder"],
+  labelFriendlyGenerate: ["Generate", "生成する", "Generieren"],
+  labelFriendlyPreview: ["Preview", "プレビュー", "Vorschau"],
+  labelFriendlyFallback: ["Preview unavailable for this expression", "このCronの説明はありません", "Für diesen Ausdruck ist keine Vorschau verfügbar"],
+  labelFriendlySelect: ["Select frequency", "頻度を選択", "Häufigkeit auswählen"],
+  labelEveryNMinutes: ["Every N minutes", "N分ごと", "Alle N Minuten"],
+  labelHourlyAtMinute: ["Hourly at minute", "毎時 指定分", "Stündlich zur Minute"],
+  labelDailyAtTime: ["Daily at time", "毎日 時刻", "Täglich um"],
+  labelWeeklyAtTime: ["Weekly at day/time", "毎週 曜日+時刻", "Wöchentlich an Tag/Uhrzeit"],
+  labelMonthlyAtTime: ["Monthly on day/time", "毎月 日付+時刻", "Monatlich an Tag/Uhrzeit"],
+  labelMinute: ["Minute", "分", "Minute"],
+  labelHour: ["Hour", "時", "Stunde"],
+  labelDayOfMonth: ["Day of month", "実行日", "Tag des Monats"],
+  labelDayOfWeek: ["Day of week", "曜日", "Wochentag"],
+  labelOpenInGuru: ["Open in crontab.guru", "crontab.guruを開く", "In crontab.guru öffnen"],
+  cronPreviewEveryNMinutes: ["Every {n} minutes", "{n}分ごと", "Alle {n} Minuten"],
+  cronPreviewHourlyAtMinute: ["Hourly at minute {m}", "毎時 {m}分", "Stündlich zur Minute {m}"],
+  cronPreviewDailyAt: ["Daily at {t}", "毎日 {t}", "Täglich um {t}"],
+  cronPreviewWeekdaysAt: ["Weekdays at {t}", "平日 {t}", "Werktags um {t}"],
+  cronPreviewWeeklyOnAt: ["Weekly on {d} at {t}", "毎週 {d} {t}", "Wöchentlich am {d} um {t}"],
+  cronPreviewMonthlyOnAt: ["Monthly on day {dom} at {t}", "毎月{dom}日 {t}", "Monatlich am Tag {dom} um {t}"],
+  placeholderTaskName: ["Enter task name...", "タスク名を入力...", "Task-Namen eingeben..."],
+  labelSkills: ["Skills", "スキル", "Skills"],
+  placeholderCron: ["e.g., 0 9 * * 1-5", "例: 0 9 * * 1-5"],
+  treeGroupGlobal: ["🌐 Global", "🌐 グローバル"],
+  treeGroupWorkspace: ["📁 Workspace", "📁 ワークスペース"],
+  treeGroupThisWorkspace: ["🏠 This workspace", "🏠 このワークスペース"],
+  treeGroupOtherWorkspace: ["📎 Other workspaces", "📎 他のワークスペース"],
+  treeNoTasks: ["No tasks", "タスクなし"],
+  reloadNow: ["Reload Now", "今すぐリロード"],
+  tooltipWorkspaceTarget: ["Target Workspace", "対象ワークスペース"],
+  tooltipNotSet: ["(not set)", "(未設定)"],
+  tooltipAppliesHere: ["Applies here", "このワークスペース"],
+  storageWriteTimeout: ["Timed out while saving tasks. Your environment may be blocking VS Code extension storage.", "タスクの保存がタイムアウトしました。環境により VS Code の拡張ストレージがブロックされている可能性があります。"],
+  disclaimerTitle: ["⚠️ Important Notice", "⚠️ 重要なお知らせ"],
+  disclaimerAccept: ["I understand the risks", "リスクを理解しました"],
+  disclaimerDecline: ["Cancel", "キャンセル"],
+} as const satisfies Record<string, LocalizedText>;
+
+type CronPresetSpec = {
+  id: string;
+  expression: string;
+  name: LocalizedText;
+  description: LocalizedText;
+};
+
+const cronPresetSpecs: readonly CronPresetSpec[] = [
+  { id: "every-3min", expression: "*/3 * * * *", name: ["Every 3 Minutes", "3分ごと", "Alle 3 Minuten"], description: ["Every 3 minutes", "3分ごと", "Alle 3 Minuten"] },
+  { id: "every-5min", expression: "*/5 * * * *", name: ["Every 5 Minutes", "5分ごと", "Alle 5 Minuten"], description: ["Every 5 minutes", "5分ごと", "Alle 5 Minuten"] },
+  { id: "every-10min", expression: "*/10 * * * *", name: ["Every 10 Minutes", "10分ごと", "Alle 10 Minuten"], description: ["Every 10 minutes", "10分ごと", "Alle 10 Minuten"] },
+  { id: "every-15min", expression: "*/15 * * * *", name: ["Every 15 Minutes", "15分ごと", "Alle 15 Minuten"], description: ["Every 15 minutes", "15分ごと", "Alle 15 Minuten"] },
+  { id: "every-30min", expression: "*/30 * * * *", name: ["Every 30 Minutes", "30分ごと", "Alle 30 Minuten"], description: ["Every 30 minutes", "30分ごと", "Alle 30 Minuten"] },
+  { id: "hourly", expression: "0 * * * *", name: ["Hourly", "毎時", "Stündlich"], description: ["Every hour at minute 0", "毎時0分", "Zu jeder Stunde bei Minute 0"] },
+  { id: "daily-9am", expression: "0 9 * * *", name: ["Daily 9:00 AM", "毎日 9:00", "Täglich 9:00"], description: ["Every day at 9:00 AM", "毎日9時", "Jeden Tag um 9:00"] },
+  { id: "daily-12pm", expression: "0 12 * * *", name: ["Daily 12:00 PM", "毎日 12:00", "Täglich 12:00"], description: ["Every day at 12:00 PM", "毎日12時", "Jeden Tag um 12:00"] },
+  { id: "daily-6pm", expression: "0 18 * * *", name: ["Daily 6:00 PM", "毎日 18:00", "Täglich 18:00"], description: ["Every day at 6:00 PM", "毎日18時", "Jeden Tag um 18:00"] },
+  { id: "weekday-9am", expression: "0 9 * * 1-5", name: ["Weekdays 9:00 AM", "平日 9:00", "Werktags 9:00"], description: ["Monday to Friday at 9:00 AM", "月曜〜金曜の9時", "Montag bis Freitag um 9:00"] },
+  { id: "weekday-6pm", expression: "0 18 * * 1-5", name: ["Weekdays 6:00 PM", "平日 18:00", "Werktags 18:00"], description: ["Monday to Friday at 6:00 PM", "月曜〜金曜の18時", "Montag bis Freitag um 18:00"] },
+  { id: "weekly-monday", expression: "0 9 * * 1", name: ["Every Monday 9:00 AM", "毎週月曜 9:00", "Jeden Montag 9:00"], description: ["Every Monday at 9:00 AM", "毎週月曜日の9時", "Jeden Montag um 9:00"] },
+  { id: "weekly-friday", expression: "0 18 * * 5", name: ["Every Friday 6:00 PM", "毎週金曜 18:00", "Jeden Freitag 18:00"], description: ["Every Friday at 6:00 PM", "毎週金曜日の18時", "Jeden Freitag um 18:00"] },
+  { id: "monthly-1st", expression: "0 9 1 * *", name: ["1st of Month 9:00 AM", "毎月1日 9:00", "Am 1. des Monats 9:00"], description: ["1st day of every month at 9:00 AM", "毎月1日の9時", "Am 1. Tag jedes Monats um 9:00"] },
+];
 
 /**
  * All localized messages
@@ -80,10 +244,10 @@ export const messages = {
       "Copilot Cockpit has been deactivated",
       "Copilot Cockpit が無効になりました",
     ),
-  schedulerStarted: () =>
-    t("Scheduler started", "スケジューラーが開始されました"),
-  schedulerStopped: () =>
-    t("Scheduler stopped", "スケジューラーが停止されました"),
+  ...buildStaticMessageMap({
+    schedulerStarted: ["Scheduler started", "スケジューラーが開始されました"],
+    schedulerStopped: ["Scheduler stopped", "スケジューラーが停止されました"],
+  }),
 
   // ==================== Task Operations ====================
   taskCreated: (name: string) =>
@@ -94,7 +258,7 @@ export const messages = {
     t(`Task "${name}" deleted`, `タスク「${name}」を削除しました`),
   taskDuplicated: (name: string) =>
     t(`Task duplicated as "${name}"`, `タスクを「${name}」として複製しました`),
-  taskCopySuffix: () => t("(Copy)", "(コピー)"),
+  ...buildStaticMessageMap({ taskCopySuffix: ["(Copy)", "(コピー)"] }),
   taskMovedToCurrentWorkspace: (name: string) =>
     t(
       `Task "${name}" moved to the current workspace`,
@@ -126,88 +290,86 @@ export const messages = {
       `Task "${name}" execution failed: ${error}`,
       `タスク「${name}」の実行に失敗しました: ${error}`,
     ),
-  taskNotFound: () => t("Task not found", "タスクが見つかりません"),
-  noTasksFound: () =>
-    t("No scheduled tasks found", "スケジュールされたタスクがありません"),
+  ...buildStaticMessageMap({
+    taskNotFound: ["Task not found", "タスクが見つかりません"],
+    noTasksFound: ["No scheduled tasks found", "スケジュールされたタスクがありません"],
+  }),
 
   // ==================== Validation ====================
-  invalidCronExpression: () => t("Invalid cron expression", "無効なcron式です"),
-  taskNameRequired: () =>
-    t("Task name is required", "タスク名を入力してください"),
-  promptRequired: () => t("Prompt is required", "プロンプトを入力してください"),
-  templateRequired: () =>
-    t(
-      "Prompt template is required",
-      "プロンプトテンプレートを選択してください",
-    ),
-  cronExpressionRequired: () =>
-    t("Cron expression is required", "cron式を入力してください"),
+  ...buildStaticMessageMap({
+    invalidCronExpression: ["Invalid cron expression", "無効なcron式です"],
+    taskNameRequired: ["Task name is required", "タスク名を入力してください"],
+    promptRequired: ["Prompt is required", "プロンプトを入力してください"],
+    templateRequired: ["Prompt template is required", "プロンプトテンプレートを選択してください"],
+    cronExpressionRequired: ["Cron expression is required", "cron式を入力してください"],
+  }),
 
   // ==================== Prompts ====================
-  enterTaskName: () => t("Enter task name", "タスク名を入力"),
-  enterPrompt: () =>
-    t("Enter prompt to send to Copilot", "Copilotに送信するプロンプトを入力"),
-  enterCronExpression: () =>
-    t(
+  ...buildStaticMessageMap({
+    enterTaskName: ["Enter task name", "タスク名を入力"],
+    enterPrompt: ["Enter prompt to send to Copilot", "Copilotに送信するプロンプトを入力"],
+    enterCronExpression: [
       "Enter cron expression (e.g., '0 9 * * 1-5' for weekdays at 9am)",
       "cron式を入力（例: '0 9 * * 1-5' で平日9時）",
       "Cron-Ausdruck eingeben (z. B. '0 9 * * 1-5' für werktags um 9 Uhr)",
-    ),
-  selectAgent: () => t("Select agent", "エージェントを選択", "agent auswählen"),
-  selectModel: () => t("Select model", "モデルを選択", "model auswählen"),
-  selectScope: () => t("Select scope", "スコープを選択", "Scope auswählen"),
-  selectTask: () => t("Select a task", "タスクを選択", "Task auswählen"),
-  selectPromptTemplate: () =>
-    t("Select prompt template", "プロンプトテンプレートを選択", "Prompt-Template auswählen"),
+    ],
+    selectAgent: ["Select agent", "エージェントを選択", "agent auswählen"],
+    selectModel: ["Select model", "モデルを選択", "model auswählen"],
+    selectScope: ["Select scope", "スコープを選択", "Scope auswählen"],
+    selectTask: ["Select a task", "タスクを選択", "Task auswählen"],
+    selectPromptTemplate: ["Select prompt template", "プロンプトテンプレートを選択", "Prompt-Template auswählen"],
+  }),
 
   // ==================== Actions ====================
-  actionRun: () => t("Run", "実行", "Ausführen"),
-  actionEdit: () => t("Edit", "編集", "Bearbeiten"),
-  actionDelete: () => t("Delete", "削除", "Löschen"),
-  actionDuplicate: () => t("Duplicate", "複製", "Duplizieren"),
-  actionMoveToCurrentWorkspace: () =>
-    t("Move to Current Workspace", "現在のワークスペースへ移動", "In aktuellen Workspace verschieben"),
-  actionEnable: () => t("Enable", "有効化", "Aktivieren"),
-  actionDisable: () => t("Disable", "無効化", "Deaktivieren"),
-  actionCancel: () => t("Cancel", "キャンセル", "Abbrechen"),
-  actionOpenScheduler: () => t("Open Cockpit", "Cockpit を開く", "Cockpit öffnen"),
-  actionReschedule: () => t("Reschedule", "再スケジュール", "Neu planen"),
-  actionWaitNextCycle: () => t("Wait for Next Cycle", "次の周期まで待機", "Auf nächsten Zyklus warten"),
-  actionCopyPrompt: () => t("Copy Prompt", "プロンプトをコピー", "Prompt kopieren"),
-  actionTestRun: () => t("Test Run", "テスト実行", "Testlauf"),
-  actionSave: () => t("Update", "更新", "Aktualisieren"),
-  actionCreate: () => t("Create", "作成", "Erstellen"),
-  actionNewTask: () => t("New Task", "新規タスク", "Neuer Task"),
-  actionRefresh: () => t("Refresh", "再読込", "Aktualisieren"),
-  actionRestoreBackup: () => t("Restore Backup", "バックアップを復元", "Backup wiederherstellen"),
-  actionInsertSkill: () => t("Insert Skill", "スキルを挿入", "Skill einfügen"),
+  ...buildStaticMessageMap({
+    actionRun: ["Run", "実行", "Ausführen"],
+    actionEdit: ["Edit", "編集", "Bearbeiten"],
+    actionDelete: ["Delete", "削除", "Löschen"],
+    actionDuplicate: ["Duplicate", "複製", "Duplizieren"],
+    actionMoveToCurrentWorkspace: ["Move to Current Workspace", "現在のワークスペースへ移動", "In aktuellen Workspace verschieben"],
+    actionEnable: ["Enable", "有効化", "Aktivieren"],
+    actionDisable: ["Disable", "無効化", "Deaktivieren"],
+    actionCancel: ["Cancel", "キャンセル", "Abbrechen"],
+    actionOpenScheduler: ["Open Cockpit", "Cockpit を開く", "Cockpit öffnen"],
+    actionReschedule: ["Reschedule", "再スケジュール", "Neu planen"],
+    actionWaitNextCycle: ["Wait for Next Cycle", "次の周期まで待機", "Auf nächsten Zyklus warten"],
+    actionCopyPrompt: ["Copy Prompt", "プロンプトをコピー", "Prompt kopieren"],
+    actionTestRun: ["Test Run", "テスト実行", "Testlauf"],
+    actionSave: ["Update", "更新", "Aktualisieren"],
+    actionCreate: ["Create", "作成", "Erstellen"],
+    actionNewTask: ["New Task", "新規タスク", "Neuer Task"],
+    actionRefresh: ["Refresh", "再読込", "Aktualisieren"],
+    actionRestoreBackup: ["Restore Backup", "バックアップを復元", "Backup wiederherstellen"],
+    actionInsertSkill: ["Insert Skill", "スキルを挿入", "Skill einfügen"],
+  }),
 
   // Webview-only runtime strings (used in media/schedulerWebview.js)
-  webviewScriptErrorPrefix: () => t("Script error: ", "スクリプトエラー: "),
-  webviewUnhandledErrorPrefix: () => t("Unhandled error: ", "未処理のエラー: "),
-  webviewLinePrefix: () => t(" (line ", "（行 "),
-  webviewLineSuffix: () => t(")", "）"),
-  webviewUnknown: () => t("unknown", "不明"),
+  ...buildStaticMessageMap({
+    webviewScriptErrorPrefix: ["Script error: ", "スクリプトエラー: "],
+    webviewUnhandledErrorPrefix: ["Unhandled error: ", "未処理のエラー: "],
+    webviewLinePrefix: [" (line ", "（行 "],
+    webviewLineSuffix: [")", "）"],
+    webviewUnknown: ["unknown", "不明"],
+  }),
   webviewApiUnavailable: () =>
     t(
       "VS Code Webview API (acquireVsCodeApi) is unavailable. Check CSP/initialization.",
       "VS Code Webview API (acquireVsCodeApi) が利用できません。CSP/初期化を確認してください。",
     ),
-  webviewClientErrorPrefix: () =>
-    t("Webview error: ", "画面処理でエラーが発生しました: "),
-
-  webviewSuccessPrefix: () => t("✔ ", "✔ "),
+  ...buildStaticMessageMap({
+    webviewClientErrorPrefix: ["Webview error: ", "画面処理でエラーが発生しました: "],
+    webviewSuccessPrefix: ["✔ ", "✔ "],
+  }),
 
   // ==================== Webview Placeholders ====================
-  webviewSelectAgentPlaceholder: () => t("Select agent", "エージェントを選択", "agent auswählen"),
-  webviewNoAgentsAvailable: () =>
-    t("No agents available", "利用可能なエージェントがありません", "Keine agents verfügbar"),
-  webviewSelectModelPlaceholder: () => t("Select model", "モデルを選択", "model auswählen"),
-  webviewNoModelsAvailable: () =>
-    t("No models available", "利用可能なモデルがありません", "Keine models verfügbar"),
-  webviewSelectTemplatePlaceholder: () =>
-    t("Select template", "テンプレートを選択", "Template auswählen"),
-  placeholderSelectSkill: () => t("Select skill", "スキルを選択", "Skill auswählen"),
+  ...buildStaticMessageMap({
+    webviewSelectAgentPlaceholder: ["Select agent", "エージェントを選択", "agent auswählen"],
+    webviewNoAgentsAvailable: ["No agents available", "利用可能なエージェントがありません", "Keine agents verfügbar"],
+    webviewSelectModelPlaceholder: ["Select model", "モデルを選択", "model auswählen"],
+    webviewNoModelsAvailable: ["No models available", "利用可能なモデルがありません", "Keine models verfügbar"],
+    webviewSelectTemplatePlaceholder: ["Select template", "テンプレートを選択", "Template auswählen"],
+    placeholderSelectSkill: ["Select skill", "スキルを選択", "Skill auswählen"],
+  }),
 
   // ==================== Confirmations ====================
   confirmDelete: (name: string) =>
@@ -284,31 +446,10 @@ export const messages = {
     ),
 
   // ==================== Clipboard ====================
-  promptCopied: () =>
-    t(
-      "Prompt copied to clipboard",
-      "プロンプトをクリップボードにコピーしました",
-    ),
+  ...buildStaticMessageMap({ promptCopied: schedulerUiMessageEntries.promptCopied }),
 
   // ==================== Agent / Model Descriptions ====================
-  agentNoneName: () => t("None", "なし"),
-  agentNoneDesc: () => t("Default behavior", "デフォルトの動作"),
-  agentAgentName: () => t("Agent", "エージェント"),
-  agentAskName: () => t("Ask", "質問"),
-  agentEditName: () => t("Edit", "編集"),
-  agentModeDesc: () =>
-    t("Agent mode with tool use", "ツール利用のエージェントモード"),
-  agentAskDesc: () => t("Questions about code", "コードに関する質問"),
-  agentEditDesc: () => t("AI code editing", "AIでコード編集"),
-  agentWorkspaceDesc: () => t("Codebase search", "コードベース検索"),
-  agentTerminalDesc: () => t("Terminal operations", "ターミナル操作"),
-  agentVscodeDesc: () =>
-    t("VS Code settings and commands", "VS Code設定とコマンド"),
-  agentCustomDesc: () => t("Custom agent", "カスタムエージェント"),
-  agentAgentsMdDesc: () => t("Defined in AGENTS.md", "AGENTS.mdで定義"),
-  agentGlobalDesc: () => t("Global agent", "グローバルエージェント"),
-  modelDefaultName: () => t("Default", "デフォルト"),
-  modelDefaultDesc: () => t("Use default model", "デフォルトモデルを使用"),
+  ...buildStaticMessageMap(agentAndModelMessageEntries),
 
   // ==================== Execution Errors ====================
   autoExecuteFailed: () =>
@@ -323,10 +464,7 @@ export const messages = {
     ),
 
   // ==================== Webview UI ====================
-  tabCreate: () => t("Create Task", "タスク作成"),
-  tabEdit: () => t("Edit Task", "タスク編集"),
-  tabList: () => t("Task List", "タスク一覧"),
-  tabHowTo: () => t("How To Use", "使い方"),
+  ...buildStaticMessageMap(tabMessageEntries),
 
   helpIntroTitle: () =>
     t(
@@ -602,133 +740,117 @@ export const messages = {
       `操作の処理に失敗しました: ${error}`,
     ),
 
-  labelTaskName: () => t("Task Name", "タスク名", "Task-Name"),
-  labelPromptType: () => t("Prompt Type", "プロンプト種別", "Prompt-Typ"),
-  labelPromptInline: () => t("Free Input", "自由入力", "Freie Eingabe"),
-  labelPromptLocal: () => t("Local Template", "ローカルテンプレート", "Lokales Template"),
-  labelPromptGlobal: () => t("Global Template", "グローバルテンプレート", "Globales Template"),
-  labelPrompt: () => t("Prompt", "プロンプト", "Prompt"),
-  labelSchedule: () => t("Schedule", "スケジュール", "Zeitplan"),
-  labelCronExpression: () => t("Cron Expression", "Cron式", "Cron-Ausdruck"),
-  labelPreset: () => t("Preset", "プリセット", "Preset"),
-  labelCustom: () => t("Custom", "カスタム", "Benutzerdefiniert"),
-  labelAdvanced: () => t("Advanced", "詳細設定", "Erweitert"),
-  labelFrequency: () => t("Frequency", "頻度", "Häufigkeit"),
-  labelFrequencyMinute: () => t("Every X minutes", "X分ごと", "Alle X Minuten"),
-  labelFrequencyHourly: () => t("Hourly", "毎時", "Stündlich"),
-  labelFrequencyDaily: () => t("Daily", "毎日", "Täglich"),
-  labelFrequencyWeekly: () => t("Weekly", "毎週", "Wöchentlich"),
-  labelFrequencyMonthly: () => t("Monthly", "毎月", "Monatlich"),
-  labelSelectDays: () => t("Select days", "曜日を選択", "Tage auswählen"),
-  labelSelectTime: () => t("Time", "時刻", "Uhrzeit"),
-  labelSelectHour: () => t("Hour", "時", "Stunde"),
-  labelSelectMinute: () => t("Minute", "分", "Minute"),
-  labelSelectDay: () => t("Day of month", "日", "Tag des Monats"),
-  labelInterval: () => t("Interval", "間隔", "Intervall"),
-  labelAgent: () => t("Agent", "エージェント", "agent"),
-  labelModel: () => t("Model", "モデル", "model"),
+  ...buildStaticMessageMap({
+    labelTaskName: schedulerUiMessageEntries.labelTaskName,
+    labelPromptType: schedulerUiMessageEntries.labelPromptType,
+    labelPromptInline: schedulerUiMessageEntries.labelPromptInline,
+    labelPromptLocal: schedulerUiMessageEntries.labelPromptLocal,
+    labelPromptGlobal: schedulerUiMessageEntries.labelPromptGlobal,
+    labelPrompt: schedulerUiMessageEntries.labelPrompt,
+    labelSchedule: schedulerUiMessageEntries.labelSchedule,
+    labelCronExpression: schedulerUiMessageEntries.labelCronExpression,
+    labelPreset: schedulerUiMessageEntries.labelPreset,
+    labelCustom: schedulerUiMessageEntries.labelCustom,
+    labelAdvanced: schedulerUiMessageEntries.labelAdvanced,
+    labelFrequency: schedulerUiMessageEntries.labelFrequency,
+    labelFrequencyMinute: schedulerUiMessageEntries.labelFrequencyMinute,
+    labelFrequencyHourly: schedulerUiMessageEntries.labelFrequencyHourly,
+    labelFrequencyDaily: schedulerUiMessageEntries.labelFrequencyDaily,
+    labelFrequencyWeekly: schedulerUiMessageEntries.labelFrequencyWeekly,
+    labelFrequencyMonthly: schedulerUiMessageEntries.labelFrequencyMonthly,
+    labelSelectDays: schedulerUiMessageEntries.labelSelectDays,
+    labelSelectTime: schedulerUiMessageEntries.labelSelectTime,
+    labelSelectHour: schedulerUiMessageEntries.labelSelectHour,
+    labelSelectMinute: schedulerUiMessageEntries.labelSelectMinute,
+    labelSelectDay: schedulerUiMessageEntries.labelSelectDay,
+    labelInterval: schedulerUiMessageEntries.labelInterval,
+    labelAgent: schedulerUiMessageEntries.labelAgent,
+    labelModel: schedulerUiMessageEntries.labelModel,
+  }),
   labelModelNote: () =>
     t(
       "Model selection is a preview feature and may not apply in all environments. The dropdown labels show the API source, such as Copilot or OpenRouter. If needed, pick the model directly in the Copilot Chat panel.",
       "モデルの選択はプレビュー機能で、環境によって反映されない場合があります。ドロップダウンのラベルには Copilot や OpenRouter などの API ソースが表示されます。必要に応じて Copilot Chat パネルでも確認してください。",
     ),
-  labelScope: () => t("Scope", "スコープ", "Scope"),
-  labelScopeGlobal: () =>
-    t("Global (All Workspaces)", "グローバル（全ワークスペース）", "Global (alle Workspaces)"),
-  labelScopeWorkspace: () => t("Workspace Only", "ワークスペースのみ", "Nur Workspace"),
-  labelEnabled: () => t("Enabled", "有効", "Aktiv"),
-  labelDisabled: () => t("Disabled", "無効", "Inaktiv"),
-  labelStatus: () => t("Status", "ステータス", "Status"),
-  labelNextRun: () => t("Next Run", "次回実行", "Nächster Lauf"),
-  labelLastRun: () => t("Last Run", "前回実行", "Letzter Lauf"),
-  labelNever: () => t("Never", "なし", "Nie"),
-  labelRunFirstInOneMinute: () =>
-    t("Run first execution in 3 minutes", "3分後に初回実行する", "Erste Ausführung in 3 Minuten starten"),
-  labelOneTime: () => t("Run once and delete", "一度だけ実行して削除", "Einmal ausführen und löschen"),
-  labelChatSession: () =>
-    t("Recurring chat session", "繰り返しタスクのチャットセッション", "Wiederkehrende Chat-Session"),
-  labelChatSessionNew: () =>
-    t("Start a new chat every run", "毎回新しいチャットを開始", "Bei jedem Lauf einen neuen Chat starten"),
-  labelChatSessionContinue: () =>
-    t("Continue the active chat", "現在のチャットを継続", "Aktiven Chat fortsetzen"),
-  labelChatSessionBadgeNew: () =>
-    t("Chat: New", "チャット: 新規", "Chat: Neu"),
-  labelChatSessionBadgeContinue: () =>
-    t("Chat: Continue", "チャット: 継続", "Chat: Fortsetzen"),
+  ...buildStaticMessageMap({
+    labelScope: schedulerUiMessageEntries.labelScope,
+    labelScopeGlobal: schedulerUiMessageEntries.labelScopeGlobal,
+    labelScopeWorkspace: schedulerUiMessageEntries.labelScopeWorkspace,
+    labelEnabled: schedulerUiMessageEntries.labelEnabled,
+    labelDisabled: schedulerUiMessageEntries.labelDisabled,
+    labelStatus: schedulerUiMessageEntries.labelStatus,
+    labelNextRun: schedulerUiMessageEntries.labelNextRun,
+    labelLastRun: schedulerUiMessageEntries.labelLastRun,
+    labelNever: schedulerUiMessageEntries.labelNever,
+    labelRunFirstInOneMinute: schedulerUiMessageEntries.labelRunFirstInOneMinute,
+    labelOneTime: schedulerUiMessageEntries.labelOneTime,
+    labelChatSession: schedulerUiMessageEntries.labelChatSession,
+    labelChatSessionNew: schedulerUiMessageEntries.labelChatSessionNew,
+    labelChatSessionContinue: schedulerUiMessageEntries.labelChatSessionContinue,
+    labelChatSessionBadgeNew: schedulerUiMessageEntries.labelChatSessionBadgeNew,
+    labelChatSessionBadgeContinue: schedulerUiMessageEntries.labelChatSessionBadgeContinue,
+  }),
   labelChatSessionRecurringOnly: () =>
     t(
       "Recurring tasks only. One-time tasks do not store a task-level chat session mode.",
       "繰り返しタスク専用です。一度きりタスクにはタスク単位のチャットセッション設定は保存されません。",
       "Nur für wiederkehrende Tasks. Einmalige Tasks speichern keinen Chat-Session-Modus auf Task-Ebene.",
     ),
-  labelManualSession: () => t("Manual session", "手動セッション", "Manuelle Session"),
-  labelManualSessions: () => t("Manual Sessions", "手動セッション", "Manuelle Sessions"),
+  ...buildStaticMessageMap({
+    labelManualSession: schedulerUiMessageEntries.labelManualSession,
+    labelManualSessions: schedulerUiMessageEntries.labelManualSessions,
+  }),
   labelManualSessionNote: () =>
     t(
       "Manual sessions stay grouped separately in the task list and do not become one-time tasks.",
       "手動セッションはタスクリストで別グループになり、一度きりタスクにはなりません。",
       "Manuelle Sessions bleiben in der Taskliste separat gruppiert und werden nicht zu einmaligen Tasks.",
     ),
-  labelAllTasks: () => t("All", "すべて", "Alle"),
-  labelJobTasks: () => t("Jobs", "ジョブ", "Jobs"),
-  labelRecurringTasks: () => t("Recurring Tasks", "繰り返しタスク", "Wiederkehrende Tasks"),
-  labelTodoTaskDrafts: () =>
-    t(
-      "Todo Task Drafts",
-      "Todo Task Draft",
-      "Todo-Task-Entwürfe",
-    ),
-  labelOneTimeTasks: () => t("One-time Tasks", "一度きりタスク", "Einmalige Tasks"),
-  labelJitterSeconds: () =>
-    t("Jitter (max seconds, 0=off)", "ジッター(最大秒数, 0=無効)", "Jitter (max. Sekunden, 0=aus)"),
-  webviewJitterNote: () =>
-    t(
-      "0 disables jitter. Adds a random delay between 0 and the specified seconds before execution.",
-      "0で無効。値を入れると0〜その秒数でランダム遅延します。",
-    ),
-
-  // Friendly cron builder / day labels
-  daySun: () => t("Sun", "日", "So"),
-  dayMon: () => t("Mon", "月", "Mo"),
-  dayTue: () => t("Tue", "火", "Di"),
-  dayWed: () => t("Wed", "水", "Mi"),
-  dayThu: () => t("Thu", "木", "Do"),
-  dayFri: () => t("Fri", "金", "Fr"),
-  daySat: () => t("Sat", "土", "Sa"),
-  labelFriendlyBuilder: () => t("Friendly cron builder", "かんたんCron", "Friendly Cron Builder"),
-  labelFriendlyGenerate: () => t("Generate", "生成する", "Generieren"),
-  labelFriendlyPreview: () => t("Preview", "プレビュー", "Vorschau"),
-  labelFriendlyFallback: () =>
-    t("Preview unavailable for this expression", "このCronの説明はありません", "Für diesen Ausdruck ist keine Vorschau verfügbar"),
-  labelFriendlySelect: () => t("Select frequency", "頻度を選択", "Häufigkeit auswählen"),
-  labelEveryNMinutes: () => t("Every N minutes", "N分ごと", "Alle N Minuten"),
-  labelHourlyAtMinute: () => t("Hourly at minute", "毎時 指定分", "Stündlich zur Minute"),
-  labelDailyAtTime: () => t("Daily at time", "毎日 時刻", "Täglich um"),
-  labelWeeklyAtTime: () => t("Weekly at day/time", "毎週 曜日+時刻", "Wöchentlich an Tag/Uhrzeit"),
-  labelMonthlyAtTime: () => t("Monthly on day/time", "毎月 日付+時刻", "Monatlich an Tag/Uhrzeit"),
-  labelMinute: () => t("Minute", "分", "Minute"),
-  labelHour: () => t("Hour", "時", "Stunde"),
-  labelDayOfMonth: () => t("Day of month", "実行日", "Tag des Monats"),
-  labelDayOfWeek: () => t("Day of week", "曜日", "Wochentag"),
-  labelOpenInGuru: () => t("Open in crontab.guru", "crontab.guruを開く", "In crontab.guru öffnen"),
-
-  // Cron preview templates (used in media/schedulerWebview.js)
-  cronPreviewEveryNMinutes: () => t("Every {n} minutes", "{n}分ごと", "Alle {n} Minuten"),
-  cronPreviewHourlyAtMinute: () => t("Hourly at minute {m}", "毎時 {m}分", "Stündlich zur Minute {m}"),
-  cronPreviewDailyAt: () => t("Daily at {t}", "毎日 {t}", "Täglich um {t}"),
-  cronPreviewWeekdaysAt: () => t("Weekdays at {t}", "平日 {t}", "Werktags um {t}"),
-  cronPreviewWeeklyOnAt: () => t("Weekly on {d} at {t}", "毎週 {d} {t}", "Wöchentlich am {d} um {t}"),
-  cronPreviewMonthlyOnAt: () =>
-    t("Monthly on day {dom} at {t}", "毎月{dom}日 {t}", "Monatlich am Tag {dom} um {t}"),
-
-  placeholderTaskName: () => t("Enter task name...", "タスク名を入力...", "Task-Namen eingeben..."),
+  ...buildStaticMessageMap({
+    labelAllTasks: schedulerUiMessageEntries.labelAllTasks,
+    labelJobTasks: schedulerUiMessageEntries.labelJobTasks,
+    labelRecurringTasks: schedulerUiMessageEntries.labelRecurringTasks,
+    labelTodoTaskDrafts: schedulerUiMessageEntries.labelTodoTaskDrafts,
+    labelOneTimeTasks: schedulerUiMessageEntries.labelOneTimeTasks,
+    labelJitterSeconds: schedulerUiMessageEntries.labelJitterSeconds,
+    webviewJitterNote: schedulerUiMessageEntries.webviewJitterNote,
+    daySun: schedulerUiMessageEntries.daySun,
+    dayMon: schedulerUiMessageEntries.dayMon,
+    dayTue: schedulerUiMessageEntries.dayTue,
+    dayWed: schedulerUiMessageEntries.dayWed,
+    dayThu: schedulerUiMessageEntries.dayThu,
+    dayFri: schedulerUiMessageEntries.dayFri,
+    daySat: schedulerUiMessageEntries.daySat,
+    labelFriendlyBuilder: schedulerUiMessageEntries.labelFriendlyBuilder,
+    labelFriendlyGenerate: schedulerUiMessageEntries.labelFriendlyGenerate,
+    labelFriendlyPreview: schedulerUiMessageEntries.labelFriendlyPreview,
+    labelFriendlyFallback: schedulerUiMessageEntries.labelFriendlyFallback,
+    labelFriendlySelect: schedulerUiMessageEntries.labelFriendlySelect,
+    labelEveryNMinutes: schedulerUiMessageEntries.labelEveryNMinutes,
+    labelHourlyAtMinute: schedulerUiMessageEntries.labelHourlyAtMinute,
+    labelDailyAtTime: schedulerUiMessageEntries.labelDailyAtTime,
+    labelWeeklyAtTime: schedulerUiMessageEntries.labelWeeklyAtTime,
+    labelMonthlyAtTime: schedulerUiMessageEntries.labelMonthlyAtTime,
+    labelMinute: schedulerUiMessageEntries.labelMinute,
+    labelHour: schedulerUiMessageEntries.labelHour,
+    labelDayOfMonth: schedulerUiMessageEntries.labelDayOfMonth,
+    labelDayOfWeek: schedulerUiMessageEntries.labelDayOfWeek,
+    labelOpenInGuru: schedulerUiMessageEntries.labelOpenInGuru,
+    cronPreviewEveryNMinutes: schedulerUiMessageEntries.cronPreviewEveryNMinutes,
+    cronPreviewHourlyAtMinute: schedulerUiMessageEntries.cronPreviewHourlyAtMinute,
+    cronPreviewDailyAt: schedulerUiMessageEntries.cronPreviewDailyAt,
+    cronPreviewWeekdaysAt: schedulerUiMessageEntries.cronPreviewWeekdaysAt,
+    cronPreviewWeeklyOnAt: schedulerUiMessageEntries.cronPreviewWeeklyOnAt,
+    cronPreviewMonthlyOnAt: schedulerUiMessageEntries.cronPreviewMonthlyOnAt,
+    placeholderTaskName: schedulerUiMessageEntries.placeholderTaskName,
+  }),
   placeholderPrompt: () =>
     t(
       "Enter prompt to send to Copilot...",
       "Copilotに送信するプロンプトを入力...",
       "Prompt eingeben, der an Copilot gesendet werden soll...",
     ),
-  labelSkills: () => t("Skills", "スキル", "Skills"),
+  ...buildStaticMessageMap({ labelSkills: schedulerUiMessageEntries.labelSkills }),
   skillInsertNote: () =>
     t(
       "Insert a skill reference sentence into the prompt with one click. This switches the prompt to inline mode so the inserted instruction is preserved.",
@@ -741,7 +863,7 @@ export const messages = {
       `${skill} を使って、どのように進めるべきかを理解してください。`,
       `Verwende ${skill}, um zu verstehen, wie Dinge erledigt werden sollen.`,
     ),
-  placeholderCron: () => t("e.g., 0 9 * * 1-5", "例: 0 9 * * 1-5"),
+  ...buildStaticMessageMap({ placeholderCron: schedulerUiMessageEntries.placeholderCron }),
 
   // ==================== TreeView ====================
   treeGroupGlobal: () => t("🌐 Global", "🌐 グローバル"),
@@ -915,9 +1037,11 @@ export const messages = {
       "Nur Tasks im Workspace-Scope können verschoben werden",
     ),
   // ==================== Tooltip ====================
-  tooltipWorkspaceTarget: () => t("Target Workspace", "対象ワークスペース"),
-  tooltipNotSet: () => t("(not set)", "(未設定)"),
-  tooltipAppliesHere: () => t("Applies here", "このワークスペース"),
+  ...buildStaticMessageMap({
+    tooltipWorkspaceTarget: schedulerUiMessageEntries.tooltipWorkspaceTarget,
+    tooltipNotSet: schedulerUiMessageEntries.tooltipNotSet,
+    tooltipAppliesHere: schedulerUiMessageEntries.tooltipAppliesHere,
+  }),
 
   // ==================== Safety / Rate Limiting ====================
   dailyLimitReached: (limit: number) =>
@@ -946,11 +1070,7 @@ export const messages = {
       "Enter a whole number of minutes between 1 and 10080",
       "1〜10080 の整数分を入力してください",
     ),
-  storageWriteTimeout: () =>
-    t(
-      "Timed out while saving tasks. Your environment may be blocking VS Code extension storage.",
-      "タスクの保存がタイムアウトしました。環境により VS Code の拡張ストレージがブロックされている可能性があります。",
-    ),
+  ...buildStaticMessageMap({ storageWriteTimeout: schedulerUiMessageEntries.storageWriteTimeout }),
   jitterApplied: (seconds: number) =>
     t(
       `Applying ${seconds}s random delay to reduce detection risk...`,
@@ -961,14 +1081,16 @@ export const messages = {
       "Cron intervals shorter than 30 minutes may increase the risk of being flagged by GitHub's abuse-detection system.",
       "30分未満のcron間隔は、GitHubの不正検出システムに検出されるリスクが高まる可能性があります。",
     ),
-  disclaimerTitle: () => t("⚠️ Important Notice", "⚠️ 重要なお知らせ"),
+  ...buildStaticMessageMap({ disclaimerTitle: schedulerUiMessageEntries.disclaimerTitle }),
   disclaimerMessage: () =>
     t(
       "This extension automates Copilot Chat interactions via scheduled prompts. GitHub's Acceptable Use Policies prohibit 'excessive automated bulk activity' and 'scripted interactions' with Copilot. Using this extension may violate GitHub's Terms of Service and could result in your Copilot access being restricted or your account being suspended. Use at your own risk.",
       "この拡張機能は、スケジュールされたプロンプトによりCopilot Chatの操作を自動化します。GitHubの利用規約（Acceptable Use Policies）は「過度な自動化された一括活動」および「スクリプトによるCopilotとのやり取り」を禁止しています。この拡張機能の使用はGitHubの利用規約に違反する可能性があり、Copilotへのアクセス制限やアカウント停止につながる恐れがあります。ご利用は自己責任でお願いします。",
     ),
-  disclaimerAccept: () => t("I understand the risks", "リスクを理解しました"),
-  disclaimerDecline: () => t("Cancel", "キャンセル"),
+  ...buildStaticMessageMap({
+    disclaimerAccept: schedulerUiMessageEntries.disclaimerAccept,
+    disclaimerDecline: schedulerUiMessageEntries.disclaimerDecline,
+  }),
   unlimitedDailyWarning: () =>
     t(
       "⚠️ Daily execution limit is set to unlimited (0). Excessive automated usage may result in API rate-limiting or account restrictions by the provider. Use at your own risk.",
@@ -980,92 +1102,12 @@ export const messages = {
  * Cron presets with localized names
  */
 export function getCronPresets(): CronPreset[] {
-  return [
-    {
-      id: "every-3min",
-      name: t("Every 3 Minutes", "3分ごと", "Alle 3 Minuten"),
-      expression: "*/3 * * * *",
-      description: t("Every 3 minutes", "3分ごと", "Alle 3 Minuten"),
-    },
-    {
-      id: "every-5min",
-      name: t("Every 5 Minutes", "5分ごと", "Alle 5 Minuten"),
-      expression: "*/5 * * * *",
-      description: t("Every 5 minutes", "5分ごと", "Alle 5 Minuten"),
-    },
-    {
-      id: "every-10min",
-      name: t("Every 10 Minutes", "10分ごと", "Alle 10 Minuten"),
-      expression: "*/10 * * * *",
-      description: t("Every 10 minutes", "10分ごと", "Alle 10 Minuten"),
-    },
-    {
-      id: "every-15min",
-      name: t("Every 15 Minutes", "15分ごと", "Alle 15 Minuten"),
-      expression: "*/15 * * * *",
-      description: t("Every 15 minutes", "15分ごと", "Alle 15 Minuten"),
-    },
-    {
-      id: "every-30min",
-      name: t("Every 30 Minutes", "30分ごと", "Alle 30 Minuten"),
-      expression: "*/30 * * * *",
-      description: t("Every 30 minutes", "30分ごと", "Alle 30 Minuten"),
-    },
-    {
-      id: "hourly",
-      name: t("Hourly", "毎時", "Stündlich"),
-      expression: "0 * * * *",
-      description: t("Every hour at minute 0", "毎時0分", "Zu jeder Stunde bei Minute 0"),
-    },
-    {
-      id: "daily-9am",
-      name: t("Daily 9:00 AM", "毎日 9:00", "Täglich 9:00"),
-      expression: "0 9 * * *",
-      description: t("Every day at 9:00 AM", "毎日9時", "Jeden Tag um 9:00"),
-    },
-    {
-      id: "daily-12pm",
-      name: t("Daily 12:00 PM", "毎日 12:00", "Täglich 12:00"),
-      expression: "0 12 * * *",
-      description: t("Every day at 12:00 PM", "毎日12時", "Jeden Tag um 12:00"),
-    },
-    {
-      id: "daily-6pm",
-      name: t("Daily 6:00 PM", "毎日 18:00", "Täglich 18:00"),
-      expression: "0 18 * * *",
-      description: t("Every day at 6:00 PM", "毎日18時", "Jeden Tag um 18:00"),
-    },
-    {
-      id: "weekday-9am",
-      name: t("Weekdays 9:00 AM", "平日 9:00", "Werktags 9:00"),
-      expression: "0 9 * * 1-5",
-      description: t("Monday to Friday at 9:00 AM", "月曜〜金曜の9時", "Montag bis Freitag um 9:00"),
-    },
-    {
-      id: "weekday-6pm",
-      name: t("Weekdays 6:00 PM", "平日 18:00", "Werktags 18:00"),
-      expression: "0 18 * * 1-5",
-      description: t("Monday to Friday at 6:00 PM", "月曜〜金曜の18時", "Montag bis Freitag um 18:00"),
-    },
-    {
-      id: "weekly-monday",
-      name: t("Every Monday 9:00 AM", "毎週月曜 9:00", "Jeden Montag 9:00"),
-      expression: "0 9 * * 1",
-      description: t("Every Monday at 9:00 AM", "毎週月曜日の9時", "Jeden Montag um 9:00"),
-    },
-    {
-      id: "weekly-friday",
-      name: t("Every Friday 6:00 PM", "毎週金曜 18:00", "Jeden Freitag 18:00"),
-      expression: "0 18 * * 5",
-      description: t("Every Friday at 6:00 PM", "毎週金曜日の18時", "Jeden Freitag um 18:00"),
-    },
-    {
-      id: "monthly-1st",
-      name: t("1st of Month 9:00 AM", "毎月1日 9:00", "Am 1. des Monats 9:00"),
-      expression: "0 9 1 * *",
-      description: t("1st day of every month at 9:00 AM", "毎月1日の9時", "Am 1. Tag jedes Monats um 9:00"),
-    },
-  ];
+  return cronPresetSpecs.map((preset) => ({
+    id: preset.id,
+    name: localize(preset.name),
+    expression: preset.expression,
+    description: localize(preset.description),
+  }));
 }
 
 /**

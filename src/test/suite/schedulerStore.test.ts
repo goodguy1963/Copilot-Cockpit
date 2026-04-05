@@ -1,5 +1,5 @@
-import * as assert from "assert";
 import * as fs from "fs";
+import * as assert from "assert";
 import * as os from "os";
 import * as path from "path";
 import { REDACTED_DISCORD_WEBHOOK_URL } from "../../schedulerJsonSanitizer";
