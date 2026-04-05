@@ -48,4 +48,14 @@ suite("Error Sanitizer Unit Tests", () => {
     assert.ok(!sanitized.includes("C:\\repo"), `Did not expect full path in: ${sanitized}`);
     assert.ok(!sanitized.includes("D:\\other"), `Did not expect full path in: ${sanitized}`);
   });
+
+  test("sanitizes malformed file URIs by falling back to string handling", () => {
+    const message = 'Could not read "file:///C:/repo/folder/example.ts" or file:///tmp/work/result.json';
+    const sanitized = sanitizeAbsolutePathDetails(message);
+
+    assert.ok(sanitized.includes('"example.ts"'));
+    assert.ok(sanitized.includes("result.json"));
+    assert.ok(!sanitized.includes("file:///C:/repo/folder/example.ts"));
+    assert.ok(!sanitized.includes("file:///tmp/work/result.json"));
+  });
 });
