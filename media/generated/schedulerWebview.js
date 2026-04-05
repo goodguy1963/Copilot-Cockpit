@@ -1404,7 +1404,7 @@
     var escapeHtml = params.escapeHtml;
     var strings = params.strings || {};
     var executionDefaults = params.executionDefaults || {};
-    var formatModelLabel = params.formatModelLabel;
+    var formatModelLabel2 = params.formatModelLabel;
     if (items.length === 0) {
       var noText = strings.placeholderNoModels || "";
       modelSelect.innerHTML = '<option value="">' + escapeHtml(noText) + "</option>";
@@ -1413,7 +1413,7 @@
     var selectText = strings.placeholderSelectModel || "";
     var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
     modelSelect.innerHTML = placeholder + items.map(function(model) {
-      return '<option value="' + escapeAttr(model.id) + '">' + escapeHtml(formatModelLabel(model)) + "</option>";
+      return '<option value="' + escapeAttr(model.id) + '">' + escapeHtml(formatModelLabel2(model)) + "</option>";
     }).join("");
     if (!modelSelect.value) {
       var defaultModelId = executionDefaults && typeof executionDefaults.model === "string" ? executionDefaults.model : "";
@@ -1424,6 +1424,119 @@
         modelSelect.value = defaultModelId;
       }
     }
+  }
+
+  // media/schedulerWebviewDisplayUtils.js
+  function pickPathLeaf(value) {
+    if (!value) {
+      return "";
+    }
+    var normalized = String(value);
+    var lastBackslash = normalized.lastIndexOf("\\");
+    var lastSlash = normalized.lastIndexOf("/");
+    return normalized.substring(Math.max(lastBackslash, lastSlash) + 1);
+  }
+  function decodeFileLikePath(value) {
+    if (!value) {
+      return "";
+    }
+    var normalized = String(value);
+    if (!/^file:\/\/\/?/i.test(normalized)) {
+      return pickPathLeaf(normalized);
+    }
+    try {
+      var parsed = new URL(normalized);
+      if (parsed.protocol === "file:") {
+        return pickPathLeaf(decodeURIComponent(parsed.pathname || ""));
+      }
+    } catch (_error) {
+    }
+    return pickPathLeaf(normalized.replace(/^file:\/\/\/?/i, ""));
+  }
+  function inferModelSourceName(model) {
+    var fragments = [
+      model && model.id,
+      model && model.name,
+      model && model.vendor,
+      model && model.description
+    ].filter(Boolean).map(function(value) {
+      return String(value).trim().toLowerCase();
+    }).join(" ");
+    if (fragments.indexOf("openrouter") >= 0) {
+      return "OpenRouter";
+    }
+    if (fragments.indexOf("copilot") >= 0 || fragments.indexOf("codex") >= 0 || fragments.indexOf("github") >= 0 || fragments.indexOf("microsoft") >= 0) {
+      return "Copilot";
+    }
+    return model && model.vendor ? String(model.vendor).trim() : "";
+  }
+  function formatModelLabel(model) {
+    var displayName = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
+    var sourceName = inferModelSourceName(model);
+    return !sourceName || sourceName.toLowerCase() === displayName.toLowerCase() ? displayName : displayName + " \u2022 " + sourceName;
+  }
+  function formatCountdown(totalSeconds) {
+    var remainingSeconds = Math.max(0, Math.floor(totalSeconds));
+    var units = [
+      ["y", 365 * 24 * 60 * 60],
+      ["mo", 30 * 24 * 60 * 60],
+      ["w", 7 * 24 * 60 * 60],
+      ["d", 24 * 60 * 60],
+      ["h", 60 * 60],
+      ["m", 60],
+      ["s", 1]
+    ];
+    var parts = [];
+    units.forEach(function(entry) {
+      var label = entry[0];
+      var seconds = entry[1];
+      if (remainingSeconds < seconds) {
+        return;
+      }
+      var count = Math.floor(remainingSeconds / seconds);
+      remainingSeconds -= count * seconds;
+      parts.push(String(count) + label);
+    });
+    return parts.length > 0 ? parts.join(" ") : "0s";
+  }
+  function getNextRunCountdownText(enabled, nextRunMs, nowMs) {
+    if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
+      return "";
+    }
+    var referenceNow = typeof nowMs === "number" ? nowMs : Date.now();
+    var remainingMs = nextRunMs - referenceNow;
+    return remainingMs > 0 ? " (in " + formatCountdown(Math.floor(remainingMs / 1e3)) + ")" : " (due now)";
+  }
+  function sanitizeAbsolutePaths(text) {
+    if (!text) {
+      return "";
+    }
+    return String(text).replace(/'(file:\/\/[^']+)'/gi, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"(file:\/\/[^"]+)"/gi, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/file:\/\/[^\s"'`]+/gi, function(captured) {
+      return decodeFileLikePath(captured);
+    }).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g, function(_match, prefix, captured) {
+      return String(prefix) + decodeFileLikePath(captured);
+    }).replace(/'(\/[^']+)'/g, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"(\/[^\"]+)"/g, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/(^|[\s(])(\/[^\s"'`]+)/g, function(_match, prefix, captured) {
+      return String(prefix) + decodeFileLikePath(captured);
+    });
+  }
+  function normalizeDefaultJitterSeconds(rawValue) {
+    var parsed = typeof rawValue === "number" ? rawValue : Number(rawValue);
+    if (!isFinite(parsed)) {
+      return 600;
+    }
+    return Math.max(0, Math.min(1800, Math.floor(parsed)));
   }
 
   // media/schedulerWebview.js
@@ -1442,88 +1555,6 @@
     strings = initialData.strings || {};
     var currentLogLevel = typeof initialData.logLevel === "string" && initialData.logLevel ? initialData.logLevel : "info";
     var currentLogDirectory = typeof initialData.logDirectory === "string" ? initialData.logDirectory : "";
-    function basenameAny(p) {
-      if (!p) return "";
-      var s = String(p);
-      var i1 = s.lastIndexOf("\\");
-      var i2 = s.lastIndexOf("/");
-      return s.substring(Math.max(i1, i2) + 1);
-    }
-    function basenameFromPathLike(p) {
-      if (!p) return "";
-      var s = String(p);
-      if (/^file:\/\/\/?/i.test(s)) {
-        try {
-          var u = new URL(s);
-          if (u.protocol === "file:") {
-            s = decodeURIComponent(u.pathname || "");
-          } else {
-            s = s.replace(/^file:\/\/\/?/i, "");
-          }
-        } catch (_e) {
-          s = s.replace(/^file:\/\/\/?/i, "");
-        }
-      }
-      return basenameAny(s);
-    }
-    function getModelSourceLabel(model) {
-      var id = model && model.id ? String(model.id).trim() : "";
-      var name = model && model.name ? String(model.name).trim() : "";
-      var vendor = model && model.vendor ? String(model.vendor).trim() : "";
-      var description = model && model.description ? String(model.description).trim() : "";
-      var normalized = (id + " " + name + " " + vendor + " " + description).toLowerCase();
-      if (normalized.indexOf("openrouter") >= 0) {
-        return "OpenRouter";
-      }
-      if (normalized.indexOf("copilot") >= 0 || normalized.indexOf("codex") >= 0 || normalized.indexOf("github") >= 0 || normalized.indexOf("microsoft") >= 0) {
-        return "Copilot";
-      }
-      return vendor;
-    }
-    function formatModelLabel(model) {
-      var name = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
-      var source = getModelSourceLabel(model);
-      if (!source || source.toLowerCase() === name.toLowerCase()) {
-        return name;
-      }
-      return name + " \u2022 " + source;
-    }
-    function formatCountdown(totalSec) {
-      var remaining = Math.max(0, Math.floor(totalSec));
-      var units = [
-        { label: "y", seconds: 365 * 24 * 60 * 60 },
-        { label: "mo", seconds: 30 * 24 * 60 * 60 },
-        { label: "w", seconds: 7 * 24 * 60 * 60 },
-        { label: "d", seconds: 24 * 60 * 60 },
-        { label: "h", seconds: 60 * 60 },
-        { label: "m", seconds: 60 },
-        { label: "s", seconds: 1 }
-      ];
-      var parts = [];
-      for (var i = 0; i < units.length; i += 1) {
-        var unit = units[i];
-        var value = Math.floor(remaining / unit.seconds);
-        if (value <= 0) {
-          continue;
-        }
-        parts.push(String(value) + unit.label);
-        remaining -= value * unit.seconds;
-      }
-      if (parts.length === 0) {
-        return "0s";
-      }
-      return parts.join(" ");
-    }
-    function getNextRunCountdownText(enabled, nextRunMs) {
-      if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
-        return "";
-      }
-      var diffMs = nextRunMs - Date.now();
-      if (diffMs > 0) {
-        return " (in " + formatCountdown(Math.floor(diffMs / 1e3)) + ")";
-      }
-      return " (due now)";
-    }
     function refreshTaskCountdowns() {
       if (!taskList || !taskList.isConnected) {
         taskList = document.getElementById("task-list");
@@ -1535,32 +1566,6 @@
         var nextRunMs = Number(node.getAttribute("data-next-run-ms") || "");
         var enabled = node.getAttribute("data-enabled") === "true";
         node.textContent = getNextRunCountdownText(enabled, nextRunMs);
-      });
-    }
-    function sanitizeAbsolutePaths(text) {
-      if (!text) return "";
-      var s = String(text);
-      return s.replace(/'(file:\/\/[^']+)'/gi, function(_m, p1) {
-        return "'" + basenameFromPathLike(p1) + "'";
-      }).replace(/"(file:\/\/[^"]+)"/gi, function(_m, p1) {
-        return '"' + basenameFromPathLike(p1) + '"';
-      }).replace(/file:\/\/[^\s"'`]+/gi, function(m) {
-        return basenameFromPathLike(m);
-      }).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function(_m, p1) {
-        return "'" + basenameFromPathLike(p1) + "'";
-      }).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function(_m, p1) {
-        return '"' + basenameFromPathLike(p1) + '"';
-      }).replace(
-        /(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,
-        function(_m, prefix, p1) {
-          return String(prefix) + basenameFromPathLike(p1);
-        }
-      ).replace(/'(\/[^']+)'/g, function(_m, p1) {
-        return "'" + basenameFromPathLike(p1) + "'";
-      }).replace(/"(\/[^\"]+)"/g, function(_m, p1) {
-        return '"' + basenameFromPathLike(p1) + '"';
-      }).replace(/(^|[\s(])(\/[^\s"'`]+)/g, function(_m, prefix, p1) {
-        return String(prefix) + basenameFromPathLike(p1);
       });
     }
     var globalErrorHideTimer = 0;
@@ -1846,15 +1851,9 @@
       currentTodoDraft.flagInput = todoFlagNameInput ? String(todoFlagNameInput.value || "") : currentTodoDraft.flagInput || "";
       currentTodoDraft.flagColor = todoFlagColorInput ? String(todoFlagColorInput.value || "") : currentTodoDraft.flagColor || "#f59e0b";
     }
-    var defaultJitterSeconds = (function() {
-      var raw = initialData.defaultJitterSeconds;
-      var n = typeof raw === "number" ? raw : Number(raw);
-      if (!isFinite(n)) return 600;
-      var i = Math.floor(n);
-      if (i < 0) return 0;
-      if (i > 1800) return 1800;
-      return i;
-    })();
+    var defaultJitterSeconds = normalizeDefaultJitterSeconds(
+      initialData.defaultJitterSeconds
+    );
     var locale = typeof initialData.locale === "string" && initialData.locale ? initialData.locale : void 0;
     var lastRenderedTasksHtml = "";
     var pendingTaskListRender = false;
