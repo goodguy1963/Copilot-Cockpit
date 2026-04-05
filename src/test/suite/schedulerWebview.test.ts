@@ -163,9 +163,39 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "expected optimistic local todo label catalog updates",
     );
     assert.ok(
+      scriptSource.includes("var existingDefinition = getLabelDefinition(label);"),
+      "expected normal todo label adds to check for an existing definition before saving color",
+    );
+    assert.ok(
+      scriptSource.includes("if (!existingDefinition && pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {"),
+      "expected existing todo label definitions to keep their saved color on normal add",
+    );
+    assert.ok(
       scriptSource.includes('todoLabelColorInput.value = "#4f8cff";'),
       "expected new todo labels to reset the editor color when no matching definition exists",
     );
+  });
+
+  test("todo label catalog edit and add flows preserve shared definition colors", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      "function getValidLabelColorValue(color, fallbackColor)",
+      'todoLabelColorInput.value = getValidLabelColorValue(eEntry && eEntry.color, "#4f8cff");',
+      'selectedTodoLabelName = eEntry ? eEntry.name : eName;',
+      'editingLabelOriginalName = eEntry ? eEntry.name : eName;',
+      "syncTodoLabelEditor();",
+      'todoLabelColorInput.value = getValidLabelColorValue(definition && definition.color, todoLabelColorInput.value || "#4f8cff");',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected shared label color preservation snippet ${snippet}`,
+      );
+    });
   });
 
   test("todo flag picker localizes protected flags and hides destructive controls", () => {
@@ -456,8 +486,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
     );
 
     [
+      'var promptTextEl = document.getElementById("prompt-text");',
       'var usesInlinePrompt = effectiveSource === "inline";',
-      "promptText.required = usesInlinePrompt;",
+      "promptTextEl.required = usesInlinePrompt;",
       "templateSelect.required = !usesInlinePrompt;",
     ].forEach((snippet) => {
       assert.ok(
@@ -739,10 +770,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
     [
       '.todo-comments-spotlight {',
       '.todo-comments-layout {',
-      '.todo-comment-template-btn {',
+      'grid-template-columns: 1fr;',
       'id="todo-comment-count-badge"',
       'id="todo-comment-mode-pill"',
-      'data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateContextBody || "Context:\\n")}"',
+      'id="todo-comment-composer-title"',
+      'id="todo-comment-thread-note"',
       '.todo-comment-card.is-user-form .todo-comment-author,',
       '.todo-comment-card.is-user-form .todo-comment-body {',
     ].forEach((snippet) => {
@@ -751,6 +783,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
         `expected user comment styling snippet ${snippet}`,
       );
     });
+
+    const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
+    const threadMarkupIndex = templateSource.indexOf('class="todo-comment-thread-shell"');
+    assert.ok(threadMarkupIndex >= 0, "expected thread preview shell in todo comments layout");
+    assert.ok(composerMarkupIndex > threadMarkupIndex, "expected thread preview to appear before the composer in the template");
 
     [
       'function renderTodoCommentSectionState(selectedTodo) {',

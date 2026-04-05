@@ -20,10 +20,10 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
       relativePath: ".github/skills/cockpit-scheduler-router/SKILL.md",
       required: [
         "needs-user-review",
-        "Linked scheduled task",
         "ON-SCHEDULE-LIST",
       ],
       forbidden: [
+        /Linked scheduled task/,
         /FINAL-USER-CHECK/,
         /final-user-check state/i,
       ],
@@ -32,10 +32,10 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
       relativePath: ".github/skills/cockpit-todo-agent/SKILL.md",
       required: [
         "needs-user-review",
-        "Linked scheduled task",
         "ON-SCHEDULE-LIST",
       ],
       forbidden: [
+        /Linked scheduled task/,
         /only the first value will survive/i,
         /only one flag per card is kept/i,
       ],
@@ -54,19 +54,21 @@ suite("Cockpit Semantics Docs Contract Tests", () => {
     {
       relativePath: "README.md",
       required: [
-        "live scheduled cards may intentionally keep the built-in pair",
+        "live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag",
       ],
       forbidden: [
+        /Linked scheduled task/,
         /Do not try to preserve multiple active flags on one card\./,
       ],
     },
     {
       relativePath: "TODO_COCKPIT_FEATURES.md",
       required: [
-        "Live scheduled cards may intentionally keep the built-in pair",
+        "Live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag",
         "needs-user-review",
       ],
       forbidden: [
+        /Linked scheduled task/,
         /Only one flag is kept per card\./,
         /If multiple flags are provided through MCP or updates, only the first is retained\./,
         /Only one is retained on a card at a time/,

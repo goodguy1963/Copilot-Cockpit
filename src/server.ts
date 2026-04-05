@@ -985,7 +985,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string", description: "Optional target section ID." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional labels." },
-                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, but scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'. Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag. Use cockpit_save_flag_definition to manage flag colors." },
                 comment: { type: "string", description: "Optional initial comment." },
                 author: { type: "string", description: "Optional initial comment author: user or system." },
                 commentSource: { type: "string", description: "Optional initial comment source: human-form, bot-mcp, bot-manual, or system-event." },
@@ -1058,7 +1058,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 status: { type: "string", description: "active, ready, completed, or rejected." },
                 labels: { type: "array", items: { type: "string" } },
-                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, but scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'. Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag. Use cockpit_save_flag_definition to manage flag colors." },
                 order: { type: "number" },
                 taskId: { type: "string" },
                 sessionId: { type: "string" },
@@ -1172,7 +1172,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_save_flag_definition",
-        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are squared routing-state chips; review handoff normally uses one explicit flag, while live scheduled cards may keep the built-in pair 'Linked scheduled task' and 'ON-SCHEDULE-LIST'.",
+        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are squared routing-state chips; review handoff normally uses one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag.",
         inputSchema: {
             type: "object",
             properties: {

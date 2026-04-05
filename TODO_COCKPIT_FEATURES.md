@@ -136,7 +136,7 @@ Flags:
 Important behavioral rules:
 
 - Most handoff flows should use one explicit review-state flag such as `needs-user-review` or `needs-bot-review`.
-- Live scheduled cards may intentionally keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST` together.
+- Live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag.
 - `labels`, `flags`, and `comments[].labels` are distinct surfaces.
 - Routing-card queries can match labels, flags, and actionable comment labels.
 - Deleting a shared label or flag definition also strips it from existing cards.
@@ -341,7 +341,7 @@ The editor supports:
 - Due date
 - Priority
 - Section
-- Linked scheduled task
+- Linked task
 - Labels
 - Flags
 
@@ -523,7 +523,7 @@ Current behavior:
 - The created recurring card uses the recurring system section rather than `Unsorted`.
 - The card stores a task snapshot and records future schedule, prompt, model, and label changes through system comments.
 - The card is labeled with `scheduled-task` and `recurring-task`.
-- The card intentionally keeps both built-in system flags: `Linked scheduled task` and `ON-SCHEDULE-LIST`.
+- The card keeps the built-in system flag `ON-SCHEDULE-LIST`.
 - The card can include a system comment for an existing task error.
 
 ### 13.2 One-time task behavior

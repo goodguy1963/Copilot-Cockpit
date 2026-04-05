@@ -3374,7 +3374,7 @@ export class SchedulerWebview {
 
     .todo-comments-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+      grid-template-columns: 1fr;
       gap: 12px;
       align-items: start;
     }
@@ -3396,6 +3396,7 @@ export class SchedulerWebview {
     .todo-comment-thread-shell {
       background: color-mix(in srgb, var(--vscode-sideBar-background) 74%, var(--vscode-editor-background));
       min-height: 100%;
+      min-width: 0;
     }
 
     .todo-comment-composer-topline {
@@ -3424,26 +3425,10 @@ export class SchedulerWebview {
       margin-bottom: 6px;
     }
 
-    .todo-comment-helper-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .todo-comment-template-btn {
-      min-height: 28px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 24%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 10%, transparent);
+    .todo-comment-input-label-row label {
       font-size: 12px;
-      line-height: 1.2;
-    }
-
-    .todo-comment-template-btn:hover,
-    .todo-comment-template-btn:focus-visible {
-      border-color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 48%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 18%, transparent);
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
 
     .todo-comment-textarea {
@@ -3469,7 +3454,7 @@ export class SchedulerWebview {
     }
 
     .todo-editor-comments {
-      max-height: 34vh;
+      max-height: 42vh;
       overflow: auto;
       padding-right: 4px;
       display: flex;
@@ -4956,22 +4941,23 @@ export class SchedulerWebview {
               </div>
 
               <div class="todo-comments-layout">
+                <div class="todo-comment-thread-shell">
+                  <div class="todo-comment-thread-header">
+                    <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
+                    <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
+                  </div>
+                  <div id="todo-comment-list" class="todo-editor-comments"></div>
+                </div>
+
                 <div class="todo-comment-composer-shell">
                   <div class="todo-comment-composer-topline">
                     <div id="todo-comment-composer-title" class="todo-comment-composer-title">${escapeHtml(strings.boardCommentComposerCreateTitle || "Write the kickoff comment")}</div>
                     <div id="todo-comment-composer-note" class="note todo-comment-composer-note">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</div>
                   </div>
 
-                  <div class="todo-comment-helper-row" role="group" aria-label="${escapeHtmlAttr(strings.boardCommentQuickActions || "Comment quick actions")}">
-                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateContextBody || "Context:\n")}">${escapeHtml(strings.boardCommentTemplateContext || "Context")}</button>
-                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateDecisionBody || "Decision:\n")}">${escapeHtml(strings.boardCommentTemplateDecision || "Decision")}</button>
-                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateApprovalBody || "Approval / next step:\n")}">${escapeHtml(strings.boardCommentTemplateApproval || "Approval")}</button>
-                  </div>
-
                   <div class="form-group" style="margin:0;">
                     <div class="todo-comment-input-label-row">
-                      <label for="todo-comment-input">${escapeHtml(strings.boardAddComment)}</label>
-                      <span class="note">${escapeHtml(strings.boardCommentQuickActionsHint || "Tap a starter to scaffold the note quickly.")}</span>
+                      <label for="todo-comment-input">${escapeHtml(strings.boardCommentComposerEditTitle || "Add to the thread")}</label>
                     </div>
                     <textarea id="todo-comment-input" class="todo-comment-textarea" placeholder="${escapeHtmlAttr(strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...")}"></textarea>
                   </div>
@@ -4982,14 +4968,6 @@ export class SchedulerWebview {
                       <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
                     </div>
                   </div>
-                </div>
-
-                <div class="todo-comment-thread-shell">
-                  <div class="todo-comment-thread-header">
-                    <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
-                    <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
-                  </div>
-                  <div id="todo-comment-list" class="todo-editor-comments"></div>
                 </div>
               </div>
             </section>

@@ -149,7 +149,7 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - For remediation or dispatcher work, start with a preflight: confirm the active workspace owns the referenced repo paths, then confirm the required MCP tool exists before mutating state.
 - Dispatcher agents should use `cockpit_list_routing_cards` first. It returns case-insensitive matches across labels, flags, and actionable comment labels so agents do not have to scan the full board payload.
 - In Todo Cockpit, `labels`, `flags`, and `comments[].labels` are distinct. `GO` is a flag here, not a label.
-- `flags` are routing and review-state markers. Most handoff flows should use one explicit review-state flag, but live scheduled cards may intentionally keep the built-in pair `Linked scheduled task` and `ON-SCHEDULE-LIST`. `labels` remain the multi-value categorization surface.
+- `flags` are routing and review-state markers. Most handoff flows should use one explicit review-state flag, while live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag. `labels` remain the multi-value categorization surface.
 - Prefer `cockpit_closeout_todo` for verified implementation handoff. It can keep the card active for review, add one summary comment, respect missing sections, and clear stale linked task IDs.
 - Skill files are available in this workspace, but they are only applied when explicitly inserted or referenced in prompts.
 

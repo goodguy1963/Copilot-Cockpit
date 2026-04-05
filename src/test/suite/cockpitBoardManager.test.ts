@@ -308,10 +308,7 @@ suite("Cockpit Board Manager Tests", () => {
     const oneTimeCard = result.board.cards.find((card) => card.taskId === oneTimeTask.id);
     assert.ok(recurringCard);
     assert.strictEqual(recurringCard?.sectionId, DEFAULT_RECURRING_TASKS_SECTION_ID);
-    assert.deepStrictEqual(recurringCard?.flags, [
-      "Linked scheduled task",
-      "ON-SCHEDULE-LIST",
-    ]);
+    assert.deepStrictEqual(recurringCard?.flags, ["ON-SCHEDULE-LIST"]);
     assert.ok(recurringCard?.comments.some((comment) => comment.body.includes("Recurring task linked")));
     assert.strictEqual(oneTimeCard, undefined);
   });
@@ -400,10 +397,7 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(disabledCard?.status, "active");
     assert.strictEqual(disabledCard?.approvedAt, undefined);
     assert.strictEqual(disabledCard?.taskSnapshot?.enabled, false);
-    assert.deepStrictEqual(disabledCard?.flags, [
-      "Linked scheduled task",
-      "ON-SCHEDULE-LIST",
-    ]);
+    assert.deepStrictEqual(disabledCard?.flags, ["ON-SCHEDULE-LIST"]);
     assert.strictEqual(
       disabledCard?.comments.some((comment) => (comment.labels ?? []).includes("task-enabled")),
       false,
@@ -572,7 +566,7 @@ suite("Cockpit Board Manager Tests", () => {
     }
   });
 
-  test("default built-in flags use workflow order and seed FINAL-USER-CHECK instead of Linked scheduled task", () => {
+  test("default built-in flags use workflow order and keep ON-SCHEDULE-LIST as the only scheduled system flag", () => {
     const normalized = normalizeCockpitBoard({
       version: 4,
       sections: [
@@ -608,7 +602,7 @@ suite("Cockpit Board Manager Tests", () => {
     );
   });
 
-  test("task-linked todos keep both scheduled-task default flags in the catalog", () => {
+  test("task-linked todos keep ON-SCHEDULE-LIST as the only scheduled system flag in the catalog", () => {
     const board = createDefaultCockpitBoard("2026-04-04T00:00:00.000Z");
     const recurringTask: ScheduledTask = {
       id: "task-linked",
@@ -628,7 +622,7 @@ suite("Cockpit Board Manager Tests", () => {
 
     assert.strictEqual(
       result.board.flagCatalog?.some((entry) => entry.key === "linked-scheduled-task" && entry.system === true),
-      true,
+      false,
     );
     assert.strictEqual(
       result.board.flagCatalog?.some((entry) => entry.key === "on-schedule-list" && entry.system === true),
@@ -636,7 +630,55 @@ suite("Cockpit Board Manager Tests", () => {
     );
     assert.deepStrictEqual(
       result.board.cards.find((card) => card.taskId === recurringTask.id)?.flags,
-      ["Linked scheduled task", "ON-SCHEDULE-LIST"],
+      ["ON-SCHEDULE-LIST"],
+    );
+  });
+
+  test("normalization removes legacy linked scheduled task flags from existing cards and the flag catalog", () => {
+    const normalized = normalizeCockpitBoard({
+      version: 4,
+      sections: [
+        {
+          id: "unsorted",
+          title: "Unsorted",
+          order: 0,
+          createdAt: "2026-04-04T00:00:00.000Z",
+          updatedAt: "2026-04-04T00:00:00.000Z",
+        },
+      ],
+      cards: [
+        {
+          id: "todo-linked",
+          title: "Linked task todo",
+          sectionId: "unsorted",
+          order: 0,
+          priority: "none",
+          status: "active",
+          labels: ["scheduled-task"],
+          flags: ["Linked scheduled task", "ON-SCHEDULE-LIST"],
+          comments: [],
+          archived: false,
+          createdAt: "2026-04-04T00:00:00.000Z",
+          updatedAt: "2026-04-04T00:00:00.000Z",
+        },
+      ],
+      labelCatalog: [],
+      flagCatalog: [
+        {
+          name: "Linked scheduled task",
+          key: "linked-scheduled-task",
+          color: "#0ea5e9",
+          createdAt: "2026-04-04T00:00:00.000Z",
+          updatedAt: "2026-04-04T00:00:00.000Z",
+        },
+      ],
+      updatedAt: "2026-04-04T00:00:00.000Z",
+    });
+
+    assert.deepStrictEqual(normalized.cards[0]?.flags, ["ON-SCHEDULE-LIST"]);
+    assert.strictEqual(
+      normalized.flagCatalog?.some((entry) => entry.key === "linked-scheduled-task"),
+      false,
     );
   });
 
