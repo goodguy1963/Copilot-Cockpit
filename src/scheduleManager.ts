@@ -50,11 +50,7 @@ import {
   resolvePromptBackupPath,
   toWorkspaceRelativePromptBackupPath,
 } from "./promptBackup";
-import {
-  createScheduleHistorySnapshot,
-  listScheduleHistoryEntries,
-  readScheduleHistorySnapshot,
-} from "./scheduleHistory";
+import { createScheduleHistorySnapshot, listScheduleHistoryEntries, readScheduleHistorySnapshot } from "./scheduleHistory";
 import type { ScheduleHistoryEntry } from "./types";
 import {
   getSchedulerLocalDateKey,
@@ -68,6 +64,14 @@ import {
   writeTaskStorageMetaToFile,
   writeTaskStorageMetaToState,
 } from "./scheduleManagerPersistence";
+import {
+  incrementDailyExecState,
+  loadDailyExecState,
+  notifyDailyLimitReachedOnce,
+  persistDailyExecState,
+  persistGlobalStateValueBestEffort,
+  syncRecurringPromptBackupsForTasks,
+} from "./scheduleManagerMaintenance";
 import {
   applyTaskUpdatesToTask,
   applyTaskPromptUpdates,
@@ -239,49 +243,37 @@ export class ScheduleManager {
    * Load daily execution count from globalState
    */
   private loadDailyExecCount(): void {
-    const today = getSchedulerLocalDateKey();
-    const savedDate = this.context.globalState.get<string>(
-      DAILY_EXEC_DATE_KEY,
-      "",
-    );
-    if (savedDate === today) {
-      this.dailyExecCount = this.context.globalState.get<number>(
-        DAILY_EXEC_COUNT_KEY,
-        0,
-      );
-    } else {
-      // New day, reset counter
-      this.dailyExecCount = 0;
-      this.persistGlobalStateValueBestEffort(
-        DAILY_EXEC_COUNT_KEY,
-        0,
-        "[CopilotScheduler] Failed to reset daily execution count:",
-      );
-      this.persistGlobalStateValueBestEffort(
-        DAILY_EXEC_DATE_KEY,
-        today,
-        "[CopilotScheduler] Failed to reset daily execution date:",
-      );
-    }
-    this.dailyExecDate = today;
+    const state = loadDailyExecState(this.context.globalState, {
+      count: DAILY_EXEC_COUNT_KEY,
+      date: DAILY_EXEC_DATE_KEY,
+      notifiedDate: DAILY_LIMIT_NOTIFIED_DATE_KEY,
+    });
+    this.dailyExecCount = state.count;
+    this.dailyExecDate = state.date;
+    this.dailyLimitNotifiedDate = state.notifiedDate;
   }
 
   private incrementDailyExecCountInMemory(date = new Date()): void {
-    const today = getSchedulerLocalDateKey(date);
-    if (this.dailyExecDate !== today) {
-      this.dailyExecCount = 0;
-      this.dailyExecDate = today;
-    }
-    this.dailyExecCount++;
+    const state = incrementDailyExecState(
+      { count: this.dailyExecCount, date: this.dailyExecDate },
+      date,
+    );
+    this.dailyExecCount = state.count;
+    this.dailyExecDate = state.date;
   }
 
   private async persistDailyExecCount(): Promise<void> {
-    const today = this.dailyExecDate || getSchedulerLocalDateKey();
-    await this.context.globalState.update(
-      DAILY_EXEC_COUNT_KEY,
-      this.dailyExecCount,
+    await persistDailyExecState(
+      this.context.globalState,
+      {
+        count: DAILY_EXEC_COUNT_KEY,
+        date: DAILY_EXEC_DATE_KEY,
+      },
+      {
+        count: this.dailyExecCount,
+        date: this.dailyExecDate,
+      },
     );
-    await this.context.globalState.update(DAILY_EXEC_DATE_KEY, today);
   }
 
   /**
@@ -316,106 +308,10 @@ export class ScheduleManager {
   private async syncRecurringPromptBackupsInPlace(): Promise<{
     metadataChanged: number;
   }> {
-    let metadataChanged = 0;
-
-    for (const task of this.tasks.values()) {
-      if (!isRecurringPromptBackupCandidate(task)) {
-        continue;
-      }
-
-      const workspaceRoot =
-        (task.scope === "workspace" && task.workspacePath) ||
-        this.getPrimaryWorkspaceRoot();
-      if (!workspaceRoot) {
-        continue;
-      }
-
-      const backupPathCandidate =
-        typeof task.promptBackupPath === "string" &&
-          task.promptBackupPath.trim().length > 0
-          ? task.promptBackupPath.trim()
-          : getDefaultPromptBackupRelativePath(task.id);
-
-      const resolvedExistingBackupPath =
-        resolvePromptBackupPath(workspaceRoot, backupPathCandidate) ??
-        resolvePromptBackupPath(
-          workspaceRoot,
-          getDefaultPromptBackupRelativePath(task.id),
-        );
-
-      const resolvedBackupPath =
-        getCanonicalPromptBackupPath(workspaceRoot, backupPathCandidate) ??
-        getCanonicalPromptBackupPath(
-          workspaceRoot,
-          getDefaultPromptBackupRelativePath(task.id),
-        );
-
-      if (!resolvedBackupPath) {
-        continue;
-      }
-
-      const relativeBackupPath = toWorkspaceRelativePromptBackupPath(
-        workspaceRoot,
-        resolvedBackupPath,
-      );
-
-      const storedBackupUpdatedAt =
-        task.promptBackupUpdatedAt instanceof Date &&
-          !Number.isNaN(task.promptBackupUpdatedAt.getTime())
-          ? task.promptBackupUpdatedAt
-          : undefined;
-
-      const expectedContent = storedBackupUpdatedAt
-        ? renderPromptBackupContent(task, storedBackupUpdatedAt)
-        : undefined;
-
-      let needsWrite = !expectedContent;
-
-      if (expectedContent) {
-        try {
-          const existingContent = await fs.promises.readFile(
-            resolvedBackupPath,
-            "utf8",
-          );
-          needsWrite = existingContent !== expectedContent;
-        } catch {
-          needsWrite = true;
-        }
-      }
-
-      if (needsWrite) {
-        const syncedAt = new Date();
-        await fs.promises.mkdir(path.dirname(resolvedBackupPath), {
-          recursive: true,
-        });
-        await fs.promises.writeFile(
-          resolvedBackupPath,
-          renderPromptBackupContent(task, syncedAt),
-          "utf8",
-        );
-        task.promptBackupUpdatedAt = syncedAt;
-        metadataChanged++;
-      }
-
-      if (task.promptBackupPath !== relativeBackupPath) {
-        task.promptBackupPath = relativeBackupPath;
-        metadataChanged++;
-      }
-
-      if (
-        resolvedExistingBackupPath &&
-        normalizeForCompare(resolvedExistingBackupPath) !==
-          normalizeForCompare(resolvedBackupPath)
-      ) {
-        try {
-          await fs.promises.rm(resolvedExistingBackupPath, { force: true });
-        } catch {
-          // ignore best-effort legacy cleanup failures
-        }
-      }
-    }
-
-    return { metadataChanged };
+    return syncRecurringPromptBackupsForTasks(
+      this.tasks.values(),
+      () => this.getPrimaryWorkspaceRoot(),
+    );
   }
 
   /**
@@ -519,10 +415,11 @@ export class ScheduleManager {
     value: T,
     failurePrefix: string,
   ): void {
-    void this.context.globalState.update(key, value).then(
-      undefined,
-      (error: unknown) =>
-        logError(failurePrefix, toSafeSchedulerErrorDetails(error)),
+    persistGlobalStateValueBestEffort(
+      this.context.globalState,
+      key,
+      value,
+      failurePrefix,
     );
   }
 
@@ -530,19 +427,13 @@ export class ScheduleManager {
     todayKey: string,
     maxDailyLimit: number,
   ): void {
-    if (this.dailyLimitNotifiedDate === todayKey) {
-      return;
-    }
-
-    this.dailyLimitNotifiedDate = todayKey;
-    this.persistGlobalStateValueBestEffort(
-      DAILY_LIMIT_NOTIFIED_DATE_KEY,
+    this.dailyLimitNotifiedDate = notifyDailyLimitReachedOnce({
+      currentNotifiedDate: this.dailyLimitNotifiedDate,
       todayKey,
-      "[CopilotScheduler] Failed to persist daily limit notified date:",
-    );
-    void vscode.window.showInformationMessage(
-      messages.dailyLimitReached(maxDailyLimit),
-    );
+      maxDailyLimit,
+      globalState: this.context.globalState,
+      notifiedDateKey: DAILY_LIMIT_NOTIFIED_DATE_KEY,
+    });
   }
 
   private replaceTaskNextRun(

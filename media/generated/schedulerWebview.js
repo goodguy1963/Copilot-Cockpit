@@ -2233,6 +2233,451 @@
     });
   }
 
+  // media/schedulerWebviewJobBindings.js
+  function bindJobToolbarButtons(options) {
+    bindClickAction(options.jobsNewFolderBtn, function() {
+      options.vscode.postMessage({
+        type: "requestCreateJobFolder",
+        parentFolderId: options.getSelectedJobFolderId() || void 0
+      });
+    });
+    bindClickAction(options.jobsRenameFolderBtn, function() {
+      var selectedJobFolderId = options.getSelectedJobFolderId();
+      if (!selectedJobFolderId) return;
+      options.vscode.postMessage({
+        type: "requestRenameJobFolder",
+        folderId: selectedJobFolderId
+      });
+    });
+    bindClickAction(options.jobsDeleteFolderBtn, function() {
+      var selectedJobFolderId = options.getSelectedJobFolderId();
+      if (!selectedJobFolderId) return;
+      options.vscode.postMessage({
+        type: "requestDeleteJobFolder",
+        folderId: selectedJobFolderId
+      });
+    });
+    function requestCreateJob(switchToEditor) {
+      options.setCreatingJob(true);
+      options.syncEditorTabLabels();
+      options.vscode.postMessage({
+        type: "requestCreateJob",
+        folderId: options.getSelectedJobFolderId() || void 0
+      });
+      if (switchToEditor) {
+        options.switchTab("jobs-edit");
+      }
+    }
+    bindClickAction(options.jobsNewJobBtn, function() {
+      requestCreateJob(true);
+    });
+    bindClickAction(options.jobsEmptyNewBtn, function() {
+      requestCreateJob(false);
+    });
+    bindClickAction(options.jobsBackBtn, function() {
+      options.switchTab("jobs");
+    });
+    bindClickAction(options.jobsOpenEditorBtn, function() {
+      options.openJobEditor(options.getSelectedJobId() || "");
+    });
+    bindClickAction(options.jobsSaveBtn, options.submitJobEditor);
+    bindClickAction(options.jobsSaveDeckBtn, options.submitJobEditor);
+    bindClickAction(options.jobsDuplicateBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
+    });
+    function toggleSelectedJobPaused() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+    }
+    bindClickAction(options.jobsPauseBtn, toggleSelectedJobPaused);
+    bindClickAction(options.jobsStatusPill, toggleSelectedJobPaused);
+    bindClickAction(options.jobsCompileBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
+    });
+    bindClickAction(options.jobsToggleSidebarBtn, function() {
+      options.toggleJobsSidebar();
+    });
+    bindClickAction(options.jobsShowSidebarBtn, function() {
+      options.showJobsSidebar();
+    });
+    bindClickAction(options.jobsDeleteBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
+    });
+    bindClickAction(options.jobsAttachBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId || !options.jobsExistingTaskSelect || !options.jobsExistingTaskSelect.value) {
+        return;
+      }
+      options.vscode.postMessage({
+        type: "attachTaskToJob",
+        jobId: selectedJobId,
+        taskId: options.jobsExistingTaskSelect.value,
+        windowMinutes: options.jobsExistingWindowInput ? Number(options.jobsExistingWindowInput.value || 30) : 30
+      });
+    });
+    bindClickAction(options.jobsCreateStepBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      var name = options.jobsStepNameInput ? options.jobsStepNameInput.value.trim() : "";
+      var prompt = options.jobsStepPromptInput ? options.jobsStepPromptInput.value.trim() : "";
+      if (!name || !prompt) return;
+      var selectedJob = options.getJobById(selectedJobId);
+      options.vscode.postMessage({
+        type: "createJobTask",
+        jobId: selectedJobId,
+        windowMinutes: options.jobsStepWindowInput ? Number(options.jobsStepWindowInput.value || 30) : 30,
+        data: {
+          name,
+          prompt,
+          cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
+          agent: options.jobsStepAgentSelect ? options.jobsStepAgentSelect.value : "",
+          model: options.jobsStepModelSelect ? options.jobsStepModelSelect.value : "",
+          labels: options.parseLabels(
+            options.jobsStepLabelsInput ? options.jobsStepLabelsInput.value : ""
+          ),
+          scope: "workspace",
+          promptSource: "inline",
+          oneTime: false
+        }
+      });
+      if (options.jobsStepNameInput) options.jobsStepNameInput.value = "";
+      if (options.jobsStepPromptInput) options.jobsStepPromptInput.value = "";
+      if (options.jobsStepLabelsInput) options.jobsStepLabelsInput.value = "";
+      if (options.jobsStepWindowInput) options.jobsStepWindowInput.value = "30";
+    });
+    bindClickAction(options.jobsCreatePauseBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      var title = options.jobsPauseNameInput ? options.jobsPauseNameInput.value.trim() : "";
+      options.vscode.postMessage({
+        type: "createJobPause",
+        jobId: selectedJobId,
+        data: {
+          title: title || options.defaultPauseTitle || "Manual review"
+        }
+      });
+      if (options.jobsPauseNameInput) {
+        options.jobsPauseNameInput.value = "";
+      }
+    });
+  }
+
+  // media/schedulerWebviewUtilityBindings.js
+  function bindTemplateRefreshButton(button, options) {
+    bindClickAction(button, function() {
+      options.vscode.postMessage({ type: "refreshPrompts" });
+      var selectedPath = options.templateSelect ? options.templateSelect.value : "";
+      var sourceEl = options.document.querySelector(
+        'input[name="prompt-source"]:checked'
+      );
+      var source = sourceEl ? sourceEl.value : "inline";
+      if (selectedPath && (source === "local" || source === "global")) {
+        options.vscode.postMessage({
+          type: "loadPromptTemplate",
+          path: selectedPath,
+          source
+        });
+      }
+    });
+  }
+  function bindUtilityActionButtons(vscode, buttonMap) {
+    Object.keys(buttonMap).forEach(function(action) {
+      bindClickAction(buttonMap[action], function() {
+        vscode.postMessage({ type: action });
+      });
+    });
+  }
+  function syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, value) {
+    var nextValue = value || "auto";
+    if (helpLanguageSelect) {
+      helpLanguageSelect.value = nextValue;
+    }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.value = nextValue;
+    }
+  }
+  function saveLanguageSelection(helpLanguageSelect, settingsLanguageSelect, vscode, value) {
+    var nextValue = value || "auto";
+    syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, nextValue);
+    vscode.postMessage({
+      type: "setLanguage",
+      language: nextValue
+    });
+  }
+  function bindLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, vscode, initialValue) {
+    syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, initialValue);
+    if (helpLanguageSelect) {
+      helpLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(
+          helpLanguageSelect,
+          settingsLanguageSelect,
+          vscode,
+          helpLanguageSelect.value
+        );
+      });
+    }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(
+          helpLanguageSelect,
+          settingsLanguageSelect,
+          vscode,
+          settingsLanguageSelect.value
+        );
+      });
+    }
+  }
+
+  // media/schedulerWebviewJobInteractions.js
+  function handleSchedulerDetailClick(event, options) {
+    var target = event && event.target;
+    var researchProfileCard = options.getClosestEventTarget(event, "[data-research-id]");
+    if (researchProfileCard && options.researchProfileList && options.researchProfileList.contains(researchProfileCard)) {
+      event.preventDefault();
+      event.stopPropagation();
+      options.selectResearchProfile(
+        researchProfileCard.getAttribute("data-research-id") || ""
+      );
+      return true;
+    }
+    var researchRunCard = options.getClosestEventTarget(event, "[data-run-id]");
+    if (researchRunCard && options.researchRunList && options.researchRunList.contains(researchRunCard)) {
+      event.preventDefault();
+      event.stopPropagation();
+      options.selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
+      return true;
+    }
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && options.jobsFolderList && options.jobsFolderList.contains(folderItem)) {
+      options.setSelectedJobFolderId(folderItem.getAttribute("data-job-folder") || "");
+      options.setSelectedJobId("");
+      options.persistTaskFilter();
+      options.renderJobsTab();
+      return true;
+    }
+    var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
+    if (openJobEditorButton && options.jobsList && options.jobsList.contains(openJobEditorButton)) {
+      options.openJobEditor(
+        openJobEditorButton.getAttribute("data-job-open-editor") || ""
+      );
+      return true;
+    }
+    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+    if (jobItem && options.jobsList && options.jobsList.contains(jobItem)) {
+      options.setSelectedJobId(jobItem.getAttribute("data-job-id") || "");
+      options.persistTaskFilter();
+      options.renderJobsTab();
+      return true;
+    }
+    var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
+    if (!jobAction) {
+      return false;
+    }
+    if (jobAction === "detach-node") {
+      var detachNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && detachNodeId) {
+        options.vscode.postMessage({
+          type: "requestDeleteJobTask",
+          jobId: options.getSelectedJobId(),
+          nodeId: detachNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "edit-task") {
+      var editTaskId = target.getAttribute("data-job-task-id") || "";
+      if (editTaskId && typeof options.editTask === "function") {
+        options.editTask(editTaskId);
+      }
+      return true;
+    }
+    if (jobAction === "edit-pause") {
+      var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && editPauseNodeId) {
+        options.vscode.postMessage({
+          type: "requestRenameJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: editPauseNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "delete-pause") {
+      var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && deletePauseNodeId) {
+        options.vscode.postMessage({
+          type: "requestDeleteJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: deletePauseNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "approve-pause") {
+      var approveNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && approveNodeId) {
+        options.vscode.postMessage({
+          type: "approveJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: approveNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "reject-pause") {
+      var rejectNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && rejectNodeId) {
+        options.vscode.postMessage({
+          type: "rejectJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: rejectNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "run-task") {
+      var runTaskId = target.getAttribute("data-job-task-id") || "";
+      if (runTaskId && typeof options.runTask === "function") {
+        options.runTask(runTaskId);
+      }
+      return true;
+    }
+    return false;
+  }
+  function bindJobNodeWindowChange(document2, options) {
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      if (!target) return;
+      if (target.classList && target.classList.contains("job-node-window-input")) {
+        var selectedJobId = options.getSelectedJobId();
+        if (!selectedJobId) return;
+        var nodeId = target.getAttribute("data-job-node-window-id") || "";
+        if (!nodeId) return;
+        options.vscode.postMessage({
+          type: "updateJobNodeWindow",
+          jobId: selectedJobId,
+          nodeId,
+          windowMinutes: Number(target.value || 30)
+        });
+      }
+    });
+  }
+  function bindJobDragAndDrop(document2, options) {
+    document2.addEventListener("dragstart", function(event) {
+      var target = event && event.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && options.jobsList && options.jobsList.contains(jobItem)) {
+        options.setDraggedJobId(jobItem.getAttribute("data-job-id") || "");
+        if (jobItem.classList) jobItem.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+        }
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card) return;
+      options.setDraggedJobNodeId(card.getAttribute("data-job-node-id") || "");
+      if (card.classList) card.classList.add("dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+      }
+    });
+    document2.addEventListener("dragend", function(event) {
+      var target = event && event.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("dragging");
+      options.setDraggedJobId("");
+      options.setDraggedJobNodeId("");
+      Array.prototype.forEach.call(
+        document2.querySelectorAll(".jobs-step-card.drag-over"),
+        function(item) {
+          if (item && item.classList) item.classList.remove("drag-over");
+        }
+      );
+      Array.prototype.forEach.call(
+        document2.querySelectorAll(".jobs-folder-item.drag-over"),
+        function(item) {
+          if (item && item.classList) item.classList.remove("drag-over");
+        }
+      );
+    });
+    document2.addEventListener("dragover", function(event) {
+      var target = event && event.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && options.getDraggedJobId()) {
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+        if (folderItem.classList) folderItem.classList.add("drag-over");
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card || !options.getDraggedJobNodeId()) return;
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      if (card.classList) card.classList.add("drag-over");
+    });
+    document2.addEventListener("dragleave", function(event) {
+      var target = event && event.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("drag-over");
+    });
+    document2.addEventListener("drop", function(event) {
+      var target = event && event.target;
+      var draggedJobId = options.getDraggedJobId();
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && draggedJobId) {
+        event.preventDefault();
+        if (folderItem.classList) folderItem.classList.remove("drag-over");
+        var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
+        var draggedJob = options.getJobById(draggedJobId);
+        if (!draggedJob) return;
+        if ((draggedJob.folderId || "") === droppedFolderId) return;
+        options.vscode.postMessage({
+          type: "updateJob",
+          jobId: draggedJobId,
+          data: {
+            folderId: droppedFolderId || void 0
+          }
+        });
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      var draggedJobNodeId = options.getDraggedJobNodeId();
+      var selectedJobId = options.getSelectedJobId();
+      if (!card || !draggedJobNodeId || !selectedJobId) return;
+      event.preventDefault();
+      if (card.classList) card.classList.remove("drag-over");
+      var targetNodeId = card.getAttribute("data-job-node-id") || "";
+      var selectedJob = options.getJobById(selectedJobId);
+      if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
+      var targetIndex = selectedJob.nodes.findIndex(function(node) {
+        return node && node.id === targetNodeId;
+      });
+      if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
+      options.vscode.postMessage({
+        type: "reorderJobNode",
+        jobId: selectedJobId,
+        nodeId: draggedJobNodeId,
+        targetIndex
+      });
+    });
+  }
+
   // media/schedulerWebviewTransientState.js
   function createSchedulerWebviewTransientState(createEmptyTodoDraft, localStorage2, helpWarpSeenKey) {
     return {
@@ -6765,167 +7210,64 @@
       persistTaskFilter();
       renderResearchTab();
     }
-    if (jobsNewFolderBtn) {
-      jobsNewFolderBtn.addEventListener("click", function() {
-        vscode.postMessage({
-          type: "requestCreateJobFolder",
-          parentFolderId: selectedJobFolderId || void 0
-        });
-      });
-    }
-    if (jobsRenameFolderBtn) {
-      jobsRenameFolderBtn.addEventListener("click", function() {
-        if (!selectedJobFolderId) return;
-        vscode.postMessage({
-          type: "requestRenameJobFolder",
-          folderId: selectedJobFolderId
-        });
-      });
-    }
-    if (jobsDeleteFolderBtn) {
-      jobsDeleteFolderBtn.addEventListener("click", function() {
-        if (!selectedJobFolderId) return;
-        vscode.postMessage({ type: "requestDeleteJobFolder", folderId: selectedJobFolderId });
-      });
-    }
-    if (jobsNewJobBtn) {
-      jobsNewJobBtn.addEventListener("click", function() {
-        isCreatingJob = true;
-        syncEditorTabLabels();
-        vscode.postMessage({
-          type: "requestCreateJob",
-          folderId: selectedJobFolderId || void 0
-        });
-        switchTab("jobs-edit");
-      });
-    }
     var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
-    if (jobsEmptyNewBtn) {
-      jobsEmptyNewBtn.addEventListener("click", function() {
-        isCreatingJob = true;
-        syncEditorTabLabels();
-        vscode.postMessage({
-          type: "requestCreateJob",
-          folderId: selectedJobFolderId || void 0
-        });
-      });
-    }
-    if (jobsBackBtn) {
-      jobsBackBtn.addEventListener("click", function() {
-        switchTab("jobs");
-      });
-    }
-    if (jobsOpenEditorBtn) {
-      jobsOpenEditorBtn.addEventListener("click", function() {
-        openJobEditor(selectedJobId || "");
-      });
-    }
-    if (jobsSaveBtn) {
-      jobsSaveBtn.addEventListener("click", submitJobEditor);
-    }
-    if (jobsSaveDeckBtn) {
-      jobsSaveDeckBtn.addEventListener("click", submitJobEditor);
-    }
-    if (jobsDuplicateBtn) {
-      jobsDuplicateBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
-      });
-    }
-    if (jobsPauseBtn) {
-      jobsPauseBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-      });
-    }
-    if (jobsCompileBtn) {
-      jobsCompileBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
-      });
-    }
-    if (jobsStatusPill) {
-      jobsStatusPill.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-      });
-    }
-    if (jobsToggleSidebarBtn) {
-      jobsToggleSidebarBtn.addEventListener("click", function() {
+    bindJobToolbarButtons({
+      jobsNewFolderBtn,
+      jobsRenameFolderBtn,
+      jobsDeleteFolderBtn,
+      jobsNewJobBtn,
+      jobsEmptyNewBtn,
+      jobsBackBtn,
+      jobsOpenEditorBtn,
+      jobsSaveBtn,
+      jobsSaveDeckBtn,
+      jobsDuplicateBtn,
+      jobsPauseBtn,
+      jobsCompileBtn,
+      jobsStatusPill,
+      jobsToggleSidebarBtn,
+      jobsShowSidebarBtn,
+      jobsDeleteBtn,
+      jobsAttachBtn,
+      jobsExistingTaskSelect,
+      jobsExistingWindowInput,
+      jobsCreateStepBtn,
+      jobsStepNameInput,
+      jobsStepPromptInput,
+      jobsStepWindowInput,
+      jobsStepAgentSelect,
+      jobsStepModelSelect,
+      jobsStepLabelsInput,
+      jobsCreatePauseBtn,
+      jobsPauseNameInput,
+      defaultPauseTitle: strings.jobsPauseDefaultTitle || "Manual review",
+      getSelectedJobFolderId: function() {
+        return selectedJobFolderId;
+      },
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      setCreatingJob: function(value) {
+        isCreatingJob = value;
+      },
+      syncEditorTabLabels,
+      switchTab,
+      openJobEditor,
+      submitJobEditor,
+      toggleJobsSidebar: function() {
         jobsSidebarHidden = !jobsSidebarHidden;
         applyJobsSidebarState();
         persistTaskFilter();
-      });
-    }
-    if (jobsShowSidebarBtn) {
-      jobsShowSidebarBtn.addEventListener("click", function() {
+      },
+      showJobsSidebar: function() {
         jobsSidebarHidden = false;
         applyJobsSidebarState();
         persistTaskFilter();
-      });
-    }
-    if (jobsDeleteBtn) {
-      jobsDeleteBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
-      });
-    }
-    if (jobsAttachBtn) {
-      jobsAttachBtn.addEventListener("click", function() {
-        if (!selectedJobId || !jobsExistingTaskSelect || !jobsExistingTaskSelect.value) return;
-        vscode.postMessage({
-          type: "attachTaskToJob",
-          jobId: selectedJobId,
-          taskId: jobsExistingTaskSelect.value,
-          windowMinutes: jobsExistingWindowInput ? Number(jobsExistingWindowInput.value || 30) : 30
-        });
-      });
-    }
-    if (jobsCreateStepBtn) {
-      jobsCreateStepBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        var name = jobsStepNameInput ? jobsStepNameInput.value.trim() : "";
-        var prompt = jobsStepPromptInput ? jobsStepPromptInput.value.trim() : "";
-        if (!name || !prompt) return;
-        var selectedJob = getJobById(selectedJobId);
-        vscode.postMessage({
-          type: "createJobTask",
-          jobId: selectedJobId,
-          windowMinutes: jobsStepWindowInput ? Number(jobsStepWindowInput.value || 30) : 30,
-          data: {
-            name,
-            prompt,
-            cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
-            agent: jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
-            model: jobsStepModelSelect ? jobsStepModelSelect.value : "",
-            labels: parseLabels(jobsStepLabelsInput ? jobsStepLabelsInput.value : ""),
-            scope: "workspace",
-            promptSource: "inline",
-            oneTime: false
-          }
-        });
-        if (jobsStepNameInput) jobsStepNameInput.value = "";
-        if (jobsStepPromptInput) jobsStepPromptInput.value = "";
-        if (jobsStepLabelsInput) jobsStepLabelsInput.value = "";
-        if (jobsStepWindowInput) jobsStepWindowInput.value = "30";
-      });
-    }
-    if (jobsCreatePauseBtn) {
-      jobsCreatePauseBtn.addEventListener("click", function() {
-        if (!selectedJobId) return;
-        var title = jobsPauseNameInput ? jobsPauseNameInput.value.trim() : "";
-        vscode.postMessage({
-          type: "createJobPause",
-          jobId: selectedJobId,
-          data: {
-            title: title || strings.jobsPauseDefaultTitle || "Manual review"
-          }
-        });
-        if (jobsPauseNameInput) {
-          jobsPauseNameInput.value = "";
-        }
-      });
-    }
+      },
+      getJobById,
+      parseLabels,
+      vscode
+    });
     document.addEventListener("click", function(e) {
       var target = e && e.target;
       var researchActionButton = getClosestEventTarget(
@@ -6939,275 +7281,80 @@
           return;
         }
       }
-      var researchProfileCard = getClosestEventTarget(e, "[data-research-id]");
-      if (researchProfileCard && researchProfileList && researchProfileList.contains(researchProfileCard)) {
-        e.preventDefault();
-        e.stopPropagation();
-        selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "");
+      if (handleSchedulerDetailClick(e, {
+        getClosestEventTarget,
+        researchProfileList,
+        researchRunList,
+        selectResearchProfile,
+        selectResearchRun,
+        jobsFolderList,
+        jobsList,
+        setSelectedJobFolderId: function(value) {
+          selectedJobFolderId = value;
+        },
+        setSelectedJobId: function(value) {
+          selectedJobId = value;
+        },
+        getSelectedJobId: function() {
+          return selectedJobId;
+        },
+        persistTaskFilter,
+        renderJobsTab,
+        openJobEditor,
+        editTask: typeof window.editTask === "function" ? window.editTask : void 0,
+        runTask: typeof window.runTask === "function" ? window.runTask : void 0,
+        getJobById,
+        vscode
+      })) {
         return;
-      }
-      var researchRunCard = getClosestEventTarget(e, "[data-run-id]");
-      if (researchRunCard && researchRunList && researchRunList.contains(researchRunCard)) {
-        e.preventDefault();
-        e.stopPropagation();
-        selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
-        return;
-      }
-      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-      if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
-        selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
-        selectedJobId = "";
-        persistTaskFilter();
-        renderJobsTab();
-        return;
-      }
-      var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
-      if (openJobEditorButton && jobsList && jobsList.contains(openJobEditorButton)) {
-        openJobEditor(openJobEditorButton.getAttribute("data-job-open-editor") || "");
-        return;
-      }
-      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-      if (jobItem && jobsList && jobsList.contains(jobItem)) {
-        selectedJobId = jobItem.getAttribute("data-job-id") || "";
-        persistTaskFilter();
-        renderJobsTab();
-        return;
-      }
-      var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
-      if (!jobAction) return;
-      if (jobAction === "detach-node") {
-        var detachNodeId = target.getAttribute("data-job-node-id") || "";
-        if (selectedJobId && detachNodeId) {
-          vscode.postMessage({ type: "requestDeleteJobTask", jobId: selectedJobId, nodeId: detachNodeId });
-        }
-        return;
-      }
-      if (jobAction === "edit-task") {
-        var editTaskId = target.getAttribute("data-job-task-id") || "";
-        if (editTaskId && typeof window.editTask === "function") {
-          window.editTask(editTaskId);
-        }
-        return;
-      }
-      if (jobAction === "edit-pause") {
-        var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
-        if (selectedJobId && editPauseNodeId) {
-          vscode.postMessage({ type: "requestRenameJobPause", jobId: selectedJobId, nodeId: editPauseNodeId });
-        }
-        return;
-      }
-      if (jobAction === "delete-pause") {
-        var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
-        if (selectedJobId && deletePauseNodeId) {
-          vscode.postMessage({ type: "requestDeleteJobPause", jobId: selectedJobId, nodeId: deletePauseNodeId });
-        }
-        return;
-      }
-      if (jobAction === "approve-pause") {
-        var approveNodeId = target.getAttribute("data-job-node-id") || "";
-        if (selectedJobId && approveNodeId) {
-          vscode.postMessage({ type: "approveJobPause", jobId: selectedJobId, nodeId: approveNodeId });
-        }
-        return;
-      }
-      if (jobAction === "reject-pause") {
-        var rejectNodeId = target.getAttribute("data-job-node-id") || "";
-        if (selectedJobId && rejectNodeId) {
-          vscode.postMessage({ type: "rejectJobPause", jobId: selectedJobId, nodeId: rejectNodeId });
-        }
-        return;
-      }
-      if (jobAction === "run-task") {
-        var runTaskId = target.getAttribute("data-job-task-id") || "";
-        if (runTaskId && typeof window.runTask === "function") {
-          window.runTask(runTaskId);
-        }
       }
     });
-    document.addEventListener("change", function(e) {
-      var target = e && e.target;
-      if (!target) return;
-      if (target.classList && target.classList.contains("job-node-window-input")) {
-        if (!selectedJobId) return;
-        var nodeId = target.getAttribute("data-job-node-window-id") || "";
-        if (!nodeId) return;
-        vscode.postMessage({
-          type: "updateJobNodeWindow",
-          jobId: selectedJobId,
-          nodeId,
-          windowMinutes: Number(target.value || 30)
-        });
-      }
+    bindJobNodeWindowChange(document, {
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      vscode
     });
-    document.addEventListener("dragstart", function(e) {
-      var target = e && e.target;
-      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-      if (jobItem && jobsList && jobsList.contains(jobItem)) {
-        draggedJobId = jobItem.getAttribute("data-job-id") || "";
-        if (jobItem.classList) jobItem.classList.add("dragging");
-        if (e.dataTransfer) {
-          e.dataTransfer.effectAllowed = "move";
-        }
-        return;
-      }
-      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-      if (!card) return;
-      draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
-      if (card.classList) card.classList.add("dragging");
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = "move";
-      }
+    bindJobDragAndDrop(document, {
+      jobsList,
+      getDraggedJobId: function() {
+        return draggedJobId;
+      },
+      setDraggedJobId: function(value) {
+        draggedJobId = value;
+      },
+      getDraggedJobNodeId: function() {
+        return draggedJobNodeId;
+      },
+      setDraggedJobNodeId: function(value) {
+        draggedJobNodeId = value;
+      },
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      getJobById,
+      vscode
     });
-    document.addEventListener("dragend", function(e) {
-      var target = e && e.target;
-      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-      if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
-      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-      if (card && card.classList) card.classList.remove("dragging");
-      draggedJobId = "";
-      draggedJobNodeId = "";
-      Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function(item) {
-        if (item && item.classList) item.classList.remove("drag-over");
-      });
-      Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"), function(item) {
-        if (item && item.classList) item.classList.remove("drag-over");
-      });
+    bindTemplateRefreshButton(templateRefreshBtn, {
+      templateSelect,
+      document,
+      vscode
     });
-    document.addEventListener("dragover", function(e) {
-      var target = e && e.target;
-      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-      if (folderItem && draggedJobId) {
-        e.preventDefault();
-        if (e.dataTransfer) {
-          e.dataTransfer.dropEffect = "move";
-        }
-        if (folderItem.classList) folderItem.classList.add("drag-over");
-        return;
-      }
-      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-      if (!card || !draggedJobNodeId) return;
-      e.preventDefault();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
-      }
-      if (card.classList) card.classList.add("drag-over");
+    bindClickAction(insertSkillBtn, function() {
+      insertSelectedSkillReference();
     });
-    document.addEventListener("dragleave", function(e) {
-      var target = e && e.target;
-      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-      if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
-      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-      if (card && card.classList) card.classList.remove("drag-over");
+    bindUtilityActionButtons(vscode, {
+      setupMcp: setupMcpBtn,
+      syncBundledSkills: syncBundledSkillsBtn,
+      importStorageFromJson: importStorageFromJsonBtn,
+      exportStorageToJson: exportStorageToJsonBtn
     });
-    document.addEventListener("drop", function(e) {
-      var target = e && e.target;
-      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-      if (folderItem && draggedJobId) {
-        e.preventDefault();
-        if (folderItem.classList) folderItem.classList.remove("drag-over");
-        var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
-        var draggedJob = getJobById(draggedJobId);
-        if (!draggedJob) return;
-        if ((draggedJob.folderId || "") === droppedFolderId) return;
-        vscode.postMessage({
-          type: "updateJob",
-          jobId: draggedJobId,
-          data: {
-            folderId: droppedFolderId || void 0
-          }
-        });
-        return;
-      }
-      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-      if (!card || !draggedJobNodeId || !selectedJobId) return;
-      e.preventDefault();
-      if (card.classList) card.classList.remove("drag-over");
-      var targetNodeId = card.getAttribute("data-job-node-id") || "";
-      var selectedJob = getJobById(selectedJobId);
-      if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
-      var targetIndex = selectedJob.nodes.findIndex(function(node) {
-        return node && node.id === targetNodeId;
-      });
-      if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
-      vscode.postMessage({
-        type: "reorderJobNode",
-        jobId: selectedJobId,
-        nodeId: draggedJobNodeId,
-        targetIndex
-      });
-    });
-    if (templateRefreshBtn) {
-      templateRefreshBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "refreshPrompts" });
-        var selectedPath = templateSelect ? templateSelect.value : "";
-        var sourceEl = document.querySelector(
-          'input[name="prompt-source"]:checked'
-        );
-        var source = sourceEl ? sourceEl.value : "inline";
-        if (selectedPath && (source === "local" || source === "global")) {
-          vscode.postMessage({
-            type: "loadPromptTemplate",
-            path: selectedPath,
-            source
-          });
-        }
-      });
-    }
-    if (insertSkillBtn) {
-      insertSkillBtn.addEventListener("click", function() {
-        insertSelectedSkillReference();
-      });
-    }
-    if (setupMcpBtn) {
-      setupMcpBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "setupMcp" });
-      });
-    }
-    if (syncBundledSkillsBtn) {
-      syncBundledSkillsBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "syncBundledSkills" });
-      });
-    }
-    if (importStorageFromJsonBtn) {
-      importStorageFromJsonBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "importStorageFromJson" });
-      });
-    }
-    if (exportStorageToJsonBtn) {
-      exportStorageToJsonBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "exportStorageToJson" });
-      });
-    }
-    function syncLanguageSelectors(value) {
-      var nextValue = value || "auto";
-      if (helpLanguageSelect) {
-        helpLanguageSelect.value = nextValue;
-      }
-      if (settingsLanguageSelect) {
-        settingsLanguageSelect.value = nextValue;
-      }
-    }
-    function saveLanguageSelection(value) {
-      var nextValue = value || "auto";
-      syncLanguageSelectors(nextValue);
-      vscode.postMessage({
-        type: "setLanguage",
-        language: nextValue
-      });
-    }
-    syncLanguageSelectors(
+    bindLanguageSelectors(
+      helpLanguageSelect,
+      settingsLanguageSelect,
+      vscode,
       typeof initialData.languageSetting === "string" && initialData.languageSetting ? initialData.languageSetting : "auto"
     );
-    if (helpLanguageSelect) {
-      helpLanguageSelect.addEventListener("change", function() {
-        saveLanguageSelection(helpLanguageSelect.value);
-      });
-    }
-    if (settingsLanguageSelect) {
-      settingsLanguageSelect.addEventListener("change", function() {
-        saveLanguageSelection(settingsLanguageSelect.value);
-      });
-    }
     var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
     if (btnIntroTutorial) {
       btnIntroTutorial.addEventListener("click", function() {
