@@ -20,13 +20,7 @@ import { logError } from "./logger";
 import { createSchedulerWebviewPanel } from "./schedulerWebviewPanelSupport";
 import { replayExistingSchedulerWebviewPanel } from "./schedulerWebviewRenderSupport";
 
-type RenderSchedulerHtml = (
-  webview: vscode.Webview,
-  tasks: ScheduledTask[],
-  agents: AgentInfo[],
-  models: ModelInfo[],
-  promptTemplates: PromptTemplate[],
-) => string;
+type RenderSchedulerHtml = (webview: vscode.Webview, tasks: ScheduledTask[], agents: AgentInfo[], models: ModelInfo[], promptTemplates: PromptTemplate[]) => string;
 
 export function replaySchedulerPanel(options: {
   panel: vscode.WebviewPanel;
@@ -126,9 +120,7 @@ export function createFreshSchedulerPanel(options: {
         const detailsForUser =
           options.sanitizeErrorDetailsForUser(errorMessage);
         logError("[CopilotScheduler] Webview message handling failed:", {
-          type: (message as { type?: unknown } | undefined)?.type,
-          error: detailsForLog,
-        });
+          type: (message as { type?: unknown } | undefined)?.type, error: detailsForLog });
         options.showError(
           messages.webviewMessageHandlingFailed(
             detailsForUser || messages.webviewUnknown(),
