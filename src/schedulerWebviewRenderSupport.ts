@@ -13,13 +13,7 @@ import type {
 } from "./types";
 import type { AgentInfo, ModelInfo } from "./types";
 
-type RenderHtml = (
-  webview: vscode.Webview,
-  tasks: ScheduledTask[],
-  agents: AgentInfo[],
-  models: ModelInfo[],
-  promptTemplates: PromptTemplate[],
-) => string;
+type RenderHtml = (webview: vscode.Webview, tasks: ScheduledTask[], agents: AgentInfo[], models: ModelInfo[], promptTemplates: PromptTemplate[]) => string;
 
 type ReplayPanelStateParams = {
   panel: vscode.WebviewPanel;
