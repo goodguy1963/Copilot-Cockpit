@@ -47,6 +47,14 @@ export function buildSchedulerTaskEditorMarkup(options: {
         .join("")
     }`
     : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`;
+  const taskNameFieldMarkup = `<div class="form-group" style="margin:0;"><label for="task-name">${escapeHtml(strings.labelTaskName)}</label><input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required></div>`;
+  const templateSelectMarkup = `<div class="form-group" id="template-select-group" style="display: none; margin:0;"><label for="template-select">${escapeHtml(strings.labelPrompt)}</label><div class="template-row"><select id="template-select"><option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option></select><button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button></div></div>`;
+  const cronPresetOptions = allPresets
+    .map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`)
+    .join("");
+  const cronPreviewMarkup = `<div class="cron-preview"><strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong><span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span><button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button></div>`;
+  const scheduleSelectorMarkup = `<div class="form-group" style="margin:0;"><label>${escapeHtml(strings.labelSchedule)}</label><div class="preset-select"><select id="cron-preset"><option value="">${escapeHtml(strings.labelCustom)}</option>${cronPresetOptions}</select></div><input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>${cronPreviewMarkup}</div>`;
+  const jitterFieldMarkup = `<div class="form-group" style="margin:0;"><label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label><input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}"><p class="note">${escapeHtml(strings.webviewJitterNote)}</p></div>`;
 
   return `<form id="task-form" novalidate>
         <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
@@ -56,10 +64,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
           <section class="task-editor-card">
             <div class="section-title">${escapeHtml(strings.taskEditorPromptTitle)}</div>
 
-            <div class="form-group" style="margin:0;">
-              <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
-              <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
-            </div>
+            ${taskNameFieldMarkup}
 
             <div class="form-group" style="margin:0;">
               <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
@@ -68,15 +73,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
 
             ${buildPromptSourceRadioGroupMarkup(strings)}
 
-            <div class="form-group" id="template-select-group" style="display: none; margin:0;">
-              <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
-              <div class="template-row">
-                <select id="template-select">
-                  <option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option>
-                </select>
-                <button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
-              </div>
-            </div>
+            ${templateSelectMarkup}
 
             <div class="form-group" id="prompt-group" style="margin:0;">
               <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
@@ -98,21 +95,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
           <section class="task-editor-card">
             <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
 
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.labelSchedule)}</label>
-              <div class="preset-select">
-                <select id="cron-preset">
-                  <option value="">${escapeHtml(strings.labelCustom)}</option>
-                  ${allPresets.map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`).join("")}
-                </select>
-              </div>
-              <input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>
-              <div class="cron-preview">
-                <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-                <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-                <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-              </div>
-            </div>
+            ${scheduleSelectorMarkup}
 
             ${buildFriendlyCronBuilderMarkup(strings, "friendly")}
 
@@ -129,10 +112,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
                 <label for="model-select">${escapeHtml(strings.labelModel)}</label>
                 <select id="model-select">
                   ${modelOptions}
-                </select>
-                <p class="note">${escapeHtml(strings.labelModelNote)}</p>
-              </div>
-            </div>
+                </select><p class="note">${escapeHtml(strings.labelModelNote)}</p></div></div>
           </section>
 
           <section class="task-editor-card is-wide">
@@ -140,11 +120,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
             <div class="task-editor-options-grid">
               ${buildTaskScopeRadioGroupMarkup(strings, defaultScope)}
 
-              <div class="form-group" style="margin:0;">
-                <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
-                <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
-                <p class="note">${escapeHtml(strings.webviewJitterNote)}</p>
-              </div>
+              ${jitterFieldMarkup}
 
               <div class="form-group" style="margin:0;">
                 <label class="checkbox-group">

@@ -13,6 +13,9 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
     configuredLanguage,
     helpIntroTitleText,
   } = options;
+  const jobsCronPresetOptions = allPresets
+    .map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`)
+    .join("");
 
   return `
   <div id="board-tab" class="tab-content">
@@ -61,9 +64,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <div class="form-group">
               <label for="todo-sort-direction">${escapeHtml(strings.boardSortAsc)}</label>
               <select id="todo-sort-direction"></select>
-            </div>
-          </div>
-        </div>
+            </div></div></div>
         <div class="board-filter-footer">
           <div class="board-filter-actions">
             <div class="board-filter-primary-actions">
@@ -93,12 +94,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
               <div class="board-col-width-group">
                 <label for="cockpit-col-slider">Column width</label>
                 <input type="range" id="cockpit-col-slider" min="180" max="520" value="240" step="10">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              </div></div></div></div></div></div>
     <div id="board-summary" class="note"></div>
     <div class="note" style="margin-bottom:12px;">${escapeHtml(strings.boardDropHint)}</div>
     <div class="board-toolbar">
@@ -207,11 +203,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
                 <div class="preset-select">
                   <select id="jobs-cron-preset">
                     <option value="">${escapeHtml(strings.labelCustom)}</option>
-                    ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-                  </select>
-                </div>
-              </div>
-              <div class="form-group">
+                    ${jobsCronPresetOptions}
+                  </select></div></div><div class="form-group">
                 <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
                 <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
               </div>
@@ -292,9 +285,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
                         <input type="number" id="jobs-existing-window-input" min="1" max="1440" value="30">
                       </div>
                       <button type="button" class="btn-primary" id="jobs-attach-btn">⛓ ${escapeHtml(strings.jobsAttach)}</button>
-                    </div>
-                  </div>
-                </div>
+                    </div></div></div>
 
                 <div class="jobs-action-card jobs-action-card-wide">
                   <div class="section-title"><span class="jobs-action-title-with-icon"><span class="jobs-action-title-icon">✦</span><span>${escapeHtml(strings.jobsAddNewStep)}</span></span></div>
@@ -325,14 +316,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
                     </div>
                     <div class="jobs-new-step-actions">
                       <button type="button" class="btn-primary" id="jobs-create-step-btn">${escapeHtml(strings.jobsCreateStep)}</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
+                    </div></div></div></div></section>
+          </div></div></div>
     </div>
   </div>
 
@@ -391,9 +376,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
               <label for="research-metric-direction">${escapeHtml(strings.researchMetricDirection)}</label>
               <select id="research-metric-direction">
                 <option value="maximize">${escapeHtml(strings.researchDirectionMaximize)}</option>
-                <option value="minimize">${escapeHtml(strings.researchDirectionMinimize)}</option>
-              </select>
-            </div>
+                <option value="minimize">${escapeHtml(strings.researchDirectionMinimize)}</option></select></div>
             <div class="form-group">
               <label for="research-max-iterations">${escapeHtml(strings.researchMaxIterations)}</label>
               <input type="number" id="research-max-iterations" min="0" max="25" value="3">
@@ -599,9 +582,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <label for="settings-storage-mode-select">${escapeHtml(strings.settingsStorageModeLabel)}</label>
           <select id="settings-storage-mode-select">
             <option value="json">${escapeHtml(strings.settingsStorageModeJson)}</option>
-            <option value="sqlite">${escapeHtml(strings.settingsStorageModeSqlite)}</option>
-          </select>
-        </div>
+            <option value="sqlite">${escapeHtml(strings.settingsStorageModeSqlite)}</option></select></div>
 
         <div class="form-group">
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -662,9 +643,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <option value="error">${escapeHtml(strings.settingsLoggingLevelError)}</option>
             <option value="info">${escapeHtml(strings.settingsLoggingLevelInfo)}</option>
             <option value="debug">${escapeHtml(strings.settingsLoggingLevelDebug)}</option>
-          </select>
-        </div>
-        <div class="form-group">
+          </select></div><div class="form-group">
           <label for="settings-log-directory">${escapeHtml(strings.settingsLoggingDirectoryLabel)}</label>
           <input type="text" id="settings-log-directory" readonly>
           <p class="note">${escapeHtml(strings.settingsLoggingDirectoryHint)}</p>
@@ -843,11 +822,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="button-group" style="margin-top:8px;">
             <button type="button" class="btn-secondary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>
             <button type="button" class="btn-primary" id="btn-plan-integration">${escapeHtml(strings.helpPlanIntegrationBtn)}</button>
-          </div>
-        </section>
-      </div>
-    </div>
-  </div>
+          </div></section></div></div></div>
   
 `;
 }
