@@ -2,148 +2,125 @@ import * as assert from "assert";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import type { PromptTemplate } from "../../types";
 import { validateTemplateLoadRequest } from "../../templateValidation";
+import type { PromptTemplate } from "../../types";
 
-suite("Template Load Validation Tests", () => {
-  test("Accepts cached local template under .github/prompts", () => {
-    const ws = path.join("/tmp", "ws");
-    const templatePath = path.join(ws, ".github", "prompts", "a.md");
-    const cached: PromptTemplate[] = [
-      { path: templatePath, name: "a", source: "local" },
-    ];
+type TemplateCaseInput = {
+  workspaceRoot: string;
+  templatePath: string;
+  cachedTemplates?: PromptTemplate[];
+  globalPromptsPath?: string;
+  source?: "local" | "global";
+};
 
-    const res = validateTemplateLoadRequest({
+function createCachedTemplate(templatePath: string, source: "local" | "global" = "local"): PromptTemplate {
+  return {
+    path: templatePath,
+    name: path.basename(templatePath, path.extname(templatePath)),
+    source,
+  };
+}
+
+function validateCase(input: TemplateCaseInput) {
+  return validateTemplateLoadRequest({
+    cachedTemplates: input.cachedTemplates ?? [],
+    globalPromptsPath: input.globalPromptsPath,
+    templatePath: input.templatePath,
+    source: input.source ?? "local",
+    workspaceFolderPaths: [input.workspaceRoot],
+  });
+}
+
+function expectFailure(
+  input: TemplateCaseInput,
+  reason:
+    | "invalidPath"
+    | "invalidSource"
+    | "noAllowedRoots"
+    | "notAllowed"
+    | "notInCache"
+    | "notMarkdown",
+): void {
+  const result = validateCase(input);
+  assert.strictEqual(result.ok, false);
+  if (!result.ok) {
+    assert.strictEqual(result.reason, reason);
+  }
+}
+
+suite("Template validation behavior", () => {
+  test("accepts a cached local prompt inside the prompts directory", () => {
+    const workspaceRoot = path.join("/tmp", "template-validation-accept");
+    const templatePath = path.join(workspaceRoot, ".github", "prompts", "daily.md");
+    const result = validateCase({
+      workspaceRoot,
       templatePath,
-      source: "local",
-      cachedTemplates: cached,
-      workspaceFolderPaths: [ws],
-      globalPromptsPath: undefined,
+      cachedTemplates: [createCachedTemplate(templatePath)],
     });
 
-    assert.deepStrictEqual(res, { ok: true });
+    assert.deepStrictEqual(result, { ok: true });
   });
 
-  test("Rejects non-markdown templates", () => {
-    const ws = path.join("/tmp", "ws");
-    const templatePath = path.join(ws, ".github", "prompts", "a.txt");
-    const cached: PromptTemplate[] = [
-      { path: templatePath, name: "a", source: "local" },
-    ];
-    const res = validateTemplateLoadRequest({
-      templatePath,
-      source: "local",
-      cachedTemplates: cached,
-      workspaceFolderPaths: [ws],
-      globalPromptsPath: undefined,
-    });
-    assert.strictEqual(res.ok, false);
-    if (!res.ok) {
-      assert.strictEqual(res.reason, "notMarkdown");
-    }
+  test("rejects non-markdown and agent-markdown files", () => {
+    const workspaceRoot = path.join("/tmp", "template-validation-invalid-ext");
+    expectFailure({
+      workspaceRoot,
+      templatePath: path.join(workspaceRoot, ".github", "prompts", "daily.txt"),
+      cachedTemplates: [createCachedTemplate(path.join(workspaceRoot, ".github", "prompts", "daily.txt"))],
+    }, "notMarkdown");
+
+    expectFailure({
+      workspaceRoot,
+      templatePath: path.join(workspaceRoot, ".github", "prompts", "daily.agent.md"),
+      cachedTemplates: [createCachedTemplate(path.join(workspaceRoot, ".github", "prompts", "daily.agent.md"))],
+    }, "notMarkdown");
   });
 
-  test("Rejects .agent.md templates", () => {
-    const ws = path.join("/tmp", "ws");
-    const templatePath = path.join(ws, ".github", "prompts", "a.agent.md");
-    const cached: PromptTemplate[] = [
-      { path: templatePath, name: "a.agent", source: "local" },
-    ];
-    const res = validateTemplateLoadRequest({
-      templatePath,
-      source: "local",
-      cachedTemplates: cached,
-      workspaceFolderPaths: [ws],
-      globalPromptsPath: undefined,
-    });
-    assert.strictEqual(res.ok, false);
-    if (!res.ok) {
-      assert.strictEqual(res.reason, "notMarkdown");
-    }
+  test("rejects uncached and out-of-root local templates", () => {
+    const workspaceRoot = path.join("/tmp", "template-validation-local-reject");
+    const insidePath = path.join(workspaceRoot, ".github", "prompts", "inside.md");
+    const outsidePath = path.join(workspaceRoot, "other", "outside.md");
+
+    expectFailure({
+      workspaceRoot,
+      templatePath: insidePath,
+    }, "notInCache");
+
+    expectFailure({
+      workspaceRoot,
+      templatePath: outsidePath,
+      cachedTemplates: [createCachedTemplate(outsidePath)],
+    }, "notAllowed");
   });
 
-  test("Rejects templates not present in cache", () => {
-    const ws = path.join("/tmp", "ws");
-    const templatePath = path.join(ws, ".github", "prompts", "a.md");
-    const res = validateTemplateLoadRequest({
-      templatePath,
-      source: "local",
-      cachedTemplates: [],
-      workspaceFolderPaths: [ws],
-      globalPromptsPath: undefined,
-    });
-    assert.strictEqual(res.ok, false);
-    if (!res.ok) {
-      assert.strictEqual(res.reason, "notInCache");
-    }
-  });
-
-  test("Rejects local templates outside allowed root", () => {
-    const ws = path.join("/tmp", "ws");
-    const outside = path.join(ws, "other", "a.md");
-    const cached: PromptTemplate[] = [
-      { path: outside, name: "a", source: "local" },
-    ];
-    const res = validateTemplateLoadRequest({
-      templatePath: outside,
-      source: "local",
-      cachedTemplates: cached,
-      workspaceFolderPaths: [ws],
-      globalPromptsPath: undefined,
-    });
-    assert.strictEqual(res.ok, false);
-    if (!res.ok) {
-      assert.strictEqual(res.reason, "notAllowed");
-    }
-  });
-
-  test("Rejects cached local template symlink escaping allowed root", function () {
-    const tempRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-validation-"),
-    );
+  test("rejects symlink escapes from the prompts directory", function () {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cockpit-template-validation-"));
 
     try {
-      const ws = path.join(tempRoot, "ws");
-      const promptsDir = path.join(ws, ".github", "prompts");
-      const outsideDir = path.join(tempRoot, "outside");
-      fs.mkdirSync(promptsDir, { recursive: true });
-      fs.mkdirSync(outsideDir, { recursive: true });
+      const workspaceRoot = path.join(tempRoot, "workspace");
+      const promptsRoot = path.join(workspaceRoot, ".github", "prompts");
+      const outsideRoot = path.join(tempRoot, "outside");
+      fs.mkdirSync(promptsRoot, { recursive: true });
+      fs.mkdirSync(outsideRoot, { recursive: true });
 
-      const outside = path.join(outsideDir, "secret.md");
-      fs.writeFileSync(outside, "secret", "utf8");
+      const outsideFile = path.join(outsideRoot, "secret.md");
+      fs.writeFileSync(outsideFile, "secret", "utf8");
 
-      const linkPath = path.join(promptsDir, "link.md");
+      const symlinkPath = path.join(promptsRoot, "linked.md");
       try {
-        fs.symlinkSync(outside, linkPath, "file");
+        fs.symlinkSync(outsideFile, symlinkPath, "file");
       } catch {
-        // Symlink may be unavailable (e.g. Windows without privileges).
         this.skip();
         return;
       }
 
-      const cached: PromptTemplate[] = [
-        { path: linkPath, name: "link", source: "local" },
-      ];
-
-      const res = validateTemplateLoadRequest({
-        templatePath: linkPath,
-        source: "local",
-        cachedTemplates: cached,
-        workspaceFolderPaths: [ws],
-        globalPromptsPath: undefined,
-      });
-
-      assert.strictEqual(res.ok, false);
-      if (!res.ok) {
-        assert.strictEqual(res.reason, "notAllowed");
-      }
+      expectFailure({
+        workspaceRoot,
+        templatePath: symlinkPath,
+        cachedTemplates: [createCachedTemplate(symlinkPath)],
+      }, "notAllowed");
     } finally {
-      fs.rmSync(tempRoot, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 50,
-      });
+      fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     }
   });
 });
