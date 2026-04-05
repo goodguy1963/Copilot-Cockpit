@@ -48,6 +48,7 @@ export function createWebviewDebugTools(options) {
 
   function createEmptyTodoDraft() {
     return {
+      comment: "",
       title: "",
       description: "",
       dueAt: "",
@@ -73,6 +74,7 @@ export function createWebviewDebugTools(options) {
       return params ? params.currentTodoDraft : createEmptyTodoDraft();
     }
     var nextDraft = params.currentTodoDraft || createEmptyTodoDraft();
+    nextDraft.comment = params.todoCommentInput ? String(params.todoCommentInput.value || "") : "";
     nextDraft.title = params.todoTitleInput ? String(params.todoTitleInput.value || "") : "";
     nextDraft.description = params.todoDescriptionInput ? String(params.todoDescriptionInput.value || "") : "";
     nextDraft.dueAt = params.todoDueInput ? String(params.todoDueInput.value || "") : "";
@@ -82,6 +84,7 @@ export function createWebviewDebugTools(options) {
     if (params.reason) {
       emitWebviewDebug("todoDraftSync", {
         reason: params.reason,
+        hasComment: nextDraft.comment.length > 0,
         titleLength: nextDraft.title.length,
         hasDescription: nextDraft.description.length > 0,
         hasDueAt: !!nextDraft.dueAt,

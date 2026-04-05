@@ -730,8 +730,19 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "../../../media/schedulerWebview.js",
     );
     const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const debugHelperPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebviewDebug.js",
+    );
+    const debugHelperSource = fs.readFileSync(debugHelperPath, "utf8");
 
     [
+      '.todo-comments-spotlight {',
+      '.todo-comments-layout {',
+      '.todo-comment-template-btn {',
+      'id="todo-comment-count-badge"',
+      'id="todo-comment-mode-pill"',
+      'data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateContextBody || "Context:\\n")}"',
       '.todo-comment-card.is-user-form .todo-comment-author,',
       '.todo-comment-card.is-user-form .todo-comment-body {',
     ].forEach((snippet) => {
@@ -742,6 +753,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
 
     [
+      'function renderTodoCommentSectionState(selectedTodo) {',
+      'renderTodoCommentDraftPreviewMarkup(commentDraftValue)',
+      'todoAddCommentBtn.hidden = !isEditingTodo;',
+      'payload.comment = commentBody;',
       'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
       'var toneClass = getTodoCommentToneClass(comment);',
       `'<article class="todo-comment-card' + toneClass + userFormClass + '"`,
@@ -749,6 +764,17 @@ suite("SchedulerWebview Message Queue Tests", () => {
       assert.ok(
         scriptSource.includes(snippet),
         `expected todo comment rendering snippet ${snippet}`,
+      );
+    });
+
+    [
+      'comment: "",',
+      'nextDraft.comment = params.todoCommentInput ? String(params.todoCommentInput.value || "") : "";',
+      'hasComment: nextDraft.comment.length > 0,',
+    ].forEach((snippet) => {
+      assert.ok(
+        debugHelperSource.includes(snippet),
+        `expected todo comment draft helper snippet ${snippet}`,
       );
     });
 
