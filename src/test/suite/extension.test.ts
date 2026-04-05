@@ -60,31 +60,37 @@ suite("Extension Test Suite", () => {
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotCockpit.spotReviewTemplate",
+        "copilotCockpit.needsBotReviewCommentTemplate",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotCockpit.botReviewPromptTemplate",
+        "copilotCockpit.needsBotReviewPromptTemplate",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotCockpit.botReviewAgent",
+        "copilotCockpit.needsBotReviewAgent",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotCockpit.botReviewModel",
+        "copilotCockpit.needsBotReviewModel",
       ),
     );
     assert.ok(
       Object.prototype.hasOwnProperty.call(
         properties,
-        "copilotCockpit.botReviewChatSession",
+        "copilotCockpit.needsBotReviewChatSession",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.readyPromptTemplate",
       ),
     );
     assert.strictEqual(

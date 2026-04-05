@@ -228,6 +228,7 @@ type TodoPromptSource = {
   title: string;
   description?: string;
   labels?: string[];
+  taskId?: string | null;
   comments?: Array<{ author?: string; body?: string }>;
 };
 
@@ -250,25 +251,23 @@ function getTodoWorkflowFlag(todo: Pick<CockpitTodoCard, "flags">): string | und
   return getActiveCockpitWorkflowFlag(todo.flags);
 }
 
-const REVIEW_TEMPLATE_COMMENT_LABEL = "spot-review-template";
+const NEEDS_BOT_REVIEW_COMMENT_LABEL = "needs-bot-review-template";
 
-function isReviewWorkflowFlag(flag: string | undefined): boolean {
-  return flag === COCKPIT_NEEDS_BOT_REVIEW_FLAG
-    || flag === COCKPIT_NEEDS_USER_REVIEW_FLAG;
-}
-
-function maybeSeedSpotReviewTemplate(
+function maybeSeedNeedsBotReviewCommentTemplate(
   workspaceRoot: string,
   todo: CockpitTodoCard,
   previousWorkflowFlag: string | undefined,
   deps: TodoCockpitActionHandlerDeps,
 ): void {
   const nextWorkflowFlag = getTodoWorkflowFlag(todo);
-  if (!isReviewWorkflowFlag(nextWorkflowFlag) || nextWorkflowFlag === previousWorkflowFlag) {
+  if (
+    nextWorkflowFlag !== COCKPIT_NEEDS_BOT_REVIEW_FLAG
+    || nextWorkflowFlag === previousWorkflowFlag
+  ) {
     return;
   }
 
-  const template = deps.getReviewDefaults().spotReviewTemplate.trim();
+  const template = deps.getReviewDefaults().needsBotReviewCommentTemplate.trim();
   if (!template) {
     return;
   }
@@ -278,7 +277,7 @@ function maybeSeedSpotReviewTemplate(
   const lastCommentLabels = Array.isArray(lastComment?.labels) ? lastComment.labels : [];
   const lastCommentIsTemplate = lastComment?.source === "system-event"
     && lastComment?.body?.trim() === template
-    && lastCommentLabels.includes(REVIEW_TEMPLATE_COMMENT_LABEL);
+    && lastCommentLabels.includes(NEEDS_BOT_REVIEW_COMMENT_LABEL);
   if (lastCommentIsTemplate) {
     return;
   }
@@ -287,26 +286,71 @@ function maybeSeedSpotReviewTemplate(
     body: template,
     author: "system",
     source: "system-event",
-    labels: [REVIEW_TEMPLATE_COMMENT_LABEL],
+    labels: [NEEDS_BOT_REVIEW_COMMENT_LABEL],
   });
 }
 
-function buildBotReviewPromptFromTodo(
-  todo: TodoPromptSource,
-  template: string,
-): string {
-  const labels = (todo.labels ?? []).join(", ") || "none";
-  const recentComments = (todo.comments ?? [])
+function buildTodoRecentCommentsText(todo: TodoPromptSource): string {
+  return (todo.comments ?? [])
     .filter((comment) => comment?.body)
     .slice(-5)
     .map((comment) => `- ${comment.author || "system"}: ${comment.body}`)
     .join("\n") || "- none";
+}
+
+function buildTodoContextBlock(todo: TodoPromptSource): string {
+  const sections: string[] = [
+    `Todo title: ${todo.title || ""}`,
+    `Todo description:\n${todo.description?.trim() || "(none)"}`,
+    `Todo labels: ${(todo.labels ?? []).join(", ") || "none"}`,
+    `Linked task: ${todo.taskId || "none"}`,
+    `Recent coordination:\n${buildTodoRecentCommentsText(todo)}`,
+  ];
+
+  return sections.join("\n\n");
+}
+
+function buildMcpSkillGuidanceBlock(intent: "needs-bot-review" | "ready"): string {
+  const baseLines = [
+    "MCP and skill usage guidance:",
+    "- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.",
+    "- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.",
+    "- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.",
+    "- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.",
+  ];
+
+  if (intent === "needs-bot-review") {
+    baseLines.push(
+      "- This is a needs-bot-review handoff: stay in planning/review mode, research what is needed, and avoid pretending implementation or scheduling is complete.",
+    );
+  } else {
+    baseLines.push(
+      "- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.",
+    );
+  }
+
+  return baseLines.join("\n");
+}
+
+function applyTodoPromptTemplate(
+  todo: TodoPromptSource,
+  template: string,
+  intent: "needs-bot-review" | "ready",
+): string {
+  const labels = (todo.labels ?? []).join(", ") || "none";
+  const recentComments = buildTodoRecentCommentsText(todo);
+  const linkedTask = todo.taskId || "none";
+  const todoContext = buildTodoContextBlock(todo);
+  const mcpSkillGuidance = buildMcpSkillGuidanceBlock(intent);
 
   return template
     .replace(/\{\{title\}\}/g, todo.title || "")
     .replace(/\{\{description\}\}/g, todo.description?.trim() || "")
     .replace(/\{\{labels\}\}/g, labels)
     .replace(/\{\{recent_comments\}\}/g, recentComments)
+    .replace(/\{\{linked_task\}\}/g, linkedTask)
+    .replace(/\{\{todo_context\}\}/g, todoContext)
+    .replace(/\{\{mcp_skill_guidance\}\}/g, mcpSkillGuidance)
     .trim();
 }
 
@@ -324,21 +368,21 @@ async function maybeRunBotReviewPlanning(
   }
 
   const reviewDefaults = deps.getReviewDefaults();
-  const promptTemplate = reviewDefaults.botReviewPromptTemplate.trim();
+  const promptTemplate = reviewDefaults.needsBotReviewPromptTemplate.trim();
   if (!promptTemplate) {
     return "skipped";
   }
 
-  const prompt = buildBotReviewPromptFromTodo(todo, promptTemplate);
+  const prompt = applyTodoPromptTemplate(todo, promptTemplate, "needs-bot-review");
   if (!prompt) {
     return "skipped";
   }
 
   try {
     await deps.executeBotReviewPrompt(prompt, {
-      agent: reviewDefaults.botReviewAgent,
-      model: reviewDefaults.botReviewModel,
-      chatSession: reviewDefaults.botReviewChatSession,
+      agent: reviewDefaults.needsBotReviewAgent,
+      model: reviewDefaults.needsBotReviewModel,
+      chatSession: reviewDefaults.needsBotReviewChatSession,
     });
     return "launched";
   } catch (_error) {
@@ -374,7 +418,7 @@ export async function handleTodoCockpitAction(
         workspaceRoot,
         action.todoData as CreateCockpitTodoInput,
       );
-      maybeSeedSpotReviewTemplate(workspaceRoot, result.todo, undefined, deps);
+      maybeSeedNeedsBotReviewCommentTemplate(workspaceRoot, result.todo, undefined, deps);
       const revealFilters = getRevealFiltersForCreatedTodo(
         currentBoard.filters,
         result.todo,
@@ -413,7 +457,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      maybeSeedSpotReviewTemplate(
+      maybeSeedNeedsBotReviewCommentTemplate(
         workspaceRoot,
         result.todo,
         previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined,
@@ -815,7 +859,7 @@ export async function handleTodoCockpitAction(
         name: todo.title,
         description: todo.description,
         cronExpression: "0 9 * * 1-5",
-        prompt: buildTaskPromptFromTodo(todo),
+        prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults()),
         enabled: false,
         oneTime: true,
         labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
@@ -841,25 +885,18 @@ export async function handleTodoCockpitAction(
   }
 }
 
-function buildTaskPromptFromTodo(taskSource: TodoPromptSource): string {
-  const sections: string[] = [
-    `Task goal: ${taskSource.title}`,
-  ];
-
-  if (taskSource.description?.trim()) {
-    sections.push(`Context:\n${taskSource.description.trim()}`);
+function buildReadyTaskPromptFromTodo(
+  taskSource: TodoPromptSource,
+  reviewDefaults: ReviewDefaultsView,
+): string {
+  const promptTemplate = reviewDefaults.readyPromptTemplate.trim();
+  if (promptTemplate) {
+    return applyTodoPromptTemplate(taskSource, promptTemplate, "ready");
   }
 
-  const commentLines = (taskSource.comments ?? [])
-    .filter((comment) => comment?.body)
-    .slice(-5)
-    .map((comment) => `- ${comment.author || "system"}: ${comment.body}`);
-  if (commentLines.length > 0) {
-    sections.push(`Recent coordination:\n${commentLines.join("\n")}`);
-  }
-
-  sections.push(
-    "Produce the approved execution artifact for this todo and keep any unresolved questions explicit.",
-  );
-  return sections.join("\n\n");
+  return [
+    buildTodoContextBlock(taskSource),
+    buildMcpSkillGuidanceBlock("ready"),
+    "Create or refine the execution-ready handoff for this Todo. Preserve the requested work and keep unresolved questions explicit.",
+  ].join("\n\n");
 }

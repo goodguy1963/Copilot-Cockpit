@@ -129,11 +129,12 @@ export class SchedulerWebview {
     model: "",
   };
   private static currentReviewDefaults: ReviewDefaultsView = {
-    spotReviewTemplate: "",
-    botReviewPromptTemplate: "",
-    botReviewAgent: "agent",
-    botReviewModel: "",
-    botReviewChatSession: "new",
+    needsBotReviewCommentTemplate: "",
+    needsBotReviewPromptTemplate: "",
+    needsBotReviewAgent: "agent",
+    needsBotReviewModel: "",
+    needsBotReviewChatSession: "new",
+    readyPromptTemplate: "",
   };
   private static currentStorageSettings: StorageSettingsView = {
     mode: "sqlite",
@@ -5910,31 +5911,36 @@ export class SchedulerWebview {
         </div>
 
         <div class="form-group" style="margin-top:8px;">
-          <label for="spot-review-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
-          <textarea id="spot-review-template-input" rows="5" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+          <label for="needs-bot-review-comment-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
+          <textarea id="needs-bot-review-comment-template-input" rows="5" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
         </div>
 
         <div class="form-group">
-          <label for="bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
-          <textarea id="bot-review-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
+          <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+          <textarea id="needs-bot-review-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
         </div>
 
         <div class="form-group">
-          <label for="bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
-          <select id="bot-review-agent-select"></select>
+          <label for="needs-bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
+          <select id="needs-bot-review-agent-select"></select>
         </div>
 
         <div class="form-group">
-          <label for="bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
-          <select id="bot-review-model-select"></select>
+          <label for="needs-bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
+          <select id="needs-bot-review-model-select"></select>
         </div>
 
         <div class="form-group">
-          <label for="bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
-          <select id="bot-review-chat-session-select">
+          <label for="needs-bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
+          <select id="needs-bot-review-chat-session-select">
             <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
             <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
           </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
+          <textarea id="ready-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
         </div>
 
         <div class="button-group">

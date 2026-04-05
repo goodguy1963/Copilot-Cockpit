@@ -353,11 +353,12 @@ import {
     model: "",
   };
   var reviewDefaults = initialData.reviewDefaults || {
-    spotReviewTemplate: "",
-    botReviewPromptTemplate: "",
-    botReviewAgent: "agent",
-    botReviewModel: "",
-    botReviewChatSession: "new",
+    needsBotReviewCommentTemplate: "",
+    needsBotReviewPromptTemplate: "",
+    needsBotReviewAgent: "agent",
+    needsBotReviewModel: "",
+    needsBotReviewChatSession: "new",
+    readyPromptTemplate: "",
   };
   function normalizeMcpSetupStatus(value, previousValue) {
     switch (value) {
@@ -764,11 +765,12 @@ import {
   var defaultModelSelect = document.getElementById("default-model-select");
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
-  var spotReviewTemplateInput = document.getElementById("spot-review-template-input");
-  var botReviewPromptTemplateInput = document.getElementById("bot-review-prompt-template-input");
-  var botReviewAgentSelect = document.getElementById("bot-review-agent-select");
-  var botReviewModelSelect = document.getElementById("bot-review-model-select");
-  var botReviewChatSessionSelect = document.getElementById("bot-review-chat-session-select");
+  var needsBotReviewCommentTemplateInput = document.getElementById("needs-bot-review-comment-template-input");
+  var needsBotReviewPromptTemplateInput = document.getElementById("needs-bot-review-prompt-template-input");
+  var needsBotReviewAgentSelect = document.getElementById("needs-bot-review-agent-select");
+  var needsBotReviewModelSelect = document.getElementById("needs-bot-review-model-select");
+  var needsBotReviewChatSessionSelect = document.getElementById("needs-bot-review-chat-session-select");
+  var readyPromptTemplateInput = document.getElementById("ready-prompt-template-input");
   var reviewDefaultsSaveBtn = document.getElementById("review-defaults-save-btn");
   var reviewDefaultsNote = document.getElementById("review-defaults-note");
   var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
@@ -1368,22 +1370,25 @@ import {
 
   function collectReviewDefaultsFormData() {
     return {
-      spotReviewTemplate: spotReviewTemplateInput
-        ? String(spotReviewTemplateInput.value || "")
+      needsBotReviewCommentTemplate: needsBotReviewCommentTemplateInput
+        ? String(needsBotReviewCommentTemplateInput.value || "")
         : "",
-      botReviewPromptTemplate: botReviewPromptTemplateInput
-        ? String(botReviewPromptTemplateInput.value || "")
+      needsBotReviewPromptTemplate: needsBotReviewPromptTemplateInput
+        ? String(needsBotReviewPromptTemplateInput.value || "")
         : "",
-      botReviewAgent: botReviewAgentSelect
-        ? String(botReviewAgentSelect.value || "")
+      needsBotReviewAgent: needsBotReviewAgentSelect
+        ? String(needsBotReviewAgentSelect.value || "")
         : "",
-      botReviewModel: botReviewModelSelect
-        ? String(botReviewModelSelect.value || "")
+      needsBotReviewModel: needsBotReviewModelSelect
+        ? String(needsBotReviewModelSelect.value || "")
         : "",
-      botReviewChatSession: botReviewChatSessionSelect
-        && botReviewChatSessionSelect.value === "continue"
+      needsBotReviewChatSession: needsBotReviewChatSessionSelect
+        && needsBotReviewChatSessionSelect.value === "continue"
         ? "continue"
         : "new",
+      readyPromptTemplate: readyPromptTemplateInput
+        ? String(readyPromptTemplateInput.value || "")
+        : "",
     };
   }
 
@@ -1455,26 +1460,33 @@ import {
   }
 
   function renderReviewDefaultsControls() {
-    if (spotReviewTemplateInput) {
-      spotReviewTemplateInput.value = reviewDefaults
-        && typeof reviewDefaults.spotReviewTemplate === "string"
-        ? reviewDefaults.spotReviewTemplate
+    if (needsBotReviewCommentTemplateInput) {
+      needsBotReviewCommentTemplateInput.value = reviewDefaults
+        && typeof reviewDefaults.needsBotReviewCommentTemplate === "string"
+        ? reviewDefaults.needsBotReviewCommentTemplate
         : "";
     }
 
-    if (botReviewPromptTemplateInput) {
-      botReviewPromptTemplateInput.value = reviewDefaults
-        && typeof reviewDefaults.botReviewPromptTemplate === "string"
-        ? reviewDefaults.botReviewPromptTemplate
+    if (needsBotReviewPromptTemplateInput) {
+      needsBotReviewPromptTemplateInput.value = reviewDefaults
+        && typeof reviewDefaults.needsBotReviewPromptTemplate === "string"
+        ? reviewDefaults.needsBotReviewPromptTemplate
+        : "";
+    }
+
+    if (readyPromptTemplateInput) {
+      readyPromptTemplateInput.value = reviewDefaults
+        && typeof reviewDefaults.readyPromptTemplate === "string"
+        ? reviewDefaults.readyPromptTemplate
         : "";
     }
 
     updateSimpleSelect(
-      botReviewAgentSelect,
+      needsBotReviewAgentSelect,
       agents,
       strings.placeholderSelectAgent || "Select agent",
-      reviewDefaults && typeof reviewDefaults.botReviewAgent === "string"
-        ? reviewDefaults.botReviewAgent
+      reviewDefaults && typeof reviewDefaults.needsBotReviewAgent === "string"
+        ? reviewDefaults.needsBotReviewAgent
         : "agent",
       function (item) {
         return item && item.id ? item.id : "";
@@ -1485,11 +1497,11 @@ import {
     );
 
     updateSimpleSelect(
-      botReviewModelSelect,
+      needsBotReviewModelSelect,
       models,
       strings.placeholderSelectModel || "Select model",
-      reviewDefaults && typeof reviewDefaults.botReviewModel === "string"
-        ? reviewDefaults.botReviewModel
+      reviewDefaults && typeof reviewDefaults.needsBotReviewModel === "string"
+        ? reviewDefaults.needsBotReviewModel
         : "",
       function (item) {
         return item && item.id ? item.id : "";
@@ -1499,9 +1511,9 @@ import {
       },
     );
 
-    if (botReviewChatSessionSelect) {
-      botReviewChatSessionSelect.value = reviewDefaults
-        && reviewDefaults.botReviewChatSession === "continue"
+    if (needsBotReviewChatSessionSelect) {
+      needsBotReviewChatSessionSelect.value = reviewDefaults
+        && reviewDefaults.needsBotReviewChatSession === "continue"
         ? "continue"
         : "new";
     }
@@ -8905,11 +8917,12 @@ syncTodoLabelSuggestions();
           break;
         case "updateReviewDefaults":
           reviewDefaults = message.reviewDefaults || {
-            spotReviewTemplate: "",
-            botReviewPromptTemplate: "",
-            botReviewAgent: "agent",
-            botReviewModel: "",
-            botReviewChatSession: "new",
+            needsBotReviewCommentTemplate: "",
+            needsBotReviewPromptTemplate: "",
+            needsBotReviewAgent: "agent",
+            needsBotReviewModel: "",
+            needsBotReviewChatSession: "new",
+            readyPromptTemplate: "",
           };
           renderReviewDefaultsControls();
           break;

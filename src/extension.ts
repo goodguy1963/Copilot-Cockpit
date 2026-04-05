@@ -114,19 +114,24 @@ const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
-const DEFAULT_SPOT_REVIEW_TEMPLATE = "Spot review request: review the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
-const DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE = [
-  "You are preparing a spot review plan for this Todo.",
+const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
+const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
+  "You are handling a Todo that just entered needs-bot-review.",
   "",
-  "Todo title: {{title}}",
-  "Todo description:",
-  "{{description}}",
+  "{{todo_context}}",
   "",
-  "Labels: {{labels}}",
-  "Recent coordination:",
-  "{{recent_comments}}",
+  "{{mcp_skill_guidance}}",
   "",
-  "Research what is needed to review this item, identify missing context and risks, and propose the smallest safe next steps.",
+  "Research what is needed to review this item, identify missing context and risks, and return a plan-only response. If the request is clear, provide two concrete implementation options or one blocking clarification when the ambiguity is material.",
+].join("\n");
+const DEFAULT_READY_PROMPT_TEMPLATE = [
+  "You are preparing the execution artifact for a Todo that is now ready.",
+  "",
+  "{{todo_context}}",
+  "",
+  "{{mcp_skill_guidance}}",
+  "",
+  "Create or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
 ].join("\n");
 const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
 const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
@@ -152,6 +157,25 @@ function getSchedulerSetting<T>(
   scope?: vscode.ConfigurationScope,
 ): T {
   return getCompatibleConfigurationValue<T>(key, defaultValue, scope);
+}
+
+function getWorkspaceSettingWithFallback<T>(
+  keys: string[],
+  defaultValue: T,
+  scope?: vscode.ConfigurationScope,
+): T {
+  const configuration = vscode.workspace.getConfiguration("copilotCockpit", scope);
+  for (const key of keys) {
+    const inspected = configuration.inspect<T>(key);
+    const explicitValue = inspected?.workspaceFolderValue
+      ?? inspected?.workspaceValue
+      ?? inspected?.globalValue;
+    if (explicitValue !== undefined) {
+      return explicitValue as T;
+    }
+  }
+
+  return defaultValue;
 }
 
 async function updateSchedulerSetting(
@@ -749,33 +773,38 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
 function getCurrentReviewDefaults(): ReviewDefaultsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
   return {
-    spotReviewTemplate: getSchedulerSetting<string>(
-      "spotReviewTemplate",
-      DEFAULT_SPOT_REVIEW_TEMPLATE,
+    needsBotReviewCommentTemplate: getWorkspaceSettingWithFallback<string>(
+      ["needsBotReviewCommentTemplate", "spotReviewTemplate"],
+      DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
       folderUri,
     ).trim(),
-    botReviewPromptTemplate: getSchedulerSetting<string>(
-      "botReviewPromptTemplate",
-      DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE,
+    needsBotReviewPromptTemplate: getWorkspaceSettingWithFallback<string>(
+      ["needsBotReviewPromptTemplate", "botReviewPromptTemplate"],
+      DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE,
       folderUri,
     ),
-    botReviewAgent: getSchedulerSetting<string>(
-      "botReviewAgent",
+    needsBotReviewAgent: getWorkspaceSettingWithFallback<string>(
+      ["needsBotReviewAgent", "botReviewAgent"],
       "agent",
       folderUri,
     ).trim(),
-    botReviewModel: getSchedulerSetting<string>(
-      "botReviewModel",
+    needsBotReviewModel: getWorkspaceSettingWithFallback<string>(
+      ["needsBotReviewModel", "botReviewModel"],
       "",
       folderUri,
     ).trim(),
-    botReviewChatSession: getSchedulerSetting<"new" | "continue">(
-      "botReviewChatSession",
+    needsBotReviewChatSession: getWorkspaceSettingWithFallback<"new" | "continue">(
+      ["needsBotReviewChatSession", "botReviewChatSession"],
       "new",
       folderUri,
     ) === "continue"
       ? "continue"
       : "new",
+    readyPromptTemplate: getWorkspaceSettingWithFallback<string>(
+      ["readyPromptTemplate"],
+      DEFAULT_READY_PROMPT_TEMPLATE,
+      folderUri,
+    ),
   };
 }
 
@@ -827,61 +856,60 @@ async function saveReviewDefaults(
 ): Promise<ReviewDefaultsView> {
   const folderUri = getPrimaryWorkspaceFolderUri();
   const target = getExecutionDefaultsTarget();
-  const nextSpotReviewTemplate = typeof input.spotReviewTemplate === "string"
-    ? input.spotReviewTemplate.trim()
-    : getSchedulerSetting<string>(
-      "spotReviewTemplate",
-      DEFAULT_SPOT_REVIEW_TEMPLATE,
-      folderUri,
-    ).trim();
-  const nextBotReviewPromptTemplate = typeof input.botReviewPromptTemplate === "string"
-    ? input.botReviewPromptTemplate
-    : getSchedulerSetting<string>(
-      "botReviewPromptTemplate",
-      DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE,
-      folderUri,
-    );
-  const nextBotReviewAgent = typeof input.botReviewAgent === "string"
-    ? input.botReviewAgent.trim()
-    : getSchedulerSetting<string>("botReviewAgent", "agent", folderUri).trim();
-  const nextBotReviewModel = typeof input.botReviewModel === "string"
-    ? input.botReviewModel.trim()
-    : getSchedulerSetting<string>("botReviewModel", "", folderUri).trim();
-  const nextBotReviewChatSession = input.botReviewChatSession === "continue"
+  const nextNeedsBotReviewCommentTemplate = typeof input.needsBotReviewCommentTemplate === "string"
+    ? input.needsBotReviewCommentTemplate.trim()
+    : getCurrentReviewDefaults().needsBotReviewCommentTemplate;
+  const nextNeedsBotReviewPromptTemplate = typeof input.needsBotReviewPromptTemplate === "string"
+    ? input.needsBotReviewPromptTemplate
+    : getCurrentReviewDefaults().needsBotReviewPromptTemplate;
+  const nextNeedsBotReviewAgent = typeof input.needsBotReviewAgent === "string"
+    ? input.needsBotReviewAgent.trim()
+    : getCurrentReviewDefaults().needsBotReviewAgent;
+  const nextNeedsBotReviewModel = typeof input.needsBotReviewModel === "string"
+    ? input.needsBotReviewModel.trim()
+    : getCurrentReviewDefaults().needsBotReviewModel;
+  const nextNeedsBotReviewChatSession = input.needsBotReviewChatSession === "continue"
     ? "continue"
-    : (input.botReviewChatSession === "new"
+    : (input.needsBotReviewChatSession === "new"
       ? "new"
-      : (getSchedulerSetting<string>("botReviewChatSession", "new", folderUri) === "continue"
-        ? "continue"
-        : "new"));
+      : getCurrentReviewDefaults().needsBotReviewChatSession);
+  const nextReadyPromptTemplate = typeof input.readyPromptTemplate === "string"
+    ? input.readyPromptTemplate
+    : getCurrentReviewDefaults().readyPromptTemplate;
 
   await updateSchedulerSetting(
-    "spotReviewTemplate",
-    nextSpotReviewTemplate,
+    "needsBotReviewCommentTemplate",
+    nextNeedsBotReviewCommentTemplate,
     target,
     folderUri,
   );
   await updateSchedulerSetting(
-    "botReviewPromptTemplate",
-    nextBotReviewPromptTemplate,
+    "needsBotReviewPromptTemplate",
+    nextNeedsBotReviewPromptTemplate,
     target,
     folderUri,
   );
   await updateSchedulerSetting(
-    "botReviewAgent",
-    nextBotReviewAgent,
+    "needsBotReviewAgent",
+    nextNeedsBotReviewAgent,
     target,
     folderUri,
   );
   await updateSchedulerSetting(
-    "botReviewModel",
-    nextBotReviewModel,
+    "needsBotReviewModel",
+    nextNeedsBotReviewModel,
     target,
     folderUri,
   );
   await updateSchedulerSetting(
-    "botReviewChatSession",
-    nextBotReviewChatSession,
+    "needsBotReviewChatSession",
+    nextNeedsBotReviewChatSession,
+    target,
+    folderUri,
+  );
+  await updateSchedulerSetting(
+    "readyPromptTemplate",
+    nextReadyPromptTemplate,
     target,
     folderUri,
   );
@@ -1618,7 +1646,13 @@ export function activate(context: vscode.ExtensionContext): void {
       affectsCompatibleConfiguration(e, "botReviewPromptTemplate") ||
       affectsCompatibleConfiguration(e, "botReviewAgent") ||
       affectsCompatibleConfiguration(e, "botReviewModel") ||
-      affectsCompatibleConfiguration(e, "botReviewChatSession")
+      affectsCompatibleConfiguration(e, "botReviewChatSession") ||
+      affectsCompatibleConfiguration(e, "needsBotReviewCommentTemplate") ||
+      affectsCompatibleConfiguration(e, "needsBotReviewPromptTemplate") ||
+      affectsCompatibleConfiguration(e, "needsBotReviewAgent") ||
+      affectsCompatibleConfiguration(e, "needsBotReviewModel") ||
+      affectsCompatibleConfiguration(e, "needsBotReviewChatSession") ||
+      affectsCompatibleConfiguration(e, "readyPromptTemplate")
     ) {
       SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
     }
@@ -2558,7 +2592,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           action.reviewDefaults ?? {},
         );
         SchedulerWebview.updateReviewDefaults(reviewDefaults);
-        notifyInfo("Spot-review template updated.");
+        notifyInfo("Todo workflow prompts updated.");
         SchedulerWebview.switchToTab("settings");
         break;
       }

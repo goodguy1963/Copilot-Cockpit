@@ -94,11 +94,12 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     const telegramNotification = { enabled: true } as any;
     const executionDefaults = { agent: "agent" } as any;
     const reviewDefaults = {
-      spotReviewTemplate: "Spot review request",
-      botReviewPromptTemplate: "Review {{title}}",
-      botReviewAgent: "agent",
-      botReviewModel: "gpt-5",
-      botReviewChatSession: "new",
+      needsBotReviewCommentTemplate: "Needs bot review",
+      needsBotReviewPromptTemplate: "Review {{todo_context}}",
+      needsBotReviewAgent: "agent",
+      needsBotReviewModel: "gpt-5",
+      needsBotReviewChatSession: "new",
+      readyPromptTemplate: "Ready {{todo_context}}",
     } as any;
     const storageSettings = { mode: "json" } as any;
     const researchProfiles = [{ id: "profile-1" }] as any[];
