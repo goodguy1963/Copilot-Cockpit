@@ -116,6 +116,7 @@ import {
   refreshSchedulerWebviewLanguagePanel,
   replayExistingSchedulerWebviewPanel,
 } from "./schedulerWebviewRenderSupport";
+import { createSchedulerWebviewPanel } from "./schedulerWebviewPanelSupport";
 import {
   assignSchedulerWebviewRuntimeState,
   createSchedulerWebviewCatalogState,
@@ -513,41 +514,21 @@ export class SchedulerWebview {
         postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
       });
     } else {
-      // Create new panel
-      this.panel = vscode.window.createWebviewPanel(
-        "copilotScheduler",
-        messages.webviewTitle(),
-        vscode.ViewColumn.One,
-        {
-          enableScripts: true,
-          localResourceRoots: [
-            vscode.Uri.joinPath(extensionUri, "media"),
-            vscode.Uri.joinPath(extensionUri, "images"),
-          ],
-        },
-      );
-
       // New webview instance (or re-created panel) starts as not-ready.
       this.resetWebviewReadyState();
 
-      // Set icon
-      this.panel.iconPath = {
-        light: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
-        dark: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
-      };
-
-      // Set HTML content
-      const htmlContent = this.getWebviewContent(
-        this.panel.webview,
-        tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-
-      // Handle messages from webview (register before setting HTML to avoid races)
-      this.panel.webview.onDidReceiveMessage(
-        async (message: WebviewToExtensionMessage) => {
+      this.panel = createSchedulerWebviewPanel({
+        extensionUri,
+        title: messages.webviewTitle(),
+        renderHtml: (webview) =>
+          this.getWebviewContent(
+            webview,
+            tasks,
+            this.cachedAgents,
+            this.cachedModels,
+            this.cachedPromptTemplates,
+          ),
+        onDidReceiveMessage: async (message: WebviewToExtensionMessage) => {
           try {
             await this.handleMessage(message);
           } catch (error) {
@@ -570,15 +551,10 @@ export class SchedulerWebview {
             );
           }
         },
-      );
-
-      // Set HTML content
-      this.panel.webview.html = htmlContent;
-
-      // Handle panel disposal
-      this.panel.onDidDispose(() => {
-        this.panel = undefined;
-        this.resetWebviewReadyState();
+        onDidDispose: () => {
+          this.panel = undefined;
+          this.resetWebviewReadyState();
+        },
       });
 
       refreshInBackground();

@@ -1,10 +1,12 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import * as os from "os";
-import type { Uri } from "vscode";
 import type { ScheduledTask } from "../../types";
 import * as path from "path";
 import * as vscode from "vscode";
+import {
+  createTempDir,
+  overrideWorkspaceFolders,
+} from "./helpers/vscodeTestHarness";
 
 type TestOnlyExports = typeof import("../../extension").__testOnly;
 
@@ -100,17 +102,6 @@ const promptResolutionCases: PromptResolutionCase[] = [
 
 let cachedTestOnlyExports: TestOnlyExports | undefined;
 
-function writeWorkspaceFolders(folders: Array<{ uri: Uri }> | undefined) {
-  Object.defineProperty(vscode.workspace, "workspaceFolders", {
-    value: folders,
-    configurable: true,
-  });
-}
-
-function restoreWorkspaceFolders(folders: Array<{ uri: Uri }> | undefined) {
-  writeWorkspaceFolders(folders);
-}
-
 function getExtensionEntry() {
   return vscode.extensions.getExtension(cockpitExtensionId);
 }
@@ -153,35 +144,11 @@ function assertDefaultPropertyValue(
   assert.strictEqual(value, expectedValue);
 }
 
-function withWorkspaceFolders(root: string): () => void {
-  const workspaceShape = vscode.workspace as unknown as {
-    workspaceFolders?: Array<{ uri: vscode.Uri }>;
-  };
-  const previousFolders = workspaceShape.workspaceFolders;
-  const replacementFolders = [{ uri: vscode.Uri.file(root) }];
-
-  try {
-    writeWorkspaceFolders(replacementFolders);
-  } catch {
-    // The VS Code host can reject overrides; the test body will surface the failure.
-  }
-
-  const restoreFolders = () => {
-    try {
-      restoreWorkspaceFolders(previousFolders);
-    } catch {
-      // ignore cleanup failure in test host
-    }
-  };
-
-  return restoreFolders;
-}
-
 function createPromptFixtureContext(): PromptFixtureContext {
-  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-cockpit-ext-"));
+  const workspaceRoot = createTempDir("copilot-cockpit-ext-");
   return {
     workspaceRoot,
-    restoreWorkspaceFolders: withWorkspaceFolders(workspaceRoot),
+    restoreWorkspaceFolders: overrideWorkspaceFolders(workspaceRoot),
   };
 }
 
