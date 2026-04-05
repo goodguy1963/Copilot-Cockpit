@@ -1697,8 +1697,21 @@ function notifyWebviewError(message: string): void {
   SchedulerWebview.showError(message);
 }
 
+function notifyCaughtError(error: unknown): void {
+  notifyError(toErrorMessage(error));
+}
+
+function notifyCaughtWebviewError(error: unknown): void {
+  notifyWebviewError(toErrorMessage(error));
+}
+
 function refreshWebviewTasks(): void {
   SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+}
+
+function notifyAndRefreshTaskList(message: string): void {
+  notifyInfo(message);
+  refreshWebviewTasks();
 }
 
 function finishWebviewTaskEdit(message: string): void {
@@ -1864,28 +1877,13 @@ function getGlobalPromptsRoot(): string | undefined {
   );
 }
 
-/**
- * Handle task actions from Webview
- */
 function handleTaskAction(action: TaskAction): void {
   void handleTaskActionAsync(action);
 }
 
-async function confirmManualRunIfWorkspaceMismatch(
-  task: ScheduledTask,
-): Promise<boolean> {
-  if (task.scope !== "workspace") {
-    return true;
-  }
-  if (scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
-    return true;
-  }
-  const choice = await vscode.window.showWarningMessage(
-    messages.confirmRunOutsideWorkspace(task.name),
-    { modal: true },
-    messages.confirmRunAnyway(),
-    messages.actionCancel(),
-  );
+async function confirmManualRunIfWorkspaceMismatch(task: ScheduledTask): Promise<boolean> {
+  if (task.scope !== "workspace" || scheduleManager.shouldTaskRunInCurrentWorkspace(task)) return true;
+  const choice = await vscode.window.showWarningMessage(messages.confirmRunOutsideWorkspace(task.name), { modal: true }, messages.confirmRunAnyway(), messages.actionCancel());
   return choice === messages.confirmRunAnyway();
 }
 
@@ -2551,9 +2549,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       }
     }
   } catch (error) {
-    const errorMessage =
-      toErrorMessage(error);
-    notifyWebviewError(errorMessage);
+    notifyCaughtWebviewError(error);
   }
 }
 
@@ -2570,12 +2566,9 @@ function registerCreateTaskCommand(): vscode.Disposable {
         await maybeWarnCronInterval(input.cronExpression);
         const task = await scheduleManager.createTask(input);
         await maybeShowDisclaimerOnce(task);
-        notifyInfo(messages.taskCreated(task.name));
-        refreshWebviewTasks();
+        notifyAndRefreshTaskList(messages.taskCreated(task.name));
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2634,9 +2627,7 @@ function registerSyncBundledSkillsCommand(
 
         notifyInfo(summary);
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2674,9 +2665,7 @@ function registerCreateTaskGuiCommand(
         // Ensure the '+' command always opens the webview in "new task" mode.
         SchedulerWebview.startCreateTask();
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2693,9 +2682,7 @@ function registerListTasksCommand(
         refreshSchedulerUiState();
         SchedulerWebview.switchToList();
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2726,9 +2713,7 @@ function registerEditTaskCommand(
         refreshSchedulerUiState();
         SchedulerWebview.editTask(taskId);
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2776,13 +2761,10 @@ function registerDeleteTaskCommand(): vscode.Disposable {
 
         if (confirm === messages.confirmDeleteYes()) {
           await scheduleManager.deleteTask(task.id);
-          notifyInfo(messages.taskDeleted(task.name));
-          refreshWebviewTasks();
+          notifyAndRefreshTaskList(messages.taskDeleted(task.name));
         }
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2820,9 +2802,7 @@ function registerToggleTaskCommand(): vscode.Disposable {
           refreshWebviewTasks();
         }
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2854,9 +2834,7 @@ function registerEnableTaskCommand(): vscode.Disposable {
           refreshWebviewTasks();
         }
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2883,13 +2861,10 @@ function registerDisableTaskCommand(): vscode.Disposable {
 
         const task = await scheduleManager.setTaskEnabled(taskId, false);
         if (task) {
-          notifyInfo(messages.taskDisabled(task.name));
-          refreshWebviewTasks();
+          notifyAndRefreshTaskList(messages.taskDisabled(task.name));
         }
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2928,9 +2903,7 @@ function registerRunNowCommand(): vscode.Disposable {
         await scheduleManager.runTaskNow(task.id);
         refreshUiAfterManualRun();
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2962,9 +2935,7 @@ function registerCopyPromptCommand(): vscode.Disposable {
         await vscode.env.clipboard.writeText(promptText);
         notifyInfo(messages.promptCopied());
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -2991,13 +2962,10 @@ function registerDuplicateTaskCommand(): vscode.Disposable {
 
         const duplicated = await scheduleManager.duplicateTask(taskId);
         if (duplicated) {
-          notifyInfo(messages.taskDuplicated(duplicated.name));
-          refreshWebviewTasks();
+          notifyAndRefreshTaskList(messages.taskDuplicated(duplicated.name));
         }
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -3041,12 +3009,9 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
           notifyError(messages.taskNotFound());
           return;
         }
-        notifyInfo(messages.taskMovedToCurrentWorkspace(moved.name));
-        refreshWebviewTasks();
+        notifyAndRefreshTaskList(messages.taskMovedToCurrentWorkspace(moved.name));
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyWebviewError(errorMessage);
+        notifyCaughtWebviewError(error);
       }
     },
   );
@@ -3062,9 +3027,7 @@ function registerOpenSettingsCommand(): vscode.Disposable {
           "@ext:local-dev.copilot-cockpit",
         );
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
@@ -3083,11 +3046,10 @@ function registerShowVersionCommand(
         const version = packageJson.version || "0.0.0";
         notifyInfo(messages.versionInfo(version));
       } catch (error) {
-        const errorMessage =
-          toErrorMessage(error);
-        notifyError(errorMessage);
+        notifyCaughtError(error);
       }
     },
   );
 }
+
 
