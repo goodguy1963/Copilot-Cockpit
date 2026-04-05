@@ -13,68 +13,14 @@ import {
   getPrivateSchedulerConfigPath,
   REDACTED_DISCORD_WEBHOOK_URL,
 } from "../../schedulerJsonSanitizer";
-
-function createMockMemento(seedEntries: ReadonlyArray<[string, unknown]> = []): vscode.Memento {
-  const store = new Map<string, unknown>(seedEntries);
-  return {
-    keys(): readonly string[] {
-      return [...store.keys()];
-    },
-    get<T>(key: string, defaultValue?: T): T | undefined {
-      return store.has(key) ? (store.get(key) as T) : defaultValue;
-    },
-    update(key: string, value: unknown): Thenable<void> {
-      store.set(key, value);
-      return Promise.resolve();
-    },
-  } as vscode.Memento;
-}
-
-function createMockContext(storageRoot: string, scheduledTasks: unknown[] = []): vscode.ExtensionContext {
-  const seedEntries: Array<[string, unknown]> =
-    scheduledTasks.length > 0 ? [["scheduledTasks", scheduledTasks]] : [];
-  return {
-    globalState: createMockMemento(seedEntries),
-    globalStorageUri: vscode.Uri.file(storageRoot),
-  } as unknown as vscode.ExtensionContext;
-}
-
-function setWorkspaceStorageModeForTest(mode: "json" | "sqlite"): () => void {
-  const originalGetConfiguration = vscode.workspace.getConfiguration;
-
-  (vscode.workspace as typeof vscode.workspace & {
-    getConfiguration: typeof vscode.workspace.getConfiguration;
-  }).getConfiguration = ((section?: string, scope?: vscode.ConfigurationScope) => {
-    const original = originalGetConfiguration(section as never, scope as never);
-    if (section !== "copilotCockpit") {
-      return original;
-    }
-
-    return {
-      ...original,
-      get<T>(key: string, defaultValue?: T): T {
-        if (key === "storageMode") {
-          return mode as T;
-        }
-        return original.get<T>(key, defaultValue as T);
-      },
-      inspect<T>(key: string) {
-        if (key === "storageMode") {
-          return {
-            workspaceFolderValue: mode as T,
-          } as ReturnType<typeof original.inspect<T>>;
-        }
-        return original.inspect<T>(key);
-      },
-    } as vscode.WorkspaceConfiguration;
-  }) as typeof vscode.workspace.getConfiguration;
-
-  return () => {
-    (vscode.workspace as typeof vscode.workspace & {
-      getConfiguration: typeof vscode.workspace.getConfiguration;
-    }).getConfiguration = originalGetConfiguration;
-  };
-}
+import {
+  createMockContext,
+  createTempDir,
+  overrideWorkspaceFolders,
+  removeTestPath,
+  removeTestPaths,
+  setWorkspaceStorageModeForTest,
+} from "./helpers/vscodeTestHarness";
 
 function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager {
   const manager = new ScheduleManager(createMockContext(storageRoot));
@@ -82,54 +28,6 @@ function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager 
   (manager as unknown as { getTimeZone: () => string | undefined }).getTimeZone =
     () => "Invalid/Timezone";
   return manager;
-}
-
-function createTempDir(prefix: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-}
-
-function removeTestPath(targetPath: string): void {
-  try {
-    fs.rmSync(targetPath, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 50,
-    });
-  } catch {
-    // ignore cleanup failures in temp test fixtures
-  }
-}
-
-function removeTestPaths(...targetPaths: string[]): void {
-  targetPaths.forEach((targetPath) => removeTestPath(targetPath));
-}
-
-function overrideWorkspaceFolders(...roots: string[]): () => void {
-  const workspace = vscode.workspace as unknown as {
-    workspaceFolders?: Array<{ uri: vscode.Uri }>;
-  };
-  const originalWorkspaceFolders = workspace.workspaceFolders;
-
-  try {
-    Object.defineProperty(vscode.workspace, "workspaceFolders", {
-      value: roots.map((root) => ({ uri: vscode.Uri.file(root) })),
-      configurable: true,
-    });
-  } catch {
-    // ignore
-  }
-
-  return () => {
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: originalWorkspaceFolders,
-        configurable: true,
-      });
-    } catch {
-      // ignore
-    }
-  };
 }
 
 suite("ScheduleManager Minimum Interval Tests", () => {
