@@ -94,6 +94,11 @@ import {
   resetSchedulerWebviewQueueState,
   type SchedulerWebviewMessage,
 } from "./schedulerWebviewSupport";
+import {
+  refreshSchedulerCatalogCaches,
+  refreshSchedulerWebviewLanguagePanel,
+  replayExistingSchedulerWebviewPanel,
+} from "./schedulerWebviewRenderSupport";
 
 type OutgoingWebviewMessage = SchedulerWebviewMessage;
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
@@ -307,32 +312,47 @@ export class SchedulerWebview {
     };
 
     if (this.panel) {
-      // Rebuild the webview when reopening an existing panel so updated bundled
-      // scripts/styles are applied instead of relying on a retained stale context.
-      this.resetWebviewReadyState();
-      this.panel.webview.html = this.getWebviewContent(
-        this.panel.webview,
+      replayExistingSchedulerWebviewPanel({
+        panel: this.panel,
         tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-      this.panel.reveal(vscode.ViewColumn.One);
-      this.updateTasks(tasks);
-      this.updateJobs(jobs);
-      this.updateJobFolders(jobFolders);
-      this.updateCockpitBoard(cockpitBoard);
-      this.updateTelegramNotification(telegramNotification);
-      this.updateExecutionDefaults(executionDefaults);
-      this.updateReviewDefaults(reviewDefaults);
-      this.updateStorageSettings(storageSettings);
-      this.updateResearchState(
+        jobs,
+        jobFolders,
+        cockpitBoard,
+        telegramNotification,
+        executionDefaults,
+        reviewDefaults,
+        storageSettings,
         researchProfiles,
         activeResearchRun,
         recentResearchRuns,
-      );
-      // Send already-cached agents/models/templates without rescanning
-      this.postCachedCatalogMessages();
+        cachedAgents: this.cachedAgents,
+        cachedModels: this.cachedModels,
+        cachedPromptTemplates: this.cachedPromptTemplates,
+        resetReadyState: () => this.resetWebviewReadyState(),
+        renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
+          this.getWebviewContent(
+            webview,
+            currentTasks,
+            agents,
+            models,
+            promptTemplates,
+          ),
+        updateTasks: (currentTasks) => this.updateTasks(currentTasks),
+        updateJobs: (currentJobs) => this.updateJobs(currentJobs),
+        updateJobFolders: (folders) => this.updateJobFolders(folders),
+        updateCockpitBoard: (board) =>
+          this.updateCockpitBoard(board as CockpitBoard),
+        updateTelegramNotification: (notification) =>
+          this.updateTelegramNotification(notification),
+        updateExecutionDefaults: (defaults) =>
+          this.updateExecutionDefaults(defaults),
+        updateReviewDefaults: (defaults) => this.updateReviewDefaults(defaults),
+        updateStorageSettings: (settings) =>
+          this.updateStorageSettings(settings),
+        updateResearchState: (profiles, activeRun, recentRuns) =>
+          this.updateResearchState(profiles, activeRun, recentRuns),
+        postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+      });
     } else {
       // Create new panel
       this.panel = vscode.window.createWebviewPanel(
@@ -533,29 +553,27 @@ export class SchedulerWebview {
    * Refresh language in the webview
    */
   static refreshLanguage(tasks: ScheduledTask[]): void {
-    if (this.panel) {
-      // Re-rendering HTML resets the webview context; wait for the new instance to become ready.
-      this.resetWebviewReadyState();
-
-      // Synchronously rebuild built-in agents/models so the initial HTML
-      // already reflects the new language (U17: avoid stale localized names).
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-
-      // Regenerate HTML with new language
-      this.panel.webview.html = this.getWebviewContent(
-        this.panel.webview,
-        tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-
-      this.postCachedCatalogMessages();
-
-      // Re-fetch agents/models/templates so that localized names reflect the new language
-      void this.refreshCachesAndNotifyPanel(true).catch(() => { });
-    }
+    this.cachedAgents = CopilotExecutor.getBuiltInAgents();
+    this.cachedModels = CopilotExecutor.getFallbackModels();
+    refreshSchedulerWebviewLanguagePanel({
+      panel: this.panel,
+      tasks,
+      cachedAgents: this.cachedAgents,
+      cachedModels: this.cachedModels,
+      cachedPromptTemplates: this.cachedPromptTemplates,
+      resetReadyState: () => this.resetWebviewReadyState(),
+      renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
+        this.getWebviewContent(
+          webview,
+          currentTasks,
+          agents,
+          models,
+          promptTemplates,
+        ),
+      postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+      refreshCachesAndNotifyPanel: (force) =>
+        this.refreshCachesAndNotifyPanel(force),
+    });
   }
 
   /**
@@ -563,28 +581,27 @@ export class SchedulerWebview {
    * Use this for settings changes (e.g., global paths) to avoid resetting form state.
    */
   static async refreshCachesAndNotifyPanel(force = true): Promise<void> {
-    try {
-      await this.refreshAgentsAndModelsCache(force);
-    } catch {
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-    }
-
-    try {
-      await this.refreshPromptTemplatesCache(force);
-    } catch {
-      this.cachedPromptTemplates = [];
-    }
-
-    try {
-      await this.refreshSkillReferencesCache(force);
-    } catch {
-      this.cachedSkillReferences = [];
-    }
-
-    if (!this.panel) return;
-
-    this.postCachedCatalogMessages();
+    await refreshSchedulerCatalogCaches({
+      refreshAgentsAndModelsCache: (refreshForce) =>
+        this.refreshAgentsAndModelsCache(refreshForce),
+      refreshPromptTemplatesCache: (refreshForce) =>
+        this.refreshPromptTemplatesCache(refreshForce),
+      refreshSkillReferencesCache: (refreshForce) =>
+        this.refreshSkillReferencesCache(refreshForce),
+      resetAgentsAndModels: () => {
+        this.cachedAgents = CopilotExecutor.getBuiltInAgents();
+        this.cachedModels = CopilotExecutor.getFallbackModels();
+      },
+      resetPromptTemplates: () => {
+        this.cachedPromptTemplates = [];
+      },
+      resetSkillReferences: () => {
+        this.cachedSkillReferences = [];
+      },
+      panel: this.panel,
+      postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+      force,
+    });
   }
 
   /**
