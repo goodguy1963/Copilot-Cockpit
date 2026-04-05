@@ -1,5 +1,5 @@
 {
     "copilotScheduler.autoShowOnStartup": true,
-    "copilotCockpit.language": "en",
-    "copilotCockpit.logLevel": "none"
+    "copilotCockpit.language": "auto",
+    "copilotCockpit.logLevel": "debug"
 }

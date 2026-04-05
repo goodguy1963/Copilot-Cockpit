@@ -119,11 +119,10 @@
                         "createdAt": "2026-04-05T13:11:05.655Z"
                     }
                 ],
-                "taskId": "task_1775394665589_8trdb5",
                 "archived": false,
                 "approvedAt": "2026-04-05T13:11:05.633Z",
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T13:11:05.589Z"
+                "updatedAt": "2026-04-05T22:21:48.471Z"
             },
             {
                 "id": "todo_mnam08r9_95mmdu",
@@ -1151,7 +1150,7 @@
                 "archived": false,
                 "approvedAt": "2026-04-05T12:33:18.634Z",
                 "createdAt": "2026-04-05T08:31:19.963Z",
-                "updatedAt": "2026-04-05T12:34:00.120Z"
+                "updatedAt": "2026-04-05T23:07:05.388Z"
             },
             {
                 "id": "todo_mnanctyt_pez9mw",
@@ -1311,8 +1310,8 @@
                 "id": "todo_mnkykzwf_7kdb54",
                 "title": "5",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 6,
+                "sectionId": "section_mnc64kul_2dygkl",
+                "order": 1,
                 "priority": "urgent",
                 "status": "active",
                 "labels": [],
@@ -1346,7 +1345,7 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-04T23:23:33.763Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-05T23:01:47.828Z"
             },
             {
                 "id": "todo_mnlgrcql_4eiaae",
@@ -1497,8 +1496,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-05T22:14:31.688Z",
-                "updatedAt": "2026-04-05T22:14:31.688Z"
+                "createdAt": "2026-04-05T23:10:02.317Z",
+                "updatedAt": "2026-04-05T23:10:02.317Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1565,6 +1564,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-05T22:14:31.623Z"
+        "updatedAt": "2026-04-05T23:10:01.470Z"
     }
 }

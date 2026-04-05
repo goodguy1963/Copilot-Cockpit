@@ -378,7 +378,7 @@ const treeAndWorkspaceEntries = {
 const dateTimeFormatOptions: Intl.DateTimeFormatOptions = {
   month: "2-digit",
   day: "2-digit",
-  year: "numeric",
+  year: "numeric", // local-diverge-381
   minute: "2-digit",
   hour: "2-digit",
 };

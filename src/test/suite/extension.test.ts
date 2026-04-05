@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import type { ScheduledTask } from "../../types";
+import type { ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
 import {
@@ -77,11 +77,12 @@ const requiredConfigKeys = [
   "copilotCockpit.autoShowOnStartup",
   "copilotCockpit.defaultAgent",
   "copilotCockpit.defaultModel",
-  "copilotCockpit.spotReviewTemplate",
-  "copilotCockpit.botReviewPromptTemplate",
-  "copilotCockpit.botReviewAgent",
-  "copilotCockpit.botReviewModel",
-  "copilotCockpit.botReviewChatSession",
+  "copilotCockpit.needsBotReviewCommentTemplate",
+  "copilotCockpit.needsBotReviewPromptTemplate",
+  "copilotCockpit.needsBotReviewAgent",
+  "copilotCockpit.needsBotReviewModel",
+  "copilotCockpit.needsBotReviewChatSession",
+  "copilotCockpit.readyPromptTemplate",
   ...requiredConfigDefaults.map(([key]) => key),
 ];
 
@@ -160,7 +161,7 @@ function buildLocalPromptTask(promptPath: string, taskId: string): ScheduledTask
     id: taskId,
     prompt: "FALLBACK",
     cronExpression: "0 * * * *",
-    enabled: true,
+    enabled: true, // local-diverge-163
     promptSource: "local",
     scope: "global",
     promptPath,
@@ -291,97 +292,7 @@ suite("Extension Test Suite", () => {
     }
   });
 
-<<<<<<< HEAD
   test("cockpit and scheduler command aliases are registered", async () => {
-=======
-  test("Auto-show startup setting should be contributed", () => {
-    const extension = vscode.extensions.getExtension(
-      "local-dev.copilot-cockpit",
-    );
-    assert.ok(extension);
-
-    const packageJson = extension!.packageJSON as {
-      contributes?: {
-        configuration?: {
-          properties?: Record<string, unknown>;
-        };
-      };
-    };
-
-    const properties = packageJson.contributes?.configuration?.properties ?? {};
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.autoShowOnStartup",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.defaultAgent",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.defaultModel",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.needsBotReviewCommentTemplate",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.needsBotReviewPromptTemplate",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.needsBotReviewAgent",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.needsBotReviewModel",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.needsBotReviewChatSession",
-      ),
-    );
-    assert.ok(
-      Object.prototype.hasOwnProperty.call(
-        properties,
-        "copilotCockpit.readyPromptTemplate",
-      ),
-    );
-    assert.strictEqual(
-      (properties["copilotCockpit.storageMode"] as { default?: unknown } | undefined)
-        ?.default,
-      "sqlite",
-    );
-    assert.strictEqual(
-      (properties["copilotCockpit.deterministicCockpitStateMode"] as { default?: unknown } | undefined)
-        ?.default,
-      "canonical-primary",
-    );
-    assert.strictEqual(
-      (properties["copilotCockpit.legacyFallbackOnError"] as { default?: unknown } | undefined)
-        ?.default,
-      true,
-    );
-  });
-
-  test("Commands should be registered", async () => {
->>>>>>> main
     const commands = await vscode.commands.getCommands(true);
     const expectedCommands = [
       ...createExpectedCommands("copilotCockpit"),

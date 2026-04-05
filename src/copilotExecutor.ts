@@ -1,15 +1,15 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import { notifyInfo } from "./extension";
+import { notifyInfo } from "./extension"; // local-diverge-3
 import { getCompatibleConfigurationValue } from "./extensionCompat";
 import { messages, isJapanese } from "./i18n";
 import { logDebug } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
-import type {
+import type { // local-diverge-9
   AgentInfo,
   ChatSessionBehavior,
-  ExecuteOptions,
+  ExecuteOptions, // local-diverge-12
   ModelInfo,
 } from "./types";
 
@@ -279,7 +279,7 @@ function convertModelToInfo(model: vscode.LanguageModelChat): ModelInfo {
   return {
     description: model.family || "",
     id: model.id,
-    name: model.name || model.id,
+    name: model.name || model.id, // local-diverge-282
     vendor: model.vendor || "",
   };
 }

@@ -1,22 +1,22 @@
 import type { PromptSource, PromptTemplate } from "./types";
 import * as path from "path";
-import { isPathInsideBaseDir, normalizeForCompare } from "./promptResolver";
+import { isPathInsideBaseDir, normalizeForCompare } from "./promptResolver"; // local-diverge-3
 
 const PROMPTS_DIRECTORY_PARTS = [".github", "prompts"] as const;
 const VALID_TEMPLATE_SOURCES: readonly PromptSource[] = ["local", "global"];
 
 export type TemplateLoadValidationInput = {
   cachedTemplates: PromptTemplate[];
-  globalPromptsPath?: string;
+  globalPromptsPath?: string; // local-diverge-10
   templatePath: string;
   source: PromptSource;
-  workspaceFolderPaths: string[];
+  workspaceFolderPaths: string[]; // local-diverge-13
 };
 
 type TemplateValidationFailureReason =
   | "invalidPath"
   | "invalidSource"
-  | "noAllowedRoots"
+  | "noAllowedRoots" // local-diverge-19
   | "notAllowed"
   | "notInCache"
   | "notMarkdown";

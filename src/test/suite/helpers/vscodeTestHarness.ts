@@ -92,7 +92,12 @@ export function setWorkspaceStorageModeForTest(
 }
 
 export function createTempDir(prefix: string): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const sanitizedPrefix = prefix
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 80);
+  return fs.mkdtempSync(path.join(os.tmpdir(), sanitizedPrefix));
 }
 
 export function removeTestPath(targetPath: string): void {

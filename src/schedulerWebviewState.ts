@@ -76,11 +76,12 @@ export function createDefaultExecutionDefaults(): ExecutionDefaultsView {
 
 export function createDefaultReviewDefaults(): ReviewDefaultsView {
   return {
-    spotReviewTemplate: "",
-    botReviewPromptTemplate: "",
-    botReviewAgent: "agent",
-    botReviewModel: "",
-    botReviewChatSession: "new",
+    needsBotReviewCommentTemplate: "",
+    needsBotReviewPromptTemplate: "",
+    needsBotReviewAgent: "agent",
+    needsBotReviewModel: "",
+    needsBotReviewChatSession: "new",
+    readyPromptTemplate: "",
   };
 }
 

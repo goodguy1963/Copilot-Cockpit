@@ -1,11 +1,11 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import * as os from "os";
+import * as os from "os"; // local-diverge-3
 import * as path from "path";
 import type {} from "../../types";
 import {
   resolveGlobalPromptPath,
-  resolveLocalPromptPath,
+  resolveLocalPromptPath, // local-diverge-8
   resolveAllowedPathInBaseDir,
   resolveGlobalPromptsRoot,
 } from "../../promptResolver";

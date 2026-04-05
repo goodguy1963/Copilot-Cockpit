@@ -216,7 +216,6 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
     }, true);
   }
 
-<<<<<<< HEAD
   var initialCollections = resolveInitialSchedulerCollections(initialData);
   var tasks = initialCollections.tasks;
   var jobs = initialCollections.jobs;
@@ -225,66 +224,11 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
   var telegramNotification = initialCollections.telegramNotification;
   var executionDefaults = initialCollections.executionDefaults;
   var reviewDefaults = initialCollections.reviewDefaults;
-=======
-  var tasks = Array.isArray(initialData.tasks) ? initialData.tasks : [];
-  var jobs = Array.isArray(initialData.jobs) ? initialData.jobs : [];
-  var jobFolders = Array.isArray(initialData.jobFolders)
-    ? initialData.jobFolders
-    : [];
-  var cockpitBoard = initialData.cockpitBoard || {
-    version: 4,
-    sections: [],
-    cards: [],
-    labelCatalog: [],
-    archives: { completedSuccessfully: [], rejected: [] },
-    filters: {
-      labels: [],
-      priorities: [],
-      statuses: [],
-      archiveOutcomes: [],
-      flags: [],
-      sortBy: "manual",
-      sortDirection: "asc",
-      viewMode: "board",
-      showArchived: false,
-      showRecurringTasks: false,
-    },
-    updatedAt: "",
-  };
-  var telegramNotification = initialData.telegramNotification || {
-    enabled: false,
-    hasBotToken: false,
-    hookConfigured: false,
-  };
-  var executionDefaults = initialData.executionDefaults || {
-    agent: "agent",
-    model: "",
-  };
-  var reviewDefaults = initialData.reviewDefaults || {
-    needsBotReviewCommentTemplate: "",
-    needsBotReviewPromptTemplate: "",
-    needsBotReviewAgent: "agent",
-    needsBotReviewModel: "",
-    needsBotReviewChatSession: "new",
-    readyPromptTemplate: "",
-  };
-  function normalizeMcpSetupStatus(value, previousValue) {
-    switch (value) {
-      case "configured":
-      case "missing":
-      case "stale":
-      case "invalid":
-      case "workspace-required":
-        return value;
-      default:
-        return previousValue || "workspace-required";
-    }
-  }
->>>>>>> main
+  var normalizeStorageSettings = createStorageSettingsNormalizer(normalizeTodoLabelKey);
 
   var initialState = createInitialSchedulerWebviewState(
     initialData,
-    createStorageSettingsNormalizer(normalizeTodoLabelKey),
+    normalizeStorageSettings,
   );
   var storageSettings = initialState.storageSettings;
   var researchProfiles = initialState.researchProfiles;
@@ -427,7 +371,6 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
   var pendingTaskListRender = false;
 
   // DOM elements - with null safety
-<<<<<<< HEAD
   var {
     taskForm,
     taskList,
@@ -635,11 +578,12 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
     defaultModelSelect,
     executionDefaultsSaveBtn,
     executionDefaultsNote,
-    spotReviewTemplateInput,
-    botReviewPromptTemplateInput,
-    botReviewAgentSelect,
-    botReviewModelSelect,
-    botReviewChatSessionSelect,
+    needsBotReviewCommentTemplateInput,
+    needsBotReviewPromptTemplateInput,
+    needsBotReviewAgentSelect,
+    needsBotReviewModelSelect,
+    needsBotReviewChatSessionSelect,
+    readyPromptTemplateInput,
     reviewDefaultsSaveBtn,
     reviewDefaultsNote,
     settingsStorageModeSelect,
@@ -666,245 +610,6 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
     boardSectionCancelBtn,
     cockpitColSlider,
   } = createSchedulerWebviewDomRefs(document);
-=======
-  var taskForm = document.getElementById("task-form");
-  var taskList = document.getElementById("task-list");
-  var editTaskIdInput = document.getElementById("edit-task-id");
-  var submitBtn = document.getElementById("submit-btn");
-  var testBtn = document.getElementById("test-btn");
-  var refreshBtn = document.getElementById("refresh-btn");
-  var autoShowStartupBtn = document.getElementById("auto-show-startup-btn");
-  var scheduleHistorySelect = document.getElementById("schedule-history-select");
-  var restoreHistoryBtn = document.getElementById("restore-history-btn");
-  var autoShowStartupNote = document.getElementById("auto-show-startup-note");
-  var friendlyBuilder = document.getElementById("friendly-builder");
-  var cronPreset = document.getElementById("cron-preset");
-  var cronExpression = document.getElementById("cron-expression");
-  var agentSelect = document.getElementById("agent-select");
-  var modelSelect = document.getElementById("model-select");
-  var chatSessionGroup = document.getElementById("chat-session-group");
-  var chatSessionSelect = document.getElementById("chat-session");
-  var templateSelect = document.getElementById("template-select");
-  var templateSelectGroup = document.getElementById("template-select-group");
-  var templateRefreshBtn = document.getElementById("template-refresh-btn");
-  var skillSelect = document.getElementById("skill-select");
-  var insertSkillBtn = document.getElementById("insert-skill-btn");
-  var setupMcpBtn = document.getElementById("setup-mcp-btn");
-  var syncBundledSkillsBtn = document.getElementById("sync-bundled-skills-btn");
-  var importStorageFromJsonBtn = document.getElementById("import-storage-from-json-btn");
-  var exportStorageToJsonBtn = document.getElementById("export-storage-to-json-btn");
-  var helpLanguageSelect = document.getElementById("help-language-select");
-  var settingsLanguageSelect = document.getElementById("settings-language-select");
-  var helpWarpLayer = document.getElementById("help-warp-layer");
-  var helpIntroRocket = document.getElementById("help-intro-rocket");
-  var promptGroup = document.getElementById("prompt-group");
-  var promptTextEl = document.getElementById("prompt-text");
-  var jitterSecondsInput = document.getElementById("jitter-seconds");
-  var friendlyFrequency = document.getElementById("friendly-frequency");
-  var friendlyInterval = document.getElementById("friendly-interval");
-  var friendlyMinute = document.getElementById("friendly-minute");
-  var friendlyHour = document.getElementById("friendly-hour");
-  var friendlyDow = document.getElementById("friendly-dow");
-  var friendlyDom = document.getElementById("friendly-dom");
-  var friendlyGenerate = document.getElementById("friendly-generate");
-  var openGuruBtn = document.getElementById("open-guru-btn");
-  var cronPreviewText = document.getElementById("cron-preview-text");
-  var newTaskBtn = document.getElementById("new-task-btn");
-  var taskFilterBar = document.getElementById("task-filter-bar");
-  var taskLabelFilter = document.getElementById("task-label-filter");
-  var taskLabelsInput = document.getElementById("task-labels");
-  var jobsFolderList = document.getElementById("jobs-folder-list");
-  var jobsCurrentFolderBanner = document.getElementById("jobs-current-folder-banner");
-  var jobsList = document.getElementById("jobs-list");
-  var jobsEmptyState = document.getElementById("jobs-empty-state");
-  var jobsDetails = document.getElementById("jobs-details");
-  var jobsLayout = document.getElementById("jobs-layout");
-  var jobsToggleSidebarBtn = document.getElementById("jobs-toggle-sidebar-btn");
-  var jobsShowSidebarBtn = document.getElementById("jobs-show-sidebar-btn");
-  var jobsNewFolderBtn = document.getElementById("jobs-new-folder-btn");
-  var jobsRenameFolderBtn = document.getElementById("jobs-rename-folder-btn");
-  var jobsDeleteFolderBtn = document.getElementById("jobs-delete-folder-btn");
-  var jobsNewJobBtn = document.getElementById("jobs-new-job-btn");
-  var jobsSaveBtn = document.getElementById("jobs-save-btn");
-  var jobsSaveDeckBtn = document.getElementById("jobs-save-deck-btn");
-  var jobsDuplicateBtn = document.getElementById("jobs-duplicate-btn");
-  var jobsPauseBtn = document.getElementById("jobs-pause-btn");
-  var jobsCompileBtn = document.getElementById("jobs-compile-btn");
-  var jobsDeleteBtn = document.getElementById("jobs-delete-btn");
-  var jobsBackBtn = document.getElementById("jobs-back-btn");
-  var jobsOpenEditorBtn = document.getElementById("jobs-open-editor-btn");
-  var tabBar = document.querySelector(".tab-bar");
-  var boardFilterSticky = document.getElementById("board-filter-sticky");
-  var boardSummary = document.getElementById("board-summary");
-  var boardColumns = document.getElementById("board-columns");
-  var todoToggleFiltersBtn = document.getElementById("todo-toggle-filters-btn");
-  var todoSearchInput = document.getElementById("todo-search-input");
-  var todoSectionFilter = document.getElementById("todo-section-filter");
-  var todoLabelFilter = document.getElementById("todo-label-filter");
-  var todoFlagFilter = document.getElementById("todo-flag-filter");
-  var todoPriorityFilter = document.getElementById("todo-priority-filter");
-  var todoStatusFilter = document.getElementById("todo-status-filter");
-  var todoArchiveOutcomeFilter = document.getElementById("todo-archive-outcome-filter");
-  var todoSortBy = document.getElementById("todo-sort-by");
-  var todoSortDirection = document.getElementById("todo-sort-direction");
-  var todoViewMode = document.getElementById("todo-view-mode");
-  var todoShowRecurringTasks = document.getElementById("todo-show-recurring-tasks");
-  var todoShowArchived = document.getElementById("todo-show-archived");
-  var todoHideCardDetails = document.getElementById("todo-hide-card-details");
-  var todoNewBtn = document.getElementById("todo-new-btn");
-  var todoClearSelectionBtn = document.getElementById("todo-clear-selection-btn");
-  var todoClearFiltersBtn = document.getElementById("todo-clear-filters-btn");
-  var todoBackBtn = document.getElementById("todo-back-btn");
-  var todoDetailTitle = document.getElementById("todo-detail-title");
-  var todoDetailModeNote = document.getElementById("todo-detail-mode-note");
-  var todoDetailForm = document.getElementById("todo-detail-form");
-  var todoDetailId = document.getElementById("todo-detail-id");
-  var todoTitleInput = document.getElementById("todo-title-input");
-  var todoDescriptionInput = document.getElementById("todo-description-input");
-  var todoDueInput = document.getElementById("todo-due-input");
-  var todoPriorityInput = document.getElementById("todo-priority-input");
-  var todoSectionInput = document.getElementById("todo-section-input");
-  var todoLinkedTaskSelect = document.getElementById("todo-linked-task-select");
-  var todoDetailStatus = document.getElementById("todo-detail-status");
-  var todoLabelChipList = document.getElementById("todo-label-chip-list");
-  var todoLabelsInput = document.getElementById("todo-labels-input");
-  var todoLabelSuggestions = document.getElementById("todo-label-suggestions");
-  var todoLabelColorInput = document.getElementById("todo-label-color-input");
-  var todoLabelAddBtn = document.getElementById("todo-label-add-btn");
-  var todoLabelColorSaveBtn = document.getElementById("todo-label-color-save-btn");
-  var todoLabelCatalog = document.getElementById("todo-label-catalog");
-  var todoFlagNameInput = document.getElementById("todo-flag-name-input");
-  var todoFlagColorInput = document.getElementById("todo-flag-color-input");
-  var todoFlagAddBtn = document.getElementById("todo-flag-add-btn");
-  var todoFlagColorSaveBtn = document.getElementById("todo-flag-color-save-btn");
-  var todoLinkedTaskNote = document.getElementById("todo-linked-task-note");
-  var todoSaveBtn = document.getElementById("todo-save-btn");
-  var todoCreateTaskBtn = document.getElementById("todo-create-task-btn");
-  var todoCompleteBtn = document.getElementById("todo-complete-btn");
-  var todoDeleteBtn = document.getElementById("todo-delete-btn");
-  var todoUploadFilesBtn = document.getElementById("todo-upload-files-btn");
-  var todoUploadFilesNote = document.getElementById("todo-upload-files-note");
-  var todoCommentList = document.getElementById("todo-comment-list");
-  var todoCommentInput = document.getElementById("todo-comment-input");
-  var todoAddCommentBtn = document.getElementById("todo-add-comment-btn");
-  var todoCommentCountBadge = document.getElementById("todo-comment-count-badge");
-  var todoCommentModePill = document.getElementById("todo-comment-mode-pill");
-  var todoCommentContextNote = document.getElementById("todo-comment-context-note");
-  var todoCommentComposerTitle = document.getElementById("todo-comment-composer-title");
-  var todoCommentComposerNote = document.getElementById("todo-comment-composer-note");
-  var todoCommentDraftStatus = document.getElementById("todo-comment-draft-status");
-  var todoCommentThreadNote = document.getElementById("todo-comment-thread-note");
-  var jobsNameInput = document.getElementById("jobs-name-input");
-  var jobsCronPreset = document.getElementById("jobs-cron-preset");
-  var jobsCronInput = document.getElementById("jobs-cron-input");
-  var jobsCronPreviewText = document.getElementById("jobs-cron-preview-text");
-  var jobsOpenGuruBtn = document.getElementById("jobs-open-guru-btn");
-  var jobsFriendlyBuilder = document.getElementById("jobs-friendly-builder");
-  var jobsFriendlyFrequency = document.getElementById("jobs-friendly-frequency");
-  var jobsFriendlyInterval = document.getElementById("jobs-friendly-interval");
-  var jobsFriendlyMinute = document.getElementById("jobs-friendly-minute");
-  var jobsFriendlyHour = document.getElementById("jobs-friendly-hour");
-  var jobsFriendlyDow = document.getElementById("jobs-friendly-dow");
-  var jobsFriendlyDom = document.getElementById("jobs-friendly-dom");
-  var jobsFriendlyGenerate = document.getElementById("jobs-friendly-generate");
-  var jobsFolderSelect = document.getElementById("jobs-folder-select");
-  var jobsStatusPill = document.getElementById("jobs-status-pill");
-  var jobsTimelineInline = document.getElementById("jobs-timeline-inline");
-  var jobsWorkflowMetrics = document.getElementById("jobs-workflow-metrics");
-  var jobsStepList = document.getElementById("jobs-step-list");
-  var jobsPauseNameInput = document.getElementById("jobs-pause-name-input");
-  var jobsCreatePauseBtn = document.getElementById("jobs-create-pause-btn");
-  var jobsExistingTaskSelect = document.getElementById("jobs-existing-task-select");
-  var jobsExistingWindowInput = document.getElementById("jobs-existing-window-input");
-  var jobsAttachBtn = document.getElementById("jobs-attach-btn");
-  var jobsStepNameInput = document.getElementById("jobs-step-name-input");
-  var jobsStepWindowInput = document.getElementById("jobs-step-window-input");
-  var jobsStepPromptInput = document.getElementById("jobs-step-prompt-input");
-  var jobsStepAgentSelect = document.getElementById("jobs-step-agent-select");
-  var jobsStepModelSelect = document.getElementById("jobs-step-model-select");
-  var jobsStepLabelsInput = document.getElementById("jobs-step-labels-input");
-  var jobsCreateStepBtn = document.getElementById("jobs-create-step-btn");
-  var researchNewBtn = document.getElementById("research-new-btn");
-  var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");
-  var researchSaveBtn = document.getElementById("research-save-btn");
-  var researchDuplicateBtn = document.getElementById("research-duplicate-btn");
-  var researchDeleteBtn = document.getElementById("research-delete-btn");
-  var researchStartBtn = document.getElementById("research-start-btn");
-  var researchStopBtn = document.getElementById("research-stop-btn");
-  var researchEditIdInput = document.getElementById("research-edit-id");
-  var researchNameInput = document.getElementById("research-name");
-  var researchInstructionsInput = document.getElementById("research-instructions");
-  var researchEditablePathsInput = document.getElementById("research-editable-paths");
-  var researchBenchmarkInput = document.getElementById("research-benchmark-command");
-  var researchMetricPatternInput = document.getElementById("research-metric-pattern");
-  var researchMetricDirectionSelect = document.getElementById("research-metric-direction");
-  var researchMaxIterationsInput = document.getElementById("research-max-iterations");
-  var researchMaxMinutesInput = document.getElementById("research-max-minutes");
-  var researchMaxFailuresInput = document.getElementById("research-max-failures");
-  var researchBenchmarkTimeoutInput = document.getElementById("research-benchmark-timeout");
-  var researchEditWaitInput = document.getElementById("research-edit-wait");
-  var researchAgentSelect = document.getElementById("research-agent-select");
-  var researchModelSelect = document.getElementById("research-model-select");
-  var researchProfileList = document.getElementById("research-profile-list");
-  var researchRunList = document.getElementById("research-run-list");
-  var researchRunTitle = document.getElementById("research-run-title");
-  var researchFormError = document.getElementById("research-form-error");
-  var researchActiveEmpty = document.getElementById("research-active-empty");
-  var researchActiveDetails = document.getElementById("research-active-details");
-  var researchActiveStatus = document.getElementById("research-active-status");
-  var researchActiveBest = document.getElementById("research-active-best");
-  var researchActiveAttempts = document.getElementById("research-active-attempts");
-  var researchActiveLastOutcome = document.getElementById("research-active-last-outcome");
-  var researchActiveMeta = document.getElementById("research-active-meta");
-  var researchAttemptList = document.getElementById("research-attempt-list");
-  var telegramEnabledInput = document.getElementById("telegram-enabled");
-  var telegramBotTokenInput = document.getElementById("telegram-bot-token");
-  var telegramChatIdInput = document.getElementById("telegram-chat-id");
-  var telegramMessagePrefixInput = document.getElementById("telegram-message-prefix");
-  var telegramSaveBtn = document.getElementById("telegram-save-btn");
-  var telegramTestBtn = document.getElementById("telegram-test-btn");
-  var telegramFeedback = document.getElementById("telegram-feedback");
-  var telegramTokenStatus = document.getElementById("telegram-token-status");
-  var telegramChatStatus = document.getElementById("telegram-chat-status");
-  var telegramHookStatus = document.getElementById("telegram-hook-status");
-  var telegramUpdatedAt = document.getElementById("telegram-updated-at");
-  var telegramStatusNote = document.getElementById("telegram-status-note");
-  var defaultAgentSelect = document.getElementById("default-agent-select");
-  var defaultModelSelect = document.getElementById("default-model-select");
-  var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
-  var executionDefaultsNote = document.getElementById("execution-defaults-note");
-  var needsBotReviewCommentTemplateInput = document.getElementById("needs-bot-review-comment-template-input");
-  var needsBotReviewPromptTemplateInput = document.getElementById("needs-bot-review-prompt-template-input");
-  var needsBotReviewAgentSelect = document.getElementById("needs-bot-review-agent-select");
-  var needsBotReviewModelSelect = document.getElementById("needs-bot-review-model-select");
-  var needsBotReviewChatSessionSelect = document.getElementById("needs-bot-review-chat-session-select");
-  var readyPromptTemplateInput = document.getElementById("ready-prompt-template-input");
-  var reviewDefaultsSaveBtn = document.getElementById("review-defaults-save-btn");
-  var reviewDefaultsNote = document.getElementById("review-defaults-note");
-  var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
-  var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
-  var settingsFlagReadyInput = document.getElementById("settings-flag-ready-input");
-  var settingsFlagNeedsBotReviewInput = document.getElementById("settings-flag-needs-bot-review-input");
-  var settingsFlagNeedsUserReviewInput = document.getElementById("settings-flag-needs-user-review-input");
-  var settingsFlagNewInput = document.getElementById("settings-flag-new-input");
-  var settingsFlagOnScheduleListInput = document.getElementById("settings-flag-on-schedule-list-input");
-  var settingsFlagFinalUserCheckInput = document.getElementById("settings-flag-final-user-check-input");
-  var settingsStorageSaveBtn = document.getElementById("settings-storage-save-btn");
-  var settingsStorageNote = document.getElementById("settings-storage-note");
-  var settingsVersionValue = document.getElementById("settings-version-value");
-  var settingsMcpStatusValue = document.getElementById("settings-mcp-status-value");
-  var settingsMcpUpdatedValue = document.getElementById("settings-mcp-updated-value");
-  var settingsSkillsUpdatedValue = document.getElementById("settings-skills-updated-value");
-  var settingsLogLevelSelect = document.getElementById("settings-log-level-select");
-  var settingsLogDirectoryInput = document.getElementById("settings-log-directory");
-  var settingsOpenLogFolderBtn = document.getElementById("settings-open-log-folder-btn");
-  var boardAddSectionBtn = document.getElementById("board-add-section-btn");
-  var boardSectionInlineForm = document.getElementById("board-section-inline-form");
-  var boardSectionNameInput = document.getElementById("board-section-name-input");
-  var boardSectionSaveBtn = document.getElementById("board-section-save-btn");
-  var boardSectionCancelBtn = document.getElementById("board-section-cancel-btn");
-  var cockpitColSlider = document.getElementById("cockpit-col-slider");
->>>>>>> main
 
   // Restore persisted column width\n  (function () {\n    var savedWidth = localStorage.getItem(\"cockpit-col-width\");\n    if (savedWidth) {\n      var w = Number(savedWidth);\n      document.documentElement.style.setProperty(\"--cockpit-col-width\", w + \"px\");\n      var font = Math.round(10 + (w - 180) * 3 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-col-font\", font + \"px\");\n      var pad = Math.round(8 + (w - 180) * 6 / 340);\n      document.documentElement.style.setProperty(\"--cockpit-card-pad\", pad + \"px\");\n      if (cockpitColSlider) cockpitColSlider.value = savedWidth;\n    }\n  })();
 
@@ -1532,8 +1237,12 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
   }
 
   function renderExecutionDefaultsControls() {
+    var agentSelectEl = defaultAgentSelect || document.getElementById("default-agent-select");
+    var modelSelectEl = defaultModelSelect || document.getElementById("default-model-select");
+    var executionDefaultsNoteEl = executionDefaultsNote || document.getElementById("execution-defaults-note");
+
     updateSimpleSelect(
-      defaultAgentSelect,
+      agentSelectEl,
       agents,
       strings.placeholderSelectAgent || "Select agent",
       executionDefaults && typeof executionDefaults.agent === "string"
@@ -1548,7 +1257,7 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
     );
 
     updateSimpleSelect(
-      defaultModelSelect,
+      modelSelectEl,
       models,
       strings.placeholderSelectModel || "Select model",
       executionDefaults && typeof executionDefaults.model === "string"
@@ -1562,8 +1271,8 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
       },
     );
 
-    if (executionDefaultsNote) {
-      executionDefaultsNote.textContent = strings.executionDefaultsSaved
+    if (executionDefaultsNoteEl) {
+      executionDefaultsNoteEl.textContent = strings.executionDefaultsSaved
         || "Workspace default agent and model settings.";
     }
   }
@@ -2167,21 +1876,22 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
   }
 
   restoreTaskFilter();
-  applyBoardFilterCollapseState();
-  syncAutoShowOnStartupUi();
-  syncScheduleHistoryOptions();
-  updateJobsCronPreview();
-  updateJobsFriendlyVisibility();
-  syncResearchSelectors();
-  hookResearchFormDirtyTracking();
-  hookEditorTabDirtyTracking();
-  renderResearchTab();
-  renderTelegramTab();
-  renderCockpitBoard();
-  renderExecutionDefaultsControls();
-  renderReviewDefaultsControls();
-  renderStorageSettingsControls();
-  renderLoggingControls();
+  bindTabButtons(document, switchTab);
+  runStartupRenderStep("applyBoardFilterCollapseState", applyBoardFilterCollapseState);
+  runStartupRenderStep("syncAutoShowOnStartupUi", syncAutoShowOnStartupUi);
+  runStartupRenderStep("syncScheduleHistoryOptions", syncScheduleHistoryOptions);
+  runStartupRenderStep("updateJobsCronPreview", updateJobsCronPreview);
+  runStartupRenderStep("updateJobsFriendlyVisibility", updateJobsFriendlyVisibility);
+  runStartupRenderStep("syncResearchSelectors", syncResearchSelectors);
+  runStartupRenderStep("hookResearchFormDirtyTracking", hookResearchFormDirtyTracking);
+  runStartupRenderStep("hookEditorTabDirtyTracking", hookEditorTabDirtyTracking);
+  runStartupRenderStep("renderResearchTab", renderResearchTab);
+  runStartupRenderStep("renderTelegramTab", renderTelegramTab);
+  runStartupRenderStep("renderCockpitBoard", renderCockpitBoard);
+  runStartupRenderStep("renderExecutionDefaultsControls", renderExecutionDefaultsControls);
+  runStartupRenderStep("renderReviewDefaultsControls", renderReviewDefaultsControls);
+  runStartupRenderStep("renderStorageSettingsControls", renderStorageSettingsControls);
+  runStartupRenderStep("renderLoggingControls", renderLoggingControls);
 
   function parseTagList(text) {
     if (!text) return [];
@@ -2257,6 +1967,24 @@ import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransien
     return cockpitBoard && Array.isArray(cockpitBoard.cards)
       ? cockpitBoard.cards.slice()
       : [];
+  }
+
+
+  function runStartupRenderStep(stepName, runStep) {
+    try {
+      runStep();
+    } catch (error) {
+      emitWebviewDebug("startupRenderStepFailed", {
+        step: stepName,
+        error: error && error.message ? String(error.message) : String(error),
+      });
+      var prefix = strings.webviewClientErrorPrefix || "Webview error: ";
+      var detail = error && error.message ? error.message : error;
+      var firstLine = String(detail || "").split(/\r?\n/)[0];
+      showGlobalError(prefix + sanitizeAbsolutePaths(stepName + ": " + firstLine), {
+        durationMs: 0,
+      });
+    }
   }
 
   function getVisibleTodoCards(filters) {
@@ -5183,8 +4911,6 @@ syncTodoLabelSuggestions();
     syncRecurringChatSessionUi();
   });
 
-  bindTabButtons(document, switchTab);
-
   bindTaskFilterBar(taskFilterBar, {
     syncTaskFilterButtons: syncTaskFilterButtons,
     isValidTaskFilter: isValidTaskFilter,
@@ -6689,10 +6415,13 @@ syncTodoLabelSuggestions();
   }
 
   // Helper functions
-  var htmlEscapeNode = document.createElement("div");
+  var htmlEscapeNode = null;
 
   function escapeHtml(text) {
     if (text == null) return "";
+    if (!htmlEscapeNode) {
+      htmlEscapeNode = document.createElement("div");
+    }
     htmlEscapeNode.textContent = String(text);
     return htmlEscapeNode.innerHTML;
   }

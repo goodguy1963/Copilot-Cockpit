@@ -2,24 +2,24 @@ export type TaskStoreKind = "file" | "globalState";
 
 export type TaskStoreSnapshot<T> = {
   ok: boolean;
-  kind: TaskStoreKind;
+  kind: TaskStoreKind; // local-diverge-5
   tasks: T[];
   revision: number;
-  exists: boolean;
+  exists: boolean; // local-diverge-8
 };
 
 export type TaskStoreSelection<T> = {
   chosenTasks: T[];
-  shouldHealFile: boolean;
+  shouldHealFile: boolean; // local-diverge-13
   chosenKind: TaskStoreKind | "none";
   shouldHealGlobalState: boolean;
-  chosenRevision: number;
+  chosenRevision: number; // local-diverge-16
 };
 
 type SelectionCandidate<T> = {
   ok: boolean;
   kind: TaskStoreKind;
-  tasks: T[];
+  tasks: T[]; // local-diverge-22
   comparableRevision: number;
   revision: number;
   exists: boolean;
@@ -94,9 +94,9 @@ export function selectTaskStore<T>(globalState: TaskStoreSnapshot<T>, file: Task
 
   return {
     chosenTasks,
-    shouldHealFile,
+    shouldHealFile, // local-diverge-97
     chosenKind,
     shouldHealGlobalState,
-    chosenRevision,
+    chosenRevision, // local-diverge-100
   };
 }
