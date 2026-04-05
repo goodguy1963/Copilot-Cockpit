@@ -1,0 +1,2537 @@
+export function buildSchedulerWebviewExtendedStyles(): string {
+  return `
+    .board-columns-shell {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: visible;
+      padding-bottom: 10px;
+      min-height: 200px;
+    }
+
+    .cockpit-card-details {
+      display: block;
+    }
+
+    .cockpit-board-hide-card-details .cockpit-card-details,
+    .cockpit-board-compact-details .cockpit-card-details {
+      display: none;
+    }
+
+    .board-filter-sticky {
+      position: sticky;
+      top: var(--cockpit-tab-bar-sticky-top, 0px);
+      z-index: 24;
+      display: grid;
+      gap: 8px;
+      background: var(--vscode-sideBar-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding: 8px 0 6px;
+      margin-bottom: 8px;
+    }
+
+    .board-filter-sticky.is-collapsed {
+      padding-bottom: 4px;
+    }
+
+    .board-filter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      width: 100%;
+      max-width: 1600px;
+    }
+
+    .board-filter-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .board-filter-body {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .board-filter-grid-shell {
+      min-width: 0;
+    }
+
+    .board-filter-sticky.is-collapsed .board-filter-grid-shell {
+      display: none;
+    }
+
+    .board-filter-footer {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .board-filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      align-items: end;
+      max-width: 1600px;
+      min-width: 0;
+    }
+
+    .board-filter-grid .form-group {
+      margin: 0;
+      min-width: 0;
+    }
+
+    .board-filter-grid .board-filter-search {
+      grid-column: span 2;
+      min-width: 220px;
+    }
+
+    .board-filter-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      margin-top: 6px;
+      max-width: 1600px;
+      min-width: 0;
+    }
+
+    .board-filter-primary-actions {
+      display: flex;
+      flex: 1 1 340px;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .board-filter-view-group {
+      display: flex;
+      justify-content: center;
+      flex: 0 1 160px;
+      min-width: 140px;
+    }
+
+    .board-filter-view-group .form-group {
+      width: 100%;
+      max-width: 140px;
+      margin: 0;
+      min-width: 110px;
+    }
+
+    .board-filter-options {
+      display: flex;
+      flex: 1 1 340px;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 0;
+    }
+
+    .board-filter-options label {
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .board-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .board-col-width-group {
+      display: flex;
+      align-items: center;
+      flex: 0 1 220px;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      min-width: 170px;
+    }
+
+    .board-col-width-group input[type="range"] {
+      width: min(100%, 140px);
+      flex: 1 1 120px;
+      cursor: pointer;
+    }
+
+    .todo-list-view {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .todo-list-section {
+      border-radius: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editorWidget-background);
+      overflow: visible;
+    }
+
+    .section-body-wrapper {
+      display: grid;
+      grid-template-rows: 1fr;
+      min-height: 0;
+      transition: grid-template-rows 0.18s ease, opacity 0.18s ease;
+    }
+
+    .section-body-wrapper.collapsed {
+      grid-template-rows: 0fr;
+      opacity: 0;
+    }
+
+    .section-body-inner {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .todo-list-section.is-collapsed .todo-list-items {
+      padding-bottom: 0;
+    }
+
+    .todo-list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 var(--cockpit-card-pad, 9px) var(--cockpit-card-pad, 9px);
+    }
+
+    .todo-list-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
+    }
+
+    .todo-list-row:active {
+      cursor: grabbing;
+    }
+
+    .todo-list-main {
+      width: 100%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .todo-list-title-line {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .todo-list-title-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .todo-list-meta-trail {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 6px;
+      align-items: center;
+      justify-content: flex-end;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
+
+    .todo-list-title {
+      min-width: 0;
+      font-weight: 600;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1 1 220px;
+    }
+
+    .todo-list-summary {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 1;
+      overflow: hidden;
+      line-clamp: 1;
+      min-height: 1.2em;
+      min-width: 0;
+      flex: 1 1 auto;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.4;
+    }
+
+    .todo-list-card-details {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .todo-list-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .todo-list-chip-row .card-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .todo-list-detail-line {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: flex-start;
+      min-width: 0;
+    }
+
+    .todo-list-detail-line strong {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-list-detail-line-comment .todo-list-summary {
+      font-style: italic;
+    }
+
+    .card-labels {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--cockpit-chip-gap, 4px);
+      min-width: 0;
+    }
+
+    .card-labels [data-label-slot] {
+      display: inline-flex;
+      min-width: 0;
+    }
+
+    [data-label-chip],
+    [data-flag-chip] {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--cockpit-chip-gap, 4px);
+      max-width: 100%;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: var(--cockpit-chip-font, inherit);
+    }
+
+    [data-label-chip] {
+      padding: var(--cockpit-label-pad-y, 2px) var(--cockpit-label-pad-x, 7px);
+    }
+
+    [data-flag-chip] > span:first-child {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    [data-label-chip-select] {
+      max-width: 100%;
+    }
+
+    .todo-list-actions {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(28px, 1fr);
+      gap: 6px;
+      width: max-content;
+      min-width: max-content;
+      align-self: start;
+    }
+
+    .todo-list-actions.has-single-action {
+      grid-auto-columns: minmax(28px, 1fr);
+    }
+
+    .todo-list-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      min-width: 28px;
+      padding: 3px 6px !important;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer !important;
+    }
+
+    .todo-card-icon-btn {
+      min-height: 24px !important;
+      padding: 2px 0 !important;
+      font-size: 12px !important;
+      line-height: 1 !important;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent) !important;
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+        0 1px 2px color-mix(in srgb, #000000 18%, transparent);
+      filter: saturate(1.08) brightness(1.05);
+      transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    }
+
+    .todo-card-icon-btn:hover,
+    .todo-card-icon-btn:focus-visible {
+      box-shadow:
+        inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent),
+        0 2px 6px color-mix(in srgb, #000000 22%, transparent);
+      filter: saturate(1.14) brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .cockpit-section-header {
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      gap: 6px;
+      cursor: grab;
+      user-select: none;
+      min-width: 0;
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+    }
+
+    .todo-list-section .cockpit-section-header {
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .todo-list-section .cockpit-section-title-group {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .todo-list-section .cockpit-section-title {
+      display: block;
+    }
+
+    .todo-list-section .cockpit-section-count {
+      margin-left: auto;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-list-section .cockpit-section-actions {
+      margin-left: 0;
+      align-self: flex-start;
+    }
+
+    .todo-list-section.is-collapsed .cockpit-section-actions {
+      display: none;
+    }
+
+    .cockpit-board-hide-card-details .todo-list-card-details,
+    .cockpit-board-compact-details .todo-list-card-details {
+      display: none;
+    }
+
+    .board-column .cockpit-section-header {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cockpit-section-header:active {
+      cursor: grabbing;
+    }
+
+    .cockpit-section-header strong {
+      padding-left: 2px;
+    }
+
+    .cockpit-section-title-group {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .cockpit-section-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .cockpit-section-count {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .cockpit-drag-handle {
+      flex: 0 0 auto;
+      touch-action: none;
+    }
+
+    .cockpit-collapse-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border: none;
+      background: transparent;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      border-radius: 3px;
+      flex-shrink: 0;
+      padding: 0;
+      opacity: 0.6;
+      transition: opacity 0.12s, transform 0.2s ease;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .cockpit-collapse-btn:hover {
+      opacity: 1;
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .cockpit-collapse-btn.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    @media (max-width: 760px) {
+      .todo-list-row {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-list-actions {
+        width: 100%;
+        min-width: 0;
+        grid-auto-columns: minmax(0, 1fr);
+      }
+
+      .todo-list-action-btn {
+        width: 100%;
+      }
+    }
+
+    section[data-section-id] {
+      transition: none;
+    }
+
+    section[data-section-id].section-dragging {
+      opacity: 0.4;
+    }
+
+    section[data-section-id].section-drag-over {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) !important;
+    }
+
+    body.cockpit-board-dragging,
+    body.cockpit-board-dragging * {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: grabbing !important;
+    }
+
+    article[data-todo-id] {
+      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
+    }
+
+    article[data-todo-id][data-selected="true"] {
+      box-shadow:
+        inset 0 0 0 1px var(--vscode-focusBorder),
+        0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+      background-clip: padding-box;
+    }
+
+    article[data-todo-id].todo-dragging {
+      opacity: 0.35;
+      transform: rotate(1.5deg) scale(0.97) !important;
+    }
+
+    @media (max-width: 1180px) {
+      .board-filter-footer {
+        gap: 4px;
+      }
+
+      .board-filter-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+        gap: 8px 10px;
+        align-items: end;
+        margin-top: 2px;
+      }
+
+      .board-filter-primary-actions {
+        grid-column: 1 / 3;
+        flex: none;
+        gap: 6px;
+      }
+
+      .board-filter-view-group {
+        grid-column: 3;
+        justify-content: flex-end;
+        min-width: 112px;
+      }
+
+      .board-filter-view-group .form-group {
+        max-width: 112px;
+        min-width: 112px;
+      }
+
+      .board-filter-options {
+        grid-column: 1 / 3;
+        flex: none;
+        gap: 4px 10px;
+        justify-content: flex-start;
+        align-items: center;
+        font-size: 11px;
+      }
+
+      .board-col-width-group {
+        grid-column: 3;
+        flex: none;
+        min-width: 132px;
+        justify-content: flex-end;
+        gap: 4px;
+      }
+
+      .board-col-width-group input[type="range"] {
+        width: min(100%, 96px);
+        flex-basis: 96px;
+      }
+    }
+
+    @media (max-width: 920px) {
+      .board-filter-grid .board-filter-search {
+        grid-column: auto;
+      }
+
+      .board-filter-actions {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: stretch;
+      }
+
+      .board-filter-primary-actions {
+        grid-column: 1 / -1;
+      }
+
+      .board-filter-view-group,
+      .board-filter-options {
+        flex: none;
+        justify-content: flex-start;
+      }
+
+      .board-filter-options {
+        grid-column: 1;
+      }
+
+      .board-col-width-group {
+        grid-column: 2;
+        flex: none;
+        min-width: 120px;
+        justify-content: flex-end;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .board-filter-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .board-filter-header {
+        align-items: flex-start;
+      }
+
+      .board-filter-actions {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .board-filter-view-group,
+      .board-filter-options,
+      .board-col-width-group {
+        grid-column: 1;
+        min-width: 0;
+      }
+
+      .board-col-width-group {
+        justify-content: flex-start;
+      }
+
+      .board-col-width-group input[type="range"] {
+        width: min(100%, 140px);
+        flex-basis: 120px;
+      }
+    }
+
+    article[data-todo-id].todo-drop-target {
+      box-shadow: 0 -3px 0 0 var(--vscode-focusBorder) !important;
+      transform: translateY(2px);
+    }
+
+    [data-card-meta] {
+      font-size: var(--cockpit-col-font, 11px) !important;
+    }
+
+    section[data-section-id] {
+      padding: 0 !important;
+    }
+
+    article[data-todo-id] {
+      padding: var(--cockpit-card-pad, 8px) !important;
+      font-size: var(--cockpit-col-font, 11px) !important;
+    }
+
+    article[data-todo-id] .note {
+      font-size: inherit !important;
+    }
+
+    article[data-todo-id] button {
+      font-size: inherit !important;
+      padding: 4px 8px !important;
+      line-height: 1.3;
+      min-height: 26px;
+    }
+
+    .todo-card-action-row {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      align-items: stretch;
+      gap: 4px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .todo-card-action-row.has-single-action {
+      grid-template-columns: 1fr;
+    }
+
+    .todo-card-action-row > button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-width: 0;
+      text-align: center;
+      min-height: 24px;
+      padding: 2px 0 !important;
+      font-size: 12px !important;
+      line-height: 1.15;
+    }
+
+    .todo-card-action-row > .todo-card-icon-btn {
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    .todo-card-action-row > button:not(.todo-card-icon-btn) {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      min-height: 38px;
+      padding: 4px 6px !important;
+    }
+
+    .todo-card-edit {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-textLink-foreground) 28%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-approve {
+      background-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 22%, var(--vscode-button-secondaryBackground)) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-approve.is-confirming {
+      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 26%, var(--vscode-button-secondaryBackground)) !important;
+    }
+
+    .todo-complete-button.is-confirming {
+      min-width: 34px !important;
+      padding: 0 9px !important;
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 18%, var(--vscode-input-background)) !important;
+      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 62%, var(--vscode-panel-border)) !important;
+    }
+
+    .todo-complete-button.is-ready-to-finalize {
+      border-style: dashed !important;
+    }
+
+    .todo-complete-button.is-cancel {
+      min-width: 34px !important;
+      height: 28px !important;
+      padding: 0 9px !important;
+      border-radius: 999px !important;
+      border: 1px solid var(--vscode-panel-border) !important;
+      background: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background)) !important;
+      color: var(--vscode-foreground) !important;
+      font-size: 11px !important;
+      font-weight: 700 !important;
+      line-height: 1 !important;
+      flex: 0 0 auto !important;
+    }
+
+    .todo-complete-button.is-completed {
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background)) !important;
+      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 88%, var(--vscode-panel-border)) !important;
+      color: var(--vscode-button-foreground) !important;
+    }
+
+    .todo-card-finalize {
+      background-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-button-secondaryBackground)) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-delete {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 48%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 28%, var(--vscode-button-secondaryBackground)) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-delete-reject {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 42%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 18%, var(--vscode-button-secondaryBackground)) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-delete-permanent {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 60%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 32%, var(--vscode-button-secondaryBackground)) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .todo-card-delete-cancel {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--vscode-input-background) 78%, var(--vscode-button-secondaryBackground)) 0%,
+          color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent) 100%) !important;
+      color: var(--vscode-button-secondaryForeground) !important;
+    }
+
+    .cockpit-inline-modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.38);
+      z-index: 250;
+    }
+
+    .cockpit-inline-modal.is-open {
+      display: flex;
+    }
+
+    .cockpit-inline-modal-card {
+      width: min(460px, calc(100vw - 32px));
+      border-radius: 14px;
+      border: 1px solid var(--vscode-widget-border);
+      background: var(--vscode-editorWidget-background);
+      color: var(--vscode-foreground);
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cockpit-inline-modal-card.comment-detail-modal {
+      width: min(860px, calc(100vw - 40px));
+      max-height: min(84vh, 920px);
+    }
+
+    .cockpit-inline-modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .cockpit-inline-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .cockpit-section-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      opacity: 0.55;
+      transition: opacity 0.12s ease;
+      margin-left: auto;
+    }
+
+    .cockpit-section-header:hover .cockpit-section-actions,
+    .cockpit-section-header:focus-within .cockpit-section-actions {
+      opacity: 1;
+    }
+
+    .board-column.is-collapsed .cockpit-section-actions {
+      display: none;
+    }
+
+    .board-column.is-collapsed .cockpit-section-header strong {
+      overflow: visible;
+      text-overflow: unset;
+      white-space: normal;
+    }
+
+    .btn-icon {
+      padding: 1px 4px;
+      border: none;
+      background: transparent;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      font-size: 11px;
+      border-radius: 3px;
+      line-height: 1.4;
+    }
+
+    .btn-icon:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .todo-editor-shell {
+      display: grid;
+      gap: 12px;
+    }
+
+    .todo-editor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
+      );
+    }
+
+    .todo-editor-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .todo-editor-card {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .todo-editor-card .section-title {
+      margin-bottom: 0;
+    }
+
+    .todo-comments-spotlight {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 28%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, transparent) 0, transparent 42%),
+        linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent),
+          color-mix(in srgb, var(--vscode-sideBar-background) 90%, transparent)
+        );
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .todo-comments-spotlight-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .todo-comments-header-copy {
+      display: grid;
+      gap: 4px;
+    }
+
+    .todo-comments-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 72%, var(--vscode-foreground));
+    }
+
+    .todo-comments-title-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .todo-comments-count-badge,
+    .todo-comments-mode-pill,
+    .todo-comment-source-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .todo-comments-count-badge {
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 34%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 16%, transparent);
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comments-mode-pill {
+      border: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 28%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 12%, transparent);
+      color: var(--vscode-foreground);
+      white-space: nowrap;
+    }
+
+    .todo-comments-context-note {
+      max-width: 68ch;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .todo-comments-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .todo-comment-composer-shell,
+    .todo-comment-thread-shell {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .todo-comment-composer-shell {
+      background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+    }
+
+    .todo-comment-thread-shell {
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 74%, var(--vscode-editor-background));
+      min-height: 100%;
+      min-width: 0;
+    }
+
+    .todo-comment-composer-topline {
+      display: grid;
+      gap: 4px;
+    }
+
+    .todo-comment-composer-title,
+    .todo-comment-thread-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-composer-note,
+    .todo-comment-thread-note,
+    .todo-comment-draft-status {
+      line-height: 1.45;
+    }
+
+    .todo-comment-input-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .todo-comment-input-label-row label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .todo-comment-textarea {
+      min-height: 148px;
+      resize: vertical;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .todo-comment-composer-footer,
+    .todo-comment-thread-header,
+    .todo-comment-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .todo-comment-draft-status {
+      max-width: 48ch;
+      min-height: 1.35em;
+      margin: 0;
+    }
+
+    .todo-editor-comments {
+      max-height: 42vh;
+      overflow: auto;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .todo-comment-empty-state {
+      display: grid;
+      gap: 6px;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px dashed color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 26%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
+    }
+
+    .todo-comment-empty-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-sideBar-background);
+      border-left: 4px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+
+    .todo-comment-card:hover,
+    .todo-comment-card:focus-visible {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+      outline: none;
+    }
+
+    .todo-comment-card.is-preview {
+      cursor: default;
+      border-style: dashed;
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, var(--vscode-editor-background));
+    }
+
+    .todo-comment-card.is-preview:hover,
+    .todo-comment-card.is-preview:focus-visible {
+      transform: none;
+    }
+
+    .todo-comment-card.is-human-form {
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 12%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 70%, white);
+    }
+
+    .todo-comment-card.is-bot-mcp {
+      background: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 14%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 74%, white);
+    }
+
+    .todo-comment-card.is-bot-manual {
+      background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 14%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 76%, white);
+    }
+
+    .todo-comment-card.is-system-event {
+      background: color-mix(in srgb, var(--vscode-descriptionForeground) 10%, var(--vscode-sideBar-background));
+      border-left-color: color-mix(in srgb, var(--vscode-descriptionForeground) 72%, white);
+    }
+
+    .todo-comment-heading,
+    .todo-comment-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      align-items: center;
+    }
+
+    .todo-comment-sequence {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-source-chip {
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 76%, transparent);
+      background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-author {
+      margin: 0;
+      font-size: 12px;
+    }
+
+    .todo-comment-body {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-card.is-user-form .todo-comment-author,
+    .todo-comment-card.is-user-form .todo-comment-body {
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-comment-expand-hint {
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .todo-comment-modal-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+
+    .todo-comment-modal-body {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 13px;
+      border-radius: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editor-background);
+      padding: 14px;
+    }
+
+    .todo-upload-row {
+      display: grid;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .todo-upload-note {
+      min-height: 1.3em;
+    }
+
+    .todo-upload-note.is-success {
+      color: var(--vscode-testing-iconPassed, #4caf50);
+    }
+
+    .todo-upload-note.is-error {
+      color: var(--vscode-errorForeground);
+    }
+
+    .todo-editor-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+    }
+
+    .todo-editor-action-row > button {
+      min-height: 38px;
+      padding: 8px 14px;
+      font-weight: 700;
+    }
+
+    #todo-complete-btn {
+      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 20%, var(--vscode-button-secondaryBackground));
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    #todo-delete-btn {
+      background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground));
+      color: var(--vscode-button-secondaryForeground);
+    }
+
+    #todo-priority-input {
+      font-weight: 700;
+      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+
+    #todo-priority-input option {
+      color: var(--vscode-input-foreground);
+      background: var(--vscode-dropdown-background, var(--vscode-input-background));
+    }
+
+    #todo-priority-input option:hover {
+      color: var(--vscode-list-highlightForeground, var(--vscode-input-foreground));
+    }
+
+    #todo-priority-input[data-priority="none"] {
+      background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent);
+      color: var(--vscode-foreground);
+    }
+
+    #todo-priority-input[data-priority="low"] {
+      background: color-mix(in srgb, #64748b 28%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="medium"] {
+      background: color-mix(in srgb, #3b82f6 26%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="high"] {
+      background: color-mix(in srgb, #f59e0b 24%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    #todo-priority-input[data-priority="urgent"] {
+      background: color-mix(in srgb, #ef4444 22%, var(--vscode-input-background));
+      color: var(--vscode-input-foreground);
+    }
+
+    .history-toolbar {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .history-toolbar label {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .history-toolbar select {
+      min-width: 280px;
+      max-width: 100%;
+      flex: 1 1 280px;
+    }
+
+    .jobs-layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .jobs-layout.sidebar-collapsed {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .jobs-layout.sidebar-collapsed .jobs-sidebar {
+      display: none;
+    }
+
+    .jobs-sidebar,
+    .jobs-main {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 12px;
+    }
+
+    .jobs-overview-main {
+      display: grid;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+    }
+
+    .jobs-overview-card {
+      display: grid;
+      gap: 8px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .jobs-toolbar,
+    .jobs-job-toolbar,
+    .jobs-inline-form,
+    .jobs-step-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .jobs-toolbar,
+    .jobs-job-toolbar {
+      margin-bottom: 12px;
+    }
+
+    .jobs-sidebar-section + .jobs-sidebar-section,
+    .jobs-main-section + .jobs-main-section {
+      margin-top: 0;
+    }
+
+    .jobs-list,
+    .jobs-folder-list,
+    .jobs-step-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .jobs-main-header {
+      display: none;
+    }
+
+    .jobs-folder-item,
+    .jobs-list-item,
+    .jobs-step-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 10px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .jobs-folder-item,
+    .jobs-list-item {
+      cursor: pointer;
+    }
+
+    .jobs-list-item[draggable="true"] {
+      cursor: grab;
+    }
+
+    .jobs-list-item.dragging {
+      opacity: 0.55;
+    }
+
+    .jobs-current-folder-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-panel-border));
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 58%, transparent),
+        color-mix(in srgb, var(--vscode-editorWidget-background) 85%, transparent)
+      );
+    }
+
+    .jobs-current-folder-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
+
+    .jobs-current-folder-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+      word-break: break-word;
+    }
+
+    .jobs-folder-path {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      word-break: break-word;
+    }
+
+    .jobs-folder-item.active,
+    .jobs-list-item.active,
+    .jobs-folder-item.drag-over,
+    .jobs-step-card.drag-over {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .jobs-folder-item.active {
+      box-shadow: inset 4px 0 0 var(--vscode-focusBorder);
+      font-weight: 600;
+    }
+
+    .jobs-folder-item.active .jobs-folder-item-header strong,
+    .jobs-folder-item.active .jobs-folder-item-header span {
+      color: inherit;
+    }
+
+    .jobs-folder-item.active .jobs-folder-path {
+      color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground) 80%, transparent);
+    }
+
+    .jobs-folder-item.is-archive {
+      border-style: dashed;
+    }
+
+    .jobs-folder-item.is-archive .jobs-folder-item-header span:first-child {
+      font-style: italic;
+    }
+
+    .jobs-folder-item-header,
+    .jobs-list-item-header,
+    .jobs-step-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .jobs-list-item-meta,
+    .jobs-folder-item-meta,
+    .jobs-step-meta {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .jobs-empty {
+      padding: 16px;
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .jobs-editor-shell {
+      display: grid;
+      gap: 16px;
+    }
+
+    .jobs-editor-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
+      );
+    }
+
+    .jobs-editor-intro {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .jobs-editor-subtitle {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      line-height: 1.45;
+      max-width: 72ch;
+    }
+
+    .jobs-editor-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
+      gap: 12px;
+    }
+
+    .jobs-editor-card.is-wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-editor-card {
+      display: grid;
+      gap: 12px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      background-color: var(--vscode-editor-background);
+      padding: 14px;
+    }
+
+    .jobs-editor-card .section-title {
+      margin-bottom: 0;
+    }
+
+    .jobs-editor-card .note {
+      margin-top: -4px;
+    }
+
+    .jobs-workflow-builder-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.34fr) minmax(340px, 0.92fr);
+      gap: 14px;
+      align-items: start;
+      grid-column: 1 / -1;
+    }
+
+    .jobs-workflow-builder-layout .jobs-main-section {
+      min-width: 0;
+    }
+
+    .jobs-workflow-card {
+      position: relative;
+      overflow: hidden;
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 38%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 34%),
+        linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
+          color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 18%, var(--vscode-editor-background))
+        );
+      box-shadow: 0 16px 32px color-mix(in srgb, var(--vscode-editor-background) 76%, transparent);
+    }
+
+    .jobs-workflow-actions-card {
+      position: relative;
+      overflow: hidden;
+      gap: 12px;
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 34%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at bottom left, color-mix(in srgb, var(--vscode-focusBorder) 15%, transparent) 0%, transparent 42%),
+        linear-gradient(
+          160deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
+          color-mix(in srgb, var(--vscode-button-secondaryBackground) 38%, var(--vscode-editor-background))
+        );
+      box-shadow: 0 14px 28px color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);
+    }
+
+    .jobs-workflow-card::before {
+      content: "";
+      position: absolute;
+      top: -72px;
+      right: -56px;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .jobs-workflow-actions-card::before {
+      content: "";
+      position: absolute;
+      bottom: -82px;
+      left: -58px;
+      width: 210px;
+      height: 210px;
+      border-radius: 999px;
+      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 72%);
+      pointer-events: none;
+    }
+
+    .jobs-workflow-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+      gap: 14px;
+      align-items: stretch;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-copy {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      min-width: 0;
+    }
+
+    .jobs-workflow-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 14%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
+      color: var(--vscode-foreground);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      line-height: 1.25;
+      white-space: normal;
+    }
+
+    .jobs-workflow-title {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    .jobs-workflow-note {
+      margin: 0;
+      max-width: 62ch;
+      color: var(--vscode-descriptionForeground);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .jobs-workflow-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      align-content: start;
+    }
+
+    .jobs-workflow-metric {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 88%, transparent);
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
+      min-height: 86px;
+    }
+
+    .jobs-workflow-metric.is-accent {
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric.is-waiting {
+      border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 44%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 13%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric.is-muted {
+      border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-descriptionForeground) 9%, var(--vscode-editorWidget-background));
+    }
+
+    .jobs-workflow-metric-label {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .jobs-workflow-metric-value {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--vscode-foreground);
+      word-break: break-word;
+    }
+
+    .jobs-workflow-metric.is-compact .jobs-workflow-metric-value {
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .jobs-workflow-panel {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 84%, transparent);
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .jobs-workflow-panel-copy {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .jobs-workflow-panel .note {
+      margin: 0;
+    }
+
+    .jobs-workflow-actions-header {
+      display: grid;
+      gap: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-actions-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-button-background) 16%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-button-background) 32%, var(--vscode-panel-border));
+      color: var(--vscode-foreground);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .jobs-workflow-actions-grid {
+      display: grid;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .jobs-workflow-quick-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .jobs-job-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .jobs-job-grid-overview {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .jobs-job-grid .form-group.wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .jobs-schedule-grid .wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .jobs-action-card {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      padding: 12px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .jobs-action-card-wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-workflow-actions-card .jobs-action-card {
+      gap: 8px;
+      padding: 10px;
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 82%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
+    }
+
+    .jobs-workflow-actions-card .jobs-action-card .section-title {
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .jobs-action-title-with-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .jobs-action-title-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 16%, var(--vscode-editorWidget-background));
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .jobs-action-title-icon.jobs-action-title-icon-pause {
+      gap: 2px;
+      font-size: 0;
+    }
+
+    .jobs-action-title-icon.jobs-action-title-icon-pause span {
+      display: block;
+      width: 2px;
+      height: 8px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 0;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form .form-group {
+      margin-bottom: 0;
+    }
+
+    .jobs-workflow-actions-card .jobs-inline-form button {
+      justify-self: end;
+    }
+
+    .jobs-workflow-save-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .jobs-workflow-save-row .btn-primary,
+    .jobs-workflow-save-row .btn-secondary {
+      min-width: 0;
+    }
+
+    .jobs-workflow-actions-card label {
+      margin-bottom: 3px;
+      font-size: 11px;
+    }
+
+    .jobs-workflow-actions-card input[type="text"],
+    .jobs-workflow-actions-card input[type="number"],
+    .jobs-workflow-actions-card select,
+    .jobs-workflow-actions-card textarea {
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+
+    .jobs-workflow-actions-card textarea {
+      min-height: 68px;
+    }
+
+    .jobs-new-step-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .jobs-new-step-form .wide {
+      grid-column: 1 / -1;
+    }
+
+    .jobs-new-step-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .jobs-workflow-actions-card .jobs-new-step-form {
+      gap: 10px;
+    }
+
+    .jobs-step-list {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .jobs-step-card {
+      min-height: 124px;
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    .jobs-step-card.is-waiting,
+    .jobs-pill.is-waiting {
+      border-color: var(--vscode-focusBorder);
+      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, var(--vscode-sideBar-background));
+      color: var(--vscode-editorWarning-foreground);
+    }
+
+    .jobs-pause-card {
+      background: linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
+        color-mix(in srgb, var(--vscode-button-secondaryBackground) 72%, transparent)
+      );
+    }
+
+    .jobs-pause-card .jobs-step-toolbar {
+      margin-top: 10px;
+    }
+
+    .jobs-pause-copy {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .jobs-list-item-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .jobs-step-card[draggable="true"] {
+      cursor: grab;
+    }
+
+    .jobs-step-card.dragging {
+      opacity: 0.55;
+    }
+
+    .jobs-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      font-size: 11px;
+    }
+
+    .jobs-pill.is-toggle {
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .jobs-pill.is-toggle:hover {
+      border-color: var(--vscode-focusBorder);
+    }
+
+    .jobs-pill.is-inactive {
+      background-color: var(--vscode-inputValidation-warningBackground);
+      color: var(--vscode-inputValidation-warningForeground);
+    }
+
+    .jobs-timeline-inline {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding-bottom: 4px;
+      scrollbar-width: thin;
+    }
+
+    .jobs-timeline-node {
+      display: inline-flex;
+      align-items: center;
+      max-width: 220px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--vscode-sideBar-background);
+      border: 1px solid var(--vscode-panel-border);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .jobs-timeline-arrow {
+      color: var(--vscode-descriptionForeground);
+      flex: 0 0 auto;
+    }
+
+    .jobs-workflow-card .jobs-timeline-inline {
+      gap: 8px;
+      padding-bottom: 2px;
+    }
+
+    .jobs-workflow-card .jobs-timeline-node {
+      max-width: 280px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
+      border-color: color-mix(in srgb, var(--vscode-focusBorder) 20%, var(--vscode-panel-border));
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .jobs-workflow-card .jobs-timeline-arrow {
+      font-size: 16px;
+    }
+
+    .jobs-step-summary {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-top: 6px;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.35;
+      min-height: 2.7em;
+    }
+
+    .jobs-step-toolbar {
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+
+    .jobs-step-toolbar .btn-secondary,
+    .jobs-step-toolbar .btn-danger {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .jobs-step-toolbar .btn-danger {
+      margin-left: auto;
+    }
+
+    .jobs-inline-form {
+      margin-top: 10px;
+    }
+
+    .jobs-inline-form .form-group {
+      margin-bottom: 0;
+      flex: 1 1 180px;
+    }
+
+    .jobs-folder-indent {
+      display: inline-block;
+      width: 14px;
+      flex: 0 0 14px;
+    }
+
+    .research-layout {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .research-sidebar,
+    .research-main,
+    .research-panel {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 10px;
+    }
+
+    .research-sidebar {
+      display: grid;
+      gap: 10px;
+    }
+
+    .research-panel-header,
+    .settings-card-header {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .research-profile-list,
+    .research-run-list,
+    .research-attempt-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .research-card,
+    .research-run-card,
+    .research-attempt-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px 9px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .research-card.active {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .research-run-card {
+      cursor: pointer;
+    }
+
+    .research-run-card.active {
+      border-color: var(--vscode-focusBorder);
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .research-card-header,
+    .research-run-card-header,
+    .research-attempt-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .research-meta,
+    .research-run-meta,
+    .research-attempt-meta {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 3px;
+      white-space: pre-wrap;
+    }
+
+    .research-main {
+      display: grid;
+      gap: 12px;
+    }
+
+    .research-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .research-form-grid .form-group.wide {
+      grid-column: 1 / -1;
+    }
+
+    .research-toolbar,
+    .research-run-toolbar {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .research-form-error {
+      display: none;
+      margin-bottom: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+      font-size: 11px;
+      white-space: pre-wrap;
+    }
+
+    .research-chip-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .research-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+    }
+
+    .research-attempt-card {
+      display: grid;
+      gap: 6px;
+    }
+
+    .research-attempt-paths {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      white-space: pre-wrap;
+    }
+
+    .research-output details {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 7px 8px;
+      background: var(--vscode-editorWidget-background);
+    }
+
+    .research-output summary {
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--vscode-foreground);
+    }
+
+    .research-output pre {
+      margin: 6px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 11px;
+      color: var(--vscode-editor-foreground);
+      max-height: 180px;
+      overflow: auto;
+    }
+
+    .telegram-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr) minmax(240px, 0.85fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .telegram-card,
+    .telegram-status-card {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      padding: 10px;
+    }
+
+    .telegram-status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .telegram-status-item {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      background-color: var(--vscode-sideBar-background);
+      padding: 8px;
+    }
+
+    .telegram-status-label {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 3px;
+    }
+
+    .telegram-status-value {
+      font-size: 12px;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .telegram-feedback {
+      display: none;
+      margin-bottom: 10px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      white-space: pre-wrap;
+      background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorInfo-background));
+      color: var(--vscode-foreground);
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .telegram-feedback.error {
+      background: var(--vscode-inputValidation-errorBackground);
+      color: var(--vscode-inputValidation-errorForeground);
+    }
+
+    .research-stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .research-stat {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 6px;
+      padding: 8px;
+      background-color: var(--vscode-sideBar-background);
+    }
+
+    .research-stat-label {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 3px;
+    }
+
+    .research-stat-value {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 980px) {
+      .research-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .research-form-grid,
+      .research-stat-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .telegram-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .help-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .help-section.is-featured {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .telegram-status-grid,
+      .research-stat-grid,
+      .research-form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .tab-bar {
+        gap: 6px;
+        padding: 8px 10px 6px 10px;
+        margin: -20px -20px 16px -20px;
+      }
+
+      .jobs-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-editor-grid,
+      .jobs-editor-grid,
+      .task-editor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .todo-comments-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-job-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-job-grid-overview,
+      .jobs-schedule-grid,
+      .jobs-action-grid,
+      .jobs-new-step-form,
+      .task-editor-options-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-workflow-builder-layout,
+      .jobs-workflow-quick-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-action-card-wide,
+      .jobs-new-step-actions,
+      .jobs-schedule-grid .wide,
+      .jobs-new-step-form .wide,
+      .task-editor-options-grid .form-group.wide,
+      .task-editor-card.is-wide {
+        grid-column: 1 / -1;
+      }
+
+      .jobs-editor-header,
+      .task-editor-header {
+        flex-direction: column;
+      }
+
+      .jobs-workflow-hero {
+        grid-template-columns: 1fr;
+      }
+
+      .jobs-step-list {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      .tab-bar {
+        flex-wrap: wrap;
+        align-items: stretch;
+      }
+
+      .tabs {
+        order: 2;
+        flex: 1 1 100%;
+      }
+
+      .tab-actions {
+        order: 1;
+        width: 100%;
+        justify-content: flex-end;
+      }
+
+      .todo-comments-spotlight-header,
+      .todo-comment-composer-footer,
+      .todo-comment-thread-header,
+      .todo-comment-header,
+      .todo-comment-input-label-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .tab-button {
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .jobs-step-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .jobs-step-list {
+        grid-template-columns: 1fr;
+      }
+    }
+`;
+}

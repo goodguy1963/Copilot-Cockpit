@@ -158,3 +158,27 @@ export function createSchedulerWebviewRenderContext(options: {
     scriptUri,
   };
 }
+
+export function createSchedulerWebviewCurrentRenderContext(options: {
+  extensionUri: vscode.Uri;
+  webview: vscode.Webview;
+  tasks: ScheduledTask[];
+  agents: AgentInfo[];
+  models: ModelInfo[];
+  promptTemplates: PromptTemplate[];
+  currentJobs: JobDefinition[];
+  currentJobFolders: JobFolder[];
+  currentCockpitBoard: CockpitBoard;
+  currentTelegramNotification: TelegramNotificationView;
+  currentExecutionDefaults: ExecutionDefaultsView;
+  currentReviewDefaults: ReviewDefaultsView;
+  currentStorageSettings: StorageSettingsView;
+  currentResearchProfiles: ResearchProfile[];
+  currentActiveResearchRun: ResearchRun | undefined;
+  currentRecentResearchRuns: ResearchRun[];
+  cachedSkillReferences: SkillReference[];
+  workspacePaths: string[];
+  currentScheduleHistory: ScheduleHistoryEntry[];
+}) {
+  return createSchedulerWebviewRenderContext(options);
+}
