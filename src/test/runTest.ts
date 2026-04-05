@@ -1,6 +1,6 @@
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
+import * as os from "os";
 import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron";
 
 type TestPaths = {
@@ -74,6 +74,16 @@ async function cleanupAlias(aliasRoot?: string): Promise<void> {
   }
 }
 
+function getTestLaunchArgs(): string[] {
+  const workspaceTrustArg = "--disable-workspace-trust";
+  const basicArgs = ["--disable-updates", "--skip-welcome"];
+  return [
+    ...basicArgs,
+    "--skip-release-notes",
+    workspaceTrustArg,
+  ];
+}
+
 async function main(): Promise<void> {
   const paths = await createTestPaths();
 
@@ -85,12 +95,7 @@ async function main(): Promise<void> {
       vscodeExecutablePath,
       extensionDevelopmentPath: paths.extensionDevelopmentPath,
       extensionTestsPath: paths.extensionTestsPath,
-      launchArgs: [
-        "--disable-updates",
-        "--skip-welcome",
-        "--skip-release-notes",
-        "--disable-workspace-trust",
-      ],
+      launchArgs: getTestLaunchArgs(),
     });
   } catch (error) {
     console.error("Failed to run tests:", error);

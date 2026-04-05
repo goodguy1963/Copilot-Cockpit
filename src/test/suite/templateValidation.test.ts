@@ -1,9 +1,9 @@
-import * as assert from "assert";
 import * as fs from "fs";
+import * as assert from "assert";
 import * as os from "os";
+import type { PromptTemplate } from "../../types";
 import * as path from "path";
 import { validateTemplateLoadRequest } from "../../templateValidation";
-import type { PromptTemplate } from "../../types";
 
 type TemplateCaseInput = {
   workspaceRoot: string;
@@ -46,6 +46,10 @@ function expectFailure(
   if (!result.ok) {
     assert.strictEqual(result.reason, reason);
   }
+}
+
+function skipCurrentTest(testContext: Mocha.Context): void {
+  testContext.skip();
 }
 
 suite("Template validation behavior", () => {
@@ -110,7 +114,7 @@ suite("Template validation behavior", () => {
       try {
         fs.symlinkSync(outsideFile, symlinkPath, "file");
       } catch {
-        this.skip();
+        skipCurrentTest(this);
         return;
       }
 
