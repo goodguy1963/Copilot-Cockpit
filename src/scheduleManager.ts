@@ -165,13 +165,13 @@ export class ScheduleManager {
   private pendingDeletedTaskIds: Set<string> = new Set();
   private pendingDeletedJobIds: Set<string> = new Set();
   private pendingDeletedJobFolderIds: Set<string> = new Set();
+  private context: vscode.ExtensionContext;
+  private storageFilePath: string;
+  private storageMetaFilePath: string;
   private schedulerInterval: ReturnType<typeof setInterval> | undefined;
   private schedulerTimeout: ReturnType<typeof setTimeout> | undefined;
   private schedulerTickInProgress = false;
   private schedulerTickPending = false;
-  private context: vscode.ExtensionContext;
-  private storageFilePath: string;
-  private storageMetaFilePath: string;
   private onTasksChangedCallback: (() => void) | undefined;
   private onExecuteCallback: ((task: ScheduledTask) => Promise<void>) | undefined;
   private dailyExecCount = 0;
@@ -1235,6 +1235,60 @@ export class ScheduleManager {
     if (updates.cronExpression !== undefined) this.validateCronExpression(updates.cronExpression);
   }
 
+  private createScheduledTaskRecord(
+    input: CreateTaskInput,
+    params: {
+      id: string;
+      enabled: boolean;
+      effectiveScope: TaskScope;
+      workspacePath: string | undefined;
+      jitterSeconds: number;
+      oneTime: boolean;
+      nextRun: Date | undefined;
+      now: Date;
+    },
+  ): ScheduledTask {
+    const { id, enabled, effectiveScope, workspacePath, jitterSeconds, oneTime, nextRun, now } = params;
+    return {
+      id,
+      name: input.name,
+      cronExpression: input.cronExpression,
+      prompt: input.prompt,
+      enabled,
+      agent: input.agent,
+      model: input.model,
+      scope: effectiveScope,
+      workspacePath,
+      promptSource: input.promptSource || "inline",
+      promptPath: input.promptPath,
+      jitterSeconds,
+      oneTime,
+      manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
+      chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
+      labels: normalizeScheduledTaskLabels(input.labels),
+      nextRun,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private unlinkTaskFromOwningJob(taskId: string): void {
+    const jobContext = this.findJobNodeByTaskId(taskId);
+    if (!jobContext) {
+      return;
+    }
+
+    jobContext.job.nodes = jobContext.job.nodes.filter((node) => node.id !== jobContext.node.id);
+    this.clearJobRuntime(jobContext.job);
+    jobContext.job.updatedAt = new Date().toISOString();
+  }
+
+  private beginAlignedSchedulerLoop(): void {
+    this.schedulerTimeout = undefined;
+    void this.runSchedulerTick();
+    this.armSchedulerInterval();
+  }
+
   private generateScopedId(prefix: string): string {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
@@ -1601,27 +1655,16 @@ export class ScheduleManager {
         this.getNextRunForTask(cronExpression, referenceTime),
     });
 
-    const task: ScheduledTask = {
+    const task = this.createScheduledTaskRecord(input, {
       id,
-      name: input.name,
-      cronExpression: input.cronExpression,
-      prompt: input.prompt,
       enabled,
-      agent: input.agent,
-      model: input.model,
-      scope: effectiveScope,
+      effectiveScope,
       workspacePath,
-      promptSource: input.promptSource || "inline",
-      promptPath: input.promptPath,
       jitterSeconds,
       oneTime,
-      manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
-      chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
-      labels: normalizeScheduledTaskLabels(input.labels),
       nextRun,
-      createdAt: now,
-      updatedAt: now,
-    };
+      now,
+    });
 
     this.tasks.set(id, task);
     await this.saveTasksAndSyncRecurringPromptBackups();
@@ -2550,14 +2593,7 @@ export class ScheduleManager {
    * Delete a task
    */
   async deleteTask(id: string): Promise<boolean> {
-    const jobContext = this.findJobNodeByTaskId(id);
-    if (jobContext) {
-      jobContext.job.nodes = jobContext.job.nodes.filter(
-        (node) => node.id !== jobContext.node.id,
-      );
-      this.clearJobRuntime(jobContext.job);
-      jobContext.job.updatedAt = new Date().toISOString();
-    }
+    this.unlinkTaskFromOwningJob(id);
 
     const deleted = this.tasks.delete(id);
     if (deleted) {
@@ -2653,12 +2689,7 @@ export class ScheduleManager {
     this.stopScheduler();
 
     // Start after alignment
-    this.schedulerTimeout = setTimeout(() => {
-      this.schedulerTimeout = undefined;
-      // Execute immediately on first aligned minute
-      void this.runSchedulerTick();
-      this.armSchedulerInterval();
-    }, this.getMillisecondsUntilNextMinute());
+    this.schedulerTimeout = setTimeout(() => this.beginAlignedSchedulerLoop(), this.getMillisecondsUntilNextMinute());
   }
 
   private async runSchedulerTick(): Promise<void> {
