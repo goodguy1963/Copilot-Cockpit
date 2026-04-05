@@ -1,10 +1,7 @@
 import * as path from "path";
 import * as vscode from "vscode";
-import {
-  normalizeForCompare,
-  resolveGlobalPromptPath,
-  resolveLocalPromptPath,
-} from "./promptResolver";
+import { normalizeForCompare, resolveGlobalPromptPath } from "./promptResolver";
+import { resolveLocalPromptPath } from "./promptResolver";
 import type { ScheduledTask } from "./types";
 
 type PromptTextLogger = (message: string, details?: string) => void;
@@ -98,8 +95,7 @@ export async function resolveTaskPromptTextFromSource({
       return fileText;
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error ?? "");
+    const errorMessage = error instanceof Error ? error.message : String(error ?? "");
     logDebug(
       `${debugPrefix} readFile failed (file=${path.basename(filePath)}, task=${task.id})`,
       sanitizeError(errorMessage),

@@ -22,14 +22,14 @@ export async function syncPromptTemplatesIfNeeded(
   context: vscode.ExtensionContext,
   deps: PromptMaintenanceDeps,
   keys: PromptMaintenanceKeys,
-  force = false,
-): Promise<void> {
+  force = false): Promise<void> {
   const today = new Date();
-  const todayKey = [
+  const todayParts = [
     today.getFullYear(),
     String(today.getMonth() + 1).padStart(2, "0"),
     String(today.getDate()).padStart(2, "0"),
-  ].join("-");
+  ];
+  const todayKey = todayParts.join("-");
 
   if (!force) {
     const last = context.globalState.get<string>(keys.promptSyncDateKey, "");
@@ -46,12 +46,11 @@ export async function syncPromptTemplatesIfNeeded(
 
     try {
       const latest = await deps.resolvePromptText(task, false);
-      if (latest && latest !== task.prompt && latest.trim()) {
-        promptUpdates.push({ id: task.id, prompt: latest });
-      }
+      const trimmedLatest = latest.trim();
+      if (trimmedLatest && latest !== task.prompt) {
+        promptUpdates.push({ id: task.id, prompt: latest }); }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error ?? "");
+      const errorMessage = error instanceof Error ? error.message : String(error ?? "");
       deps.logError(
         `[CopilotScheduler] Prompt sync failed for task "${task.name}": ${deps.sanitizeErrorDetailsForLog(errorMessage)}`,
       );
