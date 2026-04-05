@@ -9,35 +9,36 @@ import {
   handleSettingsWebviewMessage,
 } from "../../schedulerWebviewSettingsHandler";
 
-suite("Scheduler Webview Settings Handler Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const workspaceAny = vscode.workspace as unknown as {
-      workspaceFolders?: Array<{ uri: vscode.Uri }>;
-    };
-    const original = workspaceAny.workspaceFolders;
+function patchWorkspaceFolders(value: Array<{ uri: vscode.Uri }> | undefined): void {
+  Object.defineProperty(vscode.workspace, "workspaceFolders", {
+    value,
+    configurable: true,
+  });
+}
 
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
-      });
-    } catch {
-      // ignore; the test host may reject patching
-    }
+function setWorkspaceFoldersForTest(root: string): () => void {
+  const workspaceAny = vscode.workspace as unknown as {
+    workspaceFolders?: Array<{ uri: vscode.Uri }>;
+  };
+  const originalFolders = workspaceAny.workspaceFolders;
 
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
+  try {
+    patchWorkspaceFolders([{ uri: vscode.Uri.file(root) }]);
+  } catch {
+    // The host may reject patching in some environments.
   }
 
-  test("uses workspace-folder target for resource-scoped settings when a folder is open", () => {
+  return () => {
+    try {
+      patchWorkspaceFolders(originalFolders);
+    } catch {
+      // Ignore restoration failures in the test host.
+    }
+  };
+}
+
+suite("Scheduler webview settings handler behavior", () => {
+  test("uses a workspace-folder target when a folder is open", () => {
     const restoreWorkspace = setWorkspaceFoldersForTest(__dirname);
 
     try {
@@ -50,12 +51,12 @@ suite("Scheduler Webview Settings Handler Tests", () => {
     }
   });
 
-  test("setStorageSettings updates storage settings and posts the normalized state", async () => {
+  test("setStorageSettings normalizes state and posts it back to the webview", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-handler-"));
     const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
     const originalUpdate = extensionCompat.updateCompatibleConfigurationValue;
-    const calls: Array<{ key: string; value: unknown; target: vscode.ConfigurationTarget }> = [];
-    const posted: Array<Record<string, unknown>> = [];
+    const updateCalls: Array<{ key: string; value: unknown; target: vscode.ConfigurationTarget }> = [];
+    const postedMessages: Array<Record<string, unknown>> = [];
 
     try {
       (extensionCompat as typeof extensionCompat & {
@@ -65,7 +66,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
         value: unknown,
         target: vscode.ConfigurationTarget,
       ) => {
-        calls.push({ key, value, target });
+        updateCalls.push({ key, value, target });
       }) as typeof extensionCompat.updateCompatibleConfigurationValue;
 
       const handled = await handleSettingsWebviewMessage(
@@ -82,14 +83,14 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           },
         },
         {
-          postMessage: (message) => posted.push(message),
+          postMessage: (message) => postedMessages.push(message),
           launchHelpChat: async () => {},
           backupGithubFolder: async () => undefined,
         },
       );
 
       assert.strictEqual(handled, true);
-      assert.deepStrictEqual(calls, [
+      assert.deepStrictEqual(updateCalls, [
         {
           key: "storageMode",
           value: "sqlite",
@@ -101,7 +102,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           target: vscode.ConfigurationTarget.WorkspaceFolder,
         },
       ]);
-      assert.deepStrictEqual(posted, [
+      assert.deepStrictEqual(postedMessages, [
         {
           type: "updateStorageSettings",
           storageSettings: {

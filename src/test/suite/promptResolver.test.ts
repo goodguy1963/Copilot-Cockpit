@@ -1,22 +1,28 @@
-import * as assert from "assert";
 import * as fs from "fs";
+import * as assert from "assert";
 import * as os from "os";
 import * as path from "path";
+import type {} from "../../types";
 import {
-  resolveAllowedPathInBaseDir,
   resolveGlobalPromptPath,
-  resolveGlobalPromptsRoot,
   resolveLocalPromptPath,
+  resolveAllowedPathInBaseDir,
+  resolveGlobalPromptsRoot,
 } from "../../promptResolver";
 
 function canonicalize(filePath: string | undefined): string {
-  if (!filePath) {
-    return "";
+  const candidatePath = filePath ? path.resolve(filePath) : "";
+  const normalized = path.normalize(candidatePath);
+  if (!candidatePath) {
+    return normalized;
   }
 
-  const resolved = path.resolve(filePath);
-  const trimmed = path.normalize(resolved).replace(/[\\/]+$/, "");
+  const trimmed = normalized.replace(/[\\/]+$/, "");
   return process.platform === "win32" ? trimmed.toLowerCase() : trimmed;
+}
+
+function skipCurrentTest(testContext: Mocha.Context): void {
+  testContext.skip();
 }
 
 suite("Prompt resolver behavior", () => {
@@ -84,7 +90,7 @@ suite("Prompt resolver behavior", () => {
       try {
         fs.symlinkSync(outsideFile, symlinkPath, "file");
       } catch {
-        this.skip();
+        skipCurrentTest(this);
         return;
       }
 
