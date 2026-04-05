@@ -498,6 +498,34 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("webview supports cross-platform save shortcuts for task and todo editors", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'function submitWebviewForm(form) {',
+      'if (typeof form.requestSubmit === "function") {',
+      'return form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));',
+      'function isSaveShortcutEvent(event) {',
+      '&& (event.ctrlKey || event.metaKey)',
+      '&& String(event.key || "").toLowerCase() === "s";',
+      'function handleGlobalSaveShortcut(event) {',
+      'if (isTabActive("create")) {',
+      'submitWebviewForm(taskForm);',
+      'if (isTabActive("todo-edit")) {',
+      'submitWebviewForm(todoDetailForm);',
+      'handleGlobalSaveShortcut(event);',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected save shortcut runtime snippet ${snippet}`,
+      );
+    });
+  });
+
   test("board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars", () => {
     const templatePath = path.resolve(
       __dirname,

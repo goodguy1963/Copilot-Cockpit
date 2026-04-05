@@ -5212,6 +5212,37 @@
         }
       });
     }
+    function submitWebviewForm(form) {
+      if (!form) {
+        return false;
+      }
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+        return true;
+      }
+      return form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+    function isSaveShortcutEvent(event) {
+      return !!event && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && String(event.key || "").toLowerCase() === "s";
+    }
+    function handleGlobalSaveShortcut(event) {
+      if (!isSaveShortcutEvent(event)) {
+        return;
+      }
+      if (isTabActive("create")) {
+        event.preventDefault();
+        if (!pendingSubmit) {
+          submitWebviewForm(taskForm);
+        }
+        return;
+      }
+      if (isTabActive("todo-edit")) {
+        event.preventDefault();
+        if (!todoSaveBtn || !todoSaveBtn.disabled) {
+          submitWebviewForm(todoDetailForm);
+        }
+      }
+    }
     function isTabActive(tabName) {
       var targetContent = document.getElementById(tabName + "-tab");
       return !!(targetContent && targetContent.classList.contains("active"));
@@ -8368,6 +8399,7 @@
     }, { passive: true });
     window.addEventListener("resize", scheduleBoardStickyMetrics);
     document.addEventListener("keydown", function(event) {
+      handleGlobalSaveShortcut(event);
       if (event.key === "Escape") {
         closeTodoDeleteModal();
         closeTodoCommentModal();
