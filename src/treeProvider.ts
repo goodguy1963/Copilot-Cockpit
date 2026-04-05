@@ -1,21 +1,21 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { getCockpitCommandId } from "./extensionCompat";
 import { messages, formatCronForDisplay } from "./i18n";
+import { getCockpitCommandId } from "./extensionCompat";
 import { ScheduleManager } from "./scheduleManager";
 import type { ScheduledTask, TaskScope, TreeContextValue } from "./types";
 
-type WorkspaceTaskGroup = "this" | "other";
 type TaskBuckets = {
   currentWorkspace: ScheduledTask[];
   otherWorkspaces: ScheduledTask[];
 };
+type WorkspaceTaskGroup = "this" | "other";
 type TreeRefreshTarget = WorkspaceTreeNode | undefined | null | void;
 
-const GLOBAL_SCOPE_ICON = new vscode.ThemeIcon("globe");
 const WORKSPACE_SCOPE_ICON = new vscode.ThemeIcon("folder");
-const CURRENT_WORKSPACE_ICON = new vscode.ThemeIcon("home");
+const GLOBAL_SCOPE_ICON = new vscode.ThemeIcon("globe");
 const LINKED_WORKSPACE_ICON = new vscode.ThemeIcon("link");
+const CURRENT_WORKSPACE_ICON = new vscode.ThemeIcon("home");
 const ENABLED_TASK_ICON = new vscode.ThemeIcon(
   "clock",
   new vscode.ThemeColor("charts.green"),
@@ -180,12 +180,10 @@ function createTaskTooltip(
 }
 
 export class ScopeGroupItem extends vscode.TreeItem {
-  public readonly scope: TaskScope;
-
-  constructor(scope: TaskScope, taskCount: number) {
+  public readonly scope: TaskScope; constructor(scope: TaskScope, taskCount: number) {
     super(scopeHeading(scope), vscode.TreeItemCollapsibleState.Expanded);
-    this.scope = scope;
     this.id = `scope-${scope}`;
+    this.scope = scope;
     this.contextValue = "scopeGroup";
     this.description = countLabel(taskCount);
     this.iconPath = scope === "global" ? GLOBAL_SCOPE_ICON : WORKSPACE_SCOPE_ICON;
@@ -193,12 +191,10 @@ export class ScopeGroupItem extends vscode.TreeItem {
 }
 
 export class WorkspaceGroupItem extends vscode.TreeItem {
-  public readonly group: WorkspaceTaskGroup;
-
-  constructor(group: WorkspaceTaskGroup, taskCount: number) {
+  public readonly group: WorkspaceTaskGroup; constructor(group: WorkspaceTaskGroup, taskCount: number) {
     super(workspaceHeading(group), vscode.TreeItemCollapsibleState.Expanded);
-    this.group = group;
     this.id = `workspace-group-${group}`;
+    this.group = group;
     this.contextValue = "workspaceGroup";
     this.description = countLabel(taskCount);
     this.iconPath = group === "this" ? CURRENT_WORKSPACE_ICON : LINKED_WORKSPACE_ICON;
@@ -206,14 +202,14 @@ export class WorkspaceGroupItem extends vscode.TreeItem {
 }
 
 export class ScheduledTaskItem extends vscode.TreeItem {
-  public readonly task: ScheduledTask;
   private readonly inThisWorkspace: boolean;
+  public readonly task: ScheduledTask;
 
   constructor(task: ScheduledTask, inThisWorkspace: boolean) {
     super(task.name, vscode.TreeItemCollapsibleState.None);
 
-    this.task = task;
     this.inThisWorkspace = inThisWorkspace;
+    this.task = task;
     this.contextValue = getTaskContextValue(task, inThisWorkspace);
     this.description = createTaskDescription(task, inThisWorkspace);
     this.tooltip = createTaskTooltip(task, inThisWorkspace);
@@ -226,10 +222,7 @@ export class ScheduledTaskItem extends vscode.TreeItem {
   }
 }
 
-export type WorkspaceTreeNode =
-  | ScopeGroupItem
-  | WorkspaceGroupItem
-  | ScheduledTaskItem;
+export type WorkspaceTreeNode = ScopeGroupItem | WorkspaceGroupItem | ScheduledTaskItem;
 
 export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<WorkspaceTreeNode> {
   private readonly treeChangeEmitter = new vscode.EventEmitter<TreeRefreshTarget>();
@@ -341,10 +334,9 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
     });
   }
 
-  getParent(
-    element: WorkspaceTreeNode,
-  ): vscode.ProviderResult<WorkspaceTreeNode> {
-    if (element instanceof ScheduledTaskItem) {
+  getParent(element: WorkspaceTreeNode): vscode.ProviderResult<WorkspaceTreeNode> {
+    const isTaskLeaf = element instanceof ScheduledTaskItem;
+    if (isTaskLeaf) {
       const task = element.task;
 
       if (task.scope === "workspace") {
