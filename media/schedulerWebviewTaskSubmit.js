@@ -69,3 +69,28 @@ export function postTaskSubmission(vscode, editingTaskId, taskData) {
     data: taskData,
   });
 }
+
+export function buildTaskSubmissionData(options) {
+  var editorState = options.editorState || {};
+  var labels = options.parseLabels
+    ? options.parseLabels(editorState.labels || "")
+    : [];
+
+  return {
+    name: editorState.name || "",
+    prompt: editorState.prompt || "",
+    cronExpression: editorState.cronExpression || "",
+    labels: labels,
+    agent: editorState.agent || "",
+    model: editorState.model || "",
+    scope: editorState.scope || "workspace",
+    promptSource: editorState.promptSource || "inline",
+    promptPath: editorState.promptPath || "",
+    runFirstInOneMinute: !!options.runFirstInOneMinute,
+    oneTime: !!editorState.oneTime,
+    manualSession: !!editorState.manualSession,
+    jitterSeconds: Number(editorState.jitterSeconds || 0),
+    enabled: options.editingTaskId ? options.editingTaskEnabled : true,
+    chatSession: editorState.oneTime ? "" : editorState.chatSession || "new",
+  };
+}
