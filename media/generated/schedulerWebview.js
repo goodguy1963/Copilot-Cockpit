@@ -1123,6 +1123,239 @@
     return fallback;
   }
 
+  // media/schedulerWebviewPromptState.js
+  function restorePendingSelectValue(selectEl, desiredValue) {
+    var pendingValue = desiredValue || "";
+    if (!selectEl || !pendingValue) {
+      return pendingValue;
+    }
+    selectEl.value = pendingValue;
+    return selectEl.value === pendingValue ? "" : pendingValue;
+  }
+  function updatePromptTemplateOptions(params) {
+    var templateSelect = params.templateSelect;
+    if (!templateSelect) {
+      return;
+    }
+    var selectedPath = params.selectedPath || "";
+    var promptTemplates = Array.isArray(params.promptTemplates) ? params.promptTemplates : [];
+    var currentSource = params.source || "inline";
+    var placeholderText = params.strings && params.strings.placeholderSelectTemplate || "";
+    var escapeHtml = params.escapeHtml;
+    var escapeAttr = params.escapeAttr;
+    var placeholder = '<option value="">' + escapeHtml(placeholderText) + "</option>";
+    templateSelect.innerHTML = placeholder + promptTemplates.filter(function(template) {
+      return template && template.source === currentSource;
+    }).map(function(template) {
+      return '<option value="' + escapeAttr(template.path) + '">' + escapeHtml(template.name) + "</option>";
+    }).join("");
+    if (!selectedPath) {
+      templateSelect.value = "";
+      return;
+    }
+    templateSelect.value = selectedPath;
+    if (templateSelect.value !== selectedPath) {
+      templateSelect.value = "";
+    }
+  }
+  function applyPromptSourceUi(params) {
+    var effectiveSource = params.source || "inline";
+    var templateSelect = params.templateSelect;
+    var promptTextEl = params.promptTextEl;
+    var templateSelectGroup = params.templateSelectGroup;
+    var promptGroup = params.promptGroup;
+    var keepSelection = params.keepSelection === true;
+    var selectedPath = keepSelection && templateSelect ? templateSelect.value : "";
+    var usesInlinePrompt = effectiveSource === "inline";
+    if (promptTextEl) {
+      promptTextEl.required = usesInlinePrompt;
+    }
+    if (templateSelect) {
+      templateSelect.required = !usesInlinePrompt;
+    }
+    if (templateSelectGroup) {
+      templateSelectGroup.style.display = usesInlinePrompt ? "none" : "block";
+    } else if (!usesInlinePrompt && typeof params.warnMissingTemplateGroup === "function") {
+      params.warnMissingTemplateGroup();
+    }
+    if (promptGroup) {
+      promptGroup.style.display = "block";
+    }
+    if (usesInlinePrompt) {
+      if (!keepSelection && templateSelect) {
+        templateSelect.value = "";
+      }
+      return;
+    }
+    updatePromptTemplateOptions({
+      templateSelect,
+      promptTemplates: params.promptTemplates,
+      source: effectiveSource,
+      selectedPath,
+      strings: params.strings,
+      escapeHtml: params.escapeHtml,
+      escapeAttr: params.escapeAttr
+    });
+  }
+  function syncPromptTemplatesFromMessage(params) {
+    var templateSelect = params.templateSelect;
+    var currentTemplateValue = params.pendingTemplatePath || (templateSelect ? templateSelect.value : "");
+    updatePromptTemplateOptions({
+      templateSelect,
+      promptTemplates: params.promptTemplates,
+      source: params.currentSource,
+      selectedPath: currentTemplateValue,
+      strings: params.strings,
+      escapeHtml: params.escapeHtml,
+      escapeAttr: params.escapeAttr
+    });
+    var nextPendingTemplatePath = restorePendingSelectValue(
+      templateSelect,
+      currentTemplateValue
+    );
+    if (params.templateSelectGroup) {
+      params.templateSelectGroup.style.display = params.currentSource === "local" || params.currentSource === "global" ? "block" : "none";
+    }
+    return nextPendingTemplatePath;
+  }
+
+  // media/schedulerWebviewTaskCards.js
+  function buildTaskInlineSelect(params) {
+    var items = Array.isArray(params.items) ? params.items : [];
+    var selectedId = params.selectedId || "";
+    var fallbackSelectedId = params.fallbackSelectedId || "";
+    var effectiveSelectedId = selectedId || fallbackSelectedId;
+    var hasSelectedOption = !selectedId;
+    var options = '<option value="">' + params.escapeHtml(params.placeholder || "") + "</option>";
+    items.forEach(function(item) {
+      var id = item && (item.id || item.slug);
+      if (!id) {
+        return;
+      }
+      var label = params.getLabel(item, id);
+      if (id === selectedId) {
+        hasSelectedOption = true;
+      }
+      options += '<option value="' + params.escapeAttr(id) + '"' + (id === effectiveSelectedId ? " selected" : "") + ">" + params.escapeHtml(label) + "</option>";
+    });
+    if (selectedId && !hasSelectedOption) {
+      options += '<option value="' + params.escapeAttr(selectedId) + '" selected>' + params.escapeHtml(selectedId) + "</option>";
+    }
+    return '<select class="' + params.className + '" data-id="' + params.taskId + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + "</select>";
+  }
+  function buildTaskConfigRowMarkup(params) {
+    var agentSelect = buildTaskInlineSelect({
+      items: params.agents,
+      selectedId: params.task && params.task.agent,
+      className: "task-agent-select",
+      placeholder: params.strings.placeholderSelectAgent || "Agent",
+      fallbackSelectedId: params.executionDefaults && params.executionDefaults.agent,
+      taskId: params.taskId,
+      escapeAttr: params.escapeAttr,
+      escapeHtml: params.escapeHtml,
+      getLabel: function(item, id) {
+        return item && item.name || id;
+      }
+    });
+    var modelSelect = buildTaskInlineSelect({
+      items: params.models,
+      selectedId: params.task && params.task.model,
+      className: "task-model-select",
+      placeholder: params.strings.placeholderSelectModel || "Model",
+      fallbackSelectedId: params.executionDefaults && params.executionDefaults.model,
+      taskId: params.taskId,
+      escapeAttr: params.escapeAttr,
+      escapeHtml: params.escapeHtml,
+      getLabel: function(item, id) {
+        return params.formatModelLabel(item || { id, name: id });
+      }
+    });
+    return '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' + agentSelect + modelSelect + "</div>";
+  }
+  function buildBaseTaskActionsMarkup(params) {
+    var createActionButton = function(button) {
+      return '<button class="' + button.className + '" data-action="' + button.action + '" data-id="' + params.taskId + '" title="' + params.escapeAttr(button.title) + '">' + button.icon + "</button>";
+    };
+    return [
+      {
+        className: "btn-secondary btn-icon",
+        action: "toggle",
+        title: params.toggleTitle,
+        icon: params.toggleIcon
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "run",
+        title: params.strings.actionRun,
+        icon: "\u{1F680}"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "edit",
+        title: params.strings.actionEdit,
+        icon: "\u270F\uFE0F"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "copy",
+        title: params.strings.actionCopyPrompt,
+        icon: "\u{1F4CB}"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "duplicate",
+        title: params.strings.actionDuplicate,
+        icon: "\u{1F4C4}"
+      }
+    ].map(createActionButton).join("");
+  }
+
+  // media/schedulerWebviewTaskActions.js
+  function handleTaskListClick(params) {
+    var event = params.event;
+    var taskList = params.taskList;
+    var getTaskList = params.getTaskList;
+    var readyTodoOpenTarget = params.getClosestEventTarget(
+      event.target,
+      "[data-ready-todo-open]"
+    );
+    if (readyTodoOpenTarget) {
+      if (!taskList || !taskList.isConnected) {
+        taskList = getTaskList();
+      }
+      if (taskList && taskList.contains(readyTodoOpenTarget)) {
+        event.preventDefault();
+        var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
+        if (openTodoId) {
+          params.openTodoEditor(openTodoId);
+        }
+        return true;
+      }
+    }
+    var actionTarget = params.resolveActionTarget(event.target);
+    if (!actionTarget) {
+      return false;
+    }
+    if (!taskList || !taskList.isConnected) {
+      taskList = getTaskList();
+    }
+    if (taskList && !taskList.contains(actionTarget)) {
+      return false;
+    }
+    var action = actionTarget.getAttribute("data-action");
+    var taskId = actionTarget.getAttribute("data-id");
+    if (!action || !taskId) {
+      return false;
+    }
+    var handler = params.actionHandlers[action];
+    if (typeof handler !== "function") {
+      return false;
+    }
+    event.preventDefault();
+    handler(taskId);
+    return true;
+  }
+
   // media/schedulerWebviewTaskSelectState.js
   function selectHasOptionValue(selectEl, value) {
     if (!selectEl) return false;
@@ -6599,48 +6832,27 @@
           return;
         }
       }
-      var readyTodoOpenTarget = getClosestEventTarget(e, "[data-ready-todo-open]");
-      if (readyTodoOpenTarget) {
-        if (!taskList || !taskList.isConnected) {
+      if (handleTaskListClick({
+        event: e,
+        taskList,
+        getTaskList: function() {
           taskList = document.getElementById("task-list");
+          return taskList;
+        },
+        getClosestEventTarget,
+        resolveActionTarget,
+        openTodoEditor,
+        actionHandlers: {
+          toggle: window.toggleTask,
+          run: window.runTask,
+          edit: window.editTask,
+          copy: window.copyPrompt,
+          duplicate: window.duplicateTask,
+          move: window.moveTaskToCurrentWorkspace,
+          delete: window.deleteTask
         }
-        if (taskList && taskList.contains(readyTodoOpenTarget)) {
-          e.preventDefault();
-          var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
-          if (openTodoId) {
-            openTodoEditor(openTodoId);
-          }
-          return;
-        }
-      }
-      var actionTarget = resolveActionTarget(e.target);
-      if (!actionTarget) {
+      })) {
         return;
-      }
-      if (!taskList || !taskList.isConnected) {
-        taskList = document.getElementById("task-list");
-      }
-      if (taskList && !taskList.contains(actionTarget)) {
-        return;
-      }
-      var action = actionTarget.getAttribute("data-action");
-      var taskId = actionTarget.getAttribute("data-id");
-      if (!action || !taskId) {
-        return;
-      }
-      var actionHandlers = {
-        toggle: window.toggleTask,
-        run: window.runTask,
-        edit: window.editTask,
-        copy: window.copyPrompt,
-        duplicate: window.duplicateTask,
-        move: window.moveTaskToCurrentWorkspace,
-        delete: window.deleteTask
-      };
-      var handler = actionHandlers[action];
-      if (typeof handler === "function") {
-        e.preventDefault();
-        handler(taskId);
       }
     });
     function renderTaskList(nextTasks) {
@@ -6715,46 +6927,24 @@
           return '<span class="task-badge label">' + escapeHtml(label) + "</span>";
         }).join("");
         var taskIdEscaped = escapeAttr(task.id || "");
-        function createSelect(items, selectedId, cls, placeholder, fallbackSelectedId) {
-          var effectiveSelectedId = selectedId || fallbackSelectedId || "";
-          var preservedSelectedId = selectedId || "";
-          var hasSelectedOption = !preservedSelectedId;
-          var options = '<option value="">' + escapeHtml(placeholder) + "</option>";
-          if (Array.isArray(items)) {
-            items.forEach(function(item) {
-              var id = item.id || item.slug;
-              if (!id) {
-                return;
-              }
-              var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : item.name || id;
-              if (id === preservedSelectedId) {
-                hasSelectedOption = true;
-              }
-              var sel = id === effectiveSelectedId ? " selected" : "";
-              options += '<option value="' + escapeAttr(id) + '"' + sel + ">" + escapeHtml(label) + "</option>";
-            });
-          }
-          if (preservedSelectedId && !hasSelectedOption) {
-            options += '<option value="' + escapeAttr(preservedSelectedId) + '" selected>' + escapeHtml(preservedSelectedId) + "</option>";
-          }
-          return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + "</select>";
-        }
-        var agentSelect2 = createSelect(
+        var configRow = buildTaskConfigRowMarkup({
+          task,
+          taskId: taskIdEscaped,
           agents,
-          task.agent,
-          "task-agent-select",
-          strings.placeholderSelectAgent || "Agent",
-          executionDefaults && executionDefaults.agent
-        );
-        var modelSelect2 = createSelect(
           models,
-          task.model,
-          "task-model-select",
-          strings.placeholderSelectModel || "Model",
-          executionDefaults && executionDefaults.model
-        );
-        var configRow = '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' + agentSelect2 + modelSelect2 + "</div>";
-        var actionsHtml = '<button class="btn-secondary btn-icon" data-action="toggle" data-id="' + taskIdEscaped + '" title="' + escapeAttr(toggleTitle) + '">' + toggleIcon + '</button><button class="btn-secondary btn-icon" data-action="run" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionRun) + '">\u{1F680}</button><button class="btn-secondary btn-icon" data-action="edit" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionEdit) + '">\u270F\uFE0F</button><button class="btn-secondary btn-icon" data-action="copy" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionCopyPrompt) + '">\u{1F4CB}</button><button class="btn-secondary btn-icon" data-action="duplicate" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionDuplicate) + '">\u{1F4C4}</button>';
+          executionDefaults,
+          strings,
+          escapeAttr,
+          escapeHtml,
+          formatModelLabel
+        });
+        var actionsHtml = buildBaseTaskActionsMarkup({
+          taskId: taskIdEscaped,
+          toggleTitle,
+          toggleIcon,
+          strings,
+          escapeAttr
+        });
         if (scopeValue === "workspace" && !inThisWorkspace) {
           actionsHtml += '<button class="btn-secondary btn-icon" data-action="move" data-id="' + taskIdEscaped + '" title="' + escapeAttr(strings.actionMoveToCurrentWorkspace || "") + '">\u{1F4CC}</button>';
           if (filters.showRecurringTasks === true) {
@@ -7110,53 +7300,34 @@
       });
     }
     function updateTemplateOptions(source, selectedPath) {
-      if (!templateSelect) return;
-      selectedPath = selectedPath || "";
-      var templates = Array.isArray(promptTemplates) ? promptTemplates : [];
-      var filtered = templates.filter(function(t) {
-        return t.source === source;
+      updatePromptTemplateOptions({
+        templateSelect,
+        promptTemplates,
+        source,
+        selectedPath,
+        strings,
+        escapeHtml,
+        escapeAttr
       });
-      var selectText = strings.placeholderSelectTemplate || "";
-      var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
-      templateSelect.innerHTML = placeholder + filtered.map(function(t) {
-        return '<option value="' + escapeAttr(t.path) + '">' + escapeHtml(t.name) + "</option>";
-      }).join("");
-      if (!selectedPath) {
-        templateSelect.value = "";
-        return;
-      }
-      templateSelect.value = selectedPath;
-      if (templateSelect.value !== selectedPath) {
-        templateSelect.value = "";
-      }
     }
     function applyPromptSource(source, keepSelection) {
-      var effectiveSource = source || "inline";
-      var selectedPath = keepSelection && templateSelect ? templateSelect.value : "";
-      var usesInlinePrompt = effectiveSource === "inline";
-      if (promptTextEl) {
-        promptTextEl.required = usesInlinePrompt;
-      }
-      if (templateSelect) {
-        templateSelect.required = !usesInlinePrompt;
-      }
-      if (usesInlinePrompt) {
-        if (templateSelectGroup) templateSelectGroup.style.display = "none";
-        if (promptGroup) promptGroup.style.display = "block";
-        if (!keepSelection && templateSelect) {
-          templateSelect.value = "";
+      applyPromptSourceUi({
+        source,
+        keepSelection,
+        templateSelect,
+        promptTextEl,
+        templateSelectGroup,
+        promptGroup,
+        promptTemplates,
+        strings,
+        escapeHtml,
+        escapeAttr,
+        warnMissingTemplateGroup: function() {
+          console.warn(
+            "[CopilotScheduler] Template select group missing; template selection is disabled."
+          );
         }
-        return;
-      }
-      if (templateSelectGroup) {
-        templateSelectGroup.style.display = "block";
-      } else {
-        console.warn(
-          "[CopilotScheduler] Template select group missing; template selection is disabled."
-        );
-      }
-      if (promptGroup) promptGroup.style.display = "block";
-      updateTemplateOptions(effectiveSource, selectedPath);
+      });
     }
     function updateSkillOptions() {
       if (!skillSelect) return;
@@ -7948,19 +8119,23 @@
       pendingAgentValue = task.agent || "";
       pendingModelValue = task.model || "";
       if (agentSelect) {
-        if (pendingAgentValue && selectHasOptionValue(agentSelect, pendingAgentValue)) {
-          agentSelect.value = pendingAgentValue;
-          pendingAgentValue = "";
-        } else if (pendingAgentValue) {
+        if (pendingAgentValue && !selectHasOptionValue(agentSelect, pendingAgentValue)) {
           agentSelect.value = "";
+        } else {
+          pendingAgentValue = restorePendingSelectValue(
+            agentSelect,
+            pendingAgentValue
+          );
         }
       }
       if (modelSelect) {
-        if (pendingModelValue && selectHasOptionValue(modelSelect, pendingModelValue)) {
-          modelSelect.value = pendingModelValue;
-          pendingModelValue = "";
-        } else if (pendingModelValue) {
+        if (pendingModelValue && !selectHasOptionValue(modelSelect, pendingModelValue)) {
           modelSelect.value = "";
+        } else {
+          pendingModelValue = restorePendingSelectValue(
+            modelSelect,
+            pendingModelValue
+          );
         }
       }
       editingTaskEnabled = task.enabled !== false;
@@ -7981,11 +8156,13 @@
       applyPromptSource(sourceValue, true);
       pendingTemplatePath = task.promptPath || "";
       if (templateSelect) {
-        if (pendingTemplatePath && selectHasOptionValue(templateSelect, pendingTemplatePath)) {
-          templateSelect.value = pendingTemplatePath;
-          pendingTemplatePath = "";
-        } else if (pendingTemplatePath) {
+        if (pendingTemplatePath && !selectHasOptionValue(templateSelect, pendingTemplatePath)) {
           templateSelect.value = "";
+        } else {
+          pendingTemplatePath = restorePendingSelectValue(
+            templateSelect,
+            pendingTemplatePath
+          );
         }
       }
       if (jitterSecondsInput) {
@@ -8188,12 +8365,10 @@
               syncJobsStepSelectors();
               syncResearchSelectors();
               if (agentSelect && currentAgentValue) {
-                agentSelect.value = currentAgentValue;
-                if (agentSelect.value === currentAgentValue) {
-                  pendingAgentValue = "";
-                } else {
-                  pendingAgentValue = currentAgentValue;
-                }
+                pendingAgentValue = restorePendingSelectValue(
+                  agentSelect,
+                  currentAgentValue
+                );
               }
               renderTaskList(tasks);
             }
@@ -8212,12 +8387,10 @@
               syncJobsStepSelectors();
               syncResearchSelectors();
               if (modelSelect && currentModelValue) {
-                modelSelect.value = currentModelValue;
-                if (modelSelect.value === currentModelValue) {
-                  pendingModelValue = "";
-                } else {
-                  pendingModelValue = currentModelValue;
-                }
+                pendingModelValue = restorePendingSelectValue(
+                  modelSelect,
+                  currentModelValue
+                );
               }
               renderTaskList(tasks);
             }
@@ -8229,22 +8402,16 @@
                 'input[name="prompt-source"]:checked'
               );
               var currentSource = sourceElement ? sourceElement.value : "inline";
-              var currentTemplateValue = pendingTemplatePath || (templateSelect ? templateSelect.value : "");
-              updateTemplateOptions(currentSource, currentTemplateValue);
-              if (templateSelect && currentTemplateValue) {
-                if (templateSelect.value === currentTemplateValue) {
-                  pendingTemplatePath = "";
-                } else {
-                  pendingTemplatePath = currentTemplateValue;
-                }
-              }
-              if (currentSource === "local" || currentSource === "global") {
-                if (templateSelectGroup)
-                  templateSelectGroup.style.display = "block";
-              } else {
-                if (templateSelectGroup)
-                  templateSelectGroup.style.display = "none";
-              }
+              pendingTemplatePath = syncPromptTemplatesFromMessage({
+                promptTemplates,
+                pendingTemplatePath,
+                templateSelect,
+                templateSelectGroup,
+                currentSource,
+                strings,
+                escapeHtml,
+                escapeAttr
+              });
             }
             break;
           case "updateSkills":
