@@ -1,8 +1,3 @@
-/**
- * Copilot Cockpit - Extension Entry Point
- * Registers commands, initializes components, and starts the scheduler
- */
-
 import * as vscode from "vscode";
 import * as path from "path";
 import { ScheduleManager } from "./scheduleManager";
@@ -15,7 +10,8 @@ import {
 } from "./treeProvider";
 import { SchedulerWebview } from "./schedulerWebview";
 import { messages } from "./i18n";
-import { logDebug, logError } from "./logger";
+import { logDebug } from "./logger";
+import { logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
   COCKPIT_READY_FLAG,
@@ -278,10 +274,9 @@ function getPromptMaintenanceKeys() {
 }
 
 function clearPromptSyncIntervalHandle(): void {
-  if (promptSyncInterval) {
-    clearInterval(promptSyncInterval);
-    promptSyncInterval = undefined;
-  }
+  if (!promptSyncInterval) return;
+  clearInterval(promptSyncInterval);
+  promptSyncInterval = undefined;
 }
 
 function createSchedulerTreeView(): vscode.TreeView<WorkspaceTreeNode> {
@@ -294,32 +289,21 @@ function createSchedulerTreeView(): vscode.TreeView<WorkspaceTreeNode> {
 function registerSchedulerCommands(
   context: vscode.ExtensionContext,
 ): vscode.Disposable[] {
-  return [
-    registerCreateTaskCommand(),
-    registerCreateTaskGuiCommand(context),
-    registerListTasksCommand(context),
-    registerEditTaskCommand(context),
-    registerDeleteTaskCommand(),
-    registerToggleTaskCommand(),
-    registerEnableTaskCommand(),
-    registerDisableTaskCommand(),
-    registerRunNowCommand(),
-    registerCopyPromptCommand(),
-    registerDuplicateTaskCommand(),
-    registerMoveToCurrentWorkspaceCommand(),
-    registerOpenSettingsCommand(),
-    registerShowVersionCommand(context),
-    registerSetupMcpCommand(context),
-    registerSyncBundledSkillsCommand(context),
-  ];
+  const commandDisposables: vscode.Disposable[] = [];
+  commandDisposables.push(registerCreateTaskCommand(), registerCreateTaskGuiCommand(context));
+  commandDisposables.push(registerListTasksCommand(context), registerEditTaskCommand(context));
+  commandDisposables.push(registerDeleteTaskCommand(), registerToggleTaskCommand());
+  commandDisposables.push(registerEnableTaskCommand(), registerDisableTaskCommand());
+  commandDisposables.push(registerRunNowCommand(), registerCopyPromptCommand());
+  commandDisposables.push(registerDuplicateTaskCommand(), registerMoveToCurrentWorkspaceCommand());
+  commandDisposables.push(registerOpenSettingsCommand(), registerShowVersionCommand(context));
+  commandDisposables.push(registerSetupMcpCommand(context), registerSyncBundledSkillsCommand(context));
+  return commandDisposables;
 }
 
 function refreshTasksAfterConfigurationRecalculation(): void {
-  void scheduleManager
-    .recalculateAllNextRuns()
-    .then(() => {
-      refreshWebviewTasks();
-    })
+  void scheduleManager.recalculateAllNextRuns()
+    .then(refreshWebviewTasks)
     .catch((error) => {
       logExtensionErrorWithSanitizedDetails(
         "[CopilotScheduler] Failed to recalculate nextRun after config change:",
@@ -619,9 +603,10 @@ async function showSchedulerWebview(
   context: vscode.ExtensionContext,
   onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
 ): Promise<void> {
+  const tasks = scheduleManager.getAllTasks();
   await SchedulerWebview.show(
     context.extensionUri,
-    scheduleManager.getAllTasks(),
+    tasks,
     scheduleManager.getAllJobs(),
     scheduleManager.getAllJobFolders(),
     getCurrentCockpitBoard(),
@@ -1317,9 +1302,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const currentVersion = (context.extension.packageJSON as { version?: string }).version ?? "0.0.0";
     const lastVersion = context.globalState.get<string>(LAST_VERSION_KEY);
     shouldAutoRepairWorkspaceSupportThisSession = !lastVersion || lastVersion !== currentVersion;
-    extensionVersionChangedThisSession = !!(lastVersion && lastVersion !== currentVersion);
-    maybePromptReloadAfterUpdate(currentVersion, lastVersion);
-    void context.globalState.update(LAST_VERSION_KEY, currentVersion);
+    extensionVersionChangedThisSession = Boolean(lastVersion && lastVersion !== currentVersion);
+    maybePromptReloadAfterUpdate(currentVersion, lastVersion); void context.globalState.update(LAST_VERSION_KEY, currentVersion);
   }
 
   // Initialize components
@@ -1592,18 +1576,14 @@ export function activate(context: vscode.ExtensionContext): void {
         });
       }
     }
-    if (
+    const pathConfigChanged =
       affectsCompatibleConfiguration(e, "globalPromptsPath") ||
-      affectsCompatibleConfiguration(e, "globalAgentsPath")
-    ) {
-      void SchedulerWebview.refreshCachesAndNotifyPanel(true);
-    }
+      affectsCompatibleConfiguration(e, "globalAgentsPath");
+    if (pathConfigChanged) void SchedulerWebview.refreshCachesAndNotifyPanel(true);
     // Consolidate timezone / enabled recalculation to avoid duplicate
     // recalculateAllNextRuns() when both change in one event (U22/U24).
     let needsRecalculate = false;
-    if (affectsCompatibleConfiguration(e, "timezone")) {
-      needsRecalculate = true;
-    }
+    if (affectsCompatibleConfiguration(e, "timezone")) needsRecalculate = true;
     if (affectsCompatibleConfiguration(e, "enabled")) {
       const enabled = getSchedulerSetting<boolean>("enabled", true);
       if (enabled) { scheduleManager.startScheduler(executeScheduledTask); needsRecalculate = true; }
@@ -1714,6 +1694,29 @@ function notifyAndRefreshTaskList(message: string): void {
   refreshWebviewTasks();
 }
 
+function notifyToggleState(task: ScheduledTask): void {
+  notifyInfo(task.enabled ? messages.taskEnabled(task.name) : messages.taskDisabled(task.name));
+}
+
+async function executePromptSmokeTest(prompt: string, agent?: string, model?: string): Promise<void> {
+  await copilotExecutor.executePrompt(prompt, { agent, model }).catch((error: unknown) => {
+    const errorMessage = toErrorMessage(error);
+    const safeErrorMessage = sanitizeErrorDetailsForLog(errorMessage) || errorMessage;
+    logError(`[CopilotScheduler] Test prompt failed: ${safeErrorMessage}`);
+  });
+}
+
+async function handleWebviewToggleTaskAction(taskId: string): Promise<void> {
+  const task = await scheduleManager.toggleTask(taskId);
+  if (!task) {
+    notifyWebviewError(messages.taskNotFound());
+    return;
+  }
+  notifyToggleState(task);
+  if (task.enabled) await maybeShowDisclaimerOnce(task);
+  refreshSchedulerUiState();
+}
+
 function finishWebviewTaskEdit(message: string): void {
   notifyInfo(message);
   refreshSchedulerUiState();
@@ -1743,9 +1746,7 @@ async function promptForTaskCreationInput(): Promise<CreateTaskInput | undefined
   if (!prompt) return undefined;
 
   const cronExpression = await promptForRequiredTaskText({
-    prompt: messages.enterCronExpression(),
-    placeHolder: messages.placeholderCron(),
-    value: "0 9 * * 1-5",
+    prompt: messages.enterCronExpression(), placeHolder: messages.placeholderCron(), value: "0 9 * * 1-5",
   });
   if (!cronExpression) return undefined;
 
@@ -1777,10 +1778,7 @@ async function handleWebviewDeleteTaskAction(taskId: string): Promise<void> {
     return;
   }
 
-  if (
-    task.scope === "workspace" &&
-    !scheduleManager.shouldTaskRunInCurrentWorkspace(task)
-  ) {
+  if (task.scope === "workspace" && !scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
     const message = messages.cannotDeleteOtherWorkspaceTask(task.name);
     notifyWebviewError(message);
     return;
@@ -1929,22 +1927,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       }
 
       case "toggle": {
-        const task = await scheduleManager.toggleTask(action.taskId);
-        if (!task) {
-          const msg = messages.taskNotFound();
-          notifyWebviewError(msg);
-          break;
-        }
-
-        notifyInfo(
-          task.enabled
-            ? messages.taskEnabled(task.name)
-            : messages.taskDisabled(task.name),
-        );
-        if (task.enabled) {
-          await maybeShowDisclaimerOnce(task);
-        }
-        refreshSchedulerUiState();
+        await handleWebviewToggleTaskAction(action.taskId);
         break;
       }
 
@@ -1954,7 +1937,8 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       }
 
       case "edit": {
-        if (action.taskId === "__create__" && action.data) {
+        const isCreateRequest = action.taskId === "__create__";
+        if (isCreateRequest && action.data) {
           await maybeWarnCronInterval(action.data.cronExpression);
           const task = await scheduleManager.createTask(action.data as CreateTaskInput);
           await maybeShowDisclaimerOnce(task);
@@ -2633,9 +2617,7 @@ function registerSyncBundledSkillsCommand(
   );
 }
 
-function registerCreateTaskGuiCommand(
-  context: vscode.ExtensionContext,
-): vscode.Disposable {
+function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.Disposable {
   return registerSchedulerCommand(
     "createTaskGui",
     async () => {
@@ -2646,17 +2628,7 @@ function registerCreateTaskGuiCommand(
             // Test prompt execution
             // executePrompt already shows a user-facing warning with copy-to-clipboard
             // on failure, so we only log the error here to avoid double notification (U20).
-            try {
-              await copilotExecutor.executePrompt(prompt, { agent, model });
-            } catch (error) {
-              const errorMessage =
-                toErrorMessage(error);
-              const safeErrorMessage =
-                sanitizeErrorDetailsForLog(errorMessage) || errorMessage;
-              logError(
-                `[CopilotScheduler] Test prompt failed: ${safeErrorMessage}`,
-              );
-            }
+            await executePromptSmokeTest(prompt, agent, model);
           },
         );
 
@@ -2671,9 +2643,7 @@ function registerCreateTaskGuiCommand(
   );
 }
 
-function registerListTasksCommand(
-  context: vscode.ExtensionContext,
-): vscode.Disposable {
+function registerListTasksCommand(context: vscode.ExtensionContext): vscode.Disposable {
   return registerSchedulerCommand(
     "listTasks",
     async () => {
@@ -2688,9 +2658,7 @@ function registerListTasksCommand(
   );
 }
 
-function registerEditTaskCommand(
-  context: vscode.ExtensionContext,
-): vscode.Disposable {
+function registerEditTaskCommand(context: vscode.ExtensionContext): vscode.Disposable {
   return registerSchedulerCommand(
     "editTask",
     async (item?: ScheduledTaskItem) => {
@@ -2744,20 +2712,13 @@ function registerDeleteTaskCommand(): vscode.Disposable {
               });
         if (!task) return;
 
-        if (
-          task.scope === "workspace" &&
-          !scheduleManager.shouldTaskRunInCurrentWorkspace(task)
-        ) {
+        if (task.scope === "workspace" && !scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
           notifyError(messages.cannotDeleteOtherWorkspaceTask(task.name));
           return;
         }
 
         // Confirm deletion
-        const confirm = await vscode.window.showWarningMessage(
-          messages.confirmDelete(task.name),
-          { modal: true },
-          messages.confirmDeleteYes(),
-        );
+        const confirm = await vscode.window.showWarningMessage(messages.confirmDelete(task.name), { modal: true }, messages.confirmDeleteYes());
 
         if (confirm === messages.confirmDeleteYes()) {
           await scheduleManager.deleteTask(task.id);
@@ -2791,11 +2752,7 @@ function registerToggleTaskCommand(): vscode.Disposable {
 
         const task = await scheduleManager.toggleTask(taskId);
         if (task) {
-          notifyInfo(
-            task.enabled
-              ? messages.taskEnabled(task.name)
-              : messages.taskDisabled(task.name),
-          );
+          notifyInfo(task.enabled ? messages.taskEnabled(task.name) : messages.taskDisabled(task.name));
           if (task.enabled) {
             await maybeShowDisclaimerOnce(task);
           }
@@ -2894,9 +2851,7 @@ function registerRunNowCommand(): vscode.Disposable {
         if (!task) return;
 
         const confirmed = await confirmManualRunIfWorkspaceMismatch(task);
-        if (!confirmed) {
-          return;
-        }
+        if (!confirmed) return;
 
         // Manual run: no jitter / no daily limit. Persist lastRun when possible.
         // Do not retry on failure — executePrompt already shows a warning.
@@ -2931,8 +2886,7 @@ function registerCopyPromptCommand(): vscode.Disposable {
               });
         if (!task) return;
 
-        const promptText = await resolvePromptText(task);
-        await vscode.env.clipboard.writeText(promptText);
+        await vscode.env.clipboard.writeText(await resolvePromptText(task));
         notifyInfo(messages.promptCopied());
       } catch (error) {
         notifyCaughtError(error);
@@ -2994,21 +2948,11 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
               });
         if (!task) return;
 
-        const confirm = await vscode.window.showWarningMessage(
-          messages.confirmMoveToCurrentWorkspace(task.name),
-          { modal: true },
-          messages.confirmMoveYes(),
-          messages.actionCancel(),
-        );
-        if (confirm !== messages.confirmMoveYes()) {
-          return;
-        }
+        const confirm = await vscode.window.showWarningMessage(messages.confirmMoveToCurrentWorkspace(task.name), { modal: true }, messages.confirmMoveYes(), messages.actionCancel());
+        if (confirm !== messages.confirmMoveYes()) return;
 
         const moved = await scheduleManager.moveTaskToCurrentWorkspace(task.id);
-        if (!moved) {
-          notifyError(messages.taskNotFound());
-          return;
-        }
+        if (!moved) { notifyError(messages.taskNotFound()); return; }
         notifyAndRefreshTaskList(messages.taskMovedToCurrentWorkspace(moved.name));
       } catch (error) {
         notifyCaughtWebviewError(error);
@@ -3022,10 +2966,7 @@ function registerOpenSettingsCommand(): vscode.Disposable {
     "openSettings",
     async () => {
       try {
-        await vscode.commands.executeCommand(
-          "workbench.action.openSettings",
-          "@ext:local-dev.copilot-cockpit",
-        );
+        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:local-dev.copilot-cockpit");
       } catch (error) {
         notifyCaughtError(error);
       }
@@ -3033,18 +2974,13 @@ function registerOpenSettingsCommand(): vscode.Disposable {
   );
 }
 
-function registerShowVersionCommand(
-  context: vscode.ExtensionContext,
-): vscode.Disposable {
+function registerShowVersionCommand(context: vscode.ExtensionContext): vscode.Disposable {
   return registerSchedulerCommand(
     "showVersion",
     async () => {
       try {
-        const packageJson = context.extension.packageJSON as {
-          version: string;
-        };
-        const version = packageJson.version || "0.0.0";
-        notifyInfo(messages.versionInfo(version));
+        const packageJson = context.extension.packageJSON as { version: string };
+        notifyInfo(messages.versionInfo(packageJson.version || "0.0.0"));
       } catch (error) {
         notifyCaughtError(error);
       }
