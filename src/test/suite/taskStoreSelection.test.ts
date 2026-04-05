@@ -1,144 +1,85 @@
 import * as assert from "assert";
 import { selectTaskStore } from "../../taskStoreSelection";
 
-type T = { id: string };
+type SampleTask = { id: string };
 
-suite("Task Store Selection (revision) Tests", () => {
-  test("Chooses file when file revision is newer", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "g1" }],
-        revision: 1,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "f2" }],
-        revision: 2,
-      },
+function snapshot(kind: "file" | "globalState", revision: number, taskId: string, overrides?: Partial<{
+  exists: boolean;
+  ok: boolean;
+  tasks: SampleTask[];
+}>) {
+  return {
+    kind,
+    revision,
+    exists: overrides?.exists ?? true,
+    ok: overrides?.ok ?? true,
+    tasks: overrides?.tasks ?? [{ id: taskId }],
+  };
+}
+
+suite("Task store selection behavior", () => {
+  test("prefers the newest healthy source and plans healing for the older copy", () => {
+    const fromFile = selectTaskStore<SampleTask>(
+      snapshot("globalState", 1, "global-old"),
+      snapshot("file", 2, "file-new"),
     );
+    assert.strictEqual(fromFile.chosenKind, "file");
+    assert.strictEqual(fromFile.chosenRevision, 2);
+    assert.deepStrictEqual(fromFile.chosenTasks, [{ id: "file-new" }]);
+    assert.strictEqual(fromFile.shouldHealGlobalState, true);
 
-    assert.strictEqual(res.chosenKind, "file");
-    assert.strictEqual(res.chosenRevision, 2);
-    assert.deepStrictEqual(res.chosenTasks, [{ id: "f2" }]);
-    assert.strictEqual(res.shouldHealGlobalState, true);
+    const fromGlobal = selectTaskStore<SampleTask>(
+      snapshot("globalState", 3, "global-new"),
+      snapshot("file", 2, "file-old"),
+    );
+    assert.strictEqual(fromGlobal.chosenKind, "globalState");
+    assert.strictEqual(fromGlobal.chosenRevision, 3);
+    assert.deepStrictEqual(fromGlobal.chosenTasks, [{ id: "global-new" }]);
+    assert.strictEqual(fromGlobal.shouldHealFile, true);
   });
 
-  test("Chooses globalState when globalState revision is newer", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "g2" }],
-        revision: 2,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "f1" }],
-        revision: 1,
-      },
+  test("prefers the file when revisions match and the file is valid", () => {
+    const result = selectTaskStore<SampleTask>(
+      snapshot("globalState", 7, "global"),
+      snapshot("file", 7, "file"),
     );
 
-    assert.strictEqual(res.chosenKind, "globalState");
-    assert.strictEqual(res.chosenRevision, 2);
-    assert.deepStrictEqual(res.chosenTasks, [{ id: "g2" }]);
-    assert.strictEqual(res.shouldHealFile, true);
+    assert.strictEqual(result.chosenKind, "file");
+    assert.strictEqual(result.chosenRevision, 7);
+    assert.deepStrictEqual(result.chosenTasks, [{ id: "file" }]);
   });
 
-  test("Prefers file when revisions are equal and file is ok", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "g1" }],
-        revision: 3,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "f1" }],
-        revision: 3,
-      },
+  test("falls back to global state when a same-revision file is invalid", () => {
+    const result = selectTaskStore<SampleTask>(
+      snapshot("globalState", 4, "global"),
+      snapshot("file", 4, "corrupt", { ok: false }),
     );
-    assert.strictEqual(res.chosenKind, "file");
-    assert.strictEqual(res.chosenRevision, 3);
-    assert.deepStrictEqual(res.chosenTasks, [{ id: "f1" }]);
+
+    assert.strictEqual(result.chosenKind, "globalState");
+    assert.strictEqual(result.chosenRevision, 4);
+    assert.deepStrictEqual(result.chosenTasks, [{ id: "global" }]);
   });
 
-  test("Prefers globalState when revisions are equal but file is invalid", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "g1" }],
-        revision: 3,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: false,
-        tasks: [{ id: "corrupt" }],
-        revision: 3,
-      },
+  test("never heals global state from a broken file snapshot", () => {
+    const result = selectTaskStore<SampleTask>(
+      snapshot("globalState", 0, "empty", { exists: false, tasks: [] }),
+      snapshot("file", 7, "broken", { ok: false, tasks: [] }),
     );
-    assert.strictEqual(res.chosenKind, "globalState");
-    assert.strictEqual(res.chosenRevision, 3);
-    assert.deepStrictEqual(res.chosenTasks, [{ id: "g1" }]);
+
+    assert.strictEqual(result.chosenKind, "file");
+    assert.strictEqual(result.shouldHealGlobalState, false);
   });
 
-  test("Invalid file store never wins against an existing globalState store", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: true,
-        ok: true,
-        tasks: [{ id: "g9" }],
-        revision: 9,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: false,
-        tasks: [],
-        revision: 10,
-      },
+  test("an invalid file never beats an existing global snapshot", () => {
+    const result = selectTaskStore<SampleTask>(
+      snapshot("globalState", 9, "global-good"),
+      snapshot("file", 10, "ignored", { ok: false, tasks: [] }),
     );
 
-    assert.strictEqual(res.chosenKind, "globalState");
-    assert.strictEqual(res.chosenRevision, 9);
-    assert.deepStrictEqual(res.chosenTasks, [{ id: "g9" }]);
-    assert.strictEqual(res.shouldHealFile, true);
-    assert.strictEqual(res.shouldHealGlobalState, false);
-  });
-
-  test("Does not plan healing globalState from an invalid file store", () => {
-    const res = selectTaskStore<T>(
-      {
-        kind: "globalState",
-        exists: false,
-        ok: true,
-        tasks: [],
-        revision: 0,
-      },
-      {
-        kind: "file",
-        exists: true,
-        ok: false,
-        tasks: [],
-        revision: 7,
-      },
-    );
-    assert.strictEqual(res.chosenKind, "file");
-    assert.strictEqual(res.shouldHealGlobalState, false);
+    assert.strictEqual(result.chosenKind, "globalState");
+    assert.strictEqual(result.chosenRevision, 9);
+    assert.deepStrictEqual(result.chosenTasks, [{ id: "global-good" }]);
+    assert.strictEqual(result.shouldHealFile, true);
+    assert.strictEqual(result.shouldHealGlobalState, false);
   });
 });

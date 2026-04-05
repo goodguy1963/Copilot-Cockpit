@@ -1,147 +1,145 @@
 import * as path from "path";
-import * as fs from "fs";
 import * as vscode from "vscode";
+import * as fs from "fs";
+
+const PROMPT_FILE_SUFFIX = ".md";
+const AGENT_FILE_SUFFIX = ".agent.md";
 
 export function normalizeForCompare(p: string): string {
-  if (!p) return "";
-  const resolved = path.normalize(path.resolve(p));
-  const root = path.parse(resolved).root;
-  // Avoid turning filesystem roots ("/", "C:\\") into empty strings.
-  const trimmed =
-    resolved === root ? resolved : resolved.replace(/[\\/]+$/, "");
-  return process.platform === "win32" ? trimmed.toLowerCase() : trimmed;
+  if (!p) {
+    return "";
+  }
+
+  const absolutePath = path.resolve(p);
+  const normalizedPath = path.normalize(absolutePath);
+  const parsedRoot = path.parse(normalizedPath).root;
+  const trimmedPath = normalizedPath === parsedRoot
+    ? normalizedPath
+    : normalizedPath.replace(/[\\/]+$/, "");
+
+  return process.platform === "win32"
+    ? trimmedPath.toLowerCase()
+    : trimmedPath;
 }
 
 function tryResolveRealPathNormalized(p: string): string | undefined {
-  if (!p) return undefined;
+  if (!p) {
+    return undefined;
+  }
+
   try {
-    const real = fs.realpathSync.native
+    const resolvedPath = fs.realpathSync.native
       ? fs.realpathSync.native(p)
       : fs.realpathSync(p);
-    return normalizeForCompare(real);
+    return normalizeForCompare(resolvedPath);
   } catch {
     return undefined;
   }
 }
 
-export function isPathInsideBaseDir(
-  baseDir: string,
-  targetPath: string,
-): boolean {
-  const baseReal = tryResolveRealPathNormalized(baseDir);
-  const targetReal = tryResolveRealPathNormalized(targetPath);
+function ensureTrailingSeparator(resolvedPath: string): string {
+  if (resolvedPath.endsWith(path.sep)) {
+    return resolvedPath;
+  }
 
-  const base = baseReal || normalizeForCompare(baseDir);
-  const tgt = targetReal || normalizeForCompare(targetPath);
-  if (!base || !tgt) return false;
-  const prefix = base.endsWith(path.sep) ? base : base + path.sep;
-  return tgt === base || tgt.startsWith(prefix);
+  return `${resolvedPath}${path.sep}`;
+}
+
+export function isPathInsideBaseDir(baseDir: string, targetPath: string): boolean {
+  const normalizedBase =
+    tryResolveRealPathNormalized(baseDir) ?? normalizeForCompare(baseDir);
+  const normalizedTarget =
+    tryResolveRealPathNormalized(targetPath) ?? normalizeForCompare(targetPath);
+
+  if (!normalizedBase || !normalizedTarget) {
+    return false;
+  }
+
+  const canonicalBasePath = ensureTrailingSeparator(normalizedBase);
+  return normalizedTarget === normalizedBase
+    || normalizedTarget.startsWith(canonicalBasePath);
 }
 
 function isMarkdownFile(p: string): boolean {
-  const lower = p.toLowerCase();
-  // Prompt templates are markdown, but agent definitions (*.agent.md) must not be treated as templates.
-  return lower.endsWith(".md") && !lower.endsWith(".agent.md");
+  const lowerPath = p.toLowerCase();
+  return lowerPath.endsWith(PROMPT_FILE_SUFFIX)
+    && !lowerPath.endsWith(AGENT_FILE_SUFFIX);
 }
 
-/**
- * Resolve a path against a base directory and ensure it stays inside it.
- *
- * Accepts absolute or relative `promptPath`.
- */
-export function resolveAllowedPathInBaseDir(
-  baseDir: string,
-  promptPath: string,
-): string | undefined {
-  if (!baseDir || !promptPath) return undefined;
-  const resolvedTarget = path.resolve(baseDir, promptPath);
-  if (!isPathInsideBaseDir(baseDir, resolvedTarget)) {
+function resolveIfAllowed(baseDir: string, candidatePath: string): string | undefined {
+  const resolvedCandidate = path.resolve(candidatePath);
+  if (!isPathInsideBaseDir(baseDir, resolvedCandidate)) {
     return undefined;
   }
-  if (!isMarkdownFile(resolvedTarget)) {
+
+  return isMarkdownFile(resolvedCandidate) ? resolvedCandidate : undefined;
+}
+
+export function resolveAllowedPathInBaseDir(baseDir: string, promptPath: string): string | undefined {
+  const hasMissingInput = !baseDir || !promptPath;
+  if (hasMissingInput) {
     return undefined;
   }
-  return resolvedTarget;
+
+  const targetPath = path.resolve(baseDir, promptPath);
+  return resolveIfAllowed(baseDir, targetPath);
 }
 
-export function resolveGlobalPromptPath(
-  globalRoot: string | undefined,
-  promptPath: string,
-): string | undefined {
-  if (!globalRoot) return undefined;
-  return resolveAllowedPathInBaseDir(globalRoot, promptPath);
+export function resolveGlobalPromptPath(globalRoot: string | undefined, promptPath: string): string | undefined {
+  return globalRoot
+    ? resolveIfAllowed(globalRoot, path.resolve(globalRoot, promptPath))
+    : undefined;
 }
 
-/**
- * Resolve local prompt template path for execution.
- *
- * Security/consistency:
- * - Only allows markdown files under `.github/prompts/` in any open workspace folder.
- * - Supports multi-root workspaces.
- * - Supports absolute paths and relative paths (relative to workspace root or prompts dir).
- */
-export function resolveLocalPromptPath(
-  workspaceFolderPaths: string[],
+function getPromptsDirectory(workspaceRoot: string): string {
+  return path.join(workspaceRoot, ".github", "prompts");
+}
+
+function* getLocalPromptCandidates(
+  workspaceRoot: string,
   promptPath: string,
-): string | undefined {
-  if (!promptPath || typeof promptPath !== "string") return undefined;
-  if (workspaceFolderPaths.length === 0) return undefined;
+): Generator<string> {
+  const promptsDir = getPromptsDirectory(workspaceRoot);
+  if (path.isAbsolute(promptPath)) {
+    yield promptPath;
+    return;
+  }
+
+  yield path.resolve(workspaceRoot, promptPath);
+  yield path.resolve(promptsDir, promptPath);
+}
+
+export function resolveLocalPromptPath(workspaceFolderPaths: string[], promptPath: string): string | undefined {
+  const missingPromptPath = typeof promptPath !== "string" || promptPath.length === 0;
+  if (missingPromptPath || workspaceFolderPaths.length === 0) {
+    return undefined;
+  }
 
   for (const workspaceRoot of workspaceFolderPaths) {
-    if (!workspaceRoot) continue;
-    const promptsDir = path.join(workspaceRoot, ".github", "prompts");
-
-    // Absolute path case: just validate containment.
-    if (path.isAbsolute(promptPath)) {
-      const resolvedAbs = path.resolve(promptPath);
-      if (
-        isPathInsideBaseDir(promptsDir, resolvedAbs) &&
-        isMarkdownFile(resolvedAbs)
-      ) {
-        return resolvedAbs;
-      }
+    if (!workspaceRoot) {
       continue;
     }
 
-    // Relative paths:
-    // - relative to workspace root (e.g., ".github/prompts/foo.md")
-    // - relative to prompts dir (e.g., "foo.md" or "sub/foo.md")
-    const candidateFromWorkspace = path.resolve(workspaceRoot, promptPath);
-    if (
-      isPathInsideBaseDir(promptsDir, candidateFromWorkspace) &&
-      isMarkdownFile(candidateFromWorkspace)
-    ) {
-      return candidateFromWorkspace;
-    }
-
-    const candidateFromPrompts = path.resolve(promptsDir, promptPath);
-    if (
-      isPathInsideBaseDir(promptsDir, candidateFromPrompts) &&
-      isMarkdownFile(candidateFromPrompts)
-    ) {
-      return candidateFromPrompts;
+    const promptsDir = getPromptsDirectory(workspaceRoot);
+    for (const candidatePath of getLocalPromptCandidates(workspaceRoot, promptPath)) {
+      const resolved = resolveIfAllowed(promptsDir, candidatePath);
+      if (resolved) {
+        return resolved;
+      }
     }
   }
 
   return undefined;
 }
 
-/**
- * Resolve the global prompts root directory.
- * Falls back to the default VS Code User/prompts folder.
- * Supports Windows (APPDATA), macOS (HOME/Library), and Linux (XDG_CONFIG_HOME or HOME).
- */
-export function resolveGlobalPromptsRoot(
-  customPath?: string,
-): string | undefined {
+export function resolveGlobalPromptsRoot(customPath?: string): string | undefined {
   if (customPath) {
     return fs.existsSync(customPath) ? customPath : undefined;
   }
 
-  const productDirs = getPreferredProductDirs();
-  for (const root of productDirs) {
-    if (root && fs.existsSync(root)) {
-      return root;
+  for (const candidateRoot of getPreferredProductDirs()) {
+    if (candidateRoot && fs.existsSync(candidateRoot)) {
+      return candidateRoot;
     }
   }
 
@@ -149,19 +147,19 @@ export function resolveGlobalPromptsRoot(
 }
 
 function getPreferredProductDirs(): string[] {
-  const appName = vscode.env.appName.toLowerCase();
-  const productNames = appName.includes("insider")
+  const normalizedAppName = vscode.env.appName.toLowerCase();
+  const preferredProductNames = normalizedAppName.includes("insider")
     ? ["Code - Insiders", "Code"]
     : ["Code", "Code - Insiders"];
 
   if (process.env.APPDATA) {
-    return productNames.map((productName) =>
+    return preferredProductNames.map((productName) =>
       path.join(process.env.APPDATA!, productName, "User", "prompts"),
     );
   }
 
   if (process.platform === "darwin" && process.env.HOME) {
-    return productNames.map((productName) =>
+    return preferredProductNames.map((productName) =>
       path.join(
         process.env.HOME!,
         "Library",
@@ -174,10 +172,10 @@ function getPreferredProductDirs(): string[] {
   }
 
   if (process.env.HOME) {
-    const configBase =
+    const configRoot =
       process.env.XDG_CONFIG_HOME || path.join(process.env.HOME, ".config");
-    return productNames.map((productName) =>
-      path.join(configBase, productName, "User", "prompts"),
+    return preferredProductNames.map((productName) =>
+      path.join(configRoot, productName, "User", "prompts"),
     );
   }
 

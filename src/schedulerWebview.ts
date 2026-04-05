@@ -1,43 +1,31 @@
-/**
- * Copilot Cockpit - Scheduler Webview
- * Provides GUI for task creation, editing, and listing
- */
+/** Webview controller for the Cockpit scheduler surface. */
 
-import * as vscode from "vscode";
 import * as path from "path";
-import * as fs from "fs";
+import * as vscode from "vscode";
 import type {
+  AgentInfo,
+  ChatSessionBehavior,
   CockpitBoard,
-  ScheduledTask,
-  ScheduleHistoryEntry,
+  ExecutionDefaultsView,
   JobDefinition,
   JobFolder,
-  TaskAction,
-  AgentInfo,
   ModelInfo,
   PromptTemplate,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsView,
+  ScheduledTask,
+  ScheduleHistoryEntry,
   SkillReference,
   StorageSettingsView,
-  ChatSessionBehavior,
-  ExecutionDefaultsView,
-  ReviewDefaultsView,
-  TelegramNotificationView,
+  TaskAction,
   TaskScope,
-  WebviewToExtensionMessage,
+  TelegramNotificationView,
 } from "./types";
 import { CopilotExecutor } from "./copilotExecutor";
+import type { WebviewToExtensionMessage } from "./types";
+import { getCurrentLanguage } from "./i18n";
 import {
-  messages,
-  getConfiguredLanguage,
-  getCurrentLanguage,
-  getCurrentLocaleTag,
-  getCronPresets,
-} from "./i18n";
-import {
-  getConfiguredLogLevel,
-  getLogDirectoryPath,
   logError,
 } from "./logger";
 import {
@@ -45,11 +33,8 @@ import {
 } from "./extensionCompat";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
-  buildSchedulerWebviewInitialData,
   escapeHtml,
   escapeHtmlAttr,
-  formatModelLabel,
-  getWebviewNonce,
   serializeForWebview,
 } from "./schedulerWebviewContentUtils";
 import { renderSchedulerWebviewDocument } from "./schedulerWebviewDocument";
@@ -60,27 +45,218 @@ import {
   createUpdateCockpitBoardMessage,
   handleTodoCockpitWebviewMessage,
 } from "./schedulerWebviewCockpitBridge";
+import {
+  createShowErrorMessage,
+  createUpdateExecutionDefaultsMessage,
+  createUpdateJobFoldersMessage,
+  createUpdateJobsMessage,
+  createUpdateResearchStateMessage,
+  createUpdateReviewDefaultsMessage,
+  createUpdateScheduleHistoryMessage,
+  createUpdateStorageSettingsMessage,
+  createUpdateTasksMessage,
+  createUpdateTelegramNotificationMessage,
+} from "./schedulerWebviewMessageFactory";
 import { handleSettingsWebviewMessage } from "./schedulerWebviewSettingsHandler";
 import { handleTaskWebviewMessage } from "./schedulerWebviewTaskHandler";
 import { handleJobWebviewMessage } from "./schedulerWebviewJobHandler";
 import { handleResearchWebviewMessage } from "./schedulerWebviewResearchHandler";
 import {
+  handleTodoFileUploadRequest as handleTodoFileUploadRequestWithHelper,
+  sanitizeTodoUploadFileName as sanitizeTodoUploadFileNameWithHelper,
+} from "./schedulerWebviewTodoUploads";
+import {
   getResolvedWorkspaceRootPaths,
   getGlobalPromptsPath,
-  refreshAgentsAndModels,
-  refreshPromptTemplates,
-  refreshSkillReferences,
-  loadPromptTemplateContent,
 } from "./schedulerWebviewTemplateCache";
+import {
+  createSchedulerWebviewJobDialogContext,
+  postAutoShowOnStartup,
+  postEditTask,
+  postFocusJob,
+  postFocusResearchProfile,
+  postFocusResearchRun,
+  postFocusTask,
+  postStartCreateJob,
+  postStartCreateTask,
+  postSwitchToList,
+  postSwitchToTab,
+  refreshSchedulerAgentsAndModelsState,
+  refreshSchedulerPromptTemplatesState,
+  refreshSchedulerSkillReferencesState,
+} from "./schedulerWebviewCommands";
+import { createSchedulerWebviewCurrentRenderContext } from "./schedulerWebviewRenderContext";
+import { buildSchedulerTaskEditorMarkup } from "./schedulerWebviewTaskEditorMarkup";
+import { buildSchedulerWebviewChromeStyles } from "./schedulerWebviewChromeStyles";
+import { buildSchedulerWebviewSharedStyles } from "./schedulerWebviewSharedStyles";
+import { buildSchedulerWebviewExtendedStyles } from "./schedulerWebviewExtendedStyles";
+import {
+  buildSchedulerListTabMarkup,
+  buildSchedulerTodoEditorMarkup,
+} from "./schedulerWebviewTodoMarkup";
+import { buildSchedulerWorkspaceTabsMarkup } from "./schedulerWebviewWorkspaceTabsMarkup";
+import {
+  runSchedulerWebviewBackgroundRefresh,
+  seedSchedulerWebviewCatalogFallbacks,
+} from "./schedulerWebviewShowSupport";
+import { handleSchedulerWebviewCoreMessage } from "./schedulerWebviewMessageRouting";
+import {
+  postSchedulerCatalogMessages,
+} from "./schedulerWebviewState";
+import {
+  backupGithubFolderSnapshot,
+  buildHelpChatPrompt,
+  createSchedulerWebviewQueueState,
+  flushSchedulerWebviewPendingMessages,
+  postSchedulerWebviewMessage,
+  resetSchedulerWebviewQueueState,
+  type SchedulerWebviewQueueState,
+  type SchedulerWebviewMessage,
+} from "./schedulerWebviewSupport";
+import {
+  refreshSchedulerCatalogCaches,
+  refreshSchedulerWebviewLanguagePanel,
+} from "./schedulerWebviewRenderSupport";
+import {
+  dispatchCachedCatalogMessages,
+  dispatchCockpitBoardUpdate,
+  dispatchExecutionDefaultsUpdate,
+  dispatchJobFolderUpdate,
+  dispatchJobUpdate,
+  dispatchResearchStateUpdate,
+  dispatchReviewDefaultsUpdate,
+  dispatchScheduleHistoryUpdate,
+  dispatchStorageSettingsUpdate,
+  dispatchTaskUpdate,
+  dispatchTelegramNotificationUpdate,
+  dispatchWebviewError,
+} from "./schedulerWebviewUpdateDispatch";
+import {
+  createFreshSchedulerPanel,
+  replaySchedulerPanel,
+} from "./schedulerWebviewPanelLifecycle";
+import {
+  assignSchedulerWebviewRuntimeState,
+  createSchedulerWebviewCatalogState,
+  createSchedulerWebviewRuntimeState,
+  type SchedulerWebviewCatalogState,
+  type SchedulerWebviewRuntimeState,
+} from "./schedulerWebviewStateStore";
 
-type OutgoingWebviewMessage = { type: string;[key: string]: unknown };
+type OutgoingWebviewMessage = SchedulerWebviewMessage;
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
 
-/**
- * Manages the Webview panel for task management
- */
 export class SchedulerWebview {
   private static panel: vscode.WebviewPanel | undefined;
+<<<<<<< HEAD
+  private static readonly catalogState = createSchedulerWebviewCatalogState();
+  private static readonly runtimeState = createSchedulerWebviewRuntimeState();
+  private static readonly messageQueueState = createSchedulerWebviewQueueState({
+    batchedMessageTypes: [
+      "updateTasks",
+      "updateJobs",
+      "updateJobFolders",
+      "updateCockpitBoard",
+      "updateTelegramNotification",
+      "updateExecutionDefaults",
+      "updateReviewDefaults",
+      "updateStorageSettings",
+      "updateResearchState",
+      "updateScheduleHistory",
+      "updateAgents",
+      "updateModels",
+      "updatePromptTemplates",
+      "updateSkills",
+    ],
+    messageBatchDelayMs: 25,
+  });
+
+  private static readCatalogState<K extends keyof SchedulerWebviewCatalogState>(
+    key: K,
+  ): SchedulerWebviewCatalogState[K] {
+    return this.catalogState[key];
+  }
+
+  private static writeCatalogState<K extends keyof SchedulerWebviewCatalogState>(
+    key: K,
+    value: SchedulerWebviewCatalogState[K],
+  ): void {
+    this.catalogState[key] = value;
+  }
+
+  private static readRuntimeState<K extends keyof SchedulerWebviewRuntimeState>(
+    key: K,
+  ): SchedulerWebviewRuntimeState[K] {
+    return this.runtimeState[key];
+  }
+
+  private static writeRuntimeState<K extends keyof SchedulerWebviewRuntimeState>(
+    key: K,
+    value: SchedulerWebviewRuntimeState[K],
+  ): void {
+    this.runtimeState[key] = value;
+  }
+
+  private static readQueueState<K extends keyof SchedulerWebviewQueueState>(
+    key: K,
+  ): SchedulerWebviewQueueState[K] {
+    return this.messageQueueState[key];
+  }
+
+  private static writeQueueState<K extends keyof SchedulerWebviewQueueState>(
+    key: K,
+    value: SchedulerWebviewQueueState[K],
+  ): void {
+    this.messageQueueState[key] = value;
+  }
+
+  private static get cachedAgents(): AgentInfo[] { return this.readCatalogState("agents"); }
+  private static set cachedAgents(value: AgentInfo[]) { this.writeCatalogState("agents", value); }
+  private static get cachedModels(): ModelInfo[] { return this.readCatalogState("models"); }
+  private static set cachedModels(value: ModelInfo[]) { this.writeCatalogState("models", value); }
+  private static get cachedPromptTemplates(): PromptTemplate[] { return this.readCatalogState("promptTemplates"); }
+  private static set cachedPromptTemplates(value: PromptTemplate[]) { this.writeCatalogState("promptTemplates", value); }
+  private static get cachedSkillReferences(): SkillReference[] { return this.readCatalogState("skillReferences"); }
+  private static set cachedSkillReferences(value: SkillReference[]) { this.writeCatalogState("skillReferences", value); }
+  private static get onTaskActionCallback(): ((action: TaskAction) => void) | undefined { return this.readRuntimeState("onTaskActionCallback"); }
+  private static set onTaskActionCallback(value: ((action: TaskAction) => void) | undefined) { this.writeRuntimeState("onTaskActionCallback", value); }
+  private static get onTestPromptCallback(): ((prompt: string, agent?: string, model?: string) => void) | undefined { return this.readRuntimeState("onTestPromptCallback"); }
+  private static set onTestPromptCallback(value: ((prompt: string, agent?: string, model?: string) => void) | undefined) { this.writeRuntimeState("onTestPromptCallback", value); }
+  private static get extensionUri(): vscode.Uri { return this.readRuntimeState("extensionUri") as vscode.Uri; }
+  private static set extensionUri(value: vscode.Uri) { this.writeRuntimeState("extensionUri", value); }
+  private static get currentTasks(): ScheduledTask[] { return this.readRuntimeState("tasks"); }
+  private static set currentTasks(value: ScheduledTask[]) { this.writeRuntimeState("tasks", value); }
+  private static get currentJobs(): JobDefinition[] { return this.readRuntimeState("jobs"); }
+  private static set currentJobs(value: JobDefinition[]) { this.writeRuntimeState("jobs", value); }
+  private static get currentJobFolders(): JobFolder[] { return this.readRuntimeState("jobFolders"); }
+  private static set currentJobFolders(value: JobFolder[]) { this.writeRuntimeState("jobFolders", value); }
+  private static get currentCockpitBoard(): CockpitBoard { return this.readRuntimeState("cockpitBoard"); }
+  private static set currentCockpitBoard(value: CockpitBoard) { this.writeRuntimeState("cockpitBoard", value); }
+  private static get currentTelegramNotification(): TelegramNotificationView { return this.readRuntimeState("telegramNotification"); }
+  private static set currentTelegramNotification(value: TelegramNotificationView) { this.writeRuntimeState("telegramNotification", value); }
+  private static get currentExecutionDefaults(): ExecutionDefaultsView { return this.readRuntimeState("executionDefaults"); }
+  private static set currentExecutionDefaults(value: ExecutionDefaultsView) { this.writeRuntimeState("executionDefaults", value); }
+  private static get currentReviewDefaults(): ReviewDefaultsView { return this.readRuntimeState("reviewDefaults"); }
+  private static set currentReviewDefaults(value: ReviewDefaultsView) { this.writeRuntimeState("reviewDefaults", value); }
+  private static get currentStorageSettings(): StorageSettingsView { return this.readRuntimeState("storageSettings"); }
+  private static set currentStorageSettings(value: StorageSettingsView) { this.writeRuntimeState("storageSettings", value); }
+  private static get currentResearchProfiles(): ResearchProfile[] { return this.readRuntimeState("researchProfiles"); }
+  private static set currentResearchProfiles(value: ResearchProfile[]) { this.writeRuntimeState("researchProfiles", value); }
+  private static get currentActiveResearchRun(): ResearchRun | undefined { return this.readRuntimeState("activeResearchRun"); }
+  private static set currentActiveResearchRun(value: ResearchRun | undefined) { this.writeRuntimeState("activeResearchRun", value); }
+  private static get currentRecentResearchRuns(): ResearchRun[] { return this.readRuntimeState("recentResearchRuns"); }
+  private static set currentRecentResearchRuns(value: ResearchRun[]) { this.writeRuntimeState("recentResearchRuns", value); }
+  private static get currentScheduleHistory(): ScheduleHistoryEntry[] { return this.readRuntimeState("scheduleHistory"); }
+  private static set currentScheduleHistory(value: ScheduleHistoryEntry[]) { this.writeRuntimeState("scheduleHistory", value); }
+  private static get webviewReady(): boolean { return this.readQueueState("webviewReady"); }
+  private static set webviewReady(value: boolean) { this.writeQueueState("webviewReady", value); }
+  private static get pendingMessages(): OutgoingWebviewMessage[] { return this.readQueueState("pendingMessages"); }
+  private static set pendingMessages(value: OutgoingWebviewMessage[]) { this.writeQueueState("pendingMessages", value); }
+  private static get lastBatchedMessageSignatures(): Map<string, string> { return this.readQueueState("lastBatchedMessageSignatures"); }
+  private static set lastBatchedMessageSignatures(value: Map<string, string>) { this.writeQueueState("lastBatchedMessageSignatures", value); }
+  private static get pendingMessageFlushTimer(): ReturnType<typeof setTimeout> | undefined { return this.readQueueState("pendingMessageFlushTimer"); }
+  private static set pendingMessageFlushTimer(value: ReturnType<typeof setTimeout> | undefined) { this.writeQueueState("pendingMessageFlushTimer", value); }
+=======
   private static cachedAgents: AgentInfo[] = [];
   private static cachedModels: ModelInfo[] = [];
   private static cachedPromptTemplates: PromptTemplate[] = [];
@@ -172,363 +348,170 @@ export class SchedulerWebview {
   private static pendingMessageFlushTimer:
     | ReturnType<typeof setTimeout>
     | undefined;
+>>>>>>> main
 
   private static resetWebviewReadyState(): void {
-    if (this.pendingMessageFlushTimer) {
-      clearTimeout(this.pendingMessageFlushTimer);
-      this.pendingMessageFlushTimer = undefined;
-    }
-    this.webviewReady = false;
-    this.pendingMessages = [];
-    this.lastBatchedMessageSignatures.clear();
-  }
-
-  private static getMessageSignature(message: OutgoingWebviewMessage): string {
-    return JSON.stringify(message);
-  }
-
-  private static shouldSkipRedundantBatchedMessage(
-    message: OutgoingWebviewMessage,
-  ): boolean {
-    if (!this.shouldBatchMessage(message)) {
-      return false;
-    }
-
-    const signature = this.getMessageSignature(message);
-    const previousSignature = this.lastBatchedMessageSignatures.get(message.type);
-    if (previousSignature === signature) {
-      return true;
-    }
-
-    this.lastBatchedMessageSignatures.set(message.type, signature);
-    return false;
-  }
-
-  private static getHelpChatLanguageInstruction(): string {
-    switch (getCurrentLanguage()) {
-      case "de":
-        return "Answer in Deutsch.";
-      case "ja":
-        return "Answer in Japanese.";
-      default:
-        return "Answer in English.";
-    }
+    resetSchedulerWebviewQueueState(this.messageQueueState);
   }
 
   private static async launchHelpChat(prompt: string): Promise<void> {
-    const fullPrompt = `${this.getHelpChatLanguageInstruction()}\n\n${prompt}`;
-
-    await new CopilotExecutor().executePrompt(fullPrompt, {
-      chatSession: "new",
-    });
+    await new CopilotExecutor().executePrompt(
+      buildHelpChatPrompt(getCurrentLanguage(), prompt),
+      {
+        chatSession: "new",
+      },
+    );
   }
 
   private static async backupGithubFolder(
     workspaceRoot: string,
   ): Promise<string | undefined> {
-    const sourceDir = path.join(workspaceRoot, ".github");
-    if (!fs.existsSync(sourceDir)) {
-      return undefined;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backupDir = path.join(
-      workspaceRoot,
-      ".github-scheduler-backups",
-      timestamp,
-    );
-
-    fs.mkdirSync(path.dirname(backupDir), { recursive: true });
-    fs.cpSync(sourceDir, backupDir, { recursive: true });
-    return backupDir;
+    return backupGithubFolderSnapshot(workspaceRoot);
   }
 
-  /**
-   * Dispose the webview panel (e.g., on extension deactivation)
-   */
   static dispose(): void {
-    if (this.panel) {
-      this.panel.dispose();
-      // onDidDispose handler will reset panel & readyState
-    }
-  }
-
-  private static enqueueMessage(message: OutgoingWebviewMessage): void {
-    const existingIndex = this.pendingMessages.findIndex(
-      (m) => m.type === message.type,
-    );
-    if (existingIndex >= 0) {
-      this.pendingMessages[existingIndex] = message;
-      return;
-    }
-    this.pendingMessages.push(message);
-  }
-
-  private static shouldBatchMessage(message: OutgoingWebviewMessage): boolean {
-    return this.batchedMessageTypes.has(message.type);
-  }
-
-  private static sendMessageNow(message: OutgoingWebviewMessage): void {
-    if (!this.panel || !this.webviewReady) {
+    const panel = this.panel;
+    if (!panel) {
       return;
     }
 
-    void this.panel.webview.postMessage(message);
-  }
-
-  private static schedulePendingMessagesFlush(): void {
-    if (this.pendingMessageFlushTimer) {
-      return;
-    }
-
-    this.pendingMessageFlushTimer = setTimeout(() => {
-      this.pendingMessageFlushTimer = undefined;
-      this.flushPendingMessages();
-    }, this.messageBatchDelayMs);
+    // onDidDispose handler will reset panel & readyState
+    panel.dispose();
   }
 
   private static postMessage(message: OutgoingWebviewMessage): void {
-    if (!this.panel) return;
-
-    if (this.shouldSkipRedundantBatchedMessage(message)) {
-      return;
-    }
-
-    if (!this.webviewReady) {
-      this.enqueueMessage(message);
-      return;
-    }
-
-    if (this.shouldBatchMessage(message)) {
-      this.enqueueMessage(message);
-      this.schedulePendingMessagesFlush();
-      return;
-    }
-
-    this.sendMessageNow(message);
+    postSchedulerWebviewMessage(
+      this.messageQueueState,
+      this.panel,
+      message,
+      () => this.flushPendingMessages(),
+    );
   }
 
   private static flushPendingMessages(): void {
-    if (!this.panel || !this.webviewReady) return;
-
-    if (this.pendingMessageFlushTimer) {
-      clearTimeout(this.pendingMessageFlushTimer);
-      this.pendingMessageFlushTimer = undefined;
-    }
-
-    if (this.pendingMessages.length === 0) return;
-    const queue = this.pendingMessages;
-    this.pendingMessages = [];
-    for (const message of queue) {
-      this.sendMessageNow(message);
-    }
+    flushSchedulerWebviewPendingMessages(this.messageQueueState, this.panel);
   }
 
-  /**
-   * Show or reveal the webview panel
-   */
   static async show(
-    extensionUri: vscode.Uri,
-    tasks: ScheduledTask[],
-    jobs: JobDefinition[],
-    jobFolders: JobFolder[],
-    cockpitBoard: CockpitBoard,
-    telegramNotification: TelegramNotificationView,
-    executionDefaults: ExecutionDefaultsView,
-    reviewDefaults: ReviewDefaultsView,
-    storageSettings: StorageSettingsView,
-    researchProfiles: ResearchProfile[],
-    activeResearchRun: ResearchRun | undefined,
-    recentResearchRuns: ResearchRun[],
-    onTaskAction: (action: TaskAction) => void,
-    onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
+    extensionUri: vscode.Uri, tasks: ScheduledTask[], jobs: JobDefinition[], jobFolders: JobFolder[],
+    cockpitBoard: CockpitBoard, telegramNotification: TelegramNotificationView,
+    executionDefaults: ExecutionDefaultsView, reviewDefaults: ReviewDefaultsView,
+    storageSettings: StorageSettingsView, researchProfiles: ResearchProfile[],
+    activeResearchRun: ResearchRun | undefined, recentResearchRuns: ResearchRun[],
+    onTaskAction: (action: TaskAction) => void, onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
   ): Promise<void> {
-    this.extensionUri = extensionUri;
-    this.currentTasks = tasks;
-    this.currentJobs = jobs;
-    this.currentJobFolders = jobFolders;
-    this.currentCockpitBoard = cockpitBoard;
-    this.currentTelegramNotification = telegramNotification;
-    this.currentExecutionDefaults = executionDefaults;
-    this.currentReviewDefaults = reviewDefaults;
-    this.currentStorageSettings = storageSettings;
-    this.currentResearchProfiles = researchProfiles;
-    this.currentActiveResearchRun = activeResearchRun;
-    this.currentRecentResearchRuns = recentResearchRuns;
-    this.onTaskActionCallback = onTaskAction;
-    this.onTestPromptCallback = onTestPrompt;
+    assignSchedulerWebviewRuntimeState(this.runtimeState, {
+      extensionUri,
+      tasks,
+      jobs,
+      jobFolders,
+      cockpitBoard,
+      telegramNotification,
+      executionDefaults,
+      reviewDefaults,
+      storageSettings,
+      researchProfiles,
+      activeResearchRun,
+      recentResearchRuns,
+      onTaskAction,
+      onTestPrompt,
+    });
 
-    // Ensure we have baseline data for the first render (do not block the UI)
-    if (this.cachedAgents.length === 0) {
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-    }
-    if (this.cachedModels.length === 0) {
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-    }
+    seedSchedulerWebviewCatalogFallbacks({
+      cachedAgents: this.cachedAgents,
+      cachedModels: this.cachedModels,
+      setCachedAgents: (agents) => {
+        this.cachedAgents = agents;
+      },
+      setCachedModels: (models) => {
+        this.cachedModels = models;
+      },
+    });
 
     const refreshInBackground = (): void => {
-      void this.refreshAgentsAndModelsCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updateAgents",
-            agents: this.cachedAgents,
-          });
-          this.postMessage({
-            type: "updateModels",
-            models: this.cachedModels,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh agents/models:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
-
-      void this.refreshPromptTemplatesCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updatePromptTemplates",
-            templates: this.cachedPromptTemplates,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh prompt templates:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
-
-      void this.refreshSkillReferencesCache(true)
-        .then(() => {
-          this.postMessage({
-            type: "updateSkills",
-            skills: this.cachedSkillReferences,
-          });
-        })
-        .catch((error) => {
-          const rawMessage =
-            error instanceof Error ? error.message : String(error ?? "");
-          logError(
-            "[CopilotScheduler] Failed to refresh skills:",
-            this.sanitizeErrorDetailsForUser(rawMessage),
-          );
-        });
+      runSchedulerWebviewBackgroundRefresh({
+        refreshAgentsAndModelsCache: () => this.refreshAgentsAndModelsCache(true),
+        refreshPromptTemplatesCache: () => this.refreshPromptTemplatesCache(true),
+        refreshSkillReferencesCache: () => this.refreshSkillReferencesCache(true),
+        getCachedAgents: () => this.cachedAgents,
+        getCachedModels: () => this.cachedModels,
+        getCachedPromptTemplates: () => this.cachedPromptTemplates,
+        getCachedSkillReferences: () => this.cachedSkillReferences,
+        postMessage: (message) => this.postMessage(message as OutgoingWebviewMessage),
+        logError,
+        sanitizeError: (details) => this.sanitizeErrorDetailsForUser(details),
+      });
     };
 
     if (this.panel) {
-      // Rebuild the webview when reopening an existing panel so updated bundled
-      // scripts/styles are applied instead of relying on a retained stale context.
-      this.resetWebviewReadyState();
-      this.panel.webview.html = this.getWebviewContent(
-        this.panel.webview,
+      replaySchedulerPanel({
+        panel: this.panel,
         tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-      this.panel.reveal(vscode.ViewColumn.One);
-      this.updateTasks(tasks);
-      this.updateJobs(jobs);
-      this.updateJobFolders(jobFolders);
-      this.updateCockpitBoard(cockpitBoard);
-      this.updateTelegramNotification(telegramNotification);
-      this.updateExecutionDefaults(executionDefaults);
-      this.updateReviewDefaults(reviewDefaults);
-      this.updateStorageSettings(storageSettings);
-      this.updateResearchState(
+        jobs,
+        jobFolders,
+        cockpitBoard,
+        telegramNotification,
+        executionDefaults,
+        reviewDefaults,
+        storageSettings,
         researchProfiles,
         activeResearchRun,
         recentResearchRuns,
-      );
-      // Send already-cached agents/models/templates without rescanning
-      this.postMessage({
-        type: "updateAgents",
-        agents: this.cachedAgents,
-      });
-      this.postMessage({
-        type: "updateModels",
-        models: this.cachedModels,
-      });
-      this.postMessage({
-        type: "updatePromptTemplates",
-        templates: this.cachedPromptTemplates,
-      });
-      this.postMessage({
-        type: "updateSkills",
-        skills: this.cachedSkillReferences,
+        cachedAgents: this.cachedAgents,
+        cachedModels: this.cachedModels,
+        cachedPromptTemplates: this.cachedPromptTemplates,
+        resetReadyState: () => this.resetWebviewReadyState(),
+        renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
+          this.getWebviewContent(
+            webview,
+            currentTasks,
+            agents,
+            models,
+            promptTemplates,
+          ),
+        updateTasks: (currentTasks) => this.updateTasks(currentTasks),
+        updateJobs: (currentJobs) => this.updateJobs(currentJobs),
+        updateJobFolders: (folders) => this.updateJobFolders(folders),
+        updateCockpitBoard: (board) =>
+          this.updateCockpitBoard(board as CockpitBoard),
+        updateTelegramNotification: (notification) =>
+          this.updateTelegramNotification(notification),
+        updateExecutionDefaults: (defaults) =>
+          this.updateExecutionDefaults(defaults),
+        updateReviewDefaults: (defaults) => this.updateReviewDefaults(defaults),
+        updateStorageSettings: (settings) =>
+          this.updateStorageSettings(settings),
+        updateResearchState: (profiles, activeRun, recentRuns) =>
+          this.updateResearchState(profiles, activeRun, recentRuns),
+        postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
       });
     } else {
-      // Create new panel
-      this.panel = vscode.window.createWebviewPanel(
-        "copilotScheduler",
-        messages.webviewTitle(),
-        vscode.ViewColumn.One,
-        {
-          enableScripts: true,
-          localResourceRoots: [
-            vscode.Uri.joinPath(extensionUri, "media"),
-            vscode.Uri.joinPath(extensionUri, "images"),
-          ],
-        },
-      );
-
       // New webview instance (or re-created panel) starts as not-ready.
       this.resetWebviewReadyState();
 
-      // Set icon
-      this.panel.iconPath = {
-        light: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
-        dark: vscode.Uri.joinPath(extensionUri, "images", "icon.svg"),
-      };
-
-      // Set HTML content
-      const htmlContent = this.getWebviewContent(
-        this.panel.webview,
+      this.panel = createFreshSchedulerPanel({
+        extensionUri,
         tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-
-      // Handle messages from webview (register before setting HTML to avoid races)
-      this.panel.webview.onDidReceiveMessage(
-        async (message: WebviewToExtensionMessage) => {
-          try {
-            await this.handleMessage(message);
-          } catch (error) {
-            const rawDetailsForLog =
-              error instanceof Error ? error.message : String(error ?? "");
-            const detailsForLog =
-              this.sanitizeErrorDetailsForUser(rawDetailsForLog);
-            const rawDetailsForUser =
-              error instanceof Error ? error.message : String(error ?? "");
-            const detailsForUser =
-              this.sanitizeErrorDetailsForUser(rawDetailsForUser);
-            logError("[CopilotScheduler] Webview message handling failed:", {
-              type: (message as { type?: unknown } | undefined)?.type,
-              error: detailsForLog,
-            });
-            this.showError(
-              messages.webviewMessageHandlingFailed(
-                detailsForUser || messages.webviewUnknown(),
-              ),
-            );
-          }
+        cachedAgents: this.cachedAgents,
+        cachedModels: this.cachedModels,
+        cachedPromptTemplates: this.cachedPromptTemplates,
+        renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
+          this.getWebviewContent(
+            webview,
+            currentTasks,
+            agents,
+            models,
+            promptTemplates,
+          ),
+        handleMessage: (message: WebviewToExtensionMessage) =>
+          this.handleMessage(message),
+        sanitizeErrorDetailsForUser: (message) =>
+          this.sanitizeErrorDetailsForUser(message),
+        showError: (message) => this.showError(message),
+        onDidDispose: () => {
+          this.panel = undefined;
+          this.resetWebviewReadyState();
         },
-      );
-
-      // Set HTML content
-      this.panel.webview.html = htmlContent;
-
-      // Handle panel disposal
-      this.panel.onDidDispose(() => {
-        this.panel = undefined;
-        this.resetWebviewReadyState();
       });
 
       refreshInBackground();
@@ -539,72 +522,57 @@ export class SchedulerWebview {
    * Update tasks in the webview
    */
   static updateTasks(tasks: ScheduledTask[]): void {
-    this.currentTasks = tasks;
-    this.postMessage({
-      type: "updateTasks",
-      tasks: tasks,
-    });
+    dispatchTaskUpdate(this.runtimeState, tasks, (message) => this.postMessage(message));
   }
 
   static updateJobs(jobs: JobDefinition[]): void {
-    this.currentJobs = jobs;
-    this.postMessage({
-      type: "updateJobs",
-      jobs,
-    });
+    dispatchJobUpdate(this.runtimeState, jobs, (message) => this.postMessage(message));
   }
 
   static updateJobFolders(jobFolders: JobFolder[]): void {
-    this.currentJobFolders = jobFolders;
-    this.postMessage({
-      type: "updateJobFolders",
-      jobFolders,
-    });
+    dispatchJobFolderUpdate(this.runtimeState, jobFolders, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateCockpitBoard(cockpitBoard: CockpitBoard): void {
-    this.currentCockpitBoard = cockpitBoard;
-    this.postMessage(createUpdateCockpitBoardMessage(cockpitBoard));
+    dispatchCockpitBoardUpdate(this.runtimeState, cockpitBoard, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateTelegramNotification(
     telegramNotification: TelegramNotificationView,
   ): void {
-    this.currentTelegramNotification = telegramNotification;
-    this.postMessage({
-      type: "updateTelegramNotification",
+    dispatchTelegramNotificationUpdate(
+      this.runtimeState,
       telegramNotification,
-    });
+      (message) => this.postMessage(message),
+    );
   }
 
   static updateExecutionDefaults(
     executionDefaults: ExecutionDefaultsView,
   ): void {
-    this.currentExecutionDefaults = executionDefaults;
-    this.postMessage({
-      type: "updateExecutionDefaults",
-      executionDefaults,
-    });
+    dispatchExecutionDefaultsUpdate(this.runtimeState, executionDefaults, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateReviewDefaults(
     reviewDefaults: ReviewDefaultsView,
   ): void {
-    this.currentReviewDefaults = reviewDefaults;
-    this.postMessage({
-      type: "updateReviewDefaults",
-      reviewDefaults,
-    });
+    dispatchReviewDefaultsUpdate(this.runtimeState, reviewDefaults, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateStorageSettings(
     storageSettings: StorageSettingsView,
   ): void {
-    this.currentStorageSettings = storageSettings;
-    this.postMessage({
-      type: "updateStorageSettings",
-      storageSettings,
-    });
+    dispatchStorageSettingsUpdate(this.runtimeState, storageSettings, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateResearchState(
@@ -612,83 +580,68 @@ export class SchedulerWebview {
     activeRun: ResearchRun | undefined,
     recentRuns: ResearchRun[],
   ): void {
-    this.currentResearchProfiles = profiles;
-    this.currentActiveResearchRun = activeRun;
-    this.currentRecentResearchRuns = recentRuns;
-    this.postMessage({
-      type: "updateResearchState",
+    dispatchResearchStateUpdate(
+      this.runtimeState,
       profiles,
       activeRun,
       recentRuns,
-    });
+      (message) => this.postMessage(message),
+    );
   }
 
   static updateScheduleHistory(entries: ScheduleHistoryEntry[]): void {
-    this.currentScheduleHistory = entries;
-    this.postMessage({
-      type: "updateScheduleHistory",
-      entries,
-    });
+    dispatchScheduleHistoryUpdate(this.runtimeState, entries, (message) =>
+      this.postMessage(message),
+    );
   }
 
   /**
    * Show an error message inside the webview
    */
   static showError(errorMessage: string): void {
-    const safe = this.sanitizeErrorDetailsForUser(errorMessage);
-    this.postMessage({
-      type: "showError",
-      text: safe || messages.webviewUnknown(),
-    });
+    dispatchWebviewError(
+      errorMessage,
+      (message) => this.postMessage(message),
+      (message) => this.sanitizeErrorDetailsForUser(message),
+    );
   }
 
   private static sanitizeErrorDetailsForUser(message: string): string {
     return sanitizeAbsolutePathDetails(message);
   }
 
+  private static postCachedCatalogMessages(): void {
+    dispatchCachedCatalogMessages(
+      this.catalogState,
+      (message) => this.postMessage(message),
+    );
+  }
+
   /**
    * Refresh language in the webview
    */
   static refreshLanguage(tasks: ScheduledTask[]): void {
-    if (this.panel) {
-      // Re-rendering HTML resets the webview context; wait for the new instance to become ready.
-      this.resetWebviewReadyState();
-
-      // Synchronously rebuild built-in agents/models so the initial HTML
-      // already reflects the new language (U17: avoid stale localized names).
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-
-      // Regenerate HTML with new language
-      this.panel.webview.html = this.getWebviewContent(
-        this.panel.webview,
-        tasks,
-        this.cachedAgents,
-        this.cachedModels,
-        this.cachedPromptTemplates,
-      );
-
-      // Re-send cached data once the webview is ready again.
-      this.postMessage({
-        type: "updateAgents",
-        agents: this.cachedAgents,
-      });
-      this.postMessage({
-        type: "updateModels",
-        models: this.cachedModels,
-      });
-      this.postMessage({
-        type: "updatePromptTemplates",
-        templates: this.cachedPromptTemplates,
-      });
-      this.postMessage({
-        type: "updateSkills",
-        skills: this.cachedSkillReferences,
-      });
-
-      // Re-fetch agents/models/templates so that localized names reflect the new language
-      void this.refreshCachesAndNotifyPanel(true).catch(() => { });
-    }
+    this.cachedAgents = CopilotExecutor.getBuiltInAgents();
+    this.cachedModels = CopilotExecutor.getFallbackModels();
+    refreshSchedulerWebviewLanguagePanel({
+      panel: this.panel,
+      tasks,
+      cachedAgents: this.cachedAgents,
+      cachedModels: this.cachedModels,
+      cachedPromptTemplates: this.cachedPromptTemplates,
+      resetReadyState: () => this.resetWebviewReadyState(),
+      renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
+        this.getWebviewContent(
+          webview,
+          currentTasks,
+          agents,
+          models,
+          promptTemplates,
+        ),
+      postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+      refreshCachesAndNotifyPanel: (force) =>
+        this.refreshCachesAndNotifyPanel(force),
+    });
   }
 
   /**
@@ -696,42 +649,26 @@ export class SchedulerWebview {
    * Use this for settings changes (e.g., global paths) to avoid resetting form state.
    */
   static async refreshCachesAndNotifyPanel(force = true): Promise<void> {
-    try {
-      await this.refreshAgentsAndModelsCache(force);
-    } catch {
-      this.cachedAgents = CopilotExecutor.getBuiltInAgents();
-      this.cachedModels = CopilotExecutor.getFallbackModels();
-    }
-
-    try {
-      await this.refreshPromptTemplatesCache(force);
-    } catch {
-      this.cachedPromptTemplates = [];
-    }
-
-    try {
-      await this.refreshSkillReferencesCache(force);
-    } catch {
-      this.cachedSkillReferences = [];
-    }
-
-    if (!this.panel) return;
-
-    this.postMessage({
-      type: "updateAgents",
-      agents: this.cachedAgents,
-    });
-    this.postMessage({
-      type: "updateModels",
-      models: this.cachedModels,
-    });
-    this.postMessage({
-      type: "updatePromptTemplates",
-      templates: this.cachedPromptTemplates,
-    });
-    this.postMessage({
-      type: "updateSkills",
-      skills: this.cachedSkillReferences,
+    await refreshSchedulerCatalogCaches({
+      refreshAgentsAndModelsCache: (refreshForce) =>
+        this.refreshAgentsAndModelsCache(refreshForce),
+      refreshPromptTemplatesCache: (refreshForce) =>
+        this.refreshPromptTemplatesCache(refreshForce),
+      refreshSkillReferencesCache: (refreshForce) =>
+        this.refreshSkillReferencesCache(refreshForce),
+      resetAgentsAndModels: () => {
+        this.cachedAgents = CopilotExecutor.getBuiltInAgents();
+        this.cachedModels = CopilotExecutor.getFallbackModels();
+      },
+      resetPromptTemplates: () => {
+        this.cachedPromptTemplates = [];
+      },
+      resetSkillReferences: () => {
+        this.cachedSkillReferences = [];
+      },
+      panel: this.panel,
+      postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+      force,
     });
   }
 
@@ -739,25 +676,22 @@ export class SchedulerWebview {
    * Switch to the list tab, optionally showing a success toast
    */
   static switchToList(successMessage?: string): void {
-    this.postMessage({ type: "switchToList", successMessage });
+    postSwitchToList((message) => this.postMessage(message), successMessage);
   }
 
   static switchToTab(tab: "create" | "list" | "jobs" | "board" | "research" | "settings" | "help"): void {
-    this.postMessage({ type: "switchToTab", tab });
+    postSwitchToTab((message) => this.postMessage(message), tab);
   }
 
   static updateAutoShowOnStartup(enabled: boolean): void {
-    this.postMessage({
-      type: "updateAutoShowOnStartup",
-      enabled,
-    });
+    postAutoShowOnStartup((message) => this.postMessage(message), enabled);
   }
 
   /**
    * Force the webview into "create new task" mode (clears edit state and form).
    */
   static startCreateTask(): void {
-    this.postMessage({ type: "startCreateTask" });
+    postStartCreateTask((message) => this.postMessage(message));
   }
 
   static startCreateTodo(): void {
@@ -765,69 +699,45 @@ export class SchedulerWebview {
   }
 
   static startCreateJob(): void {
-    this.postMessage({ type: "startCreateJob" });
+    postStartCreateJob((message) => this.postMessage(message));
   }
 
   /**
    * Focus on a specific task
    */
   static focusTask(taskId: string): void {
-    if (!taskId) return;
-    this.postMessage({
-      type: "focusTask",
-      taskId: taskId,
-    });
+    postFocusTask((message) => this.postMessage(message), taskId);
   }
 
   static focusJob(jobId: string, folderId?: string): void {
-    if (!jobId) return;
-    this.postMessage({
-      type: "focusJob",
-      jobId,
-      folderId,
-    });
+    postFocusJob((message) => this.postMessage(message), jobId, folderId);
   }
 
   static focusResearchProfile(researchId?: string): void {
-    this.postMessage({
-      type: "focusResearchProfile",
-      researchId: researchId || "",
-    });
+    postFocusResearchProfile((message) => this.postMessage(message), researchId);
   }
 
   static focusResearchRun(runId?: string): void {
-    this.postMessage({
-      type: "focusResearchRun",
-      runId: runId || "",
-    });
+    postFocusResearchRun((message) => this.postMessage(message), runId);
   }
 
   /**
    * Start editing a specific task (opens edit mode in the webview)
    */
   static editTask(taskId?: string): void {
-    if (!taskId) return;
-    this.postMessage({
-      type: "editTask",
-      taskId: taskId,
-    });
+    postEditTask((message) => this.postMessage(message), taskId);
   }
 
   private static getJobDialogContext() {
-    return {
+    return createSchedulerWebviewJobDialogContext({
       currentJobs: this.currentJobs,
       currentJobFolders: this.currentJobFolders,
       currentTasks: this.currentTasks,
       onTaskActionCallback: this.onTaskActionCallback,
-    };
+    });
   }
 
-  /**
-   * Handle messages from webview
-   */
-  private static async handleMessage(
-    message: WebviewToExtensionMessage,
-  ): Promise<void> {
+  private static async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
     // Delegate to extracted tab handlers (order matches original precedence)
     if (handleTodoCockpitWebviewMessage(message, this.onTaskActionCallback)) {
       return;
@@ -856,295 +766,82 @@ export class SchedulerWebview {
       return;
     }
 
-    switch (message.type) {
-      case "testPrompt":
-        this.onTestPromptCallback?.(
-          message.prompt,
-          message.agent,
-          message.model,
-        );
-        break;
-
-      case "refreshAgents":
-        await this.refreshAgentsAndModelsCache(true);
-        this.postMessage({
-          type: "updateAgents",
-          agents: this.cachedAgents,
-        });
-        this.postMessage({
-          type: "updateModels",
-          models: this.cachedModels,
-        });
-        break;
-
-      case "refreshPrompts":
-        await this.refreshPromptTemplatesCache(true);
-        await this.refreshSkillReferencesCache(true);
-        this.postMessage({
-          type: "updatePromptTemplates",
-          templates: this.cachedPromptTemplates,
-        });
-        this.postMessage({
-          type: "updateSkills",
-          skills: this.cachedSkillReferences,
-        });
-        break;
-
-      case "restoreScheduleHistory":
-        this.onTaskActionCallback?.({
-          action: "restoreHistory",
-          taskId: "__history__",
-          historyId: message.snapshotId,
-        });
-        break;
-
-      case "toggleAutoShowOnStartup":
-        this.onTaskActionCallback?.({
-          action: "refresh",
-          taskId: "__toggleAutoShowOnStartup__",
-        });
-        break;
-
-      case "setupMcp":
-        this.onTaskActionCallback?.({
-          action: "setupMcp",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "syncBundledSkills":
-        this.onTaskActionCallback?.({
-          action: "syncBundledSkills",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "importStorageFromJson":
-        this.onTaskActionCallback?.({
-          action: "importStorageFromJson",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "exportStorageToJson":
-        this.onTaskActionCallback?.({
-          action: "exportStorageToJson",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "saveTelegramNotification":
-        this.onTaskActionCallback?.({
-          action: "saveTelegramNotification",
-          taskId: "__settings__",
-          telegramData: message.data,
-        });
-        break;
-
-      case "testTelegramNotification":
-        this.onTaskActionCallback?.({
-          action: "testTelegramNotification",
-          taskId: "__settings__",
-          telegramData: message.data,
-        });
-        break;
-
-      case "saveExecutionDefaults":
-        this.onTaskActionCallback?.({
-          action: "saveExecutionDefaults",
-          taskId: "__settings__",
-          executionDefaults: message.data,
-        });
-        break;
-
-      case "saveReviewDefaults":
-        this.onTaskActionCallback?.({
-          action: "saveReviewDefaults",
-          taskId: "__settings__",
-          reviewDefaults: message.data,
-        });
-        break;
-
-      case "loadPromptTemplate":
-        await loadPromptTemplateContent(
-          message.path,
-          message.source,
-          this.cachedPromptTemplates,
-          (m) => this.postMessage(m),
-        );
-        break;
-
-      case "webviewReady":
-        this.webviewReady = true;
-        this.flushPendingMessages();
-        break;
-
-      case "requestTodoFileUpload":
-        await this.handleTodoFileUploadRequest();
-        break;
+    if (
+      await handleSchedulerWebviewCoreMessage(message, {
+        onTestPrompt: this.onTestPromptCallback,
+        refreshAgentsAndModelsCache: (force) =>
+          this.refreshAgentsAndModelsCache(force),
+        refreshPromptTemplatesCache: (force) =>
+          this.refreshPromptTemplatesCache(force),
+        refreshSkillReferencesCache: (force) =>
+          this.refreshSkillReferencesCache(force),
+        getCachedAgents: () => this.cachedAgents,
+        getCachedModels: () => this.cachedModels,
+        getCachedPromptTemplates: () => this.cachedPromptTemplates,
+        getCachedSkillReferences: () => this.cachedSkillReferences,
+        postMessage: (payload) => this.postMessage(payload),
+        onTaskAction: this.onTaskActionCallback,
+        setWebviewReady: (value) => {
+          this.webviewReady = value;
+        },
+        flushPendingMessages: () => this.flushPendingMessages(),
+        handleTodoFileUploadRequest: () => this.handleTodoFileUploadRequest(),
+      })
+    ) {
+      return;
     }
   }
 
   private static sanitizeTodoUploadFileName(fileName: string): string {
-    const parsed = path.parse(fileName || "upload");
-    const rawBase = parsed.name || "upload";
-    const safeBase = rawBase
-      .replace(/[^a-zA-Z0-9._-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^[-_.]+|[-_.]+$/g, "")
-      .slice(0, 48) || "upload";
-    const safeExt = (parsed.ext || "").replace(/[^a-zA-Z0-9.]+/g, "").slice(0, 12);
-    return `${safeBase}${safeExt}`;
+    return sanitizeTodoUploadFileNameWithHelper(fileName);
   }
 
   private static async handleTodoFileUploadRequest(): Promise<void> {
-    const strings = buildSchedulerWebviewStrings(getCurrentLanguage());
-    const workspaceRoot = getResolvedWorkspaceRootPaths()[0];
-    if (!workspaceRoot) {
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: false,
-        message: strings.boardUploadFilesError || "File upload failed.",
-      });
-      return;
-    }
-
-    try {
-      const selectedFiles = await vscode.window.showOpenDialog({
-        canSelectMany: true,
-        canSelectFiles: true,
-        canSelectFolders: false,
-        openLabel: strings.boardUploadFiles || "Upload Files",
-      });
-
-      if (!selectedFiles || selectedFiles.length === 0) {
-        this.postMessage({
-          type: "todoFileUploadResult",
-          ok: false,
-          cancelled: true,
-          message: strings.boardUploadFilesEmpty || "No files selected.",
-        });
-        return;
-      }
-
-      const uploadFolderPath = path.join(
-        workspaceRoot,
-        ".vscode",
-        TODO_INPUT_UPLOADS_FOLDER,
-      );
-      fs.mkdirSync(uploadFolderPath, { recursive: true });
-      ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-
-      const relativePaths: string[] = [];
-      const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
-
-      selectedFiles.forEach((fileUri, index) => {
-        const sourcePath = fileUri.fsPath;
-        const safeName = this.sanitizeTodoUploadFileName(path.basename(sourcePath));
-        const parsed = path.parse(safeName);
-        const prefix = `${stamp}-${String(index + 1).padStart(2, "0")}`;
-        let targetName = `${prefix}-${parsed.name}${parsed.ext}`;
-        let targetPath = path.join(uploadFolderPath, targetName);
-        let attempt = 2;
-
-        while (fs.existsSync(targetPath)) {
-          targetName = `${prefix}-${parsed.name}-${attempt}${parsed.ext}`;
-          targetPath = path.join(uploadFolderPath, targetName);
-          attempt += 1;
-        }
-
-        fs.copyFileSync(sourcePath, targetPath);
-        relativePaths.push(path.relative(workspaceRoot, targetPath).split(path.sep).join("/"));
-      });
-
-      const insertedText = [
-        relativePaths.length === 1 ? "Attachment:" : "Attachments:",
-        ...relativePaths.map((relativePath) => `- ${relativePath}`),
-      ].join("\n");
-
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: true,
-        message: strings.boardUploadFilesSuccess || "Files copied into the workspace input folder and added to the description.",
-        insertedText,
-        relativePaths,
-        folderRelativePath: `.vscode/${TODO_INPUT_UPLOADS_FOLDER}`,
-      });
-    } catch (error) {
-      logError("Todo file upload failed", error);
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: false,
-        message: (strings.boardUploadFilesError || "File upload failed.") + " " + sanitizeAbsolutePathDetails(
-          error instanceof Error ? error.message : String(error ?? ""),
-        ),
-      });
-    }
+    await handleTodoFileUploadRequestWithHelper({
+      workspaceRoot: getResolvedWorkspaceRootPaths()[0],
+      uploadsFolderName: TODO_INPUT_UPLOADS_FOLDER,
+      strings: buildSchedulerWebviewStrings(getCurrentLanguage()),
+      postMessage: (message) => this.postMessage(message),
+      ensurePrivateConfigIgnoredForWorkspaceRoot,
+      logError,
+    });
   }
 
   private static async refreshAgentsAndModelsCache(force = false): Promise<void> {
-    const result = await refreshAgentsAndModels(this.cachedAgents, this.cachedModels, force);
+    const result = await refreshSchedulerAgentsAndModelsState(
+      this.cachedAgents,
+      this.cachedModels,
+      force,
+    );
     this.cachedAgents = result.agents;
     this.cachedModels = result.models;
   }
 
   private static async refreshPromptTemplatesCache(force = false): Promise<void> {
-    this.cachedPromptTemplates = await refreshPromptTemplates(this.cachedPromptTemplates, force);
+    this.cachedPromptTemplates = await refreshSchedulerPromptTemplatesState(
+      this.cachedPromptTemplates,
+      force,
+    );
   }
 
   private static async refreshSkillReferencesCache(force = false): Promise<void> {
-    this.cachedSkillReferences = await refreshSkillReferences(this.cachedSkillReferences, force);
+    this.cachedSkillReferences = await refreshSchedulerSkillReferencesState(
+      this.cachedSkillReferences,
+      force,
+    );
   }
 
-  /**
-   * Generate webview HTML content
-   */
   private static getWebviewContent(
-    webview: vscode.Webview,
-    tasks: ScheduledTask[],
-    agents: AgentInfo[],
-    models: ModelInfo[],
-    promptTemplates: PromptTemplate[],
+    webview: vscode.Webview, tasks: ScheduledTask[], agents: AgentInfo[],
+    models: ModelInfo[], promptTemplates: PromptTemplate[],
   ): string {
-    const nonce = getWebviewNonce();
-    const uiLanguage = getCurrentLanguage();
-    const configuredLanguage = getConfiguredLanguage();
-    const presets = getCronPresets();
-    const defaultScope = getCompatibleConfigurationValue<TaskScope>(
-      "defaultScope",
-      "workspace",
-    );
-    const defaultChatSession = getCompatibleConfigurationValue<ChatSessionBehavior>(
-      "chatSession",
-      "new",
-    );
-    const defaultJitterSecondsRaw = getCompatibleConfigurationValue<number>(
-      "jitterSeconds",
-      600,
-    );
-    // Keep the Webview resilient even if settings are corrupted/out-of-range.
-    const defaultJitterSeconds = (() => {
-      const n =
-        typeof defaultJitterSecondsRaw === "number"
-          ? defaultJitterSecondsRaw
-          : Number(defaultJitterSecondsRaw);
-      if (!Number.isFinite(n)) return 600;
-      const i = Math.floor(n);
-      return Math.min(Math.max(i, 0), 1800);
-    })();
-    const initialTasks = Array.isArray(tasks) ? tasks : [];
-    const initialAgents = Array.isArray(agents) ? agents : [];
-    const initialModels = Array.isArray(models) ? models : [];
-    const initialTemplates = Array.isArray(promptTemplates)
-      ? promptTemplates
-      : [];
-
-    const strings = buildSchedulerWebviewStrings(uiLanguage);
-
-    const allPresets = presets;
-
-    const initialData = buildSchedulerWebviewInitialData({
-      initialTasks,
+    const renderContext = createSchedulerWebviewCurrentRenderContext({
+      extensionUri: this.extensionUri,
+      webview,
+      tasks,
+      agents,
+      models,
+      promptTemplates,
       currentJobs: this.currentJobs,
       currentJobFolders: this.currentJobFolders,
       currentCockpitBoard: this.currentCockpitBoard,
@@ -1155,337 +852,26 @@ export class SchedulerWebview {
       currentResearchProfiles: this.currentResearchProfiles,
       currentActiveResearchRun: this.currentActiveResearchRun,
       currentRecentResearchRuns: this.currentRecentResearchRuns,
-      initialAgents,
-      initialModels,
-      initialTemplates,
       cachedSkillReferences: this.cachedSkillReferences,
       workspacePaths: getResolvedWorkspaceRootPaths(),
-      defaultJitterSeconds,
-      defaultChatSession,
       currentScheduleHistory: this.currentScheduleHistory,
-      autoShowOnStartup: getCompatibleConfigurationValue<boolean>(
-        "autoShowOnStartup",
-        false,
-        vscode.workspace.workspaceFolders?.[0]?.uri,
-      ),
-      currentLogLevel: getConfiguredLogLevel(),
-      currentLogDirectory: getLogDirectoryPath(),
+    });
+    const {
+      nonce,
+      uiLanguage,
       configuredLanguage,
-      locale: getCurrentLocaleTag(),
+      allPresets,
       strings,
-    });
-    const helpIntroTitle = typeof strings.helpIntroTitle === "string"
-      ? strings.helpIntroTitle
-      : "";
-    const helpIntroTitleText = helpIntroTitle.replace(/^\s*🚀\s*/u, "").trim() || helpIntroTitle;
-
-    const scriptPath = vscode.Uri.joinPath(
-      this.extensionUri,
-      "media",
-      "generated",
-      "schedulerWebview.js",
-    );
-    let scriptCacheToken = "static";
-    try {
-      const scriptStats = fs.statSync(scriptPath.fsPath);
-      scriptCacheToken = `${scriptStats.mtimeMs}-${scriptStats.size}`;
-    } catch {
-      // Fall back to a stable token if the bundled file isn't readable.
-    }
-    const scriptUri = webview.asWebviewUri(scriptPath).with({
-      query: `v=${encodeURIComponent(scriptCacheToken)}`,
-    });
+      initialData,
+      initialAgents,
+      initialModels,
+      defaultScope,
+      defaultJitterSeconds,
+      helpIntroTitleText,
+      scriptUri,
+    } = renderContext;
     const documentContent = `  <style>
-    * {
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: var(--vscode-font-family);
-      padding: 12px 14px;
-      color: var(--vscode-foreground);
-      background-color: var(--vscode-editor-background);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .tab-bar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 8px;
-      margin: -12px -14px 10px -14px;
-      padding: 8px 16px 6px 16px;
-      background-color: var(--vscode-editor-background);
-      background: linear-gradient(
-        to bottom,
-        var(--vscode-editor-background) 0%,
-        var(--vscode-editor-background) 85%,
-        color-mix(in srgb, var(--vscode-editor-background) 75%, transparent) 100%
-      );
-      border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
-    }
-    
-    .tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--vscode-panel-border);
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      white-space: nowrap;
-      scrollbar-gutter: stable both-edges;
-      scrollbar-width: thin;
-    }
-
-    .tabs::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .tabs::-webkit-scrollbar-thumb {
-      background: var(--vscode-scrollbarSlider-background);
-      border-radius: 999px;
-    }
-
-    .tab-actions {
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .tab-button-content {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      min-height: 1.2em;
-    }
-
-    .tab-button-symbol {
-      font-size: 1.1em;
-      line-height: 1;
-      opacity: 0.95;
-    }
-
-    .tab-button-label {
-      min-width: 0;
-    }
-
-    .tab-button-label:empty {
-      display: none;
-    }
-
-    .tab-button-label.is-dirty {
-      display: inline-flex;
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #d97706));
-      box-shadow: 0 0 0 1px var(--vscode-editor-background);
-    }
-
-    .tab-help-button {
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      padding: 0;
-      border-radius: 999px;
-      border: 1px solid var(--vscode-panel-border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 16px;
-      margin-right: 2px;
-    }
-
-    .tab-settings-button {
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      padding: 0;
-      border-radius: 999px;
-      border: 1px solid var(--vscode-panel-border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      line-height: 1;
-      margin-left: 2px;
-    }
-    
-    .tab-button {
-      padding: 9px 14px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.15;
-      flex: 1 1 auto;
-      text-align: center;
-      min-width: max-content;
-    }
-
-    .tab-button[data-tab="todo-edit"],
-    .tab-button[data-tab="create"],
-    .tab-button[data-tab="jobs-edit"] {
-      flex: 0 0 auto;
-      padding-left: 10px;
-      padding-right: 10px;
-    }
-    
-    .tab-button:hover {
-      background-color: var(--vscode-list-hoverBackground);
-    }
-    
-    .tab-button.active {
-      border-bottom-color: var(--vscode-focusBorder);
-      color: var(--vscode-textLink-foreground);
-    }
-
-    .tab-group-sep {
-      flex: 0 0 1px;
-      width: 1px;
-      align-self: stretch;
-      background: var(--vscode-panel-border);
-      margin: 6px 4px;
-      opacity: 0.6;
-    }
-
-    .label-suggestion-list {
-      display: none;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 8px;
-      margin-top: 4px;
-      background: var(--vscode-editorWidget-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-    }
-
-    .label-catalog-section {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .label-catalog-section:empty {
-      display: none;
-    }
-
-    .flag-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      border-radius: 4px;
-      font-size: inherit;
-      line-height: 1.4;
-      font-weight: 600;
-      border: 1px solid var(--vscode-panel-border);
-    }
-
-    .flag-catalog-section {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-    }
-
-    .flag-catalog-section:empty {
-      display: none;
-    }
-
-    .todo-inline-actions-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .todo-inline-actions-row > input[type="text"] {
-      flex: 1 1 200px;
-      min-width: 180px;
-    }
-
-    .todo-inline-actions-row > button {
-      position: relative;
-      z-index: 1;
-      flex: 0 0 auto;
-    }
-
-    .todo-color-input-shell {
-      position: relative;
-      z-index: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 42px;
-      width: 42px;
-      min-width: 42px;
-      height: 30px;
-      overflow: hidden;
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 4px;
-      background: var(--vscode-input-background);
-      box-sizing: border-box;
-    }
-
-    .todo-color-input-shell input[type="color"] {
-      appearance: none;
-      -webkit-appearance: none;
-      display: block;
-      width: 100%;
-      min-width: 100%;
-      height: 100%;
-      padding: 0;
-      margin: 0;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-      box-sizing: border-box;
-    }
-
-    .todo-color-input-shell input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-
-    .todo-color-input-shell input[type="color"]::-webkit-color-swatch {
-      border: 0;
-      border-radius: 3px;
-    }
-    
-    .tab-content {
-      display: none;
-    }
-    
-    .tab-content.active {
-      display: block;
-    }
-
-    .global-error-banner {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      margin: 0 0 12px 0;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--vscode-inputValidation-errorBorder);
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-      font-size: 13px;
-      line-height: 1.4;
-    }
+${buildSchedulerWebviewChromeStyles()}
 
     .global-error-banner.is-visible {
       display: flex;
@@ -1787,3119 +1173,9 @@ export class SchedulerWebview {
       }
     }
 
-    .form-group {
-      margin-bottom: 12px;
-    }
-    
-    .form-group label {
-      display: block;
-      margin-bottom: 4px;
-      font-weight: 500;
-      font-size: 12px;
-    }
-
-    .form-group label[for] {
-      cursor: pointer;
-    }
-    
-    input[type="text"],
-    input[type="number"],
-    textarea,
-    select {
-      width: 100%;
-      padding: 6px 8px;
-      border: 1px solid var(--vscode-input-border);
-      background-color: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 12px;
-    }
-    
-    textarea {
-      min-height: 92px;
-      resize: vertical;
-    }
-    
-    input:focus,
-    textarea:focus,
-    select:focus {
-      outline: none;
-      border-color: var(--vscode-focusBorder);
-    }
-    
-    .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-      user-select: none;
-    }
-    
-    .checkbox-group input[type="checkbox"] {
-      width: auto;
-    }
-
-    .checkbox-group span {
-      cursor: pointer;
-    }
-    
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-    
-    button {
-      padding: 6px 10px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      line-height: 1.2;
-    }
-    
-    .btn-primary {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .btn-primary:hover {
-      background-color: var(--vscode-button-hoverBackground);
-    }
-    
-    .btn-secondary {
-      background-color: var(--vscode-button-secondaryBackground);
-      color: var(--vscode-button-secondaryForeground);
-    }
-    
-    .btn-secondary:hover {
-      background-color: var(--vscode-button-secondaryHoverBackground);
-    }
-    
-    .btn-danger {
-      background-color: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-    }
-    
-    .btn-icon {
-      padding: 4px 6px;
-      background: transparent;
-      color: var(--vscode-foreground);
-    }
-    
-    .btn-icon:hover {
-      background-color: var(--vscode-list-hoverBackground);
-    }
-    
-    .task-list {
-      display: block;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .task-filter-bar {
-      display: flex;
-      gap: 5px;
-      margin-bottom: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .task-filter-select {
-      min-width: 160px;
-      max-width: 220px;
-    }
-
-    .task-filter-btn {
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-
-    .task-filter-btn.active {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-    }
-
-    .task-sections {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 5px;
-      align-items: start;
-    }
-
-    .task-sections-column {
-      display: grid;
-      gap: 5px;
-      align-content: start;
-      min-width: 0;
-    }
-
-    .task-sections.filtered {
-      grid-template-columns: 1fr;
-    }
-
-    .task-sections.filtered .task-sections-column {
-      display: contents;
-    }
-
-    .task-section {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 5px;
-      background-color: var(--vscode-editor-background);
-      min-width: 0;
-    }
-
-    .task-section-title {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 3px;
-      color: var(--vscode-descriptionForeground);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .task-section-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-radius: 3px;
-      padding: 0;
-      opacity: 0.7;
-      transition: opacity 0.12s ease, transform 0.2s ease;
-      font-size: 10px;
-      line-height: 1;
-    }
-
-    .task-section-toggle:hover {
-      opacity: 1;
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .task-section.is-collapsed .task-section-toggle {
-      transform: rotate(-90deg);
-    }
-
-    .task-section-body {
-      display: grid;
-      grid-template-rows: 1fr;
-      overflow: hidden;
-      transition: grid-template-rows 0.2s ease, opacity 0.2s ease;
-    }
-
-    .task-section.is-collapsed .task-section-body {
-      grid-template-rows: 0fr;
-      opacity: 0.8;
-    }
-
-    .task-section-body-inner {
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .task-subsection {
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 72%, transparent);
-      border-radius: 5px;
-      padding: 4px;
-      margin-bottom: 6px;
-      background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-editorWidget-background));
-      min-width: 0;
-    }
-
-    .task-subsection:last-child {
-      margin-bottom: 0;
-    }
-
-    .task-subsection-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      font-weight: 600;
-      min-width: 0;
-    }
-
-    .task-subsection-name {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .task-subsection-count,
-    .task-section-count {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-
-    .task-subsection-body {
-      min-width: 0;
-    }
-    
-    .task-card {
-      display: grid;
-      gap: 3px;
-      padding: 5px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
-      background-color: var(--vscode-editor-background);
-      margin-bottom: 4px;
-    }
-
-    .task-card.other-workspace {
-      border-left-width: 4px;
-      border-left-color: var(--vscode-inputValidation-warningBorder);
-    }
-    
-    .task-card.disabled {
-      opacity: 0.6;
-    }
-    
-    .task-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 6px;
-      margin-bottom: 1px;
-    }
-
-    .task-header-main {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      min-width: 0;
-    }
-    
-    .task-name {
-      font-weight: 600;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-    
-    .task-name.clickable, .task-status, .task-badge.clickable {
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    
-    .task-name.clickable:hover, .task-status:hover, .task-badge.clickable:hover {
-      opacity: 0.7;
-    }
-    
-    .task-status {
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-size: 11px;
-      line-height: 1.3;
-    }
-    
-    .task-status.enabled {
-      background-color: var(--vscode-testing-iconPassed);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .task-status.disabled {
-      background-color: var(--vscode-disabledForeground);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .task-info {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px 8px;
-      font-size: 11px;
-      line-height: 1.4;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 1px;
-    }
-    
-    .task-info span {
-      margin-right: 0;
-    }
-
-    .task-badge {
-      display: inline-block;
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-size: 11px;
-      background-color: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      margin-right: 0;
-    }
-
-    .task-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-      margin-top: 1px;
-      margin-bottom: 1px;
-    }
-
-    .task-badge.label {
-      background-color: var(--vscode-editorInfo-background);
-      color: var(--vscode-editorInfo-foreground);
-    }
-    
-    .task-prompt {
-      padding: 4px 5px;
-      background-color: var(--vscode-textBlockQuote-background);
-      border-radius: 4px;
-      font-size: 11px;
-      line-height: 1.4;
-      white-space: pre-wrap;
-      max-height: 28px;
-      overflow: hidden;
-      margin-bottom: 1px;
-    }
-    
-    .task-actions {
-      display: flex;
-      gap: 3px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .task-actions button {
-      padding: 3px 6px;
-      font-size: 11px;
-      line-height: 1.2;
-    }
-    
-    .empty-state {
-      text-align: center;
-      padding: 10px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-    }
-
-    @media (max-width: 920px) {
-      .task-sections {
-        grid-template-columns: 1fr;
-      }
-
-      .task-sections-column {
-        display: grid;
-      }
-    }
-    
-    .radio-group {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    
-    .radio-group label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: normal;
-      cursor: pointer;
-      user-select: none;
-      min-height: 28px;
-    }
-    
-    .preset-select {
-      margin-bottom: 8px;
-    }
-    
-    .section-title {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--vscode-foreground);
-    }
-    
-    .inline-group {
-      display: flex;
-      gap: 12px;
-    }
-    
-    .inline-group .form-group {
-      flex: 1;
-    }
-
-    .template-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .template-row select {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .friendly-cron {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px dashed var(--vscode-panel-border);
-      border-radius: 6px;
-      background-color: var(--vscode-editorWidget-background);
-    }
-
-    .friendly-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .friendly-grid .form-group {
-      flex: 1 1 160px;
-      margin-bottom: 6px;
-    }
-
-    .friendly-field {
-      display: none;
-    }
-
-    .friendly-field.visible {
-      display: block;
-    }
-
-    .friendly-actions {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      margin-top: 6px;
-    }
-
-    .task-editor-shell {
-      display: grid;
-      gap: 12px;
-    }
-
-    .task-editor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px 12px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
-        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
-      );
-    }
-
-    .task-editor-header-copy {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .task-editor-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .task-editor-card {
-      display: grid;
-      gap: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 12px;
-    }
-
-    .task-editor-card.is-wide {
-      grid-column: 1 / -1;
-    }
-
-    .task-editor-card .section-title {
-      margin-bottom: 0;
-    }
-
-    .task-editor-card .note {
-      margin-top: -3px;
-    }
-
-    .task-editor-options-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 12px;
-      align-items: start;
-    }
-
-    .task-editor-options-grid .form-group.wide {
-      grid-column: 1 / -1;
-    }
-
-    .cron-preview {
-      margin-top: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      flex-wrap: wrap;
-    }
-
-    .cron-preview strong {
-      color: var(--vscode-foreground);
-    }
-
-    .note {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-top: 3px;
-      margin-bottom: 0;
-    }
-
-    .board-columns-shell {
-      width: 100%;
-      overflow-x: auto;
-      overflow-y: visible;
-      padding-bottom: 10px;
-      min-height: 200px;
-    }
-
-    .cockpit-card-details {
-      display: block;
-    }
-
-    .cockpit-board-hide-card-details .cockpit-card-details,
-    .cockpit-board-compact-details .cockpit-card-details {
-      display: none;
-    }
-
-    .board-filter-sticky {
-      position: sticky;
-      top: var(--cockpit-tab-bar-sticky-top, 0px);
-      z-index: 24;
-      display: grid;
-      gap: 8px;
-      background: var(--vscode-sideBar-background);
-      border-bottom: 1px solid var(--vscode-panel-border);
-      padding: 8px 0 6px;
-      margin-bottom: 8px;
-    }
-
-    .board-filter-sticky.is-collapsed {
-      padding-bottom: 4px;
-    }
-
-    .board-filter-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-      width: 100%;
-      max-width: 1600px;
-    }
-
-    .board-filter-title {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .board-filter-body {
-      display: grid;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .board-filter-grid-shell {
-      min-width: 0;
-    }
-
-    .board-filter-sticky.is-collapsed .board-filter-grid-shell {
-      display: none;
-    }
-
-    .board-filter-footer {
-      display: grid;
-      gap: 6px;
-      min-width: 0;
-    }
-
-    .board-filter-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 8px;
-      align-items: end;
-      max-width: 1600px;
-      min-width: 0;
-    }
-
-    .board-filter-grid .form-group {
-      margin: 0;
-      min-width: 0;
-    }
-
-    .board-filter-grid .board-filter-search {
-      grid-column: span 2;
-      min-width: 220px;
-    }
-
-    .board-filter-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: flex-end;
-      margin-top: 6px;
-      max-width: 1600px;
-      min-width: 0;
-    }
-
-    .board-filter-primary-actions {
-      display: flex;
-      flex: 1 1 340px;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      min-width: 0;
-    }
-
-    .board-filter-view-group {
-      display: flex;
-      justify-content: center;
-      flex: 0 1 160px;
-      min-width: 140px;
-    }
-
-    .board-filter-view-group .form-group {
-      width: 100%;
-      max-width: 140px;
-      margin: 0;
-      min-width: 110px;
-    }
-
-    .board-filter-options {
-      display: flex;
-      flex: 1 1 340px;
-      flex-wrap: wrap;
-      gap: 8px 12px;
-      align-items: center;
-      justify-content: flex-end;
-      min-width: 0;
-    }
-
-    .board-filter-options label {
-      min-width: 0;
-      white-space: nowrap;
-    }
-
-    .board-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-    }
-
-    .board-col-width-group {
-      display: flex;
-      align-items: center;
-      flex: 0 1 220px;
-      flex-wrap: wrap;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      min-width: 170px;
-    }
-
-    .board-col-width-group input[type="range"] {
-      width: min(100%, 140px);
-      flex: 1 1 120px;
-      cursor: pointer;
-    }
-
-    .todo-list-view {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .todo-list-section {
-      border-radius: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-editorWidget-background);
-      overflow: visible;
-    }
-
-    .section-body-wrapper {
-      display: grid;
-      grid-template-rows: 1fr;
-      min-height: 0;
-      transition: grid-template-rows 0.18s ease, opacity 0.18s ease;
-    }
-
-    .section-body-wrapper.collapsed {
-      grid-template-rows: 0fr;
-      opacity: 0;
-    }
-
-    .section-body-inner {
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .todo-list-section.is-collapsed .todo-list-items {
-      padding-bottom: 0;
-    }
-
-    .todo-list-items {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      padding: 0 var(--cockpit-card-pad, 9px) var(--cockpit-card-pad, 9px);
-    }
-
-    .todo-list-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: start;
-      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
-    }
-
-    .todo-list-row:active {
-      cursor: grabbing;
-    }
-
-    .todo-list-main {
-      width: 100%;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .todo-list-title-line {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .todo-list-title-block {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      min-width: 0;
-      flex: 1 1 auto;
-    }
-
-    .todo-list-meta-trail {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px 6px;
-      align-items: center;
-      justify-content: flex-end;
-      min-width: 0;
-      flex: 0 1 auto;
-    }
-
-    .todo-list-title {
-      min-width: 0;
-      font-weight: 600;
-      line-height: 1.25;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      flex: 1 1 220px;
-    }
-
-    .todo-list-summary {
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 1;
-      overflow: hidden;
-      line-clamp: 1;
-      min-height: 1.2em;
-      min-width: 0;
-      flex: 1 1 auto;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.4;
-    }
-
-    .todo-list-card-details {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .todo-list-chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      min-width: 0;
-    }
-
-    .todo-list-chip-row .card-labels {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      min-width: 0;
-    }
-
-    .todo-list-detail-line {
-      display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 8px;
-      align-items: flex-start;
-      min-width: 0;
-    }
-
-    .todo-list-detail-line strong {
-      flex: 0 0 auto;
-      white-space: nowrap;
-      color: var(--vscode-foreground);
-    }
-
-    .todo-list-detail-line-comment .todo-list-summary {
-      font-style: italic;
-    }
-
-    .card-labels {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--cockpit-chip-gap, 4px);
-      min-width: 0;
-    }
-
-    .card-labels [data-label-slot] {
-      display: inline-flex;
-      min-width: 0;
-    }
-
-    [data-label-chip],
-    [data-flag-chip] {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--cockpit-chip-gap, 4px);
-      max-width: 100%;
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: var(--cockpit-chip-font, inherit);
-    }
-
-    [data-label-chip] {
-      padding: var(--cockpit-label-pad-y, 2px) var(--cockpit-label-pad-x, 7px);
-    }
-
-    [data-flag-chip] > span:first-child {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    [data-label-chip-select] {
-      max-width: 100%;
-    }
-
-    .todo-list-actions {
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(28px, 1fr);
-      gap: 6px;
-      width: max-content;
-      min-width: max-content;
-      align-self: start;
-    }
-
-    .todo-list-actions.has-single-action {
-      grid-auto-columns: minmax(28px, 1fr);
-    }
-
-    .todo-list-action-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      min-width: 28px;
-      padding: 3px 6px !important;
-      font-weight: 600;
-      text-align: center;
-      cursor: pointer !important;
-    }
-
-    .todo-card-icon-btn {
-      min-height: 24px !important;
-      padding: 2px 0 !important;
-      font-size: 12px !important;
-      line-height: 1 !important;
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent) !important;
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
-        0 1px 2px color-mix(in srgb, #000000 18%, transparent);
-      filter: saturate(1.08) brightness(1.05);
-      transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
-    }
-
-    .todo-card-icon-btn:hover,
-    .todo-card-icon-btn:focus-visible {
-      box-shadow:
-        inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent),
-        0 2px 6px color-mix(in srgb, #000000 22%, transparent);
-      filter: saturate(1.14) brightness(1.1);
-      transform: translateY(-1px);
-    }
-
-    .cockpit-section-header {
-      display: flex;
-      justify-content: flex-start;
-      align-items: center;
-      gap: 6px;
-      cursor: grab;
-      user-select: none;
-      min-width: 0;
-      background: color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 1px 0 color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
-    }
-
-    .todo-list-section .cockpit-section-header {
-      gap: 8px;
-      align-items: flex-start;
-    }
-
-    .todo-list-section .cockpit-section-title-group {
-      min-width: 0;
-      flex: 1 1 auto;
-    }
-
-    .todo-list-section .cockpit-section-title {
-      display: block;
-    }
-
-    .todo-list-section .cockpit-section-count {
-      margin-left: auto;
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .todo-list-section .cockpit-section-actions {
-      margin-left: 0;
-      align-self: flex-start;
-    }
-
-    .todo-list-section.is-collapsed .cockpit-section-actions {
-      display: none;
-    }
-
-    .cockpit-board-hide-card-details .todo-list-card-details,
-    .cockpit-board-compact-details .todo-list-card-details {
-      display: none;
-    }
-
-    .board-column .cockpit-section-header {
-      position: relative;
-      z-index: 1;
-    }
-
-    .cockpit-section-header:active {
-      cursor: grabbing;
-    }
-
-    .cockpit-section-header strong {
-      padding-left: 2px;
-    }
-
-    .cockpit-section-title-group {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-
-    .cockpit-section-title {
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .cockpit-section-count {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-
-    .cockpit-drag-handle {
-      flex: 0 0 auto;
-      touch-action: none;
-    }
-
-    .cockpit-collapse-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-radius: 3px;
-      flex-shrink: 0;
-      padding: 0;
-      opacity: 0.6;
-      transition: opacity 0.12s, transform 0.2s ease;
-      font-size: 10px;
-      line-height: 1;
-    }
-
-    .cockpit-collapse-btn:hover {
-      opacity: 1;
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .cockpit-collapse-btn.collapsed {
-      transform: rotate(-90deg);
-    }
-
-    @media (max-width: 760px) {
-      .todo-list-row {
-        grid-template-columns: 1fr;
-      }
-
-      .todo-list-actions {
-        width: 100%;
-        min-width: 0;
-        grid-auto-columns: minmax(0, 1fr);
-      }
-
-      .todo-list-action-btn {
-        width: 100%;
-      }
-    }
-
-    section[data-section-id] {
-      transition: none;
-    }
-
-    section[data-section-id].section-dragging {
-      opacity: 0.4;
-    }
-
-    section[data-section-id].section-drag-over {
-      outline: 2px solid var(--vscode-focusBorder);
-      outline-offset: 2px;
-      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) !important;
-    }
-
-    body.cockpit-board-dragging,
-    body.cockpit-board-dragging * {
-      user-select: none !important;
-      -webkit-user-select: none !important;
-      cursor: grabbing !important;
-    }
-
-    article[data-todo-id] {
-      transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.12s ease;
-    }
-
-    article[data-todo-id][data-selected="true"] {
-      box-shadow:
-        inset 0 0 0 1px var(--vscode-focusBorder),
-        0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
-      background-clip: padding-box;
-    }
-
-    article[data-todo-id].todo-dragging {
-      opacity: 0.35;
-      transform: rotate(1.5deg) scale(0.97) !important;
-    }
-
-    @media (max-width: 1180px) {
-      .board-filter-footer {
-        gap: 4px;
-      }
-
-      .board-filter-actions {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-        gap: 8px 10px;
-        align-items: end;
-        margin-top: 2px;
-      }
-
-      .board-filter-primary-actions {
-        grid-column: 1 / 3;
-        flex: none;
-        gap: 6px;
-      }
-
-      .board-filter-view-group {
-        grid-column: 3;
-        justify-content: flex-end;
-        min-width: 112px;
-      }
-
-      .board-filter-view-group .form-group {
-        max-width: 112px;
-        min-width: 112px;
-      }
-
-      .board-filter-options {
-        grid-column: 1 / 3;
-        flex: none;
-        gap: 4px 10px;
-        justify-content: flex-start;
-        align-items: center;
-        font-size: 11px;
-      }
-
-      .board-col-width-group {
-        grid-column: 3;
-        flex: none;
-        min-width: 132px;
-        justify-content: flex-end;
-        gap: 4px;
-      }
-
-      .board-col-width-group input[type="range"] {
-        width: min(100%, 96px);
-        flex-basis: 96px;
-      }
-    }
-
-    @media (max-width: 920px) {
-      .board-filter-grid .board-filter-search {
-        grid-column: auto;
-      }
-
-      .board-filter-actions {
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: stretch;
-      }
-
-      .board-filter-primary-actions {
-        grid-column: 1 / -1;
-      }
-
-      .board-filter-view-group,
-      .board-filter-options {
-        flex: none;
-        justify-content: flex-start;
-      }
-
-      .board-filter-options {
-        grid-column: 1;
-      }
-
-      .board-col-width-group {
-        grid-column: 2;
-        flex: none;
-        min-width: 120px;
-        justify-content: flex-end;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .board-filter-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .board-filter-header {
-        align-items: flex-start;
-      }
-
-      .board-filter-actions {
-        grid-template-columns: 1fr;
-        gap: 6px;
-      }
-
-      .board-filter-view-group,
-      .board-filter-options,
-      .board-col-width-group {
-        grid-column: 1;
-        min-width: 0;
-      }
-
-      .board-col-width-group {
-        justify-content: flex-start;
-      }
-
-      .board-col-width-group input[type="range"] {
-        width: min(100%, 140px);
-        flex-basis: 120px;
-      }
-    }
-
-    article[data-todo-id].todo-drop-target {
-      box-shadow: 0 -3px 0 0 var(--vscode-focusBorder) !important;
-      transform: translateY(2px);
-    }
-
-    [data-card-meta] {
-      font-size: var(--cockpit-col-font, 11px) !important;
-    }
-
-    section[data-section-id] {
-      padding: 0 !important;
-    }
-
-    article[data-todo-id] {
-      padding: var(--cockpit-card-pad, 8px) !important;
-      font-size: var(--cockpit-col-font, 11px) !important;
-    }
-
-    article[data-todo-id] .note {
-      font-size: inherit !important;
-    }
-
-    article[data-todo-id] button {
-      font-size: inherit !important;
-      padding: 4px 8px !important;
-      line-height: 1.3;
-      min-height: 26px;
-    }
-
-    .todo-card-action-row {
-      display: grid;
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(0, 1fr);
-      align-items: stretch;
-      gap: 4px;
-      width: 100%;
-      position: relative;
-      z-index: 1;
-    }
-
-    .todo-card-action-row.has-single-action {
-      grid-template-columns: 1fr;
-    }
-
-    .todo-card-action-row > button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      min-width: 0;
-      text-align: center;
-      min-height: 24px;
-      padding: 2px 0 !important;
-      font-size: 12px !important;
-      line-height: 1.15;
-    }
-
-    .todo-card-action-row > .todo-card-icon-btn {
-      white-space: nowrap;
-      line-height: 1;
-    }
-
-    .todo-card-action-row > button:not(.todo-card-icon-btn) {
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      min-height: 38px;
-      padding: 4px 6px !important;
-    }
-
-    .todo-card-edit {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--vscode-textLink-foreground) 28%, var(--vscode-button-secondaryBackground)) 0%,
-          color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent) 100%) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-approve {
-      background-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 22%, var(--vscode-button-secondaryBackground)) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-approve.is-confirming {
-      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 26%, var(--vscode-button-secondaryBackground)) !important;
-    }
-
-    .todo-complete-button.is-confirming {
-      min-width: 34px !important;
-      padding: 0 9px !important;
-      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 18%, var(--vscode-input-background)) !important;
-      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 62%, var(--vscode-panel-border)) !important;
-    }
-
-    .todo-complete-button.is-ready-to-finalize {
-      border-style: dashed !important;
-    }
-
-    .todo-complete-button.is-cancel {
-      min-width: 34px !important;
-      height: 28px !important;
-      padding: 0 9px !important;
-      border-radius: 999px !important;
-      border: 1px solid var(--vscode-panel-border) !important;
-      background: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background)) !important;
-      color: var(--vscode-foreground) !important;
-      font-size: 11px !important;
-      font-weight: 700 !important;
-      line-height: 1 !important;
-      flex: 0 0 auto !important;
-    }
-
-    .todo-complete-button.is-completed {
-      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background)) !important;
-      border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 88%, var(--vscode-panel-border)) !important;
-      color: var(--vscode-button-foreground) !important;
-    }
-
-    .todo-card-finalize {
-      background-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, var(--vscode-button-secondaryBackground)) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-delete {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 48%, var(--vscode-button-secondaryBackground)) 0%,
-          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 28%, var(--vscode-button-secondaryBackground)) 100%) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-delete-reject {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 42%, var(--vscode-button-secondaryBackground)) 0%,
-          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 18%, var(--vscode-button-secondaryBackground)) 100%) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-delete-permanent {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 60%, var(--vscode-button-secondaryBackground)) 0%,
-          color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 32%, var(--vscode-button-secondaryBackground)) 100%) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .todo-card-delete-cancel {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--vscode-input-background) 78%, var(--vscode-button-secondaryBackground)) 0%,
-          color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent) 100%) !important;
-      color: var(--vscode-button-secondaryForeground) !important;
-    }
-
-    .cockpit-inline-modal {
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: rgba(0, 0, 0, 0.38);
-      z-index: 250;
-    }
-
-    .cockpit-inline-modal.is-open {
-      display: flex;
-    }
-
-    .cockpit-inline-modal-card {
-      width: min(460px, calc(100vw - 32px));
-      border-radius: 14px;
-      border: 1px solid var(--vscode-widget-border);
-      background: var(--vscode-editorWidget-background);
-      color: var(--vscode-foreground);
-      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .cockpit-inline-modal-card.comment-detail-modal {
-      width: min(860px, calc(100vw - 40px));
-      max-height: min(84vh, 920px);
-    }
-
-    .cockpit-inline-modal-title {
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 1.25;
-    }
-
-    .cockpit-inline-modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .cockpit-section-actions {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      opacity: 0.55;
-      transition: opacity 0.12s ease;
-      margin-left: auto;
-    }
-
-    .cockpit-section-header:hover .cockpit-section-actions,
-    .cockpit-section-header:focus-within .cockpit-section-actions {
-      opacity: 1;
-    }
-
-    .board-column.is-collapsed .cockpit-section-actions {
-      display: none;
-    }
-
-    .board-column.is-collapsed .cockpit-section-header strong {
-      overflow: visible;
-      text-overflow: unset;
-      white-space: normal;
-    }
-
-    .btn-icon {
-      padding: 1px 4px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      font-size: 11px;
-      border-radius: 3px;
-      line-height: 1.4;
-    }
-
-    .btn-icon:hover {
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .todo-editor-shell {
-      display: grid;
-      gap: 12px;
-    }
-
-    .todo-editor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px 12px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
-        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
-      );
-    }
-
-    .todo-editor-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .todo-editor-card {
-      display: grid;
-      gap: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 12px;
-    }
-
-    .todo-editor-card .section-title {
-      margin-bottom: 0;
-    }
-
-    .todo-comments-spotlight {
-      display: grid;
-      gap: 12px;
-      margin-top: 4px;
-      padding: 14px;
-      border-radius: 14px;
-      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 28%, var(--vscode-panel-border));
-      background:
-        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, transparent) 0, transparent 42%),
-        linear-gradient(
-          145deg,
-          color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent),
-          color-mix(in srgb, var(--vscode-sideBar-background) 90%, transparent)
-        );
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
-    }
-
-    .todo-comments-spotlight-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: flex-start;
-    }
-
-    .todo-comments-header-copy {
-      display: grid;
-      gap: 4px;
-    }
-
-    .todo-comments-eyebrow {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 72%, var(--vscode-foreground));
-    }
-
-    .todo-comments-title-row {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .todo-comments-count-badge,
-    .todo-comments-mode-pill,
-    .todo-comment-source-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 24px;
-      padding: 0 10px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .todo-comments-count-badge {
-      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 34%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 16%, transparent);
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comments-mode-pill {
-      border: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 28%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 12%, transparent);
-      color: var(--vscode-foreground);
-      white-space: nowrap;
-    }
-
-    .todo-comments-context-note {
-      max-width: 68ch;
-      line-height: 1.5;
-      margin: 0;
-    }
-
-    .todo-comments-layout {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-      align-items: start;
-    }
-
-    .todo-comment-composer-shell,
-    .todo-comment-thread-shell {
-      display: grid;
-      gap: 10px;
-      padding: 12px;
-      border-radius: 12px;
-      border: 1px solid var(--vscode-panel-border);
-    }
-
-    .todo-comment-composer-shell {
-      background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
-      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
-    }
-
-    .todo-comment-thread-shell {
-      background: color-mix(in srgb, var(--vscode-sideBar-background) 74%, var(--vscode-editor-background));
-      min-height: 100%;
-      min-width: 0;
-    }
-
-    .todo-comment-composer-topline {
-      display: grid;
-      gap: 4px;
-    }
-
-    .todo-comment-composer-title,
-    .todo-comment-thread-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comment-composer-note,
-    .todo-comment-thread-note,
-    .todo-comment-draft-status {
-      line-height: 1.45;
-    }
-
-    .todo-comment-input-label-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
-
-    .todo-comment-input-label-row label {
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .todo-comment-textarea {
-      min-height: 148px;
-      resize: vertical;
-      line-height: 1.55;
-      font-size: 13px;
-    }
-
-    .todo-comment-composer-footer,
-    .todo-comment-thread-header,
-    .todo-comment-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: flex-start;
-    }
-
-    .todo-comment-draft-status {
-      max-width: 48ch;
-      min-height: 1.35em;
-      margin: 0;
-    }
-
-    .todo-editor-comments {
-      max-height: 42vh;
-      overflow: auto;
-      padding-right: 4px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .todo-comment-empty-state {
-      display: grid;
-      gap: 6px;
-      padding: 16px;
-      border-radius: 10px;
-      border: 1px dashed color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 26%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
-    }
-
-    .todo-comment-empty-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comment-card {
-      display: grid;
-      gap: 8px;
-      padding: 12px;
-      border-radius: 12px;
-      border: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-sideBar-background);
-      border-left: 4px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
-      cursor: pointer;
-      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-    }
-
-    .todo-comment-card:hover,
-    .todo-comment-card:focus-visible {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
-      outline: none;
-    }
-
-    .todo-comment-card.is-preview {
-      cursor: default;
-      border-style: dashed;
-      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, var(--vscode-editor-background));
-    }
-
-    .todo-comment-card.is-preview:hover,
-    .todo-comment-card.is-preview:focus-visible {
-      transform: none;
-    }
-
-    .todo-comment-card.is-human-form {
-      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 12%, var(--vscode-sideBar-background));
-      border-left-color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 70%, white);
-    }
-
-    .todo-comment-card.is-bot-mcp {
-      background: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 14%, var(--vscode-sideBar-background));
-      border-left-color: color-mix(in srgb, var(--vscode-debugIcon-startForeground, #4caf50) 74%, white);
-    }
-
-    .todo-comment-card.is-bot-manual {
-      background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 14%, var(--vscode-sideBar-background));
-      border-left-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f5c451) 76%, white);
-    }
-
-    .todo-comment-card.is-system-event {
-      background: color-mix(in srgb, var(--vscode-descriptionForeground) 10%, var(--vscode-sideBar-background));
-      border-left-color: color-mix(in srgb, var(--vscode-descriptionForeground) 72%, white);
-    }
-
-    .todo-comment-heading,
-    .todo-comment-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 8px;
-      align-items: center;
-    }
-
-    .todo-comment-sequence {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comment-source-chip {
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 76%, transparent);
-      background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comment-author {
-      margin: 0;
-      font-size: 12px;
-    }
-
-    .todo-comment-body {
-      white-space: pre-wrap;
-      line-height: 1.55;
-      color: var(--vscode-foreground);
-    }
-
-    .todo-comment-card.is-user-form .todo-comment-author,
-    .todo-comment-card.is-user-form .todo-comment-body {
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .todo-comment-expand-hint {
-      margin-top: 2px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .todo-comment-modal-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 12px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-    }
-
-    .todo-comment-modal-body {
-      white-space: pre-wrap;
-      line-height: 1.55;
-      font-size: 13px;
-      border-radius: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      background: var(--vscode-editor-background);
-      padding: 14px;
-    }
-
-    .todo-upload-row {
-      display: grid;
-      gap: 8px;
-      align-items: start;
-    }
-
-    .todo-upload-note {
-      min-height: 1.3em;
-    }
-
-    .todo-upload-note.is-success {
-      color: var(--vscode-testing-iconPassed, #4caf50);
-    }
-
-    .todo-upload-note.is-error {
-      color: var(--vscode-errorForeground);
-    }
-
-    .todo-editor-action-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 0;
-    }
-
-    .todo-editor-action-row > button {
-      min-height: 38px;
-      padding: 8px 14px;
-      font-weight: 700;
-    }
-
-    #todo-complete-btn {
-      background: color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 20%, var(--vscode-button-secondaryBackground));
-      color: var(--vscode-button-secondaryForeground);
-    }
-
-    #todo-delete-btn {
-      background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #f44) 30%, var(--vscode-button-secondaryBackground));
-      color: var(--vscode-button-secondaryForeground);
-    }
-
-    #todo-priority-input {
-      font-weight: 700;
-      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-    }
-
-    #todo-priority-input option {
-      color: var(--vscode-input-foreground);
-      background: var(--vscode-dropdown-background, var(--vscode-input-background));
-    }
-
-    #todo-priority-input option:hover {
-      color: var(--vscode-list-highlightForeground, var(--vscode-input-foreground));
-    }
-
-    #todo-priority-input[data-priority="none"] {
-      background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 88%, transparent);
-      color: var(--vscode-foreground);
-    }
-
-    #todo-priority-input[data-priority="low"] {
-      background: color-mix(in srgb, #64748b 28%, var(--vscode-input-background));
-      color: var(--vscode-input-foreground);
-    }
-
-    #todo-priority-input[data-priority="medium"] {
-      background: color-mix(in srgb, #3b82f6 26%, var(--vscode-input-background));
-      color: var(--vscode-input-foreground);
-    }
-
-    #todo-priority-input[data-priority="high"] {
-      background: color-mix(in srgb, #f59e0b 24%, var(--vscode-input-background));
-      color: var(--vscode-input-foreground);
-    }
-
-    #todo-priority-input[data-priority="urgent"] {
-      background: color-mix(in srgb, #ef4444 22%, var(--vscode-input-background));
-      color: var(--vscode-input-foreground);
-    }
-
-    .history-toolbar {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
-      margin-bottom: 6px;
-    }
-
-    .history-toolbar label {
-      font-size: 12px;
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .history-toolbar select {
-      min-width: 280px;
-      max-width: 100%;
-      flex: 1 1 280px;
-    }
-
-    .jobs-layout {
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .jobs-layout.sidebar-collapsed {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .jobs-layout.sidebar-collapsed .jobs-sidebar {
-      display: none;
-    }
-
-    .jobs-sidebar,
-    .jobs-main {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 12px;
-    }
-
-    .jobs-overview-main {
-      display: grid;
-      gap: 12px;
-      position: sticky;
-      top: 0;
-    }
-
-    .jobs-overview-card {
-      display: grid;
-      gap: 8px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      padding: 12px;
-      background-color: var(--vscode-sideBar-background);
-    }
-
-    .jobs-toolbar,
-    .jobs-job-toolbar,
-    .jobs-inline-form,
-    .jobs-step-toolbar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .jobs-toolbar,
-    .jobs-job-toolbar {
-      margin-bottom: 12px;
-    }
-
-    .jobs-sidebar-section + .jobs-sidebar-section,
-    .jobs-main-section + .jobs-main-section {
-      margin-top: 0;
-    }
-
-    .jobs-list,
-    .jobs-folder-list,
-    .jobs-step-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .jobs-main-header {
-      display: none;
-    }
-
-    .jobs-folder-item,
-    .jobs-list-item,
-    .jobs-step-card {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 10px;
-      background-color: var(--vscode-sideBar-background);
-    }
-
-    .jobs-folder-item,
-    .jobs-list-item {
-      cursor: pointer;
-    }
-
-    .jobs-list-item[draggable="true"] {
-      cursor: grab;
-    }
-
-    .jobs-list-item.dragging {
-      opacity: 0.55;
-    }
-
-    .jobs-current-folder-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 55%, var(--vscode-panel-border));
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 58%, transparent),
-        color-mix(in srgb, var(--vscode-editorWidget-background) 85%, transparent)
-      );
-    }
-
-    .jobs-current-folder-label {
-      display: block;
-      font-size: 11px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
-    }
-
-    .jobs-current-folder-name {
-      display: block;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--vscode-foreground);
-      word-break: break-word;
-    }
-
-    .jobs-folder-path {
-      margin-top: 4px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      word-break: break-word;
-    }
-
-    .jobs-folder-item.active,
-    .jobs-list-item.active,
-    .jobs-folder-item.drag-over,
-    .jobs-step-card.drag-over {
-      border-color: var(--vscode-focusBorder);
-      background-color: var(--vscode-list-activeSelectionBackground);
-      color: var(--vscode-list-activeSelectionForeground);
-    }
-
-    .jobs-folder-item.active {
-      box-shadow: inset 4px 0 0 var(--vscode-focusBorder);
-      font-weight: 600;
-    }
-
-    .jobs-folder-item.active .jobs-folder-item-header strong,
-    .jobs-folder-item.active .jobs-folder-item-header span {
-      color: inherit;
-    }
-
-    .jobs-folder-item.active .jobs-folder-path {
-      color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground) 80%, transparent);
-    }
-
-    .jobs-folder-item.is-archive {
-      border-style: dashed;
-    }
-
-    .jobs-folder-item.is-archive .jobs-folder-item-header span:first-child {
-      font-style: italic;
-    }
-
-    .jobs-folder-item-header,
-    .jobs-list-item-header,
-    .jobs-step-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .jobs-list-item-meta,
-    .jobs-folder-item-meta,
-    .jobs-step-meta {
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      margin-top: 4px;
-    }
-
-    .jobs-empty {
-      padding: 16px;
-      color: var(--vscode-descriptionForeground);
-      border: 1px dashed var(--vscode-panel-border);
-      border-radius: 6px;
-      text-align: center;
-    }
-
-    .jobs-editor-shell {
-      display: grid;
-      gap: 16px;
-    }
-
-    .jobs-editor-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: flex-start;
-      padding: 14px 16px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 10px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
-        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
-      );
-    }
-
-    .jobs-editor-intro {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .jobs-editor-subtitle {
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      line-height: 1.45;
-      max-width: 72ch;
-    }
-
-    .jobs-editor-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(360px, 0.92fr);
-      gap: 12px;
-    }
-
-    .jobs-editor-card.is-wide {
-      grid-column: 1 / -1;
-    }
-
-    .jobs-editor-card {
-      display: grid;
-      gap: 12px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 10px;
-      background-color: var(--vscode-editor-background);
-      padding: 14px;
-    }
-
-    .jobs-editor-card .section-title {
-      margin-bottom: 0;
-    }
-
-    .jobs-editor-card .note {
-      margin-top: -4px;
-    }
-
-    .jobs-workflow-builder-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.34fr) minmax(340px, 0.92fr);
-      gap: 14px;
-      align-items: start;
-      grid-column: 1 / -1;
-    }
-
-    .jobs-workflow-builder-layout .jobs-main-section {
-      min-width: 0;
-    }
-
-    .jobs-workflow-card {
-      position: relative;
-      overflow: hidden;
-      border-color: color-mix(in srgb, var(--vscode-focusBorder) 38%, var(--vscode-panel-border));
-      background:
-        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 34%),
-        linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
-          color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 18%, var(--vscode-editor-background))
-        );
-      box-shadow: 0 16px 32px color-mix(in srgb, var(--vscode-editor-background) 76%, transparent);
-    }
-
-    .jobs-workflow-actions-card {
-      position: relative;
-      overflow: hidden;
-      gap: 12px;
-      border-color: color-mix(in srgb, var(--vscode-focusBorder) 34%, var(--vscode-panel-border));
-      background:
-        radial-gradient(circle at bottom left, color-mix(in srgb, var(--vscode-focusBorder) 15%, transparent) 0%, transparent 42%),
-        linear-gradient(
-          160deg,
-          color-mix(in srgb, var(--vscode-editorWidget-background) 96%, transparent),
-          color-mix(in srgb, var(--vscode-button-secondaryBackground) 38%, var(--vscode-editor-background))
-        );
-      box-shadow: 0 14px 28px color-mix(in srgb, var(--vscode-editor-background) 82%, transparent);
-    }
-
-    .jobs-workflow-card::before {
-      content: "";
-      position: absolute;
-      top: -72px;
-      right: -56px;
-      width: 220px;
-      height: 220px;
-      border-radius: 999px;
-      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent) 0%, transparent 70%);
-      pointer-events: none;
-    }
-
-    .jobs-workflow-actions-card::before {
-      content: "";
-      position: absolute;
-      bottom: -82px;
-      left: -58px;
-      width: 210px;
-      height: 210px;
-      border-radius: 999px;
-      background: radial-gradient(circle, color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent) 0%, transparent 72%);
-      pointer-events: none;
-    }
-
-    .jobs-workflow-hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
-      gap: 14px;
-      align-items: stretch;
-      position: relative;
-      z-index: 1;
-    }
-
-    .jobs-workflow-copy {
-      display: grid;
-      gap: 8px;
-      align-content: start;
-      min-width: 0;
-    }
-
-    .jobs-workflow-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      width: fit-content;
-      max-width: 100%;
-      padding: 5px 11px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--vscode-focusBorder) 14%, var(--vscode-editorWidget-background));
-      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
-      color: var(--vscode-foreground);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      line-height: 1.25;
-      white-space: normal;
-    }
-
-    .jobs-workflow-title {
-      margin: 0;
-      font-size: 22px;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-    }
-
-    .jobs-workflow-note {
-      margin: 0;
-      max-width: 62ch;
-      color: var(--vscode-descriptionForeground);
-      font-size: 13px;
-      line-height: 1.55;
-    }
-
-    .jobs-workflow-metrics {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      align-content: start;
-    }
-
-    .jobs-workflow-metric {
-      display: grid;
-      gap: 5px;
-      padding: 12px;
-      border-radius: 14px;
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 88%, transparent);
-      background: color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent);
-      min-height: 86px;
-    }
-
-    .jobs-workflow-metric.is-accent {
-      border-color: color-mix(in srgb, var(--vscode-focusBorder) 42%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editorWidget-background));
-    }
-
-    .jobs-workflow-metric.is-waiting {
-      border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 44%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 13%, var(--vscode-editorWidget-background));
-    }
-
-    .jobs-workflow-metric.is-muted {
-      border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 36%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-descriptionForeground) 9%, var(--vscode-editorWidget-background));
-    }
-
-    .jobs-workflow-metric-label {
-      color: var(--vscode-descriptionForeground);
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .jobs-workflow-metric-value {
-      font-size: 20px;
-      font-weight: 700;
-      line-height: 1.15;
-      color: var(--vscode-foreground);
-      word-break: break-word;
-    }
-
-    .jobs-workflow-metric.is-compact .jobs-workflow-metric-value {
-      font-size: 15px;
-      line-height: 1.25;
-    }
-
-    .jobs-workflow-panel {
-      display: grid;
-      gap: 10px;
-      padding: 14px;
-      border-radius: 16px;
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
-      background: color-mix(in srgb, var(--vscode-sideBar-background) 84%, transparent);
-      position: relative;
-      z-index: 1;
-    }
-
-    .jobs-workflow-panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .jobs-workflow-panel-copy {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .jobs-workflow-panel .note {
-      margin: 0;
-    }
-
-    .jobs-workflow-actions-header {
-      display: grid;
-      gap: 6px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .jobs-workflow-actions-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      width: fit-content;
-      padding: 5px 11px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--vscode-button-background) 16%, var(--vscode-editorWidget-background));
-      border: 1px solid color-mix(in srgb, var(--vscode-button-background) 32%, var(--vscode-panel-border));
-      color: var(--vscode-foreground);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .jobs-workflow-actions-grid {
-      display: grid;
-      gap: 10px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .jobs-workflow-quick-actions {
-      display: grid;
-      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-      gap: 10px;
-      align-items: start;
-    }
-
-    .jobs-job-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .jobs-job-grid-overview {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .jobs-job-grid .form-group.wide {
-      grid-column: 1 / -1;
-    }
-
-    .jobs-schedule-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .jobs-schedule-grid .wide {
-      grid-column: 1 / -1;
-    }
-
-    .jobs-action-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .jobs-action-card {
-      display: grid;
-      gap: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      padding: 12px;
-      background-color: var(--vscode-sideBar-background);
-    }
-
-    .jobs-action-card-wide {
-      grid-column: 1 / -1;
-    }
-
-    .jobs-workflow-actions-card .jobs-action-card {
-      gap: 8px;
-      padding: 10px;
-      border-radius: 14px;
-      background: color-mix(in srgb, var(--vscode-sideBar-background) 82%, transparent);
-      border-color: color-mix(in srgb, var(--vscode-panel-border) 92%, transparent);
-    }
-
-    .jobs-workflow-actions-card .jobs-action-card .section-title {
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-
-    .jobs-action-title-with-icon {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .jobs-action-title-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--vscode-focusBorder) 16%, var(--vscode-editorWidget-background));
-      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-panel-border));
-      font-size: 11px;
-      line-height: 1;
-    }
-
-    .jobs-action-title-icon.jobs-action-title-icon-pause {
-      gap: 2px;
-      font-size: 0;
-    }
-
-    .jobs-action-title-icon.jobs-action-title-icon-pause span {
-      display: block;
-      width: 2px;
-      height: 8px;
-      border-radius: 999px;
-      background: currentColor;
-    }
-
-    .jobs-workflow-actions-card .jobs-inline-form {
-      display: grid;
-      gap: 8px;
-      margin-top: 0;
-    }
-
-    .jobs-workflow-actions-card .jobs-inline-form .form-group {
-      margin-bottom: 0;
-    }
-
-    .jobs-workflow-actions-card .jobs-inline-form button {
-      justify-self: end;
-    }
-
-    .jobs-workflow-save-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-top: 2px;
-    }
-
-    .jobs-workflow-save-row .btn-primary,
-    .jobs-workflow-save-row .btn-secondary {
-      min-width: 0;
-    }
-
-    .jobs-workflow-actions-card label {
-      margin-bottom: 3px;
-      font-size: 11px;
-    }
-
-    .jobs-workflow-actions-card input[type="text"],
-    .jobs-workflow-actions-card input[type="number"],
-    .jobs-workflow-actions-card select,
-    .jobs-workflow-actions-card textarea {
-      padding: 5px 7px;
-      font-size: 12px;
-    }
-
-    .jobs-workflow-actions-card textarea {
-      min-height: 68px;
-    }
-
-    .jobs-new-step-form {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      align-items: end;
-    }
-
-    .jobs-new-step-form .wide {
-      grid-column: 1 / -1;
-    }
-
-    .jobs-new-step-actions {
-      grid-column: 1 / -1;
-      display: flex;
-      justify-content: flex-end;
-    }
-
-    .jobs-workflow-actions-card .jobs-new-step-form {
-      gap: 10px;
-    }
-
-    .jobs-step-list {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-
-    .jobs-step-card {
-      min-height: 124px;
-      padding: 8px;
-      font-size: 12px;
-    }
-
-    .jobs-step-card.is-waiting,
-    .jobs-pill.is-waiting {
-      border-color: var(--vscode-focusBorder);
-      background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, var(--vscode-sideBar-background));
-      color: var(--vscode-editorWarning-foreground);
-    }
-
-    .jobs-pause-card {
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
-        color-mix(in srgb, var(--vscode-button-secondaryBackground) 72%, transparent)
-      );
-    }
-
-    .jobs-pause-card .jobs-step-toolbar {
-      margin-top: 10px;
-    }
-
-    .jobs-pause-copy {
-      margin-top: 8px;
-      font-size: 12px;
-      color: var(--vscode-descriptionForeground);
-    }
-
-    .jobs-list-item-meta-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-top: 4px;
-    }
-
-    .jobs-step-card[draggable="true"] {
-      cursor: grab;
-    }
-
-    .jobs-step-card.dragging {
-      opacity: 0.55;
-    }
-
-    .jobs-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background-color: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      font-size: 11px;
-    }
-
-    .jobs-pill.is-toggle {
-      cursor: pointer;
-      border: 1px solid transparent;
-    }
-
-    .jobs-pill.is-toggle:hover {
-      border-color: var(--vscode-focusBorder);
-    }
-
-    .jobs-pill.is-inactive {
-      background-color: var(--vscode-inputValidation-warningBackground);
-      color: var(--vscode-inputValidation-warningForeground);
-    }
-
-    .jobs-timeline-inline {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      overflow-x: auto;
-      white-space: nowrap;
-      padding-bottom: 4px;
-      scrollbar-width: thin;
-    }
-
-    .jobs-timeline-node {
-      display: inline-flex;
-      align-items: center;
-      max-width: 220px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: var(--vscode-sideBar-background);
-      border: 1px solid var(--vscode-panel-border);
-      font-size: 12px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .jobs-timeline-arrow {
-      color: var(--vscode-descriptionForeground);
-      flex: 0 0 auto;
-    }
-
-    .jobs-workflow-card .jobs-timeline-inline {
-      gap: 8px;
-      padding-bottom: 2px;
-    }
-
-    .jobs-workflow-card .jobs-timeline-node {
-      max-width: 280px;
-      padding: 8px 12px;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
-      border-color: color-mix(in srgb, var(--vscode-focusBorder) 20%, var(--vscode-panel-border));
-      font-size: 12px;
-      font-weight: 600;
-    }
-
-    .jobs-workflow-card .jobs-timeline-arrow {
-      font-size: 16px;
-    }
-
-    .jobs-step-summary {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      margin-top: 6px;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.35;
-      min-height: 2.7em;
-    }
-
-    .jobs-step-toolbar {
-      justify-content: space-between;
-      margin-top: 8px;
-    }
-
-    .jobs-step-toolbar .btn-secondary,
-    .jobs-step-toolbar .btn-danger {
-      padding: 4px 8px;
-      font-size: 11px;
-    }
-
-    .jobs-step-toolbar .btn-danger {
-      margin-left: auto;
-    }
-
-    .jobs-inline-form {
-      margin-top: 10px;
-    }
-
-    .jobs-inline-form .form-group {
-      margin-bottom: 0;
-      flex: 1 1 180px;
-    }
-
-    .jobs-folder-indent {
-      display: inline-block;
-      width: 14px;
-      flex: 0 0 14px;
-    }
-
-    .research-layout {
-      display: grid;
-      grid-template-columns: 290px minmax(0, 1fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .research-sidebar,
-    .research-main,
-    .research-panel {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 10px;
-    }
-
-    .research-sidebar {
-      display: grid;
-      gap: 10px;
-    }
-
-    .research-panel-header,
-    .settings-card-header {
-      display: grid;
-      gap: 4px;
-      margin-bottom: 8px;
-    }
-
-    .research-profile-list,
-    .research-run-list,
-    .research-attempt-list {
-      display: grid;
-      gap: 6px;
-    }
-
-    .research-card,
-    .research-run-card,
-    .research-attempt-card {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 8px 9px;
-      background-color: var(--vscode-sideBar-background);
-    }
-
-    .research-card.active {
-      border-color: var(--vscode-focusBorder);
-      background-color: var(--vscode-list-activeSelectionBackground);
-      color: var(--vscode-list-activeSelectionForeground);
-    }
-
-    .research-run-card {
-      cursor: pointer;
-    }
-
-    .research-run-card.active {
-      border-color: var(--vscode-focusBorder);
-      background-color: var(--vscode-list-activeSelectionBackground);
-      color: var(--vscode-list-activeSelectionForeground);
-    }
-
-    .research-card-header,
-    .research-run-card-header,
-    .research-attempt-card-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .research-meta,
-    .research-run-meta,
-    .research-attempt-meta {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-top: 3px;
-      white-space: pre-wrap;
-    }
-
-    .research-main {
-      display: grid;
-      gap: 12px;
-    }
-
-    .research-form-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .research-form-grid .form-group.wide {
-      grid-column: 1 / -1;
-    }
-
-    .research-toolbar,
-    .research-run-toolbar {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-top: 10px;
-    }
-
-    .research-form-error {
-      display: none;
-      margin-bottom: 10px;
-      padding: 7px 10px;
-      border-radius: 6px;
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-      font-size: 11px;
-      white-space: pre-wrap;
-    }
-
-    .research-chip-row {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-
-    .research-chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      background: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-    }
-
-    .research-attempt-card {
-      display: grid;
-      gap: 6px;
-    }
-
-    .research-attempt-paths {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      white-space: pre-wrap;
-    }
-
-    .research-output details {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 7px 8px;
-      background: var(--vscode-editorWidget-background);
-    }
-
-    .research-output summary {
-      cursor: pointer;
-      font-size: 12px;
-      color: var(--vscode-foreground);
-    }
-
-    .research-output pre {
-      margin: 6px 0 0 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 11px;
-      color: var(--vscode-editor-foreground);
-      max-height: 180px;
-      overflow: auto;
-    }
-
-    .telegram-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr) minmax(240px, 0.85fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .telegram-card,
-    .telegram-status-card {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 10px;
-    }
-
-    .telegram-status-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .telegram-status-item {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      background-color: var(--vscode-sideBar-background);
-      padding: 8px;
-    }
-
-    .telegram-status-label {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 3px;
-    }
-
-    .telegram-status-value {
-      font-size: 12px;
-      font-weight: 600;
-      word-break: break-word;
-    }
-
-    .telegram-feedback {
-      display: none;
-      margin-bottom: 10px;
-      padding: 7px 10px;
-      border-radius: 6px;
-      font-size: 11px;
-      white-space: pre-wrap;
-      background: var(--vscode-inputValidation-infoBackground, var(--vscode-editorInfo-background));
-      color: var(--vscode-foreground);
-      border: 1px solid var(--vscode-panel-border);
-    }
-
-    .telegram-feedback.error {
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-    }
-
-    .research-stat-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .research-stat {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 8px;
-      background-color: var(--vscode-sideBar-background);
-    }
-
-    .research-stat-label {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 3px;
-    }
-
-    .research-stat-value {
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    @media (max-width: 980px) {
-      .research-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .research-form-grid,
-      .research-stat-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .telegram-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .help-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .help-section.is-featured {
-        grid-column: 1 / -1;
-      }
-    }
-
-    @media (max-width: 760px) {
-      .telegram-status-grid,
-      .research-stat-grid,
-      .research-form-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 980px) {
-      .tab-bar {
-        gap: 6px;
-        padding: 8px 10px 6px 10px;
-        margin: -20px -20px 16px -20px;
-      }
-
-      .jobs-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .todo-editor-grid,
-      .jobs-editor-grid,
-      .task-editor-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .todo-comments-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .jobs-job-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .jobs-job-grid-overview,
-      .jobs-schedule-grid,
-      .jobs-action-grid,
-      .jobs-new-step-form,
-      .task-editor-options-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .jobs-workflow-builder-layout,
-      .jobs-workflow-quick-actions {
-        grid-template-columns: 1fr;
-      }
-
-      .jobs-action-card-wide,
-      .jobs-new-step-actions,
-      .jobs-schedule-grid .wide,
-      .jobs-new-step-form .wide,
-      .task-editor-options-grid .form-group.wide,
-      .task-editor-card.is-wide {
-        grid-column: 1 / -1;
-      }
-
-      .jobs-editor-header,
-      .task-editor-header {
-        flex-direction: column;
-      }
-
-      .jobs-workflow-hero {
-        grid-template-columns: 1fr;
-      }
-
-      .jobs-step-list {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 768px) {
-      .tab-bar {
-        flex-wrap: wrap;
-        align-items: stretch;
-      }
-
-      .tabs {
-        order: 2;
-        flex: 1 1 100%;
-      }
-
-      .tab-actions {
-        order: 1;
-        width: 100%;
-        justify-content: flex-end;
-      }
-
-      .todo-comments-spotlight-header,
-      .todo-comment-composer-footer,
-      .todo-comment-thread-header,
-      .todo-comment-header,
-      .todo-comment-input-label-row {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .tab-button {
-        padding: 10px 12px;
-        font-size: 14px;
-      }
-
-      .jobs-step-list {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 560px) {
-      .jobs-step-list {
-        grid-template-columns: 1fr;
-      }
-    }
+${buildSchedulerWebviewExtendedStyles()}
   </style>
-</head>
-<body>
+</head><body>
   <div class="tab-bar">
     <div class="tabs">
       <button type="button" class="tab-button" data-tab="todo-edit" title="${escapeHtmlAttr(strings.tabTodoEditorCreate)}" aria-label="${escapeHtmlAttr(strings.tabTodoEditorCreate)}"><span class="tab-button-content"><span class="tab-button-symbol" data-tab-symbol="todo-edit" aria-hidden="true">+</span><span class="tab-button-label" data-tab-label="todo-edit" aria-hidden="true"></span></span></button>
@@ -4930,145 +1206,7 @@ export class SchedulerWebview {
     <span id="global-error-text"></span>
   </div>
 
-  <div id="todo-edit-tab" class="tab-content">
-    <div class="todo-editor-shell">
-      <div class="todo-editor-header">
-        <div>
-          <div class="section-title" id="todo-detail-title">${escapeHtml(strings.boardDetailTitleCreate)}</div>
-          <p class="note" id="todo-detail-mode-note">${escapeHtml(strings.boardDetailModeCreate)}</p>
-          <div id="todo-detail-status" class="note"></div>
-        </div>
-        <div class="button-group" style="margin:0;">
-          <button type="button" class="btn-secondary" id="todo-back-btn">${escapeHtml(strings.boardBackToCockpit)}</button>
-        </div>
-      </div>
-
-      <form id="todo-detail-form">
-        <input type="hidden" id="todo-detail-id">
-        <div class="todo-editor-grid">
-          <section class="todo-editor-card">
-            <div class="form-group" style="margin:0;">
-              <label for="todo-title-input">${escapeHtml(strings.boardFieldTitle)}</label>
-              <input type="text" id="todo-title-input">
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label for="todo-description-input">${escapeHtml(strings.boardFieldDescription)}</label>
-              <textarea id="todo-description-input" style="min-height:180px;"></textarea>
-            </div>
-            <div class="todo-upload-row">
-              <button type="button" class="btn-secondary" id="todo-upload-files-btn">${escapeHtml(strings.boardUploadFiles)}</button>
-              <div id="todo-upload-files-note" class="note todo-upload-note">${escapeHtml(strings.boardUploadFilesHint)}</div>
-            </div>
-            <section class="todo-comments-spotlight" aria-labelledby="todo-comments-heading">
-              <div class="todo-comments-spotlight-header">
-                <div class="todo-comments-header-copy">
-                  <div class="todo-comments-eyebrow">${escapeHtml(strings.boardCommentsEyebrow || "Conversation thread")}</div>
-                  <div class="todo-comments-title-row">
-                    <div class="section-title" id="todo-comments-heading" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
-                    <span id="todo-comment-count-badge" class="todo-comments-count-badge">${escapeHtml(strings.boardCommentBadgeDraft || "Draft")}</span>
-                  </div>
-                  <p id="todo-comment-context-note" class="note todo-comments-context-note">${escapeHtml(strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.")}</p>
-                </div>
-                <div id="todo-comment-mode-pill" class="todo-comments-mode-pill">${escapeHtml(strings.boardCommentModeCreate || "Kickoff note")}</div>
-              </div>
-
-              <div class="todo-comments-layout">
-                <div class="todo-comment-thread-shell">
-                  <div class="todo-comment-thread-header">
-                    <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
-                    <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
-                  </div>
-                  <div id="todo-comment-list" class="todo-editor-comments"></div>
-                </div>
-
-                <div class="todo-comment-composer-shell">
-                  <div class="todo-comment-composer-topline">
-                    <div id="todo-comment-composer-title" class="todo-comment-composer-title">${escapeHtml(strings.boardCommentComposerCreateTitle || "Write the kickoff comment")}</div>
-                    <div id="todo-comment-composer-note" class="note todo-comment-composer-note">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</div>
-                  </div>
-
-                  <div class="form-group" style="margin:0;">
-                    <div class="todo-comment-input-label-row">
-                      <label for="todo-comment-input">${escapeHtml(strings.boardCommentComposerEditTitle || "Add to the thread")}</label>
-                    </div>
-                    <textarea id="todo-comment-input" class="todo-comment-textarea" placeholder="${escapeHtmlAttr(strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...")}"></textarea>
-                  </div>
-
-                  <div class="todo-comment-composer-footer">
-                    <p id="todo-comment-draft-status" class="note todo-comment-draft-status">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</p>
-                    <div class="button-group" style="margin:0;justify-content:flex-end;">
-                      <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </section>
-
-          <section class="todo-editor-card">
-            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-              <div class="form-group" style="margin:0;">
-                <label for="todo-due-input">${escapeHtml(strings.boardFieldDueAt)}</label>
-                <input type="datetime-local" id="todo-due-input">
-              </div>
-              <div class="form-group" style="margin:0;">
-                <label for="todo-priority-input">${escapeHtml(strings.boardFieldPriority)}</label>
-                <select id="todo-priority-input"></select>
-              </div>
-              <div class="form-group" style="margin:0;">
-                <label for="todo-section-input">${escapeHtml(strings.boardFieldSection)}</label>
-                <select id="todo-section-input"></select>
-              </div>
-              <div class="form-group" style="margin:0;">
-                <label for="todo-linked-task-select">${escapeHtml(strings.boardFieldLinkedTask)}</label>
-                <select id="todo-linked-task-select"></select>
-              </div>
-            </div>
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.boardFieldLabels)}</label>
-              <div id="todo-label-chip-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
-              
-              <div class="todo-inline-actions-row">
-                <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
-                <button type="button" class="btn-secondary" id="todo-label-add-btn">${escapeHtml(strings.boardLabelAdd)}</button>
-                <button type="button" class="btn-secondary" id="todo-label-color-save-btn">Save Label</button>
-                <span class="todo-color-input-shell">
-                  <input type="color" id="todo-label-color-input" value="#4f8cff" title="${escapeHtmlAttr(strings.boardLabelSaveColor)}">
-                </span>
-              </div>
-              <div id="todo-label-suggestions" class="label-suggestion-list"></div>
-              
-              <div id="todo-label-catalog" class="label-catalog-section"></div>
-            </div>
-            
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.boardFieldFlags)}</label>
-              <div id="todo-flag-current" style="min-height:24px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
-              
-              <div class="todo-inline-actions-row" style="margin-top:4px;">
-                <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
-                <button type="button" class="btn-secondary" id="todo-flag-add-btn">${escapeHtml(strings.boardFlagAdd)}</button>
-                <button type="button" class="btn-secondary" id="todo-flag-color-save-btn">Save Flag</button>
-                <span class="todo-color-input-shell">
-                  <input type="color" id="todo-flag-color-input" value="#f59e0b" title="Flag color">
-                </span>
-              </div>
-              
-              <div id="todo-flag-picker" class="flag-catalog-section"></div>
-              <div class="note" style="margin-top:4px;margin-bottom:8px;">${escapeHtml(strings.boardFlagCatalogHint)}</div>
-            </div>
-            <div id="todo-linked-task-note" class="note">${escapeHtml(strings.boardTaskDraftNote)}</div>
-            <div class="button-group todo-editor-action-row">
-              <button type="submit" class="btn-primary" id="todo-save-btn">${escapeHtml(strings.boardSaveCreate)}</button>
-              <button type="button" class="btn-secondary" id="todo-complete-btn">${escapeHtml(strings.boardCompleteTodo)}</button>
-              <button type="button" class="btn-secondary" id="todo-delete-btn">${escapeHtml(strings.boardDeleteTodo)}</button>
-              <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
-            </div>
-          </section>
-        </div>
-      </form>
-    </div>
-  </div>
+  ${buildSchedulerTodoEditorMarkup({ strings })}
   
   <div id="create-tab" class="tab-content">
     <div class="task-editor-shell">
@@ -5079,250 +1217,27 @@ export class SchedulerWebview {
         </div>
       </div>
 
-      <form id="task-form" novalidate>
-        <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
-        <input type="hidden" id="edit-task-id" value="">
-
-        <div class="task-editor-grid">
-          <section class="task-editor-card">
-            <div class="section-title">${escapeHtml(strings.taskEditorPromptTitle)}</div>
-
-            <div class="form-group" style="margin:0;">
-              <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
-              <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
-            </div>
-
-            <div class="form-group" style="margin:0;">
-              <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
-              <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-            </div>
-
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.labelPromptType)}</label>
-              <div class="radio-group">
-                <label>
-                  <input type="radio" name="prompt-source" value="inline" checked>
-                  ${escapeHtml(strings.labelPromptInline)}
-                </label>
-                <label>
-                  <input type="radio" name="prompt-source" value="local">
-                  ${escapeHtml(strings.labelPromptLocal)}
-                </label>
-                <label>
-                  <input type="radio" name="prompt-source" value="global">
-                  ${escapeHtml(strings.labelPromptGlobal)}
-                </label>
-              </div>
-            </div>
-
-            <div class="form-group" id="template-select-group" style="display: none; margin:0;">
-              <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
-              <div class="template-row">
-                <select id="template-select">
-                  <option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option>
-                </select>
-                <button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
-              </div>
-            </div>
-
-            <div class="form-group" id="prompt-group" style="margin:0;">
-              <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
-              <textarea id="prompt-text" placeholder="${escapeHtmlAttr(strings.placeholderPrompt)}" required style="min-height:220px;"></textarea>
-            </div>
-
-            <div class="form-group" id="skill-select-group" style="margin:0;">
-              <label for="skill-select">${escapeHtml(strings.labelSkills)}</label>
-              <div class="template-row">
-                <select id="skill-select">
-                  <option value="">${escapeHtml(strings.placeholderSelectSkill)}</option>
-                </select>
-                <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
-              </div>
-              <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
-            </div>
-          </section>
-
-          <section class="task-editor-card">
-            <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
-
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.labelSchedule)}</label>
-              <div class="preset-select">
-                <select id="cron-preset">
-                  <option value="">${escapeHtml(strings.labelCustom)}</option>
-                  ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-                </select>
-              </div>
-              <input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>
-              <div class="cron-preview">
-                <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-                <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-                <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-              </div>
-            </div>
-
-            <div class="friendly-cron" id="friendly-builder">
-              <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-              <div class="friendly-grid">
-                <div class="form-group">
-                  <label for="friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-                  <select id="friendly-frequency">
-                    <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                    <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                    <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                    <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                    <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                    <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-                  </select>
-                </div>
-                <div class="form-group friendly-field" data-field="interval">
-                  <label for="friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-                  <input type="number" id="friendly-interval" min="1" max="59" value="5">
-                </div>
-                <div class="form-group friendly-field" data-field="minute">
-                  <label for="friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-                  <input type="number" id="friendly-minute" min="0" max="59" value="0">
-                </div>
-                <div class="form-group friendly-field" data-field="hour">
-                  <label for="friendly-hour">${escapeHtml(strings.labelHour)}</label>
-                  <input type="number" id="friendly-hour" min="0" max="23" value="9">
-                </div>
-                <div class="form-group friendly-field" data-field="dow">
-                  <label for="friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-                  <select id="friendly-dow">
-                    <option value="0">${escapeHtml(strings.daySun)}</option>
-                    <option value="1">${escapeHtml(strings.dayMon)}</option>
-                    <option value="2">${escapeHtml(strings.dayTue)}</option>
-                    <option value="3">${escapeHtml(strings.dayWed)}</option>
-                    <option value="4">${escapeHtml(strings.dayThu)}</option>
-                    <option value="5">${escapeHtml(strings.dayFri)}</option>
-                    <option value="6">${escapeHtml(strings.daySat)}</option>
-                  </select>
-                </div>
-                <div class="form-group friendly-field" data-field="dom">
-                  <label for="friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-                  <input type="number" id="friendly-dom" min="1" max="31" value="1">
-                </div>
-              </div>
-              <div class="friendly-actions">
-                <button type="button" class="btn-secondary" id="friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-              </div>
-            </div>
-
-            <div class="section-title">${escapeHtml(strings.taskEditorRuntimeTitle)}</div>
-            <div class="inline-group">
-              <div class="form-group" style="margin:0;">
-                <label for="agent-select">${escapeHtml(strings.labelAgent)}</label>
-                <select id="agent-select">
-                  ${initialAgents.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectAgent)}</option>` + initialAgents.map((a) => `<option value="${escapeHtmlAttr(a.id || "")}">${escapeHtml(a.name || "")}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoAgents)}</option>`}
-                </select>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label for="model-select">${escapeHtml(strings.labelModel)}</label>
-                <select id="model-select">
-                  ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
-                </select>
-                <p class="note">${escapeHtml(strings.labelModelNote)}</p>
-              </div>
-            </div>
-          </section>
-
-          <section class="task-editor-card is-wide">
-            <div class="section-title">${escapeHtml(strings.taskEditorOptionsTitle)}</div>
-            <div class="task-editor-options-grid">
-              <div class="form-group" style="margin:0;">
-                <label>${escapeHtml(strings.labelScope)}</label>
-                <div class="radio-group">
-                  <label>
-                    <input type="radio" name="scope" value="workspace" ${defaultScope === "workspace" ? "checked" : ""}>
-                    ${escapeHtml(strings.labelScopeWorkspace)}
-                  </label>
-                  <label>
-                    <input type="radio" name="scope" value="global" ${defaultScope === "global" ? "checked" : ""}>
-                    ${escapeHtml(strings.labelScopeGlobal)}
-                  </label>
-                </div>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
-                <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
-                <p class="note">${escapeHtml(strings.webviewJitterNote)}</p>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="run-first">
-                  <span>${escapeHtml(strings.labelRunFirstInOneMinute)}</span>
-                </label>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="one-time">
-                  <span>${escapeHtml(strings.labelOneTime)}</span>
-                </label>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="manual-session">
-                  <span>${escapeHtml(strings.labelManualSession)}</span>
-                </label>
-                <p class="note">${escapeHtml(strings.labelManualSessionNote)}</p>
-              </div>
-
-              <div class="form-group wide" id="chat-session-group" style="margin:0;">
-                <label for="chat-session">${escapeHtml(strings.labelChatSession)}</label>
-                <select id="chat-session">
-                  <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
-                  <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
-                </select>
-                <p class="note">${escapeHtml(strings.labelChatSessionRecurringOnly)}</p>
-              </div>
-            </div>
-
-            <div class="section-title">${escapeHtml(strings.taskEditorActionsTitle)}</div>
-            <div class="button-group" style="margin:0;">
-              <button type="submit" class="btn-primary" id="submit-btn">${escapeHtml(strings.actionCreate)}</button>
-              <button type="button" class="btn-secondary" id="new-task-btn" style="display:none;">${escapeHtml(strings.actionNewTask)}</button>
-              <button type="button" class="btn-secondary" id="test-btn">${escapeHtml(strings.taskEditorTestPrompt)}</button>
-            </div>
-          </section>
-        </div>
-      </form>
+      ${buildSchedulerTaskEditorMarkup({
+        strings,
+        allPresets,
+        initialAgents,
+        initialModels,
+        defaultScope,
+        defaultJitterSeconds,
+      })}
     </div>
   </div>
   
-  <div id="list-tab" class="tab-content">
-    <div id="success-toast" style="display:none; background:var(--vscode-notificationsInfoIcon-foreground); color:var(--vscode-button-foreground); padding:8px 14px; border-radius:4px; margin-bottom:12px; font-size:13px; opacity:1; transition:opacity 0.5s ease-out;"></div>
-    <div class="button-group" style="margin-bottom: 16px;">
-      <button class="btn-secondary" id="refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
-      <button class="btn-secondary" id="auto-show-startup-btn"></button>
-    </div>
-    <p class="note" id="auto-show-startup-note" style="margin-top:-8px; margin-bottom:12px;"></p>
-    <div class="history-toolbar">
-      <label for="schedule-history-select">${escapeHtml(strings.scheduleHistoryLabel)}</label>
-      <select id="schedule-history-select"></select>
-      <button class="btn-secondary" id="restore-history-btn">${escapeHtml(strings.actionRestoreBackup)}</button>
-    </div>
-    <p class="note" id="schedule-history-note">${escapeHtml(strings.scheduleHistoryNote)}</p>
-    <div id="task-filter-bar" class="task-filter-bar">
-      <button type="button" class="btn-secondary task-filter-btn active" data-filter="all">${escapeHtml(strings.labelAllTasks)}</button>
-      <button type="button" class="btn-secondary task-filter-btn" data-filter="manual">${escapeHtml(strings.labelManualSessions)}</button>
-      <button type="button" class="btn-secondary task-filter-btn" data-filter="recurring">${escapeHtml(strings.labelRecurringTasks)}</button>
-      <button type="button" class="btn-secondary task-filter-btn" data-filter="one-time">${escapeHtml(strings.labelOneTimeTasks)}</button>
-      <label for="task-label-filter">${escapeHtml(strings.labelFilterByLabel)}</label>
-      <select id="task-label-filter" class="task-filter-select">
-        <option value="">${escapeHtml(strings.labelAllLabels)}</option>
-      </select>
-    </div>
-    <div id="task-list" class="task-list">
-      <div class="empty-state">${escapeHtml(strings.noTasksFound)}</div>
-    </div>
-  </div>
+  ${buildSchedulerListTabMarkup({ strings })}
 
+<<<<<<< HEAD
+  ${buildSchedulerWorkspaceTabsMarkup({
+    strings,
+    allPresets,
+    configuredLanguage,
+    helpIntroTitleText,
+  })}
+=======
   <div id="board-tab" class="tab-content">
     <div class="section-title">${escapeHtml(strings.boardTitle)}</div>
     <p class="note">${escapeHtml(strings.boardDescription)}</p>
@@ -6208,6 +2123,7 @@ export class SchedulerWebview {
     </div>
   </div>
   
+>>>>>>> main
 `;
 
     return renderSchedulerWebviewDocument({

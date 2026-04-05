@@ -1,43 +1,45 @@
-/**
- * Copilot Cockpit - Test Suite Index
- * Mocha configuration and test discovery
- */
-
-import * as path from "path";
-import Mocha from "mocha";
 import { glob } from "glob";
+import Mocha from "mocha";
+import * as path from "path";
 
-export async function run(): Promise<void> {
-  // Create the mocha test
-  const mocha = new Mocha({
-    ui: "tdd",
+function createMochaRunner(): Mocha {
+  return new Mocha({
     color: true,
     timeout: 10000,
+    ui: "tdd",
   });
+}
 
-  const testsRoot = path.resolve(__dirname, ".");
+async function findCompiledTests(rootDir: string): Promise<string[]> {
+  const matches = await glob("**/*.test.js", { cwd: rootDir });
+  return matches.map((relativePath) => path.resolve(rootDir, relativePath));
+}
 
-  // Find all test files
-  const files = await glob("**/*.test.js", { cwd: testsRoot });
-
-  // Add files to the test suite
-  for (const file of files) {
-    mocha.addFile(path.resolve(testsRoot, file));
-  }
-
-  // Run the mocha test
+function runMocha(mocha: Mocha): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     try {
-      mocha.run((failures: number) => {
+      mocha.run((failures) => {
         if (failures > 0) {
           reject(new Error(`${failures} tests failed.`));
-        } else {
-          resolve();
+          return;
         }
+
+        resolve();
       });
-    } catch (err) {
-      console.error(err);
-      reject(err);
+    } catch (error) {
+      console.error(error);
+      reject(error);
     }
   });
+}
+
+export async function run(): Promise<void> {
+  const suiteRoot = path.resolve(__dirname);
+  const mocha = createMochaRunner();
+
+  for (const compiledTestPath of await findCompiledTests(suiteRoot)) {
+    mocha.addFile(compiledTestPath);
+  }
+
+  await runMocha(mocha);
 }

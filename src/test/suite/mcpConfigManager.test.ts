@@ -1,6 +1,7 @@
-import * as assert from "assert";
 import * as fs from "fs";
+import * as assert from "assert";
 import * as os from "os";
+import type { SchedulerMcpSetupState } from "../../mcpConfigManager";
 import * as path from "path";
 import {
   getSchedulerMcpSetupState,
@@ -9,6 +10,13 @@ import {
   getWorkspaceMcpLauncherStatePath,
   upsertSchedulerMcpConfig,
 } from "../../mcpConfigManager";
+
+function expectSetupState(
+  workspaceRoot: string,
+  extensionRoot: string,
+): SchedulerMcpSetupState {
+  return getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+}
 
 suite("MCP Config Manager Tests", () => {
   test("creates .vscode/mcp.json when missing", () => {
@@ -20,7 +28,7 @@ suite("MCP Config Manager Tests", () => {
     fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
 
     try {
-      const stateBefore = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      const stateBefore = expectSetupState(workspaceRoot, extensionRoot);
       assert.strictEqual(stateBefore.status, "missing");
 
       const result = upsertSchedulerMcpConfig(workspaceRoot, extensionRoot);
@@ -46,7 +54,7 @@ suite("MCP Config Manager Tests", () => {
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
-      const stateAfter = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      const stateAfter = expectSetupState(workspaceRoot, extensionRoot);
       assert.strictEqual(stateAfter.status, "configured");
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });

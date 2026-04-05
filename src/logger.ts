@@ -1,67 +1,70 @@
-import * as vscode from "vscode";
 import * as fs from "fs";
 import * as os from "os";
-import * as path from "path";
-import type { LogLevel } from "./types";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
+import type { LogLevel } from "./types";
+import * as path from "path";
+import * as vscode from "vscode";
 
 type Level = Exclude<LogLevel, "none">;
 
 const LOG_DIRECTORY_NAME = ".copilot-cockpit-logs";
+const LEVEL_SEVERITY: Record<LogLevel, number> = {
+  none: 0,
+  error: 1,
+  info: 2,
+  debug: 3,
+};
 let fileWriteFailed = false;
 
 export function getConfiguredLogLevel(): LogLevel {
   return getCompatibleConfigurationValue<LogLevel>("logLevel", "info");
 }
 
-function rank(level: LogLevel): number {
-  switch (level) {
-    case "debug":
-      return 3;
-    case "info":
-      return 2;
-    case "error":
-      return 1;
-    default:
-      return 0;
-  }
+function severity(level: LogLevel): number {
+  return LEVEL_SEVERITY[level];
 }
 
 function canLog(messageLevel: Level): boolean {
-  const current = getConfiguredLogLevel();
-  return rank(current) >= rank(messageLevel);
+  return severity(getConfiguredLogLevel()) >= severity(messageLevel);
 }
 
-function getWorkspaceRootPath(): string | undefined {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  return folder?.uri.fsPath;
+function getPrimaryWorkspacePath(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
 export function getLogDirectoryPath(): string {
-  const workspaceRoot = getWorkspaceRootPath();
-  if (workspaceRoot) {
-    return path.join(workspaceRoot, LOG_DIRECTORY_NAME);
-  }
-  return path.join(os.homedir(), LOG_DIRECTORY_NAME);
+  return path.join(
+    getPrimaryWorkspacePath() || os.homedir(),
+    LOG_DIRECTORY_NAME,
+  );
 }
 
-function ensureLogDirectory(): string {
-  const logDirectory = getLogDirectoryPath();
-  fs.mkdirSync(logDirectory, { recursive: true });
-  return logDirectory;
+function ensureDirectoryExists(directoryPath: string): string {
+  fs.mkdirSync(directoryPath, { recursive: true });
+  return directoryPath;
 }
 
-function getLogFilePath(): string {
-  const stamp = new Date().toISOString().slice(0, 10);
-  return path.join(ensureLogDirectory(), `${stamp}.log`);
+function getCurrentLogDirectory(): string {
+  return ensureDirectoryExists(getLogDirectoryPath());
 }
 
-function getStructuredLogFilePath(channel: string): string {
-  const safeChannel = String(channel || "structured")
+function getDailyLogFilePath(): string {
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  return path.join(getCurrentLogDirectory(), `${dateStamp}.log`);
+}
+
+function normalizeStructuredChannel(channel: string): string {
+  return String(channel || "structured")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-") || "structured";
-  return path.join(ensureLogDirectory(), `${safeChannel}.jsonl`);
+}
+
+function getStructuredLogFilePath(channel: string): string {
+  return path.join(
+    getCurrentLogDirectory(),
+    `${normalizeStructuredChannel(channel)}.jsonl`,
+  );
 }
 
 function serializeLogArg(value: unknown): string {
@@ -78,29 +81,48 @@ function serializeLogArg(value: unknown): string {
   }
 }
 
+function appendLine(filePath: string, line: string): void {
+  fs.appendFileSync(filePath, line, "utf8");
+}
+
+function reportLogWriteFailure(context: string, error: unknown): void {
+  fileWriteFailed = true;
+  console.error(context, error);
+}
+
 function writeLogLine(level: Level, args: unknown[]): void {
   if (fileWriteFailed) {
     return;
   }
+
   try {
-    const line = `${new Date().toISOString()} [${level.toUpperCase()}] ${args
+    const serializedArgs = args
       .map((arg) => serializeLogArg(arg))
-      .join(" ")}\n`;
-    fs.appendFileSync(getLogFilePath(), line, "utf8");
+      .join(" ");
+    appendLine(
+      getDailyLogFilePath(),
+      `${new Date().toISOString()} [${level.toUpperCase()}] ${serializedArgs}\n`,
+    );
   } catch (error) {
-    fileWriteFailed = true;
-    console.error("[CopilotScheduler] Failed to write log file", error);
+    reportLogWriteFailure("[CopilotScheduler] Failed to write log file", error);
   }
 }
 
-function log(level: Level, sink: (...args: unknown[]) => void, args: unknown[]): void {
-  if (!canLog(level)) return;
+function writeToConsoleAndFile(
+  level: Level,
+  sink: (...args: unknown[]) => void,
+  args: unknown[],
+): void {
+  if (!canLog(level)) {
+    return;
+  }
+
   sink(...args);
   writeLogLine(level, args);
 }
 
 export async function revealLogDirectory(): Promise<void> {
-  const directory = ensureLogDirectory();
+  const directory = getCurrentLogDirectory();
   await vscode.commands.executeCommand(
     "revealFileInOS",
     vscode.Uri.file(directory),
@@ -108,15 +130,15 @@ export async function revealLogDirectory(): Promise<void> {
 }
 
 export function logDebug(...args: unknown[]): void {
-  log("debug", console.log, args);
+  writeToConsoleAndFile("debug", console.log, args);
 }
 
 export function logInfo(...args: unknown[]): void {
-  log("info", console.info, args);
+  writeToConsoleAndFile("info", console.info, args);
 }
 
 export function logError(...args: unknown[]): void {
-  log("error", console.error, args);
+  writeToConsoleAndFile("error", console.error, args);
 }
 
 export function appendStructuredLogEntry(
@@ -126,18 +148,20 @@ export function appendStructuredLogEntry(
   if (fileWriteFailed) {
     return;
   }
+
   try {
-    const payload = {
+    const entryWithTimestamp = {
       timestamp: new Date().toISOString(),
       ...entry,
     };
-    fs.appendFileSync(
+    appendLine(
       getStructuredLogFilePath(channel),
-      `${JSON.stringify(payload)}\n`,
-      "utf8",
+      `${JSON.stringify(entryWithTimestamp)}\n`,
     );
   } catch (error) {
-    fileWriteFailed = true;
-    console.error("[CopilotScheduler] Failed to write structured log file", error);
+    reportLogWriteFailure(
+      "[CopilotScheduler] Failed to write structured log file",
+      error,
+    );
   }
 }

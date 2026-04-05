@@ -1,7 +1,7 @@
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
 import * as path from "path";
+import * as os from "os";
 import {
   BUNDLED_SKILLS_RELATIVE_PATH,
   type BundledSkillSyncState,
@@ -15,12 +15,12 @@ import {
 function cleanupDirs(...dirs: string[]): void {
   for (const dir of dirs) {
     try {
-      fs.rmSync(dir, {
-        recursive: true,
-        force: true,
-        maxRetries: 3,
-        retryDelay: 50,
-      });
+      const cleanupOptions: fs.RmOptions = {};
+      cleanupOptions.recursive = true;
+      cleanupOptions.force = true;
+      cleanupOptions.maxRetries = 3;
+      cleanupOptions.retryDelay = 50;
+      fs.rmSync(dir, cleanupOptions);
     } catch {
       // ignore
     }

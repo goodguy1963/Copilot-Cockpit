@@ -1,29 +1,299 @@
-/**
- * Copilot Cockpit - Extension Tests
- */
-
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
+import type { ScheduledTask } from "../../types";
 import * as path from "path";
 import * as vscode from "vscode";
-import type { ScheduledTask } from "../../types";
+import {
+  createTempDir,
+  overrideWorkspaceFolders,
+} from "./helpers/vscodeTestHarness";
+
+type TestOnlyExports = typeof import("../../extension").__testOnly;
+
+type PackageConfigurationShape = {
+  contributes?: {
+    configuration?: {
+      properties?: Record<string, unknown>;
+    };
+  };
+};
+
+type RepairPlanState = "missing" | "configured" | "invalid" | "stale";
+
+type RepairPlan = {
+  mcpRootsNeedingRepair: string[];
+  autoRepairMcpRoots: string[];
+  promptMcpRoots: string[];
+  shouldRefreshBundledSkills: boolean;
+  shouldAutoRepair: boolean;
+  needsPrompt: boolean;
+};
+
+type PromptResolutionCase = {
+  name: string;
+  taskId: string;
+  preferOpenDocument: boolean;
+  expectedText: string;
+};
+
+type PromptFixtureContext = {
+  workspaceRoot: string;
+  restoreWorkspaceFolders: () => void;
+  document?: vscode.TextDocument;
+};
+
+type RepairStateEntry = {
+  workspaceRoot: string;
+  status: RepairPlanState;
+};
+
+const cockpitExtensionId = "local-dev.copilot-cockpit";
+const cockpitCommandNames = [
+  "createTask",
+  "createTaskGui",
+  "listTasks",
+  "deleteTask",
+  "toggleTask",
+  "enableTask",
+  "disableTask",
+  "runNow",
+  "copyPrompt",
+  "editTask",
+  "duplicateTask",
+  "moveToCurrentWorkspace",
+  "openSettings",
+  "showVersion",
+  "setupMcp",
+  "syncBundledSkills",
+] as const;
+
+const requiredConfigDefaults = [
+  ["copilotCockpit.storageMode", "sqlite"],
+  ["copilotCockpit.deterministicCockpitStateMode", "canonical-primary"],
+  ["copilotCockpit.legacyFallbackOnError", true],
+] as const;
+
+const requiredConfigKeys = [
+  "copilotCockpit.autoShowOnStartup",
+  "copilotCockpit.defaultAgent",
+  "copilotCockpit.defaultModel",
+  "copilotCockpit.spotReviewTemplate",
+  "copilotCockpit.botReviewPromptTemplate",
+  "copilotCockpit.botReviewAgent",
+  "copilotCockpit.botReviewModel",
+  "copilotCockpit.botReviewChatSession",
+  ...requiredConfigDefaults.map(([key]) => key),
+];
+
+const promptResolutionCases: PromptResolutionCase[] = [
+  {
+    name: "prefers open document text when preferOpenDocument=true",
+    taskId: "t-open-doc",
+    preferOpenDocument: true,
+    expectedText: "UNSAVED",
+  },
+  {
+    name: "reads persisted file when preferOpenDocument=false",
+    taskId: "t-disk-only",
+    preferOpenDocument: false,
+    expectedText: "DISK",
+  },
+];
+
+let cachedTestOnlyExports: TestOnlyExports | undefined;
+
+function getExtensionEntry() {
+  return vscode.extensions.getExtension(cockpitExtensionId);
+}
+
+async function getTestOnlyExports(): Promise<TestOnlyExports> {
+  if (!cachedTestOnlyExports) {
+    const extensionModule = await import("../../extension");
+    cachedTestOnlyExports = extensionModule.__testOnly;
+  }
+
+  return cachedTestOnlyExports;
+}
+
+function createExpectedCommands(prefix: "copilotCockpit" | "copilotScheduler"): string[] {
+  return cockpitCommandNames.map((commandName) => `${prefix}.${commandName}`);
+}
+
+function getContributedProperties(): Record<string, unknown> {
+  const extension = getExtensionEntry();
+  assert.ok(extension);
+  const packageJson = extension!.packageJSON as PackageConfigurationShape;
+  return packageJson.contributes?.configuration?.properties ?? {};
+}
+
+function assertPropertyKeysExist(properties: Record<string, unknown>, keys: readonly string[]) {
+  for (const propertyKey of keys) {
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(properties, propertyKey),
+      `Missing contributed property ${propertyKey}`,
+    );
+  }
+}
+
+function assertDefaultPropertyValue(
+  properties: Record<string, unknown>,
+  propertyKey: string,
+  expectedValue: unknown,
+) {
+  const value = (properties[propertyKey] as { default?: unknown } | undefined)?.default;
+  assert.strictEqual(value, expectedValue);
+}
+
+function createPromptFixtureContext(): PromptFixtureContext {
+  const workspaceRoot = createTempDir("copilot-cockpit-ext-");
+  return {
+    workspaceRoot,
+    restoreWorkspaceFolders: overrideWorkspaceFolders(workspaceRoot),
+  };
+}
+
+function buildLocalPromptTask(promptPath: string, taskId: string): ScheduledTask {
+  const createdAt = new Date();
+
+  return {
+    name: `Task ${taskId}`,
+    id: taskId,
+    prompt: "FALLBACK",
+    cronExpression: "0 * * * *",
+    enabled: true,
+    promptSource: "local",
+    scope: "global",
+    promptPath,
+    createdAt,
+    updatedAt: createdAt,
+  } satisfies ScheduledTask;
+}
+
+function buildTaskExecutionFixture(
+  task: Pick<
+    ScheduledTask,
+    | "id"
+    | "name"
+    | "cronExpression"
+    | "prompt"
+    | "enabled"
+    | "scope"
+    | "promptSource"
+    | "oneTime"
+    | "chatSession"
+  >,
+): ScheduledTask {
+  return {
+    ...task,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+async function createEditedPromptDocument(
+  promptsDir: string,
+  fileStem: string,
+): Promise<{
+  absolutePath: string;
+  relativePath: string;
+  document: vscode.TextDocument;
+}> {
+  fs.mkdirSync(promptsDir, { recursive: true });
+  const fileName = `${fileStem}-${Date.now()}.md`;
+  const absolutePath = path.join(promptsDir, fileName);
+  const relativePath = path.join(".github", "prompts", fileName);
+  fs.writeFileSync(absolutePath, "DISK", "utf8");
+
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath));
+  const editor = await vscode.window.showTextDocument(document);
+  assert.ok(editor, "An editor should be available");
+
+  const replacementRange = new vscode.Range(
+    document.positionAt(0),
+    document.positionAt(document.getText().length),
+  );
+  await editor!.edit((editBuilder) => editBuilder.replace(replacementRange, "UNSAVED"));
+  assert.strictEqual(document.isDirty, true);
+
+  return { absolutePath, relativePath, document };
+}
+
+async function closePromptFixtureDocument(document: vscode.TextDocument | undefined) {
+  if (!document) {
+    return;
+  }
+
+  try {
+    await vscode.window.showTextDocument(document);
+    if (vscode.window.activeTextEditor?.document !== document) {
+      return;
+    }
+
+    try {
+      await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    } catch {
+      await document.save();
+      await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+    }
+  } catch {
+    // ignore editor cleanup errors
+  }
+}
+
+function deletePromptFixtureWorkspace(workspaceRoot: string) {
+  const removalOptions = { recursive: true, force: true, maxRetries: 3, retryDelay: 50 } as const;
+
+  try {
+    fs.rmSync(workspaceRoot, removalOptions);
+  } catch {
+    // ignore cleanup failure on Windows test host
+  }
+}
+
+async function runPromptResolutionCase(testCase: PromptResolutionCase) {
+  const context = createPromptFixtureContext();
+  const promptsDir = path.join(context.workspaceRoot, ".github", "prompts");
+
+  try {
+    const fixture = await createEditedPromptDocument(promptsDir, testCase.taskId);
+    context.document = fixture.document;
+
+    const testOnly = await getTestOnlyExports();
+    const task = buildLocalPromptTask(fixture.relativePath, testCase.taskId);
+    const resolved = await testOnly.resolvePromptText(task, testCase.preferOpenDocument);
+
+    assert.strictEqual(resolved, testCase.expectedText);
+  } finally {
+    context.restoreWorkspaceFolders();
+    await closePromptFixtureDocument(context.document);
+    deletePromptFixtureWorkspace(context.workspaceRoot);
+  }
+}
 
 suite("Extension Test Suite", () => {
-  test("Extension should be present", () => {
-    assert.ok(vscode.extensions.getExtension("local-dev.copilot-cockpit"));
+  test("extension entry is discoverable", () => {
+    assert.ok(getExtensionEntry());
   });
 
-  test("Extension should activate", async () => {
-    const extension = vscode.extensions.getExtension(
-      "local-dev.copilot-cockpit",
-    );
-    if (extension) {
-      await extension.activate();
-      assert.strictEqual(extension.isActive, true);
+  test("extension activates successfully", async () => {
+    const extension = getExtensionEntry();
+    assert.ok(extension);
+    await extension!.activate();
+    assert.strictEqual(extension!.isActive, true);
+  });
+
+  test("package contributes Cockpit settings with expected defaults", () => {
+    const properties = getContributedProperties();
+    assertPropertyKeysExist(properties, requiredConfigKeys);
+
+    for (const [propertyKey, expectedValue] of requiredConfigDefaults) {
+      assertDefaultPropertyValue(properties, propertyKey, expectedValue);
     }
   });
 
+<<<<<<< HEAD
+  test("cockpit and scheduler command aliases are registered", async () => {
+=======
   test("Auto-show startup setting should be contributed", () => {
     const extension = vscode.extensions.getExtension(
       "local-dev.copilot-cockpit",
@@ -111,71 +381,41 @@ suite("Extension Test Suite", () => {
   });
 
   test("Commands should be registered", async () => {
+>>>>>>> main
     const commands = await vscode.commands.getCommands(true);
-
     const expectedCommands = [
-      "copilotCockpit.createTask",
-      "copilotCockpit.createTaskGui",
-      "copilotCockpit.listTasks",
-      "copilotCockpit.deleteTask",
-      "copilotCockpit.toggleTask",
-      "copilotCockpit.enableTask",
-      "copilotCockpit.disableTask",
-      "copilotCockpit.runNow",
-      "copilotCockpit.copyPrompt",
-      "copilotCockpit.editTask",
-      "copilotCockpit.duplicateTask",
-      "copilotCockpit.moveToCurrentWorkspace",
-      "copilotCockpit.openSettings",
-      "copilotCockpit.showVersion",
-      "copilotCockpit.setupMcp",
-      "copilotCockpit.syncBundledSkills",
-      "copilotScheduler.createTask",
-      "copilotScheduler.createTaskGui",
-      "copilotScheduler.listTasks",
-      "copilotScheduler.deleteTask",
-      "copilotScheduler.toggleTask",
-      "copilotScheduler.enableTask",
-      "copilotScheduler.disableTask",
-      "copilotScheduler.runNow",
-      "copilotScheduler.copyPrompt",
-      "copilotScheduler.editTask",
-      "copilotScheduler.duplicateTask",
-      "copilotScheduler.moveToCurrentWorkspace",
-      "copilotScheduler.openSettings",
-      "copilotScheduler.showVersion",
-      "copilotScheduler.setupMcp",
-      "copilotScheduler.syncBundledSkills",
+      ...createExpectedCommands("copilotCockpit"),
+      ...createExpectedCommands("copilotScheduler"),
     ];
 
-    for (const cmd of expectedCommands) {
-      assert.ok(commands.includes(cmd), `Command ${cmd} should be registered`);
+    for (const commandName of expectedCommands) {
+      assert.ok(commands.includes(commandName), `Command ${commandName} should be registered`);
     }
 
-    const registeredCockpitCommands = commands.filter((cmd) =>
-      cmd.startsWith("copilotCockpit."),
+    const cockpitCommands = commands.filter((commandName) =>
+      commandName.startsWith("copilotCockpit."),
     );
-    assert.strictEqual(
-      registeredCockpitCommands.length,
-      16,
-      `Expected 16 copilotCockpit commands but found ${registeredCockpitCommands.length}. Update expectedCommands when adding new commands.`,
+    const schedulerCommands = commands.filter((commandName) =>
+      commandName.startsWith("copilotScheduler."),
     );
 
-    const registeredSchedulerCommands = commands.filter((cmd) =>
-      cmd.startsWith("copilotScheduler."),
+    assert.strictEqual(
+      cockpitCommands.length,
+      cockpitCommandNames.length,
+      `Expected ${cockpitCommandNames.length} copilotCockpit commands but found ${cockpitCommands.length}.`,
     );
     assert.strictEqual(
-      registeredSchedulerCommands.length,
-      16,
-      `Expected 16 copilotScheduler alias commands but found ${registeredSchedulerCommands.length}. Update expectedCommands when adding new commands.`,
+      schedulerCommands.length,
+      cockpitCommandNames.length,
+      `Expected ${cockpitCommandNames.length} copilotScheduler alias commands but found ${schedulerCommands.length}.`,
     );
   });
 
-  test("UI refresh queue coalesces rapid refresh requests", async () => {
-    const { __testOnly } = await import("../../extension");
-    const calls: number[] = [];
-    const queue = __testOnly.createUiRefreshQueue(() => {
-      calls.push(Date.now());
+  test("ui refresh queue coalesces rapid refresh requests", async () => {
+    const testOnly = await getTestOnlyExports();
+    const refreshEvents: number[] = [];
+    const queue = testOnly.createUiRefreshQueue(() => {
+      refreshEvents.push(Date.now());
     }, 15) as {
       schedule: (immediate?: boolean) => void;
       hasPending: () => boolean;
@@ -188,436 +428,220 @@ suite("Extension Test Suite", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 40));
 
-    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(refreshEvents.length, 1);
     assert.strictEqual(queue.hasPending(), false);
 
     queue.schedule();
     queue.schedule(true);
 
-    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(refreshEvents.length, 2);
     assert.strictEqual(queue.hasPending(), false);
   });
 
-  test("manual run refresh helper requests an immediate scheduler UI refresh", async () => {
-    const { __testOnly } = await import("../../extension");
-    const createImmediateManualRunRefresh = __testOnly
-      .createImmediateManualRunRefresh as
+  test("manual run refresh helper requests an immediate refresh", async () => {
+    const testOnly = await getTestOnlyExports();
+    const createRefresh = testOnly.createImmediateManualRunRefresh as
       | ((refreshUiState: (immediate?: boolean) => void) => () => void)
       | undefined;
 
-    assert.ok(typeof createImmediateManualRunRefresh === "function");
+    assert.ok(typeof createRefresh === "function");
 
-    const refreshCalls: boolean[] = [];
-    createImmediateManualRunRefresh!((immediate) => {
-      refreshCalls.push(immediate === true);
-    })();
+    const calls: boolean[] = [];
+    createRefresh!((immediate) => calls.push(immediate === true))();
 
-    assert.deepStrictEqual(refreshCalls, [true]);
+    assert.deepStrictEqual(calls, [true]);
   });
 
-  test("task execution chat session defaults one-time tasks to new", async () => {
-    const { __testOnly } = await import("../../extension");
-    const resolveTaskExecutionChatSession = __testOnly
-      .resolveTaskExecutionChatSession as
-      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
-      | undefined;
+  for (const [name, task, expectedChatSession] of [
+    [
+      "one-time tasks default task execution chat session to new",
+      {
+        id: "one-time-task",
+        name: "One-time task",
+        cronExpression: "* * * * *",
+        prompt: "Ping",
+        enabled: true,
+        scope: "workspace",
+        promptSource: "inline",
+        oneTime: true,
+      } satisfies Parameters<typeof buildTaskExecutionFixture>[0],
+      "new",
+    ],
+    [
+      "recurring tasks keep task execution chat session undefined by default",
+      {
+        id: "recurring-task",
+        name: "Recurring task",
+        cronExpression: "* * * * *",
+        prompt: "Ping",
+        enabled: true,
+        scope: "workspace",
+        promptSource: "inline",
+        oneTime: false,
+      } satisfies Parameters<typeof buildTaskExecutionFixture>[0],
+      undefined,
+    ],
+    [
+      "explicit task chat session settings are preserved",
+      {
+        id: "explicit-session-task",
+        name: "Explicit session task",
+        cronExpression: "* * * * *",
+        prompt: "Ping",
+        enabled: true,
+        scope: "workspace",
+        promptSource: "inline",
+        oneTime: true,
+        chatSession: "continue",
+      } satisfies Parameters<typeof buildTaskExecutionFixture>[0],
+      "continue",
+    ],
+  ] as const) {
+    test(name, async () => {
+      const testOnly = await getTestOnlyExports();
+      const resolveChatSession = testOnly.resolveTaskExecutionChatSession as
+        | ((scheduledTask: ScheduledTask) => ScheduledTask["chatSession"])
+        | undefined;
 
-    assert.ok(typeof resolveTaskExecutionChatSession === "function");
+      assert.ok(typeof resolveChatSession === "function");
+      assert.strictEqual(
+        resolveChatSession!(buildTaskExecutionFixture(task)),
+        expectedChatSession,
+      );
+    });
+  }
 
-    const result = resolveTaskExecutionChatSession!({
-      id: "one-time-task",
-      name: "One-time task",
-      cronExpression: "* * * * *",
-      prompt: "Ping",
-      enabled: true,
-      scope: "workspace",
-      promptSource: "inline",
-      oneTime: true,
-    } as ScheduledTask);
-
-    assert.strictEqual(result, "new");
-  });
-
-  test("task execution chat session leaves recurring tasks undefined by default", async () => {
-    const { __testOnly } = await import("../../extension");
-    const resolveTaskExecutionChatSession = __testOnly
-      .resolveTaskExecutionChatSession as
-      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
-      | undefined;
-
-    assert.ok(typeof resolveTaskExecutionChatSession === "function");
-
-    const result = resolveTaskExecutionChatSession!({
-      id: "recurring-task",
-      name: "Recurring task",
-      cronExpression: "* * * * *",
-      prompt: "Ping",
-      enabled: true,
-      scope: "workspace",
-      promptSource: "inline",
-      oneTime: false,
-    } as ScheduledTask);
-
-    assert.strictEqual(result, undefined);
-  });
-
-  test("task execution chat session preserves explicit task setting", async () => {
-    const { __testOnly } = await import("../../extension");
-    const resolveTaskExecutionChatSession = __testOnly
-      .resolveTaskExecutionChatSession as
-      | ((task: ScheduledTask) => ScheduledTask["chatSession"])
-      | undefined;
-
-    assert.ok(typeof resolveTaskExecutionChatSession === "function");
-
-    const result = resolveTaskExecutionChatSession!({
-      id: "explicit-session-task",
-      name: "Explicit session task",
-      cronExpression: "* * * * *",
-      prompt: "Ping",
-      enabled: true,
-      scope: "workspace",
-      promptSource: "inline",
-      oneTime: true,
-      chatSession: "continue",
-    } as ScheduledTask);
-
-    assert.strictEqual(result, "continue");
-  });
-});
-
-suite("Cron Expression Tests", () => {
-  test("Valid cron expressions should be accepted", () => {
-    // These tests would require importing ScheduleManager
-    // which needs proper mocking in test environment
+  test("cron expression placeholder test still passes in host environment", () => {
     assert.ok(true);
   });
-});
 
-suite("i18n Tests", () => {
-  test("Messages should be defined", async () => {
-    // Import dynamically to avoid activation issues
+  test("i18n message builders are exposed", async () => {
     const { messages } = await import("../../i18n");
-
-    assert.ok(typeof messages.extensionActive === "function");
-    assert.ok(typeof messages.taskCreated === "function");
-    assert.ok(typeof messages.taskDeleted === "function");
+    for (const key of ["extensionActive", "taskCreated", "taskDeleted"] as const) {
+      assert.ok(typeof messages[key] === "function");
+    }
   });
-});
 
-suite("Workspace Support Repair Tests", () => {
-  test("Repair plan prompts for stale MCP roots and extension updates", async () => {
-    const { __testOnly } = await import("../../extension");
-    const buildPlan = __testOnly.createWorkspaceSupportRepairPlan as
-      | ((
-        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" | "stale" }>,
-        extensionVersionChanged: boolean,
-      ) => {
-        mcpRootsNeedingRepair: string[];
-        autoRepairMcpRoots: string[];
-        promptMcpRoots: string[];
-        shouldRefreshBundledSkills: boolean;
-        shouldAutoRepair: boolean;
-        needsPrompt: boolean;
-      })
-      | undefined;
-
-    assert.ok(typeof buildPlan === "function");
-
-    const plan = buildPlan!(
+  for (const [name, states, extensionVersionChanged, expectedPlan] of [
+    [
+      "repair plan auto-fixes stale roots and prompts for invalid ones",
       [
-        { workspaceRoot: "c:/repo-a", status: "configured" },
-        { workspaceRoot: "c:/repo-b", status: "stale" },
-        { workspaceRoot: "c:/repo-c", status: "invalid" },
+        { workspaceRoot: "c:/repo-a", status: "configured" as RepairPlanState },
+        { workspaceRoot: "c:/repo-b", status: "stale" as RepairPlanState },
+        { workspaceRoot: "c:/repo-c", status: "invalid" as RepairPlanState },
       ],
       true,
-    );
-
-    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b", "c:/repo-c"]);
-    assert.deepStrictEqual(plan.autoRepairMcpRoots, ["c:/repo-b"]);
-    assert.deepStrictEqual(plan.promptMcpRoots, ["c:/repo-c"]);
-    assert.strictEqual(plan.shouldRefreshBundledSkills, true);
-    assert.strictEqual(plan.shouldAutoRepair, true);
-    assert.strictEqual(plan.needsPrompt, true);
-  });
-
-  test("Repair plan prompts for missing MCP roots without an install or update", async () => {
-    const { __testOnly } = await import("../../extension");
-    const buildPlan = __testOnly.createWorkspaceSupportRepairPlan as
-      | ((
-        states: Array<{ workspaceRoot: string; status: "missing" | "configured" | "invalid" | "stale" }>,
-        extensionVersionChanged: boolean,
-      ) => {
-        mcpRootsNeedingRepair: string[];
-        autoRepairMcpRoots: string[];
-        promptMcpRoots: string[];
-        shouldRefreshBundledSkills: boolean;
-        shouldAutoRepair: boolean;
-        needsPrompt: boolean;
-      })
-      | undefined;
-
-    assert.ok(typeof buildPlan === "function");
-
-    const plan = buildPlan!(
+      {
+        mcpRootsNeedingRepair: ["c:/repo-b", "c:/repo-c"],
+        autoRepairMcpRoots: ["c:/repo-b"],
+        promptMcpRoots: ["c:/repo-c"],
+        shouldRefreshBundledSkills: true,
+        shouldAutoRepair: true,
+        needsPrompt: true,
+      } satisfies RepairPlan,
+    ],
+    [
+      "repair plan prompts for missing roots without auto-repair",
       [
-        { workspaceRoot: "c:/repo-a", status: "configured" },
-        { workspaceRoot: "c:/repo-b", status: "missing" },
+        { workspaceRoot: "c:/repo-a", status: "configured" as RepairPlanState },
+        { workspaceRoot: "c:/repo-b", status: "missing" as RepairPlanState },
       ],
       false,
-    );
+      {
+        mcpRootsNeedingRepair: ["c:/repo-b"],
+        autoRepairMcpRoots: [],
+        promptMcpRoots: ["c:/repo-b"],
+        shouldRefreshBundledSkills: false,
+        shouldAutoRepair: false,
+        needsPrompt: true,
+      } satisfies RepairPlan,
+    ],
+  ] as const) {
+    test(name, async () => {
+      const testOnly = await getTestOnlyExports();
+      const createRepairPlan = testOnly.createWorkspaceSupportRepairPlan as
+        | ((repairStates: RepairStateEntry[], extensionVersionChanged: boolean) => RepairPlan)
+        | undefined;
 
-    assert.deepStrictEqual(plan.mcpRootsNeedingRepair, ["c:/repo-b"]);
-    assert.deepStrictEqual(plan.autoRepairMcpRoots, []);
-    assert.deepStrictEqual(plan.promptMcpRoots, ["c:/repo-b"]);
-    assert.strictEqual(plan.shouldRefreshBundledSkills, false);
-    assert.strictEqual(plan.shouldAutoRepair, false);
-    assert.strictEqual(plan.needsPrompt, true);
-  });
-});
+      assert.ok(typeof createRepairPlan === "function");
+      assert.deepStrictEqual(
+        createRepairPlan!([...states], extensionVersionChanged),
+        expectedPlan,
+      );
+    });
+  }
 
-suite("Error Message Sanitization Tests", () => {
-  test("Sanitizes absolute paths to basenames (Windows and POSIX)", async () => {
-    const { __testOnly } = await import("../../extension");
-    const sanitize = __testOnly.sanitizeErrorDetailsForLog as
-      | ((message: string) => string)
-      | undefined;
+  test("error details sanitization hides local filesystem paths but keeps filenames", async () => {
+    const testOnly = await getTestOnlyExports();
+    const sanitize = testOnly.sanitizeErrorDetailsForLog as ((message: string) => string) | undefined;
 
     assert.ok(typeof sanitize === "function");
 
-    const winQuoted =
-      "EACCES: permission denied, open 'C:\\Users\\me\\secret folder\\a b.md'";
-    const winQuotedOut = sanitize!(winQuoted);
-    assert.ok(!winQuotedOut.includes("C:\\Users\\me"));
-    assert.ok(winQuotedOut.includes("'a b.md'"));
-
-    const winUnquoted =
-      "ENOENT: no such file or directory, open C:\\Users\\me\\a.md";
-    const winUnquotedOut = sanitize!(winUnquoted);
-    assert.ok(!winUnquotedOut.includes("C:\\Users\\me"));
-    assert.ok(winUnquotedOut.includes("a.md"));
-
-    const posixQuoted =
-      "ENOENT: no such file or directory, open '/Users/me/secret folder/a b.md'";
-    const posixQuotedOut = sanitize!(posixQuoted);
-    assert.ok(!posixQuotedOut.includes("/Users/me/secret folder"));
-    assert.ok(posixQuotedOut.includes("'a b.md'"));
-
-    const posixUnquoted = "open /Users/me/a.md";
-    const posixUnquotedOut = sanitize!(posixUnquoted);
-    assert.ok(!posixUnquotedOut.includes("/Users/me/"));
-    assert.ok(posixUnquotedOut.includes("a.md"));
-
-    const posixParen = "at foo (/Users/me/a.md:1:2)";
-    const posixParenOut = sanitize!(posixParen);
-    assert.ok(!posixParenOut.includes("/Users/me/"));
-    assert.ok(posixParenOut.includes("(a.md:1:2)"));
-
-    const winForward = "open C:/Users/me/a.md";
-    const winForwardOut = sanitize!(winForward);
-    assert.ok(!winForwardOut.includes("C:/Users/me/"));
-    assert.ok(winForwardOut.includes("a.md"));
-
-    const uncPath = "open \\\\server\\share\\secret\\a.md";
-    const uncOut = sanitize!(uncPath);
-    assert.ok(!uncOut.includes("\\\\server\\share"));
-    assert.ok(uncOut.includes("a.md"));
-
-    const fileUri = "open file:///C:/Users/me/secret%20folder/a%20b.md";
-    const fileUriOut = sanitize!(fileUri);
-    assert.ok(!fileUriOut.includes("file:///C:/Users/me"));
-    assert.ok(fileUriOut.includes("a b.md"));
-
-    const fileUriHost = "open file://server/share/secret/a.md";
-    const fileUriHostOut = sanitize!(fileUriHost);
-    assert.ok(!fileUriHostOut.includes("file://server/share"));
-    assert.ok(fileUriHostOut.includes("a.md"));
+    for (const [input, hiddenFragments, visibleFragments] of [
+      [
+        "EACCES: permission denied, open 'C:\\Users\\me\\secret folder\\a b.md'",
+        ["C:\\Users\\me"],
+        ["'a b.md'"],
+      ],
+      [
+        "ENOENT: no such file or directory, open C:\\Users\\me\\a.md",
+        ["C:\\Users\\me"],
+        ["a.md"],
+      ],
+      [
+        "ENOENT: no such file or directory, open '/Users/me/secret folder/a b.md'",
+        ["/Users/me/secret folder"],
+        ["'a b.md'"],
+      ],
+      [
+        "open /Users/me/a.md",
+        ["/Users/me/"],
+        ["a.md"],
+      ],
+      [
+        "at foo (/Users/me/a.md:1:2)",
+        ["/Users/me/"],
+        ["(a.md:1:2)"],
+      ],
+      [
+        "open C:/Users/me/a.md",
+        ["C:/Users/me/"],
+        ["a.md"],
+      ],
+      [
+        "open \\\\server\\share\\secret\\a.md",
+        ["\\\\server\\share"],
+        ["a.md"],
+      ],
+      [
+        "open file:///C:/Users/me/secret%20folder/a%20b.md",
+        ["file:///C:/Users/me"],
+        ["a b.md"],
+      ],
+      [
+        "open file://server/share/secret/a.md",
+        ["file://server/share"],
+        ["a.md"],
+      ],
+    ] as const) {
+      const sanitized = sanitize!(input);
+      for (const hiddenFragment of hiddenFragments) {
+        assert.ok(!sanitized.includes(hiddenFragment), `Expected ${hiddenFragment} to be hidden`);
+      }
+      for (const visibleFragment of visibleFragments) {
+        assert.ok(sanitized.includes(visibleFragment), `Expected ${visibleFragment} to remain`);
+      }
+    }
 
     const webUrl = "see https://example.com/path";
-    const webUrlOut = sanitize!(webUrl);
-    assert.strictEqual(webUrlOut, webUrl);
+    assert.strictEqual(sanitize!(webUrl), webUrl);
   });
-});
 
-suite("resolvePromptText Tests", () => {
-  function setWorkspaceFoldersForTest(root: string): () => void {
-    const wsAny = vscode.workspace as unknown as {
-      workspaceFolders?: Array<{ uri: vscode.Uri }>;
-    };
-    const original = wsAny.workspaceFolders;
-    try {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: [{ uri: vscode.Uri.file(root) }],
-        configurable: true,
+  suite("resolvePromptText Tests", () => {
+    for (const testCase of promptResolutionCases) {
+      test(testCase.name, async () => {
+        await runPromptResolutionCase(testCase);
       });
-    } catch {
-      // Best-effort; tests will fail if the host disallows patching.
-    }
-    return () => {
-      try {
-        Object.defineProperty(vscode.workspace, "workspaceFolders", {
-          value: original,
-          configurable: true,
-        });
-      } catch {
-        // ignore
-      }
-    };
-  }
-
-  test("Prefers open document text when preferOpenDocument=true", async () => {
-    const wsRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-ws-"),
-    );
-    const restoreWs = setWorkspaceFoldersForTest(wsRoot);
-    const promptsDir = path.join(wsRoot, ".github", "prompts");
-
-    const fileName = `__test_resolvePromptText_openDoc_${Date.now()}.md`;
-    const absPath = path.join(promptsDir, fileName);
-    const relPath = path.join(".github", "prompts", fileName);
-    const uri = vscode.Uri.file(absPath);
-    let doc: vscode.TextDocument | undefined;
-
-    try {
-      fs.mkdirSync(promptsDir, { recursive: true });
-      fs.writeFileSync(absPath, "DISK", "utf8");
-
-      doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc);
-      assert.ok(editor, "An editor should be available");
-
-      const fullRange = new vscode.Range(
-        doc.positionAt(0),
-        doc.positionAt(doc.getText().length),
-      );
-      await editor!.edit((b) => b.replace(fullRange, "UNSAVED"));
-      assert.strictEqual(doc.isDirty, true);
-
-      const { __testOnly } = await import("../../extension");
-      const task = {
-        id: "t-open-doc",
-        name: "t",
-        cronExpression: "0 * * * *",
-        prompt: "FALLBACK",
-        enabled: true,
-        scope: "global",
-        promptSource: "local",
-        promptPath: relPath,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } satisfies ScheduledTask;
-
-      const resolved = await __testOnly.resolvePromptText(task, true);
-      assert.strictEqual(resolved, "UNSAVED");
-    } finally {
-      restoreWs();
-      try {
-        if (doc) {
-          await vscode.window.showTextDocument(doc);
-          if (vscode.window.activeTextEditor?.document === doc) {
-            try {
-              await vscode.commands.executeCommand(
-                "workbench.action.revertAndCloseActiveEditor",
-              );
-            } catch {
-              await doc.save();
-              await vscode.commands.executeCommand(
-                "workbench.action.closeActiveEditor",
-              );
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(wsRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
-    }
-  });
-
-  test("Reads persisted file when preferOpenDocument=false", async () => {
-    const wsRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "copilot-scheduler-ws-"),
-    );
-    const restoreWs = setWorkspaceFoldersForTest(wsRoot);
-    const promptsDir = path.join(wsRoot, ".github", "prompts");
-
-    const fileName = `__test_resolvePromptText_diskOnly_${Date.now()}.md`;
-    const absPath = path.join(promptsDir, fileName);
-    const relPath = path.join(".github", "prompts", fileName);
-    const uri = vscode.Uri.file(absPath);
-    let doc: vscode.TextDocument | undefined;
-
-    try {
-      fs.mkdirSync(promptsDir, { recursive: true });
-      fs.writeFileSync(absPath, "DISK", "utf8");
-
-      doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc);
-      assert.ok(editor, "An editor should be available");
-
-      const fullRange = new vscode.Range(
-        doc.positionAt(0),
-        doc.positionAt(doc.getText().length),
-      );
-      await editor!.edit((b) => b.replace(fullRange, "UNSAVED"));
-      assert.strictEqual(doc.isDirty, true);
-
-      const { __testOnly } = await import("../../extension");
-      const task = {
-        id: "t-disk-only",
-        name: "t",
-        cronExpression: "0 * * * *",
-        prompt: "FALLBACK",
-        enabled: true,
-        scope: "global",
-        promptSource: "local",
-        promptPath: relPath,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } satisfies ScheduledTask;
-
-      const resolved = await __testOnly.resolvePromptText(task, false);
-      assert.strictEqual(resolved, "DISK");
-    } finally {
-      restoreWs();
-      try {
-        if (doc) {
-          await vscode.window.showTextDocument(doc);
-          if (vscode.window.activeTextEditor?.document === doc) {
-            try {
-              await vscode.commands.executeCommand(
-                "workbench.action.revertAndCloseActiveEditor",
-              );
-            } catch {
-              await doc.save();
-              await vscode.commands.executeCommand(
-                "workbench.action.closeActiveEditor",
-              );
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-      try {
-        fs.rmSync(wsRoot, {
-          recursive: true,
-          force: true,
-          maxRetries: 3,
-          retryDelay: 50,
-        });
-      } catch {
-        // ignore
-      }
     }
   });
 });

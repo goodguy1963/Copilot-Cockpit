@@ -1,34 +1,6 @@
 {
-    "tasks": [
-        {
-            "id": "task_1775394665589_8trdb5",
-            "name": "Test Task One",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Task goal: Test Task One\n\nContext:\nAuto-generated from scheduler.json\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n\nProduce the approved execution artifact for this todo and keep any unresolved questions explicit.",
-            "enabled": false,
-            "promptSource": "inline",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "createdAt": "2026-04-05T13:11:05.589Z",
-            "updatedAt": "2026-04-05T13:11:05.589Z"
-        }
-    ],
-    "jobs": [
-        {
-            "id": "job_1774810756188_5bn3xr",
-            "name": "Test",
-            "cronExpression": "0 9 * * 1-5",
-            "paused": false,
-            "archived": false,
-            "nodes": [],
-            "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-04-04T13:55:08.493Z"
-        }
-    ],
+    "tasks": [],
+    "jobs": [],
     "jobFolders": [],
     "cockpitBoard": {
         "version": 4,
@@ -78,11 +50,12 @@
         ],
         "cards": [
             {
-                "id": "todo_mnc48230_0e9sap",
-                "title": "qwqw",
+                "id": "todo_mnaiiew4_fcvyw9",
+                "title": "Test Task One",
+                "description": "Auto-generated from scheduler.json",
                 "sectionId": "archive-completed",
-                "order": 2,
-                "priority": "urgent",
+                "order": 4,
+                "priority": "low",
                 "status": "active",
                 "labels": [],
                 "flags": [
@@ -90,51 +63,40 @@
                 ],
                 "comments": [
                     {
-                        "id": "comment_mnc49dm8_had30y",
+                        "id": "comment_mnam06up_zczkmx",
                         "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:33.968Z"
-                    },
-                    {
-                        "id": "comment_mnc49dw9_2mgos1",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
+                        "body": "Final accepted and archived as completed.",
                         "labels": [
                             "completed"
                         ],
                         "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:34.329Z"
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T17:33:46.033Z"
                     },
                     {
-                        "id": "comment_mnf306d3_eknl7a",
+                        "id": "comment_mncaiban_rezufn",
                         "author": "system",
                         "body": "Restored from archive and marked ready again.",
                         "labels": [
                             "ready"
                         ],
                         "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T20:40:43.575Z"
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T21:47:28.559Z"
                     },
                     {
-                        "id": "comment_mngb7xj6_nnuyvw",
+                        "id": "comment_mncd950l_oynyfo",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
                             "completed"
                         ],
                         "source": "system-event",
-                        "sequence": 4,
-                        "createdAt": "2026-04-01T17:18:28.482Z"
+                        "sequence": 3,
+                        "createdAt": "2026-03-29T23:04:19.364Z"
                     },
                     {
-                        "id": "comment_mnlqq54k_gzsri4",
+                        "id": "comment_mnlqq54k_8eyyus",
                         "author": "system",
                         "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
                         "labels": [
@@ -142,78 +104,89 @@
                             "task-link-cleared"
                         ],
                         "source": "system-event",
-                        "sequence": 5,
+                        "sequence": 4,
                         "createdAt": "2026-04-05T12:31:23.252Z"
-                    }
-                ],
-                "archived": false,
-                "approvedAt": "2026-03-29T18:52:33.968Z",
-                "createdAt": "2026-03-29T18:51:32.289Z",
-                "updatedAt": "2026-04-05T12:31:23.252Z"
-            },
-            {
-                "id": "todo_mnbtnoot_v47xqg",
-                "title": "---plö",
-                "sectionId": "archive-completed",
-                "order": 1,
-                "priority": "none",
-                "dueAt": "2026-03-03T14:55:00.000Z",
-                "status": "completed",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnc49cbr_rljloz",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:32.295Z"
                     },
                     {
-                        "id": "comment_mnc49cpy_b2ejyo",
+                        "id": "comment_mnls57ef_p7ox43",
+                        "author": "system",
+                        "body": "Linked task draft created: Test Task One.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 5,
+                        "createdAt": "2026-04-05T13:11:05.655Z"
+                    }
+                ],
+                "taskId": "task_1775394665589_8trdb5",
+                "archived": false,
+                "approvedAt": "2026-04-05T13:11:05.633Z",
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-04-05T13:11:05.589Z"
+            },
+            {
+                "id": "todo_mnam08r9_95mmdu",
+                "title": "dssd",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-completed",
+                "order": 0,
+                "priority": "low",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ready"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnanco3k_547gwl",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
                             "completed"
                         ],
                         "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:32.806Z"
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T18:11:27.872Z"
                     },
                     {
-                        "id": "comment_mnf29i0t_3wcaf3",
+                        "id": "comment_mnexnxav_b8zalg",
                         "author": "system",
                         "body": "Restored from archive and marked ready again.",
                         "labels": [
                             "ready"
                         ],
                         "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T20:19:58.973Z"
+                        "sequence": 2,
+                        "createdAt": "2026-03-31T18:11:13.879Z"
                     },
                     {
-                        "id": "comment_mnf29nje_h0fsui",
+                        "id": "comment_mnexo3g8_hq26u7",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
                             "completed"
                         ],
                         "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T18:11:21.848Z"
+                    },
+                    {
+                        "id": "comment_mnlqq54k_e9qc86",
+                        "author": "system",
+                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-link-cleared"
+                        ],
+                        "source": "system-event",
                         "sequence": 4,
-                        "createdAt": "2026-03-31T20:20:06.122Z"
+                        "createdAt": "2026-04-05T12:31:23.252Z"
                     }
                 ],
-                "archived": true,
-                "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T18:52:32.295Z",
-                "completedAt": "2026-03-31T20:20:06.122Z",
-                "archivedAt": "2026-03-31T20:20:06.122Z",
-                "createdAt": "2026-03-29T13:55:45.725Z",
-                "updatedAt": "2026-03-31T20:20:06.122Z"
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-04-05T12:31:23.252Z"
             },
             {
                 "id": "todo_mnblfnzc_bfugxn",
@@ -318,377 +291,18 @@
                 "updatedAt": "2026-04-05T12:31:23.252Z"
             },
             {
-                "id": "todo_mnam08r9_95mmdu",
-                "title": "dssd",
-                "description": "Auto-generated from scheduler.json",
+                "id": "todo_mnbmt2du_vey8le",
+                "title": "vbvb",
+                "description": "vbvb",
                 "sectionId": "archive-completed",
-                "order": 0,
-                "priority": "low",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnanco3k_547gwl",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T18:11:27.872Z"
-                    },
-                    {
-                        "id": "comment_mnexnxav_b8zalg",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-31T18:11:13.879Z"
-                    },
-                    {
-                        "id": "comment_mnexo3g8_hq26u7",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T18:11:21.848Z"
-                    },
-                    {
-                        "id": "comment_mnlqq54k_e9qc86",
-                        "author": "system",
-                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
-                        "labels": [
-                            "scheduled-task",
-                            "task-link-cleared"
-                        ],
-                        "source": "system-event",
-                        "sequence": 4,
-                        "createdAt": "2026-04-05T12:31:23.252Z"
-                    }
-                ],
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T12:31:23.252Z"
-            },
-            {
-                "id": "todo_mnam089y_zvmjrs",
-                "title": "Fix Layout of Readme",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "archive-rejected",
-                "order": 0,
-                "priority": "low",
-                "status": "rejected",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnam08qw_guxc6o",
-                        "author": "system",
-                        "body": "Final accepted and archived as completed.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T17:33:48.488Z"
-                    },
-                    {
-                        "id": "comment_mnc6im38_1t1afv",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T19:55:44.084Z"
-                    },
-                    {
-                        "id": "comment_mnexnt1v_w87hx7",
-                        "author": "system",
-                        "body": "Rejected and moved to the rejected archive.",
-                        "labels": [
-                            "rejected"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T18:11:08.371Z"
-                    }
-                ],
-                "archived": true,
-                "archiveOutcome": "rejected",
-                "rejectedAt": "2026-03-31T18:11:08.371Z",
-                "archivedAt": "2026-03-31T18:11:08.371Z",
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T12:33:03.518Z"
-            },
-            {
-                "id": "todo_mnam06v5_9hkvcj",
-                "title": "dssd",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "archive-rejected",
-                "order": 1,
-                "priority": "low",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnam089k_l9womw",
-                        "author": "system",
-                        "body": "Final accepted and archived as completed.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T17:33:47.864Z"
-                    },
-                    {
-                        "id": "comment_mncai9qp_zt4ds7",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T21:47:26.545Z"
-                    },
-                    {
-                        "id": "comment_mncd99rj_1bmde7",
-                        "author": "system",
-                        "body": "Rejected and moved to the rejected archive.",
-                        "labels": [
-                            "rejected"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-29T23:04:25.519Z"
-                    },
-                    {
-                        "id": "comment_mnlqq54k_9qurxh",
-                        "author": "system",
-                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
-                        "labels": [
-                            "scheduled-task",
-                            "task-link-cleared"
-                        ],
-                        "source": "system-event",
-                        "sequence": 4,
-                        "createdAt": "2026-04-05T12:31:23.252Z"
-                    }
-                ],
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T12:31:23.252Z"
-            },
-            {
-                "id": "todo_mnaiiew4_fcvyw9",
-                "title": "Test Task One",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "archive-completed",
-                "order": 4,
-                "priority": "low",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnam06up_zczkmx",
-                        "author": "system",
-                        "body": "Final accepted and archived as completed.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T17:33:46.033Z"
-                    },
-                    {
-                        "id": "comment_mncaiban_rezufn",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T21:47:28.559Z"
-                    },
-                    {
-                        "id": "comment_mncd950l_oynyfo",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-29T23:04:19.364Z"
-                    },
-                    {
-                        "id": "comment_mnlqq54k_8eyyus",
-                        "author": "system",
-                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
-                        "labels": [
-                            "scheduled-task",
-                            "task-link-cleared"
-                        ],
-                        "source": "system-event",
-                        "sequence": 4,
-                        "createdAt": "2026-04-05T12:31:23.252Z"
-                    },
-                    {
-                        "id": "comment_mnls57ef_p7ox43",
-                        "author": "system",
-                        "body": "Linked task draft created: Test Task One.",
-                        "labels": [
-                            "task-draft"
-                        ],
-                        "source": "system-event",
-                        "sequence": 5,
-                        "createdAt": "2026-04-05T13:11:05.655Z"
-                    }
-                ],
-                "taskId": "task_1775394665589_8trdb5",
-                "archived": false,
-                "approvedAt": "2026-04-05T13:11:05.633Z",
-                "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T13:11:05.589Z"
-            },
-            {
-                "id": "todo_mnc4b5uh_i97iwz",
-                "title": "a",
-                "sectionId": "archive-completed",
-                "order": 5,
-                "priority": "medium",
-                "dueAt": "2026-03-04T19:57:00.000Z",
-                "status": "completed",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnc4ko0t_ddnrl4",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T19:01:20.669Z"
-                    },
-                    {
-                        "id": "comment_mnc6ih4y_9wlibn",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T19:55:37.665Z"
-                    }
-                ],
-                "archived": true,
-                "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T19:01:20.669Z",
-                "completedAt": "2026-03-29T19:55:37.665Z",
-                "archivedAt": "2026-03-29T19:55:37.665Z",
-                "createdAt": "2026-03-29T18:53:57.119Z",
-                "updatedAt": "2026-03-31T20:23:53.369Z"
-            },
-            {
-                "id": "todo_mnc4hppm_dztwob",
-                "title": "aa",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 1,
-                "priority": "medium",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "FINAL-USER-CHECK"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnc4k4c2_64klna",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T19:00:55.154Z"
-                    },
-                    {
-                        "id": "comment_mnc4k51p_hajrdk",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T19:00:56.077Z"
-                    },
-                    {
-                        "id": "comment_mngc3nva_9ty61r",
-                        "author": "system",
-                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
-                        "labels": [
-                            "scheduled-task"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-04-01T17:43:08.950Z"
-                    },
-                    {
-                        "id": "comment_mnlqq54k_mwdz6d",
-                        "author": "system",
-                        "body": "Linked one-time task is no longer present. Todo moved to FINAL-USER-CHECK for acceptance.",
-                        "labels": [
-                            "scheduled-task",
-                            "task-complete"
-                        ],
-                        "source": "system-event",
-                        "sequence": 4,
-                        "createdAt": "2026-04-05T12:31:23.252Z"
-                    }
-                ],
-                "archived": false,
-                "approvedAt": "2026-03-29T19:00:55.154Z",
-                "createdAt": "2026-03-29T18:59:02.815Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
-            },
-            {
-                "id": "todo_mnc49kym_nxxehd",
-                "title": "ass",
-                "sectionId": "archive-completed",
-                "order": 6,
+                "order": 9,
                 "priority": "none",
                 "status": "completed",
                 "labels": [],
                 "flags": [],
                 "comments": [
                     {
-                        "id": "comment_mnc49mhf_4xn5ib",
+                        "id": "comment_mnboyv13_bdovor",
                         "author": "system",
                         "body": "Approved and marked ready for follow-up.",
                         "labels": [
@@ -696,10 +310,10 @@
                         ],
                         "source": "system-event",
                         "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:45.459Z"
+                        "createdAt": "2026-03-29T11:44:29.078Z"
                     },
                     {
-                        "id": "comment_mnc4f15w_ke8sbv",
+                        "id": "comment_mnbpq946_pehbng",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
@@ -707,16 +321,101 @@
                         ],
                         "source": "system-event",
                         "sequence": 2,
-                        "createdAt": "2026-03-29T18:56:57.764Z"
+                        "createdAt": "2026-03-29T12:05:47.046Z"
                     }
                 ],
                 "archived": true,
                 "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T18:52:45.459Z",
-                "completedAt": "2026-03-29T18:56:57.764Z",
-                "archivedAt": "2026-03-29T18:56:57.764Z",
-                "createdAt": "2026-03-29T18:52:43.486Z",
-                "updatedAt": "2026-03-29T19:00:42.003Z"
+                "approvedAt": "2026-03-29T11:44:29.078Z",
+                "completedAt": "2026-03-29T12:05:47.046Z",
+                "archivedAt": "2026-03-29T12:05:47.046Z",
+                "createdAt": "2026-03-29T10:43:59.442Z",
+                "updatedAt": "2026-03-31T20:23:53.369Z"
+            },
+            {
+                "id": "todo_mnbqrkra_a15cr8",
+                "title": "fghgh",
+                "description": "fhfhg",
+                "sectionId": "archive-completed",
+                "order": 10,
+                "priority": "medium",
+                "dueAt": "2026-03-03T13:34:00.000Z",
+                "status": "completed",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnc49e6b_594d9p",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T18:52:34.691Z"
+                    },
+                    {
+                        "id": "comment_mnc49ee1_cey87h",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T18:52:34.969Z"
+                    }
+                ],
+                "archived": true,
+                "archiveOutcome": "completed-successfully",
+                "approvedAt": "2026-03-29T18:52:34.691Z",
+                "completedAt": "2026-03-29T18:52:34.969Z",
+                "archivedAt": "2026-03-29T18:52:34.969Z",
+                "createdAt": "2026-03-29T12:34:48.406Z",
+                "updatedAt": "2026-03-29T21:38:35.920Z"
+            },
+            {
+                "id": "todo_mnbssyyg_cfe2tp",
+                "title": "xcwewewewe",
+                "description": "xcxcxc",
+                "sectionId": "archive-completed",
+                "order": 11,
+                "priority": "high",
+                "status": "completed",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnc494w8_j9d1l2",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T18:52:22.664Z"
+                    },
+                    {
+                        "id": "comment_mnc499bw_abu52r",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T18:52:28.412Z"
+                    }
+                ],
+                "archived": true,
+                "archiveOutcome": "completed-successfully",
+                "approvedAt": "2026-03-29T18:52:22.664Z",
+                "completedAt": "2026-03-29T18:52:28.412Z",
+                "archivedAt": "2026-03-29T18:52:28.412Z",
+                "createdAt": "2026-03-29T13:31:52.696Z",
+                "updatedAt": "2026-03-29T18:52:28.412Z"
             },
             {
                 "id": "todo_mnbtb2bp_4k48jb",
@@ -803,19 +502,18 @@
                 "updatedAt": "2026-03-29T18:52:36.685Z"
             },
             {
-                "id": "todo_mnbqrkra_a15cr8",
-                "title": "fghgh",
-                "description": "fhfhg",
+                "id": "todo_mnbtnoot_v47xqg",
+                "title": "---plö",
                 "sectionId": "archive-completed",
-                "order": 10,
-                "priority": "medium",
-                "dueAt": "2026-03-03T13:34:00.000Z",
+                "order": 1,
+                "priority": "none",
+                "dueAt": "2026-03-03T14:55:00.000Z",
                 "status": "completed",
                 "labels": [],
                 "flags": [],
                 "comments": [
                     {
-                        "id": "comment_mnc49e6b_594d9p",
+                        "id": "comment_mnc49cbr_rljloz",
                         "author": "system",
                         "body": "Approved and marked ready for follow-up.",
                         "labels": [
@@ -823,10 +521,10 @@
                         ],
                         "source": "system-event",
                         "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:34.691Z"
+                        "createdAt": "2026-03-29T18:52:32.295Z"
                     },
                     {
-                        "id": "comment_mnc49ee1_cey87h",
+                        "id": "comment_mnc49cpy_b2ejyo",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
@@ -834,162 +532,380 @@
                         ],
                         "source": "system-event",
                         "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:34.969Z"
+                        "createdAt": "2026-03-29T18:52:32.806Z"
+                    },
+                    {
+                        "id": "comment_mnf29i0t_3wcaf3",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T20:19:58.973Z"
+                    },
+                    {
+                        "id": "comment_mnf29nje_h0fsui",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-03-31T20:20:06.122Z"
                     }
                 ],
                 "archived": true,
                 "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T18:52:34.691Z",
-                "completedAt": "2026-03-29T18:52:34.969Z",
-                "archivedAt": "2026-03-29T18:52:34.969Z",
-                "createdAt": "2026-03-29T12:34:48.406Z",
-                "updatedAt": "2026-03-29T21:38:35.920Z"
+                "approvedAt": "2026-03-29T18:52:32.295Z",
+                "completedAt": "2026-03-31T20:20:06.122Z",
+                "archivedAt": "2026-03-31T20:20:06.122Z",
+                "createdAt": "2026-03-29T13:55:45.725Z",
+                "updatedAt": "2026-03-31T20:20:06.122Z"
             },
             {
-                "id": "todo_mnbssevh_q7ta3h",
-                "title": "sdsd",
-                "description": "sdsd",
-                "sectionId": "section_mn9hvobp_ttw2do",
+                "id": "todo_mnc48230_0e9sap",
+                "title": "qwqw",
+                "sectionId": "archive-completed",
+                "order": 2,
+                "priority": "urgent",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ready"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnc49dm8_had30y",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T18:52:33.968Z"
+                    },
+                    {
+                        "id": "comment_mnc49dw9_2mgos1",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T18:52:34.329Z"
+                    },
+                    {
+                        "id": "comment_mnf306d3_eknl7a",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T20:40:43.575Z"
+                    },
+                    {
+                        "id": "comment_mngb7xj6_nnuyvw",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-01T17:18:28.482Z"
+                    },
+                    {
+                        "id": "comment_mnlqq54k_gzsri4",
+                        "author": "system",
+                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-link-cleared"
+                        ],
+                        "source": "system-event",
+                        "sequence": 5,
+                        "createdAt": "2026-04-05T12:31:23.252Z"
+                    }
+                ],
+                "archived": false,
+                "approvedAt": "2026-03-29T18:52:33.968Z",
+                "createdAt": "2026-03-29T18:51:32.289Z",
+                "updatedAt": "2026-04-05T12:31:23.252Z"
+            },
+            {
+                "id": "todo_mnc49kym_nxxehd",
+                "title": "ass",
+                "sectionId": "archive-completed",
+                "order": 6,
+                "priority": "none",
+                "status": "completed",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnc49mhf_4xn5ib",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T18:52:45.459Z"
+                    },
+                    {
+                        "id": "comment_mnc4f15w_ke8sbv",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T18:56:57.764Z"
+                    }
+                ],
+                "archived": true,
+                "archiveOutcome": "completed-successfully",
+                "approvedAt": "2026-03-29T18:52:45.459Z",
+                "completedAt": "2026-03-29T18:56:57.764Z",
+                "archivedAt": "2026-03-29T18:56:57.764Z",
+                "createdAt": "2026-03-29T18:52:43.486Z",
+                "updatedAt": "2026-03-29T19:00:42.003Z"
+            },
+            {
+                "id": "todo_mnc4b5uh_i97iwz",
+                "title": "a",
+                "sectionId": "archive-completed",
+                "order": 5,
+                "priority": "medium",
+                "dueAt": "2026-03-04T19:57:00.000Z",
+                "status": "completed",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnc4ko0t_ddnrl4",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T19:01:20.669Z"
+                    },
+                    {
+                        "id": "comment_mnc6ih4y_9wlibn",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T19:55:37.665Z"
+                    }
+                ],
+                "archived": true,
+                "archiveOutcome": "completed-successfully",
+                "approvedAt": "2026-03-29T19:01:20.669Z",
+                "completedAt": "2026-03-29T19:55:37.665Z",
+                "archivedAt": "2026-03-29T19:55:37.665Z",
+                "createdAt": "2026-03-29T18:53:57.119Z",
+                "updatedAt": "2026-03-31T20:23:53.369Z"
+            },
+            {
+                "id": "todo_mn975hc2_ae6w8w",
+                "title": "dffd12522",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-rejected",
+                "order": 0,
+                "priority": "urgent",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ready"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnagcf97_pnyo7v",
+                        "author": "system",
+                        "body": "Rejected and archived.",
+                        "labels": [
+                            "rejected"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T14:55:19.099Z"
+                    },
+                    {
+                        "id": "comment_mnlqq54k_d6vecz",
+                        "author": "system",
+                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-link-cleared"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-05T12:31:23.252Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:42.310Z",
+                "updatedAt": "2026-04-05T12:31:23.252Z"
+            },
+            {
+                "id": "todo_mnam06v5_9hkvcj",
+                "title": "dssd",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-rejected",
+                "order": 1,
+                "priority": "low",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ready"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnam089k_l9womw",
+                        "author": "system",
+                        "body": "Final accepted and archived as completed.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T17:33:47.864Z"
+                    },
+                    {
+                        "id": "comment_mncai9qp_zt4ds7",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T21:47:26.545Z"
+                    },
+                    {
+                        "id": "comment_mncd99rj_1bmde7",
+                        "author": "system",
+                        "body": "Rejected and moved to the rejected archive.",
+                        "labels": [
+                            "rejected"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-29T23:04:25.519Z"
+                    },
+                    {
+                        "id": "comment_mnlqq54k_9qurxh",
+                        "author": "system",
+                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-link-cleared"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-05T12:31:23.252Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-04-05T12:31:23.252Z"
+            },
+            {
+                "id": "todo_mnam089y_zvmjrs",
+                "title": "Fix Layout of Readme",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "archive-rejected",
+                "order": 0,
+                "priority": "low",
+                "status": "rejected",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnam08qw_guxc6o",
+                        "author": "system",
+                        "body": "Final accepted and archived as completed.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-28T17:33:48.488Z"
+                    },
+                    {
+                        "id": "comment_mnc6im38_1t1afv",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T19:55:44.084Z"
+                    },
+                    {
+                        "id": "comment_mnexnt1v_w87hx7",
+                        "author": "system",
+                        "body": "Rejected and moved to the rejected archive.",
+                        "labels": [
+                            "rejected"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T18:11:08.371Z"
+                    }
+                ],
+                "archived": true,
+                "archiveOutcome": "rejected",
+                "rejectedAt": "2026-03-31T18:11:08.371Z",
+                "archivedAt": "2026-03-31T18:11:08.371Z",
+                "createdAt": "2026-03-24T19:54:59.685Z",
+                "updatedAt": "2026-04-05T12:33:03.518Z"
+            },
+            {
+                "id": "todo_mn975hbd_cjclva",
+                "title": "dffd12522",
+                "sectionId": "archive-rejected",
                 "order": 2,
                 "priority": "none",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnc49czh_jo7it5",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:33.149Z"
-                    },
-                    {
-                        "id": "comment_mnc49dbc_fyobcz",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:33.575Z"
-                    },
-                    {
-                        "id": "comment_mnf305kl_jrahn2",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T20:40:42.549Z"
-                    }
-                ],
-                "archived": false,
-                "approvedAt": "2026-03-29T18:52:33.149Z",
-                "createdAt": "2026-03-29T13:31:26.669Z",
-                "updatedAt": "2026-04-04T00:49:57.085Z"
-            },
-            {
-                "id": "todo_mnbssyyg_cfe2tp",
-                "title": "xcwewewewe",
-                "description": "xcxcxc",
-                "sectionId": "archive-completed",
-                "order": 11,
-                "priority": "high",
-                "status": "completed",
+                "status": "rejected",
                 "labels": [],
                 "flags": [],
                 "comments": [
                     {
-                        "id": "comment_mnc494w8_j9d1l2",
+                        "id": "comment_mnagdpd8_e3d2u0",
                         "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
+                        "body": "Rejected and archived.",
                         "labels": [
-                            "ready"
+                            "rejected"
                         ],
                         "source": "system-event",
                         "sequence": 1,
-                        "createdAt": "2026-03-29T18:52:22.664Z"
-                    },
-                    {
-                        "id": "comment_mnc499bw_abu52r",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:28.412Z"
+                        "createdAt": "2026-03-28T14:56:18.860Z"
                     }
                 ],
                 "archived": true,
-                "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T18:52:22.664Z",
-                "completedAt": "2026-03-29T18:52:28.412Z",
-                "archivedAt": "2026-03-29T18:52:28.412Z",
-                "createdAt": "2026-03-29T13:31:52.696Z",
-                "updatedAt": "2026-03-29T18:52:28.412Z"
-            },
-            {
-                "id": "todo_mnbnv2qm_uzedu5",
-                "title": "xyyx",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "unsorted",
-                "order": 5,
-                "priority": "none",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnbpqf9n_p4acet",
-                        "author": "system",
-                        "body": "Approved and marked ready for follow-up.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T12:05:55.019Z"
-                    },
-                    {
-                        "id": "comment_mnc492yo_6v6aru",
-                        "author": "system",
-                        "body": "Completed and moved to the completed archive.",
-                        "labels": [
-                            "completed"
-                        ],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-03-29T18:52:20.160Z"
-                    },
-                    {
-                        "id": "comment_mnf304pi_2k6uef",
-                        "author": "system",
-                        "body": "Restored from archive and marked ready again.",
-                        "labels": [
-                            "ready"
-                        ],
-                        "source": "system-event",
-                        "sequence": 3,
-                        "createdAt": "2026-03-31T20:40:41.430Z"
-                    }
-                ],
-                "archived": false,
-                "approvedAt": "2026-03-29T12:05:55.019Z",
-                "createdAt": "2026-03-29T11:13:32.810Z",
-                "updatedAt": "2026-04-05T12:32:13.217Z"
+                "archiveOutcome": "rejected",
+                "rejectedAt": "2026-03-28T14:56:18.860Z",
+                "archivedAt": "2026-03-28T14:56:18.860Z",
+                "createdAt": "2026-03-27T17:50:12.433Z",
+                "updatedAt": "2026-03-29T21:38:31.999Z"
             },
             {
                 "id": "todo_mnbmrdjq_6ot5nl",
@@ -1045,18 +961,20 @@
                 "updatedAt": "2026-04-04T23:19:08.529Z"
             },
             {
-                "id": "todo_mnbmt2du_vey8le",
-                "title": "vbvb",
-                "description": "vbvb",
-                "sectionId": "archive-completed",
-                "order": 9,
+                "id": "todo_mnbssevh_q7ta3h",
+                "title": "sdsd",
+                "description": "sdsd",
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 2,
                 "priority": "none",
-                "status": "completed",
+                "status": "active",
                 "labels": [],
-                "flags": [],
+                "flags": [
+                    "ready"
+                ],
                 "comments": [
                     {
-                        "id": "comment_mnboyv13_bdovor",
+                        "id": "comment_mnc49czh_jo7it5",
                         "author": "system",
                         "body": "Approved and marked ready for follow-up.",
                         "labels": [
@@ -1064,10 +982,10 @@
                         ],
                         "source": "system-event",
                         "sequence": 1,
-                        "createdAt": "2026-03-29T11:44:29.078Z"
+                        "createdAt": "2026-03-29T18:52:33.149Z"
                     },
                     {
-                        "id": "comment_mnbpq946_pehbng",
+                        "id": "comment_mnc49dbc_fyobcz",
                         "author": "system",
                         "body": "Completed and moved to the completed archive.",
                         "labels": [
@@ -1075,16 +993,165 @@
                         ],
                         "source": "system-event",
                         "sequence": 2,
-                        "createdAt": "2026-03-29T12:05:47.046Z"
+                        "createdAt": "2026-03-29T18:52:33.575Z"
+                    },
+                    {
+                        "id": "comment_mnf305kl_jrahn2",
+                        "author": "system",
+                        "body": "Restored from archive and marked ready again.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T20:40:42.549Z"
                     }
                 ],
-                "archived": true,
-                "archiveOutcome": "completed-successfully",
-                "approvedAt": "2026-03-29T11:44:29.078Z",
-                "completedAt": "2026-03-29T12:05:47.046Z",
-                "archivedAt": "2026-03-29T12:05:47.046Z",
-                "createdAt": "2026-03-29T10:43:59.442Z",
-                "updatedAt": "2026-03-31T20:23:53.369Z"
+                "archived": false,
+                "approvedAt": "2026-03-29T18:52:33.149Z",
+                "createdAt": "2026-03-29T13:31:26.669Z",
+                "updatedAt": "2026-04-04T00:49:57.085Z"
+            },
+            {
+                "id": "todo_mnc4hppm_dztwob",
+                "title": "aa",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 1,
+                "priority": "medium",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "FINAL-USER-CHECK"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnc4k4c2_64klna",
+                        "author": "system",
+                        "body": "Approved and marked ready for follow-up.",
+                        "labels": [
+                            "ready"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T19:00:55.154Z"
+                    },
+                    {
+                        "id": "comment_mnc4k51p_hajrdk",
+                        "author": "system",
+                        "body": "Completed and moved to the completed archive.",
+                        "labels": [
+                            "completed"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-03-29T19:00:56.077Z"
+                    },
+                    {
+                        "id": "comment_mngc3nva_9ty61r",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-04-01T17:43:08.950Z"
+                    },
+                    {
+                        "id": "comment_mnlqq54k_mwdz6d",
+                        "author": "system",
+                        "body": "Linked one-time task is no longer present. Todo moved to FINAL-USER-CHECK for acceptance.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-complete"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-05T12:31:23.252Z"
+                    }
+                ],
+                "archived": false,
+                "approvedAt": "2026-03-29T19:00:55.154Z",
+                "createdAt": "2026-03-29T18:59:02.815Z",
+                "updatedAt": "2026-04-05T12:33:05.493Z"
+            },
+            {
+                "id": "todo_mncadsha_oflulp",
+                "title": "Research",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "section_mn9hvobp_ttw2do",
+                "order": 0,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "new"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mncah6vi_fy3v9r",
+                        "author": "user",
+                        "body": "dfdfdf",
+                        "labels": [],
+                        "source": "human-form",
+                        "sequence": 1,
+                        "createdAt": "2026-03-29T21:46:36.174Z"
+                    },
+                    {
+                        "id": "comment_mngc44ts_lx3bhv",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-01T17:43:30.928Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-03-29T21:43:57.468Z",
+                "updatedAt": "2026-04-05T12:33:05.493Z"
+            },
+            {
+                "id": "todo_mnli5fh7_2cfcq6",
+                "title": "hjhj",
+                "description": "hjhj",
+                "sectionId": "section_mnc64kul_2dygkl",
+                "order": 0,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ready"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnli5fh7_dgjj1m",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-05T08:31:19.963Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T08:31:19.963Z"
+                    },
+                    {
+                        "id": "comment_mnli5fh7_b8ruvb",
+                        "author": "system",
+                        "body": "hjhj",
+                        "labels": [],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-05T08:31:19.963Z"
+                    }
+                ],
+                "archived": false,
+                "approvedAt": "2026-04-05T12:33:18.634Z",
+                "createdAt": "2026-04-05T08:31:19.963Z",
+                "updatedAt": "2026-04-05T12:34:00.120Z"
             },
             {
                 "id": "todo_mnanctyt_pez9mw",
@@ -1148,12 +1215,12 @@
                 "updatedAt": "2026-04-05T12:33:05.493Z"
             },
             {
-                "id": "todo_mn975hc2_ae6w8w",
-                "title": "dffd12522",
+                "id": "todo_mnbnv2qm_uzedu5",
+                "title": "xyyx",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "archive-rejected",
-                "order": 0,
-                "priority": "urgent",
+                "sectionId": "unsorted",
+                "order": 5,
+                "priority": "none",
                 "status": "active",
                 "labels": [],
                 "flags": [
@@ -1161,99 +1228,43 @@
                 ],
                 "comments": [
                     {
-                        "id": "comment_mnagcf97_pnyo7v",
+                        "id": "comment_mnbpqf9n_p4acet",
                         "author": "system",
-                        "body": "Rejected and archived.",
+                        "body": "Approved and marked ready for follow-up.",
                         "labels": [
-                            "rejected"
+                            "ready"
                         ],
                         "source": "system-event",
                         "sequence": 1,
-                        "createdAt": "2026-03-28T14:55:19.099Z"
+                        "createdAt": "2026-03-29T12:05:55.019Z"
                     },
                     {
-                        "id": "comment_mnlqq54k_d6vecz",
+                        "id": "comment_mnc492yo_6v6aru",
                         "author": "system",
-                        "body": "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+                        "body": "Completed and moved to the completed archive.",
                         "labels": [
-                            "scheduled-task",
-                            "task-link-cleared"
+                            "completed"
                         ],
                         "source": "system-event",
                         "sequence": 2,
-                        "createdAt": "2026-04-05T12:31:23.252Z"
-                    }
-                ],
-                "archived": false,
-                "createdAt": "2026-03-24T19:54:42.310Z",
-                "updatedAt": "2026-04-05T12:31:23.252Z"
-            },
-            {
-                "id": "todo_mn975hbd_cjclva",
-                "title": "dffd12522",
-                "sectionId": "archive-rejected",
-                "order": 2,
-                "priority": "none",
-                "status": "rejected",
-                "labels": [],
-                "flags": [],
-                "comments": [
-                    {
-                        "id": "comment_mnagdpd8_e3d2u0",
-                        "author": "system",
-                        "body": "Rejected and archived.",
-                        "labels": [
-                            "rejected"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-03-28T14:56:18.860Z"
-                    }
-                ],
-                "archived": true,
-                "archiveOutcome": "rejected",
-                "rejectedAt": "2026-03-28T14:56:18.860Z",
-                "archivedAt": "2026-03-28T14:56:18.860Z",
-                "createdAt": "2026-03-27T17:50:12.433Z",
-                "updatedAt": "2026-03-29T21:38:31.999Z"
-            },
-            {
-                "id": "todo_mncadsha_oflulp",
-                "title": "Research",
-                "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 0,
-                "priority": "none",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "new"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mncah6vi_fy3v9r",
-                        "author": "user",
-                        "body": "dfdfdf",
-                        "labels": [],
-                        "source": "human-form",
-                        "sequence": 1,
-                        "createdAt": "2026-03-29T21:46:36.174Z"
+                        "createdAt": "2026-03-29T18:52:20.160Z"
                     },
                     {
-                        "id": "comment_mngc44ts_lx3bhv",
+                        "id": "comment_mnf304pi_2k6uef",
                         "author": "system",
-                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "body": "Restored from archive and marked ready again.",
                         "labels": [
-                            "scheduled-task"
+                            "ready"
                         ],
                         "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-04-01T17:43:30.928Z"
+                        "sequence": 3,
+                        "createdAt": "2026-03-31T20:40:41.430Z"
                     }
                 ],
                 "archived": false,
-                "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "approvedAt": "2026-03-29T12:05:55.019Z",
+                "createdAt": "2026-03-29T11:13:32.810Z",
+                "updatedAt": "2026-04-05T12:32:13.217Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
@@ -1457,45 +1468,6 @@
                 "archived": false,
                 "createdAt": "2026-04-05T07:59:41.510Z",
                 "updatedAt": "2026-04-05T12:33:05.493Z"
-            },
-            {
-                "id": "todo_mnli5fh7_2cfcq6",
-                "title": "hjhj",
-                "description": "hjhj",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 0,
-                "priority": "none",
-                "status": "active",
-                "labels": [],
-                "flags": [
-                    "ready"
-                ],
-                "comments": [
-                    {
-                        "id": "comment_mnli5fh7_dgjj1m",
-                        "author": "system",
-                        "body": "Todo created on 2026-04-05T08:31:19.963Z.",
-                        "labels": [
-                            "created"
-                        ],
-                        "source": "system-event",
-                        "sequence": 1,
-                        "createdAt": "2026-04-05T08:31:19.963Z"
-                    },
-                    {
-                        "id": "comment_mnli5fh7_b8ruvb",
-                        "author": "system",
-                        "body": "hjhj",
-                        "labels": [],
-                        "source": "system-event",
-                        "sequence": 2,
-                        "createdAt": "2026-04-05T08:31:19.963Z"
-                    }
-                ],
-                "archived": false,
-                "approvedAt": "2026-04-05T12:33:18.634Z",
-                "createdAt": "2026-04-05T08:31:19.963Z",
-                "updatedAt": "2026-04-05T12:34:00.120Z"
             }
         ],
         "labelCatalog": [],
@@ -1525,8 +1497,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-05T17:29:48.490Z",
-                "updatedAt": "2026-04-05T17:29:48.490Z"
+                "createdAt": "2026-04-05T22:08:22.374Z",
+                "updatedAt": "2026-04-05T22:08:22.374Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1593,6 +1565,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-05T17:29:48.403Z"
+        "updatedAt": "2026-04-05T22:08:22.308Z"
     }
 }
