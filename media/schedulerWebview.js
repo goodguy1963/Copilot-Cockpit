@@ -14,6 +14,17 @@ import {
   syncFriendlyFieldVisibility,
 } from "./schedulerWebviewCronUtils.js";
 import {
+  applyPromptSourceUi,
+  restorePendingSelectValue,
+  syncPromptTemplatesFromMessage,
+  updatePromptTemplateOptions,
+} from "./schedulerWebviewPromptState.js";
+import {
+  buildBaseTaskActionsMarkup,
+  buildTaskConfigRowMarkup,
+} from "./schedulerWebviewTaskCards.js";
+import { handleTaskListClick } from "./schedulerWebviewTaskActions.js";
+import {
   selectHasOptionValue,
   updateAgentOptions as updateTaskAgentOptions,
   updateModelOptions as updateTaskModelOptions,
@@ -6264,53 +6275,27 @@ syncTodoLabelSuggestions();
       }
     }
 
-    var readyTodoOpenTarget = getClosestEventTarget(e, "[data-ready-todo-open]");
-    if (readyTodoOpenTarget) {
-      if (!taskList || !taskList.isConnected) {
+    if (handleTaskListClick({
+      event: e,
+      taskList: taskList,
+      getTaskList: function () {
         taskList = document.getElementById("task-list");
-      }
-      if (taskList && taskList.contains(readyTodoOpenTarget)) {
-        e.preventDefault();
-        var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
-        if (openTodoId) {
-          openTodoEditor(openTodoId);
-        }
-        return;
-      }
-    }
-
-    var actionTarget = resolveActionTarget(e.target);
-    if (!actionTarget) {
+        return taskList;
+      },
+      getClosestEventTarget: getClosestEventTarget,
+      resolveActionTarget: resolveActionTarget,
+      openTodoEditor: openTodoEditor,
+      actionHandlers: {
+        toggle: window.toggleTask,
+        run: window.runTask,
+        edit: window.editTask,
+        copy: window.copyPrompt,
+        duplicate: window.duplicateTask,
+        move: window.moveTaskToCurrentWorkspace,
+        delete: window.deleteTask,
+      },
+    })) {
       return;
-    }
-
-    if (!taskList || !taskList.isConnected) {
-      taskList = document.getElementById("task-list");
-    }
-    if (taskList && !taskList.contains(actionTarget)) {
-      return;
-    }
-
-    var action = actionTarget.getAttribute("data-action");
-    var taskId = actionTarget.getAttribute("data-id");
-    if (!action || !taskId) {
-      return;
-    }
-
-    var actionHandlers = {
-      toggle: window.toggleTask,
-      run: window.runTask,
-      edit: window.editTask,
-      copy: window.copyPrompt,
-      duplicate: window.duplicateTask,
-      move: window.moveTaskToCurrentWorkspace,
-      delete: window.deleteTask,
-    };
-
-    var handler = actionHandlers[action];
-    if (typeof handler === "function") {
-      e.preventDefault();
-      handler(taskId);
     }
   });
 
@@ -6454,83 +6439,26 @@ syncTodoLabelSuggestions();
         })
         .join("");
 
-      // Escape for HTML attributes to avoid broken inline handlers
       var taskIdEscaped = escapeAttr(task.id || "");
+      var configRow = buildTaskConfigRowMarkup({
+        task: task,
+        taskId: taskIdEscaped,
+        agents: agents,
+        models: models,
+        executionDefaults: executionDefaults,
+        strings: strings,
+        escapeAttr: escapeAttr,
+        escapeHtml: escapeHtml,
+        formatModelLabel: formatModelLabel,
+      });
 
-      // --- Model & Agent Selection Logic ---
-      function createSelect(items, selectedId, cls, placeholder, fallbackSelectedId) {
-        var effectiveSelectedId = selectedId || fallbackSelectedId || "";
-        var preservedSelectedId = selectedId || "";
-        var hasSelectedOption = !preservedSelectedId;
-        var options = '<option value="">' + escapeHtml(placeholder) + '</option>';
-        if (Array.isArray(items)) {
-          items.forEach(function (item) {
-            var id = item.id || item.slug;
-            if (!id) {
-              return;
-            }
-            var label = cls && cls.indexOf("model") >= 0 ? formatModelLabel(item) : (item.name || id);
-            if (id === preservedSelectedId) {
-              hasSelectedOption = true;
-            }
-            var sel = (id === effectiveSelectedId) ? ' selected' : '';
-            options += '<option value="' + escapeAttr(id) + '"' + sel + '>' + escapeHtml(label) + '</option>';
-          });
-        }
-        if (preservedSelectedId && !hasSelectedOption) {
-          options += '<option value="' + escapeAttr(preservedSelectedId) + '" selected>' + escapeHtml(preservedSelectedId) + '</option>';
-        }
-        return '<select class="' + cls + '" data-id="' + taskIdEscaped + '" style="width: auto; max-width: 140px; display: inline-block; padding: 2px 4px; margin-right: 8px; height: 26px; font-size: 11px;">' + options + '</select>';
-      }
-
-      var agentSelect = createSelect(
-        agents,
-        task.agent,
-        "task-agent-select",
-        strings.placeholderSelectAgent || "Agent",
-        executionDefaults && executionDefaults.agent
-      );
-      var modelSelect = createSelect(
-        models,
-        task.model,
-        "task-model-select",
-        strings.placeholderSelectModel || "Model",
-        executionDefaults && executionDefaults.model
-      );
-
-      var configRow = '<div class="task-config" style="margin: 4px 0 8px 0; display: flex; align-items: center;">' +
-        agentSelect + modelSelect +
-        '</div>';
-      // -------------------------------------
-
-      var actionsHtml =
-        '<button class="btn-secondary btn-icon" data-action="toggle" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(toggleTitle) +
-        '">' +
-        toggleIcon +
-        "</button>" +
-        '<button class="btn-secondary btn-icon" data-action="run" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionRun) +
-        '">🚀</button>' +
-        '<button class="btn-secondary btn-icon" data-action="edit" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionEdit) +
-        '">✏️</button>' +
-        '<button class="btn-secondary btn-icon" data-action="copy" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionCopyPrompt) +
-        '">📋</button>' +
-        '<button class="btn-secondary btn-icon" data-action="duplicate" data-id="' +
-        taskIdEscaped +
-        '" title="' +
-        escapeAttr(strings.actionDuplicate) +
-        '">📄</button>';
+      var actionsHtml = buildBaseTaskActionsMarkup({
+        taskId: taskIdEscaped,
+        toggleTitle: toggleTitle,
+        toggleIcon: toggleIcon,
+        strings: strings,
+        escapeAttr: escapeAttr,
+      });
 
       if (scopeValue === "workspace" && !inThisWorkspace) {
         actionsHtml +=
@@ -7115,71 +7043,35 @@ syncTodoLabelSuggestions();
   }
 
   function updateTemplateOptions(source, selectedPath) {
-    if (!templateSelect) return;
-    selectedPath = selectedPath || "";
-    var templates = Array.isArray(promptTemplates) ? promptTemplates : [];
-    var filtered = templates.filter(function (t) {
-      return t.source === source;
+    updatePromptTemplateOptions({
+      templateSelect: templateSelect,
+      promptTemplates: promptTemplates,
+      source: source,
+      selectedPath: selectedPath,
+      strings: strings,
+      escapeHtml: escapeHtml,
+      escapeAttr: escapeAttr,
     });
-    var selectText = strings.placeholderSelectTemplate || "";
-    var placeholder =
-      '<option value="">' + escapeHtml(selectText) + "</option>";
-    templateSelect.innerHTML =
-      placeholder +
-      filtered
-        .map(function (t) {
-          return (
-            '<option value="' +
-            escapeAttr(t.path) +
-            '">' +
-            escapeHtml(t.name) +
-            "</option>"
-          );
-        })
-        .join("");
-
-    if (!selectedPath) {
-      templateSelect.value = "";
-      return;
-    }
-
-    templateSelect.value = selectedPath;
-    if (templateSelect.value !== selectedPath) {
-      templateSelect.value = "";
-    }
   }
 
   function applyPromptSource(source, keepSelection) {
-    var effectiveSource = source || "inline";
-    var selectedPath =
-      keepSelection && templateSelect ? templateSelect.value : "";
-    var usesInlinePrompt = effectiveSource === "inline";
-
-    if (promptTextEl) {
-      promptTextEl.required = usesInlinePrompt;
-    }
-    if (templateSelect) {
-      templateSelect.required = !usesInlinePrompt;
-    }
-
-    if (usesInlinePrompt) {
-      if (templateSelectGroup) templateSelectGroup.style.display = "none";
-      if (promptGroup) promptGroup.style.display = "block";
-      if (!keepSelection && templateSelect) {
-        templateSelect.value = "";
-      }
-      return;
-    }
-
-    if (templateSelectGroup) {
-      templateSelectGroup.style.display = "block";
-    } else {
-      console.warn(
-        "[CopilotScheduler] Template select group missing; template selection is disabled.",
-      );
-    }
-    if (promptGroup) promptGroup.style.display = "block";
-    updateTemplateOptions(effectiveSource, selectedPath);
+    applyPromptSourceUi({
+      source: source,
+      keepSelection: keepSelection,
+      templateSelect: templateSelect,
+      promptTextEl: promptTextEl,
+      templateSelectGroup: templateSelectGroup,
+      promptGroup: promptGroup,
+      promptTemplates: promptTemplates,
+      strings: strings,
+      escapeHtml: escapeHtml,
+      escapeAttr: escapeAttr,
+      warnMissingTemplateGroup: function () {
+        console.warn(
+          "[CopilotScheduler] Template select group missing; template selection is disabled.",
+        );
+      },
+    });
   }
 
   function updateSkillOptions() {
@@ -8264,29 +8156,26 @@ syncTodoLabelSuggestions();
     // Restore agent/model — if options not loaded yet, store as pending
     pendingAgentValue = task.agent || "";
     pendingModelValue = task.model || "";
-    if (agentSelect) {
-      if (
-        pendingAgentValue &&
-        selectHasOptionValue(agentSelect, pendingAgentValue)
-      ) {
-        agentSelect.value = pendingAgentValue;
-        pendingAgentValue = "";
-      } else if (pendingAgentValue) {
-        // Option not yet loaded — will be applied when updateAgents arrives
-        agentSelect.value = "";
+      if (agentSelect) {
+        if (pendingAgentValue && !selectHasOptionValue(agentSelect, pendingAgentValue)) {
+          agentSelect.value = "";
+        } else {
+          pendingAgentValue = restorePendingSelectValue(
+            agentSelect,
+            pendingAgentValue,
+          );
+        }
       }
-    }
-    if (modelSelect) {
-      if (
-        pendingModelValue &&
-        selectHasOptionValue(modelSelect, pendingModelValue)
-      ) {
-        modelSelect.value = pendingModelValue;
-        pendingModelValue = "";
-      } else if (pendingModelValue) {
-        modelSelect.value = "";
+      if (modelSelect) {
+        if (pendingModelValue && !selectHasOptionValue(modelSelect, pendingModelValue)) {
+          modelSelect.value = "";
+        } else {
+          pendingModelValue = restorePendingSelectValue(
+            modelSelect,
+            pendingModelValue,
+          );
+        }
       }
-    }
     editingTaskEnabled = task.enabled !== false;
     var scopeValue = task.scope || "workspace";
     var scopeRadio = document.querySelector(
@@ -8306,14 +8195,13 @@ syncTodoLabelSuggestions();
     applyPromptSource(sourceValue, true);
     pendingTemplatePath = task.promptPath || "";
     if (templateSelect) {
-      if (
-        pendingTemplatePath &&
-        selectHasOptionValue(templateSelect, pendingTemplatePath)
-      ) {
-        templateSelect.value = pendingTemplatePath;
-        pendingTemplatePath = "";
-      } else if (pendingTemplatePath) {
+      if (pendingTemplatePath && !selectHasOptionValue(templateSelect, pendingTemplatePath)) {
         templateSelect.value = "";
+      } else {
+        pendingTemplatePath = restorePendingSelectValue(
+          templateSelect,
+          pendingTemplatePath,
+        );
       }
     }
 
@@ -8559,12 +8447,10 @@ syncTodoLabelSuggestions();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (agentSelect && currentAgentValue) {
-              agentSelect.value = currentAgentValue;
-              if (agentSelect.value === currentAgentValue) {
-                pendingAgentValue = "";
-              } else {
-                pendingAgentValue = currentAgentValue;
-              }
+              pendingAgentValue = restorePendingSelectValue(
+                agentSelect,
+                currentAgentValue,
+              );
             }
             renderTaskList(tasks);
           }
@@ -8584,12 +8470,10 @@ syncTodoLabelSuggestions();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (modelSelect && currentModelValue) {
-              modelSelect.value = currentModelValue;
-              if (modelSelect.value === currentModelValue) {
-                pendingModelValue = "";
-              } else {
-                pendingModelValue = currentModelValue;
-              }
+              pendingModelValue = restorePendingSelectValue(
+                modelSelect,
+                currentModelValue,
+              );
             }
             renderTaskList(tasks);
           }
@@ -8603,24 +8487,16 @@ syncTodoLabelSuggestions();
               'input[name="prompt-source"]:checked',
             );
             var currentSource = sourceElement ? sourceElement.value : "inline";
-            var currentTemplateValue =
-              pendingTemplatePath ||
-              (templateSelect ? templateSelect.value : "");
-            updateTemplateOptions(currentSource, currentTemplateValue);
-            if (templateSelect && currentTemplateValue) {
-              if (templateSelect.value === currentTemplateValue) {
-                pendingTemplatePath = "";
-              } else {
-                pendingTemplatePath = currentTemplateValue;
-              }
-            }
-            if (currentSource === "local" || currentSource === "global") {
-              if (templateSelectGroup)
-                templateSelectGroup.style.display = "block";
-            } else {
-              if (templateSelectGroup)
-                templateSelectGroup.style.display = "none";
-            }
+            pendingTemplatePath = syncPromptTemplatesFromMessage({
+              promptTemplates: promptTemplates,
+              pendingTemplatePath: pendingTemplatePath,
+              templateSelect: templateSelect,
+              templateSelectGroup: templateSelectGroup,
+              currentSource: currentSource,
+              strings: strings,
+              escapeHtml: escapeHtml,
+              escapeAttr: escapeAttr,
+            });
           }
           break;
         case "updateSkills":
