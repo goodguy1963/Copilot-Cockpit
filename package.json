@@ -482,7 +482,8 @@
     "install:vsix:both": "node ./scripts/install-vsix.js both",
     "pretest": "npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm",
     "test": "node ./out/test/runTest.js",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "analyze:overlap": "node ./analysis_tools/analyze.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
