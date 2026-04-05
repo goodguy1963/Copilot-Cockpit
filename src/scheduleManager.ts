@@ -290,7 +290,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Bulk update task prompts (used by template sync) and save once.
+   * Apply a batch of prompt replacements and persist at most once.
    */
   async updateTaskPrompts(
     updates: Array<{ id: string; prompt: string }>,
@@ -1032,11 +1032,11 @@ export class ScheduleManager {
     await this.ensureRecurringPromptBackups();
   }
 
-  private async saveTasksInternal(options?: {
-    bumpRevision?: boolean;
-  }): Promise<void> {
+  private async saveTasksInternal(
+    options?: { bumpRevision?: boolean },
+  ): Promise<void> {
     const bumpRevision = options?.bumpRevision !== false;
-    const tasksArray: ScheduledTask[] = Array.from(this.tasks.values());
+    const tasksArray = [...this.tasks.values()];
 
     /* --- HBG CUSTOM: Write tasks to .vscode/scheduler.json --- */
     try {
@@ -1309,7 +1309,10 @@ export class ScheduleManager {
       return;
     }
 
-    jobContext.job.nodes = jobContext.job.nodes.filter((node) => node.id !== jobContext.node.id);
+    const removedNodeId = jobContext.node.id;
+    jobContext.job.nodes = jobContext.job.nodes.filter(
+      ({ id }) => id !== removedNodeId,
+    );
     this.clearJobRuntime(jobContext.job);
     jobContext.job.updatedAt = new Date().toISOString();
   }
@@ -1321,13 +1324,14 @@ export class ScheduleManager {
   }
 
   private createTaskUpdateContext() {
-    return {
+    const taskUpdateContext = {
       getPrimaryWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
       clampJitterSeconds: clampScheduleJitterSeconds,
       normalizeTaskManualSession: normalizeScheduledTaskManualSession,
       normalizeTaskChatSession: normalizeScheduledTaskChatSession,
       normalizeLabels: normalizeScheduledTaskLabels,
     };
+    return taskUpdateContext;
   }
 
   private clearTaskSchedulingState(taskId: string): void {
@@ -1361,7 +1365,8 @@ export class ScheduleManager {
       `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
     );
     this.notifyDailyLimitReachedOnce(getSchedulerLocalDateKey(), maxDailyLimit);
-    task.nextRun = this.getScheduledTaskNextRun(task, now);
+    const rescheduledAt = this.getScheduledTaskNextRun(task, now);
+    task.nextRun = rescheduledAt;
     return { executedCount: 0, needsSave: true, deleteTask: false };
   }
 
@@ -1467,13 +1472,16 @@ export class ScheduleManager {
       ? configuredDailyLimit
       : 24;
 
-    return {
-      maxDailyLimit:
-        normalizedDailyLimit === 0
-          ? 0
-          : Math.min(Math.max(normalizedDailyLimit, 1), 100),
-      defaultJitterSeconds: getCompatibleConfigurationValue<number>("jitterSeconds", 0),
-    };
+    const defaultJitterSeconds = getCompatibleConfigurationValue<number>(
+      "jitterSeconds",
+      0,
+    );
+    const maxDailyLimit =
+      normalizedDailyLimit === 0
+        ? 0
+        : Math.min(Math.max(normalizedDailyLimit, 1), 100);
+
+    return { defaultJitterSeconds, maxDailyLimit };
   }
 
   private shouldSkipScheduledTask(task: ScheduledTask): boolean {
@@ -2775,9 +2783,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Recalculate nextRun for all enabled tasks.
-   * Call when timezone configuration changes so that persisted nextRun values
-   * (computed under the old timezone) are recomputed under the new one.
+   * Rebuild stored next-run timestamps after timezone-sensitive config changes.
    */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
@@ -2795,14 +2801,14 @@ export class ScheduleManager {
   }
 
   /**
-   * Get tasks by scope
+   * Return tasks whose scope matches the requested scope.
    */
   getTasksByScope(scope: TaskScope): ScheduledTask[] {
     return this.getAllTasks().filter((task) => task.scope === scope);
   }
 
   /**
-   * Update a task
+   * Mutate a task in place and persist the refreshed schedule fields.
    */
   async updateTask(
     id: string,
@@ -2831,7 +2837,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Delete a task
+   * Remove a task and flush the corresponding scheduler state.
    */
   async deleteTask(id: string): Promise<boolean> {
     this.unlinkTaskFromOwningJob(id);
@@ -2839,7 +2845,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Toggle task enabled/disabled
+   * Flip the enabled state for a single task.
    */
   async toggleTask(id: string): Promise<ScheduledTask | undefined> {
     const task = this.tasks.get(id);
@@ -2848,7 +2854,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Set task enabled state explicitly
+   * Persist an explicit enabled value for a task.
    */
   async setTaskEnabled(
     id: string,
@@ -2860,7 +2866,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Duplicate a task
+   * Clone a task using the localized copy suffix.
    */
   async duplicateTask(id: string): Promise<ScheduledTask | undefined> {
     const original = this.tasks.get(id);
@@ -2869,7 +2875,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Move a workspace-scoped task to the current workspace (updates workspacePath).
+   * Point a workspace task at whichever workspace is currently active.
    */
   async moveTaskToCurrentWorkspace(
     id: string,
@@ -2887,7 +2893,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Check if task should run in current workspace
+   * Decide whether a task belongs to the active workspace set.
    */
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
     if (task.scope === "global") {
@@ -2910,7 +2916,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Start the scheduler
+   * Restart the aligned timer loop with a fresh execute callback.
    */
   startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
     this.setOnExecuteCallback(onExecute);
@@ -2935,7 +2941,7 @@ export class ScheduleManager {
   }
 
   /**
-   * Stop the scheduler
+   * Cancel all active timer handles owned by the scheduler loop.
    */
   stopScheduler(): void {
     this.schedulerTimeout = clearScheduledHandle(
