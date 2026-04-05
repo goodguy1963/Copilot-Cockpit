@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import * as os from "os";
 import * as path from "path";
+import * as os from "os";
 import {
   ensurePrivateConfigIgnoredForWorkspaceRoot,
   ensurePrivateConfigIgnoredForWorkspaceRoots,
@@ -13,12 +13,11 @@ function createWorkspaceRoot(): string {
 
 function removeWorkspaceRoot(root: string): void {
   try {
-    const cleanupOptions = {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 50,
-    } satisfies fs.RmOptions;
+    const cleanupOptions: fs.RmOptions = {};
+    cleanupOptions.recursive = true;
+    cleanupOptions.force = true;
+    cleanupOptions.maxRetries = 3;
+    cleanupOptions.retryDelay = 50;
     fs.rmSync(root, cleanupOptions);
   } catch {
     // Best effort cleanup for temp fixtures.
