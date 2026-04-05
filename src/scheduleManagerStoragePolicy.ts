@@ -62,19 +62,11 @@ export function selectScheduleManagerTaskStore(options: {
     (typeof fileMeta.revision === "number" && fileMeta.revision > 0);
 
   const selection = selectTaskStore<ScheduledTask>(
-    {
-      kind: "globalState",
-      exists: globalStoreExists,
-      ok: true,
-      tasks: options.savedTasks,
-      revision: globalMeta.revision,
-    },
-    {
-      kind: "file",
+    { kind: "globalState", exists: globalStoreExists, ok: true, tasks: options.savedTasks, revision: globalMeta.revision },
+    { kind: "file",
       exists: fileStoreExists,
       ok: options.fileLoad.ok,
-      tasks: options.fileLoad.tasks,
-      revision: fileMeta.revision,
+      tasks: options.fileLoad.tasks, revision: fileMeta.revision,
     },
   );
 
@@ -102,10 +94,7 @@ export async function persistScheduleManagerTaskStore(options: {
   const nextRevision = options.bumpRevision
     ? options.currentRevision + 1
     : options.currentRevision;
-  const meta: TaskStorageMeta = {
-    revision: nextRevision,
-    savedAt: new Date().toISOString(),
-  };
+  const meta: TaskStorageMeta = { revision: nextRevision, savedAt: new Date().toISOString() };
 
   try {
     await options.saveTasksToFile(options.tasksArray);
@@ -140,9 +129,9 @@ export async function persistScheduleManagerTaskStore(options: {
         meta,
       );
     } catch (globalStateError) {
-      throw globalStateError instanceof Error
-        ? globalStateError
-        : new Error(String(globalStateError ?? ""));
+      const normalizedGlobalStateError =
+        globalStateError instanceof Error ? globalStateError : new Error(String(globalStateError ?? ""));
+      throw normalizedGlobalStateError;
     }
 
     void Promise.all([
