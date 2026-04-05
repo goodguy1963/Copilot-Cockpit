@@ -40,6 +40,12 @@ import {
   installGlobalErrorHandlers,
   readInitialWebviewBootstrap,
 } from "./schedulerWebviewBootstrap.js";
+import { createInitialSchedulerWebviewState } from "./schedulerWebviewInitialState.js";
+import {
+  createBoardRenderState,
+  finishBoardDrag,
+  requestBoardRender,
+} from "./schedulerWebviewBoardState.js";
 
 (function () {
   var vscode = null;
@@ -248,64 +254,68 @@ import {
     };
   }
 
-  var storageSettings = normalizeStorageSettings(initialData.storageSettings);
-  var researchProfiles = Array.isArray(initialData.researchProfiles)
-    ? initialData.researchProfiles
-    : [];
-  var activeResearchRun = initialData.activeResearchRun || null;
-  var recentResearchRuns = Array.isArray(initialData.recentResearchRuns)
-    ? initialData.recentResearchRuns
-    : [];
-  var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
-  var models = Array.isArray(initialData.models) ? initialData.models : [];
-  var promptTemplates = Array.isArray(initialData.promptTemplates)
-    ? initialData.promptTemplates
-    : [];
-  var skills = Array.isArray(initialData.skills) ? initialData.skills : [];
-  var scheduleHistory = Array.isArray(initialData.scheduleHistory)
-    ? initialData.scheduleHistory
-    : [];
-  var defaultChatSession =
-    initialData.defaultChatSession === "continue" ? "continue" : "new";
-  var autoShowOnStartup = !!initialData.autoShowOnStartup;
-  var workspacePaths = Array.isArray(initialData.workspacePaths)
-    ? initialData.workspacePaths
-    : [];
-  var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
+  var initialState = createInitialSchedulerWebviewState(
+    initialData,
+    normalizeStorageSettings,
+  );
+  var storageSettings = initialState.storageSettings;
+  var researchProfiles = initialState.researchProfiles;
+  var activeResearchRun = initialState.activeResearchRun;
+  var recentResearchRuns = initialState.recentResearchRuns;
+  var agents = initialState.agents;
+  var models = initialState.models;
+  var promptTemplates = initialState.promptTemplates;
+  var skills = initialState.skills;
+  var scheduleHistory = initialState.scheduleHistory;
+  var defaultChatSession = initialState.defaultChatSession;
+  var autoShowOnStartup = initialState.autoShowOnStartup;
+  var workspacePaths = initialState.workspacePaths;
+  var caseInsensitivePaths = initialState.caseInsensitivePaths;
   var editingTaskId = null;
   var selectedTodoId = null;
   var EDITOR_CREATE_SYMBOL = "+";
   var EDITOR_EDIT_SYMBOL = "⚙";
+  var boardRenderState = createBoardRenderState();
   var draggingTodoId = null;
   var isBoardDragging = false;
   var pendingBoardRender = false;
   var scheduledBoardRenderFrame = 0;
   function requestCockpitBoardRender() {
-    if (isBoardDragging) {
-      pendingBoardRender = true;
-      return;
-    }
-    if (scheduledBoardRenderFrame) {
-      return;
-    }
-    scheduledBoardRenderFrame = requestAnimationFrame(function () {
-      scheduledBoardRenderFrame = 0;
-      if (isBoardDragging) {
-        pendingBoardRender = true;
-        return;
-      }
+    boardRenderState.draggingTodoId = draggingTodoId;
+    boardRenderState.isBoardDragging = isBoardDragging;
+    boardRenderState.pendingBoardRender = pendingBoardRender;
+    boardRenderState.scheduledBoardRenderFrame = scheduledBoardRenderFrame;
+    requestBoardRender(boardRenderState, requestAnimationFrame, function () {
       renderCockpitBoard();
     });
+    draggingTodoId = boardRenderState.draggingTodoId;
+    isBoardDragging = boardRenderState.isBoardDragging;
+    pendingBoardRender = boardRenderState.pendingBoardRender;
+    scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
   }
   function finishBoardDragState() {
-    draggingTodoId = null;
-    draggingSectionId = null;
-    lastDragOverSectionId = null;
-    isBoardDragging = false;
-    if (pendingBoardRender) {
-      pendingBoardRender = false;
-      requestCockpitBoardRender();
-    }
+    boardRenderState.draggingTodoId = draggingTodoId;
+    boardRenderState.isBoardDragging = isBoardDragging;
+    boardRenderState.pendingBoardRender = pendingBoardRender;
+    boardRenderState.scheduledBoardRenderFrame = scheduledBoardRenderFrame;
+    finishBoardDrag(
+      boardRenderState,
+      function () {
+        draggingSectionId = null;
+        lastDragOverSectionId = null;
+      },
+      function () {
+        draggingTodoId = boardRenderState.draggingTodoId;
+        isBoardDragging = boardRenderState.isBoardDragging;
+        pendingBoardRender = boardRenderState.pendingBoardRender;
+        scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
+        requestCockpitBoardRender();
+      },
+    );
+    draggingTodoId = boardRenderState.draggingTodoId;
+    isBoardDragging = boardRenderState.isBoardDragging;
+    pendingBoardRender = boardRenderState.pendingBoardRender;
+    scheduledBoardRenderFrame = boardRenderState.scheduledBoardRenderFrame;
   }
   var currentTodoLabels = [];
   var currentTodoDraft = createEmptyTodoDraft();

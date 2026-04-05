@@ -1592,6 +1592,29 @@
     };
   }
 
+  // media/schedulerWebviewInitialState.js
+  function readArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+  function createInitialSchedulerWebviewState(initialData, normalizeStorageSettings) {
+    var data = initialData || {};
+    return {
+      storageSettings: normalizeStorageSettings(data.storageSettings),
+      researchProfiles: readArray(data.researchProfiles),
+      activeResearchRun: data.activeResearchRun || null,
+      recentResearchRuns: readArray(data.recentResearchRuns),
+      agents: readArray(data.agents),
+      models: readArray(data.models),
+      promptTemplates: readArray(data.promptTemplates),
+      skills: readArray(data.skills),
+      scheduleHistory: readArray(data.scheduleHistory),
+      defaultChatSession: data.defaultChatSession === "continue" ? "continue" : "new",
+      autoShowOnStartup: !!data.autoShowOnStartup,
+      workspacePaths: readArray(data.workspacePaths),
+      caseInsensitivePaths: !!data.caseInsensitivePaths
+    };
+  }
+
   // media/schedulerWebview.js
   (function() {
     var vscode = null;
@@ -1767,19 +1790,23 @@
         lastBundledSkillsSyncAt: value && typeof value.lastBundledSkillsSyncAt === "string" ? value.lastBundledSkillsSyncAt : previousValue && previousValue.lastBundledSkillsSyncAt || ""
       };
     }
-    var storageSettings = normalizeStorageSettings(initialData.storageSettings);
-    var researchProfiles = Array.isArray(initialData.researchProfiles) ? initialData.researchProfiles : [];
-    var activeResearchRun = initialData.activeResearchRun || null;
-    var recentResearchRuns = Array.isArray(initialData.recentResearchRuns) ? initialData.recentResearchRuns : [];
-    var agents = Array.isArray(initialData.agents) ? initialData.agents : [];
-    var models = Array.isArray(initialData.models) ? initialData.models : [];
-    var promptTemplates = Array.isArray(initialData.promptTemplates) ? initialData.promptTemplates : [];
-    var skills = Array.isArray(initialData.skills) ? initialData.skills : [];
-    var scheduleHistory = Array.isArray(initialData.scheduleHistory) ? initialData.scheduleHistory : [];
-    var defaultChatSession = initialData.defaultChatSession === "continue" ? "continue" : "new";
-    var autoShowOnStartup = !!initialData.autoShowOnStartup;
-    var workspacePaths = Array.isArray(initialData.workspacePaths) ? initialData.workspacePaths : [];
-    var caseInsensitivePaths = !!initialData.caseInsensitivePaths;
+    var initialState = createInitialSchedulerWebviewState(
+      initialData,
+      normalizeStorageSettings
+    );
+    var storageSettings = initialState.storageSettings;
+    var researchProfiles = initialState.researchProfiles;
+    var activeResearchRun = initialState.activeResearchRun;
+    var recentResearchRuns = initialState.recentResearchRuns;
+    var agents = initialState.agents;
+    var models = initialState.models;
+    var promptTemplates = initialState.promptTemplates;
+    var skills = initialState.skills;
+    var scheduleHistory = initialState.scheduleHistory;
+    var defaultChatSession = initialState.defaultChatSession;
+    var autoShowOnStartup = initialState.autoShowOnStartup;
+    var workspacePaths = initialState.workspacePaths;
+    var caseInsensitivePaths = initialState.caseInsensitivePaths;
     var editingTaskId = null;
     var selectedTodoId = null;
     var EDITOR_CREATE_SYMBOL = "+";
