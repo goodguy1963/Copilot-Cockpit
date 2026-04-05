@@ -1,6 +1,6 @@
-import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
+import * as vscode from "vscode";
 import type {
   ScheduledTask,
   CreateTaskInput,
@@ -117,10 +117,10 @@ type TaskExecutionOutcome = {
 };
 
 interface CompiledJobPrompt {
-  labels: string[];
   prompt: string;
-  agent?: string;
+  labels: string[];
   model?: string;
+  agent?: string;
 }
 
 function clearScheduledHandle<T>(
@@ -182,8 +182,8 @@ export class ScheduleManager {
   private pendingDeletedTaskIds: Set<string> = new Set();
   private pendingDeletedJobIds: Set<string> = new Set();
   private pendingDeletedJobFolderIds: Set<string> = new Set();
-  private context: vscode.ExtensionContext;
   private storageFilePath: string;
+  private context: vscode.ExtensionContext;
   private storageMetaFilePath: string;
   private schedulerInterval?: ReturnType<typeof setInterval>;
   private schedulerTimeout?: ReturnType<typeof setTimeout>;
@@ -193,9 +193,8 @@ export class ScheduleManager {
   private onExecuteCallback?: (task: ScheduledTask) => Promise<void>;
   private dailyExecCount = 0;
   private dailyExecDate = "";
-  private dailyLimitNotifiedDate = "";
-
   private storageRevision = 0;
+  private dailyLimitNotifiedDate = "";
 
   private saveQueue: Promise<void> = Promise.resolve();
   private sqliteHydrationPromise: Promise<void> | undefined;
@@ -246,8 +245,9 @@ export class ScheduleManager {
   private async saveTasksToGlobalState(
     tasksArray: ScheduledTask[],
   ): Promise<void> {
+    const globalState = this.context.globalState;
     await updateMementoWithTimeout(
-      this.context.globalState,
+      globalState,
       TASK_STORAGE.stateKey,
       tasksArray,
       10000,
@@ -290,12 +290,13 @@ export class ScheduleManager {
   }
 
   /**
-   * Apply a batch of prompt replacements and persist at most once.
+   * Replace prompts for a batch of tasks and persist once when anything changed.
    */
   async updateTaskPrompts(
     updates: Array<{ id: string; prompt: string }>,
   ): Promise<number> {
-    if (!Array.isArray(updates) || updates.length === 0) {
+    const updateCount = Array.isArray(updates) ? updates.length : 0;
+    if (updateCount === 0) {
       return 0;
     }
     const changedCount = applyTaskPromptUpdates(this.tasks, updates, new Date());
@@ -1282,25 +1283,26 @@ export class ScheduleManager {
       labels: normalizeScheduledTaskLabels(input.labels),
     };
 
-    return {
-      id,
-      name: input.name,
-      cronExpression: input.cronExpression,
+    const createdTask: ScheduledTask = {
       prompt: input.prompt,
       agent: input.agent,
-      model: input.model,
+      createdAt: now,
+      cronExpression: input.cronExpression,
       enabled,
-      scope: effectiveScope,
+      id,
       oneTime,
       jitterSeconds,
-      workspacePath,
-      promptSource: input.promptSource || "inline",
-      promptPath: input.promptPath,
+      model: input.model,
+      name: input.name,
       nextRun,
-      createdAt: now,
+      promptPath: input.promptPath,
+      promptSource: input.promptSource || "inline",
+      scope: effectiveScope,
       updatedAt: now,
+      workspacePath,
       ...sessionState,
     };
+    return createdTask;
   }
 
   private unlinkTaskFromOwningJob(taskId: string): void {
@@ -1539,13 +1541,19 @@ export class ScheduleManager {
     }
 
     try {
-      await this.persistDailyExecCount();
+      const persistDailyCount = this.persistDailyExecCount.bind(this);
+      await persistDailyCount();
     } catch (error) {
+      const failureDetails = toSafeSchedulerErrorDetails(error);
       logError(
         "[CopilotScheduler] Failed to persist daily execution count:",
-        toSafeSchedulerErrorDetails(error),
+        failureDetails,
       );
     }
+  }
+
+  private findStoredTask(id: string): ScheduledTask | undefined {
+    return this.tasks.get(id);
   }
 
   private generateScopedId(prefix: string): string {
@@ -2780,37 +2788,30 @@ export class ScheduleManager {
     return true;
   }
 
-  /**
-   * Rebuild stored next-run timestamps after timezone-sensitive config changes.
-   */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
     let didChange = false;
-    for (const task of this.getEnabledTaskArray()) {
+    const enabledTasks = this.getEnabledTaskArray();
+    for (const task of enabledTasks) {
       const nextRun = this.getScheduledTaskNextRun(task, now);
       didChange = this.replaceTaskNextRun(task, nextRun) || didChange;
     }
-    if (didChange) {
-      await this.saveTasks();
+    if (!didChange) {
+      return;
     }
+    await this.saveTasks();
   }
 
-  /**
-   * Return tasks whose scope matches the requested scope.
-   */
   getTasksByScope(scope: TaskScope): ScheduledTask[] {
-    return this.getAllTasks().filter(({ scope: taskScope }) => taskScope === scope);
+    return this.getAllTasks().filter((task) => task.scope === scope);
   }
 
-  /**
-   * Mutate a task in place and persist the refreshed schedule fields.
-   */
   async updateTask(
     id: string,
     updates: Partial<CreateTaskInput>,
   ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
+    const task = this.findStoredTask(id);
+    if (task === undefined) return undefined;
     this.assertTaskUpdateInput(task, updates);
 
     const now = new Date();
@@ -2831,52 +2832,37 @@ export class ScheduleManager {
     return task;
   }
 
-  /**
-   * Remove a task and flush the corresponding scheduler state.
-   */
   async deleteTask(id: string): Promise<boolean> {
     this.unlinkTaskFromOwningJob(id);
     return this.deleteTaskAndPersist(id);
   }
 
-  /**
-   * Flip the enabled state for a single task.
-   */
   async toggleTask(id: string): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
+    const task = this.findStoredTask(id);
+    if (task === undefined) return undefined;
     return this.persistEnabledTaskChange(task, !task.enabled);
   }
 
-  /**
-   * Persist an explicit enabled value for a task.
-   */
   async setTaskEnabled(
     id: string,
     enabled: boolean,
   ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
+    const task = this.findStoredTask(id);
+    if (task === undefined) return undefined;
     return this.persistEnabledTaskChange(task, enabled);
   }
 
-  /**
-   * Clone a task using the localized copy suffix.
-   */
   async duplicateTask(id: string): Promise<ScheduledTask | undefined> {
-    const original = this.tasks.get(id);
-    if (!original) return undefined;
+    const original = this.findStoredTask(id);
+    if (original === undefined) return undefined;
     return this.createTask(createDuplicateTaskInput(original, messages.taskCopySuffix()));
   }
 
-  /**
-   * Point a workspace task at whichever workspace is currently active.
-   */
   async moveTaskToCurrentWorkspace(
     id: string,
   ): Promise<ScheduledTask | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
+    const task = this.findStoredTask(id);
+    if (task === undefined) return undefined;
 
     if (task.scope !== "workspace") {
       throw new Error(messages.moveOnlyWorkspaceTasks());
@@ -2888,9 +2874,6 @@ export class ScheduleManager {
     return task;
   }
 
-  /**
-   * Decide whether a task belongs to the active workspace set.
-   */
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
     if (task.scope !== "workspace") {
       return true;
@@ -2901,15 +2884,12 @@ export class ScheduleManager {
       return false;
     }
 
-    const openWorkspaceKeys = this.getResolvedWorkspaceRoots().map((workspacePath) =>
-      normalizeForCompare(workspacePath),
-    );
+    const openWorkspaceKeys = this.getResolvedWorkspaceRoots().map((workspacePath) => {
+      return normalizeForCompare(workspacePath);
+    });
     return openWorkspaceKeys.includes(taskWorkspaceKey);
   }
 
-  /**
-   * Restart the aligned timer loop with a fresh execute callback.
-   */
   startScheduler(onExecute: (task: ScheduledTask) => Promise<void>): void {
     this.setOnExecuteCallback(onExecute);
     this.stopScheduler();
@@ -2932,9 +2912,6 @@ export class ScheduleManager {
     }
   }
 
-  /**
-   * Cancel all active timer handles owned by the scheduler loop.
-   */
   stopScheduler(): void {
     this.schedulerTimeout = clearScheduledHandle(
       this.schedulerTimeout,
