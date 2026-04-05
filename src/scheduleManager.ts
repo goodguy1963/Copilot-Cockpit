@@ -1,11 +1,6 @@
-/**
- * Copilot Cockpit - Schedule Manager
- * Handles task CRUD operations, cron scheduling, and persistence
- */
-
 import * as vscode from "vscode";
-import * as fs from "fs";
 import * as path from "path";
+import * as fs from "fs";
 import type {
   ScheduledTask,
   CreateTaskInput,
@@ -178,9 +173,7 @@ export class ScheduleManager {
   private storageFilePath: string;
   private storageMetaFilePath: string;
   private onTasksChangedCallback: (() => void) | undefined;
-  private onExecuteCallback:
-    | ((task: ScheduledTask) => Promise<void>)
-    | undefined;
+  private onExecuteCallback: ((task: ScheduledTask) => Promise<void>) | undefined;
   private dailyExecCount = 0;
   private dailyExecDate = "";
   private dailyLimitNotifiedDate = "";
@@ -290,36 +283,22 @@ export class ScheduleManager {
   async updateTaskPrompts(
     updates: Array<{ id: string; prompt: string }>,
   ): Promise<number> {
-    if (!Array.isArray(updates) || updates.length === 0) {
-      return 0;
-    }
-
-    const changed = applyTaskPromptUpdates(this.tasks, updates, new Date());
-
-    if (changed > 0) {
-      await this.saveTasks();
-    }
-
-    return changed;
+    if (!Array.isArray(updates) || updates.length === 0) return 0;
+    const changedCount = applyTaskPromptUpdates(this.tasks, updates, new Date());
+    if (changedCount < 1) return 0;
+    await this.saveTasks();
+    return changedCount;
   }
 
   async ensureRecurringPromptBackups(): Promise<number> {
-    const changed = await this.syncRecurringPromptBackupsInPlace();
-
-    if (changed.metadataChanged > 0) {
-      await this.saveTasks({ bumpRevision: false });
-    }
-
-    return changed.metadataChanged;
+    const { metadataChanged } = await this.syncRecurringPromptBackupsInPlace();
+    if (metadataChanged < 1) return 0;
+    await this.saveTasks({ bumpRevision: false });
+    return metadataChanged;
   }
 
-  private async syncRecurringPromptBackupsInPlace(): Promise<{
-    metadataChanged: number;
-  }> {
-    return syncRecurringPromptBackupsForTasks(
-      this.tasks.values(),
-      () => this.getPrimaryWorkspaceRoot(),
-    );
+  private async syncRecurringPromptBackupsInPlace(): Promise<{ metadataChanged: number }> {
+    return syncRecurringPromptBackupsForTasks(this.tasks.values(), () => this.getPrimaryWorkspaceRoot());
   }
 
   /**
@@ -327,14 +306,11 @@ export class ScheduleManager {
    * @param maxDailyLimit - Pre-computed limit (0 = unlimited). Pass from caller to avoid redundant config reads.
    */
   private isDailyLimitReached(maxDailyLimit: number): boolean {
-    // 0 = unlimited (no daily limit, use at your own risk)
-    if (maxDailyLimit === 0) {
-      return false;
-    }
-    const today = getSchedulerLocalDateKey();
-    if (this.dailyExecDate !== today) {
+    if (maxDailyLimit === 0) return false;
+    const todayKey = getSchedulerLocalDateKey();
+    if (this.dailyExecDate !== todayKey) {
       this.dailyExecCount = 0;
-      this.dailyExecDate = today;
+      this.dailyExecDate = todayKey;
     }
     return this.dailyExecCount >= maxDailyLimit;
   }
@@ -442,14 +418,8 @@ export class ScheduleManager {
       const changed = task.enabled || task.nextRun !== undefined;
       task.enabled = false;
       task.nextRun = undefined;
-      logError(
-        "[CopilotScheduler] Invalid cron expression found in stored task; disabling:",
-        {
-          taskId: task.id,
-          taskName: task.name,
-          cronExpression: task.cronExpression,
-        },
-      );
+      const logContext = { taskId: task.id, taskName: task.name, cronExpression: task.cronExpression };
+      logError("[CopilotScheduler] Invalid cron expression found in stored task; disabling:", logContext);
       return changed;
     }
   }
@@ -476,9 +446,7 @@ export class ScheduleManager {
   }
 
   private armSchedulerInterval(): void {
-    this.schedulerInterval = setInterval(() => {
-      void this.runSchedulerTick();
-    }, 60 * 1000);
+    this.schedulerInterval = setInterval(() => void this.runSchedulerTick(), 60 * 1000);
   }
 
   private syncEnabledTaskState(
@@ -491,11 +459,45 @@ export class ScheduleManager {
     );
   }
 
+  private markTaskModified(task: ScheduledTask): void {
+    task.updatedAt = new Date();
+    this.suppressedOverdueTaskIds.delete(task.id);
+  }
+
+  private scheduleBackgroundSave(
+    message: string,
+    options?: { bumpRevision?: boolean },
+    debugOnly = false,
+  ): void {
+    void this.saveTasks(options).catch((error) => {
+      const details = toSafeSchedulerErrorDetails(error);
+      if (debugOnly) {
+        logDebug(message, details);
+        return;
+      }
+      logError(message, details);
+    });
+  }
+
+  private async persistEnabledTaskChange(
+    task: ScheduledTask,
+    enabled: boolean,
+  ): Promise<ScheduledTask> {
+    task.enabled = enabled;
+    this.markTaskModified(task);
+    this.syncEnabledTaskState(task, enabled);
+    await this.saveTasks();
+    return task;
+  }
+
   private async flushSchedulerTicks(): Promise<void> {
-    do {
+    while (true) {
       this.schedulerTickPending = false;
       await this.checkAndExecuteTasks();
-    } while (this.schedulerTickPending);
+      if (!this.schedulerTickPending) {
+        return;
+      }
+    }
   }
 
   // ==================== Safety: Minimum Interval Warning ====================
@@ -517,12 +519,7 @@ export class ScheduleManager {
   /**
    * Check if the user has accepted the disclaimer
    */
-  isDisclaimerAccepted(): boolean {
-    return this.context.globalState.get<boolean>(
-      DISCLAIMER_ACCEPTED_KEY,
-      false,
-    );
-  }
+  isDisclaimerAccepted(): boolean { return this.context.globalState.get<boolean>(DISCLAIMER_ACCEPTED_KEY, false); }
 
   /**
    * Set disclaimer accepted state
@@ -534,9 +531,7 @@ export class ScheduleManager {
   /**
    * Set callback for when tasks change
    */
-  setOnTasksChangedCallback(callback: () => void): void {
-    this.onTasksChangedCallback = callback;
-  }
+  setOnTasksChangedCallback(callback: () => void): void { this.onTasksChangedCallback = callback; }
 
   setOnExecuteCallback(callback: (task: ScheduledTask) => Promise<void>): void {
     this.onExecuteCallback = callback;
@@ -643,9 +638,7 @@ export class ScheduleManager {
       }
 
       // Migration: add missing fields for older tasks
-      if (!task.scope) {
-        task.scope = "global";
-      }
+      if (!task.scope) task.scope = "global";
       if (
         repairStoredTaskPromptSource(
           task,
@@ -680,20 +673,13 @@ export class ScheduleManager {
 
     // Save if any changes were made
     if (needsSave) {
-      void this.saveTasks().catch((error) =>
-        logError(
-          "[CopilotScheduler] Failed to save migrated tasks:",
-          toSafeSchedulerErrorDetails(error),
-        ),
-      );
+      this.scheduleBackgroundSave("[CopilotScheduler] Failed to save migrated tasks:");
     } else {
-      // Heal the other store if needed (best effort, do not bump revision)
       if (selection.shouldHealFile || selection.shouldHealGlobalState) {
-        void this.saveTasks({ bumpRevision: false }).catch((error) =>
-          logDebug(
-            "[CopilotScheduler] Failed to sync task stores:",
-            toSafeSchedulerErrorDetails(error),
-          ),
+        this.scheduleBackgroundSave(
+          "[CopilotScheduler] Failed to sync task stores:",
+          { bumpRevision: false },
+          true,
         );
       }
     }
@@ -1011,16 +997,14 @@ export class ScheduleManager {
    * Save tasks to globalState
    */
   private async saveTasks(options?: { bumpRevision?: boolean }): Promise<void> {
-    // Serialize saves to avoid last-write-wins races across concurrent callers.
-    const op = this.saveQueue.then(() => this.saveTasksInternal(options));
-    // Recover the chain so that a failed save does not block all subsequent saves.
-    this.saveQueue = op.catch((error) => {
+    const queuedSave = this.saveQueue.then(() => this.saveTasksInternal(options));
+    this.saveQueue = queuedSave.catch((error) => {
       logError(
         "[CopilotScheduler] Save failed (chain recovered):",
         toSafeSchedulerErrorDetails(error),
       );
     });
-    return op;
+    return queuedSave;
   }
 
   private async saveTasksAndSyncRecurringPromptBackups(options?: {
@@ -1170,11 +1154,7 @@ export class ScheduleManager {
   /**
    * Generate unique task ID
    */
-  private generateId(): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    return `task_${timestamp}_${random}`;
-  }
+  private generateId(): string { return this.generateScopedId("task"); }
 
   /**
    * Get timezone from configuration
@@ -1214,22 +1194,14 @@ export class ScheduleManager {
   }
 
   private getNextRunForTask(cronExpression: string, baseTime: Date): Date {
-    // Always use cron-parser to stay aligned with the cron grid.
-    // A previous "*/N" fixed-interval optimisation was removed because it
-    // drifted from the grid when jitter or execution time shifted baseTime
-    // away from a grid-aligned minute (e.g., */5 starting at :03 → :08
-    // instead of :05, compounding on every subsequent execution).
     const parsed = this.getNextRun(cronExpression, baseTime);
     if (parsed) {
       return parsed;
     }
 
-    // Fallback: if cron parsing fails unexpectedly, schedule 60 min in the
-    // future instead of "now" to prevent rapid-fire execution loops.
-    logError(
-      `[CopilotScheduler] Failed to parse cron "${cronExpression}"; falling back to +60 min`,
-    );
-    return this.truncateToMinute(new Date(baseTime.getTime() + 60 * 60 * 1000));
+    const fallbackRun = new Date(baseTime.getTime() + 60 * 60 * 1000);
+    logError(`[CopilotScheduler] Failed to parse cron "${cronExpression}"; falling back to +60 min`);
+    return this.truncateToMinute(fallbackRun);
   }
 
   /**
@@ -1243,6 +1215,24 @@ export class ScheduleManager {
       messages.invalidCronExpression(),
       this.getTimeZone(),
     );
+  }
+
+  private assertTaskUpdateInput(
+    task: ScheduledTask,
+    updates: Partial<CreateTaskInput>,
+  ): void {
+    if (updates.name !== undefined) {
+      const nextName = updates.name.trim();
+      if (!nextName) throw new Error(messages.taskNameRequired());
+    }
+
+    const nextPromptSource = updates.promptSource ?? task.promptSource ?? "inline";
+    const inlinePromptCleared =
+      updates.prompt !== undefined &&
+      nextPromptSource === "inline" &&
+      updates.prompt.trim().length === 0;
+    if (inlinePromptCleared) throw new Error(messages.promptRequired());
+    if (updates.cronExpression !== undefined) this.validateCronExpression(updates.cronExpression);
   }
 
   private generateScopedId(prefix: string): string {
@@ -1571,14 +1561,10 @@ export class ScheduleManager {
    * Create a new task
    */
   async createTask(input: CreateTaskInput): Promise<ScheduledTask> {
-    if (!input.name || !input.name.trim()) {
-      throw new Error(messages.taskNameRequired());
-    }
-    if (!input.prompt || !input.prompt.trim()) {
-      throw new Error(messages.promptRequired());
-    }
-
-    // Validate cron expression
+    const trimmedName = input.name?.trim();
+    const trimmedPrompt = input.prompt?.trim();
+    if (!trimmedName) throw new Error(messages.taskNameRequired());
+    if (!trimmedPrompt) throw new Error(messages.promptRequired());
     this.validateCronExpression(input.cronExpression);
 
     const now = new Date();
@@ -1596,6 +1582,14 @@ export class ScheduleManager {
     const enabled = input.enabled !== false;
     const effectiveScope = input.scope || defaultScope;
     const oneTime = input.oneTime ?? id.startsWith("exec-");
+    const workspacePath =
+      effectiveScope === "workspace"
+        ? this.getPrimaryWorkspaceRoot()
+        : undefined;
+    const jitterSeconds =
+      input.jitterSeconds !== undefined
+        ? clampScheduleJitterSeconds(input.jitterSeconds)
+        : defaultJitter;
     const nextRun = resolveCreatedTaskNextRun({
       enabled,
       runFirstInOneMinute: input.runFirstInOneMinute,
@@ -1616,16 +1610,10 @@ export class ScheduleManager {
       agent: input.agent,
       model: input.model,
       scope: effectiveScope,
-      workspacePath:
-        effectiveScope === "workspace"
-          ? this.getPrimaryWorkspaceRoot()
-          : undefined,
+      workspacePath,
       promptSource: input.promptSource || "inline",
       promptPath: input.promptPath,
-      jitterSeconds:
-        input.jitterSeconds !== undefined
-          ? clampScheduleJitterSeconds(input.jitterSeconds)
-          : defaultJitter,
+      jitterSeconds,
       oneTime,
       manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
       chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
@@ -2528,26 +2516,8 @@ export class ScheduleManager {
     updates: Partial<CreateTaskInput>,
   ): Promise<ScheduledTask | undefined> {
     const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    if (updates.name !== undefined && !updates.name.trim()) {
-      throw new Error(messages.taskNameRequired());
-    }
-    const nextPromptSource = updates.promptSource ?? task.promptSource ?? "inline";
-    if (
-      updates.prompt !== undefined &&
-      !updates.prompt.trim() &&
-      nextPromptSource === "inline"
-    ) {
-      throw new Error(messages.promptRequired());
-    }
-
-    // Validate cron expression if being updated (including empty string)
-    if (updates.cronExpression !== undefined) {
-      this.validateCronExpression(updates.cronExpression);
-    }
+    if (!task) return undefined;
+    this.assertTaskUpdateInput(task, updates);
 
     const now = new Date();
     const enabledBefore = task.enabled;
@@ -2604,18 +2574,8 @@ export class ScheduleManager {
    */
   async toggleTask(id: string): Promise<ScheduledTask | undefined> {
     const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    task.enabled = !task.enabled;
-    task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
-    this.syncEnabledTaskState(task, task.enabled);
-
-    await this.saveTasks();
-
-    return task;
+    if (!task) return undefined;
+    return this.persistEnabledTaskChange(task, !task.enabled);
   }
 
   /**
@@ -2626,18 +2586,8 @@ export class ScheduleManager {
     enabled: boolean,
   ): Promise<ScheduledTask | undefined> {
     const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
-
-    task.enabled = enabled;
-    task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
-    this.syncEnabledTaskState(task, enabled);
-
-    await this.saveTasks();
-
-    return task;
+    if (!task) return undefined;
+    return this.persistEnabledTaskChange(task, enabled);
   }
 
   /**
@@ -2645,13 +2595,8 @@ export class ScheduleManager {
    */
   async duplicateTask(id: string): Promise<ScheduledTask | undefined> {
     const original = this.tasks.get(id);
-    if (!original) {
-      return undefined;
-    }
-
-    return this.createTask(
-      createDuplicateTaskInput(original, messages.taskCopySuffix()),
-    );
+    if (!original) return undefined;
+    return this.createTask(createDuplicateTaskInput(original, messages.taskCopySuffix()));
   }
 
   /**
@@ -2661,9 +2606,7 @@ export class ScheduleManager {
     id: string,
   ): Promise<ScheduledTask | undefined> {
     const task = this.tasks.get(id);
-    if (!task) {
-      return undefined;
-    }
+    if (!task) return undefined;
 
     if (task.scope !== "workspace") {
       throw new Error(messages.moveOnlyWorkspaceTasks());
@@ -2675,8 +2618,7 @@ export class ScheduleManager {
     }
 
     task.workspacePath = workspaceRoot;
-    task.updatedAt = new Date();
-  this.suppressedOverdueTaskIds.delete(id);
+    this.markTaskModified(task);
     await this.saveTasksAndSyncRecurringPromptBackups();
     return task;
   }
