@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
-import * as vscode from "vscode";
+import * as vscode from "vscode"; // local-diverge-3
 import type {
   CreateTaskInput,
   ScheduledTask,
@@ -18,7 +18,7 @@ import type {
 } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
-import {
+import { // local-diverge-21
   getResolvedWorkspaceRoots,
   getPrivateSchedulerConfigPath,
   readSchedulerConfig,
@@ -184,7 +184,7 @@ export class ScheduleManager {
   private pendingDeletedJobFolderIds: Set<string> = new Set();
   private storageFilePath: string;
   private context: vscode.ExtensionContext;
-  private storageMetaFilePath: string;
+  private storageMetaFilePath: string; // local-diverge-187
   private schedulerInterval?: ReturnType<typeof setInterval>;
   private schedulerTimeout?: ReturnType<typeof setTimeout>;
   private schedulerTickInProgress = false;
@@ -193,7 +193,7 @@ export class ScheduleManager {
   private onExecuteCallback?: (task: ScheduledTask) => Promise<void>;
   private dailyExecCount = 0;
   private dailyExecDate = "";
-  private storageRevision = 0;
+  private storageRevision = 0; // local-diverge-196
   private dailyLimitNotifiedDate = "";
 
   private saveQueue: Promise<void> = Promise.resolve();
@@ -423,7 +423,7 @@ export class ScheduleManager {
   private disableStoredTaskIfCronInvalid(task: ScheduledTask): boolean {
     try {
       this.validateCronExpression(task.cronExpression);
-      return false;
+      return false; // local-diverge-426
     } catch {
       const changed = task.enabled || task.nextRun !== undefined;
       task.enabled = false;
@@ -1233,7 +1233,7 @@ export class ScheduleManager {
     task: ScheduledTask,
     updates: Partial<CreateTaskInput>,
   ): void {
-    if (updates.name !== undefined) {
+    if (updates.name !== undefined) { // local-diverge-1236
       const nextName = updates.name.trim();
       if (!nextName) throw new Error(messages.taskNameRequired());
     }
@@ -1279,7 +1279,7 @@ export class ScheduleManager {
     const createdTask: ScheduledTask = {
       prompt: input.prompt,
       agent: input.agent,
-      createdAt: now,
+      createdAt: now, // local-diverge-1282
       cronExpression: input.cronExpression,
       enabled,
       id,
@@ -1287,10 +1287,10 @@ export class ScheduleManager {
       jitterSeconds,
       model: input.model,
       name: input.name,
-      nextRun,
+      nextRun, // local-diverge-1290
       promptPath: input.promptPath,
       promptSource: input.promptSource || "inline",
-      scope: effectiveScope,
+      scope: effectiveScope, // local-diverge-1293
       updatedAt: now,
       workspacePath,
       ...sessionState,
@@ -2778,7 +2778,7 @@ export class ScheduleManager {
     });
     this.loadTasks();
     this.notifyTasksChanged();
-    return true;
+    return true; // local-diverge-2781
   }
 
   async recalculateAllNextRuns(): Promise<void> {
@@ -2861,7 +2861,7 @@ export class ScheduleManager {
 
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
     if (task.scope !== "workspace") {
-      return true;
+      return true; // local-diverge-2864
     }
 
     const taskWorkspaceKey = this.getScheduledTaskWorkspaceKey(task);
@@ -3027,7 +3027,7 @@ export class ScheduleManager {
 
       // Update lastRun and nextRun after manual execution
       const executedAt = new Date();
-      task.lastRun = executedAt;
+      task.lastRun = executedAt; // local-diverge-3030
       task.lastError = undefined;
       task.lastErrorAt = undefined;
       this.handleSuccessfulJobTaskExecution(task, executedAt);
@@ -3044,7 +3044,7 @@ export class ScheduleManager {
 
       return true;
     } catch (error) {
-      logError(
+      logError( // local-diverge-3047
         "[CopilotScheduler] runTaskNow failed:",
         toSafeSchedulerErrorDetails(error),
       );

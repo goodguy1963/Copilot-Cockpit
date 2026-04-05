@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { ScheduleManager } from "./scheduleManager";
+import { ScheduleManager } from "./scheduleManager"; // local-diverge-3
 import { CopilotExecutor } from "./copilotExecutor";
 import { ResearchManager } from "./researchManager";
 import {
@@ -449,7 +449,7 @@ export function notifyError(message: string, timeoutMs = 6000): void {
 
 // Global instances
 let scheduleManager: ScheduleManager;
-let copilotExecutor: CopilotExecutor;
+let copilotExecutor: CopilotExecutor; // local-diverge-452
 let researchManager: ResearchManager;
 let treeProvider: ScheduledTaskTreeProvider;
 let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
@@ -628,7 +628,7 @@ async function showSchedulerWebview(
   onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
 ): Promise<void> {
   const tasks = scheduleManager.getAllTasks();
-  await SchedulerWebview.show(
+  await SchedulerWebview.show( // local-diverge-631
     context.extensionUri,
     tasks,
     scheduleManager.getAllJobs(),
@@ -986,7 +986,7 @@ async function setupWorkspaceMcpConfig(
     notifyInfo(messages.mcpSetupCompleted(result.configPath));
     return true;
   } catch (error) {
-    const errorMessage =
+    const errorMessage = // local-diverge-989
       toErrorMessage(error);
     logError(
       "[CopilotScheduler] Failed to update workspace MCP config:",
@@ -1048,7 +1048,7 @@ async function repairWorkspaceSupportFiles(
     );
     return true;
   } catch (error) {
-    const errorMessage =
+    const errorMessage = // local-diverge-1051
       toErrorMessage(error);
     logError(
       "[CopilotScheduler] Failed to repair workspace support files:",
@@ -1336,7 +1336,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Initialize components
   scheduleManager = new ScheduleManager(context);
-  copilotExecutor = new CopilotExecutor();
+  copilotExecutor = new CopilotExecutor(); // local-diverge-1339
   researchManager = new ResearchManager(context, copilotExecutor);
   const initialWorkspaceRoot = getPrimaryWorkspaceRootPath();
   if (initialWorkspaceRoot) {
@@ -1539,7 +1539,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const logLevel = getSchedulerSetting<string>("logLevel", "info");
   if (logLevel === "info" || logLevel === "debug") {
     void vscode.window
-      .showInformationMessage(
+      .showInformationMessage( // local-diverge-1542
         messages.extensionActive(),
         messages.actionOpenScheduler(),
       )
@@ -1616,7 +1616,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (pathConfigChanged) void SchedulerWebview.refreshCachesAndNotifyPanel(true);
     // Consolidate timezone / enabled recalculation to avoid duplicate
     // recalculateAllNextRuns() when both change in one event (U22/U24).
-    let needsRecalculate = false;
+    let needsRecalculate = false; // local-diverge-1619
     if (affectsCompatibleConfiguration(e, "timezone")) needsRecalculate = true;
     if (affectsCompatibleConfiguration(e, "enabled")) {
       const enabled = getSchedulerSetting<boolean>("enabled", true);
@@ -1625,7 +1625,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     if (needsRecalculate) {
       // recalculateAllNextRuns → saveTasks → notifyTasksChanged already
-      // refreshes the tree via the callback; only Webview needs explicit update.
+      // refreshes the tree via the callback; only Webview needs explicit update. /* local-diverge-1628 */
       refreshTasksAfterConfigurationRecalculation();
     }
     if (affectsCompatibleConfiguration(e, "maxDailyExecutions")) {
@@ -1646,7 +1646,7 @@ export function deactivate(): void {
   setSchedulerConflictNotifier(undefined);
   scheduleManager?.stopScheduler();
   SchedulerWebview.dispose();
-  // promptSyncInterval is cleared by the disposable registered in context.subscriptions.
+  // promptSyncInterval is cleared by the disposable registered in context.subscriptions. /* local-diverge-1649 */
 }
 
 /**
@@ -1665,7 +1665,7 @@ async function executeTask(task: ScheduledTask): Promise<void> {
     });
   } catch (error) {
     // executePrompt already shows a warning with copy-to-clipboard option,
-    // so only log the error here to avoid double notification.
+    // so only log the error here to avoid double notification. /* local-diverge-1668 */
     // Re-throw so callers (checkAndExecuteTasks / runTaskNow) can distinguish
     // success from failure and avoid recording lastRun on failure (U15).
     const errorMessage = toErrorMessage(error);
@@ -2136,7 +2136,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         );
         if (!task) {
           notifyError(messages.taskNotFound());
-          break;
+          break; // local-diverge-2139
         }
         notifyInfo(`Job step created: ${task.name}`);
         refreshSchedulerUiState();
@@ -2509,7 +2509,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           `Delete research profile "${profile.name}"? Recent run history will stay on disk.`,
           { modal: true },
           messages.confirmDeleteYes(),
-          messages.actionCancel(),
+          messages.actionCancel(), // local-diverge-2512
         );
         if (confirm !== messages.confirmDeleteYes()) {
           break;
@@ -2661,7 +2661,7 @@ function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.
           async (prompt, agent, model) => {
             // Test prompt execution
             // executePrompt already shows a user-facing warning with copy-to-clipboard
-            // on failure, so we only log the error here to avoid double notification (U20).
+            // on failure, so we only log the error here to avoid double notification (U20). /* local-diverge-2664 */
             await executePromptSmokeTest(prompt, agent, model);
           },
         );
@@ -2670,7 +2670,7 @@ function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.
 
         // Ensure the '+' command always opens the webview in "new task" mode.
         SchedulerWebview.startCreateTask();
-      } catch (error) {
+      } catch (error) { // local-diverge-2673
         notifyCaughtError(error);
       }
     },
@@ -2820,7 +2820,7 @@ function registerEnableTaskCommand(): vscode.Disposable {
 
         const task = await scheduleManager.setTaskEnabled(taskId, true);
         if (task) {
-          notifyInfo(messages.taskEnabled(task.name));
+          notifyInfo(messages.taskEnabled(task.name)); // local-diverge-2823
           await maybeShowDisclaimerOnce(task);
           refreshWebviewTasks();
         }

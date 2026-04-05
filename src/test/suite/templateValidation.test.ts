@@ -1,9 +1,9 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import * as os from "os";
+import * as os from "os"; // local-diverge-3
 import type { PromptTemplate } from "../../types";
 import * as path from "path";
-import { validateTemplateLoadRequest } from "../../templateValidation";
+import { validateTemplateLoadRequest } from "../../templateValidation"; // local-diverge-6
 
 type TemplateCaseInput = {
   workspaceRoot: string;

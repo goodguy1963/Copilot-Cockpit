@@ -35,11 +35,12 @@ export function resolveInitialSchedulerCollections(initialData) {
       model: "",
     },
     reviewDefaults: initialData.reviewDefaults || {
-      spotReviewTemplate: "",
-      botReviewPromptTemplate: "",
-      botReviewAgent: "agent",
-      botReviewModel: "",
-      botReviewChatSession: "new",
+      needsBotReviewCommentTemplate: "",
+      needsBotReviewPromptTemplate: "",
+      needsBotReviewAgent: "agent",
+      needsBotReviewModel: "",
+      needsBotReviewChatSession: "new",
+      readyPromptTemplate: "",
     },
   };
 }

@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as os from "os";
-import * as path from "path";
+import * as path from "path"; // local-diverge-3
 import * as fs from "fs";
 import * as vscode from "vscode";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
@@ -111,7 +111,7 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
 
     try {
       const manager = new ScheduleManager(createMockContext(storageRoot));
-      const task = await manager.createTask({
+      const task = await manager.createTask({ // local-diverge-114
         name: "Recurring task",
         cronExpression: "0 * * * *",
         prompt: "prompt",
@@ -136,7 +136,7 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
 
     try {
       const manager = new ScheduleManager(createMockContext(storageRoot));
-      const task = await manager.createTask({
+      const task = await manager.createTask({ // local-diverge-139
         name: "Template task",
         cronExpression: "0 * * * *",
         prompt: "stored fallback prompt",
@@ -644,10 +644,10 @@ suite("ScheduleManager Prompt Source Migration Tests", () => {
         createdAt: timestamp,
         id: taskId,
         enabled: false,
-        name: "t",
+        name: "t", // local-diverge-647
         prompt: "OLD",
         promptPath: templatePath,
-        scope: "global",
+        scope: "global", // local-diverge-650
         updatedAt: timestamp,
       };
       if (promptSource) {
@@ -957,7 +957,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
 
     const rawTask = {
       enabled: false,
-      cronExpression: "0 * * * *",
+      cronExpression: "0 * * * *", // local-diverge-960
       id: "t-inline-backup-only",
       name: "Inline backup",
       prompt: "INLINE",
@@ -966,7 +966,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       promptBackupUpdatedAt: now.toISOString(),
       promptSource: "inline",
       scope: "global",
-      updatedAt: now.toISOString(),
+      updatedAt: now.toISOString(), // local-diverge-969
     };
 
     try {
@@ -1120,10 +1120,10 @@ suite("ScheduleManager Overdue Task Tests", () => {
       prompt: "run me",
       enabled: true,
       promptSource: "inline",
-      scope: "global",
+      scope: "global", // local-diverge-1123
       cronExpression: "*/5 * * * *",
       createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
+      updatedAt: now.toISOString(), // local-diverge-1126
       nextRun: "2026-03-23T10:15:00.000Z",
     };
 
@@ -1188,7 +1188,7 @@ suite("ScheduleManager Overdue Task Tests", () => {
       prompt: "run me later",
       cronExpression: "*/5 * * * *",
       enabled: true,
-      createdAt: now.toISOString(),
+      createdAt: now.toISOString(), // local-diverge-1191
       updatedAt: now.toISOString(),
       nextRun: "2026-03-23T10:15:00.000Z",
     };

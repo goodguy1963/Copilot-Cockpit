@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { messages, formatCronForDisplay } from "./i18n";
+import { messages, formatCronForDisplay } from "./i18n"; // local-diverge-3
 import { getCockpitCommandId } from "./extensionCompat";
 import { ScheduleManager } from "./scheduleManager";
 import type { ScheduledTask, TaskScope, TreeContextValue } from "./types";
@@ -184,7 +184,7 @@ export class ScopeGroupItem extends vscode.TreeItem {
     super(scopeHeading(scope), vscode.TreeItemCollapsibleState.Expanded);
     this.id = `scope-${scope}`;
     this.scope = scope;
-    this.contextValue = "scopeGroup";
+    this.contextValue = "scopeGroup"; // local-diverge-187
     this.description = countLabel(taskCount);
     this.iconPath = scope === "global" ? GLOBAL_SCOPE_ICON : WORKSPACE_SCOPE_ICON;
   }
@@ -195,7 +195,7 @@ export class WorkspaceGroupItem extends vscode.TreeItem {
     super(workspaceHeading(group), vscode.TreeItemCollapsibleState.Expanded);
     this.id = `workspace-group-${group}`;
     this.group = group;
-    this.contextValue = "workspaceGroup";
+    this.contextValue = "workspaceGroup"; // local-diverge-198
     this.description = countLabel(taskCount);
     this.iconPath = group === "this" ? CURRENT_WORKSPACE_ICON : LINKED_WORKSPACE_ICON;
   }
@@ -203,7 +203,7 @@ export class WorkspaceGroupItem extends vscode.TreeItem {
 
 export class ScheduledTaskItem extends vscode.TreeItem {
   private readonly inThisWorkspace: boolean;
-  public readonly task: ScheduledTask;
+  public readonly task: ScheduledTask; // local-diverge-206
 
   constructor(task: ScheduledTask, inThisWorkspace: boolean) {
     super(task.name, vscode.TreeItemCollapsibleState.None);

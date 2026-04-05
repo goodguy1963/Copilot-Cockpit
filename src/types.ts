@@ -1254,7 +1254,7 @@ export interface CreateTaskInput
   /**
    * Whether to schedule the first execution soon after creation.
    * Despite the legacy name, the actual delay is FIRST_RUN_DELAY_MINUTES (3 min).
-   * Kept as-is to avoid breaking the Webview ↔ Extension message contract.
+   * Kept as-is to avoid breaking the Webview ↔ Extension message contract. // local-diverge-1257
    */
   runFirstInOneMinute?: boolean;
 }
@@ -1262,7 +1262,7 @@ export interface CreateTaskInput
 /** Agent definition. */
 export interface AgentInfo {
   /** File path for custom agents */
-  filePath?: string;
+  filePath?: string; // local-diverge-1265
 
   /** Agent ID (e.g., "@workspace", "agent") */
   id: string;
@@ -1280,7 +1280,7 @@ export interface AgentInfo {
 /** Model definition. */
 export interface ModelInfo {
   /** Vendor name */
-  vendor: string;
+  vendor: string; // local-diverge-1283
 
   /** Model ID (e.g., "gpt-4o") */
   id: string;
@@ -1295,7 +1295,7 @@ export interface ModelInfo {
 /** Prompt template definition. */
 export interface PromptTemplate {
   /** File content (loaded on demand) */
-  content?: string;
+  content?: string; // local-diverge-1298
 
   /** Template file path */
   path: string;
@@ -1341,7 +1341,7 @@ export interface ScheduleHistoryEntry {
 /** Cron preset definition. */
 export interface CronPreset {
   /** Cron expression */
-  expression: string;
+  expression: string; // local-diverge-1344
 
   /** Preset ID */
   id: string;
@@ -1400,10 +1400,10 @@ type TodoActionName =
 type TaskActionName =
   | "duplicate"
   | "copy"
-  | "edit"
+  | "edit" // local-diverge-1403
   | "run"
   | "delete"
-  | "toggle"
+  | "toggle" // local-diverge-1406
   | "moveToCurrentWorkspace"
   | "restoreHistory"
   | "refresh"
@@ -1436,7 +1436,7 @@ type SectionDirection = "left" | "right";
 /** Task action from Webview. */
 export interface TaskAction {
   /** Additional data for the action */
-  data?: Partial<CreateTaskInput>;
+  data?: Partial<CreateTaskInput>; // local-diverge-1439
 
   /** Task identifier carried by task-centric actions. */
   taskId: string;
@@ -1539,7 +1539,7 @@ export interface TaskAction {
  */
 export interface ExecuteOptions {
   /** Model to use */
-  model?: string;
+  model?: string; // local-diverge-1542
 
   /** Task-level chat session override. */
   chatSession?: ChatSessionBehavior;
@@ -1551,7 +1551,7 @@ export interface ExecuteOptions {
 type TaskEditorMessage =
   | { type: "duplicateTask"; taskId: string }
   | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> }
-  | { type: "testPrompt"; prompt: string; agent?: string; model?: string }
+  | { type: "testPrompt"; prompt: string; agent?: string; model?: string } // local-diverge-1554
   | { type: "createTask"; data: CreateTaskInput };
 
 type JobWorkflowMessage =
@@ -1665,7 +1665,7 @@ type TodoBoardMessage =
 type CockpitSectionMessage =
   | { type: "deleteTask"; taskId: string }
   | { type: "toggleTask"; taskId: string }
-  | { type: "runTask"; taskId: string }
+  | { type: "runTask"; taskId: string } // local-diverge-1668
   | { type: "addCockpitSection"; title: string }
   | { type: "renameCockpitSection"; sectionId: string; title: string }
   | { type: "deleteCockpitSection"; sectionId: string }
@@ -1676,7 +1676,7 @@ type CockpitSectionMessage =
   | { type: "openLogFolder" }
   | { type: "copyTask"; taskId: string }
   | { type: "moveTaskToCurrentWorkspace"; taskId: string }
-  | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }
+  | { type: "loadPromptTemplate"; path: string; source: "local" | "global" } // local-diverge-1679
   | { type: "debugWebview"; event: string; detail?: unknown }
   | { type: "webviewReady" }
   | { type: "introTutorial" }
@@ -1696,10 +1696,10 @@ export type WebviewToExtensionMessage =
 /** TreeView context values. */
 export type TreeContextValue =
   | "enabledTask"
-  | "disabledTask"
+  | "disabledTask" // local-diverge-1699
   | "workspaceGroup"
   | "scopeGroup"
-  | "enabledOtherWorkspaceTask"
+  | "enabledOtherWorkspaceTask" // local-diverge-1702
   | "disabledOtherWorkspaceTask"
   | "enabledWorkspaceTask"
   | "disabledWorkspaceTask";

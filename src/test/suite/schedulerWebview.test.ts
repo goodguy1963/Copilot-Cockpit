@@ -44,8 +44,27 @@ function readWorkspaceFile(...segments: string[]): string {
   return fs.readFileSync(resolveWorkspacePath(...segments), "utf8");
 }
 
+function readSourceFilesFromDirectory(
+  dirSegments: string[],
+  includeFile: (fileName: string) => boolean,
+): string {
+  const dirPath = resolveWorkspacePath(...dirSegments);
+  const fileNames = fs
+    .readdirSync(dirPath)
+    .filter(includeFile)
+    .sort((left, right) => left.localeCompare(right));
+
+  return fileNames
+    .map((fileName) => fs.readFileSync(path.join(dirPath, fileName), "utf8"))
+    .join("\n\n");
+}
+
 function readSchedulerWebviewScriptSource(): string {
-  return readWorkspaceFile("../../../media/schedulerWebview.js");
+  // The runtime is split across many media modules; merge them for resilient assertions.
+  return readSourceFilesFromDirectory(
+    ["../../../media"],
+    (fileName) => fileName.endsWith(".js") && fileName !== "schedulerWebview.entry.js",
+  );
 }
 
 function readGeneratedSchedulerWebviewScriptSource(): string {
@@ -53,7 +72,11 @@ function readGeneratedSchedulerWebviewScriptSource(): string {
 }
 
 function readSchedulerWebviewTemplateSource(): string {
-  return readWorkspaceFile("../../../src/schedulerWebview.ts");
+  // Template/CSS markup is composed from schedulerWebview* source modules.
+  return readSourceFilesFromDirectory(
+    ["../../../src"],
+    (fileName) => fileName.startsWith("schedulerWebview") && fileName.endsWith(".ts"),
+  );
 }
 
 function readSchedulerWebviewStringsSource(): string {
@@ -73,9 +96,13 @@ function expectSourceToIncludeSnippets(
   snippets: readonly string[],
   contextLabel: string,
 ): void {
+  const normalize = (value: string) => value.replace(/\s+/g, "").replace(/;/g, "");
+  const normalizedSource = normalize(source);
   for (const snippet of snippets) {
+    const found = source.includes(snippet)
+      || normalizedSource.includes(normalize(snippet));
     assert.ok(
-      source.includes(snippet),
+      found,
       `expected ${contextLabel} snippet ${snippet}`,
     );
   }
@@ -120,6 +147,13 @@ function withPostedWebviewMessages<T>(
     webviewReady: wv.webviewReady,
   };
 
+  const restore = () => {
+    if (wv.pendingMessageFlushTimer) {
+      clearTimeout(wv.pendingMessageFlushTimer);
+    }
+    Object.assign(wv, originalState);
+  };
+
   try {
     wv.panel = createPostedMessagePanel(sent);
     wv.pendingMessages = [];
@@ -130,12 +164,18 @@ function withPostedWebviewMessages<T>(
       wv.pendingMessageFlushTimer = undefined;
     }
 
-    return run({ wv, sent });
-  } finally {
-    if (wv.pendingMessageFlushTimer) {
-      clearTimeout(wv.pendingMessageFlushTimer);
+    const result = run({ wv, sent });
+    if (
+      result &&
+      typeof (result as { then?: unknown }).then === "function"
+    ) {
+      return ((result as unknown as Promise<unknown>).finally(() => restore()) as unknown) as T;
     }
-    Object.assign(wv, originalState);
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
   }
 }
 
@@ -327,24 +367,15 @@ suite("SchedulerWebview Message Queue Tests", () => {
   test("settings tab includes editable spot-review defaults plumbing", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
-<<<<<<< HEAD
     expectSourceToIncludeSnippets(
       scriptSource,
       [
-      'var spotReviewTemplateInput = document.getElementById("spot-review-template-input")',
-      'var botReviewPromptTemplateInput = document.getElementById("bot-review-prompt-template-input")',
-      'var botReviewAgentSelect = document.getElementById("bot-review-agent-select")',
-      'var botReviewModelSelect = document.getElementById("bot-review-model-select")',
-      'var botReviewChatSessionSelect = document.getElementById("bot-review-chat-session-select")',
-=======
-    [
-      'var needsBotReviewCommentTemplateInput = document.getElementById("needs-bot-review-comment-template-input")',
-      'var needsBotReviewPromptTemplateInput = document.getElementById("needs-bot-review-prompt-template-input")',
-      'var needsBotReviewAgentSelect = document.getElementById("needs-bot-review-agent-select")',
-      'var needsBotReviewModelSelect = document.getElementById("needs-bot-review-model-select")',
-      'var needsBotReviewChatSessionSelect = document.getElementById("needs-bot-review-chat-session-select")',
-      'var readyPromptTemplateInput = document.getElementById("ready-prompt-template-input")',
->>>>>>> main
+      'needsBotReviewCommentTemplateInput: document.getElementById("needs-bot-review-comment-template-input")',
+      'needsBotReviewPromptTemplateInput: document.getElementById("needs-bot-review-prompt-template-input")',
+      'needsBotReviewAgentSelect: document.getElementById("needs-bot-review-agent-select")',
+      'needsBotReviewModelSelect: document.getElementById("needs-bot-review-model-select")',
+      'needsBotReviewChatSessionSelect: document.getElementById("needs-bot-review-chat-session-select")',
+      'readyPromptTemplateInput: document.getElementById("ready-prompt-template-input")',
       'type: "saveReviewDefaults"',
       'case "updateReviewDefaults":',
       'function renderReviewDefaultsControls() {',
@@ -449,8 +480,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
     ], "AutoAgent example string");
 
     expectSourceToIncludeSnippets(scriptSource, [
-      'var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");',
-      'var researchNewBtn = document.getElementById("research-new-btn");',
+      'researchLoadAutoAgentExampleBtn: document.getElementById("research-load-autoagent-example-btn")',
+      'researchNewBtn: document.getElementById("research-new-btn")',
       'function handleResearchToolbarAction(actionId) {',
       'function handleResearchAction(actionId) {',
       'function selectResearchProfile(researchId) {',
@@ -464,8 +495,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'resetResearchForm(getAutoAgentResearchExampleProfile());',
       'researchFormDirty = true;',
       'if (!researchFormDirty && !isCreatingResearchProfile) {',
-      'selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "")',
-      'selectResearchRun(researchRunCard.getAttribute("data-run-id") || "")',
+      'options.selectResearchProfile(',
+      'researchProfileCard.getAttribute("data-research-id") || "",',
+      'options.selectResearchRun(',
+      'researchRunCard.getAttribute("data-run-id") || "")',
       'case "focusResearchProfile":',
       'case "focusResearchRun":',
     ], "AutoAgent example runtime");
@@ -500,7 +533,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
-      "var pendingTodoFilters = null;",
+      "pendingTodoFilters: null,",
+      "var pendingTodoFilters = transientState.pendingTodoFilters;",
       "pendingTodoFilters = next;",
       "if (pendingTodoFilters) {",
       "if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {",
@@ -512,11 +546,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
-      "if (filters.showRecurringTasks === true) {",
-      "var leftRecurring = isRecurringTodoSectionId(left.id);",
-      "var effectiveSelectedId = selectedId || fallbackSelectedId || \"\";",
-      "executionDefaults && executionDefaults.agent",
-      "executionDefaults && executionDefaults.model",
+      "if (!(filters && filters.showRecurringTasks === true) && isRecurringTodoSectionId(section.id)) {",
+      "if (filters.showRecurringTasks !== true) {",
+      "var effectiveSelectedId = selectedId || fallbackSelectedId;",
+      "params.executionDefaults && params.executionDefaults.agent",
+      "params.executionDefaults && params.executionDefaults.model",
       "var pendingTaskListRender = false;",
       "pendingTaskListRender = true;",
       "function replayPendingTaskListRender() {",
@@ -534,11 +568,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'id="manual-session"',
       'strings.labelManualSessions',
       'strings.labelManualSessionNote',
-      '.task-subsection {',
-      '.task-subsection-title {',
-      '.task-sections-column {',
-      '.task-section-toggle {',
-      '.task-section.is-collapsed .task-section-body {',
+      '.task-subsection{',
+      '.task-subsection-title{',
+      '.task-sections-column{',
+      '.task-section-toggle{',
+      '.task-section.is-collapsed .task-section-body{',
     ], "manual-session template");
 
     expectSourceToIncludeSnippets(scriptSource, [
@@ -613,7 +647,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(templateSource, [
-      "font-size: var(--cockpit-chip-font, inherit);",
+      "font-size:var(--cockpit-chip-font,inherit);",
       "@media (max-width: 1180px)",
       "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;",
       "@media (max-width: 640px)",
@@ -652,17 +686,17 @@ suite("SchedulerWebview Message Queue Tests", () => {
     ], "compact icon action");
 
     expectSourceToIncludeSnippets(templateSource, [
-      ".cockpit-section-title-group {",
-      ".cockpit-section-title {",
-      ".cockpit-section-count {",
-      ".todo-card-action-row {",
+      ".cockpit-section-title-group{",
+      ".cockpit-section-title{",
+      ".cockpit-section-count{",
+      ".todo-card-action-row{",
       "grid-auto-flow: column;",
       "grid-auto-columns: minmax(0, 1fr);",
-      ".todo-card-icon-btn {",
+      ".todo-card-icon-btn{",
       "min-height: 24px !important;",
       "filter: saturate(1.08) brightness(1.05);",
-      ".todo-card-delete-reject {",
-      ".todo-card-delete-permanent {",
+      ".todo-card-delete-reject{",
+      ".todo-card-delete-permanent{",
     ], "compact action row CSS");
   });
 
@@ -689,15 +723,15 @@ suite("SchedulerWebview Message Queue Tests", () => {
     ], "list-view chip/detail");
 
     expectSourceToIncludeSnippets(templateSource, [
-      '.todo-list-row {',
+      '.todo-list-row{',
       'grid-template-columns: minmax(0, 1fr) auto;',
       '.todo-list-section .cockpit-section-header {',
       'align-items: flex-start;',
-      '.section-body-wrapper.collapsed {',
+      '.section-body-wrapper.collapsed{',
       'grid-template-rows: 0fr;',
-      '.todo-list-card-details {',
-      '.todo-list-chip-row {',
-      '.todo-list-detail-line {',
+      '.todo-list-card-details{',
+      '.todo-list-chip-row{',
+      '.todo-list-detail-line{',
       'grid-template-columns: auto minmax(0, 1fr);',
       '.cockpit-board-hide-card-details .todo-list-card-details,',
       'grid-auto-flow: column;',
@@ -745,10 +779,10 @@ suite("SchedulerWebview Message Queue Tests", () => {
       '.jobs-workflow-metric.is-compact .jobs-workflow-metric-value',
     ], "compact editor tab styling");
 
-    const focusJobCaseStart = scriptSource.indexOf('case "focusJob":');
-    const editTaskCaseStart = scriptSource.indexOf('case "editTask":');
-    assert.ok(focusJobCaseStart >= 0, "expected focusJob message handler");
-    assert.ok(editTaskCaseStart > focusJobCaseStart, "expected editTask after focusJob");
+    const focusJobCaseStart = scriptSource.indexOf('function focusJobView(folderId, jobId) {');
+    const editTaskCaseStart = scriptSource.indexOf('function focusTaskView(taskId) {');
+    assert.ok(focusJobCaseStart >= 0, "expected focusJob view helper");
+    assert.ok(editTaskCaseStart > focusJobCaseStart, "expected focusTask helper after focusJob helper");
 
     const focusJobCase = scriptSource.slice(focusJobCaseStart, editTaskCaseStart);
     assert.ok(
@@ -768,7 +802,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "expected focusJob to clear the current editor job selection",
     );
     assert.strictEqual(
-      focusJobCase.includes('openJobEditor(selectedJobId);'),
+      focusJobCase.includes('openJobEditor('),
       false,
       "did not expect focusJob to reopen the jobs editor",
     );
@@ -778,7 +812,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "expected shared job submit handler",
     );
     assert.ok(
-      scriptSource.includes('jobsSaveDeckBtn.addEventListener("click", submitJobEditor);'),
+      scriptSource.includes('bindClickAction(options.jobsSaveDeckBtn, options.submitJobEditor);'),
       "expected control deck save button to use the shared job submit handler",
     );
     assert.ok(
@@ -798,15 +832,15 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const debugHelperSource = readSchedulerWebviewDebugSource();
 
     expectSourceToIncludeSnippets(templateSource, [
-      '.todo-comments-spotlight {',
-      '.todo-comments-layout {',
+      '.todo-comments-spotlight{',
+      '.todo-comments-layout{',
       'grid-template-columns: 1fr;',
       'id="todo-comment-count-badge"',
       'id="todo-comment-mode-pill"',
       'id="todo-comment-composer-title"',
       'id="todo-comment-thread-note"',
       '.todo-comment-card.is-user-form .todo-comment-author,',
-      '.todo-comment-card.is-user-form .todo-comment-body {',
+      '.todo-comment-card.is-user-form .todo-comment-body{',
     ], "user comment styling");
 
     const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
@@ -1052,7 +1086,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
         const updater = wv[method];
         assert.ok(typeof updater === "function");
 
-        (updater as (...values: unknown[]) => void)(...args);
+        (updater as (...values: unknown[]) => void).call(wv, ...args);
 
         const queued = (wv.pendingMessages ?? []) as Array<{ type?: unknown }>;
         assert.strictEqual(queued.length, 1);

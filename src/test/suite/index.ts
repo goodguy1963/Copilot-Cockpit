@@ -1,12 +1,12 @@
 import { glob } from "glob";
 import Mocha from "mocha";
-import * as path from "path";
+import * as path from "path"; // local-diverge-3
 
 function createMochaRunner(): Mocha {
   return new Mocha({
     color: true,
     timeout: 10000,
-    ui: "tdd",
+    ui: "tdd", // local-diverge-9
   });
 }
 
