@@ -498,6 +498,7 @@ import {
       currentTodoDraft: currentTodoDraft,
       reason: reason,
       selectedTodoId: selectedTodoId,
+      todoCommentInput: todoCommentInput,
       todoDescriptionInput: todoDescriptionInput,
       todoDueInput: todoDueInput,
       todoLinkedTaskSelect: todoLinkedTaskSelect,
@@ -669,6 +670,13 @@ import {
   var todoCommentList = document.getElementById("todo-comment-list");
   var todoCommentInput = document.getElementById("todo-comment-input");
   var todoAddCommentBtn = document.getElementById("todo-add-comment-btn");
+  var todoCommentCountBadge = document.getElementById("todo-comment-count-badge");
+  var todoCommentModePill = document.getElementById("todo-comment-mode-pill");
+  var todoCommentContextNote = document.getElementById("todo-comment-context-note");
+  var todoCommentComposerTitle = document.getElementById("todo-comment-composer-title");
+  var todoCommentComposerNote = document.getElementById("todo-comment-composer-note");
+  var todoCommentDraftStatus = document.getElementById("todo-comment-draft-status");
+  var todoCommentThreadNote = document.getElementById("todo-comment-thread-note");
   var jobsNameInput = document.getElementById("jobs-name-input");
   var jobsCronPreset = document.getElementById("jobs-cron-preset");
   var jobsCronInput = document.getElementById("jobs-cron-input");
@@ -1184,6 +1192,22 @@ import {
     var separator = currentValue ? (/\n\s*$/.test(currentValue) ? "\n" : "\n\n") : "";
     todoDescriptionInput.value = currentValue + separator + insertedText;
     syncTodoDraftFromInputs("upload");
+  }
+
+  function appendTextToTodoComment(insertedText) {
+    if (!todoCommentInput || !insertedText || todoCommentInput.disabled) {
+      return;
+    }
+    var currentValue = String(todoCommentInput.value || "");
+    if (currentValue.indexOf(insertedText) >= 0) {
+      todoCommentInput.focus();
+      return;
+    }
+    var separator = currentValue ? (/\n\s*$/.test(currentValue) ? "\n" : "\n\n") : "";
+    todoCommentInput.value = currentValue + separator + insertedText;
+    syncTodoDraftFromInputs("comment-template");
+    renderTodoCommentSectionState(selectedTodoId ? findTodoById(selectedTodoId) : null);
+    todoCommentInput.focus();
   }
 
   function syncTodoPriorityInputTone() {
@@ -2591,12 +2615,15 @@ syncTodoLabelSuggestions();
     }
     todoEditorListenersBound = true;
 
-    [todoTitleInput, todoDescriptionInput, todoDueInput].forEach(function (element) {
+    [todoTitleInput, todoDescriptionInput, todoCommentInput, todoDueInput].forEach(function (element) {
       if (!element || typeof element.addEventListener !== "function") {
         return;
       }
       element.addEventListener("input", function () {
         syncTodoDraftFromInputs("input");
+        if (element === todoCommentInput) {
+          renderTodoCommentSectionState(selectedTodoId ? findTodoById(selectedTodoId) : null);
+        }
       });
     });
 
@@ -2616,6 +2643,16 @@ syncTodoLabelSuggestions();
       selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
       eventName: "todoDetailClickAttempt",
     });
+
+    if (todoDetailForm) {
+      todoDetailForm.addEventListener("click", function (event) {
+        var templateBtn = getClosestEventTarget(event, "[data-comment-template]");
+        if (!templateBtn) {
+          return;
+        }
+        appendTextToTodoComment(String(templateBtn.getAttribute("data-comment-template") || ""));
+      });
+    }
 
     document.addEventListener("click", function (event) {
       var removeBtn = getClosestEventTarget(event, "[data-flag-chip-remove]");
@@ -2848,6 +2885,146 @@ syncTodoLabelSuggestions();
       case "system-event": return strings.boardCommentSourceSystemEvent || "System event";
       default: return strings.boardCommentSourceHumanForm || "Human form";
     }
+  }
+
+  function renderTodoCommentEmptyMarkup(title, body) {
+    return '<div class="todo-comment-empty-state">' +
+      '<div class="todo-comment-empty-title">' + escapeHtml(title) + '</div>' +
+      '<div class="note">' + escapeHtml(body) + '</div>' +
+      '</div>';
+  }
+
+  function renderTodoCommentDraftPreviewMarkup(commentBody) {
+    return '<article class="todo-comment-card is-human-form is-user-form is-preview">' +
+      '<div class="todo-comment-header">' +
+      '<div class="todo-comment-heading">' +
+      '<span class="todo-comment-sequence">' + escapeHtml(strings.boardCommentModeCreate || "Kickoff note") + '</span>' +
+      '<span class="todo-comment-source-chip">' + escapeHtml(strings.boardCommentSourceHumanForm || "Human form") + '</span>' +
+      '</div>' +
+      '<div class="todo-comment-meta">' +
+      '<span class="note">' + escapeHtml(strings.boardCommentPreviewPending || "Saved on create") + '</span>' +
+      '</div>' +
+      '</div>' +
+      '<div class="note todo-comment-author">user</div>' +
+      '<div class="todo-comment-body">' + escapeHtml(commentBody || "") + '</div>' +
+      '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentThreadCreateNote || "Preview of the kickoff note that will be saved on create.") + '</div>' +
+      '</article>';
+  }
+
+  function renderTodoCommentListMarkup(comments) {
+    if (!comments.length) {
+      return renderTodoCommentEmptyMarkup(
+        strings.boardCommentsEmpty || "No comments yet.",
+        strings.boardCommentEditHint || "Add a focused update without rewriting the full description."
+      );
+    }
+    return comments.map(function (comment, commentIndex) {
+      var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+      var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
+      var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+      var toneClass = getTodoCommentToneClass(comment);
+      var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"
+        ? " is-user-form"
+        : "";
+      return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
+        '<div class="todo-comment-header">' +
+        '<div class="todo-comment-heading">' +
+        '<span class="todo-comment-sequence">#' + escapeHtml(String(sequence)) + '</span>' +
+        '<span class="todo-comment-source-chip">' + escapeHtml(sourceLabel) + '</span>' +
+        '</div>' +
+        '<div class="todo-comment-meta">' +
+        '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
+        '<button type="button" class="btn-icon todo-comment-delete-btn" data-delete-comment-index="' + escapeAttr(String(commentIndex)) + '" title="' + escapeAttr(strings.boardCommentDelete || "Delete comment") + '">&#128465;</button>' +
+        '</div>' +
+        '</div>' +
+        '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
+        '<div class="todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
+        '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + '</div>' +
+        '</article>';
+    }).join("");
+  }
+
+  function renderTodoCommentSectionState(selectedTodo) {
+    var isEditingTodo = !!selectedTodo;
+    var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    var todoDraft = isEditingTodo ? null : currentTodoDraft;
+    var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+    var commentDraftValue = todoCommentInput
+      ? String(todoCommentInput.value || "").trim()
+      : (!isEditingTodo && todoDraft ? String(todoDraft.comment || "").trim() : "");
+
+    if (todoCommentCountBadge) {
+      todoCommentCountBadge.textContent = isEditingTodo
+        ? String(comments.length)
+        : (commentDraftValue ? (strings.boardCommentBadgePreview || "Preview") : (strings.boardCommentBadgeDraft || "Draft"));
+    }
+    if (todoCommentModePill) {
+      todoCommentModePill.textContent = isEditingTodo
+        ? (strings.boardCommentModeEdit || "Live thread")
+        : (strings.boardCommentModeCreate || "Kickoff note");
+    }
+    if (todoCommentContextNote) {
+      todoCommentContextNote.textContent = isEditingTodo
+        ? (strings.boardCommentsEditIntro || "Keep approvals, decisions, and handoff context in the thread while the main description stays stable.")
+        : (strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.");
+    }
+    if (todoCommentComposerTitle) {
+      todoCommentComposerTitle.textContent = isEditingTodo
+        ? (strings.boardCommentComposerEditTitle || "Add to the thread")
+        : (strings.boardCommentComposerCreateTitle || "Write the kickoff comment");
+    }
+    if (todoCommentComposerNote) {
+      todoCommentComposerNote.textContent = isEditingTodo
+        ? (strings.boardCommentEditHint || "Add a focused update without rewriting the full description.")
+        : (strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.");
+    }
+    if (todoCommentDraftStatus) {
+      if (isArchivedTodo) {
+        todoCommentDraftStatus.textContent = strings.boardReadOnlyArchived || "Archived items are read-only in the editor. Use Restore on the board to reopen them.";
+      } else if (isEditingTodo) {
+        todoCommentDraftStatus.textContent = commentDraftValue
+          ? (strings.boardCommentReadyToAdd || "Ready to append to the live thread.")
+          : (strings.boardCommentEditHint || "Add a focused update without rewriting the full description.");
+      } else {
+        todoCommentDraftStatus.textContent = commentDraftValue
+          ? (strings.boardCommentCreateReady || "This draft will be saved as the first human comment when you create the todo.")
+          : (strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.");
+      }
+    }
+    if (todoCommentThreadNote) {
+      if (isEditingTodo) {
+        todoCommentThreadNote.textContent = comments.length > 0
+          ? (strings.boardCommentThreadEditNote || "Open any card to read the full comment or remove a thread entry.")
+          : (strings.boardCommentEditHint || "Add a focused update without rewriting the full description.");
+      } else {
+        todoCommentThreadNote.textContent = commentDraftValue
+          ? (strings.boardCommentThreadCreateNote || "Preview of the kickoff note that will be saved on create.")
+          : (strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.");
+      }
+    }
+    if (todoCommentInput) {
+      todoCommentInput.placeholder = isEditingTodo
+        ? (strings.boardCommentPlaceholder || "Add a comment with context, provenance, or approval notes...")
+        : (strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...");
+    }
+    if (todoAddCommentBtn) {
+      todoAddCommentBtn.textContent = strings.boardAddComment || "Add Comment";
+      todoAddCommentBtn.hidden = !isEditingTodo;
+      todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo || !commentDraftValue;
+    }
+    if (!todoCommentList) {
+      return;
+    }
+    if (isEditingTodo) {
+      todoCommentList.innerHTML = renderTodoCommentListMarkup(comments);
+      return;
+    }
+    todoCommentList.innerHTML = commentDraftValue
+      ? renderTodoCommentDraftPreviewMarkup(commentDraftValue)
+      : renderTodoCommentEmptyMarkup(
+        strings.boardCommentBadgeDraft || "Draft",
+        strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment."
+      );
   }
 
   function getTodoDescriptionPreview(description) {
@@ -3320,6 +3497,7 @@ syncTodoLabelSuggestions();
     if (!isRefreshingSameTodo) {
       if (todoTitleInput) todoTitleInput.value = isEditingTodo ? (selectedTodo.title || "") : (todoDraft.title || "");
       if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? (selectedTodo.description || "") : (todoDraft.description || "");
+      if (todoCommentInput) todoCommentInput.value = isEditingTodo ? "" : (todoDraft.comment || "");
       if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : (todoDraft.dueAt || "");
       if (todoLabelsInput) todoLabelsInput.value = isEditingTodo ? "" : (todoDraft.labelInput || "");
       if (todoLabelColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.labelColor || "")) {
@@ -3410,12 +3588,8 @@ syncTodoLabelSuggestions();
     }
     if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     if (todoUploadFilesBtn) todoUploadFilesBtn.disabled = !!isArchivedTodo;
-    if (todoAddCommentBtn) todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo;
     if (todoCommentInput) {
-      todoCommentInput.disabled = !isEditingTodo || isArchivedTodo;
-      if (!isEditingTodo) {
-        todoCommentInput.value = "";
-      }
+      todoCommentInput.disabled = !!isArchivedTodo;
     }
 
     var linkedTask = isEditingTodo ? getLinkedTask(selectedTodo.taskId) : null;
@@ -3435,33 +3609,7 @@ syncTodoLabelSuggestions();
       }
     }
     syncEditorTabLabels();
-
-    if (todoCommentList) {
-      var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
-      todoCommentList.innerHTML = comments.length > 0
-        ? comments.map(function (comment, commentIndex) {
-          var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
-          var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
-          var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
-          var toneClass = getTodoCommentToneClass(comment);
-          var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"
-            ? " is-user-form"
-            : "";
-          return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
-            '<div class="todo-comment-header">' +
-            '<strong>#' + escapeHtml(String(sequence)) + ' • ' + escapeHtml(sourceLabel) + '</strong>' +
-            '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span>' +
-            '<button type="button" class="btn-icon todo-comment-delete-btn" data-delete-comment-index="' + escapeAttr(String(commentIndex)) + '" title="' + escapeAttr(strings.boardCommentDelete || "Delete comment") + '">&#128465;</button>' +
-            '</div>' +
-            '</div>' +
-            '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
-            '<div class="note todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
-            '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + '</div>' +
-            '</article>';
-        }).join("")
-        : '<div class="note">' + escapeHtml(strings.boardCommentsEmpty || "No comments yet.") + '</div>';
-    }
+    renderTodoCommentSectionState(selectedTodo);
   }
 
   function syncTodoLinkedTaskOptions(preferredTaskId) {
@@ -3738,6 +3886,7 @@ syncTodoLabelSuggestions();
           return;
         }
         syncTodoDraftFromInputs("submit");
+        var commentBody = todoCommentInput ? String(todoCommentInput.value || "").trim() : "";
         var payload = {
           title: todoTitleInput.value || "",
           description: todoDescriptionInput ? todoDescriptionInput.value : "",
@@ -3751,7 +3900,11 @@ syncTodoLabelSuggestions();
         if (selectedTodoId) {
           vscode.postMessage({ type: "updateTodo", todoId: selectedTodoId, data: payload });
         } else {
+          if (commentBody) {
+            payload.comment = commentBody;
+          }
           emitWebviewDebug("todoCreateSubmit", {
+            hasComment: !!commentBody,
             titleLength: payload.title.length,
             sectionId: payload.sectionId,
             taskId: payload.taskId || "",
@@ -3771,6 +3924,7 @@ syncTodoLabelSuggestions();
           data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" },
         });
         todoCommentInput.value = "";
+        renderTodoCommentSectionState(findTodoById(selectedTodoId));
       };
     }
     if (todoCommentList) {

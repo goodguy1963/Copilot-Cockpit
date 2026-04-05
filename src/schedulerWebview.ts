@@ -3295,15 +3295,208 @@ export class SchedulerWebview {
       margin-bottom: 0;
     }
 
+    .todo-comments-spotlight {
+      display: grid;
+      gap: 12px;
+      margin-top: 4px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 28%, var(--vscode-panel-border));
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, transparent) 0, transparent 42%),
+        linear-gradient(
+          145deg,
+          color-mix(in srgb, var(--vscode-editorWidget-background) 94%, transparent),
+          color-mix(in srgb, var(--vscode-sideBar-background) 90%, transparent)
+        );
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .todo-comments-spotlight-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .todo-comments-header-copy {
+      display: grid;
+      gap: 4px;
+    }
+
+    .todo-comments-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 72%, var(--vscode-foreground));
+    }
+
+    .todo-comments-title-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .todo-comments-count-badge,
+    .todo-comments-mode-pill,
+    .todo-comment-source-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .todo-comments-count-badge {
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 34%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 16%, transparent);
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comments-mode-pill {
+      border: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 28%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editorInfo-foreground, #5aa9e6) 12%, transparent);
+      color: var(--vscode-foreground);
+      white-space: nowrap;
+    }
+
+    .todo-comments-context-note {
+      max-width: 68ch;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .todo-comments-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .todo-comment-composer-shell,
+    .todo-comment-thread-shell {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .todo-comment-composer-shell {
+      background: color-mix(in srgb, var(--vscode-editor-background) 94%, transparent);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
+    }
+
+    .todo-comment-thread-shell {
+      background: color-mix(in srgb, var(--vscode-sideBar-background) 74%, var(--vscode-editor-background));
+      min-height: 100%;
+    }
+
+    .todo-comment-composer-topline {
+      display: grid;
+      gap: 4px;
+    }
+
+    .todo-comment-composer-title,
+    .todo-comment-thread-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-composer-note,
+    .todo-comment-thread-note,
+    .todo-comment-draft-status {
+      line-height: 1.45;
+    }
+
+    .todo-comment-input-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .todo-comment-helper-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .todo-comment-template-btn {
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 24%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 10%, transparent);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .todo-comment-template-btn:hover,
+    .todo-comment-template-btn:focus-visible {
+      border-color: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 48%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 18%, transparent);
+    }
+
+    .todo-comment-textarea {
+      min-height: 148px;
+      resize: vertical;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+
+    .todo-comment-composer-footer,
+    .todo-comment-thread-header,
+    .todo-comment-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .todo-comment-draft-status {
+      max-width: 48ch;
+      min-height: 1.35em;
+      margin: 0;
+    }
+
     .todo-editor-comments {
       max-height: 34vh;
       overflow: auto;
       padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .todo-comment-empty-state {
+      display: grid;
+      gap: 6px;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px dashed color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 26%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
+    }
+
+    .todo-comment-empty-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
     }
 
     .todo-comment-card {
-      padding: 10px;
-      border-radius: 8px;
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 12px;
       border: 1px solid var(--vscode-panel-border);
       background: var(--vscode-sideBar-background);
       border-left: 4px solid color-mix(in srgb, var(--vscode-panel-border) 70%, transparent);
@@ -3316,6 +3509,17 @@ export class SchedulerWebview {
       transform: translateY(-1px);
       box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
       outline: none;
+    }
+
+    .todo-comment-card.is-preview {
+      cursor: default;
+      border-style: dashed;
+      background: color-mix(in srgb, var(--vscode-testing-runAction, #5aa9e6) 14%, var(--vscode-editor-background));
+    }
+
+    .todo-comment-card.is-preview:hover,
+    .todo-comment-card.is-preview:focus-visible {
+      transform: none;
     }
 
     .todo-comment-card.is-human-form {
@@ -3338,20 +3542,35 @@ export class SchedulerWebview {
       border-left-color: color-mix(in srgb, var(--vscode-descriptionForeground) 72%, white);
     }
 
-    .todo-comment-header {
+    .todo-comment-heading,
+    .todo-comment-meta {
       display: flex;
-      justify-content: space-between;
-      gap: 8px;
+      flex-wrap: wrap;
+      gap: 6px 8px;
       align-items: center;
-      margin-bottom: 6px;
+    }
+
+    .todo-comment-sequence {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+    }
+
+    .todo-comment-source-chip {
+      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 76%, transparent);
+      background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent);
+      color: var(--vscode-foreground);
     }
 
     .todo-comment-author {
-      margin-bottom: 6px;
+      margin: 0;
+      font-size: 12px;
     }
 
     .todo-comment-body {
       white-space: pre-wrap;
+      line-height: 1.55;
+      color: var(--vscode-foreground);
     }
 
     .todo-comment-card.is-user-form .todo-comment-author,
@@ -3360,7 +3579,7 @@ export class SchedulerWebview {
     }
 
     .todo-comment-expand-hint {
-      margin-top: 8px;
+      margin-top: 2px;
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
     }
@@ -4576,6 +4795,10 @@ export class SchedulerWebview {
         grid-template-columns: 1fr;
       }
 
+      .todo-comments-layout {
+        grid-template-columns: 1fr;
+      }
+
       .jobs-job-grid {
         grid-template-columns: 1fr;
       }
@@ -4631,6 +4854,15 @@ export class SchedulerWebview {
         order: 1;
         width: 100%;
         justify-content: flex-end;
+      }
+
+      .todo-comments-spotlight-header,
+      .todo-comment-composer-footer,
+      .todo-comment-thread-header,
+      .todo-comment-header,
+      .todo-comment-input-label-row {
+        flex-direction: column;
+        align-items: stretch;
       }
 
       .tab-button {
@@ -4710,17 +4942,57 @@ export class SchedulerWebview {
               <button type="button" class="btn-secondary" id="todo-upload-files-btn">${escapeHtml(strings.boardUploadFiles)}</button>
               <div id="todo-upload-files-note" class="note todo-upload-note">${escapeHtml(strings.boardUploadFilesHint)}</div>
             </div>
-            <div>
-              <div class="section-title" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
-              <div id="todo-comment-list" class="todo-editor-comments" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
-              <div class="form-group" style="margin:0;">
-                <label for="todo-comment-input">${escapeHtml(strings.boardAddComment)}</label>
-                <textarea id="todo-comment-input" placeholder="${escapeHtmlAttr(strings.boardCommentPlaceholder)}" style="min-height:90px;"></textarea>
+            <section class="todo-comments-spotlight" aria-labelledby="todo-comments-heading">
+              <div class="todo-comments-spotlight-header">
+                <div class="todo-comments-header-copy">
+                  <div class="todo-comments-eyebrow">${escapeHtml(strings.boardCommentsEyebrow || "Conversation thread")}</div>
+                  <div class="todo-comments-title-row">
+                    <div class="section-title" id="todo-comments-heading" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
+                    <span id="todo-comment-count-badge" class="todo-comments-count-badge">${escapeHtml(strings.boardCommentBadgeDraft || "Draft")}</span>
+                  </div>
+                  <p id="todo-comment-context-note" class="note todo-comments-context-note">${escapeHtml(strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.")}</p>
+                </div>
+                <div id="todo-comment-mode-pill" class="todo-comments-mode-pill">${escapeHtml(strings.boardCommentModeCreate || "Kickoff note")}</div>
               </div>
-              <div class="button-group" style="margin:8px 0 0 0;justify-content:flex-end;">
-                <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
+
+              <div class="todo-comments-layout">
+                <div class="todo-comment-composer-shell">
+                  <div class="todo-comment-composer-topline">
+                    <div id="todo-comment-composer-title" class="todo-comment-composer-title">${escapeHtml(strings.boardCommentComposerCreateTitle || "Write the kickoff comment")}</div>
+                    <div id="todo-comment-composer-note" class="note todo-comment-composer-note">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</div>
+                  </div>
+
+                  <div class="todo-comment-helper-row" role="group" aria-label="${escapeHtmlAttr(strings.boardCommentQuickActions || "Comment quick actions")}">
+                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateContextBody || "Context:\n")}">${escapeHtml(strings.boardCommentTemplateContext || "Context")}</button>
+                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateDecisionBody || "Decision:\n")}">${escapeHtml(strings.boardCommentTemplateDecision || "Decision")}</button>
+                    <button type="button" class="btn-secondary todo-comment-template-btn" data-comment-template="${escapeHtmlAttr(strings.boardCommentTemplateApprovalBody || "Approval / next step:\n")}">${escapeHtml(strings.boardCommentTemplateApproval || "Approval")}</button>
+                  </div>
+
+                  <div class="form-group" style="margin:0;">
+                    <div class="todo-comment-input-label-row">
+                      <label for="todo-comment-input">${escapeHtml(strings.boardAddComment)}</label>
+                      <span class="note">${escapeHtml(strings.boardCommentQuickActionsHint || "Tap a starter to scaffold the note quickly.")}</span>
+                    </div>
+                    <textarea id="todo-comment-input" class="todo-comment-textarea" placeholder="${escapeHtmlAttr(strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...")}"></textarea>
+                  </div>
+
+                  <div class="todo-comment-composer-footer">
+                    <p id="todo-comment-draft-status" class="note todo-comment-draft-status">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</p>
+                    <div class="button-group" style="margin:0;justify-content:flex-end;">
+                      <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="todo-comment-thread-shell">
+                  <div class="todo-comment-thread-header">
+                    <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
+                    <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
+                  </div>
+                  <div id="todo-comment-list" class="todo-editor-comments"></div>
+                </div>
               </div>
-            </div>
+            </section>
           </section>
 
           <section class="todo-editor-card">
