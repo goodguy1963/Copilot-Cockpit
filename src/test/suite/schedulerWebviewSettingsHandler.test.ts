@@ -1,19 +1,17 @@
-import * as assert from "assert";
 import * as fs from "fs";
-import * as os from "os";
+import * as assert from "assert";
 import * as path from "path";
+import * as os from "os";
 import * as vscode from "vscode";
 import * as extensionCompat from "../../extensionCompat";
 import {
-  getResourceScopedSettingsTarget,
   handleSettingsWebviewMessage,
+  getResourceScopedSettingsTarget,
 } from "../../schedulerWebviewSettingsHandler";
 
 function patchWorkspaceFolders(value: Array<{ uri: vscode.Uri }> | undefined): void {
-  Object.defineProperty(vscode.workspace, "workspaceFolders", {
-    value,
-    configurable: true,
-  });
+  const descriptor = { value, configurable: true };
+  Object.defineProperty(vscode.workspace, "workspaceFolders", descriptor);
 }
 
 function setWorkspaceFoldersForTest(root: string): () => void {
@@ -29,8 +27,9 @@ function setWorkspaceFoldersForTest(root: string): () => void {
   }
 
   return () => {
+    const restoreFolders = originalFolders;
     try {
-      patchWorkspaceFolders(originalFolders);
+      patchWorkspaceFolders(restoreFolders);
     } catch {
       // Ignore restoration failures in the test host.
     }
