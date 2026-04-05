@@ -111,6 +111,45 @@ export function readScheduledTasksFromStorageFile(
   }
 }
 
+export function reviveScheduledTaskDates(task: ScheduledTask): boolean {
+  task.createdAt = new Date(task.createdAt);
+  task.updatedAt = new Date(task.updatedAt);
+  if (task.lastRun !== undefined) {
+    task.lastRun = new Date(task.lastRun);
+  }
+  if (task.promptBackupUpdatedAt !== undefined) {
+    task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
+  }
+  if (task.nextRun !== undefined) {
+    task.nextRun = new Date(task.nextRun);
+  }
+
+  let changed = false;
+  const fallbackDate = new Date();
+  if (Number.isNaN(task.createdAt.getTime())) {
+    task.createdAt = fallbackDate;
+    changed = true;
+  }
+  if (Number.isNaN(task.updatedAt.getTime())) {
+    task.updatedAt = task.createdAt;
+    changed = true;
+  }
+  if (task.lastRun && Number.isNaN(task.lastRun.getTime())) {
+    task.lastRun = undefined;
+    changed = true;
+  }
+  if (task.promptBackupUpdatedAt && Number.isNaN(task.promptBackupUpdatedAt.getTime())) {
+    task.promptBackupUpdatedAt = undefined;
+    changed = true;
+  }
+  if (task.nextRun && Number.isNaN(task.nextRun.getTime())) {
+    task.nextRun = undefined;
+    changed = true;
+  }
+
+  return changed;
+}
+
 export async function writeScheduledTasksToStorageFile(
   storageFilePath: string,
   tasks: ScheduledTask[],

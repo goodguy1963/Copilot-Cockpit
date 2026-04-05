@@ -10,7 +10,6 @@ import type {
   ScheduledTask,
   CreateTaskInput,
   TaskScope,
-  ChatSessionBehavior,
   JobDefinition,
   JobFolder,
   JobNode,
@@ -57,6 +56,7 @@ import {
   readScheduledTasksFromStorageFile,
   readTaskStorageMetaFromFile,
   readTaskStorageMetaFromState,
+  reviveScheduledTaskDates,
   TaskStorageMeta,
   toSafeSchedulerErrorDetails,
   updateMementoWithTimeout,
@@ -85,6 +85,14 @@ import {
   resolveCreatedTaskNextRun,
   setTaskEnabledState,
 } from "./scheduleManagerTaskOps";
+import {
+  applyScheduleJitter,
+  clampScheduleJitterSeconds,
+  normalizeScheduledTaskChatSession,
+  normalizeScheduledTaskLabels,
+  normalizeScheduledTaskManualSession,
+  normalizeScheduledWindowMinutes,
+} from "./scheduleManagerTaskConfig";
 import {
   assertValidCronExpression,
   getCronIntervalWarning,
@@ -331,30 +339,6 @@ export class ScheduleManager {
     return this.dailyExecCount >= maxDailyLimit;
   }
 
-  // ==================== Safety: Jitter (Random Delay) ====================
-
-  private clampJitterSeconds(value: unknown): number {
-    const n = typeof value === "number" ? value : Number(value);
-    if (!Number.isFinite(n)) return 0;
-    const i = Math.floor(n);
-    return Math.min(Math.max(i, 0), 1800);
-  }
-
-  /**
-   * Apply random jitter delay to reduce machine-like patterns
-   */
-  private async applyJitter(maxJitterSeconds: number): Promise<void> {
-    const clamped = this.clampJitterSeconds(maxJitterSeconds);
-    if (clamped <= 0) return;
-
-    const jitterMs = Math.floor(Math.random() * clamped * 1000);
-    const jitterSec = Math.round(jitterMs / 1000);
-    if (jitterSec > 0) {
-      logDebug(`[CopilotScheduler] Jitter: waiting ${jitterSec}s`);
-      await new Promise<void>((resolve) => setTimeout(resolve, jitterMs));
-    }
-  }
-
   private getScheduledTaskNextRun(
     task: ScheduledTask,
     referenceTime: Date,
@@ -448,48 +432,6 @@ export class ScheduleManager {
 
     task.nextRun = nextRun;
     return true;
-  }
-
-  private reviveSerializedTaskDates(task: ScheduledTask): boolean {
-    task.createdAt = new Date(task.createdAt);
-    task.updatedAt = new Date(task.updatedAt);
-    if (task.lastRun !== undefined) {
-      task.lastRun = new Date(task.lastRun);
-    }
-    if (task.promptBackupUpdatedAt !== undefined) {
-      task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
-    }
-    if (task.nextRun !== undefined) {
-      task.nextRun = new Date(task.nextRun);
-    }
-
-    let changed = false;
-    const fallbackDate = new Date();
-    if (Number.isNaN(task.createdAt.getTime())) {
-      task.createdAt = fallbackDate;
-      changed = true;
-    }
-    if (Number.isNaN(task.updatedAt.getTime())) {
-      task.updatedAt = task.createdAt;
-      changed = true;
-    }
-    if (task.lastRun && Number.isNaN(task.lastRun.getTime())) {
-      task.lastRun = undefined;
-      changed = true;
-    }
-    if (
-      task.promptBackupUpdatedAt &&
-      Number.isNaN(task.promptBackupUpdatedAt.getTime())
-    ) {
-      task.promptBackupUpdatedAt = undefined;
-      changed = true;
-    }
-    if (task.nextRun && Number.isNaN(task.nextRun.getTime())) {
-      task.nextRun = undefined;
-      changed = true;
-    }
-
-    return changed;
   }
 
   private disableStoredTaskIfCronInvalid(task: ScheduledTask): boolean {
@@ -675,9 +617,9 @@ export class ScheduleManager {
     const loadedTaskIds = new Set<string>();
 
     for (const task of tasksToLoad) {
-      needsSave = this.reviveSerializedTaskDates(task) || needsSave;
+      needsSave = reviveScheduledTaskDates(task) || needsSave;
 
-      const normalizedChatSession = this.normalizeTaskChatSession(
+      const normalizedChatSession = normalizeScheduledTaskChatSession(
         task.chatSession,
         task.oneTime === true,
       );
@@ -686,7 +628,7 @@ export class ScheduleManager {
         needsSave = true;
       }
 
-      const normalizedLabels = this.normalizeLabels(task.labels);
+      const normalizedLabels = normalizeScheduledTaskLabels(task.labels);
       if (
         JSON.stringify(task.labels ?? []) !== JSON.stringify(normalizedLabels ?? [])
       ) {
@@ -817,17 +759,7 @@ export class ScheduleManager {
 
     this.tasks.clear();
     for (const task of nextTasks.values()) {
-      task.createdAt = new Date(task.createdAt);
-      task.updatedAt = new Date(task.updatedAt);
-      if (task.lastRun !== undefined) {
-        task.lastRun = new Date(task.lastRun);
-      }
-      if (task.promptBackupUpdatedAt !== undefined) {
-        task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
-      }
-      if (task.nextRun !== undefined) {
-        task.nextRun = new Date(task.nextRun);
-      }
+      reviveScheduledTaskDates(task);
       this.tasks.set(task.id, task);
     }
 
@@ -877,11 +809,11 @@ export class ScheduleManager {
             ? new Date(t.promptBackupUpdatedAt)
             : undefined,
           jitterSeconds: t.jitterSeconds,
-          chatSession: this.normalizeTaskChatSession(
+          chatSession: normalizeScheduledTaskChatSession(
             t.chatSession,
             t.oneTime === true,
           ),
-          labels: this.normalizeLabels(t.labels),
+          labels: normalizeScheduledTaskLabels(t.labels),
           jobId:
             typeof t.jobId === "string" && t.jobId.trim().length > 0
               ? t.jobId.trim()
@@ -942,7 +874,7 @@ export class ScheduleManager {
                 id: node.id.trim(),
                 type: "task" as const,
                 taskId: rawTaskId.trim(),
-                windowMinutes: this.normalizeWindowMinutes(
+                windowMinutes: normalizeScheduledWindowMinutes(
                   (node as { windowMinutes?: number }).windowMinutes,
                 ),
               });
@@ -1173,7 +1105,7 @@ export class ScheduleManager {
                   id: node.id,
                   type: "task" as const,
                   taskId: node.taskId,
-                  windowMinutes: this.normalizeWindowMinutes(node.windowMinutes),
+                  windowMinutes: normalizeScheduledWindowMinutes(node.windowMinutes),
                 }),
           })),
           deletedJobIds: Array.from(new Set([
@@ -1313,61 +1245,6 @@ export class ScheduleManager {
     );
   }
 
-  private normalizeTaskChatSession(
-    chatSession: unknown,
-    oneTime: boolean,
-  ): ChatSessionBehavior | undefined {
-    if (oneTime) {
-      return undefined;
-    }
-
-    return chatSession === "new" || chatSession === "continue"
-      ? chatSession
-      : undefined;
-  }
-
-  private normalizeTaskManualSession(
-    manualSession: unknown,
-    oneTime: boolean,
-  ): boolean | undefined {
-    if (oneTime) {
-      return undefined;
-    }
-
-    return manualSession === true ? true : undefined;
-  }
-
-  private normalizeLabels(labels: unknown): string[] | undefined {
-    const values = Array.isArray(labels)
-      ? labels
-      : typeof labels === "string"
-        ? labels.split(",")
-        : [];
-
-    const normalized = values
-      .map((value) => (typeof value === "string" ? value.trim() : ""))
-      .filter((value) => value.length > 0);
-
-    if (normalized.length === 0) {
-      return undefined;
-    }
-
-    return Array.from(new Set(normalized));
-  }
-
-  private normalizeWindowMinutes(windowMinutes: unknown): number {
-    const numeric =
-      typeof windowMinutes === "number"
-        ? windowMinutes
-        : Number(windowMinutes ?? 30);
-    if (!Number.isFinite(numeric)) {
-      return 30;
-    }
-
-    const rounded = Math.floor(numeric);
-    return Math.min(Math.max(rounded, 1), 24 * 60);
-  }
-
   private generateScopedId(prefix: string): string {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
@@ -1459,7 +1336,7 @@ export class ScheduleManager {
         return total;
       }
 
-      return total + this.normalizeWindowMinutes(node.windowMinutes);
+      return total + normalizeScheduledWindowMinutes(node.windowMinutes);
     }, 0);
   }
 
@@ -1712,7 +1589,7 @@ export class ScheduleManager {
       "defaultScope",
       "workspace",
     );
-    const defaultJitter = this.clampJitterSeconds(
+    const defaultJitter = clampScheduleJitterSeconds(
       getCompatibleConfigurationValue<number>("jitterSeconds", 0),
     );
 
@@ -1747,12 +1624,12 @@ export class ScheduleManager {
       promptPath: input.promptPath,
       jitterSeconds:
         input.jitterSeconds !== undefined
-          ? this.clampJitterSeconds(input.jitterSeconds)
+          ? clampScheduleJitterSeconds(input.jitterSeconds)
           : defaultJitter,
       oneTime,
-      manualSession: this.normalizeTaskManualSession(input.manualSession, oneTime),
-      chatSession: this.normalizeTaskChatSession(input.chatSession, oneTime),
-      labels: this.normalizeLabels(input.labels),
+      manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
+      chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
+      labels: normalizeScheduledTaskLabels(input.labels),
       nextRun,
       createdAt: now,
       updatedAt: now,
@@ -1858,7 +1735,7 @@ export class ScheduleManager {
       if (nextLabels.length === existingLabels.length) {
         continue;
       }
-      task.labels = this.normalizeLabels(nextLabels);
+      task.labels = normalizeScheduledTaskLabels(nextLabels);
       task.updatedAt = timestamp;
       changedCount += 1;
     }
@@ -2307,7 +2184,7 @@ export class ScheduleManager {
         id: nodeId,
         type: "task",
         taskId,
-        windowMinutes: this.normalizeWindowMinutes(windowMinutes),
+        windowMinutes: normalizeScheduledWindowMinutes(windowMinutes),
       });
       task.jobId = jobId;
       task.jobNodeId = nodeId;
@@ -2418,7 +2295,7 @@ export class ScheduleManager {
       return undefined;
     }
 
-    node.windowMinutes = this.normalizeWindowMinutes(windowMinutes);
+    node.windowMinutes = normalizeScheduledWindowMinutes(windowMinutes);
     job.updatedAt = new Date().toISOString();
     this.syncJobTaskSchedules(new Date());
     await this.saveTasks();
@@ -2501,7 +2378,7 @@ export class ScheduleManager {
 
       sections.push(
         `Step ${taskCount}: ${task.name}`,
-        `Original window: ${this.normalizeWindowMinutes(node.windowMinutes)} minutes`,
+        `Original window: ${normalizeScheduledWindowMinutes(node.windowMinutes)} minutes`,
         task.prompt,
       );
     }
@@ -2678,12 +2555,10 @@ export class ScheduleManager {
       task,
       updates,
       getPrimaryWorkspaceRoot: () => this.getPrimaryWorkspaceRoot(),
-      clampJitterSeconds: (value) => this.clampJitterSeconds(value),
-      normalizeTaskManualSession: (manualSession, oneTime) =>
-        this.normalizeTaskManualSession(manualSession, oneTime),
-      normalizeTaskChatSession: (chatSession, oneTime) =>
-        this.normalizeTaskChatSession(chatSession, oneTime),
-      normalizeLabels: (labels) => this.normalizeLabels(labels),
+      clampJitterSeconds: clampScheduleJitterSeconds,
+      normalizeTaskManualSession: normalizeScheduledTaskManualSession,
+      normalizeTaskChatSession: normalizeScheduledTaskChatSession,
+      normalizeLabels: normalizeScheduledTaskLabels,
     });
 
     this.refreshTaskNextRunAfterUpdate(task, {
@@ -2951,7 +2826,7 @@ export class ScheduleManager {
 
         // Safety: Apply jitter (random delay)
         const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
-        await this.applyJitter(maxJitterSeconds);
+        await applyScheduleJitter(maxJitterSeconds);
 
         // Execute
         let executedSuccessfully = false;
