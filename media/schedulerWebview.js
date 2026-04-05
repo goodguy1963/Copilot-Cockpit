@@ -5381,18 +5381,74 @@ syncTodoLabelSuggestions();
 
   // Task action delegation (single listener)
   function resolveActionTarget(node) {
-    var el = node && node.nodeType === 3 ? node.parentElement : node;
-    while (el && el !== document.body) {
-      if (
-        el.hasAttribute &&
-        el.hasAttribute("data-action") &&
-        (el.hasAttribute("data-id") || el.hasAttribute("data-task-id") || el.hasAttribute("data-job-id") || el.hasAttribute("data-profile-id"))
-      ) {
-        return el;
+    var current = node && node.nodeType === 3 ? node.parentElement : node;
+    while (current && current !== document.body) {
+      var hasAction = current.hasAttribute && current.hasAttribute("data-action");
+      var hasIdentifier = hasAction && (
+        current.hasAttribute("data-id") ||
+        current.hasAttribute("data-task-id") ||
+        current.hasAttribute("data-job-id") ||
+        current.hasAttribute("data-profile-id")
+      );
+      if (hasIdentifier) {
+        return current;
       }
-      el = el.parentElement;
+      current = current.parentElement;
     }
     return null;
+  }
+
+  function normalizeWorkspacePathValue(rawPath) {
+    if (!rawPath) return "";
+    var normalized = String(rawPath).replace(/\\/g, "/");
+    if (normalized === "/") return "/";
+    normalized = normalized.replace(/\/+$/, "");
+    if (!normalized) return "/";
+    return caseInsensitivePaths ? normalized.toLowerCase() : normalized;
+  }
+
+  function getPathLeafName(rawPath) {
+    if (!rawPath) return "";
+    var normalized = String(rawPath).replace(/[/\\]+$/, "");
+    var segments = normalized.split(/[/\\]+/);
+    return segments.length ? segments[segments.length - 1] || "" : normalized;
+  }
+
+  function getTaskNextRunPresentation(task) {
+    var nextRunDate = task && task.nextRun ? new Date(task.nextRun) : null;
+    var hasNextRun = nextRunDate && !isNaN(nextRunDate.getTime());
+    return {
+      millis: hasNextRun ? nextRunDate.getTime() : 0,
+      text: hasNextRun ? nextRunDate.toLocaleString(locale) : strings.labelNever,
+    };
+  }
+
+  function getTaskScopePresentation(task) {
+    var scopeValue = task && task.scope ? task.scope : "workspace";
+    var workspacePath = scopeValue === "workspace" ? task.workspacePath || "" : "";
+    var workspaceName = workspacePath ? getPathLeafName(workspacePath) : "";
+    var inCurrentWorkspace = scopeValue !== "workspace"
+      ? true
+      : !!workspacePath && (workspacePaths || []).some(function (candidatePath) {
+        return normalizeWorkspacePathValue(candidatePath) === normalizeWorkspacePathValue(workspacePath);
+      });
+    var scopeLabel = scopeValue === "global"
+      ? strings.labelScopeGlobal || ""
+      : strings.labelScopeWorkspace || "";
+    var scopeText = scopeValue === "global"
+      ? "🌐 " + escapeHtml(scopeLabel)
+      : "📁 " + escapeHtml(scopeLabel) + (workspaceName ? " • " + escapeHtml(workspaceName) : "");
+    if (scopeValue === "workspace") {
+      var workspaceBadgeText = inCurrentWorkspace
+        ? strings.labelThisWorkspaceShort || ""
+        : strings.labelOtherWorkspaceShort || "";
+      scopeText += " • " + escapeHtml(workspaceBadgeText);
+    }
+    return {
+      inThisWorkspace: inCurrentWorkspace,
+      scopeInfo: scopeText,
+      scopeValue: scopeValue,
+    };
   }
 
   document.addEventListener("click", function (e) {
@@ -5479,23 +5535,6 @@ syncTodoLabelSuggestions();
     }
     var renderedTasks = "";
 
-    function normalizePath(p) {
-      if (!p) return "";
-      var s = String(p).replace(/\\/g, "/");
-      // Preserve POSIX root path ("/") and avoid collapsing it to empty.
-      if (s === "/") return "/";
-      s = s.replace(/\/+$/, "");
-      if (s === "") return "/";
-      return caseInsensitivePaths ? s.toLowerCase() : s;
-    }
-
-    function basename(p) {
-      if (!p) return "";
-      var s = String(p).replace(/[/\\]+$/, "");
-      var parts = s.split(/[/\\]+/);
-      return parts.length ? parts[parts.length - 1] || "" : s;
-    }
-
     function renderTaskCard(task) {
       if (!task || !task.id) {
         return "";
@@ -5510,15 +5549,7 @@ syncTodoLabelSuggestions();
       var toggleTitle = enabled
         ? strings.actionDisable
         : strings.actionEnable;
-      var nextRunDate = task.nextRun ? new Date(task.nextRun) : null;
-      var nextRunMs =
-        nextRunDate && !isNaN(nextRunDate.getTime())
-          ? nextRunDate.getTime()
-          : 0;
-      var nextRun =
-        nextRunDate && !isNaN(nextRunDate.getTime())
-          ? nextRunDate.toLocaleString(locale)
-          : strings.labelNever;
+      var nextRunPresentation = getTaskNextRunPresentation(task);
       var promptText = typeof task.prompt === "string" ? task.prompt : "";
       var promptPreview =
         promptText.length > 100
@@ -5534,33 +5565,10 @@ syncTodoLabelSuggestions();
       var cronSummary = getCronSummary(task.cronExpression || "");
       var taskName = escapeHtml(task.name || "");
 
-      var scopeValue = task.scope || "workspace";
-      var scopeLabel =
-        scopeValue === "global"
-          ? strings.labelScopeGlobal || ""
-          : strings.labelScopeWorkspace || "";
-      var wsPath =
-        scopeValue === "workspace" ? task.workspacePath || "" : "";
-      var wsName = wsPath ? basename(wsPath) : "";
-      var inThisWorkspace =
-        scopeValue === "global"
-          ? true
-          : !!wsPath &&
-          (workspacePaths || []).some(function (p) {
-            return normalizePath(p) === normalizePath(wsPath);
-          });
-      var otherWsLabel = strings.labelOtherWorkspaceShort || "";
-      var thisWsLabel = strings.labelThisWorkspaceShort || "";
-      var scopeInfo =
-        scopeValue === "global"
-          ? "🌐 " + escapeHtml(scopeLabel)
-          : "📁 " +
-          escapeHtml(scopeLabel) +
-          (wsName ? " • " + escapeHtml(wsName) : "");
-      if (scopeValue === "workspace") {
-        scopeInfo +=
-          " • " + escapeHtml(inThisWorkspace ? thisWsLabel : otherWsLabel);
-      }
+      var scopeState = getTaskScopePresentation(task);
+      var scopeValue = scopeState.scopeValue;
+      var inThisWorkspace = scopeState.inThisWorkspace;
+      var scopeInfo = scopeState.scopeInfo;
       var oneTimeBadgeHtml =
         task.oneTime === true
           ? '<span class="task-badge clickable" data-action="toggle" data-id="' +
@@ -5683,11 +5691,11 @@ syncTodoLabelSuggestions();
         "<span>" +
         escapeHtml(strings.labelNextRun) +
         ': <span class="task-next-run-label">' +
-        escapeHtml(nextRun) +
+        escapeHtml(nextRunPresentation.text) +
         '</span><span class="task-next-run-countdown" data-enabled="' +
         (enabled ? "true" : "false") +
         '" data-next-run-ms="' +
-        escapeAttr(nextRunMs > 0 ? String(nextRunMs) : "") +
+        escapeAttr(nextRunPresentation.millis > 0 ? String(nextRunPresentation.millis) : "") +
         '"></span>' +
         "</span>" +
         "<span>" +
@@ -6094,14 +6102,19 @@ syncTodoLabelSuggestions();
     return summarizeCronExpression(expression, strings);
   }
 
+  function setCronPreviewText(previewElement, expressionValue) {
+    if (!previewElement) return;
+    previewElement.textContent = getCronSummary(expressionValue || "");
+  }
+
   function updateCronPreview() {
-    if (!cronPreviewText || !cronExpression) return;
-    cronPreviewText.textContent = getCronSummary(cronExpression.value || "");
+    if (!cronExpression) return;
+    setCronPreviewText(cronPreviewText, cronExpression.value);
   }
 
   function updateJobsCronPreview() {
-    if (!jobsCronPreviewText || !jobsCronInput) return;
-    jobsCronPreviewText.textContent = getCronSummary(jobsCronInput.value || "");
+    if (!jobsCronInput) return;
+    setCronPreviewText(jobsCronPreviewText, jobsCronInput.value);
     updateJobsCadenceMetric();
   }
 
@@ -6153,24 +6166,43 @@ syncTodoLabelSuggestions();
     }
   }
 
-  function resetForm() {
-    if (taskForm) taskForm.reset();
-    setEditingMode(null);
+  function resetTaskFormSessionState() {
     pendingAgentValue = "";
     pendingModelValue = "";
     pendingTemplatePath = "";
     editingTaskEnabled = true;
-    applyPromptSource("inline");
-    if (friendlyFrequency) friendlyFrequency.value = "";
-    if (jitterSecondsInput)
-      jitterSecondsInput.value = String(defaultJitterSeconds);
-    if (taskLabelsInput) taskLabelsInput.value = "";
+  }
+
+  function resetTaskFormToggles() {
     var runFirstEl = document.getElementById("run-first");
     if (runFirstEl) runFirstEl.checked = false;
     var oneTimeEl = document.getElementById("one-time");
     if (oneTimeEl) oneTimeEl.checked = false;
     var manualSessionEl = document.getElementById("manual-session");
     if (manualSessionEl) manualSessionEl.checked = false;
+  }
+
+  function focusTaskNameField() {
+    try {
+      var taskNameEl = document.getElementById("task-name");
+      if (taskNameEl && typeof taskNameEl.focus === "function") {
+        taskNameEl.focus();
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function resetForm() {
+    if (taskForm) taskForm.reset();
+    setEditingMode(null);
+    resetTaskFormSessionState();
+    applyPromptSource("inline");
+    if (friendlyFrequency) friendlyFrequency.value = "";
+    if (jitterSecondsInput)
+      jitterSecondsInput.value = String(defaultJitterSeconds);
+    if (taskLabelsInput) taskLabelsInput.value = "";
+    resetTaskFormToggles();
     if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
     if (agentSelect) agentSelect.value = executionDefaults.agent || "";
     if (modelSelect) modelSelect.value = executionDefaults.model || "";
@@ -6200,6 +6232,55 @@ syncTodoLabelSuggestions();
       models: models,
       strings: strings,
     });
+  }
+
+  function getTaskArrayForEditing() {
+    return Array.isArray(tasks) ? tasks : [];
+  }
+
+  function findTaskById(taskId) {
+    return getTaskArrayForEditing().find(function (task) {
+      return task && task.id === taskId;
+    });
+  }
+
+  function restoreTaskSelectValue(selectElement, pendingValue) {
+    if (!selectElement) {
+      return pendingValue;
+    }
+    if (pendingValue && !selectHasOptionValue(selectElement, pendingValue)) {
+      selectElement.value = "";
+      return pendingValue;
+    }
+    return restorePendingSelectValue(selectElement, pendingValue);
+  }
+
+  function initializeTaskEditorState() {
+    updateAgentOptions();
+    updateModelOptions();
+    var selectedPromptSource = document.querySelector('input[name="prompt-source"]:checked');
+    if (selectedPromptSource) {
+      applyPromptSource(selectedPromptSource.value);
+    }
+    if (chatSessionSelect && !chatSessionSelect.value) {
+      chatSessionSelect.value = defaultChatSession;
+    }
+    syncRecurringChatSessionUi();
+    updateFriendlyVisibility();
+    updateCronPreview();
+    updateSkillOptions();
+    syncTaskLabelFilterOptions();
+    syncJobsStepSelectors();
+    syncJobsFolderSelect("");
+    syncJobsExistingTaskSelect();
+    renderJobsTab();
+    syncEditorTabLabels();
+  }
+
+  function openCreateTaskTab() {
+    resetForm();
+    switchTab("create");
+    focusTaskNameField();
   }
 
   function updateTemplateOptions(source, selectedPath) {
@@ -7268,27 +7349,7 @@ syncTodoLabelSuggestions();
   }
 
   // Initialize dropdowns with cached data
-  updateAgentOptions();
-  updateModelOptions();
-  var initialPromptSource = document.querySelector(
-    'input[name="prompt-source"]:checked',
-  );
-  if (initialPromptSource) {
-    applyPromptSource(initialPromptSource.value);
-  }
-  if (chatSessionSelect && !chatSessionSelect.value) {
-    chatSessionSelect.value = defaultChatSession;
-  }
-  syncRecurringChatSessionUi();
-  updateFriendlyVisibility();
-  updateCronPreview();
-  updateSkillOptions();
-  syncTaskLabelFilterOptions();
-  syncJobsStepSelectors();
-  syncJobsFolderSelect("");
-  syncJobsExistingTaskSelect();
-  renderJobsTab();
-  syncEditorTabLabels();
+  initializeTaskEditorState();
 
   // Global functions for onclick handlers
   window.runTask = function (id) {
@@ -7296,10 +7357,7 @@ syncTodoLabelSuggestions();
   };
 
   window.editTask = function (id) {
-    var taskListArray = Array.isArray(tasks) ? tasks : [];
-    var task = taskListArray.find(function (t) {
-      return t && t.id === id;
-    });
+    var task = findTaskById(id);
     if (!task) return;
 
     setEditingMode(id);
@@ -7316,26 +7374,8 @@ syncTodoLabelSuggestions();
     // Restore agent/model — if options not loaded yet, store as pending
     pendingAgentValue = task.agent || "";
     pendingModelValue = task.model || "";
-      if (agentSelect) {
-        if (pendingAgentValue && !selectHasOptionValue(agentSelect, pendingAgentValue)) {
-          agentSelect.value = "";
-        } else {
-          pendingAgentValue = restorePendingSelectValue(
-            agentSelect,
-            pendingAgentValue,
-          );
-        }
-      }
-      if (modelSelect) {
-        if (pendingModelValue && !selectHasOptionValue(modelSelect, pendingModelValue)) {
-          modelSelect.value = "";
-        } else {
-          pendingModelValue = restorePendingSelectValue(
-            modelSelect,
-            pendingModelValue,
-          );
-        }
-      }
+    pendingAgentValue = restoreTaskSelectValue(agentSelect, pendingAgentValue);
+    pendingModelValue = restoreTaskSelectValue(modelSelect, pendingModelValue);
     editingTaskEnabled = task.enabled !== false;
     var scopeValue = task.scope || "workspace";
     var scopeRadio = document.querySelector(
@@ -7355,14 +7395,7 @@ syncTodoLabelSuggestions();
     applyPromptSource(sourceValue, true);
     pendingTemplatePath = task.promptPath || "";
     if (templateSelect) {
-      if (pendingTemplatePath && !selectHasOptionValue(templateSelect, pendingTemplatePath)) {
-        templateSelect.value = "";
-      } else {
-        pendingTemplatePath = restorePendingSelectValue(
-          templateSelect,
-          pendingTemplatePath,
-        );
-      }
+      pendingTemplatePath = restoreTaskSelectValue(templateSelect, pendingTemplatePath);
     }
 
     if (jitterSecondsInput) {
@@ -7394,16 +7427,7 @@ syncTodoLabelSuggestions();
 
   if (newTaskBtn) {
     newTaskBtn.addEventListener("click", function () {
-      resetForm();
-      switchTab("create");
-      try {
-        var taskNameEl = document.getElementById("task-name");
-        if (taskNameEl && typeof taskNameEl.focus === "function") {
-          taskNameEl.focus();
-        }
-      } catch (e) {
-        // ignore
-      }
+      openCreateTaskTab();
     });
   }
 
@@ -7426,9 +7450,7 @@ syncTodoLabelSuggestions();
   };
 
   window.deleteTask = function (id) {
-    var task = tasks.find(function (t) {
-      return t && t.id === id;
-    });
+    var task = findTaskById(id);
     if (!task) {
       return;
     }
@@ -7792,17 +7814,9 @@ syncTodoLabelSuggestions();
           pendingSubmit = false;
           if (submitBtn) submitBtn.disabled = false;
           hideGlobalError();
-          resetForm();
-          switchTab("create");
+          openCreateTaskTab();
           setTimeout(function () {
-            try {
-              var taskNameEl = document.getElementById("task-name");
-              if (taskNameEl && typeof taskNameEl.focus === "function") {
-                taskNameEl.focus();
-              }
-            } catch (e) {
-              // ignore
-            }
+            focusTaskNameField();
           }, 0);
           break;
         case "startCreateTodo":
