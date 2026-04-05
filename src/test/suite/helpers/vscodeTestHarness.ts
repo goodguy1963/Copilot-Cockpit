@@ -1,7 +1,14 @@
-import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import * as fs from "fs";
 import * as vscode from "vscode";
+
+const TEST_CLEANUP_OPTIONS = {
+  force: true,
+  recursive: true,
+  retryDelay: 50,
+  maxRetries: 3,
+} as const;
 
 type WorkspaceFolderShape = Array<{ uri: vscode.Uri }> | undefined;
 
@@ -90,12 +97,7 @@ export function createTempDir(prefix: string): string {
 
 export function removeTestPath(targetPath: string): void {
   try {
-    fs.rmSync(targetPath, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 50,
-    });
+    fs.rmSync(targetPath, TEST_CLEANUP_OPTIONS);
   } catch (_error) {
     // Ignore temp fixture cleanup failures in tests.
   }

@@ -1284,21 +1284,21 @@ export class ScheduleManager {
 
     return {
       id,
-      enabled,
-      scope: effectiveScope,
-      workspacePath,
-      jitterSeconds,
-      oneTime,
-      nextRun,
-      createdAt: now,
-      updatedAt: now,
       name: input.name,
       cronExpression: input.cronExpression,
       prompt: input.prompt,
       agent: input.agent,
       model: input.model,
+      enabled,
+      scope: effectiveScope,
+      oneTime,
+      jitterSeconds,
+      workspacePath,
       promptSource: input.promptSource || "inline",
       promptPath: input.promptPath,
+      nextRun,
+      createdAt: now,
+      updatedAt: now,
       ...sessionState,
     };
   }
@@ -1403,11 +1403,8 @@ export class ScheduleManager {
     now: Date,
   ): TaskExecutionOutcome {
     const details = toSafeSchedulerErrorDetails(error);
-    logError("[CopilotScheduler] Task execution error:", {
-      taskId: task.id,
-      taskName: task.name,
-      error: details,
-    });
+    const failureContext = { error: details, taskId: task.id, taskName: task.name };
+    logError("[CopilotScheduler] Task execution error:", failureContext);
     task.lastError = details;
     task.lastErrorAt = new Date();
     task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
@@ -1515,9 +1512,10 @@ export class ScheduleManager {
     const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
     await applyScheduleJitter(maxJitterSeconds);
 
-    if (this.onExecuteCallback) {
+    const executeTask = this.onExecuteCallback;
+    if (executeTask) {
       try {
-        await this.onExecuteCallback(task);
+        await executeTask(task);
         return this.handleSuccessfulTaskExecution(task, new Date());
       } catch (error) {
         return this.handleFailedTaskExecution(task, error, now);
@@ -2787,24 +2785,21 @@ export class ScheduleManager {
    */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
-    const changed = this.getEnabledTaskArray()
-      .reduce((didChange, task) => {
-        const nextRun = this.getScheduledTaskNextRun(task, now);
-        return this.replaceTaskNextRun(task, nextRun) || didChange;
-      }, false);
-
-    if (!changed) {
-      return;
+    let didChange = false;
+    for (const task of this.getEnabledTaskArray()) {
+      const nextRun = this.getScheduledTaskNextRun(task, now);
+      didChange = this.replaceTaskNextRun(task, nextRun) || didChange;
     }
-
-    await this.saveTasks();
+    if (didChange) {
+      await this.saveTasks();
+    }
   }
 
   /**
    * Return tasks whose scope matches the requested scope.
    */
   getTasksByScope(scope: TaskScope): ScheduledTask[] {
-    return this.getAllTasks().filter((task) => task.scope === scope);
+    return this.getAllTasks().filter(({ scope: taskScope }) => taskScope === scope);
   }
 
   /**
@@ -2887,7 +2882,8 @@ export class ScheduleManager {
       throw new Error(messages.moveOnlyWorkspaceTasks());
     }
 
-    this.updateTaskWorkspacePath(task, this.resolveCurrentWorkspaceRootOrThrow());
+    const workspaceRoot = this.resolveCurrentWorkspaceRootOrThrow();
+    this.updateTaskWorkspacePath(task, workspaceRoot);
     await this.saveTasksAndSyncRecurringPromptBackups();
     return task;
   }
@@ -2896,13 +2892,8 @@ export class ScheduleManager {
    * Decide whether a task belongs to the active workspace set.
    */
   shouldTaskRunInCurrentWorkspace(task: ScheduledTask): boolean {
-    if (task.scope === "global") {
+    if (task.scope !== "workspace") {
       return true;
-    }
-
-    const workspacePaths = this.getResolvedWorkspaceRoots();
-    if (workspacePaths.length === 0) {
-      return false;
     }
 
     const taskWorkspaceKey = this.getScheduledTaskWorkspaceKey(task);
@@ -2910,9 +2901,10 @@ export class ScheduleManager {
       return false;
     }
 
-    return workspacePaths.some(
-      (workspacePath) => normalizeForCompare(workspacePath) === taskWorkspaceKey,
+    const openWorkspaceKeys = this.getResolvedWorkspaceRoots().map((workspacePath) =>
+      normalizeForCompare(workspacePath),
     );
+    return openWorkspaceKeys.includes(taskWorkspaceKey);
   }
 
   /**

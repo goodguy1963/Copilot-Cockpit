@@ -6,6 +6,7 @@ import * as vm from "vm";
 import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../schedulerWebview";
 import { getResourceScopedSettingsTarget } from "../../schedulerWebviewSettingsHandler";
+import { overrideWorkspaceFolders } from "./helpers/vscodeTestHarness";
 
 type WebviewLike = {
   postMessage: (message: unknown) => Thenable<boolean>;
@@ -30,6 +31,26 @@ function resolveWorkspacePath(...segments: string[]): string {
 
 function readWorkspaceFile(...segments: string[]): string {
   return fs.readFileSync(resolveWorkspacePath(...segments), "utf8");
+}
+
+function readSchedulerWebviewScriptSource(): string {
+  return readWorkspaceFile("../../../media/schedulerWebview.js");
+}
+
+function readSchedulerWebviewTemplateSource(): string {
+  return readWorkspaceFile("../../../src/schedulerWebview.ts");
+}
+
+function readSchedulerWebviewStringsSource(): string {
+  return readWorkspaceFile("../../../src/schedulerWebviewStrings.ts");
+}
+
+function readSchedulerWebviewDebugSource(): string {
+  return readWorkspaceFile("../../../media/schedulerWebviewDebug.js");
+}
+
+function readBoardRenderingSource(): string {
+  return readWorkspaceFile("../../../media/schedulerWebviewBoardRendering.js");
 }
 
 function expectSourceToIncludeSnippets(
@@ -163,7 +184,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo editor click handlers use normalized event target lookups", () => {
-    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
+    const scriptSource = readSchedulerWebviewScriptSource();
     const selectors = [
       "[data-flag-chip-remove]",
       "[data-flag-catalog-select]",
@@ -207,7 +228,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       );
     });
 
-    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
       "todoDraft.labelInput || \"\"",
@@ -219,13 +240,11 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("settings tab includes editable spot-review defaults plumbing", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
       'var spotReviewTemplateInput = document.getElementById("spot-review-template-input")',
       'var botReviewPromptTemplateInput = document.getElementById("bot-review-prompt-template-input")',
       'var botReviewAgentSelect = document.getElementById("bot-review-agent-select")',
@@ -234,16 +253,13 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'type: "saveReviewDefaults"',
       'case "updateReviewDefaults":',
       'function renderReviewDefaultsControls() {',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected review defaults snippet ${snippet}`,
-      );
-    });
+      ],
+      "review defaults",
+    );
   });
 
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
-    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     assert.ok(
       scriptSource.includes("previousName: prevName || undefined")
@@ -271,7 +287,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo label catalog edit and add flows preserve shared definition colors", () => {
-    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
       "function getValidLabelColorValue(color, fallbackColor)",
@@ -284,7 +300,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo flag picker localizes protected flags and hides destructive controls", () => {
-    const scriptSource = readWorkspaceFile("../../../media/schedulerWebview.js");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
       "function getFlagDisplayName(flagName)",
@@ -297,83 +313,47 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo editor keeps upload wiring and sticky filter footer anchors", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(
+      templateSource,
+      [
       'id="todo-upload-files-btn"',
       'id="todo-upload-files-note"',
       'id="todo-hide-card-details"',
       'class="board-filter-grid-shell"',
       'class="board-filter-footer"',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected upload/sticky template snippet ${snippet}`,
-      );
-    });
+      ],
+      "upload/sticky template",
+    );
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'type: "requestTodoFileUpload"',
       'case "todoFileUploadResult":',
       'function openTodoCommentModal(comment)',
       'function updateBoardAutoCollapseFromScroll(forceExpand)',
       'function shouldIgnoreBoardAutoCollapseScroll(currentY)',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected upload/sticky runtime snippet ${snippet}`,
-      );
-    });
+    ], "upload/sticky runtime");
   });
 
   test("research tab exposes the AutoAgent example loader without host-side profile creation", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const stringsPath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebviewStrings.ts",
-    );
-    const stringsSource = fs.readFileSync(stringsPath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const stringsSource = readSchedulerWebviewStringsSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       'id="research-load-autoagent-example-btn"',
       'strings.researchLoadAutoAgentExample',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected AutoAgent example template snippet ${snippet}`,
-      );
-    });
+    ], "AutoAgent example template");
 
-    [
+    expectSourceToIncludeSnippets(stringsSource, [
       "researchLoadAutoAgentExample: localize(",
       "researchAutoAgentExampleName: localize(",
       "researchAutoAgentExampleInstructions: localize(",
-    ].forEach((snippet) => {
-      assert.ok(
-        stringsSource.includes(snippet),
-        `expected AutoAgent example string snippet ${snippet}`,
-      );
-    });
+    ], "AutoAgent example string");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'var researchLoadAutoAgentExampleBtn = document.getElementById("research-load-autoagent-example-btn");',
       'var researchNewBtn = document.getElementById("research-new-btn");',
       'function handleResearchToolbarAction(actionId) {',
@@ -393,12 +373,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'selectResearchRun(researchRunCard.getAttribute("data-run-id") || "")',
       'case "focusResearchProfile":',
       'case "focusResearchRun":',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected AutoAgent example runtime snippet ${snippet}`,
-      );
-    });
+    ], "AutoAgent example runtime");
 
     assert.strictEqual(
       scriptSource.includes('type: "createResearchProfile"'),
@@ -408,13 +383,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("webview runtime persists the active tab and per-tab scroll positions", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "var activeTabName = \"\";",
       "var tabScrollPositions = Object.create(null);",
       "function isPersistedTabName(value)",
@@ -427,43 +398,25 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "persistTaskFilter();",
       "restoreTabScrollPosition(tabName);",
       "if (isPersistedTabName(activeTabName)) {",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected active-tab scroll persistence snippet ${snippet}`,
-      );
-    });
+    ], "active-tab scroll persistence");
   });
 
   test("webview runtime keeps pending recurring filter state across stale board refreshes", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "var pendingTodoFilters = null;",
       "pendingTodoFilters = next;",
       "if (pendingTodoFilters) {",
       "if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {",
       "filters: normalizeTodoFilters(Object.assign({}, incomingFilters, pendingTodoFilters)),",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected pending filter reconciliation snippet ${snippet}`,
-      );
-    });
+    ], "pending filter reconciliation");
   });
 
   test("webview runtime orders visible recurring sections first and resolves task-list selects through execution defaults", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       "if (filters.showRecurringTasks === true) {",
       "var leftRecurring = isRecurringTodoSectionId(left.id);",
       "var effectiveSelectedId = selectedId || fallbackSelectedId || \"\";",
@@ -474,27 +427,14 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "function replayPendingTaskListRender() {",
       "taskList.addEventListener(\"focusout\"",
       "renderTaskList(tasks);",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected recurring/default task-list snippet ${snippet}`,
-      );
-    });
+    ], "recurring/default task-list");
   });
 
   test("task list adds manual sessions filter and collapsible manual recurring one-time sections", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       'data-filter="manual"',
       'id="manual-session"',
       'strings.labelManualSessions',
@@ -504,14 +444,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       '.task-sections-column {',
       '.task-section-toggle {',
       '.task-section.is-collapsed .task-section-body {',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected manual-session template snippet ${snippet}`,
-      );
-    });
+    ], "manual-session template");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'var taskSectionCollapseState = {',
       'function getActiveTodoLabelEditorName() {',
       'function getActiveTodoFlagEditorName() {',
@@ -539,52 +474,30 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'task-sections-column task-sections-column-secondary',
       'strings.labelManualSessions || "Manual Sessions"',
       'manualSession: manualSession,',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected manual-session runtime snippet ${snippet}`,
-      );
-    });
+    ], "manual-session runtime");
   });
 
   test("task editor disables native submit blocking and syncs prompt-source required fields", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     assert.ok(
       templateSource.includes('<form id="task-form" novalidate>'),
       "expected task form to disable native browser validation so the webview submit handler always runs",
     );
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'var promptTextEl = document.getElementById("prompt-text");',
       'var usesInlinePrompt = effectiveSource === "inline";',
       "promptTextEl.required = usesInlinePrompt;",
       "templateSelect.required = !usesInlinePrompt;",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected prompt-source validation sync snippet ${snippet}`,
-      );
-    });
+    ], "prompt-source validation sync");
   });
 
   test("webview supports cross-platform save shortcuts for task and todo editors", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'function submitWebviewForm(form) {',
       'if (typeof form.requestSubmit === "function") {',
       'return form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));',
@@ -597,40 +510,22 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'if (isTabActive("todo-edit")) {',
       'submitWebviewForm(todoDetailForm);',
       'handleGlobalSaveShortcut(event);',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected save shortcut runtime snippet ${snippet}`,
-      );
-    });
+    ], "save shortcut runtime");
   });
 
   test("board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       "font-size: var(--cockpit-chip-font, inherit);",
       "@media (max-width: 1180px)",
       "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;",
       "@media (max-width: 640px)",
       "grid-template-columns: 1fr;",
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected responsive footer/chip CSS snippet ${snippet}`,
-      );
-    });
+    ], "responsive footer/chip CSS");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");',
       "var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));",
       "var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));",
@@ -638,12 +533,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'w <= getCockpitCompactDetailsThreshold(),',
       "boardAutoCollapseSettleUntil = Date.now() + 240;",
       "boardAutoCollapseSettleDistance = Math.max(56, Math.ceil(stickyHeight + 16));",
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected slider chip-scale runtime snippet ${snippet}`,
-      );
-    });
+    ], "slider chip-scale runtime");
   });
 
   test("todo board cards use icon-only compact actions and keep board rows on one line", () => {
@@ -652,13 +542,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "../../../media/schedulerWebviewBoardRendering.js",
     );
     const renderSource = fs.readFileSync(renderPath, "utf8");
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
 
-    [
+    expectSourceToIncludeSnippets(renderSource, [
       "function renderActionButton(cls, dataAttr, label, iconHtml)",
       "function renderConfirmButton(cls, dataAttr, label)",
       'class="cockpit-section-title-group"',
@@ -668,14 +554,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "title=\"' + helpers.escapeAttr(label) + '\" aria-label=\"' + helpers.escapeAttr(label) + '\"",
       "data-todo-delete-reject",
       "data-todo-delete-permanent",
-    ].forEach((snippet) => {
-      assert.ok(
-        renderSource.includes(snippet),
-        `expected compact icon action snippet ${snippet}`,
-      );
-    });
+    ], "compact icon action");
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       ".cockpit-section-title-group {",
       ".cockpit-section-title {",
       ".cockpit-section-count {",
@@ -687,12 +568,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "filter: saturate(1.08) brightness(1.05);",
       ".todo-card-delete-reject {",
       ".todo-card-delete-permanent {",
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected compact action row CSS snippet ${snippet}`,
-      );
-    });
+    ], "compact action row CSS");
   });
 
   test("list view rows reuse board chips and switch between compact and detailed lines", () => {
@@ -701,13 +577,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       "../../../media/schedulerWebviewBoardRendering.js",
     );
     const renderSource = fs.readFileSync(renderPath, "utf8");
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
 
-    [
+    expectSourceToIncludeSnippets(renderSource, [
       'var chipMarkup = (visibleFlags.length || visibleLabels.length)',
       'class="todo-list-chip-row"',
       'class="card-flags"',
@@ -719,14 +591,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'strings.boardDescriptionLabel || "Description"',
       'strings.boardLatestComment || "Latest comment"',
       'strings.boardCommentsEmpty || "No comments yet."',
-    ].forEach((snippet) => {
-      assert.ok(
-        renderSource.includes(snippet),
-        `expected list-view chip/detail snippet ${snippet}`,
-      );
-    });
+    ], "list-view chip/detail");
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       '.todo-list-row {',
       'grid-template-columns: minmax(0, 1fr) auto;',
       '.todo-list-section .cockpit-section-header {',
@@ -741,25 +608,12 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'grid-auto-flow: column;',
       '@media (max-width: 760px) {',
       'grid-template-columns: 1fr;',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected list-view layout CSS snippet ${snippet}`,
-      );
-    });
+    ], "list-view layout CSS");
   });
 
   test("editor tabs use symbol states and dirty badges", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
     ["todo-edit", "create", "jobs-edit"].forEach((tabName) => {
       assert.ok(
@@ -768,7 +622,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       );
     });
 
-    [
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
       'var EDITOR_CREATE_SYMBOL = "+";',
       'var EDITOR_EDIT_SYMBOL = "⚙";',
       'labelNode.classList.toggle("is-dirty", options.dirty === true);',
@@ -776,39 +632,23 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'function isTodoEditorDirty()',
       'function isJobsEditorDirty()',
       'hookEditorTabDirtyTracking();',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected editor tab state snippet ${snippet}`,
-      );
-    });
+      ],
+      "editor tab state",
+    );
   });
 
   test("job focus resets jobs editor state and keeps editor tabs compact", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       '.tab-button[data-tab="todo-edit"]',
       '.tab-button[data-tab="create"]',
       '.tab-button[data-tab="jobs-edit"]',
       'flex: 0 0 auto;',
       'id="jobs-save-deck-btn"',
       '.jobs-workflow-metric.is-compact .jobs-workflow-metric-value',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected compact editor tab styling snippet ${snippet}`,
-      );
-    });
+    ], "compact editor tab styling");
 
     const focusJobCaseStart = scriptSource.indexOf('case "focusJob":');
     const editTaskCaseStart = scriptSource.indexOf('case "editTask":');
@@ -853,28 +693,16 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo comments style human form input separately and todo saves reset to create mode", () => {
-    const templatePath = path.resolve(
-      __dirname,
-      "../../../src/schedulerWebview.ts",
-    );
-    const templateSource = fs.readFileSync(templatePath, "utf8");
+    const templateSource = readSchedulerWebviewTemplateSource();
     const actionHandlerPath = path.resolve(
       __dirname,
       "../../../src/todoCockpitActionHandler.ts",
     );
     const actionHandlerSource = fs.readFileSync(actionHandlerPath, "utf8");
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
-    const debugHelperPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebviewDebug.js",
-    );
-    const debugHelperSource = fs.readFileSync(debugHelperPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const debugHelperSource = readSchedulerWebviewDebugSource();
 
-    [
+    expectSourceToIncludeSnippets(templateSource, [
       '.todo-comments-spotlight {',
       '.todo-comments-layout {',
       'grid-template-columns: 1fr;',
@@ -884,19 +712,14 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'id="todo-comment-thread-note"',
       '.todo-comment-card.is-user-form .todo-comment-author,',
       '.todo-comment-card.is-user-form .todo-comment-body {',
-    ].forEach((snippet) => {
-      assert.ok(
-        templateSource.includes(snippet),
-        `expected user comment styling snippet ${snippet}`,
-      );
-    });
+    ], "user comment styling");
 
     const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
     const threadMarkupIndex = templateSource.indexOf('class="todo-comment-thread-shell"');
     assert.ok(threadMarkupIndex >= 0, "expected thread preview shell in todo comments layout");
     assert.ok(composerMarkupIndex > threadMarkupIndex, "expected thread preview to appear before the composer in the template");
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'function renderTodoCommentSectionState(selectedTodo) {',
       'renderTodoCommentDraftPreviewMarkup(commentDraftValue)',
       'todoAddCommentBtn.hidden = !isEditingTodo;',
@@ -904,23 +727,13 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
       'var toneClass = getTodoCommentToneClass(comment);',
       `'<article class="todo-comment-card' + toneClass + userFormClass + '"`,
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected todo comment rendering snippet ${snippet}`,
-      );
-    });
+    ], "todo comment rendering");
 
-    [
+    expectSourceToIncludeSnippets(debugHelperSource, [
       'comment: "",',
       'nextDraft.comment = params.todoCommentInput ? String(params.todoCommentInput.value || "") : "";',
       'hasComment: nextDraft.comment.length > 0,',
-    ].forEach((snippet) => {
-      assert.ok(
-        debugHelperSource.includes(snippet),
-        `expected todo comment draft helper snippet ${snippet}`,
-      );
-    });
+    ], "todo comment draft helper");
 
     const updateTodoCaseStart = actionHandlerSource.indexOf('case "updateTodo": {');
     const deleteTodoCaseStart = actionHandlerSource.indexOf('case "deleteTodo": {');
@@ -1648,60 +1461,37 @@ suite("SchedulerWebview Message Queue Tests", () => {
   });
 
   test("todo editor completion requires a confirm step before finalizing ready cards", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
 
-    [
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
       'var actionType = getTodoCompletionActionType(selectedTodo);',
       'if (actionType === "finalizeTodo") {',
       'window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")',
       'type: actionType,',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected todo editor finalize confirm snippet ${snippet}`,
-      );
-    });
+      ],
+      "todo editor finalize confirm",
+    );
   });
 
   test("archived todo completion button restores instead of completing again", () => {
-    const scriptPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebview.js",
-    );
-    const scriptSource = fs.readFileSync(scriptPath, "utf8");
-    const boardRenderingPath = path.resolve(
-      __dirname,
-      "../../../media/schedulerWebviewBoardRendering.js",
-    );
-    const boardRenderingSource = fs.readFileSync(boardRenderingPath, "utf8");
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const boardRenderingSource = readBoardRenderingSource();
 
-    [
+    expectSourceToIncludeSnippets(scriptSource, [
       'var actionAttr = isArchivedCard ? \'data-todo-restore\' : \'data-todo-complete\';',
       "className += ' is-completed';",
       'data-finalize-state="idle"',
       'strings.boardRestoreTodo || "Restore"',
       'strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone."',
-    ].forEach((snippet) => {
-      assert.ok(
-        scriptSource.includes(snippet),
-        `expected archived completion or purge modal snippet ${snippet}`,
-      );
-    });
+    ], "archived completion or purge modal");
 
-    [
+    expectSourceToIncludeSnippets(boardRenderingSource, [
       'renderActionButton(',
       "'data-todo-purge'",
       "strings.boardDeleteTodoPermanent || 'Delete Permanently'",
-    ].forEach((snippet) => {
-      assert.ok(
-        boardRenderingSource.includes(snippet),
-        `expected archived board actions snippet ${snippet}`,
-      );
-    });
+    ], "archived board actions");
   });
 
   test("board interaction binding uses pointer drag for todo moves", () => {
@@ -2868,26 +2658,8 @@ suite("SchedulerWebview Jobs Request Tests", () => {
 });
 
 suite("SchedulerWebview settings target Tests", () => {
-  function setWorkspaceFolders(
-    folders: Array<{ uri: vscode.Uri }> | undefined,
-  ): () => void {
-    const original = vscode.workspace.workspaceFolders;
-    Object.defineProperty(vscode.workspace, "workspaceFolders", {
-      value: folders,
-      configurable: true,
-    });
-    return () => {
-      Object.defineProperty(vscode.workspace, "workspaceFolders", {
-        value: original,
-        configurable: true,
-      });
-    };
-  }
-
   test("uses workspace-folder target for resource-scoped settings when a folder is open", () => {
-    const restore = setWorkspaceFolders([
-      { uri: vscode.Uri.file(path.join(process.cwd(), "test-workspace")) },
-    ]);
+    const restore = overrideWorkspaceFolders(path.join(process.cwd(), "test-workspace"));
 
     try {
       assert.strictEqual(
@@ -2900,7 +2672,7 @@ suite("SchedulerWebview settings target Tests", () => {
   });
 
   test("falls back to global target when no workspace folder is open", () => {
-    const restore = setWorkspaceFolders(undefined);
+    const restore = overrideWorkspaceFolders();
 
     try {
       assert.strictEqual(
@@ -2973,30 +2745,7 @@ suite("SchedulerWebview Error Detail Sanitization Tests", () => {
 
 suite("SchedulerWebview showError Sanitization Tests", () => {
   test("focusJob posts job selection message", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.pendingMessages = [];
-
+    withPostedWebviewMessages({ ready: true }, ({ sent }) => {
       SchedulerWebview.focusJob("job-1", "folder-1");
 
       assert.strictEqual(sent.length, 1);
@@ -3008,37 +2757,11 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
       assert.strictEqual(message.type, "focusJob");
       assert.strictEqual(message.jobId, "job-1");
       assert.strictEqual(message.folderId, "folder-1");
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
+    });
   });
 
   test("focusResearchProfile posts research selection message", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.pendingMessages = [];
-
+    withPostedWebviewMessages({ ready: true }, ({ sent }) => {
       SchedulerWebview.focusResearchProfile("research-1");
 
       assert.strictEqual(sent.length, 1);
@@ -3048,38 +2771,11 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
       };
       assert.strictEqual(message.type, "focusResearchProfile");
       assert.strictEqual(message.researchId, "research-1");
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
+    });
   });
 
   test("showError sanitizes absolute paths before posting", () => {
-    const wv = SchedulerWebview as unknown as {
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.pendingMessages = [];
-
+    withPostedWebviewMessages({ ready: true }, ({ sent }) => {
       SchedulerWebview.showError(
         "ENOENT: no such file or directory, open 'C:\\Users\\me\\secret folder\\a b.md'",
       );
@@ -3090,10 +2786,6 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
       assert.ok(typeof m.text === "string");
       assert.ok(!(m.text as string).includes("C:\\Users\\me"));
       assert.ok((m.text as string).includes("a b.md"));
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-    }
+    });
   });
 });
