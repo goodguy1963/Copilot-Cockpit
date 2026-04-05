@@ -19,37 +19,57 @@ import type {
 } from "./types";
 
 export function getWebviewNonce(): string {
-  let text = "";
-  const possible =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const nonceChars: string[] = [];
+
   for (let index = 0; index < 32; index += 1) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
+    const randomIndex = Math.floor(Math.random() * alphabet.length);
+    nonceChars.push(alphabet[randomIndex] ?? "");
   }
-  return text;
+
+  return nonceChars.join("");
 }
 
 export function serializeForWebview(value: unknown): string {
   const json = JSON.stringify(value ?? null) ?? "null";
-  return json
-    .replace(/</g, "\\u003c")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+  const escapes: Array<[pattern: RegExp, replacement: string]> = [
+    [/</g, "\\u003c"],
+    [/\u2028/g, "\\u2028"],
+    [/\u2029/g, "\\u2029"],
+  ];
+
+  return escapes.reduce(
+    (serialized, [pattern, replacement]) => serialized.replace(pattern, replacement),
+    json,
+  );
 }
 
 export function escapeHtmlAttr(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  const replacements: Array<[pattern: RegExp, replacement: string]> = [
+    [/&/g, "&amp;"],
+    [/"/g, "&quot;"],
+    [/'/g, "&#39;"],
+    [/</g, "&lt;"],
+    [/>/g, "&gt;"],
+  ];
+
+  return replacements.reduce(
+    (escaped, [pattern, replacement]) => escaped.replace(pattern, replacement),
+    str,
+  );
 }
 
 export function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return ["&", "<", ">"].reduce((escaped, char) => {
+    switch (char) {
+      case "&":
+        return escaped.replace(/&/g, "&amp;");
+      case "<":
+        return escaped.replace(/</g, "&lt;");
+      default:
+        return escaped.replace(/>/g, "&gt;");
+    }
+  }, str);
 }
 
 export function getModelSourceLabel(model: ModelInfo): string {
