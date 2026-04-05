@@ -18,6 +18,10 @@ import {
     listCockpitRoutingCards,
 } from "./cockpitRouting.js";
 import {
+    getConfiguredCockpitDeterministicStateMode,
+    getConfiguredCockpitLegacyFallbackOnError,
+} from "./cockpitStateMode.js";
+import {
     addTodoCommentInBoard,
     approveTodoInBoard,
     createTodoInBoard,
@@ -46,6 +50,7 @@ import {
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
 } from "./scheduleHistory.js";
+import { logError } from "./logger.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
 
@@ -964,18 +969,18 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_list_routing_cards",
-        description: "List Cockpit todo cards that match routing labels, flags, or actionable comment labels.",
+        description: "List Cockpit todo cards that match canonical workflow flags. Labels and comment labels are preserved as context but do not drive routing.",
         inputSchema: {
             type: "object",
             properties: {
-                signals: { type: "array", items: { type: "string" }, description: "Routing signals to match. Defaults to go, Rejected (legacy alias accepted: abgelehnt), needs-bot-review, and on-schedule-list." },
+                signals: { type: "array", items: { type: "string" }, description: "Canonical workflow flags to match. Defaults to new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, and FINAL-USER-CHECK. Legacy go inputs normalize to ready." },
                 includeArchived: { type: "boolean", description: "Set false to exclude archived cards." },
             },
         },
     },
     {
         name: "cockpit_create_todo",
-        description: "Create a new Cockpit todo card in the workspace Cockpit store and keep compatibility mirrors in sync.",
+        description: "Create a new Cockpit todo card in the workspace Cockpit store and keep compatibility mirrors in sync. Active routing is driven by canonical workflow flags, not status.",
         inputSchema: {
             type: "object",
             properties: {
@@ -985,11 +990,11 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string", description: "Optional target section ID." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional labels." },
-                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag. Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Use one canonical workflow flag such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK. Legacy go inputs normalize to ready on write." },
                 comment: { type: "string", description: "Optional initial comment." },
                 author: { type: "string", description: "Optional initial comment author: user or system." },
                 commentSource: { type: "string", description: "Optional initial comment source: human-form, bot-mcp, bot-manual, or system-event." },
-                status: { type: "string", description: "Optional initial workflow state: active, ready, completed, or rejected." },
+                status: { type: "string", description: "Optional structural lifecycle state: active, completed, or rejected. Legacy ready inputs normalize to the ready flag on write." },
                 taskId: { type: "string", description: "Optional linked task ID." },
                 sessionId: { type: "string", description: "Optional linked session ID." },
             },
@@ -1013,7 +1018,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_approve_todo",
-        description: "Mark a Cockpit todo card as approved and ready for final acceptance.",
+        description: "Mark a Cockpit todo card as approved and move it into the ready workflow state for explicit task-draft creation.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1046,7 +1051,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_update_todo",
-        description: "Update an existing Cockpit todo card in the workspace Cockpit store, including due date, labels, flags, and section.",
+        description: "Update an existing Cockpit todo card in the workspace Cockpit store, including due date, labels, canonical workflow flags, and section.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1056,9 +1061,9 @@ export const MCP_TOOL_DEFINITIONS = [
                 sectionId: { type: "string" },
                 dueAt: { type: "string", description: "Optional ISO due date." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
-                status: { type: "string", description: "active, ready, completed, or rejected." },
+                status: { type: "string", description: "Structural lifecycle metadata: active, completed, or rejected. Legacy ready inputs normalize to the ready flag on write." },
                 labels: { type: "array", items: { type: "string" } },
-                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Review handoff should normally use one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag. Use cockpit_save_flag_definition to manage flag colors." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional agent-state flags. Active routing reads canonical workflow flags only: new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK." },
                 order: { type: "number" },
                 taskId: { type: "string" },
                 sessionId: { type: "string" },
@@ -1078,9 +1083,9 @@ export const MCP_TOOL_DEFINITIONS = [
                 summary: { type: "string", description: "Optional compact closeout summary comment." },
                 sectionId: { type: "string", description: "Optional preferred section ID. If it does not exist, the card stays in its current section." },
                 priority: { type: "string", description: "none, low, medium, high, or urgent." },
-                status: { type: "string", description: "active, ready, completed, or rejected." },
+                status: { type: "string", description: "Structural lifecycle metadata: active, completed, or rejected. Legacy ready inputs normalize to the ready flag on write." },
                 labels: { type: "array", items: { type: "string" }, description: "Optional replacement label list for the card. Use labels for multi-value categorization such as scheduled-task." },
-                flags: { type: "array", items: { type: "string" }, description: "Optional replacement flag list for the card. Use one explicit review-state flag for final handoff; keep the built-in scheduled pair only while the card still represents a live scheduled item." },
+                flags: { type: "array", items: { type: "string" }, description: "Optional replacement flag list for the card. Use one canonical workflow flag for active routing; labels and comment labels no longer drive routing." },
                 taskId: { type: "string", description: "Optional linked task ID to set. Pass an empty string to clear the link explicitly." },
                 clearTaskIdIfMissing: { type: "boolean", description: "When true, clear the linked taskId if the checked scheduler task does not exist." },
                 commentLabels: { type: "array", items: { type: "string" }, description: "Optional labels to attach to the summary comment." },
@@ -1172,7 +1177,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "cockpit_save_flag_definition",
-        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are squared routing-state chips; review handoff normally uses one explicit flag, while live scheduled cards use the built-in 'ON-SCHEDULE-LIST' flag.",
+        description: "Upsert a flag palette entry for the Todo Cockpit board. Flags are squared routing-state chips; canonical workflow flags are new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, and FINAL-USER-CHECK.",
         inputSchema: {
             type: "object",
             properties: {
@@ -1990,10 +1995,25 @@ export async function handleSchedulerToolCall(
                 const signals = Array.isArray(args.signals)
                     ? args.signals.filter((entry): entry is string => typeof entry === "string")
                     : DEFAULT_ROUTING_SIGNALS;
-                const cards = listCockpitRoutingCards(board, {
-                    signals,
-                    includeArchived: args.includeArchived !== false,
-                });
+                const deterministicStateMode = getConfiguredCockpitDeterministicStateMode();
+                let cards;
+                try {
+                    cards = listCockpitRoutingCards(board, {
+                        signals,
+                        includeArchived: args.includeArchived !== false,
+                        deterministicStateMode,
+                    });
+                } catch (error) {
+                    if (!getConfiguredCockpitLegacyFallbackOnError()) {
+                        throw error;
+                    }
+                    logError("[CopilotScheduler] Falling back to legacy cockpit routing after canonical routing error:", error instanceof Error ? error.message : String(error ?? ""));
+                    cards = listCockpitRoutingCards(board, {
+                        signals,
+                        includeArchived: args.includeArchived !== false,
+                        deterministicStateMode: "off",
+                    });
+                }
                 return textResponse({
                     workspaceRoot: context.workspaceRoot,
                     routingSignals: signals,

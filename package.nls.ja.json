@@ -51,6 +51,12 @@
   "config.storageMode.json": ".vscode 配下の既存 JSON ファイルを正本ストアとして使う",
   "config.storageMode.sqlite": "ローカル SQLite データベースを正本ストアとして使う",
   "config.sqliteJsonMirror": "SQLite ストレージモード有効時に、移行とロールバックのため .vscode 配下へ互換 JSON ミラーも出力します。",
+  "config.deterministicCockpitStateMode": "決定論的な Cockpit ルーティングと照合診断のロールアウトモードです。",
+  "config.deterministicCockpitStateMode.off": "旧来のルーティングシグナルのみを使い、決定論的ルーティングの強制を行いません",
+  "config.deterministicCockpitStateMode.shadow": "canonical routing を有効のままにしつつ、旧来ルーティングとの差分をログへ出します",
+  "config.deterministicCockpitStateMode.dualWrite": "canonical routing を有効のままにし、移行監視用の追加照合ログを出します",
+  "config.deterministicCockpitStateMode.canonicalPrimary": "workflow flag ベースの canonical routing を主動作として使います",
+  "config.legacyFallbackOnError": "決定論的ルーティングで例外が出た場合、復旧のために旧来のシグナルマッチングで再試行します。",
   "config.reportIssue": "🐛 バグを見つけた場合は [GitHub で報告](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
   "view.tasks": "スケジュールタスク"
 }

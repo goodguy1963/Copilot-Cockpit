@@ -3,6 +3,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
+import { createDefaultCockpitBoard } from "../../cockpitBoard";
+import { ensureTaskTodosInBoard } from "../../cockpitBoardManager";
 import { ScheduleManager } from "../../scheduleManager";
 import { messages } from "../../i18n";
 import { getScheduleHistoryRoot } from "../../scheduleHistory";
@@ -343,6 +345,100 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
 
       const manualJson = liveSchedulerJson.tasks.find((task) => task.id === manualTask.id);
       assert.strictEqual(manualJson?.manualSession, undefined);
+    } finally {
+      restoreWs();
+      for (const dir of [workspaceRoot, storageRoot]) {
+        try {
+          fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 50,
+          });
+        } catch {
+          // ignore
+        }
+      }
+    }
+  });
+});
+
+suite("ScheduleManager Todo Lifecycle Sync Tests", () => {
+  function setWorkspaceFoldersForTodoSyncTest(root: string): () => void {
+    const wsAny = vscode.workspace as unknown as {
+      workspaceFolders?: Array<{ uri: vscode.Uri }>;
+    };
+    const original = wsAny.workspaceFolders;
+    try {
+      Object.defineProperty(vscode.workspace, "workspaceFolders", {
+        value: [{ uri: vscode.Uri.file(root) }],
+        configurable: true,
+      });
+    } catch {
+      // ignore
+    }
+    return () => {
+      try {
+        Object.defineProperty(vscode.workspace, "workspaceFolders", {
+          value: original,
+          configurable: true,
+        });
+      } catch {
+        // ignore
+      }
+    };
+  }
+
+  test("linked one-time tasks move from ready to ON-SCHEDULE-LIST and then FINAL-USER-CHECK", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-todo-sync-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-todo-sync-storage-"),
+    );
+    const restoreWs = setWorkspaceFoldersForTodoSyncTest(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const task = await manager.createTask({
+        name: "Todo linked draft",
+        cronExpression: "0 9 * * 1-5",
+        prompt: "Do the work",
+        enabled: false,
+        oneTime: true,
+        scope: "workspace",
+        promptSource: "inline",
+      });
+      const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+      board.cards.push({
+        id: "todo-sync",
+        title: "Todo linked draft",
+        sectionId: "unsorted",
+        order: 0,
+        priority: "medium",
+        status: "active",
+        labels: [],
+        flags: ["ready"],
+        comments: [],
+        taskId: task.id,
+        archived: false,
+        createdAt: "2026-03-28T10:00:00.000Z",
+        updatedAt: "2026-03-28T10:00:00.000Z",
+      });
+
+      const draftBoard = ensureTaskTodosInBoard(board, manager.getAllTasks()).board;
+      assert.deepStrictEqual(draftBoard.cards[0]?.flags, ["ready"]);
+
+      await manager.updateTask(task.id, {
+        enabled: true,
+      });
+      const activeBoard = ensureTaskTodosInBoard(draftBoard, manager.getAllTasks()).board;
+      assert.deepStrictEqual(activeBoard.cards[0]?.flags, ["ON-SCHEDULE-LIST"]);
+
+      await manager.deleteTask(task.id);
+      const finishedBoard = ensureTaskTodosInBoard(activeBoard, manager.getAllTasks()).board;
+      assert.deepStrictEqual(finishedBoard.cards[0]?.flags, ["FINAL-USER-CHECK"]);
+      assert.strictEqual(finishedBoard.cards[0]?.taskId, undefined);
     } finally {
       restoreWs();
       for (const dir of [workspaceRoot, storageRoot]) {

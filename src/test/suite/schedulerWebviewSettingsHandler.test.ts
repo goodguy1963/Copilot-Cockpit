@@ -74,7 +74,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           data: {
             mode: "sqlite",
             sqliteJsonMirror: false,
-            disabledSystemFlagKeys: ["go", "rejected"],
+            disabledSystemFlagKeys: ["go", "final-user-check"],
             appVersion: "99.0.78",
             mcpSetupStatus: "configured",
             lastMcpSupportUpdateAt: "",
@@ -107,7 +107,7 @@ suite("Scheduler Webview Settings Handler Tests", () => {
           storageSettings: {
             mode: "sqlite",
             sqliteJsonMirror: false,
-            disabledSystemFlagKeys: ["go", "rejected"],
+            disabledSystemFlagKeys: ["ready", "final-user-check"],
             appVersion: "",
             mcpSetupStatus: "workspace-required",
             lastMcpSupportUpdateAt: "",

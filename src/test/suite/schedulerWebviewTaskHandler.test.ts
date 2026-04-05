@@ -82,6 +82,24 @@ suite("Task Handler Tests", () => {
     assert.strictEqual(action?.taskId, "t6");
   });
 
+  test("does not misroute cockpit lifecycle messages through the generic task handler", () => {
+    const linkHandled = handleTaskWebviewMessage(
+      { type: "linkTodoTask", todoId: "todo-1", taskId: "task-1" } as WebviewToExtensionMessage,
+      () => {
+        throw new Error("callback should not run for cockpit lifecycle messages");
+      },
+    );
+    const createHandled = handleTaskWebviewMessage(
+      { type: "createTaskFromTodo", todoId: "todo-1" } as WebviewToExtensionMessage,
+      () => {
+        throw new Error("callback should not run for cockpit lifecycle messages");
+      },
+    );
+
+    assert.strictEqual(linkHandled, false);
+    assert.strictEqual(createHandled, false);
+  });
+
   test("returns false for unrelated message type", () => {
     const handled = handleTaskWebviewMessage(
       { type: "setLanguage", language: "en" } as WebviewToExtensionMessage,

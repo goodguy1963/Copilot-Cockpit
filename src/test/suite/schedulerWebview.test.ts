@@ -207,8 +207,8 @@ suite("SchedulerWebview Message Queue Tests", () => {
 
     [
       "function getFlagDisplayName(flagName)",
-      'strings.boardFlagPresetGo || "Ready"',
-      'strings.boardFlagPresetRejected || "Rejected"',
+      'strings.boardFlagPresetReady || "Ready"',
+      'strings.boardFlagPresetFinalUserCheck || "Final User Check"',
       "function isProtectedFlagDefinition(entryOrName)",
       "entry.system === true",
       'strings.boardFlagCatalogLockedTitle || "Built-in flag"',
@@ -1319,7 +1319,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       wv.updateStorageSettings!({
         mode: "sqlite",
         sqliteJsonMirror: false,
-        disabledSystemFlagKeys: ["go"],
+        disabledSystemFlagKeys: ["ready"],
         appVersion: "99.0.78",
         mcpSetupStatus: "configured",
         lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
@@ -1345,7 +1345,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
       assert.strictEqual(message.type, "updateStorageSettings");
       assert.strictEqual(message.storageSettings?.mode, "sqlite");
       assert.strictEqual(message.storageSettings?.sqliteJsonMirror, false);
-      assert.deepStrictEqual(message.storageSettings?.disabledSystemFlagKeys, ["go"]);
+      assert.deepStrictEqual(message.storageSettings?.disabledSystemFlagKeys, ["ready"]);
     } finally {
       wv.panel = originalPanel;
       wv.webviewReady = originalReady;
@@ -1843,7 +1843,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "ready" },
+          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
         ],
       },
       ...interactionOptions,
@@ -1869,7 +1869,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "ready" },
+          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
         ],
       },
       ...interactionOptions,
@@ -1879,7 +1879,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "ready" },
+          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
         ],
       },
       ...interactionOptions,

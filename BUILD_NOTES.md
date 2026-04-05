@@ -3,7 +3,7 @@
 ## Current fork status
 
 - Private repo target: `goodguy1963/source-scheduler-private`
-- Current local fork version: `99.0.97`
+- Current local fork version: `99.0.98`
 
 ## Changes made on 2026-03-23
 

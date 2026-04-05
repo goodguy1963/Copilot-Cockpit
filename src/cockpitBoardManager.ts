@@ -1,6 +1,13 @@
 import {
+  COCKPIT_FINAL_USER_CHECK_FLAG,
+  COCKPIT_NEEDS_USER_REVIEW_FLAG,
+  COCKPIT_NEW_FLAG,
+  COCKPIT_ON_SCHEDULE_LIST_FLAG,
+  COCKPIT_READY_FLAG,
   describeCockpitSectionSemanticIssue,
+  getActiveCockpitWorkflowFlag,
   normalizeCockpitDisabledSystemFlagKeys,
+  replaceCockpitWorkflowFlag,
   DEFAULT_ARCHIVE_COMPLETED_SECTION_ID,
   DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
   DEFAULT_RECURRING_TASKS_SECTION_ID,
@@ -160,7 +167,6 @@ function renameFlagOnTodoCards(
   }
 }
 
-const ON_SCHEDULE_LIST_FLAG = "ON-SCHEDULE-LIST";
 const LEGACY_LINKED_SCHEDULED_TASK_FLAG_KEY = normalizeLabelKey("Linked scheduled task");
 
 function ensureCardFlag(card: CockpitTodoCard, flag: string): void {
@@ -169,11 +175,41 @@ function ensureCardFlag(card: CockpitTodoCard, flag: string): void {
   card.flags = Array.from(flags);
 }
 
-function ensureScheduledTaskFlags(card: CockpitTodoCard): void {
-  card.flags = normalizeStringList(card.flags).filter(
-    (flag) => normalizeLabelKey(flag) !== LEGACY_LINKED_SCHEDULED_TASK_FLAG_KEY,
+function setWorkflowFlag(card: CockpitTodoCard, flag: string | undefined): void {
+  const nextFlags = replaceCockpitWorkflowFlag(
+    normalizeStringList(card.flags).filter(
+      (entry) => normalizeLabelKey(entry) !== LEGACY_LINKED_SCHEDULED_TASK_FLAG_KEY,
+    ),
+    flag as Parameters<typeof replaceCockpitWorkflowFlag>[1],
   );
-  ensureCardFlag(card, ON_SCHEDULE_LIST_FLAG);
+  card.flags = nextFlags;
+}
+
+function getWorkflowFlag(card: Pick<CockpitTodoCard, "flags">): string | undefined {
+  return getActiveCockpitWorkflowFlag(card.flags);
+}
+
+function deriveDefaultWorkflowFlag(
+  card: Pick<CockpitTodoCard, "flags" | "taskId">,
+  taskIdOverride?: string,
+): string {
+  const current = getWorkflowFlag(card);
+  if (current === COCKPIT_FINAL_USER_CHECK_FLAG) {
+    return current;
+  }
+  if (current === COCKPIT_ON_SCHEDULE_LIST_FLAG && !(taskIdOverride ?? card.taskId)) {
+    return COCKPIT_NEEDS_USER_REVIEW_FLAG;
+  }
+  if (current) {
+    return current;
+  }
+  return (taskIdOverride ?? card.taskId)
+    ? COCKPIT_READY_FLAG
+    : COCKPIT_NEW_FLAG;
+}
+
+function ensureScheduledTaskFlags(card: CockpitTodoCard): void {
+  setWorkflowFlag(card, COCKPIT_ON_SCHEDULE_LIST_FLAG);
 }
 
 function getArchiveSectionId(outcome: CockpitArchiveOutcome): string {
@@ -408,6 +444,151 @@ function normalizeTaskLinkedTodoForTask(
   return changed;
 }
 
+function normalizeOneTimeTaskLinkedTodoForTask(
+  card: CockpitTodoCard,
+  task: ScheduledTask,
+  timestamp: string,
+): boolean {
+  let changed = false;
+  const nextSnapshot = buildTaskSnapshot(task);
+  const previousFlags = normalizeStringList(card.flags);
+  const previousWorkflowFlag = getWorkflowFlag(card);
+  const filteredComments = card.comments.filter((comment) =>
+    !isStaleDisabledLifecycleComment(comment, nextSnapshot.enabled),
+  );
+
+  if (filteredComments.length !== card.comments.length) {
+    card.comments = filteredComments;
+    resequenceTodoComments(card);
+    changed = true;
+  }
+
+  if (card.taskId !== task.id) {
+    card.taskId = task.id;
+    changed = true;
+  }
+
+  if (!card.taskSnapshot || JSON.stringify(card.taskSnapshot) !== JSON.stringify(nextSnapshot)) {
+    card.taskSnapshot = nextSnapshot;
+    changed = true;
+  }
+
+  if (card.archived || card.archiveOutcome || card.archivedAt) {
+    card.archived = false;
+    card.archiveOutcome = undefined;
+    card.archivedAt = undefined;
+    changed = true;
+  }
+  if (card.status !== "active") {
+    card.status = "active";
+    changed = true;
+  }
+  if (card.completedAt || card.rejectedAt) {
+    card.completedAt = undefined;
+    card.rejectedAt = undefined;
+    changed = true;
+  }
+
+  setWorkflowFlag(card, nextSnapshot.enabled ? COCKPIT_ON_SCHEDULE_LIST_FLAG : COCKPIT_READY_FLAG);
+  if (!areStringListsEqual(previousFlags, card.flags)) {
+    changed = true;
+  }
+
+  if (nextSnapshot.enabled) {
+    if (previousWorkflowFlag !== COCKPIT_ON_SCHEDULE_LIST_FLAG && !isLifecycleCommentLabeled(card, "task-enabled")) {
+      addSystemEventComment(
+        card,
+        "Linked task left draft-only mode and is now an active execution artifact.",
+        ["scheduled-task", "task-enabled"],
+        timestamp,
+      );
+      changed = true;
+    }
+  } else if (previousWorkflowFlag === COCKPIT_ON_SCHEDULE_LIST_FLAG && !isLifecycleCommentLabeled(card, "task-disabled")) {
+    addSystemEventComment(
+      card,
+      "Linked task returned to draft-only mode. Todo moved back to ready.",
+      ["scheduled-task", "task-disabled"],
+      timestamp,
+    );
+    changed = true;
+  }
+
+  if (changed) {
+    card.updatedAt = timestamp;
+  }
+
+  return changed;
+}
+
+function normalizeMissingOneTimeTaskLinkedTodo(
+  card: CockpitTodoCard,
+  timestamp: string,
+): boolean {
+  let changed = false;
+  const previousFlags = normalizeStringList(card.flags);
+  const previousWorkflowFlag = getWorkflowFlag(card);
+  const previousSnapshotEnabled = card.taskSnapshot?.enabled === true;
+
+  if (card.taskId) {
+    card.taskId = undefined;
+    changed = true;
+  }
+
+  if (card.taskSnapshot) {
+    card.taskSnapshot = {
+      ...card.taskSnapshot,
+      enabled: false,
+    };
+    changed = true;
+  }
+
+  if (card.archived || card.archiveOutcome || card.archivedAt) {
+    card.archived = false;
+    card.archiveOutcome = undefined;
+    card.archivedAt = undefined;
+    changed = true;
+  }
+  if (card.status !== "active") {
+    card.status = "active";
+    changed = true;
+  }
+  if (card.completedAt || card.rejectedAt) {
+    card.completedAt = undefined;
+    card.rejectedAt = undefined;
+    changed = true;
+  }
+
+  const nextWorkflowFlag = previousWorkflowFlag === COCKPIT_ON_SCHEDULE_LIST_FLAG || previousSnapshotEnabled
+    ? COCKPIT_FINAL_USER_CHECK_FLAG
+    : COCKPIT_READY_FLAG;
+  setWorkflowFlag(card, nextWorkflowFlag);
+  if (!areStringListsEqual(previousFlags, card.flags)) {
+    changed = true;
+  }
+
+  const commentLabel = nextWorkflowFlag === COCKPIT_FINAL_USER_CHECK_FLAG
+    ? "task-complete"
+    : "task-link-cleared";
+  if (!isLifecycleCommentLabeled(card, commentLabel)) {
+    addSystemEventComment(
+      card,
+      nextWorkflowFlag === COCKPIT_FINAL_USER_CHECK_FLAG
+        ? "Linked one-time task is no longer present. Todo moved to FINAL-USER-CHECK for acceptance."
+        : "Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.",
+      ["scheduled-task", commentLabel],
+      timestamp,
+    );
+    changed = true;
+  }
+
+  if (changed) {
+    card.updatedAt = timestamp;
+  }
+
+  return changed;
+}
+
 function upsertLabelDefinitionInBoard(
   board: CockpitBoard,
   input: UpsertCockpitLabelDefinitionInput,
@@ -579,15 +760,16 @@ function archiveTodoInBoardByOutcome(
   todo.archiveOutcome = outcome;
   todo.sectionId = getArchiveSectionId(outcome);
   todo.updatedAt = timestamp;
+  setWorkflowFlag(todo, undefined);
 
   if (outcome === "completed-successfully") {
     todo.status = "completed";
     todo.completedAt = timestamp;
-    addSystemEventComment(todo, "Completed and moved to the completed archive.", ["completed"], timestamp);
+    addSystemEventComment(todo, "Completed and moved to the completed archive.", ["archived", "archive-completed"], timestamp);
   } else {
     todo.status = "rejected";
     todo.rejectedAt = timestamp;
-    addSystemEventComment(todo, "Rejected and moved to the rejected archive.", ["rejected"], timestamp);
+    addSystemEventComment(todo, "Rejected and moved to the rejected archive.", ["archived", "archive-rejected"], timestamp);
   }
 
   resequenceCards(nextBoard, todo.sectionId);
@@ -623,17 +805,21 @@ export function restoreArchivedTodoInBoard(
   todo.order = nextBoard.cards.filter((card) =>
     card.id !== todo.id && card.sectionId === restoredSectionId,
   ).length;
-  todo.status = wasCompleted ? "ready" : "active";
+  todo.status = "active";
   todo.completedAt = undefined;
   todo.rejectedAt = undefined;
   todo.updatedAt = timestamp;
+  setWorkflowFlag(
+    todo,
+    wasCompleted ? COCKPIT_READY_FLAG : COCKPIT_NEEDS_USER_REVIEW_FLAG,
+  );
 
   addSystemEventComment(
     todo,
     wasCompleted
       ? "Restored from archive and marked ready again."
       : "Restored from archive and reopened for follow-up.",
-    [wasCompleted ? "ready" : "active"],
+    ["restored"],
     timestamp,
   );
 
@@ -721,7 +907,7 @@ function createRecurringTaskTodoCard(
     dueAt: undefined,
     status: "active",
     labels: ["scheduled-task", "recurring-task"],
-    flags: [ON_SCHEDULE_LIST_FLAG],
+    flags: [COCKPIT_ON_SCHEDULE_LIST_FLAG],
     comments: [],
     taskSnapshot: buildTaskSnapshot(task),
     taskId: task.id,
@@ -891,21 +1077,42 @@ export function createTodoInBoard(
   const nextBoard = cloneBoard(board);
   const timestamp = nowIso();
   const sectionId = getSectionOrFallback(nextBoard, input.sectionId);
+  const requestedTaskId = normalizeOptionalString(input.taskId);
+  const requestedStatus = input.status;
+  const requestedStatusKey = typeof requestedStatus === "string"
+    ? requestedStatus.toLowerCase()
+    : undefined;
+  const requestedArchiveOutcome: CockpitArchiveOutcome | undefined = requestedStatus === "completed"
+    ? "completed-successfully"
+    : (requestedStatus === "rejected" ? "rejected" : undefined);
+  const workflowFlag = requestedArchiveOutcome
+    ? undefined
+    : (requestedStatusKey === "ready"
+      ? COCKPIT_READY_FLAG
+      : (getActiveCockpitWorkflowFlag(normalizeStringList(input.flags))
+        ?? (requestedTaskId ? COCKPIT_READY_FLAG : COCKPIT_NEW_FLAG)));
   const todo: CockpitTodoCard = {
     id: normalizeOptionalString(input.id) ?? createId("todo"),
     title: String(input.title || "").trim() || "Untitled todo",
     description: normalizeOptionalString(input.description),
-    sectionId,
-    order: nextBoard.cards.filter((card) => card.sectionId === sectionId).length,
+    sectionId: requestedArchiveOutcome ? getArchiveSectionId(requestedArchiveOutcome) : sectionId,
+    order: nextBoard.cards.filter((card) => card.sectionId === (requestedArchiveOutcome ? getArchiveSectionId(requestedArchiveOutcome) : sectionId)).length,
     priority: input.priority ?? "none",
     dueAt: normalizeOptionalString(input.dueAt),
-    status: input.status ?? "active",
+    status: requestedArchiveOutcome
+      ? (requestedArchiveOutcome === "completed-successfully" ? "completed" : "rejected")
+      : "active",
     labels: normalizeStringList(input.labels),
-    flags: normalizeStringList(input.flags),
+    flags: replaceCockpitWorkflowFlag(input.flags, workflowFlag as Parameters<typeof replaceCockpitWorkflowFlag>[1]),
     comments: [],
-    taskId: normalizeOptionalString(input.taskId),
+    taskId: requestedTaskId,
     sessionId: normalizeOptionalString(input.sessionId),
-    archived: false,
+    archived: Boolean(requestedArchiveOutcome),
+    archiveOutcome: requestedArchiveOutcome,
+    approvedAt: workflowFlag === COCKPIT_READY_FLAG ? timestamp : undefined,
+    completedAt: requestedArchiveOutcome === "completed-successfully" ? timestamp : undefined,
+    rejectedAt: requestedArchiveOutcome === "rejected" ? timestamp : undefined,
+    archivedAt: requestedArchiveOutcome ? timestamp : undefined,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -924,9 +1131,6 @@ export function createTodoInBoard(
       source: input.commentSource,
       labels: [],
     }, timestamp);
-  }
-  if (todo.status === "ready") {
-    todo.approvedAt = timestamp;
   }
 
   nextBoard.deletedCardIds = (nextBoard.deletedCardIds ?? []).filter(
@@ -967,17 +1171,8 @@ export function updateTodoInBoard(
   if (updates.priority) {
     todo.priority = updates.priority;
   }
-  if (updates.status) {
-    todo.status = updates.status;
-    if (updates.status === "ready") {
-      todo.approvedAt = timestamp;
-    }
-  }
   if (updates.labels) {
     todo.labels = normalizeStringList(updates.labels);
-  }
-  if (updates.flags) {
-    todo.flags = normalizeStringList(updates.flags);
   }
   if (updates.taskId !== undefined) {
     todo.taskId = normalizeOptionalString(updates.taskId ?? undefined);
@@ -985,15 +1180,60 @@ export function updateTodoInBoard(
   if (updates.sessionId !== undefined) {
     todo.sessionId = normalizeOptionalString(updates.sessionId ?? undefined);
   }
-  if (typeof updates.archived === "boolean") {
-    todo.archived = updates.archived;
-  }
-  if (updates.archiveOutcome !== undefined) {
-    todo.archiveOutcome = updates.archiveOutcome ?? undefined;
-  }
-  todo.sectionId = nextSectionId;
+  const requestedArchiveOutcome: CockpitArchiveOutcome | undefined = updates.archiveOutcome === null
+    ? undefined
+    : (updates.archiveOutcome ?? (updates.status === "completed"
+      ? "completed-successfully"
+      : (updates.status === "rejected" ? "rejected" : undefined)));
+  const shouldArchive = updates.archived === true || Boolean(requestedArchiveOutcome);
+  const requestedStatusKey = typeof updates.status === "string"
+    ? updates.status.toLowerCase()
+    : undefined;
+  const workflowFlag = shouldArchive
+    ? undefined
+    : (requestedStatusKey === "ready"
+      ? COCKPIT_READY_FLAG
+      : (updates.flags
+        ? getActiveCockpitWorkflowFlag(updates.flags)
+        : deriveDefaultWorkflowFlag(todo, todo.taskId)));
+  todo.flags = replaceCockpitWorkflowFlag(
+    updates.flags ?? todo.flags,
+    workflowFlag as Parameters<typeof replaceCockpitWorkflowFlag>[1],
+  );
+  todo.sectionId = shouldArchive
+    ? getArchiveSectionId(requestedArchiveOutcome ?? "rejected")
+    : nextSectionId;
   if (typeof updates.order === "number" && Number.isFinite(updates.order)) {
     todo.order = Math.max(0, Math.floor(updates.order));
+  }
+  if (shouldArchive) {
+    const archiveOutcome = requestedArchiveOutcome ?? todo.archiveOutcome ?? "rejected";
+    todo.archived = true;
+    todo.archiveOutcome = archiveOutcome;
+    todo.status = archiveOutcome === "completed-successfully" ? "completed" : "rejected";
+    todo.archivedAt = todo.archivedAt ?? timestamp;
+    todo.completedAt = archiveOutcome === "completed-successfully"
+      ? (todo.completedAt ?? timestamp)
+      : undefined;
+    todo.rejectedAt = archiveOutcome === "rejected"
+      ? (todo.rejectedAt ?? timestamp)
+      : undefined;
+  } else {
+    if (typeof updates.archived === "boolean") {
+      todo.archived = updates.archived;
+    }
+    if (updates.archiveOutcome !== undefined) {
+      todo.archiveOutcome = undefined;
+    }
+    todo.status = "active";
+    todo.archived = false;
+    todo.archiveOutcome = undefined;
+    todo.archivedAt = undefined;
+    todo.completedAt = undefined;
+    todo.rejectedAt = undefined;
+    if (workflowFlag === COCKPIT_READY_FLAG) {
+      todo.approvedAt = todo.approvedAt ?? timestamp;
+    }
   }
   todo.updatedAt = timestamp;
   resequenceCards(nextBoard, previousSectionId);
@@ -1040,18 +1280,19 @@ export function approveTodoInBoard(
     return { board: nextBoard, todo: undefined };
   }
 
-  if (todo.archived || todo.status === "ready") {
+  if (todo.archived || getWorkflowFlag(todo) === COCKPIT_READY_FLAG) {
     return { board: nextBoard, todo };
   }
 
   const timestamp = nowIso();
-  todo.status = "ready";
+  todo.status = "active";
+  setWorkflowFlag(todo, COCKPIT_READY_FLAG);
   todo.approvedAt = timestamp;
   todo.updatedAt = timestamp;
   addSystemEventComment(
     todo,
-    "Approved and marked ready for follow-up.",
-    ["ready"],
+    "Approved and marked ready for task draft creation.",
+    ["approved"],
     timestamp,
   );
   touchBoard(nextBoard, timestamp);
@@ -1235,6 +1476,13 @@ export function ensureTaskTodosInBoard(
           ? linkedTask.updatedAt.toISOString()
           : nowIso();
         changed = normalizeTaskLinkedTodoForTask(card, linkedTask, timestamp) || changed;
+      } else if (linkedTask) {
+        const timestamp = linkedTask.updatedAt instanceof Date
+          ? linkedTask.updatedAt.toISOString()
+          : nowIso();
+        changed = normalizeOneTimeTaskLinkedTodoForTask(card, linkedTask, timestamp) || changed;
+      } else if (!isRecurringTasksSectionId(card.sectionId)) {
+        changed = normalizeMissingOneTimeTaskLinkedTodo(card, nowIso()) || changed;
       }
     }
 

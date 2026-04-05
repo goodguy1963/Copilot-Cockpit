@@ -56,6 +56,14 @@ function getLogFilePath(): string {
   return path.join(ensureLogDirectory(), `${stamp}.log`);
 }
 
+function getStructuredLogFilePath(channel: string): string {
+  const safeChannel = String(channel || "structured")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-") || "structured";
+  return path.join(ensureLogDirectory(), `${safeChannel}.jsonl`);
+}
+
 function serializeLogArg(value: unknown): string {
   if (value instanceof Error) {
     return value.stack || value.message;
@@ -109,4 +117,27 @@ export function logInfo(...args: unknown[]): void {
 
 export function logError(...args: unknown[]): void {
   log("error", console.error, args);
+}
+
+export function appendStructuredLogEntry(
+  channel: string,
+  entry: Record<string, unknown>,
+): void {
+  if (fileWriteFailed) {
+    return;
+  }
+  try {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      ...entry,
+    };
+    fs.appendFileSync(
+      getStructuredLogFilePath(channel),
+      `${JSON.stringify(payload)}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    fileWriteFailed = true;
+    console.error("[CopilotScheduler] Failed to write structured log file", error);
+  }
 }

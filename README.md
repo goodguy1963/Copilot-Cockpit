@@ -96,8 +96,8 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 
 - `Todo Cockpit` is the repo-local communication and approval layer.
 - Seeded sections start with `Unsorted`, then `Bugs`, `Features`, `Ops/DevOps`, `Marketing/Growth`, `Automation`, and `Future`.
-- Todos move through `active`, `ready`, `completed`, and `rejected` states.
-- `Approve` marks a todo as `ready`, `Final Accept` or `Complete & Archive` archives it as `completed-successfully`, and `Delete` lets you reject/archive or remove it permanently.
+- Todos keep structural lifecycle statuses such as `active`, `completed`, and `rejected`, while the live handoff state is carried by built-in workflow flags such as `new`, `needs-bot-review`, `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
+- `Approve` moves a todo into the `ready` workflow flag, `Final Accept` or `Complete & Archive` archives it as `completed-successfully`, and `Delete` lets you reject/archive or remove it permanently.
 - Cards support comments, due dates, labels, flags, task links, archive review, drag-drop between sections, and a collapsible filter bar.
 - Existing scheduled tasks can be surfaced into `Unsorted` when they are not already linked to a planning todo.
 - Use MCP tools or the extension UI to mutate Cockpit state. Direct edits to `.vscode/scheduler.private.json` should stay a last-resort recovery path because they bypass the normal validation and closeout flow.
@@ -147,9 +147,9 @@ Each workflow below can be driven manually, by AI, or by both together. Todo Coc
 - MCP tool semantics stay the same in JSON and SQLite modes. In SQLite mode the extension still keeps compatibility JSON mirrors and a workspace migration journal at `.vscode/copilot-cockpit.db-migration.json`.
 - Repo-local skills live in `.github/skills/cockpit-scheduler-agent/SKILL.md` and `.github/skills/cockpit-todo-agent/SKILL.md`.
 - For remediation or dispatcher work, start with a preflight: confirm the active workspace owns the referenced repo paths, then confirm the required MCP tool exists before mutating state.
-- Dispatcher agents should use `cockpit_list_routing_cards` first. It returns case-insensitive matches across labels, flags, and actionable comment labels so agents do not have to scan the full board payload.
-- In Todo Cockpit, `labels`, `flags`, and `comments[].labels` are distinct. `GO` is a flag here, not a label.
-- `flags` are routing and review-state markers. Most handoff flows should use one explicit review-state flag, while live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag. `labels` remain the multi-value categorization surface.
+- Dispatcher agents should use `cockpit_list_routing_cards` first. It returns cards whose canonical workflow flags match the requested routing signals, while `latestActionableUserComment` stays available for intent and cron extraction.
+- In Todo Cockpit, `labels`, `flags`, and `comments[].labels` are distinct. Active routing comes from canonical workflow flags, not from labels or comment labels. Legacy `GO` normalizes to the built-in `ready` flag.
+- `flags` are routing and review-state markers. Active cards should carry one canonical workflow flag, while live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag and final acceptance handoff can use `FINAL-USER-CHECK`. `labels` remain the multi-value categorization surface.
 - Prefer `cockpit_closeout_todo` for verified implementation handoff. It can keep the card active for review, add one summary comment, respect missing sections, and clear stale linked task IDs.
 - Skill files are available in this workspace, but they are only applied when explicitly inserted or referenced in prompts.
 

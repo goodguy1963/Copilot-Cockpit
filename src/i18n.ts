@@ -348,9 +348,9 @@ export const messages = {
     ),
   helpTodoBody: () =>
     t(
-      "The Todo board acts as the central hub for user and AI communication. Copilot can create cards, update labels and flags, move cards across sections, and leave comments through MCP tools. Use it to review plans, give feedback, and approve work before an approved item becomes a scheduled task.",
-      "TodoボードはユーザーとAIのコミュニケーションの中心として機能します。CopilotはMCPツールを使ってカードの作成、ラベルやフラグの更新、セクション間の移動、コメント追加を行えます。承認済みの項目をスケジュールタスクへ変換する前に、計画のレビュー、フィードバック、承認をここで行います。",
-      "Das Todo-Board fungiert als zentraler Knotenpunkt für die Kommunikation zwischen Benutzer und KI. Copilot kann über MCP-Tools Karten erstellen, Labels und Flags aktualisieren, Karten zwischen Bereichen verschieben und Kommentare hinterlassen. Nutzen Sie es, um Pläne zu prüfen, Feedback zu geben und Arbeit freizugeben, bevor ein freigegebener Eintrag zu einem geplanten Task wird."
+      "The Todo board is the planning hub. Active cards should carry one workflow flag such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK. Use ready for explicit draft preparation, ON-SCHEDULE-LIST for linked active execution, and FINAL-USER-CHECK when the task work has finished and needs acceptance.",
+      "Todoボードは計画ハブです。アクティブなカードは new、needs-bot-review、needs-user-review、ready、ON-SCHEDULE-LIST、FINAL-USER-CHECK のいずれか1つのワークフローフラグを持つ想定です。ready は明示的な下書き準備、ON-SCHEDULE-LIST はリンク済みの実行中状態、FINAL-USER-CHECK はタスク作業完了後の承認待ちに使います。",
+      "Das Todo-Board ist der Planungsknoten. Aktive Karten sollen genau ein Workflow-Flag wie new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST oder FINAL-USER-CHECK tragen. Verwenden Sie ready für die explizite Draft-Vorbereitung, ON-SCHEDULE-LIST für verknüpfte aktive Ausführung und FINAL-USER-CHECK, wenn die Task-Arbeit abgeschlossen ist und abgenommen werden muss."
     ),
   helpSwitchTabSettingsBtn: () => t("Switch to Settings", "設定を表示", "Zu Einstellungen wechseln"),
   helpSwitchTabTodoBtn: () => t("Switch to Todo Board", "Todoボードを表示", "Zum Todo-Board wechseln"),
@@ -385,16 +385,16 @@ export const messages = {
     ),
   helpCreateItemRunFirst: () =>
     t(
-      "Check Run First to fire the task 3 minutes after saving. Check One-Time to delete the task automatically after it runs once successfully.",
-      "Run Firstにチェックすると保存から3分後に初回実行します。One-Timeにチェックすると1回成功後にタスクを自動削除します。",
-      "Aktivieren Sie Run First, damit der Task 3 Minuten nach dem Speichern startet. Aktivieren Sie One-Time, damit der Task nach einer erfolgreichen Ausführung automatisch gelöscht wird.",
+      "Check Run First to fire the task 3 minutes after saving. Check One-Time for Todo Task Drafts and other single-use executions; after a successful one-time run, the linked Todo should move from ON-SCHEDULE-LIST to FINAL-USER-CHECK.",
+      "Run Firstにチェックすると保存から3分後に初回実行します。One-Time は Todo Task Drafts や単発実行向けです。one-time 実行が成功すると、リンクされた Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進む想定です。",
+      "Aktivieren Sie Run First, damit der Task 3 Minuten nach dem Speichern startet. Aktivieren Sie One-Time für Todo Task Drafts und andere Einmal-Ausführungen; nach einem erfolgreichen One-Time-Lauf sollte das verknüpfte Todo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
     ),
   helpListTitle: () => t("3. 📋 Manage Your Tasks", "3. 📋 タスクを管理", "3. 📋 Ihre Tasks verwalten"),
   helpListItemSections: () =>
     t(
-      "The Task List shows recurring tasks and one-time tasks in separate sections, with a live countdown to the next scheduled run.",
-      "Task Listでは繰り返しタスクと一度きりタスクを別セクションで表示し、次回実行までのカウントダウンも表示します。",
-      "Die Task List zeigt wiederkehrende und einmalige Tasks in getrennten Bereichen an, einschließlich eines Live-Countdowns bis zur nächsten geplanten Ausführung.",
+      "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts. A linked one-time draft keeps its source Todo in ready until you enable or schedule it, and completed one-time execution should return the source Todo to FINAL-USER-CHECK for acceptance.",
+      "Task List では繰り返しタスク、一度きりタスク、Todo Task Drafts を分けて表示します。リンクされた one-time の下書きは、有効化またはスケジュールされるまで元の Todo を ready のまま保ち、完了後は元の Todo を FINAL-USER-CHECK に戻して承認待ちにします。",
+      "Die Task List trennt wiederkehrende Tasks, einmalige Tasks und Todo Task Drafts. Ein verknüpfter One-Time-Draft hält sein Ursprungstodo in ready, bis Sie ihn aktivieren oder planen; nach erfolgreicher Ausführung sollte das Ursprungstodo zu FINAL-USER-CHECK für die Abnahme zurückkehren.",
     ),
   helpListItemActions: () =>
     t(

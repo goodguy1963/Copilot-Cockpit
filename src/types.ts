@@ -22,6 +22,12 @@ export type PromptSource = "inline" | "local" | "global";
  */
 export type LogLevel = "none" | "error" | "info" | "debug";
 
+export type CockpitDeterministicStateMode =
+  | "off"
+  | "shadow"
+  | "dual-write"
+  | "canonical-primary";
+
 /**
  * Chat session behavior
  */
@@ -211,9 +217,16 @@ export type CockpitTodoViewMode = "board" | "list";
 
 export type CockpitTodoStatus =
   | "active"
-  | "ready"
   | "completed"
   | "rejected";
+
+export type CockpitWorkflowFlag =
+  | "new"
+  | "needs-bot-review"
+  | "needs-user-review"
+  | "ready"
+  | "ON-SCHEDULE-LIST"
+  | "FINAL-USER-CHECK";
 
 export type CockpitArchiveOutcome =
   | "completed-successfully"
@@ -342,13 +355,13 @@ export interface CockpitTodoCard {
   /** Optional due date for planning and review */
   dueAt?: string;
 
-  /** Current planning workflow state */
+  /** Structural lifecycle metadata; active cards route by workflow flags instead. */
   status: CockpitTodoStatus;
 
   /** Free-form user-facing categorization labels */
   labels: string[];
 
-  /** Agent-state flags used for routing and board filtering; scheduled cards may keep a built-in paired system state */
+  /** Agent-state flags; one canonical workflow flag drives active routing while other flags remain auxiliary metadata. */
   flags: string[];
 
   /** Communication trail between user and system */
@@ -369,7 +382,7 @@ export interface CockpitTodoCard {
   /** Archive bucket outcome when archived */
   archiveOutcome?: CockpitArchiveOutcome;
 
-  /** Approval timestamp when moved into ready state */
+  /** Approval timestamp when the card entered the ready workflow state */
   approvedAt?: string;
 
   /** Completion timestamp when finalized */
@@ -555,6 +568,9 @@ export interface CockpitRoutingQuery {
 
   /** Whether archived cards should remain visible */
   includeArchived?: boolean;
+
+  /** Temporary rollout control for deterministic routing semantics. */
+  deterministicStateMode?: CockpitDeterministicStateMode;
 }
 
 export interface CreateCockpitTodoInput {

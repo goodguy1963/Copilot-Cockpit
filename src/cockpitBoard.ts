@@ -13,7 +13,13 @@ import type {
   CockpitTaskSnapshot,
   CockpitTodoPriority,
   CockpitTodoStatus,
+  CockpitWorkflowFlag,
 } from "./types";
+import {
+  getConfiguredCockpitDeterministicStateMode,
+  shouldLogCockpitStateNormalization,
+} from "./cockpitStateMode";
+import { appendStructuredLogEntry, logInfo } from "./logger";
 
 const DEFAULT_SECTIONS = [
   { id: "unsorted", title: "Unsorted" },
@@ -107,7 +113,6 @@ function normalizePriority(value: unknown): CockpitTodoPriority {
 
 function normalizeStatus(value: unknown): CockpitTodoStatus {
   switch (value) {
-    case "ready":
     case "completed":
     case "rejected":
       return value;
@@ -458,6 +463,32 @@ type SystemFlagSeed = {
   aliases?: string[];
 };
 
+export const COCKPIT_NEW_FLAG: CockpitWorkflowFlag = "new";
+export const COCKPIT_NEEDS_BOT_REVIEW_FLAG: CockpitWorkflowFlag = "needs-bot-review";
+export const COCKPIT_NEEDS_USER_REVIEW_FLAG: CockpitWorkflowFlag = "needs-user-review";
+export const COCKPIT_READY_FLAG: CockpitWorkflowFlag = "ready";
+export const COCKPIT_ON_SCHEDULE_LIST_FLAG: CockpitWorkflowFlag = "ON-SCHEDULE-LIST";
+export const COCKPIT_FINAL_USER_CHECK_FLAG: CockpitWorkflowFlag = "FINAL-USER-CHECK";
+
+const ACTIVE_WORKFLOW_FLAG_KEYS = [
+  "new",
+  "needs-bot-review",
+  "needs-user-review",
+  "ready",
+  "on-schedule-list",
+  "final-user-check",
+] as const;
+
+const ACTIVE_WORKFLOW_FLAG_KEY_SET = new Set<string>(ACTIVE_WORKFLOW_FLAG_KEYS);
+const LEGACY_READY_FLAG_KEYS = new Set(["go"]);
+const LEGACY_REJECTION_FLAG_KEYS = new Set(["rejected", "abgelehnt"]);
+const SCHEDULED_TASK_LABEL_KEY = "scheduled-task";
+const SCHEDULED_WORKFLOW_COMMENT_PATTERNS = [
+  /^\s*scheduled as\b/i,
+  /^\s*linked task is enabled again\.?$/i,
+  /^\s*recurring task linked\b/i,
+];
+
 const DEPRECATED_SCHEDULED_FLAG_KEYS = new Set([
   "linked-scheduled-task",
   "linked scheduled task",
@@ -467,14 +498,13 @@ const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
   { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
   { key: "needs-bot-review", name: "needs-bot-review", color: "#f59e0b" },
   { key: "needs-user-review", name: "needs-user-review", color: "#3b82f6" },
-  { key: "go", name: "go", color: "#22c55e", aliases: ["GO"] },
+  { key: "ready", name: "ready", color: "#22c55e", aliases: ["go", "GO"] },
   {
     key: "on-schedule-list",
-    name: "ON-SCHEDULE-LIST",
+    name: COCKPIT_ON_SCHEDULE_LIST_FLAG,
     color: "#14b8a6",
   },
-  { key: "final-user-check", name: "FINAL-USER-CHECK", color: "#8b5cf6" },
-  { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
+  { key: "final-user-check", name: COCKPIT_FINAL_USER_CHECK_FLAG, color: "#8b5cf6" },
 ];
 
 export const DEFAULT_SYSTEM_FLAG_KEYS = SYSTEM_FLAG_SEEDS.map((seed) => seed.key);
@@ -500,6 +530,166 @@ function normalizeSystemFlagKey(value: unknown): string | undefined {
   return key ? SYSTEM_FLAG_ALIAS_TO_KEY.get(key) ?? key : undefined;
 }
 
+function isLegacyRejectedFlagValue(value: unknown): boolean {
+  const key = normalizeLabelKey(typeof value === "string" ? value : String(value ?? ""));
+  return LEGACY_REJECTION_FLAG_KEYS.has(key);
+}
+
+function hasLegacyRejectedFlag(values: unknown): boolean {
+  return Array.isArray(values) && values.some((value) => isLegacyRejectedFlagValue(value));
+}
+
+function isWorkflowFlagKey(value: string | undefined): value is (typeof ACTIVE_WORKFLOW_FLAG_KEYS)[number] {
+  return Boolean(value && ACTIVE_WORKFLOW_FLAG_KEY_SET.has(value));
+}
+
+function stripWorkflowFlags(values: string[]): string[] {
+  return values.filter((value) => {
+    const key = normalizeSystemFlagKey(value) ?? normalizeLabelKey(value);
+    return !isWorkflowFlagKey(key);
+  });
+}
+
+export function getCockpitWorkflowFlagKey(value: unknown): string | undefined {
+  const key = normalizeSystemFlagKey(value);
+  return isWorkflowFlagKey(key) ? key : undefined;
+}
+
+export function getCockpitWorkflowFlagName(value: unknown): CockpitWorkflowFlag | undefined {
+  const key = getCockpitWorkflowFlagKey(value);
+  if (!key) {
+    return undefined;
+  }
+
+  return SYSTEM_FLAG_SEED_BY_KEY.get(key)?.name as CockpitWorkflowFlag | undefined;
+}
+
+export function getActiveCockpitWorkflowFlag(values: string[] | undefined): CockpitWorkflowFlag | undefined {
+  const matchedKeys = normalizeLabels(values)
+    .map((value) => getCockpitWorkflowFlagKey(value))
+    .filter((value): value is string => Boolean(value));
+  if (matchedKeys.length === 0) {
+    return undefined;
+  }
+
+  const winningKey = matchedKeys.reduce((best, candidate) => {
+    if (!best) {
+      return candidate;
+    }
+    const bestOrder = SYSTEM_FLAG_ORDER_BY_KEY.get(best) ?? -1;
+    const candidateOrder = SYSTEM_FLAG_ORDER_BY_KEY.get(candidate) ?? -1;
+    return candidateOrder >= bestOrder ? candidate : best;
+  }, "");
+  return getCockpitWorkflowFlagName(winningKey);
+}
+
+export function replaceCockpitWorkflowFlag(
+  values: string[] | undefined,
+  nextFlag: CockpitWorkflowFlag | undefined,
+): string[] {
+  const nextValues = stripWorkflowFlags(normalizeFlags(values));
+  if (!nextFlag) {
+    return nextValues;
+  }
+  return [...nextValues, nextFlag];
+}
+
+function hasScheduledExecutionEvidence(card: Pick<CockpitTodoCard, "labels" | "comments" | "taskSnapshot">): boolean {
+  if (card.taskSnapshot?.enabled === true) {
+    return true;
+  }
+
+  if (normalizeLabels(card.labels).some((label) => normalizeLabelKey(label) === SCHEDULED_TASK_LABEL_KEY)) {
+    return true;
+  }
+
+  return (card.comments ?? []).some((comment) => {
+    const commentLabels = normalizeLabels(comment.labels);
+    if (commentLabels.some((label) => normalizeLabelKey(label) === SCHEDULED_TASK_LABEL_KEY)) {
+      return true;
+    }
+    return SCHEDULED_WORKFLOW_COMMENT_PATTERNS.some((pattern) => pattern.test(String(comment.body || "")));
+  });
+}
+
+function inferActiveWorkflowFlag(
+  card: Pick<CockpitTodoCard, "flags" | "taskId" | "taskSnapshot" | "labels" | "comments">,
+  legacyStatus: unknown,
+): CockpitWorkflowFlag {
+  const explicitFlag = getActiveCockpitWorkflowFlag(card.flags);
+  if (explicitFlag) {
+    return explicitFlag;
+  }
+
+  if (legacyStatus === "ready") {
+    return COCKPIT_READY_FLAG;
+  }
+
+  if (card.taskId) {
+    return hasScheduledExecutionEvidence(card)
+      ? COCKPIT_ON_SCHEDULE_LIST_FLAG
+      : COCKPIT_READY_FLAG;
+  }
+
+  return COCKPIT_NEW_FLAG;
+}
+
+function normalizeCardWorkflowState(
+  card: CockpitTodoCard,
+  legacyStatus: unknown,
+  legacyFlags: unknown,
+  timestamp: string,
+): CockpitTodoCard {
+  const legacyRejected = legacyStatus === "rejected" || hasLegacyRejectedFlag(legacyFlags);
+  const explicitArchiveOutcome = normalizeArchiveOutcome(card.archiveOutcome);
+  if (
+    legacyRejected
+    || card.archived
+    || explicitArchiveOutcome
+    || card.status === "completed"
+    || card.status === "rejected"
+  ) {
+    const archiveOutcome = explicitArchiveOutcome
+      ?? ((legacyStatus === "completed" || card.status === "completed")
+        ? "completed-successfully"
+        : "rejected");
+    const archivedAt = card.archivedAt
+      ?? card.completedAt
+      ?? card.rejectedAt
+      ?? timestamp;
+    return {
+      ...card,
+      sectionId: getArchiveSectionIdForOutcome(archiveOutcome),
+      status: archiveOutcome === "completed-successfully" ? "completed" : "rejected",
+      flags: replaceCockpitWorkflowFlag(card.flags, undefined),
+      archived: true,
+      archiveOutcome,
+      completedAt: archiveOutcome === "completed-successfully"
+        ? card.completedAt ?? archivedAt
+        : undefined,
+      rejectedAt: archiveOutcome === "rejected"
+        ? card.rejectedAt ?? archivedAt
+        : undefined,
+      archivedAt,
+    };
+  }
+
+  const workflowFlag = inferActiveWorkflowFlag(card, legacyStatus);
+  return {
+    ...card,
+    status: "active",
+    flags: replaceCockpitWorkflowFlag(card.flags, workflowFlag),
+    archived: false,
+    archiveOutcome: undefined,
+    completedAt: undefined,
+    rejectedAt: undefined,
+    archivedAt: undefined,
+    approvedAt: workflowFlag === COCKPIT_READY_FLAG
+      ? card.approvedAt ?? (legacyStatus === "ready" ? timestamp : undefined)
+      : card.approvedAt,
+  };
+}
+
 function normalizeFlagName(value: unknown): string | undefined {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) {
@@ -520,6 +710,7 @@ function normalizeFlags(values: unknown): string[] {
   return values
     .map((value) => normalizeFlagName(value))
     .filter((value): value is string => Boolean(value))
+    .filter((value) => !LEGACY_REJECTION_FLAG_KEYS.has(normalizeLabelKey(value)))
     .filter((value) => !DEPRECATED_SCHEDULED_FLAG_KEYS.has(normalizeLabelKey(value)))
     .filter((value) => {
       const key = normalizeSystemFlagKey(value) ?? normalizeLabelKey(value);
@@ -561,12 +752,28 @@ function normalizeFlagDefinition(
 
 function normalizeDeletedFlagCatalogKeys(values: unknown): string[] {
   return normalizeCatalogKeyList(values).filter(
-    (key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key) && !DEPRECATED_SCHEDULED_FLAG_KEYS.has(key),
+    (key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key)
+      && !DEPRECATED_SCHEDULED_FLAG_KEYS.has(key)
+      && !LEGACY_REJECTION_FLAG_KEYS.has(key),
   );
 }
 
 export function normalizeCockpitDisabledSystemFlagKeys(values: unknown): string[] {
-  return normalizeCatalogKeyList(values).filter((key) => SYSTEM_FLAG_SEED_BY_KEY.has(key));
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return values
+    .map((value) => normalizeSystemFlagKey(value))
+    .filter((key): key is string => typeof key === "string" && SYSTEM_FLAG_SEED_BY_KEY.has(key))
+    .filter((key) => {
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
 }
 
 export function isProtectedCockpitFlagKey(value: string): boolean {
@@ -726,11 +933,12 @@ function normalizeCard(card: unknown, index: number): CockpitTodoCard {
   const record = card && typeof card === "object"
     ? card as Partial<CockpitTodoCard>
     : {};
+  const timestamp = nowIso();
   const comments = Array.isArray(record.comments)
     ? record.comments.map((entry, commentIndex) => normalizeComment(entry, commentIndex))
     : [];
 
-  return {
+  return normalizeCardWorkflowState({
     id: typeof record.id === "string" && record.id.trim()
       ? record.id.trim()
       : createId("card", index),
@@ -759,9 +967,9 @@ function normalizeCard(card: unknown, index: number): CockpitTodoCard {
     completedAt: normalizeOptionalIsoString(record.completedAt),
     rejectedAt: normalizeOptionalIsoString(record.rejectedAt),
     archivedAt: normalizeOptionalIsoString(record.archivedAt),
-    createdAt: typeof record.createdAt === "string" && record.createdAt.trim() ? record.createdAt : nowIso(),
-    updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim() ? record.updatedAt : nowIso(),
-  };
+    createdAt: typeof record.createdAt === "string" && record.createdAt.trim() ? record.createdAt : timestamp,
+    updatedAt: typeof record.updatedAt === "string" && record.updatedAt.trim() ? record.updatedAt : timestamp,
+  }, record.status, record.flags, timestamp);
 }
 
 function normalizeSection(section: unknown, index: number): CockpitBoardSection {
@@ -855,6 +1063,8 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
 
   const record = board as Partial<CockpitBoard>;
   const timestamp = nowIso();
+  const rawCards = Array.isArray(record.cards) ? record.cards : [];
+  const deterministicStateMode = getConfiguredCockpitDeterministicStateMode();
   const sections = Array.isArray(record.sections)
     ? record.sections.map((entry, index) => normalizeSection(entry, index))
     : buildDefaultSections(timestamp);
@@ -914,6 +1124,47 @@ export function normalizeCockpitBoard(board: unknown): CockpitBoard {
   const visibleCards = deletedCardIds.length > 0
     ? mergedCards.filter((card) => !deletedCardIds.includes(card.id))
     : mergedCards;
+
+  if (shouldLogCockpitStateNormalization(deterministicStateMode)) {
+    const normalizationSummary = rawCards.reduce((summary, entry) => {
+      const card = entry && typeof entry === "object"
+        ? entry as Partial<CockpitTodoCard>
+        : {};
+      const rawFlags = Array.isArray(card.flags) ? card.flags : [];
+      const rawStatus = typeof (card as { status?: unknown }).status === "string"
+        ? (card as { status?: string }).status
+        : undefined;
+      if (rawStatus === "ready") {
+        summary.legacyReadyStatusCount += 1;
+      }
+      if (rawFlags.some((flag) => normalizeLabelKey(String(flag || "")) === "go")) {
+        summary.legacyGoFlagCount += 1;
+      }
+      if (rawFlags.some((flag) => LEGACY_REJECTION_FLAG_KEYS.has(normalizeLabelKey(String(flag || ""))))) {
+        summary.legacyRejectedFlagCount += 1;
+      }
+      if (card.archived === true && rawFlags.some((flag) => Boolean(getCockpitWorkflowFlagKey(flag)))) {
+        summary.contradictoryArchivedWorkflowFlagCount += 1;
+      }
+      return summary;
+    }, {
+      legacyReadyStatusCount: 0,
+      legacyGoFlagCount: 0,
+      legacyRejectedFlagCount: 0,
+      contradictoryArchivedWorkflowFlagCount: 0,
+    });
+    const totalNormalizations = Object.values(normalizationSummary)
+      .reduce((count, value) => count + value, 0);
+    if (totalNormalizations > 0) {
+      const payload = {
+        kind: "normalize-board",
+        mode: deterministicStateMode,
+        ...normalizationSummary,
+      };
+      logInfo("[CopilotScheduler] Cockpit normalization summary", payload);
+      appendStructuredLogEntry("cockpit-state-reconciliation", payload);
+    }
+  }
 
   return {
     version: Number.isFinite(Number(record.version)) ? Math.max(4, Math.floor(Number(record.version))) : 4,
