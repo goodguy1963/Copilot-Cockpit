@@ -167,6 +167,33 @@ export function buildSchedulerWebviewStrings(
     executionDefaultsModel: localize("Default model", "デフォルト model", "Standard-model"),
     executionDefaultsSave: localize("Save Defaults", "デフォルトを保存", "Defaults speichern"),
     executionDefaultsSaved: localize("Workspace default agent and model settings.", "ワークスペースのデフォルト agent / model 設定です。", "Workspace-Standardeinstellungen für agent und model."),
+    reviewDefaultsTitle: localize("Spot Review Prompt", "スポットレビュー用プロンプト", "Spot-Review-Prompt"),
+    reviewDefaultsDescription: localize(
+      "This repo-local text is inserted into the Todo discussion when a card enters a review flag so the reviewer can start from a standard prompt.",
+      "このリポジトリローカルのテキストは、カードが review flag に入ったとき Todo の会話へ挿入され、レビュアーが標準プロンプトから開始できます。",
+      "Dieser repository-lokale Text wird in die Todo-Diskussion eingefügt, wenn eine Karte einen Review-Flag erhält, damit der Reviewer mit einem Standard-Prompt starten kann.",
+    ),
+    reviewDefaultsSpotReviewLabel: localize("Spot review text", "スポットレビュー用テキスト", "Spot-Review-Text"),
+    reviewDefaultsBotPromptLabel: localize("Bot review planning prompt", "Bot review planning 用プロンプト", "Bot-Review-Planungsprompt"),
+    reviewDefaultsBotPromptPlaceholder: localize(
+      "Use {{title}}, {{description}}, {{labels}}, and {{recent_comments}} to build the prompt sent when a Todo enters needs-bot-review.",
+      "Todo が needs-bot-review に入ったとき送るプロンプトでは、{{title}}、{{description}}、{{labels}}、{{recent_comments}} を使えます。",
+      "Verwenden Sie {{title}}, {{description}}, {{labels}} und {{recent_comments}}, um den Prompt aufzubauen, der gesendet wird, wenn ein Todo in needs-bot-review wechselt.",
+    ),
+    reviewDefaultsBotAgentLabel: localize("Bot review agent", "Bot review agent", "Bot-Review-Agent"),
+    reviewDefaultsBotModelLabel: localize("Bot review model", "Bot review model", "Bot-Review-Modell"),
+    reviewDefaultsBotChatSessionLabel: localize("Bot review chat session", "Bot review チャットセッション", "Bot-Review-Chat-Sitzung"),
+    reviewDefaultsSpotReviewPlaceholder: localize(
+      "Spot review request: review the current context, call out risks or unclear assumptions, and propose the smallest safe next step.",
+      "スポットレビュー依頼: 現在の文脈を確認し、リスクや曖昧な前提を指摘し、最小で安全な次の一手を提案してください。",
+      "Spot-Review-Anfrage: Prüfen Sie den aktuellen Kontext, benennen Sie Risiken oder unklare Annahmen und schlagen Sie den kleinsten sicheren nächsten Schritt vor.",
+    ),
+    reviewDefaultsSave: localize("Save Spot Review Text", "スポットレビュー用テキストを保存", "Spot-Review-Text speichern"),
+    reviewDefaultsSaved: localize(
+      "The review comment text is inserted on review-state changes, and needs-bot-review launches the planning prompt immediately after save.",
+      "review コメント用テキストは review 状態への変更時に挿入され、needs-bot-review は保存直後に planning prompt を実行します。",
+      "Der Review-Kommentartext wird bei Review-Zustandswechseln eingefügt, und needs-bot-review startet den Planungsprompt direkt nach dem Speichern.",
+    ),
     settingsStorageTitle: localize("Workspace Storage", "ワークスペース保存先", "Workspace-Speicher"),
     settingsStorageBody: localize(
       "Choose the authoritative workspace backend. The setting is saved immediately, but reload the window after changing storage mode so every runtime surface rehydrates from the selected store.",

@@ -93,6 +93,13 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     const cockpitBoard = { sections: [] } as any;
     const telegramNotification = { enabled: true } as any;
     const executionDefaults = { agent: "agent" } as any;
+    const reviewDefaults = {
+      spotReviewTemplate: "Spot review request",
+      botReviewPromptTemplate: "Review {{title}}",
+      botReviewAgent: "agent",
+      botReviewModel: "gpt-5",
+      botReviewChatSession: "new",
+    } as any;
     const storageSettings = { mode: "json" } as any;
     const researchProfiles = [{ id: "profile-1" }] as any[];
     const activeResearchRun = { id: "run-1" } as any;
@@ -112,6 +119,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
       currentCockpitBoard: cockpitBoard,
       currentTelegramNotification: telegramNotification,
       currentExecutionDefaults: executionDefaults,
+      currentReviewDefaults: reviewDefaults,
       currentStorageSettings: storageSettings,
       currentResearchProfiles: researchProfiles as any,
       currentActiveResearchRun: activeResearchRun,
@@ -138,6 +146,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     assert.deepStrictEqual(payload.cockpitBoard, cockpitBoard);
     assert.deepStrictEqual(payload.telegramNotification, telegramNotification);
     assert.deepStrictEqual(payload.executionDefaults, executionDefaults);
+    assert.deepStrictEqual(payload.reviewDefaults, reviewDefaults);
     assert.deepStrictEqual(payload.storageSettings, storageSettings);
     assert.deepStrictEqual(payload.researchProfiles, researchProfiles);
     assert.deepStrictEqual(payload.activeResearchRun, activeResearchRun);

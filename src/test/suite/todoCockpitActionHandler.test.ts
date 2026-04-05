@@ -7,7 +7,7 @@ import { createCockpitTodo } from "../../cockpitBoardManager";
 import { readSchedulerConfig } from "../../schedulerJsonSanitizer";
 import { SchedulerWebview } from "../../schedulerWebview";
 import { handleTodoCockpitAction } from "../../todoCockpitActionHandler";
-import type { CockpitBoard, CreateTaskInput } from "../../types";
+import type { CockpitBoard, CreateTaskInput, ExecuteOptions } from "../../types";
 
 suite("Todo Cockpit Action Handler", () => {
   function createWorkspaceRoot(): string {
@@ -39,6 +39,14 @@ suite("Todo Cockpit Action Handler", () => {
         updatedAt: "",
       }) as CockpitBoard,
       getCurrentTasks: () => [],
+      getReviewDefaults: () => ({
+        spotReviewTemplate: "Spot review request",
+        botReviewPromptTemplate: "Review {{title}}\n{{description}}\n{{labels}}\n{{recent_comments}}",
+        botReviewAgent: "agent",
+        botReviewModel: "gpt-5",
+        botReviewChatSession: "new" as const,
+      }),
+      executeBotReviewPrompt: async (_prompt: string, _options: ExecuteOptions) => undefined,
       createTask: async (_input: CreateTaskInput) => ({ id: "task-1", name: "Task" }),
       removeLabelFromAllTasks: async () => undefined,
       refreshSchedulerUiState: () => undefined,
@@ -127,6 +135,193 @@ suite("Todo Cockpit Action Handler", () => {
       assert.deepStrictEqual(switchedTabs, []);
     } finally {
       webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("createTodo seeds the configured review template when created in a review state", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTodo",
+          taskId: "",
+          todoData: {
+            title: "Needs review",
+            sectionId: "",
+            priority: "low",
+            flags: ["needs-bot-review"],
+          },
+        },
+        createDeps(workspaceRoot),
+      );
+
+      assert.strictEqual(handled, true);
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard;
+      const createdTodo = board?.cards.find((card) => card.title === "Needs review");
+      assert.ok(createdTodo);
+      assert.ok(
+        createdTodo?.comments?.some((comment) =>
+          comment.body === "Spot review request"
+          && Array.isArray(comment.labels)
+          && comment.labels.includes("spot-review-template")
+        ),
+      );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("createTodo launches bot review immediately when created in needs-bot-review", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTodo",
+          taskId: "",
+          todoData: {
+            title: "Review me",
+            description: "Inspect this todo",
+            sectionId: "",
+            priority: "low",
+            labels: ["alpha"],
+            flags: ["needs-bot-review"],
+          },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(launches.length, 1);
+      assert.ok(launches[0]?.prompt.includes("Review Review me"));
+      assert.ok(launches[0]?.prompt.includes("Inspect this todo"));
+      assert.ok(launches[0]?.prompt.includes("alpha"));
+      assert.deepStrictEqual(launches[0]?.options, {
+        agent: "agent",
+        model: "gpt-5",
+        chatSession: "new",
+      });
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("updateTodo seeds the configured review template only when entering a review state", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Review later",
+        sectionId: "",
+        priority: "low",
+        flags: ["new"],
+      });
+
+      const boardBeforeUpdate = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { flags: ["needs-user-review"] },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeUpdate,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      let board = readSchedulerConfig(workspaceRoot).cockpitBoard;
+      let updatedTodo = board?.cards.find((card) => card.id === created.todo.id);
+      assert.strictEqual(
+        updatedTodo?.comments?.filter((comment) => comment.body === "Spot review request").length,
+        1,
+      );
+
+      const boardBeforeSecondUpdate = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { description: "Minor edit" },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeSecondUpdate,
+        },
+      );
+
+      board = readSchedulerConfig(workspaceRoot).cockpitBoard;
+      updatedTodo = board?.cards.find((card) => card.id === created.todo.id);
+      assert.strictEqual(
+        updatedTodo?.comments?.filter((comment) => comment.body === "Spot review request").length,
+        1,
+      );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("updateTodo launches bot review only on transition into needs-bot-review", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Review transition",
+        description: "Body",
+        sectionId: "",
+        priority: "low",
+        flags: ["new"],
+      });
+
+      const boardBeforeUpdate = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { flags: ["needs-bot-review"] },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeUpdate,
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      const boardBeforeSecondUpdate = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { description: "Still reviewing" },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeSecondUpdate,
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      assert.strictEqual(launches.length, 1);
+      assert.ok(launches[0]?.prompt.includes("Review transition"));
+    } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

@@ -352,6 +352,13 @@ import {
     agent: "agent",
     model: "",
   };
+  var reviewDefaults = initialData.reviewDefaults || {
+    spotReviewTemplate: "",
+    botReviewPromptTemplate: "",
+    botReviewAgent: "agent",
+    botReviewModel: "",
+    botReviewChatSession: "new",
+  };
   function normalizeMcpSetupStatus(value, previousValue) {
     switch (value) {
       case "configured":
@@ -757,6 +764,13 @@ import {
   var defaultModelSelect = document.getElementById("default-model-select");
   var executionDefaultsSaveBtn = document.getElementById("execution-defaults-save-btn");
   var executionDefaultsNote = document.getElementById("execution-defaults-note");
+  var spotReviewTemplateInput = document.getElementById("spot-review-template-input");
+  var botReviewPromptTemplateInput = document.getElementById("bot-review-prompt-template-input");
+  var botReviewAgentSelect = document.getElementById("bot-review-agent-select");
+  var botReviewModelSelect = document.getElementById("bot-review-model-select");
+  var botReviewChatSessionSelect = document.getElementById("bot-review-chat-session-select");
+  var reviewDefaultsSaveBtn = document.getElementById("review-defaults-save-btn");
+  var reviewDefaultsNote = document.getElementById("review-defaults-note");
   var settingsStorageModeSelect = document.getElementById("settings-storage-mode-select");
   var settingsStorageMirrorInput = document.getElementById("settings-storage-mirror-input");
   var settingsFlagReadyInput = document.getElementById("settings-flag-ready-input");
@@ -1352,6 +1366,27 @@ import {
     };
   }
 
+  function collectReviewDefaultsFormData() {
+    return {
+      spotReviewTemplate: spotReviewTemplateInput
+        ? String(spotReviewTemplateInput.value || "")
+        : "",
+      botReviewPromptTemplate: botReviewPromptTemplateInput
+        ? String(botReviewPromptTemplateInput.value || "")
+        : "",
+      botReviewAgent: botReviewAgentSelect
+        ? String(botReviewAgentSelect.value || "")
+        : "",
+      botReviewModel: botReviewModelSelect
+        ? String(botReviewModelSelect.value || "")
+        : "",
+      botReviewChatSession: botReviewChatSessionSelect
+        && botReviewChatSessionSelect.value === "continue"
+        ? "continue"
+        : "new",
+    };
+  }
+
   function collectStorageSettingsFormData() {
     var disabledSystemFlagKeys = [];
     if (settingsFlagReadyInput && settingsFlagReadyInput.checked === false) {
@@ -1416,6 +1451,64 @@ import {
     if (executionDefaultsNote) {
       executionDefaultsNote.textContent = strings.executionDefaultsSaved
         || "Workspace default agent and model settings.";
+    }
+  }
+
+  function renderReviewDefaultsControls() {
+    if (spotReviewTemplateInput) {
+      spotReviewTemplateInput.value = reviewDefaults
+        && typeof reviewDefaults.spotReviewTemplate === "string"
+        ? reviewDefaults.spotReviewTemplate
+        : "";
+    }
+
+    if (botReviewPromptTemplateInput) {
+      botReviewPromptTemplateInput.value = reviewDefaults
+        && typeof reviewDefaults.botReviewPromptTemplate === "string"
+        ? reviewDefaults.botReviewPromptTemplate
+        : "";
+    }
+
+    updateSimpleSelect(
+      botReviewAgentSelect,
+      agents,
+      strings.placeholderSelectAgent || "Select agent",
+      reviewDefaults && typeof reviewDefaults.botReviewAgent === "string"
+        ? reviewDefaults.botReviewAgent
+        : "agent",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return item && item.name ? item.name : "";
+      },
+    );
+
+    updateSimpleSelect(
+      botReviewModelSelect,
+      models,
+      strings.placeholderSelectModel || "Select model",
+      reviewDefaults && typeof reviewDefaults.botReviewModel === "string"
+        ? reviewDefaults.botReviewModel
+        : "",
+      function (item) {
+        return item && item.id ? item.id : "";
+      },
+      function (item) {
+        return formatModelLabel(item);
+      },
+    );
+
+    if (botReviewChatSessionSelect) {
+      botReviewChatSessionSelect.value = reviewDefaults
+        && reviewDefaults.botReviewChatSession === "continue"
+        ? "continue"
+        : "new";
+    }
+
+    if (reviewDefaultsNote) {
+      reviewDefaultsNote.textContent = strings.reviewDefaultsSaved
+        || "The review comment text is inserted on review-state changes, and needs-bot-review launches the planning prompt immediately after save.";
     }
   }
 
@@ -1745,6 +1838,25 @@ import {
     }) || null;
   }
 
+  function getReadyTodoDraftCandidates() {
+    return getAllTodoCards().filter(function (todo) {
+      if (!todo || todo.archived || isRecurringTodoSectionId(todo.sectionId)) {
+        return false;
+      }
+      if (getTodoWorkflowFlag(todo) !== "ready") {
+        return false;
+      }
+      var linkedTask = todo.taskId ? getTaskById(todo.taskId) : null;
+      if (linkedTask && isTodoTaskDraft(linkedTask)) {
+        return false;
+      }
+      if (activeLabelFilter) {
+        return Array.isArray(todo.labels) && todo.labels.indexOf(activeLabelFilter) >= 0;
+      }
+      return true;
+    });
+  }
+
   function getVisibleJobs() {
     return (Array.isArray(jobs) ? jobs : [])
       .filter(function (job) {
@@ -1946,6 +2058,7 @@ import {
   renderTelegramTab();
   renderCockpitBoard();
   renderExecutionDefaultsControls();
+  renderReviewDefaultsControls();
   renderStorageSettingsControls();
   renderLoggingControls();
 
@@ -5098,6 +5211,15 @@ syncTodoLabelSuggestions();
     });
   }
 
+  if (reviewDefaultsSaveBtn) {
+    reviewDefaultsSaveBtn.addEventListener("click", function () {
+      vscode.postMessage({
+        type: "saveReviewDefaults",
+        data: collectReviewDefaultsFormData(),
+      });
+    });
+  }
+
   if (settingsStorageSaveBtn) {
     settingsStorageSaveBtn.addEventListener("click", function () {
       vscode.postMessage({
@@ -6122,6 +6244,36 @@ syncTodoLabelSuggestions();
       }
     }
 
+    var readyTodoCreateTarget = getClosestEventTarget(e, "[data-ready-todo-create]");
+    if (readyTodoCreateTarget) {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (taskList && taskList.contains(readyTodoCreateTarget)) {
+        e.preventDefault();
+        var readyTodoId = readyTodoCreateTarget.getAttribute("data-ready-todo-create");
+        if (readyTodoId) {
+          vscode.postMessage({ type: "createTaskFromTodo", todoId: readyTodoId });
+        }
+        return;
+      }
+    }
+
+    var readyTodoOpenTarget = getClosestEventTarget(e, "[data-ready-todo-open]");
+    if (readyTodoOpenTarget) {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (taskList && taskList.contains(readyTodoOpenTarget)) {
+        e.preventDefault();
+        var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
+        if (openTodoId) {
+          openTodoEditor(openTodoId);
+        }
+        return;
+      }
+    }
+
     var actionTarget = resolveActionTarget(e.target);
     if (!actionTarget) {
       return;
@@ -6552,6 +6704,53 @@ syncTodoLabelSuggestions();
       return !!(task && task.jobId);
     }
 
+    function renderReadyTodoDraftCandidateCard(todo) {
+      if (!todo) {
+        return "";
+      }
+
+      var title = escapeHtml(todo.title || "Untitled Todo");
+      var description = escapeHtml(getTodoDescriptionPreview(todo.description || ""));
+      var priority = escapeHtml(getTodoPriorityLabel(todo.priority || "none"));
+      var dueText = todo.dueAt
+        ? '<span>' +
+          escapeHtml(strings.boardDueLabel || "Due") +
+          ': ' +
+          escapeHtml(formatTodoDate(todo.dueAt)) +
+          '</span>'
+        : "";
+      var labelBadgesHtml = Array.isArray(todo.labels)
+        ? todo.labels.slice(0, 6).map(function (label) {
+          return '<span class="task-badge label">' + escapeHtml(label) + '</span>';
+        }).join("")
+        : "";
+
+      return (
+        '<div class="task-card todo-draft-candidate" data-ready-todo-id="' +
+        escapeAttr(todo.id || "") +
+        '">' +
+        '<div class="task-header">' +
+        '<div class="task-header-main">' +
+        '<span class="task-name">' + title + '</span>' +
+        '<span class="task-badge">Ready Todo</span>' +
+        '</div>' +
+        '<span class="task-status enabled">' + escapeHtml(strings.boardFlagPresetReady || "Ready") + '</span>' +
+        '</div>' +
+        '<div class="task-info">' +
+        '<span>' + escapeHtml(strings.boardWorkflowLabel || "Workflow") + ': ' + escapeHtml(strings.boardFlagPresetReady || "Ready") + '</span>' +
+        '<span>Priority: ' + priority + '</span>' +
+        dueText +
+        '</div>' +
+        (labelBadgesHtml ? '<div class="task-badges">' + labelBadgesHtml + '</div>' : '') +
+        '<div class="task-prompt">' + description + '</div>' +
+        '<div class="task-actions">' +
+        '<button class="btn-secondary" data-ready-todo-open="' + escapeAttr(todo.id || "") + '">Open Todo</button>' +
+        '<button class="btn-primary" data-ready-todo-create="' + escapeAttr(todo.id || "") + '">Create Draft</button>' +
+        '</div>' +
+        '</div>'
+      );
+    }
+
     var manualSessionTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
@@ -6570,6 +6769,7 @@ syncTodoLabelSuggestions();
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
       return isOneTime && !isJobTask(task) && isTodoTaskDraft(task);
     });
+    var readyTodoDraftCandidates = getReadyTodoDraftCandidates();
     var oneTimeTasks = taskItems.filter(function (task) {
       if (!task) return false;
       var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
@@ -6643,10 +6843,28 @@ syncTodoLabelSuggestions();
       );
     }
     if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
-      rightColumnHtml += renderTaskSection(
+      var readyTodoNoticeHtml = readyTodoDraftCandidates.length > 0
+        ? '<div class="note" style="margin-bottom:8px;">' +
+          escapeHtml(String(readyTodoDraftCandidates.length) + " ready todos are waiting for task draft creation.") +
+          '</div>'
+        : "";
+      var readyTodoCardsHtml = readyTodoDraftCandidates
+        .map(renderReadyTodoDraftCandidateCard)
+        .filter(Boolean)
+        .join("");
+      var existingTodoDraftsHtml = todoDraftTasks
+        .map(renderTaskCard)
+        .filter(Boolean)
+        .join("");
+      var todoDraftSectionHtml = readyTodoNoticeHtml + readyTodoCardsHtml + existingTodoDraftsHtml;
+      if (!todoDraftSectionHtml) {
+        todoDraftSectionHtml = '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + '</div>';
+      }
+      rightColumnHtml += renderTaskSectionContent(
         "todo-draft",
         strings.labelTodoTaskDrafts || "Todo Task Drafts",
-        todoDraftTasks,
+        todoDraftSectionHtml,
+        readyTodoDraftCandidates.length + todoDraftTasks.length,
       );
     }
     if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
@@ -8685,6 +8903,16 @@ syncTodoLabelSuggestions();
           }
           renderTaskList(tasks);
           break;
+        case "updateReviewDefaults":
+          reviewDefaults = message.reviewDefaults || {
+            spotReviewTemplate: "",
+            botReviewPromptTemplate: "",
+            botReviewAgent: "agent",
+            botReviewModel: "",
+            botReviewChatSession: "new",
+          };
+          renderReviewDefaultsControls();
+          break;
         case "updateAgents":
           {
             var currentAgentValue =
@@ -8696,6 +8924,7 @@ syncTodoLabelSuggestions();
             agents = Array.isArray(message.agents) ? message.agents : [];
             updateAgentOptions();
             renderExecutionDefaultsControls();
+            renderReviewDefaultsControls();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (agentSelect && currentAgentValue) {
@@ -8720,6 +8949,7 @@ syncTodoLabelSuggestions();
             models = Array.isArray(message.models) ? message.models : [];
             updateModelOptions();
             renderExecutionDefaultsControls();
+            renderReviewDefaultsControls();
             syncJobsStepSelectors();
             syncResearchSelectors();
             if (modelSelect && currentModelValue) {

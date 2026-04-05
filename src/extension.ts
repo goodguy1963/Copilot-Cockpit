@@ -13,7 +13,12 @@ import { SchedulerWebview } from "./schedulerWebview";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
-import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
+import {
+  COCKPIT_READY_FLAG,
+  createDefaultCockpitBoard,
+  getActiveCockpitWorkflowFlag,
+  normalizeCockpitBoard,
+} from "./cockpitBoard";
 import {
   addCockpitTodoComment,
   addCockpitSection,
@@ -98,6 +103,7 @@ import type {
   StorageSettingsView,
   TaskAction,
   ExecutionDefaultsView,
+  ReviewDefaultsView,
   PromptSource,
   UpdateCockpitBoardFiltersInput,
 } from "./types";
@@ -108,6 +114,20 @@ const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
+const DEFAULT_SPOT_REVIEW_TEMPLATE = "Spot review request: review the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
+const DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE = [
+  "You are preparing a spot review plan for this Todo.",
+  "",
+  "Todo title: {{title}}",
+  "Todo description:",
+  "{{description}}",
+  "",
+  "Labels: {{labels}}",
+  "Recent coordination:",
+  "{{recent_comments}}",
+  "",
+  "Research what is needed to review this item, identify missing context and risks, and propose the smallest safe next steps.",
+].join("\n");
 const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
 const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
 
@@ -492,13 +512,75 @@ function createUiRefreshQueue(
   };
 }
 
+let lastPendingReadyTodoDraftIds = new Set<string>();
+
+function isTodoDraftTask(task: ScheduledTask | undefined): boolean {
+  if (!task) {
+    return false;
+  }
+  const isOneTimeTask = task.oneTime === true || task.id.startsWith("exec-");
+  if (!isOneTimeTask) {
+    return false;
+  }
+  return Array.isArray(task.labels)
+    && task.labels.some((label) =>
+      String(label || "").trim().toLowerCase() === "from-todo-cockpit"
+    );
+}
+
+function getPendingReadyTodoDrafts(
+  board: CockpitBoard,
+  tasks: ScheduledTask[],
+) {
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  return (board.cards ?? []).filter((card) => {
+    if (!card || card.archived || card.sectionId === "recurring-tasks") {
+      return false;
+    }
+    if (getActiveCockpitWorkflowFlag(card.flags) !== COCKPIT_READY_FLAG) {
+      return false;
+    }
+    const linkedTask = card.taskId ? taskById.get(card.taskId) : undefined;
+    return !isTodoDraftTask(linkedTask);
+  });
+}
+
+function notifyPendingReadyTodoDrafts(
+  board: CockpitBoard,
+  tasks: ScheduledTask[],
+): void {
+  const pendingReadyTodos = getPendingReadyTodoDrafts(board, tasks);
+  const nextIds = new Set(pendingReadyTodos.map((todo) => todo.id));
+  const addedTodos = pendingReadyTodos.filter((todo) =>
+    !lastPendingReadyTodoDraftIds.has(todo.id)
+  );
+  lastPendingReadyTodoDraftIds = nextIds;
+
+  if (addedTodos.length === 0) {
+    return;
+  }
+
+  if (addedTodos.length === 1) {
+    notifyInfo(
+      `Ready Todo waiting for task draft: ${addedTodos[0]?.title || "Untitled Todo"}`,
+    );
+    return;
+  }
+
+  notifyInfo(`${addedTodos.length} ready Todos are waiting for task drafts.`);
+}
+
 const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
-  SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+  const tasks = scheduleManager.getAllTasks();
+  const cockpitBoard = getCurrentCockpitBoard();
+
+  SchedulerWebview.updateTasks(tasks);
   SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
-  SchedulerWebview.updateCockpitBoard(getCurrentCockpitBoard());
+  SchedulerWebview.updateCockpitBoard(cockpitBoard);
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
+  SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
   SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
   SchedulerWebview.updateResearchState(
     researchManager.getAllProfiles(),
@@ -508,6 +590,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateScheduleHistory(
     scheduleManager.getWorkspaceScheduleHistory(),
   );
+  notifyPendingReadyTodoDrafts(cockpitBoard, tasks);
 });
 
 function refreshSchedulerUiState(immediate = false): void {
@@ -526,6 +609,7 @@ async function showSchedulerWebview(
     getCurrentCockpitBoard(),
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
+    getCurrentReviewDefaults(),
     getCurrentStorageSettings(),
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
@@ -662,6 +746,39 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
   };
 }
 
+function getCurrentReviewDefaults(): ReviewDefaultsView {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  return {
+    spotReviewTemplate: getSchedulerSetting<string>(
+      "spotReviewTemplate",
+      DEFAULT_SPOT_REVIEW_TEMPLATE,
+      folderUri,
+    ).trim(),
+    botReviewPromptTemplate: getSchedulerSetting<string>(
+      "botReviewPromptTemplate",
+      DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE,
+      folderUri,
+    ),
+    botReviewAgent: getSchedulerSetting<string>(
+      "botReviewAgent",
+      "agent",
+      folderUri,
+    ).trim(),
+    botReviewModel: getSchedulerSetting<string>(
+      "botReviewModel",
+      "",
+      folderUri,
+    ).trim(),
+    botReviewChatSession: getSchedulerSetting<"new" | "continue">(
+      "botReviewChatSession",
+      "new",
+      folderUri,
+    ) === "continue"
+      ? "continue"
+      : "new",
+  };
+}
+
 function getCurrentStorageSettings(): StorageSettingsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
   const workspaceRoot = folderUri?.fsPath;
@@ -703,6 +820,73 @@ async function saveExecutionDefaults(
   await updateSchedulerSetting("defaultModel", nextModel, target, folderUri);
 
   return getCurrentExecutionDefaults();
+}
+
+async function saveReviewDefaults(
+  input: Partial<ReviewDefaultsView>,
+): Promise<ReviewDefaultsView> {
+  const folderUri = getPrimaryWorkspaceFolderUri();
+  const target = getExecutionDefaultsTarget();
+  const nextSpotReviewTemplate = typeof input.spotReviewTemplate === "string"
+    ? input.spotReviewTemplate.trim()
+    : getSchedulerSetting<string>(
+      "spotReviewTemplate",
+      DEFAULT_SPOT_REVIEW_TEMPLATE,
+      folderUri,
+    ).trim();
+  const nextBotReviewPromptTemplate = typeof input.botReviewPromptTemplate === "string"
+    ? input.botReviewPromptTemplate
+    : getSchedulerSetting<string>(
+      "botReviewPromptTemplate",
+      DEFAULT_BOT_REVIEW_PROMPT_TEMPLATE,
+      folderUri,
+    );
+  const nextBotReviewAgent = typeof input.botReviewAgent === "string"
+    ? input.botReviewAgent.trim()
+    : getSchedulerSetting<string>("botReviewAgent", "agent", folderUri).trim();
+  const nextBotReviewModel = typeof input.botReviewModel === "string"
+    ? input.botReviewModel.trim()
+    : getSchedulerSetting<string>("botReviewModel", "", folderUri).trim();
+  const nextBotReviewChatSession = input.botReviewChatSession === "continue"
+    ? "continue"
+    : (input.botReviewChatSession === "new"
+      ? "new"
+      : (getSchedulerSetting<string>("botReviewChatSession", "new", folderUri) === "continue"
+        ? "continue"
+        : "new"));
+
+  await updateSchedulerSetting(
+    "spotReviewTemplate",
+    nextSpotReviewTemplate,
+    target,
+    folderUri,
+  );
+  await updateSchedulerSetting(
+    "botReviewPromptTemplate",
+    nextBotReviewPromptTemplate,
+    target,
+    folderUri,
+  );
+  await updateSchedulerSetting(
+    "botReviewAgent",
+    nextBotReviewAgent,
+    target,
+    folderUri,
+  );
+  await updateSchedulerSetting(
+    "botReviewModel",
+    nextBotReviewModel,
+    target,
+    folderUri,
+  );
+  await updateSchedulerSetting(
+    "botReviewChatSession",
+    nextBotReviewChatSession,
+    target,
+    folderUri,
+  );
+
+  return getCurrentReviewDefaults();
 }
 
 async function importStorageFromJson(): Promise<void> {
@@ -1429,6 +1613,15 @@ export function activate(context: vscode.ExtensionContext): void {
     ) {
       SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
     }
+    if (
+      affectsCompatibleConfiguration(e, "spotReviewTemplate") ||
+      affectsCompatibleConfiguration(e, "botReviewPromptTemplate") ||
+      affectsCompatibleConfiguration(e, "botReviewAgent") ||
+      affectsCompatibleConfiguration(e, "botReviewModel") ||
+      affectsCompatibleConfiguration(e, "botReviewChatSession")
+    ) {
+      SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
+    }
     const storageModeChanged = affectsCompatibleConfiguration(e, "storageMode");
     const sqliteJsonMirrorChanged = affectsCompatibleConfiguration(e, "sqliteJsonMirror");
     if (storageModeChanged || sqliteJsonMirrorChanged) {
@@ -1719,6 +1912,10 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         getPrimaryWorkspaceRootPath,
         getCurrentCockpitBoard,
         getCurrentTasks: () => scheduleManager.getAllTasks(),
+        getReviewDefaults: () => getCurrentReviewDefaults(),
+        executeBotReviewPrompt: async (prompt, options) => {
+          await copilotExecutor.executePrompt(prompt, options);
+        },
         createTask: (input) => scheduleManager.createTask(input),
         removeLabelFromAllTasks: (labelName) =>
           scheduleManager.removeLabelFromAllTasks(labelName),
@@ -2352,6 +2549,16 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         );
         SchedulerWebview.updateExecutionDefaults(defaults);
         notifyInfo("Default agent and model updated.");
+        SchedulerWebview.switchToTab("settings");
+        break;
+      }
+
+      case "saveReviewDefaults": {
+        const reviewDefaults = await saveReviewDefaults(
+          action.reviewDefaults ?? {},
+        );
+        SchedulerWebview.updateReviewDefaults(reviewDefaults);
+        notifyInfo("Spot-review template updated.");
         SchedulerWebview.switchToTab("settings");
         break;
       }

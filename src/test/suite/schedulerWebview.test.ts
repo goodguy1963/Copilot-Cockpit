@@ -136,6 +136,30 @@ suite("SchedulerWebview Message Queue Tests", () => {
     });
   });
 
+  test("settings tab includes editable spot-review defaults plumbing", () => {
+    const scriptPath = path.resolve(
+      __dirname,
+      "../../../media/schedulerWebview.js",
+    );
+    const scriptSource = fs.readFileSync(scriptPath, "utf8");
+
+    [
+      'var spotReviewTemplateInput = document.getElementById("spot-review-template-input")',
+      'var botReviewPromptTemplateInput = document.getElementById("bot-review-prompt-template-input")',
+      'var botReviewAgentSelect = document.getElementById("bot-review-agent-select")',
+      'var botReviewModelSelect = document.getElementById("bot-review-model-select")',
+      'var botReviewChatSessionSelect = document.getElementById("bot-review-chat-session-select")',
+      'type: "saveReviewDefaults"',
+      'case "updateReviewDefaults":',
+      'function renderReviewDefaultsControls() {',
+    ].forEach((snippet) => {
+      assert.ok(
+        scriptSource.includes(snippet),
+        `expected review defaults snippet ${snippet}`,
+      );
+    });
+  });
+
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
     const scriptPath = path.resolve(
       __dirname,
@@ -452,6 +476,9 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'value === "todo-draft"',
       'function isTodoTaskDraft(task) {',
       'normalizeTodoLabelKey(label) === "from-todo-cockpit"',
+      'function getReadyTodoDraftCandidates() {',
+      'data-ready-todo-create',
+      'ready todos are waiting for task draft creation.',
       'strings.labelTodoTaskDrafts || "Todo Task Drafts"',
       'value === "manual"',
       'data-task-section-toggle',
