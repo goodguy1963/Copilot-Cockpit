@@ -1,3 +1,10 @@
+function getConnectedTaskList(taskList, getTaskList) {
+  if (taskList && taskList.isConnected) {
+    return taskList;
+  }
+  return getTaskList();
+}
+
 export function handleTaskListClick(params) {
   var event = params.event;
   var taskList = params.taskList;
@@ -8,9 +15,7 @@ export function handleTaskListClick(params) {
   );
 
   if (readyTodoOpenTarget) {
-    if (!taskList || !taskList.isConnected) {
-      taskList = getTaskList();
-    }
+    taskList = getConnectedTaskList(taskList, getTaskList);
     if (taskList && taskList.contains(readyTodoOpenTarget)) {
       event.preventDefault();
       var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
@@ -26,16 +31,15 @@ export function handleTaskListClick(params) {
     return false;
   }
 
-  if (!taskList || !taskList.isConnected) {
-    taskList = getTaskList();
-  }
+  taskList = getConnectedTaskList(taskList, getTaskList);
   if (taskList && !taskList.contains(actionTarget)) {
     return false;
   }
 
   var action = actionTarget.getAttribute("data-action");
   var taskId = actionTarget.getAttribute("data-id");
-  if (!action || !taskId) {
+  var hasTaskAction = Boolean(action && taskId);
+  if (!hasTaskAction) {
     return false;
   }
 

@@ -8,6 +8,24 @@ export function restorePendingSelectValue(selectEl, desiredValue) {
   return selectEl.value === pendingValue ? "" : pendingValue;
 }
 
+function buildPromptTemplatePlaceholder(escapeHtml, placeholderText) {
+  return '<option value="">' + escapeHtml(placeholderText) + "</option>";
+}
+
+function buildPromptTemplateMarkup(templates, escapeAttr, escapeHtml) {
+  return templates
+    .map(function (template) {
+      return (
+        '<option value="' +
+        escapeAttr(template.path) +
+        '">' +
+        escapeHtml(template.name) +
+        "</option>"
+      );
+    })
+    .join("");
+}
+
 export function updatePromptTemplateOptions(params) {
   var templateSelect = params.templateSelect;
   if (!templateSelect) {
@@ -23,33 +41,25 @@ export function updatePromptTemplateOptions(params) {
     (params.strings && params.strings.placeholderSelectTemplate) || "";
   var escapeHtml = params.escapeHtml;
   var escapeAttr = params.escapeAttr;
-  var placeholder =
-    '<option value="">' + escapeHtml(placeholderText) + "</option>";
+  var placeholder = buildPromptTemplatePlaceholder(escapeHtml, placeholderText);
+  var filteredTemplates = promptTemplates.filter(function (template) {
+    return template && template.source === currentSource;
+  });
 
-  templateSelect.innerHTML =
+  var optionMarkup =
     placeholder +
-    promptTemplates
-      .filter(function (template) {
-        return template && template.source === currentSource;
-      })
-      .map(function (template) {
-        return (
-          '<option value="' +
-          escapeAttr(template.path) +
-          '">' +
-          escapeHtml(template.name) +
-          "</option>"
-        );
-      })
-      .join("");
+    buildPromptTemplateMarkup(filteredTemplates, escapeAttr, escapeHtml);
+  templateSelect.innerHTML = optionMarkup;
 
   if (!selectedPath) {
-    templateSelect.value = "";
+    var emptyValue = "";
+    templateSelect.value = emptyValue;
     return;
   }
 
-  templateSelect.value = selectedPath;
-  if (templateSelect.value !== selectedPath) {
+  var nextTemplateValue = selectedPath;
+  templateSelect.value = nextTemplateValue;
+  if (templateSelect.value !== nextTemplateValue) {
     templateSelect.value = "";
   }
 }
@@ -74,7 +84,10 @@ export function applyPromptSourceUi(params) {
 
   if (templateSelectGroup) {
     templateSelectGroup.style.display = usesInlinePrompt ? "none" : "block";
-  } else if (!usesInlinePrompt && typeof params.warnMissingTemplateGroup === "function") {
+  } else if (
+    !usesInlinePrompt &&
+    typeof params.warnMissingTemplateGroup === "function"
+  ) {
     params.warnMissingTemplateGroup();
   }
 
@@ -83,7 +96,8 @@ export function applyPromptSourceUi(params) {
   }
 
   if (usesInlinePrompt) {
-    if (!keepSelection && templateSelect) {
+    var shouldClearSelection = !keepSelection && templateSelect;
+    if (shouldClearSelection) {
       templateSelect.value = "";
     }
     return;

@@ -7,6 +7,10 @@ function showFormError(formErrorElement, message) {
   return true;
 }
 
+function getTrimmedValue(value) {
+  return String(value || "").trim();
+}
+
 export function validateTaskSubmission(options) {
   var taskData = options.taskData;
   var promptSourceValue = options.promptSourceValue;
@@ -15,26 +19,26 @@ export function validateTaskSubmission(options) {
   var editingTaskId = options.editingTaskId;
   var getTaskByIdLocal = options.getTaskByIdLocal;
 
-  var nameValue = (taskData.name || "").trim();
+  var nameValue = getTrimmedValue(taskData.name);
   if (!nameValue) {
     showFormError(formErr, strings.taskNameRequired || "");
     return false;
   }
 
-  var templateValue = (taskData.promptPath || "").trim();
+  var templateValue = getTrimmedValue(taskData.promptPath);
   if (promptSourceValue !== "inline" && !templateValue) {
     showFormError(formErr, strings.templateRequired || "");
     return false;
   }
 
-  var promptValue = (taskData.prompt || "").trim();
+  var promptValue = getTrimmedValue(taskData.prompt);
   if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
     var editingTask = getTaskByIdLocal(editingTaskId);
     taskData.prompt =
       editingTask && typeof editingTask.prompt === "string"
         ? editingTask.prompt
         : "";
-    promptValue = (taskData.prompt || "").trim();
+    promptValue = getTrimmedValue(taskData.prompt);
   }
 
   if (promptSourceValue === "inline" && !promptValue) {
@@ -42,7 +46,7 @@ export function validateTaskSubmission(options) {
     return false;
   }
 
-  var cronValue = (taskData.cronExpression || "").trim();
+  var cronValue = getTrimmedValue(taskData.cronExpression);
   if (!cronValue) {
     showFormError(
       formErr,
@@ -55,24 +59,27 @@ export function validateTaskSubmission(options) {
 }
 
 export function postTaskSubmission(vscode, editingTaskId, taskData) {
-  if (editingTaskId) {
-    vscode.postMessage({
-      type: "updateTask",
-      taskId: editingTaskId,
-      data: taskData,
-    });
+  var isEditing = Boolean(editingTaskId);
+  var message = isEditing
+    ? {
+        type: "updateTask",
+        taskId: String(editingTaskId),
+        data: taskData,
+      }
+    : {
+        type: "createTask",
+        data: taskData,
+      };
+
+  vscode.postMessage(message);
+  if (isEditing) {
     return;
   }
-
-  vscode.postMessage({
-    type: "createTask",
-    data: taskData,
-  });
 }
 
 export function buildTaskSubmissionData(options) {
   var editorState = options.editorState || {};
-  var labels = options.parseLabels
+  var parsedLabels = options.parseLabels
     ? options.parseLabels(editorState.labels || "")
     : [];
 
@@ -80,7 +87,7 @@ export function buildTaskSubmissionData(options) {
     name: editorState.name || "",
     prompt: editorState.prompt || "",
     cronExpression: editorState.cronExpression || "",
-    labels: labels,
+    labels: parsedLabels,
     agent: editorState.agent || "",
     model: editorState.model || "",
     scope: editorState.scope || "workspace",

@@ -1,21 +1,29 @@
 import { bindClickAction } from "./schedulerWebviewBindings.js";
 
+function resolveLanguageValue(value) {
+  return value || "auto";
+}
+
+function postUtilityAction(vscode, type) {
+  vscode.postMessage({ type: type });
+}
+
 export function bindTemplateRefreshButton(button, options) {
   bindClickAction(button, function () {
-    options.vscode.postMessage({ type: "refreshPrompts" });
+    postUtilityAction(options.vscode, "refreshPrompts");
 
     var selectedPath = options.templateSelect ? options.templateSelect.value : "";
-    var sourceEl = options.document.querySelector(
+    var promptSourceControl = options.document.querySelector(
       'input[name="prompt-source"]:checked',
     );
-    var source = sourceEl ? sourceEl.value : "inline";
+    var source = promptSourceControl ? promptSourceControl.value : "inline";
 
     if (selectedPath && (source === "local" || source === "global")) {
-      options.vscode.postMessage({
-        type: "loadPromptTemplate",
-        path: selectedPath,
-        source: source,
-      });
+      var templateMessage = Object.assign(
+        { type: "loadPromptTemplate" },
+        { path: selectedPath, source: source },
+      );
+      options.vscode.postMessage(templateMessage);
     }
   });
 }
@@ -23,13 +31,13 @@ export function bindTemplateRefreshButton(button, options) {
 export function bindUtilityActionButtons(vscode, buttonMap) {
   Object.keys(buttonMap).forEach(function (action) {
     bindClickAction(buttonMap[action], function () {
-      vscode.postMessage({ type: action });
+      postUtilityAction(vscode, action);
     });
   });
 }
 
 export function syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, value) {
-  var nextValue = value || "auto";
+  var nextValue = resolveLanguageValue(value);
   if (helpLanguageSelect) {
     helpLanguageSelect.value = nextValue;
   }
@@ -44,7 +52,7 @@ export function saveLanguageSelection(
   vscode,
   value,
 ) {
-  var nextValue = value || "auto";
+  var nextValue = resolveLanguageValue(value);
   syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, nextValue);
   vscode.postMessage({
     type: "setLanguage",
