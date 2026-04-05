@@ -25,7 +25,6 @@ import type {
 } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
-import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
   getResolvedWorkspaceRoots,
   getPrivateSchedulerConfigPath,
@@ -63,6 +62,15 @@ import {
   readScheduleHistorySnapshot,
 } from "./scheduleHistory";
 import type { ScheduleHistoryEntry } from "./types";
+import {
+  getSchedulerLocalDateKey,
+  readTaskStorageMetaFromFile,
+  readTaskStorageMetaFromState,
+  TaskStorageMeta,
+  toSafeSchedulerErrorDetails,
+  writeTaskStorageMetaToFile,
+  writeTaskStorageMetaToState,
+} from "./scheduleManagerPersistence";
 
 // Node.js globals
 declare const setTimeout: (callback: () => void, ms: number) => NodeJS.Timeout;
@@ -83,23 +91,6 @@ const DAILY_EXEC_COUNT_KEY = "dailyExecCount";
 const DAILY_EXEC_DATE_KEY = "dailyExecDate";
 const DAILY_LIMIT_NOTIFIED_DATE_KEY = "dailyLimitNotifiedDate";
 const DISCLAIMER_ACCEPTED_KEY = "disclaimerAccepted";
-
-type TaskStorageMeta = {
-  revision: number;
-  savedAt: string; // ISO string
-};
-
-function getLocalDateKey(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function toSafeErrorDetails(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error ?? "");
-  return sanitizeAbsolutePathDetails(raw) || raw;
-}
 
 function readSchedulerJsonFile(
   configPath: string,
@@ -205,49 +196,6 @@ export class ScheduleManager {
     this.loadTasks();
   }
 
-  private loadMetaFromFile(): TaskStorageMeta | undefined {
-    try {
-      if (!this.storageMetaFilePath) return undefined;
-      if (!fs.existsSync(this.storageMetaFilePath)) return undefined;
-      const raw = fs.readFileSync(this.storageMetaFilePath, "utf8");
-      if (!raw.trim()) return undefined;
-      const parsed = JSON.parse(raw) as Partial<TaskStorageMeta>;
-      const revision =
-        typeof parsed.revision === "number" ? parsed.revision : 0;
-      const savedAt = typeof parsed.savedAt === "string" ? parsed.savedAt : "";
-      return { revision, savedAt };
-    } catch {
-      return undefined;
-    }
-  }
-
-  private loadMetaFromGlobalState(): TaskStorageMeta {
-    const revision = this.context.globalState.get<number>(
-      STORAGE_REVISION_KEY,
-      0,
-    );
-    const savedAt = this.context.globalState.get<string>(
-      STORAGE_SAVED_AT_KEY,
-      "",
-    );
-    return { revision: typeof revision === "number" ? revision : 0, savedAt };
-  }
-
-  private async saveMetaToFile(meta: TaskStorageMeta): Promise<void> {
-    const dir = path.dirname(this.storageMetaFilePath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(
-      this.storageMetaFilePath,
-      JSON.stringify(meta),
-      "utf8",
-    );
-  }
-
-  private async saveMetaToGlobalState(meta: TaskStorageMeta): Promise<void> {
-    await this.context.globalState.update(STORAGE_REVISION_KEY, meta.revision);
-    await this.context.globalState.update(STORAGE_SAVED_AT_KEY, meta.savedAt);
-  }
-
   private loadTasksFromFile(): { tasks: ScheduledTask[]; ok: boolean } {
     try {
       if (!this.storageFilePath) return { tasks: [], ok: false };
@@ -258,12 +206,12 @@ export class ScheduleManager {
       if (!Array.isArray(parsed)) return { tasks: [], ok: false };
       return { tasks: parsed as ScheduledTask[], ok: true };
     } catch (error) {
-      logDebug(
-        "[CopilotScheduler] Failed to load tasks from file:",
-        toSafeErrorDetails(error),
-      );
-      return { tasks: [], ok: false };
-    }
+        logDebug(
+          "[CopilotScheduler] Failed to load tasks from file:",
+          toSafeSchedulerErrorDetails(error),
+        );
+        return { tasks: [], ok: false };
+      }
   }
 
   private async saveTasksToFile(tasksArray: ScheduledTask[]): Promise<void> {
@@ -311,7 +259,7 @@ export class ScheduleManager {
    * Load daily execution count from globalState
    */
   private loadDailyExecCount(): void {
-    const today = getLocalDateKey();
+    const today = getSchedulerLocalDateKey();
     const savedDate = this.context.globalState.get<string>(
       DAILY_EXEC_DATE_KEY,
       "",
@@ -327,25 +275,25 @@ export class ScheduleManager {
       void this.context.globalState
         .update(DAILY_EXEC_COUNT_KEY, 0)
         .then(undefined, (error: unknown) =>
-          logError(
-            "[CopilotScheduler] Failed to reset daily execution count:",
-            toSafeErrorDetails(error),
-          ),
+            logError(
+              "[CopilotScheduler] Failed to reset daily execution count:",
+              toSafeSchedulerErrorDetails(error),
+            ),
         );
       void this.context.globalState
         .update(DAILY_EXEC_DATE_KEY, today)
         .then(undefined, (error: unknown) =>
-          logError(
-            "[CopilotScheduler] Failed to reset daily execution date:",
-            toSafeErrorDetails(error),
-          ),
+            logError(
+              "[CopilotScheduler] Failed to reset daily execution date:",
+              toSafeSchedulerErrorDetails(error),
+            ),
         );
     }
     this.dailyExecDate = today;
   }
 
   private incrementDailyExecCountInMemory(date = new Date()): void {
-    const today = getLocalDateKey(date);
+    const today = getSchedulerLocalDateKey(date);
     if (this.dailyExecDate !== today) {
       this.dailyExecCount = 0;
       this.dailyExecDate = today;
@@ -354,7 +302,7 @@ export class ScheduleManager {
   }
 
   private async persistDailyExecCount(): Promise<void> {
-    const today = this.dailyExecDate || getLocalDateKey();
+    const today = this.dailyExecDate || getSchedulerLocalDateKey();
     await this.context.globalState.update(
       DAILY_EXEC_COUNT_KEY,
       this.dailyExecCount,
@@ -519,7 +467,7 @@ export class ScheduleManager {
     if (maxDailyLimit === 0) {
       return false;
     }
-    const today = getLocalDateKey();
+    const today = getSchedulerLocalDateKey();
     if (this.dailyExecDate !== today) {
       this.dailyExecCount = 0;
       this.dailyExecDate = today;
@@ -650,8 +598,16 @@ export class ScheduleManager {
     const fileLoad = this.loadTasksFromFile();
     const fileTasks = fileLoad.tasks;
 
-    const globalMeta = this.loadMetaFromGlobalState();
-    const fileMeta = this.loadMetaFromFile() || { revision: 0, savedAt: "" };
+    const globalMeta = readTaskStorageMetaFromState(
+      this.context.globalState,
+      STORAGE_REVISION_KEY,
+      STORAGE_SAVED_AT_KEY,
+    );
+    const fileMeta =
+      readTaskStorageMetaFromFile(this.storageMetaFilePath) || {
+        revision: 0,
+        savedAt: "",
+      };
 
     const globalStoreExists =
       (Array.isArray(savedTasks) && savedTasks.length > 0) ||
@@ -894,7 +850,7 @@ export class ScheduleManager {
       void this.saveTasks().catch((error) =>
         logError(
           "[CopilotScheduler] Failed to save migrated tasks:",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         ),
       );
     } else {
@@ -903,7 +859,7 @@ export class ScheduleManager {
         void this.saveTasks({ bumpRevision: false }).catch((error) =>
           logDebug(
             "[CopilotScheduler] Failed to sync task stores:",
-            toSafeErrorDetails(error),
+            toSafeSchedulerErrorDetails(error),
           ),
         );
       }
@@ -933,7 +889,7 @@ export class ScheduleManager {
       .catch((error) =>
         logDebug(
           "[CopilotScheduler] SQLite workspace hydration failed:",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         ),
       )
       .finally(() => {
@@ -1238,7 +1194,7 @@ export class ScheduleManager {
     this.saveQueue = op.catch((error) => {
       logError(
         "[CopilotScheduler] Save failed (chain recovered):",
-        toSafeErrorDetails(error),
+        toSafeSchedulerErrorDetails(error),
       );
     });
     return op;
@@ -1372,7 +1328,7 @@ export class ScheduleManager {
     // If file save succeeds, return immediately and sync globalState in background.
     try {
       await this.saveTasksToFile(tasksArray);
-      await this.saveMetaToFile(meta);
+      await writeTaskStorageMetaToFile(this.storageMetaFilePath, meta);
       if (this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()) {
         await syncGlobalTasksToSqlite(this.context.globalStorageUri.fsPath, tasksArray);
       }
@@ -1380,11 +1336,16 @@ export class ScheduleManager {
 
       void Promise.all([
         this.saveTasksToGlobalState(tasksArray),
-        this.saveMetaToGlobalState(meta),
+        writeTaskStorageMetaToState(
+          this.context.globalState,
+          STORAGE_REVISION_KEY,
+          STORAGE_SAVED_AT_KEY,
+          meta,
+        ),
       ]).catch((error) =>
         logDebug(
           "[CopilotScheduler] Task save to globalState failed (file succeeded):",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         ),
       );
 
@@ -1394,7 +1355,12 @@ export class ScheduleManager {
       // If file persistence fails, fall back to globalState (await so at least one store succeeds).
       try {
         await this.saveTasksToGlobalState(tasksArray);
-        await this.saveMetaToGlobalState(meta);
+        await writeTaskStorageMetaToState(
+          this.context.globalState,
+          STORAGE_REVISION_KEY,
+          STORAGE_SAVED_AT_KEY,
+          meta,
+        );
         this.storageRevision = meta.revision;
       } catch (globalStateError) {
         throw globalStateError instanceof Error
@@ -1405,13 +1371,13 @@ export class ScheduleManager {
       // Best-effort background file sync for future reliability.
       void Promise.all([
         this.saveTasksToFile(tasksArray),
-        this.saveMetaToFile(meta),
+        writeTaskStorageMetaToFile(this.storageMetaFilePath, meta),
       ]).catch((error) =>
         logDebug(
           "[CopilotScheduler] Task save to file failed (globalState succeeded):",
           {
-            fileError: toSafeErrorDetails(fileError),
-            syncError: toSafeErrorDetails(error),
+            fileError: toSafeSchedulerErrorDetails(fileError),
+            syncError: toSafeSchedulerErrorDetails(error),
           },
         ),
       );
@@ -2822,7 +2788,7 @@ export class ScheduleManager {
       .catch((error) => {
         logError(
           "[CopilotScheduler] Restore history failed (chain recovered):",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         );
       });
     return op;
@@ -3228,7 +3194,7 @@ export class ScheduleManager {
     } catch (error) {
       logError(
         "[CopilotScheduler] Scheduler tick failed:",
-        toSafeErrorDetails(error),
+        toSafeSchedulerErrorDetails(error),
       );
     } finally {
       this.schedulerTickInProgress = false;
@@ -3320,7 +3286,7 @@ export class ScheduleManager {
           logDebug(
             `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
           );
-          const todayKey = getLocalDateKey();
+          const todayKey = getSchedulerLocalDateKey();
           if (this.dailyLimitNotifiedDate !== todayKey) {
             this.dailyLimitNotifiedDate = todayKey;
             void this.context.globalState
@@ -3328,7 +3294,7 @@ export class ScheduleManager {
               .then(undefined, (error: unknown) =>
                 logError(
                   "[CopilotScheduler] Failed to persist daily limit notified date:",
-                  toSafeErrorDetails(error),
+                  toSafeSchedulerErrorDetails(error),
                 ),
               );
             void vscode.window.showInformationMessage(
@@ -3364,7 +3330,7 @@ export class ScheduleManager {
             needsSave = this.syncJobTaskSchedules(task.lastRun) || needsSave;
             executedSuccessfully = true;
           } catch (error) {
-            const details = toSafeErrorDetails(error);
+            const details = toSafeSchedulerErrorDetails(error);
             logError("[CopilotScheduler] Task execution error:", {
               taskId: task.id,
               taskName: task.name,
@@ -3416,7 +3382,7 @@ export class ScheduleManager {
       } catch (error) {
         logError(
           "[CopilotScheduler] Failed to persist daily execution count:",
-          toSafeErrorDetails(error),
+          toSafeSchedulerErrorDetails(error),
         );
       }
     }
@@ -3512,9 +3478,9 @@ export class ScheduleManager {
     } catch (error) {
       logError(
         "[CopilotScheduler] runTaskNow failed:",
-        toSafeErrorDetails(error),
+        toSafeSchedulerErrorDetails(error),
       );
-      task.lastError = toSafeErrorDetails(error);
+      task.lastError = toSafeSchedulerErrorDetails(error);
       task.lastErrorAt = new Date();
       await this.saveTasks();
       return false;

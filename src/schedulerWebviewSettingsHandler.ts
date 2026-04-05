@@ -1,12 +1,6 @@
-/**
- * Settings & help message handler extracted from SchedulerWebview.handleMessage().
- * Covers: setLanguage, setLogLevel, openLogFolder, introTutorial, debugWebview,
- * planIntegration.
- */
-
-import * as vscode from "vscode";
-import * as path from "path";
 import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
 import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
 import type { StorageSettingsView, WebviewToExtensionMessage } from "./types";
@@ -18,6 +12,8 @@ type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
 type LaunchHelpChatFn = (prompt: string) => Promise<void>;
 type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefined>;
+
+/** Handles settings/help messages that are routed out of the main webview controller. */
 
 export interface SettingsHandlerContext {
   postMessage: PostMessageFn;

@@ -1,7 +1,3 @@
-/**
- * Copilot Cockpit - Internationalization (i18n)
- */
-
 import * as vscode from "vscode";
 import type { CronPreset } from "./types";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
@@ -75,6 +71,30 @@ function buildStaticMessageMap<T extends Record<string, LocalizedText>>(
   for (const key of Object.keys(entries) as Array<keyof T>) {
     const localized = entries[key];
     built[key] = () => localize(localized);
+  }
+
+  return built;
+}
+
+type LocalizedFormatter = readonly [
+  english: (...args: any[]) => string,
+  japanese: (...args: any[]) => string,
+  german?: (...args: any[]) => string,
+];
+
+type LocalizedFormatterEntries = Record<string, LocalizedFormatter>;
+type BuiltFormatterMap<T extends LocalizedFormatterEntries> = {
+  [K in keyof T]: T[K][0];
+};
+
+function buildFormattedMessageMap<T extends LocalizedFormatterEntries>(
+  entries: T,
+): BuiltFormatterMap<T> {
+  const built = {} as BuiltFormatterMap<T>;
+
+  for (const key of Object.keys(entries) as Array<keyof T>) {
+    const [en, ja, de] = entries[key];
+    built[key] = ((...args: any[]) => t(en(...args), ja(...args), de?.(...args) ?? en(...args))) as BuiltFormatterMap<T>[typeof key];
   }
 
   return built;
@@ -204,6 +224,165 @@ const schedulerUiMessageEntries = {
   disclaimerDecline: ["Cancel", "キャンセル"],
 } as const satisfies Record<string, LocalizedText>;
 
+const taskLifecycleMessageFormatters = {
+  taskCreated: [
+    (name: string) => `Task "${name}" created successfully`,
+    (name: string) => `タスク「${name}」を作成しました`,
+  ],
+  taskUpdated: [
+    (name: string) => `Task "${name}" updated successfully`,
+    (name: string) => `タスク「${name}」を更新しました`,
+  ],
+  taskDeleted: [
+    (name: string) => `Task "${name}" deleted`,
+    (name: string) => `タスク「${name}」を削除しました`,
+  ],
+  taskDuplicated: [
+    (name: string) => `Task duplicated as "${name}"`,
+    (name: string) => `タスクを「${name}」として複製しました`,
+  ],
+  taskMovedToCurrentWorkspace: [
+    (name: string) => `Task "${name}" moved to the current workspace`,
+    (name: string) => `タスク「${name}」を現在のワークスペースへ移動しました`,
+  ],
+  taskEnabled: [
+    (name: string) => `Task "${name}" enabled`,
+    (name: string) => `タスク「${name}」を有効にしました`,
+  ],
+  taskDisabled: [
+    (name: string) => `Task "${name}" disabled`,
+    (name: string) => `タスク「${name}」を無効にしました`,
+  ],
+  taskExecuting: [
+    (name: string) => `Executing task "${name}"...`,
+    (name: string) => `タスク「${name}」を実行中...`,
+  ],
+  taskExecuted: [
+    (name: string) => `Task "${name}" executed successfully`,
+    (name: string) => `タスク「${name}」を実行しました`,
+  ],
+} as const satisfies LocalizedFormatterEntries;
+
+const singleStringUiFormatters = {
+  confirmDelete: [
+    (name: string) => `Are you sure you want to delete task "${name}"?`,
+    (name: string) => `タスク「${name}」を削除しますか？`,
+    (name: string) => `Soll der Task "${name}" wirklich gelöscht werden?`,
+  ],
+  confirmMoveToCurrentWorkspace: [
+    (name: string) => `Move task "${name}" to the current workspace?`,
+    (name: string) => `タスク「${name}」を現在のワークスペースへ移動しますか？`,
+  ],
+  confirmRunOutsideWorkspace: [
+    (name: string) => `Task "${name}" is scoped to a different workspace. Run it here anyway?`,
+    (name: string) => `タスク「${name}」は別のワークスペース用です。このワークスペースで実行しますか？`,
+  ],
+  cannotDeleteOtherWorkspaceTask: [
+    (name: string) => `Task "${name}" belongs to a different workspace. Please delete it from that workspace.`,
+    (name: string) => `タスク「${name}」は別のワークスペース用です。元のワークスペースで削除してください。`,
+  ],
+  webviewMessageHandlingFailed: [
+    (error: string) => `Failed to handle the requested action: ${error}`,
+    (error: string) => `操作の処理に失敗しました: ${error}`,
+  ],
+} as const satisfies LocalizedFormatterEntries;
+
+const taskFailureMessageFormatters = {
+  taskExecutionFailed: [
+    (name: string, error: string) => `Task "${name}" execution failed: ${error}`,
+    (name: string, error: string) => `タスク「${name}」の実行に失敗しました: ${error}`,
+  ],
+} as const satisfies LocalizedFormatterEntries;
+
+const overduePromptFormatters = {
+  overdueTaskPromptRecurring: [
+    (name: string, dueAt: string) => `Task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or wait for the next cycle?`,
+    (name: string, dueAt: string) => `タスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、次の周期まで待機しますか？`,
+  ],
+  overdueTaskPromptOneTime: [
+    (name: string, dueAt: string) => `One-time task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or reschedule it?`,
+    (name: string, dueAt: string) => `一度きりタスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、再スケジュールしますか？`,
+  ],
+} as const satisfies LocalizedFormatterEntries;
+
+const numericMessageFormatters = {
+  dailyLimitReached: [
+    (limit: number) => `Daily execution limit (${limit}) reached. No more automatic executions today. You can increase this limit in settings.`,
+    (limit: number) => `1日の実行回数上限（${limit}回）に達しました。本日はこれ以上の自動実行は行われません。設定で上限を変更できます。`,
+  ],
+  jitterApplied: [
+    (seconds: number) => `Applying ${seconds}s random delay to reduce detection risk...`,
+    (seconds: number) => `検出リスク軽減のため ${seconds}秒のランダム遅延を適用中...`,
+  ],
+} as const satisfies LocalizedFormatterEntries;
+
+const generalMessageEntries = {
+  webviewApiUnavailable: [
+    "VS Code Webview API (acquireVsCodeApi) is unavailable. Check CSP/initialization.",
+    "VS Code Webview API (acquireVsCodeApi) が利用できません。CSP/初期化を確認してください。",
+  ],
+  autoExecuteFailed: [
+    "Failed to automatically execute prompt. Would you like to copy it to clipboard?",
+    "プロンプトの自動実行に失敗しました。クリップボードにコピーしますか？",
+  ],
+  copilotNotAvailable: [
+    "GitHub Copilot Chat is not available",
+    "GitHub Copilot Chat が利用できません",
+  ],
+  placeholderPrompt: [
+    "Enter prompt to send to Copilot...",
+    "Copilotに送信するプロンプトを入力...",
+    "Prompt eingeben, der an Copilot gesendet werden soll...",
+  ],
+  noTemplatesFound: [
+    "No prompt templates found",
+    "プロンプトテンプレートが見つかりません",
+  ],
+  templateLoadError: [
+    "Failed to load template",
+    "テンプレートの読み込みに失敗しました",
+  ],
+  noWorkspaceOpen: [
+    "No workspace is open",
+    "ワークスペースが開かれていません",
+  ],
+  minimumIntervalWarning: [
+    "Cron intervals shorter than 30 minutes may increase the risk of being flagged by GitHub's abuse-detection system.",
+    "30分未満のcron間隔は、GitHubの不正検出システムに検出されるリスクが高まる可能性があります。",
+  ],
+  disclaimerMessage: [
+    "This extension automates Copilot Chat interactions via scheduled prompts. GitHub's Acceptable Use Policies prohibit 'excessive automated bulk activity' and 'scripted interactions' with Copilot. Using this extension may violate GitHub's Terms of Service and could result in your Copilot access being restricted or your account being suspended. Use at your own risk.",
+    "この拡張機能は、スケジュールされたプロンプトによりCopilot Chatの操作を自動化します。GitHubの利用規約（Acceptable Use Policies）は「過度な自動化された一括活動」および「スクリプトによるCopilotとのやり取り」を禁止しています。この拡張機能の使用はGitHubの利用規約に違反する可能性があり、Copilotへのアクセス制限やアカウント停止につながる恐れがあります。ご利用は自己責任でお願いします。",
+  ],
+  unlimitedDailyWarning: [
+    "⚠️ Daily execution limit is set to unlimited (0). Excessive automated usage may result in API rate-limiting or account restrictions by the provider. Use at your own risk.",
+    "⚠️ 1日の実行回数上限が無制限（0）に設定されています。過度な自動利用はAPIプロバイダーによるレート制限やアカウント制限の原因となる可能性があります。自己責任でご利用ください。",
+  ],
+  moveOnlyWorkspaceTasks: [
+    "Only workspace-scoped tasks can be moved",
+    "移動できるのはワークスペーススコープのタスクのみです",
+    "Nur Tasks im Workspace-Scope können verschoben werden",
+  ],
+} as const satisfies Record<string, LocalizedText>;
+
+const treeAndWorkspaceEntries = {
+  treeGroupGlobal: schedulerUiMessageEntries.treeGroupGlobal,
+  treeGroupWorkspace: schedulerUiMessageEntries.treeGroupWorkspace,
+  treeGroupThisWorkspace: schedulerUiMessageEntries.treeGroupThisWorkspace,
+  treeGroupOtherWorkspace: schedulerUiMessageEntries.treeGroupOtherWorkspace,
+  treeNoTasks: schedulerUiMessageEntries.treeNoTasks,
+  reloadNow: schedulerUiMessageEntries.reloadNow,
+  storageWriteTimeout: schedulerUiMessageEntries.storageWriteTimeout,
+} as const satisfies Record<string, LocalizedText>;
+
+const dateTimeFormatOptions: Intl.DateTimeFormatOptions = {
+  month: "2-digit",
+  day: "2-digit",
+  year: "numeric",
+  minute: "2-digit",
+  hour: "2-digit",
+};
+
 type CronPresetSpec = {
   id: string;
   expression: string;
@@ -250,24 +429,8 @@ export const messages = {
   }),
 
   // ==================== Task Operations ====================
-  taskCreated: (name: string) =>
-    t(`Task "${name}" created successfully`, `タスク「${name}」を作成しました`),
-  taskUpdated: (name: string) =>
-    t(`Task "${name}" updated successfully`, `タスク「${name}」を更新しました`),
-  taskDeleted: (name: string) =>
-    t(`Task "${name}" deleted`, `タスク「${name}」を削除しました`),
-  taskDuplicated: (name: string) =>
-    t(`Task duplicated as "${name}"`, `タスクを「${name}」として複製しました`),
+  ...buildFormattedMessageMap(taskLifecycleMessageFormatters),
   ...buildStaticMessageMap({ taskCopySuffix: ["(Copy)", "(コピー)"] }),
-  taskMovedToCurrentWorkspace: (name: string) =>
-    t(
-      `Task "${name}" moved to the current workspace`,
-      `タスク「${name}」を現在のワークスペースへ移動しました`,
-    ),
-  taskEnabled: (name: string) =>
-    t(`Task "${name}" enabled`, `タスク「${name}」を有効にしました`),
-  taskDisabled: (name: string) =>
-    t(`Task "${name}" disabled`, `タスク「${name}」を無効にしました`),
   taskRescheduled: (name: string, minutes: number) =>
     t(
       `Task "${name}" rescheduled to run in ${minutes} minutes`,
@@ -278,18 +441,7 @@ export const messages = {
       `Task "${name}" will wait until the next cycle`,
       `タスク「${name}」は次の周期まで待機します`,
     ),
-  taskExecuting: (name: string) =>
-    t(`Executing task "${name}"...`, `タスク「${name}」を実行中...`),
-  taskExecuted: (name: string) =>
-    t(
-      `Task "${name}" executed successfully`,
-      `タスク「${name}」を実行しました`,
-    ),
-  taskExecutionFailed: (name: string, error: string) =>
-    t(
-      `Task "${name}" execution failed: ${error}`,
-      `タスク「${name}」の実行に失敗しました: ${error}`,
-    ),
+  ...buildFormattedMessageMap(taskFailureMessageFormatters),
   ...buildStaticMessageMap({
     taskNotFound: ["Task not found", "タスクが見つかりません"],
     noTasksFound: ["No scheduled tasks found", "スケジュールされたタスクがありません"],
@@ -351,12 +503,8 @@ export const messages = {
     webviewLineSuffix: [")", "）"],
     webviewUnknown: ["unknown", "不明"],
   }),
-  webviewApiUnavailable: () =>
-    t(
-      "VS Code Webview API (acquireVsCodeApi) is unavailable. Check CSP/initialization.",
-      "VS Code Webview API (acquireVsCodeApi) が利用できません。CSP/初期化を確認してください。",
-    ),
   ...buildStaticMessageMap({
+    webviewApiUnavailable: generalMessageEntries.webviewApiUnavailable,
     webviewClientErrorPrefix: ["Webview error: ", "画面処理でエラーが発生しました: "],
     webviewSuccessPrefix: ["✔ ", "✔ "],
   }),
@@ -372,26 +520,10 @@ export const messages = {
   }),
 
   // ==================== Confirmations ====================
-  confirmDelete: (name: string) =>
-    t(
-      `Are you sure you want to delete task "${name}"?`,
-      `タスク「${name}」を削除しますか？`,
-    ),
+  ...buildFormattedMessageMap(singleStringUiFormatters),
   confirmDeleteYes: () => t("Yes, delete", "はい、削除します", "Ja, löschen"),
   confirmDeleteNo: () => t("No, keep", "いいえ、残します", "Nein, behalten"),
-
-  confirmMoveToCurrentWorkspace: (name: string) =>
-    t(
-      `Move task "${name}" to the current workspace?`,
-      `タスク「${name}」を現在のワークスペースへ移動しますか？`,
-    ),
   confirmMoveYes: () => t("Move", "移動する", "Verschieben"),
-
-  confirmRunOutsideWorkspace: (name: string) =>
-    t(
-      `Task "${name}" is scoped to a different workspace. Run it here anyway?`,
-      `タスク「${name}」は別のワークスペース用です。このワークスペースで実行しますか？`,
-    ),
   confirmRunAnyway: () => t("Run anyway", "実行する", "Trotzdem ausführen"),
 
   labelThisWorkspaceShort: () => t("This workspace", "このWS", "Dieser Workspace"),
@@ -439,12 +571,6 @@ export const messages = {
   scheduleHistorySnapshotNotFound: () =>
     t("The selected backup version was not found", "選択したバックアップが見つかりません"),
 
-  cannotDeleteOtherWorkspaceTask: (name: string) =>
-    t(
-      `Task "${name}" belongs to a different workspace. Please delete it from that workspace.`,
-      `タスク「${name}」は別のワークスペース用です。元のワークスペースで削除してください。`,
-    ),
-
   // ==================== Clipboard ====================
   ...buildStaticMessageMap({ promptCopied: schedulerUiMessageEntries.promptCopied }),
 
@@ -452,16 +578,10 @@ export const messages = {
   ...buildStaticMessageMap(agentAndModelMessageEntries),
 
   // ==================== Execution Errors ====================
-  autoExecuteFailed: () =>
-    t(
-      "Failed to automatically execute prompt. Would you like to copy it to clipboard?",
-      "プロンプトの自動実行に失敗しました。クリップボードにコピーしますか？",
-    ),
-  copilotNotAvailable: () =>
-    t(
-      "GitHub Copilot Chat is not available",
-      "GitHub Copilot Chat が利用できません",
-    ),
+  ...buildStaticMessageMap({
+    autoExecuteFailed: generalMessageEntries.autoExecuteFailed,
+    copilotNotAvailable: generalMessageEntries.copilotNotAvailable,
+  }),
 
   // ==================== Webview UI ====================
   ...buildStaticMessageMap(tabMessageEntries),
@@ -734,11 +854,6 @@ export const messages = {
       "Mit dem Restore-Dropdown können Sie Zeitplanänderungen zurücksetzen. Skills in .github/skills/ müssen manuell in den Prompt eingefügt werden und werden nicht automatisch angewendet. Im Settings-Tab werden der Standard-Agent und das Standard-Modell gespeichert, die verwendet werden, wenn ein Task diese Felder leer lässt.",
     ),
 
-  webviewMessageHandlingFailed: (error: string) =>
-    t(
-      `Failed to handle the requested action: ${error}`,
-      `操作の処理に失敗しました: ${error}`,
-    ),
 
   ...buildStaticMessageMap({
     labelTaskName: schedulerUiMessageEntries.labelTaskName,
@@ -844,12 +959,7 @@ export const messages = {
     cronPreviewMonthlyOnAt: schedulerUiMessageEntries.cronPreviewMonthlyOnAt,
     placeholderTaskName: schedulerUiMessageEntries.placeholderTaskName,
   }),
-  placeholderPrompt: () =>
-    t(
-      "Enter prompt to send to Copilot...",
-      "Copilotに送信するプロンプトを入力...",
-      "Prompt eingeben, der an Copilot gesendet werden soll...",
-    ),
+  ...buildStaticMessageMap({ placeholderPrompt: generalMessageEntries.placeholderPrompt }),
   ...buildStaticMessageMap({ labelSkills: schedulerUiMessageEntries.labelSkills }),
   skillInsertNote: () =>
     t(
@@ -866,12 +976,7 @@ export const messages = {
   ...buildStaticMessageMap({ placeholderCron: schedulerUiMessageEntries.placeholderCron }),
 
   // ==================== TreeView ====================
-  treeGroupGlobal: () => t("🌐 Global", "🌐 グローバル"),
-  treeGroupWorkspace: () => t("📁 Workspace", "📁 ワークスペース"),
-  treeGroupThisWorkspace: () => t("🏠 This workspace", "🏠 このワークスペース"),
-  treeGroupOtherWorkspace: () =>
-    t("📎 Other workspaces", "📎 他のワークスペース"),
-  treeNoTasks: () => t("No tasks", "タスクなし"),
+  ...buildStaticMessageMap(treeAndWorkspaceEntries),
 
   // ==================== Version Info ====================
   versionInfo: (version: string) =>
@@ -881,37 +986,24 @@ export const messages = {
       `Copilot Cockpit has been updated to v${version}. Reload to activate the new version.`,
       `Copilot Cockpit が v${version} に更新されました。新しいバージョンを有効にするにはリロードしてください。`,
     ),
-  reloadNow: () => t("Reload Now", "今すぐリロード"),
-
   // ==================== Date/Time ====================
-  formatDateTime: (date: Date) => {
-    const options: Intl.DateTimeFormatOptions = {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    };
-    return date.toLocaleString(getCurrentLocaleTag(), options);
-  },
+  formatDateTime: (date: Date) => date.toLocaleString(getCurrentLocaleTag(), dateTimeFormatOptions),
 
   // ==================== Cron Descriptions ====================
-  cronNextRun: (date: Date) =>
-    t(
-      `Next run: ${messages.formatDateTime(date)}`,
-      `次回実行: ${messages.formatDateTime(date)}`,
-    ),
+  cronNextRun: (date: Date) => {
+    const rendered = messages.formatDateTime(date);
+    return t(`Next run: ${rendered}`, `次回実行: ${rendered}`);
+  },
   cronInvalid: () => t("Invalid cron expression", "無効なcron式"),
 
   // ==================== Prompt Templates ====================
-  noTemplatesFound: () =>
-    t("No prompt templates found", "プロンプトテンプレートが見つかりません"),
-  templateLoadError: () =>
-    t("Failed to load template", "テンプレートの読み込みに失敗しました"),
+  ...buildStaticMessageMap({
+    noTemplatesFound: generalMessageEntries.noTemplatesFound,
+    templateLoadError: generalMessageEntries.templateLoadError,
+  }),
 
   // ==================== Workspace ====================
-  noWorkspaceOpen: () =>
-    t("No workspace is open", "ワークスペースが開かれていません"),
+  ...buildStaticMessageMap({ noWorkspaceOpen: generalMessageEntries.noWorkspaceOpen }),
   bundledSkillsSyncWorkspaceRequired: () =>
     t(
       "Open a workspace folder before syncing bundled skills.",
@@ -1030,12 +1122,7 @@ export const messages = {
       "タスク自体を完全に削除",
       "Task komplett löschen",
     ),
-  moveOnlyWorkspaceTasks: () =>
-    t(
-      "Only workspace-scoped tasks can be moved",
-      "移動できるのはワークスペーススコープのタスクのみです",
-      "Nur Tasks im Workspace-Scope können verschoben werden",
-    ),
+  ...buildStaticMessageMap({ moveOnlyWorkspaceTasks: generalMessageEntries.moveOnlyWorkspaceTasks }),
   // ==================== Tooltip ====================
   ...buildStaticMessageMap({
     tooltipWorkspaceTarget: schedulerUiMessageEntries.tooltipWorkspaceTarget,
@@ -1044,21 +1131,8 @@ export const messages = {
   }),
 
   // ==================== Safety / Rate Limiting ====================
-  dailyLimitReached: (limit: number) =>
-    t(
-      `Daily execution limit (${limit}) reached. No more automatic executions today. You can increase this limit in settings.`,
-      `1日の実行回数上限（${limit}回）に達しました。本日はこれ以上の自動実行は行われません。設定で上限を変更できます。`,
-    ),
-  overdueTaskPromptRecurring: (name: string, dueAt: string) =>
-    t(
-      `Task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or wait for the next cycle?`,
-      `タスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、次の周期まで待機しますか？`,
-    ),
-  overdueTaskPromptOneTime: (name: string, dueAt: string) =>
-    t(
-      `One-time task "${name}" became overdue while VS Code was closed. It was scheduled for ${dueAt}. Run it now or reschedule it?`,
-      `一度きりタスク「${name}」は VS Code が閉じている間に期限を過ぎました。予定時刻は ${dueAt} です。今すぐ実行するか、再スケジュールしますか？`,
-    ),
+  ...buildFormattedMessageMap(numericMessageFormatters),
+  ...buildFormattedMessageMap(overduePromptFormatters),
   overdueTaskReschedulePrompt: (name: string) =>
     t(
       `How many minutes from now should "${name}" run?`,
@@ -1070,37 +1144,16 @@ export const messages = {
       "Enter a whole number of minutes between 1 and 10080",
       "1〜10080 の整数分を入力してください",
     ),
-  ...buildStaticMessageMap({ storageWriteTimeout: schedulerUiMessageEntries.storageWriteTimeout }),
-  jitterApplied: (seconds: number) =>
-    t(
-      `Applying ${seconds}s random delay to reduce detection risk...`,
-      `検出リスク軽減のため ${seconds}秒のランダム遅延を適用中...`,
-    ),
-  minimumIntervalWarning: () =>
-    t(
-      "Cron intervals shorter than 30 minutes may increase the risk of being flagged by GitHub's abuse-detection system.",
-      "30分未満のcron間隔は、GitHubの不正検出システムに検出されるリスクが高まる可能性があります。",
-    ),
+  ...buildStaticMessageMap({ minimumIntervalWarning: generalMessageEntries.minimumIntervalWarning }),
   ...buildStaticMessageMap({ disclaimerTitle: schedulerUiMessageEntries.disclaimerTitle }),
-  disclaimerMessage: () =>
-    t(
-      "This extension automates Copilot Chat interactions via scheduled prompts. GitHub's Acceptable Use Policies prohibit 'excessive automated bulk activity' and 'scripted interactions' with Copilot. Using this extension may violate GitHub's Terms of Service and could result in your Copilot access being restricted or your account being suspended. Use at your own risk.",
-      "この拡張機能は、スケジュールされたプロンプトによりCopilot Chatの操作を自動化します。GitHubの利用規約（Acceptable Use Policies）は「過度な自動化された一括活動」および「スクリプトによるCopilotとのやり取り」を禁止しています。この拡張機能の使用はGitHubの利用規約に違反する可能性があり、Copilotへのアクセス制限やアカウント停止につながる恐れがあります。ご利用は自己責任でお願いします。",
-    ),
+  ...buildStaticMessageMap({ disclaimerMessage: generalMessageEntries.disclaimerMessage }),
   ...buildStaticMessageMap({
     disclaimerAccept: schedulerUiMessageEntries.disclaimerAccept,
     disclaimerDecline: schedulerUiMessageEntries.disclaimerDecline,
   }),
-  unlimitedDailyWarning: () =>
-    t(
-      "⚠️ Daily execution limit is set to unlimited (0). Excessive automated usage may result in API rate-limiting or account restrictions by the provider. Use at your own risk.",
-      "⚠️ 1日の実行回数上限が無制限（0）に設定されています。過度な自動利用はAPIプロバイダーによるレート制限やアカウント制限の原因となる可能性があります。自己責任でご利用ください。",
-    ),
+  ...buildStaticMessageMap({ unlimitedDailyWarning: generalMessageEntries.unlimitedDailyWarning }),
 };
 
-/**
- * Cron presets with localized names
- */
 export function getCronPresets(): CronPreset[] {
   return cronPresetSpecs.map((preset) => ({
     id: preset.id,
@@ -1110,14 +1163,6 @@ export function getCronPresets(): CronPreset[] {
   }));
 }
 
-/**
- * Format cron expression for display
- */
 export function formatCronForDisplay(expression: string): string {
-  const presets = getCronPresets();
-  const preset = presets.find((p) => p.expression === expression);
-  if (preset) {
-    return preset.name;
-  }
-  return expression;
+  return getCronPresets().find(({ expression: presetExpression }) => presetExpression === expression)?.name ?? expression;
 }

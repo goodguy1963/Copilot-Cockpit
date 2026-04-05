@@ -1,25 +1,8 @@
-/**
- * Copilot Cockpit - Type Definitions
- */
-
-/**
- * Task scope type
- * - "global": Task runs in all workspaces
- * - "workspace": Task runs only in the specified workspace
- */
+/** Shared Cockpit scheduler types. */
 export type TaskScope = "global" | "workspace";
 
-/**
- * Prompt source type
- * - "inline": Prompt text stored directly in task
- * - "local": Prompt loaded from workspace file
- * - "global": Prompt loaded from global templates
- */
 export type PromptSource = "inline" | "local" | "global";
 
-/**
- * Log level type
- */
 export type LogLevel = "none" | "error" | "info" | "debug";
 
 export type CockpitDeterministicStateMode =
@@ -1121,51 +1104,34 @@ export interface CreateJobPauseInput {
   title: string;
 }
 
-/**
- * Scheduled task definition
- */
-export interface ScheduledTask {
-  /** Unique identifier (e.g., "task_1700000000000_abc123") */
-  id: string;
-
-  /** Task name */
-  name: string;
-
-  /** Optional task description */
-  description?: string;
-
-  /** Cron expression (e.g., "0 9 * * 1-5") */
-  cronExpression: string;
-
-  /** Prompt text to send to Copilot (when promptSource is "inline") */
-  prompt: string;
-
-  /** Whether the task is enabled */
-  enabled: boolean;
-
-  /** Agent to use (@workspace, @terminal, agent, ask, edit, etc.) */
-  agent?: string;
-
+interface TaskCopilotSelection {
   /** AI model to use (gpt-4o, claude-sonnet-4, etc.) */
   model?: string;
 
-  /** Task scope */
-  scope: TaskScope;
+  /** Copilot mode or agent identifier (@workspace, agent, ask, edit, etc.). */
+  agent?: string;
+}
 
-  /** Workspace path (when scope is "workspace") */
-  workspacePath?: string;
-
-  /** Prompt source type */
-  promptSource: PromptSource;
+interface TaskPromptConfiguration {
+  /** Prompt text to send to Copilot (when promptSource is "inline") */
+  prompt: string;
 
   /** Path to prompt file (when promptSource is not "inline") */
   promptPath?: string;
+
+  /** Prompt source discriminator. */
+  promptSource: PromptSource;
 
   /** Workspace-relative path to backup-only prompt export for recurring inline tasks. */
   promptBackupPath?: string;
 
   /** Timestamp of the last successful backup sync. */
   promptBackupUpdatedAt?: Date;
+}
+
+interface TaskExecutionSettings extends TaskCopilotSelection {
+  /** Whether the task is enabled */
+  enabled: boolean;
 
   /** Max random delay in seconds applied before execution (0 = off). */
   jitterSeconds?: number;
@@ -1181,6 +1147,45 @@ export interface ScheduledTask {
 
   /** Optional manual labels for filtering and organization. */
   labels?: string[];
+}
+
+interface TaskExecutionAudit {
+  /** Last update timestamp */
+  updatedAt: Date;
+
+  /** Creation timestamp */
+  createdAt: Date;
+
+  /** Next scheduled execution time */
+  nextRun?: Date;
+
+  /** Timestamp of last execution error */
+  lastErrorAt?: Date;
+
+  /** Last execution error message */
+  lastError?: string;
+
+  /** Last execution time */
+  lastRun?: Date;
+}
+
+/** Scheduled task definition. */
+export interface ScheduledTask
+  extends TaskPromptConfiguration,
+    TaskExecutionSettings,
+    TaskExecutionAudit
+{
+  /** Task name */
+  name: string;
+
+  /** Optional task description */
+  description?: string;
+
+  /** Unique identifier (e.g., "task_1700000000000_abc123") */
+  id: string;
+
+  /** Cron expression (e.g., "0 9 * * 1-5") */
+  cronExpression: string;
 
   /** Parent job when this task is job-managed. */
   jobId?: string;
@@ -1188,41 +1193,14 @@ export interface ScheduledTask {
   /** Owning job node when this task is job-managed. */
   jobNodeId?: string;
 
-  /** Last execution time */
-  lastRun?: Date;
+  /** Workspace path when the task is workspace-scoped. */
+  workspacePath?: string;
 
-  /** Last execution error message */
-  lastError?: string;
-
-  /** Timestamp of last execution error */
-  lastErrorAt?: Date;
-
-  /** Next scheduled execution time */
-  nextRun?: Date;
-
-  /** Creation timestamp */
-  createdAt: Date;
-
-  /** Last update timestamp */
-  updatedAt: Date;
+  /** Task scope */
+  scope: TaskScope;
 }
 
-/**
- * Input for creating a new task
- */
-export interface CreateTaskInput {
-  /** Task name */
-  name: string;
-
-  /** Optional task description */
-  description?: string;
-
-  /** Cron expression */
-  cronExpression: string;
-
-  /** Prompt text */
-  prompt: string;
-
+interface CreateTaskExecutionInput extends TaskCopilotSelection {
   /** Whether the task is enabled (default: true) */
   enabled?: boolean;
 
@@ -1238,14 +1216,37 @@ export interface CreateTaskInput {
   /** Optional manual labels for filtering and organization. */
   labels?: string[];
 
-  /** Agent to use */
-  agent?: string;
-
-  /** AI model to use */
-  model?: string;
-
   /** Task scope (default: "workspace") */
   scope?: TaskScope;
+
+  /** Max random delay in seconds applied before execution (0 = off; undefined = use configured default). */
+  jitterSeconds?: number;
+}
+
+interface CreateTaskPromptInput {
+  /** Path to prompt file */
+  promptPath?: string;
+
+  /** Prompt source type (default: "inline") */
+  promptSource?: PromptSource;
+
+  /** Prompt text */
+  prompt: string;
+}
+
+/** Input for creating a new task. */
+export interface CreateTaskInput
+  extends CreateTaskExecutionInput,
+    CreateTaskPromptInput
+{
+  /** Task name */
+  name: string;
+
+  /** Optional task description */
+  description?: string;
+
+  /** Cron expression */
+  cronExpression: string;
 
   /**
    * Whether to schedule the first execution soon after creation.
@@ -1253,78 +1254,60 @@ export interface CreateTaskInput {
    * Kept as-is to avoid breaking the Webview ↔ Extension message contract.
    */
   runFirstInOneMinute?: boolean;
-
-  /** Prompt source type (default: "inline") */
-  promptSource?: PromptSource;
-
-  /** Path to prompt file */
-  promptPath?: string;
-
-  /** Max random delay in seconds applied before execution (0 = off; undefined = use configured default). */
-  jitterSeconds?: number;
 }
 
-/**
- * Agent definition
- */
+/** Agent definition. */
 export interface AgentInfo {
+  /** File path for custom agents */
+  filePath?: string;
+
   /** Agent ID (e.g., "@workspace", "agent") */
   id: string;
-
-  /** Display name */
-  name: string;
-
-  /** Description */
-  description: string;
 
   /** Whether this is a custom agent */
   isCustom: boolean;
 
-  /** File path for custom agents */
-  filePath?: string;
-}
-
-/**
- * Model definition
- */
-export interface ModelInfo {
-  /** Model ID (e.g., "gpt-4o") */
-  id: string;
+  /** Description */
+  description: string;
 
   /** Display name */
   name: string;
+}
+
+/** Model definition. */
+export interface ModelInfo {
+  /** Vendor name */
+  vendor: string;
+
+  /** Model ID (e.g., "gpt-4o") */
+  id: string;
 
   /** Description */
   description: string;
 
-  /** Vendor name */
-  vendor: string;
+  /** Display name */
+  name: string;
 }
 
-/**
- * Prompt template definition
- */
+/** Prompt template definition. */
 export interface PromptTemplate {
+  /** File content (loaded on demand) */
+  content?: string;
+
   /** Template file path */
   path: string;
-
-  /** Template name (derived from filename) */
-  name: string;
 
   /** Source type */
   source: "local" | "global";
 
-  /** File content (loaded on demand) */
-  content?: string;
+  /** Template name (derived from filename) */
+  name: string;
 }
 
 /**
  * Discoverable skill reference for prompt insertion.
  */
 export interface SkillReference {
-  /** Absolute file path */
-  path: string;
-
   /** Display name */
   name: string;
 
@@ -1333,6 +1316,9 @@ export interface SkillReference {
 
   /** Source bucket */
   source: "workspace" | "global";
+
+  /** Absolute file path */
+  path: string;
 }
 
 /**
@@ -1349,38 +1335,22 @@ export interface ScheduleHistoryEntry {
   hasPrivate: boolean;
 }
 
-/**
- * Cron preset definition
- */
+/** Cron preset definition. */
 export interface CronPreset {
-  /** Preset ID */
-  id: string;
-
-  /** Display name */
-  name: string;
-
   /** Cron expression */
   expression: string;
 
+  /** Preset ID */
+  id: string;
+
   /** Description */
   description: string;
+
+  /** Display name */
+  name: string;
 }
 
-/**
- * Task action from Webview
- */
-export interface TaskAction {
-  /** Action type */
-  action:
-  | "run"
-  | "toggle"
-  | "delete"
-  | "edit"
-  | "copy"
-  | "duplicate"
-  | "moveToCurrentWorkspace"
-  | "restoreHistory"
-  | "refresh"
+type JobActionName =
   | "createJob"
   | "updateJob"
   | "deleteJob"
@@ -1402,21 +1372,9 @@ export interface TaskAction {
   | "rejectJobPause"
   | "reorderJobNode"
   | "updateJobNodeWindow"
-  | "compileJob"
-  | "setupMcp"
-  | "syncBundledSkills"
-  | "importStorageFromJson"
-  | "exportStorageToJson"
-  | "createResearchProfile"
-  | "updateResearchProfile"
-  | "deleteResearchProfile"
-  | "duplicateResearchProfile"
-  | "startResearchRun"
-  | "stopResearchRun"
-  | "saveTelegramNotification"
-  | "testTelegramNotification"
-  | "saveExecutionDefaults"
-  | "saveReviewDefaults"
+  | "compileJob";
+
+type TodoActionName =
   | "createTodo"
   | "updateTodo"
   | "deleteTodo"
@@ -1434,18 +1392,53 @@ export interface TaskAction {
   | "saveTodoFlagDefinition"
   | "deleteTodoFlagDefinition"
   | "linkTodoTask"
-  | "createTaskFromTodo"
+  | "createTaskFromTodo";
+
+type TaskActionName =
+  | "duplicate"
+  | "copy"
+  | "edit"
+  | "run"
+  | "delete"
+  | "toggle"
+  | "moveToCurrentWorkspace"
+  | "restoreHistory"
+  | "refresh"
+  | "setupMcp"
+  | "syncBundledSkills"
+  | "importStorageFromJson"
+  | "exportStorageToJson"
+  | "saveTelegramNotification"
+  | "testTelegramNotification"
+  | "saveExecutionDefaults"
+  | "saveReviewDefaults";
+
+type ResearchActionName =
+  | "createResearchProfile"
+  | "updateResearchProfile"
+  | "deleteResearchProfile"
+  | "duplicateResearchProfile"
+  | "startResearchRun"
+  | "stopResearchRun";
+
+type CockpitSectionActionName =
   | "addCockpitSection"
   | "renameCockpitSection"
   | "deleteCockpitSection"
   | "moveCockpitSection"
   | "reorderCockpitSection";
 
-  /** Task ID */
-  taskId: string;
+type SectionDirection = "left" | "right";
 
+/** Task action from Webview. */
+export interface TaskAction {
   /** Additional data for the action */
   data?: Partial<CreateTaskInput>;
+
+  /** Task identifier carried by task-centric actions. */
+  taskId: string;
+
+  action: TaskActionName | JobActionName | ResearchActionName | TodoActionName | CockpitSectionActionName;
 
   /** Job identifier for Jobs actions */
   jobId?: string;
@@ -1535,31 +1528,30 @@ export interface TaskAction {
   sectionTitle?: string;
 
   /** Section move direction */
-  sectionDirection?: "left" | "right";
+  sectionDirection?: SectionDirection;
 }
 
 /**
  * Execute options for CopilotExecutor
  */
 export interface ExecuteOptions {
-  /** Agent to use */
-  agent?: string;
-
   /** Model to use */
   model?: string;
 
   /** Task-level chat session override. */
   chatSession?: ChatSessionBehavior;
+
+  /** Agent to use */
+  agent?: string;
 }
 
-/**
- * Webview message types (Webview → Extension)
- */
-export type WebviewToExtensionMessage =
-  | { type: "createTask"; data: CreateTaskInput }
+type TaskEditorMessage =
+  | { type: "duplicateTask"; taskId: string }
   | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> }
   | { type: "testPrompt"; prompt: string; agent?: string; model?: string }
-  | { type: "duplicateTask"; taskId: string }
+  | { type: "createTask"; data: CreateTaskInput };
+
+type JobWorkflowMessage =
   | { type: "requestCreateJob"; folderId?: string }
   | { type: "requestCreateJobFolder"; parentFolderId?: string }
   | { type: "requestRenameJobFolder"; folderId: string }
@@ -1614,7 +1606,9 @@ export type WebviewToExtensionMessage =
     nodeId: string;
     windowMinutes: number;
   }
-  | { type: "compileJob"; jobId: string }
+  | { type: "compileJob"; jobId: string };
+
+type SchedulerControlMessage =
   | { type: "refreshTasks" }
   | { type: "restoreScheduleHistory"; snapshotId: string }
   | { type: "toggleAutoShowOnStartup" }
@@ -1623,7 +1617,9 @@ export type WebviewToExtensionMessage =
   | { type: "setupMcp" }
   | { type: "syncBundledSkills" }
   | { type: "importStorageFromJson" }
-  | { type: "exportStorageToJson" }
+  | { type: "exportStorageToJson" };
+
+type ResearchMessage =
   | { type: "createResearchProfile"; data: CreateResearchProfileInput }
   | {
     type: "updateResearchProfile";
@@ -1633,12 +1629,16 @@ export type WebviewToExtensionMessage =
   | { type: "deleteResearchProfile"; researchId: string }
   | { type: "duplicateResearchProfile"; researchId: string }
   | { type: "startResearchRun"; researchId: string }
-  | { type: "stopResearchRun" }
+  | { type: "stopResearchRun" };
+
+type NotificationAndSettingsMessage =
   | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
-  | { type: "setStorageSettings"; data: StorageSettingsView }
+  | { type: "setStorageSettings"; data: StorageSettingsView };
+
+type TodoBoardMessage =
   | { type: "createTodo"; data: CreateCockpitTodoInput }
   | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }
   | { type: "deleteTodo"; todoId: string }
@@ -1657,20 +1657,22 @@ export type WebviewToExtensionMessage =
   | { type: "deleteTodoFlagDefinition"; data: { name: string } }
   | { type: "requestTodoFileUpload"; todoId?: string }
   | { type: "linkTodoTask"; todoId: string; taskId?: string }
-  | { type: "createTaskFromTodo"; todoId: string }
-  | { type: "runTask"; taskId: string }
-  | { type: "toggleTask"; taskId: string }
+  | { type: "createTaskFromTodo"; todoId: string };
+
+type CockpitSectionMessage =
   | { type: "deleteTask"; taskId: string }
+  | { type: "toggleTask"; taskId: string }
+  | { type: "runTask"; taskId: string }
   | { type: "addCockpitSection"; title: string }
   | { type: "renameCockpitSection"; sectionId: string; title: string }
   | { type: "deleteCockpitSection"; sectionId: string }
-  | { type: "moveCockpitSection"; sectionId: string; direction: "left" | "right" }
+  | { type: "moveCockpitSection"; sectionId: string; direction: SectionDirection }
   | { type: "reorderCockpitSection"; sectionId: string; targetIndex: number }
   | { type: "setLanguage"; language: "auto" | "en" | "ja" | "de" }
   | { type: "setLogLevel"; logLevel: LogLevel }
   | { type: "openLogFolder" }
-  | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "copyTask"; taskId: string }
+  | { type: "moveTaskToCurrentWorkspace"; taskId: string }
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" }
   | { type: "debugWebview"; event: string; detail?: unknown }
   | { type: "webviewReady" }
@@ -1678,17 +1680,25 @@ export type WebviewToExtensionMessage =
   | { type: "planIntegration" }
   | { type: "restoreBackup" };
 
-/**
- * TreeView context values
- */
+/** Webview message types (Webview → Extension). */
+export type WebviewToExtensionMessage =
+  | TaskEditorMessage
+  | JobWorkflowMessage
+  | SchedulerControlMessage
+  | ResearchMessage
+  | NotificationAndSettingsMessage
+  | TodoBoardMessage
+  | CockpitSectionMessage;
+
+/** TreeView context values. */
 export type TreeContextValue =
-  | "scopeGroup"
-  | "workspaceGroup"
   | "enabledTask"
   | "disabledTask"
-  | "enabledWorkspaceTask"
-  | "disabledWorkspaceTask"
+  | "workspaceGroup"
+  | "scopeGroup"
   | "enabledOtherWorkspaceTask"
-  | "disabledOtherWorkspaceTask";
+  | "disabledOtherWorkspaceTask"
+  | "enabledWorkspaceTask"
+  | "disabledWorkspaceTask";
 
 
