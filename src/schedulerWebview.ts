@@ -1,43 +1,34 @@
-/**
- * Copilot Cockpit - Scheduler Webview
- * Provides GUI for task creation, editing, and listing
- */
+/** Webview controller for the Cockpit scheduler surface. */
 
 import * as vscode from "vscode";
 import * as path from "path";
-import * as fs from "fs";
 import type {
+  AgentInfo,
+  ChatSessionBehavior,
   CockpitBoard,
-  ScheduledTask,
-  ScheduleHistoryEntry,
+  ExecutionDefaultsView,
   JobDefinition,
   JobFolder,
-  TaskAction,
-  AgentInfo,
   ModelInfo,
   PromptTemplate,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsView,
+  ScheduledTask,
+  ScheduleHistoryEntry,
   SkillReference,
   StorageSettingsView,
-  ChatSessionBehavior,
-  ExecutionDefaultsView,
-  ReviewDefaultsView,
-  TelegramNotificationView,
+  TaskAction,
   TaskScope,
+  TelegramNotificationView,
   WebviewToExtensionMessage,
 } from "./types";
 import { CopilotExecutor } from "./copilotExecutor";
 import {
   messages,
-  getConfiguredLanguage,
   getCurrentLanguage,
-  getCurrentLocaleTag,
-  getCronPresets,
 } from "./i18n";
 import {
-  getConfiguredLogLevel,
-  getLogDirectoryPath,
   logError,
 } from "./logger";
 import {
@@ -47,13 +38,10 @@ import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
   buildFriendlyCronBuilderMarkup,
   buildPromptSourceRadioGroupMarkup,
-  buildSchedulerWebviewInitialData,
   buildTaskScopeRadioGroupMarkup,
   escapeHtml,
   escapeHtmlAttr,
   formatModelLabel,
-  getWebviewNonce,
-  normalizeSchedulerWebviewJitterSeconds,
   serializeForWebview,
 } from "./schedulerWebviewContentUtils";
 import { renderSchedulerWebviewDocument } from "./schedulerWebviewDocument";
@@ -65,17 +53,7 @@ import {
   handleTodoCockpitWebviewMessage,
 } from "./schedulerWebviewCockpitBridge";
 import {
-  createEditTaskMessage,
-  createFocusJobMessage,
-  createFocusResearchProfileMessage,
-  createFocusResearchRunMessage,
-  createFocusTaskMessage,
   createShowErrorMessage,
-  createStartCreateJobMessage,
-  createStartCreateTaskMessage,
-  createSwitchToListMessage,
-  createSwitchToTabMessage,
-  createUpdateAutoShowOnStartupMessage,
   createUpdateExecutionDefaultsMessage,
   createUpdateJobFoldersMessage,
   createUpdateJobsMessage,
@@ -91,13 +69,34 @@ import { handleTaskWebviewMessage } from "./schedulerWebviewTaskHandler";
 import { handleJobWebviewMessage } from "./schedulerWebviewJobHandler";
 import { handleResearchWebviewMessage } from "./schedulerWebviewResearchHandler";
 import {
+  handleTodoFileUploadRequest as handleTodoFileUploadRequestWithHelper,
+  sanitizeTodoUploadFileName as sanitizeTodoUploadFileNameWithHelper,
+} from "./schedulerWebviewTodoUploads";
+import {
   getResolvedWorkspaceRootPaths,
   getGlobalPromptsPath,
-  refreshAgentsAndModels,
-  refreshPromptTemplates,
-  refreshSkillReferences,
-  loadPromptTemplateContent,
 } from "./schedulerWebviewTemplateCache";
+import {
+  createSchedulerWebviewJobDialogContext,
+  postAutoShowOnStartup,
+  postEditTask,
+  postFocusJob,
+  postFocusResearchProfile,
+  postFocusResearchRun,
+  postFocusTask,
+  postStartCreateJob,
+  postStartCreateTask,
+  postSwitchToList,
+  postSwitchToTab,
+  refreshSchedulerAgentsAndModelsState,
+  refreshSchedulerPromptTemplatesState,
+  refreshSchedulerSkillReferencesState,
+} from "./schedulerWebviewCommands";
+import { createSchedulerWebviewRenderContext } from "./schedulerWebviewRenderContext";
+import { buildSchedulerTaskEditorMarkup } from "./schedulerWebviewTaskEditorMarkup";
+import { buildSchedulerWebviewChromeStyles } from "./schedulerWebviewChromeStyles";
+import { buildSchedulerWebviewSharedStyles } from "./schedulerWebviewSharedStyles";
+import { handleSchedulerWebviewCoreMessage } from "./schedulerWebviewMessageRouting";
 import {
   postSchedulerCatalogMessages,
   runSchedulerCatalogRefreshTasks,
@@ -145,9 +144,6 @@ import {
 type OutgoingWebviewMessage = SchedulerWebviewMessage;
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
 
-/**
- * Manages the Webview panel for task management
- */
 export class SchedulerWebview {
   private static panel: vscode.WebviewPanel | undefined;
   private static readonly catalogState = createSchedulerWebviewCatalogState();
@@ -277,9 +273,6 @@ export class SchedulerWebview {
     return backupGithubFolderSnapshot(workspaceRoot);
   }
 
-  /**
-   * Dispose the webview panel (e.g., on extension deactivation)
-   */
   static dispose(): void {
     if (this.panel) {
       this.panel.dispose();
@@ -300,9 +293,6 @@ export class SchedulerWebview {
     flushSchedulerWebviewPendingMessages(this.messageQueueState, this.panel);
   }
 
-  /**
-   * Show or reveal the webview panel
-   */
   static async show(
     extensionUri: vscode.Uri,
     tasks: ScheduledTask[],
@@ -613,22 +603,22 @@ export class SchedulerWebview {
    * Switch to the list tab, optionally showing a success toast
    */
   static switchToList(successMessage?: string): void {
-    this.postMessage(createSwitchToListMessage(successMessage));
+    postSwitchToList((message) => this.postMessage(message), successMessage);
   }
 
   static switchToTab(tab: "create" | "list" | "jobs" | "board" | "research" | "settings" | "help"): void {
-    this.postMessage(createSwitchToTabMessage(tab));
+    postSwitchToTab((message) => this.postMessage(message), tab);
   }
 
   static updateAutoShowOnStartup(enabled: boolean): void {
-    this.postMessage(createUpdateAutoShowOnStartupMessage(enabled));
+    postAutoShowOnStartup((message) => this.postMessage(message), enabled);
   }
 
   /**
    * Force the webview into "create new task" mode (clears edit state and form).
    */
   static startCreateTask(): void {
-    this.postMessage(createStartCreateTaskMessage());
+    postStartCreateTask((message) => this.postMessage(message));
   }
 
   static startCreateTodo(): void {
@@ -636,50 +626,44 @@ export class SchedulerWebview {
   }
 
   static startCreateJob(): void {
-    this.postMessage(createStartCreateJobMessage());
+    postStartCreateJob((message) => this.postMessage(message));
   }
 
   /**
    * Focus on a specific task
    */
   static focusTask(taskId: string): void {
-    if (!taskId) return;
-    this.postMessage(createFocusTaskMessage(taskId));
+    postFocusTask((message) => this.postMessage(message), taskId);
   }
 
   static focusJob(jobId: string, folderId?: string): void {
-    if (!jobId) return;
-    this.postMessage(createFocusJobMessage(jobId, folderId));
+    postFocusJob((message) => this.postMessage(message), jobId, folderId);
   }
 
   static focusResearchProfile(researchId?: string): void {
-    this.postMessage(createFocusResearchProfileMessage(researchId));
+    postFocusResearchProfile((message) => this.postMessage(message), researchId);
   }
 
   static focusResearchRun(runId?: string): void {
-    this.postMessage(createFocusResearchRunMessage(runId));
+    postFocusResearchRun((message) => this.postMessage(message), runId);
   }
 
   /**
    * Start editing a specific task (opens edit mode in the webview)
    */
   static editTask(taskId?: string): void {
-    if (!taskId) return;
-    this.postMessage(createEditTaskMessage(taskId));
+    postEditTask((message) => this.postMessage(message), taskId);
   }
 
   private static getJobDialogContext() {
-    return {
+    return createSchedulerWebviewJobDialogContext({
       currentJobs: this.currentJobs,
       currentJobFolders: this.currentJobFolders,
       currentTasks: this.currentTasks,
       onTaskActionCallback: this.onTaskActionCallback,
-    };
+    });
   }
 
-  /**
-   * Handle messages from webview
-   */
   private static async handleMessage(
     message: WebviewToExtensionMessage,
   ): Promise<void> {
@@ -711,249 +695,71 @@ export class SchedulerWebview {
       return;
     }
 
-    switch (message.type) {
-      case "testPrompt":
-        this.onTestPromptCallback?.(
-          message.prompt,
-          message.agent,
-          message.model,
-        );
-        break;
-
-      case "refreshAgents":
-        await this.refreshAgentsAndModelsCache(true);
-        this.postMessage({
-          type: "updateAgents",
-          agents: this.cachedAgents,
-        });
-        this.postMessage({
-          type: "updateModels",
-          models: this.cachedModels,
-        });
-        break;
-
-      case "refreshPrompts":
-        await this.refreshPromptTemplatesCache(true);
-        await this.refreshSkillReferencesCache(true);
-        this.postMessage({
-          type: "updatePromptTemplates",
-          templates: this.cachedPromptTemplates,
-        });
-        this.postMessage({
-          type: "updateSkills",
-          skills: this.cachedSkillReferences,
-        });
-        break;
-
-      case "restoreScheduleHistory":
-        this.onTaskActionCallback?.({
-          action: "restoreHistory",
-          taskId: "__history__",
-          historyId: message.snapshotId,
-        });
-        break;
-
-      case "toggleAutoShowOnStartup":
-        this.onTaskActionCallback?.({
-          action: "refresh",
-          taskId: "__toggleAutoShowOnStartup__",
-        });
-        break;
-
-      case "setupMcp":
-        this.onTaskActionCallback?.({
-          action: "setupMcp",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "syncBundledSkills":
-        this.onTaskActionCallback?.({
-          action: "syncBundledSkills",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "importStorageFromJson":
-        this.onTaskActionCallback?.({
-          action: "importStorageFromJson",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "exportStorageToJson":
-        this.onTaskActionCallback?.({
-          action: "exportStorageToJson",
-          taskId: "__settings__",
-        });
-        break;
-
-      case "saveTelegramNotification":
-        this.onTaskActionCallback?.({
-          action: "saveTelegramNotification",
-          taskId: "__settings__",
-          telegramData: message.data,
-        });
-        break;
-
-      case "testTelegramNotification":
-        this.onTaskActionCallback?.({
-          action: "testTelegramNotification",
-          taskId: "__settings__",
-          telegramData: message.data,
-        });
-        break;
-
-      case "saveExecutionDefaults":
-        this.onTaskActionCallback?.({
-          action: "saveExecutionDefaults",
-          taskId: "__settings__",
-          executionDefaults: message.data,
-        });
-        break;
-
-      case "saveReviewDefaults":
-        this.onTaskActionCallback?.({
-          action: "saveReviewDefaults",
-          taskId: "__settings__",
-          reviewDefaults: message.data,
-        });
-        break;
-
-      case "loadPromptTemplate":
-        await loadPromptTemplateContent(
-          message.path,
-          message.source,
-          this.cachedPromptTemplates,
-          (m) => this.postMessage(m),
-        );
-        break;
-
-      case "webviewReady":
-        this.webviewReady = true;
-        this.flushPendingMessages();
-        break;
-
-      case "requestTodoFileUpload":
-        await this.handleTodoFileUploadRequest();
-        break;
+    if (
+      await handleSchedulerWebviewCoreMessage(message, {
+        onTestPrompt: this.onTestPromptCallback,
+        refreshAgentsAndModelsCache: (force) =>
+          this.refreshAgentsAndModelsCache(force),
+        refreshPromptTemplatesCache: (force) =>
+          this.refreshPromptTemplatesCache(force),
+        refreshSkillReferencesCache: (force) =>
+          this.refreshSkillReferencesCache(force),
+        getCachedAgents: () => this.cachedAgents,
+        getCachedModels: () => this.cachedModels,
+        getCachedPromptTemplates: () => this.cachedPromptTemplates,
+        getCachedSkillReferences: () => this.cachedSkillReferences,
+        postMessage: (payload) => this.postMessage(payload),
+        onTaskAction: this.onTaskActionCallback,
+        setWebviewReady: (value) => {
+          this.webviewReady = value;
+        },
+        flushPendingMessages: () => this.flushPendingMessages(),
+        handleTodoFileUploadRequest: () => this.handleTodoFileUploadRequest(),
+      })
+    ) {
+      return;
     }
   }
 
   private static sanitizeTodoUploadFileName(fileName: string): string {
-    const parsed = path.parse(fileName || "upload");
-    const rawBase = parsed.name || "upload";
-    const safeBase = rawBase
-      .replace(/[^a-zA-Z0-9._-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^[-_.]+|[-_.]+$/g, "")
-      .slice(0, 48) || "upload";
-    const safeExt = (parsed.ext || "").replace(/[^a-zA-Z0-9.]+/g, "").slice(0, 12);
-    return `${safeBase}${safeExt}`;
+    return sanitizeTodoUploadFileNameWithHelper(fileName);
   }
 
   private static async handleTodoFileUploadRequest(): Promise<void> {
-    const strings = buildSchedulerWebviewStrings(getCurrentLanguage());
-    const workspaceRoot = getResolvedWorkspaceRootPaths()[0];
-    if (!workspaceRoot) {
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: false,
-        message: strings.boardUploadFilesError || "File upload failed.",
-      });
-      return;
-    }
-
-    try {
-      const selectedFiles = await vscode.window.showOpenDialog({
-        canSelectMany: true,
-        canSelectFiles: true,
-        canSelectFolders: false,
-        openLabel: strings.boardUploadFiles || "Upload Files",
-      });
-
-      if (!selectedFiles || selectedFiles.length === 0) {
-        this.postMessage({
-          type: "todoFileUploadResult",
-          ok: false,
-          cancelled: true,
-          message: strings.boardUploadFilesEmpty || "No files selected.",
-        });
-        return;
-      }
-
-      const uploadFolderPath = path.join(
-        workspaceRoot,
-        ".vscode",
-        TODO_INPUT_UPLOADS_FOLDER,
-      );
-      fs.mkdirSync(uploadFolderPath, { recursive: true });
-      ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-
-      const relativePaths: string[] = [];
-      const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
-
-      selectedFiles.forEach((fileUri, index) => {
-        const sourcePath = fileUri.fsPath;
-        const safeName = this.sanitizeTodoUploadFileName(path.basename(sourcePath));
-        const parsed = path.parse(safeName);
-        const prefix = `${stamp}-${String(index + 1).padStart(2, "0")}`;
-        let targetName = `${prefix}-${parsed.name}${parsed.ext}`;
-        let targetPath = path.join(uploadFolderPath, targetName);
-        let attempt = 2;
-
-        while (fs.existsSync(targetPath)) {
-          targetName = `${prefix}-${parsed.name}-${attempt}${parsed.ext}`;
-          targetPath = path.join(uploadFolderPath, targetName);
-          attempt += 1;
-        }
-
-        fs.copyFileSync(sourcePath, targetPath);
-        relativePaths.push(path.relative(workspaceRoot, targetPath).split(path.sep).join("/"));
-      });
-
-      const insertedText = [
-        relativePaths.length === 1 ? "Attachment:" : "Attachments:",
-        ...relativePaths.map((relativePath) => `- ${relativePath}`),
-      ].join("\n");
-
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: true,
-        message: strings.boardUploadFilesSuccess || "Files copied into the workspace input folder and added to the description.",
-        insertedText,
-        relativePaths,
-        folderRelativePath: `.vscode/${TODO_INPUT_UPLOADS_FOLDER}`,
-      });
-    } catch (error) {
-      logError("Todo file upload failed", error);
-      this.postMessage({
-        type: "todoFileUploadResult",
-        ok: false,
-        message: (strings.boardUploadFilesError || "File upload failed.") + " " + sanitizeAbsolutePathDetails(
-          error instanceof Error ? error.message : String(error ?? ""),
-        ),
-      });
-    }
+    await handleTodoFileUploadRequestWithHelper({
+      workspaceRoot: getResolvedWorkspaceRootPaths()[0],
+      uploadsFolderName: TODO_INPUT_UPLOADS_FOLDER,
+      strings: buildSchedulerWebviewStrings(getCurrentLanguage()),
+      postMessage: (message) => this.postMessage(message),
+      ensurePrivateConfigIgnoredForWorkspaceRoot,
+      logError,
+    });
   }
 
   private static async refreshAgentsAndModelsCache(force = false): Promise<void> {
-    const result = await refreshAgentsAndModels(this.cachedAgents, this.cachedModels, force);
+    const result = await refreshSchedulerAgentsAndModelsState(
+      this.cachedAgents,
+      this.cachedModels,
+      force,
+    );
     this.cachedAgents = result.agents;
     this.cachedModels = result.models;
   }
 
   private static async refreshPromptTemplatesCache(force = false): Promise<void> {
-    this.cachedPromptTemplates = await refreshPromptTemplates(this.cachedPromptTemplates, force);
+    this.cachedPromptTemplates = await refreshSchedulerPromptTemplatesState(
+      this.cachedPromptTemplates,
+      force,
+    );
   }
 
   private static async refreshSkillReferencesCache(force = false): Promise<void> {
-    this.cachedSkillReferences = await refreshSkillReferences(this.cachedSkillReferences, force);
+    this.cachedSkillReferences = await refreshSchedulerSkillReferencesState(
+      this.cachedSkillReferences,
+      force,
+    );
   }
 
-  /**
-   * Generate webview HTML content
-   */
   private static getWebviewContent(
     webview: vscode.Webview,
     tasks: ScheduledTask[],
@@ -961,38 +767,13 @@ export class SchedulerWebview {
     models: ModelInfo[],
     promptTemplates: PromptTemplate[],
   ): string {
-    const nonce = getWebviewNonce();
-    const uiLanguage = getCurrentLanguage();
-    const configuredLanguage = getConfiguredLanguage();
-    const presets = getCronPresets();
-    const defaultScope = getCompatibleConfigurationValue<TaskScope>(
-      "defaultScope",
-      "workspace",
-    );
-    const defaultChatSession = getCompatibleConfigurationValue<ChatSessionBehavior>(
-      "chatSession",
-      "new",
-    );
-    const defaultJitterSecondsRaw = getCompatibleConfigurationValue<number>(
-      "jitterSeconds",
-      600,
-    );
-    const defaultJitterSeconds = normalizeSchedulerWebviewJitterSeconds(
-      defaultJitterSecondsRaw,
-    );
-    const initialTasks = Array.isArray(tasks) ? tasks : [];
-    const initialAgents = Array.isArray(agents) ? agents : [];
-    const initialModels = Array.isArray(models) ? models : [];
-    const initialTemplates = Array.isArray(promptTemplates)
-      ? promptTemplates
-      : [];
-
-    const strings = buildSchedulerWebviewStrings(uiLanguage);
-
-    const allPresets = presets;
-
-    const initialData = buildSchedulerWebviewInitialData({
-      initialTasks,
+    const renderContext = createSchedulerWebviewRenderContext({
+      extensionUri: this.extensionUri,
+      webview,
+      tasks,
+      agents,
+      models,
+      promptTemplates,
       currentJobs: this.currentJobs,
       currentJobFolders: this.currentJobFolders,
       currentCockpitBoard: this.currentCockpitBoard,
@@ -1003,337 +784,26 @@ export class SchedulerWebview {
       currentResearchProfiles: this.currentResearchProfiles,
       currentActiveResearchRun: this.currentActiveResearchRun,
       currentRecentResearchRuns: this.currentRecentResearchRuns,
-      initialAgents,
-      initialModels,
-      initialTemplates,
       cachedSkillReferences: this.cachedSkillReferences,
       workspacePaths: getResolvedWorkspaceRootPaths(),
-      defaultJitterSeconds,
-      defaultChatSession,
       currentScheduleHistory: this.currentScheduleHistory,
-      autoShowOnStartup: getCompatibleConfigurationValue<boolean>(
-        "autoShowOnStartup",
-        false,
-        vscode.workspace.workspaceFolders?.[0]?.uri,
-      ),
-      currentLogLevel: getConfiguredLogLevel(),
-      currentLogDirectory: getLogDirectoryPath(),
+    });
+    const {
+      nonce,
+      uiLanguage,
       configuredLanguage,
-      locale: getCurrentLocaleTag(),
+      allPresets,
       strings,
-    });
-    const helpIntroTitle = typeof strings.helpIntroTitle === "string"
-      ? strings.helpIntroTitle
-      : "";
-    const helpIntroTitleText = helpIntroTitle.replace(/^\s*🚀\s*/u, "").trim() || helpIntroTitle;
-
-    const scriptPath = vscode.Uri.joinPath(
-      this.extensionUri,
-      "media",
-      "generated",
-      "schedulerWebview.js",
-    );
-    let scriptCacheToken = "static";
-    try {
-      const scriptStats = fs.statSync(scriptPath.fsPath);
-      scriptCacheToken = `${scriptStats.mtimeMs}-${scriptStats.size}`;
-    } catch {
-      // Fall back to a stable token if the bundled file isn't readable.
-    }
-    const scriptUri = webview.asWebviewUri(scriptPath).with({
-      query: `v=${encodeURIComponent(scriptCacheToken)}`,
-    });
+      initialData,
+      initialAgents,
+      initialModels,
+      defaultScope,
+      defaultJitterSeconds,
+      helpIntroTitleText,
+      scriptUri,
+    } = renderContext;
     const documentContent = `  <style>
-    * {
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: var(--vscode-font-family);
-      padding: 12px 14px;
-      color: var(--vscode-foreground);
-      background-color: var(--vscode-editor-background);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .tab-bar {
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 8px;
-      margin: -12px -14px 10px -14px;
-      padding: 8px 16px 6px 16px;
-      background-color: var(--vscode-editor-background);
-      background: linear-gradient(
-        to bottom,
-        var(--vscode-editor-background) 0%,
-        var(--vscode-editor-background) 85%,
-        color-mix(in srgb, var(--vscode-editor-background) 75%, transparent) 100%
-      );
-      border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 65%, transparent);
-    }
-    
-    .tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--vscode-panel-border);
-      flex: 1 1 auto;
-      min-width: 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      white-space: nowrap;
-      scrollbar-gutter: stable both-edges;
-      scrollbar-width: thin;
-    }
-
-    .tabs::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .tabs::-webkit-scrollbar-thumb {
-      background: var(--vscode-scrollbarSlider-background);
-      border-radius: 999px;
-    }
-
-    .tab-actions {
-      flex: 0 0 auto;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .tab-button-content {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      min-height: 1.2em;
-    }
-
-    .tab-button-symbol {
-      font-size: 1.1em;
-      line-height: 1;
-      opacity: 0.95;
-    }
-
-    .tab-button-label {
-      min-width: 0;
-    }
-
-    .tab-button-label:empty {
-      display: none;
-    }
-
-    .tab-button-label.is-dirty {
-      display: inline-flex;
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #d97706));
-      box-shadow: 0 0 0 1px var(--vscode-editor-background);
-    }
-
-    .tab-help-button {
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      padding: 0;
-      border-radius: 999px;
-      border: 1px solid var(--vscode-panel-border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 16px;
-      margin-right: 2px;
-    }
-
-    .tab-settings-button {
-      width: 40px;
-      min-width: 40px;
-      height: 40px;
-      padding: 0;
-      border-radius: 999px;
-      border: 1px solid var(--vscode-panel-border);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      line-height: 1;
-      margin-left: 2px;
-    }
-    
-    .tab-button {
-      padding: 9px 14px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.15;
-      flex: 1 1 auto;
-      text-align: center;
-      min-width: max-content;
-    }
-
-    .tab-button[data-tab="todo-edit"],
-    .tab-button[data-tab="create"],
-    .tab-button[data-tab="jobs-edit"] {
-      flex: 0 0 auto;
-      padding-left: 10px;
-      padding-right: 10px;
-    }
-    
-    .tab-button:hover {
-      background-color: var(--vscode-list-hoverBackground);
-    }
-    
-    .tab-button.active {
-      border-bottom-color: var(--vscode-focusBorder);
-      color: var(--vscode-textLink-foreground);
-    }
-
-    .tab-group-sep {
-      flex: 0 0 1px;
-      width: 1px;
-      align-self: stretch;
-      background: var(--vscode-panel-border);
-      margin: 6px 4px;
-      opacity: 0.6;
-    }
-
-    .label-suggestion-list {
-      display: none;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 8px;
-      margin-top: 4px;
-      background: var(--vscode-editorWidget-background);
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-    }
-
-    .label-catalog-section {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-    }
-
-    .label-catalog-section:empty {
-      display: none;
-    }
-
-    .flag-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      border-radius: 4px;
-      font-size: inherit;
-      line-height: 1.4;
-      font-weight: 600;
-      border: 1px solid var(--vscode-panel-border);
-    }
-
-    .flag-catalog-section {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 6px;
-    }
-
-    .flag-catalog-section:empty {
-      display: none;
-    }
-
-    .todo-inline-actions-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .todo-inline-actions-row > input[type="text"] {
-      flex: 1 1 200px;
-      min-width: 180px;
-    }
-
-    .todo-inline-actions-row > button {
-      position: relative;
-      z-index: 1;
-      flex: 0 0 auto;
-    }
-
-    .todo-color-input-shell {
-      position: relative;
-      z-index: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex: 0 0 42px;
-      width: 42px;
-      min-width: 42px;
-      height: 30px;
-      overflow: hidden;
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 4px;
-      background: var(--vscode-input-background);
-      box-sizing: border-box;
-    }
-
-    .todo-color-input-shell input[type="color"] {
-      appearance: none;
-      -webkit-appearance: none;
-      display: block;
-      width: 100%;
-      min-width: 100%;
-      height: 100%;
-      padding: 0;
-      margin: 0;
-      border: 0;
-      background: transparent;
-      cursor: pointer;
-      box-sizing: border-box;
-    }
-
-    .todo-color-input-shell input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-
-    .todo-color-input-shell input[type="color"]::-webkit-color-swatch {
-      border: 0;
-      border-radius: 3px;
-    }
-    
-    .tab-content {
-      display: none;
-    }
-    
-    .tab-content.active {
-      display: block;
-    }
-
-    .global-error-banner {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      margin: 0 0 12px 0;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--vscode-inputValidation-errorBorder);
-      background: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-      font-size: 13px;
-      line-height: 1.4;
-    }
+${buildSchedulerWebviewChromeStyles()}
 
     .global-error-banner.is-visible {
       display: flex;
@@ -1635,582 +1105,7 @@ export class SchedulerWebview {
       }
     }
 
-    .form-group {
-      margin-bottom: 12px;
-    }
-    
-    .form-group label {
-      display: block;
-      margin-bottom: 4px;
-      font-weight: 500;
-      font-size: 12px;
-    }
-
-    .form-group label[for] {
-      cursor: pointer;
-    }
-    
-    input[type="text"],
-    input[type="number"],
-    textarea,
-    select {
-      width: 100%;
-      padding: 6px 8px;
-      border: 1px solid var(--vscode-input-border);
-      background-color: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border-radius: 4px;
-      font-family: inherit;
-      font-size: 12px;
-    }
-    
-    textarea {
-      min-height: 92px;
-      resize: vertical;
-    }
-    
-    input:focus,
-    textarea:focus,
-    select:focus {
-      outline: none;
-      border-color: var(--vscode-focusBorder);
-    }
-    
-    .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-      user-select: none;
-    }
-    
-    .checkbox-group input[type="checkbox"] {
-      width: auto;
-    }
-
-    .checkbox-group span {
-      cursor: pointer;
-    }
-    
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-    }
-    
-    button {
-      padding: 6px 10px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      font-family: inherit;
-      line-height: 1.2;
-    }
-    
-    .btn-primary {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .btn-primary:hover {
-      background-color: var(--vscode-button-hoverBackground);
-    }
-    
-    .btn-secondary {
-      background-color: var(--vscode-button-secondaryBackground);
-      color: var(--vscode-button-secondaryForeground);
-    }
-    
-    .btn-secondary:hover {
-      background-color: var(--vscode-button-secondaryHoverBackground);
-    }
-    
-    .btn-danger {
-      background-color: var(--vscode-inputValidation-errorBackground);
-      color: var(--vscode-inputValidation-errorForeground);
-    }
-    
-    .btn-icon {
-      padding: 4px 6px;
-      background: transparent;
-      color: var(--vscode-foreground);
-    }
-    
-    .btn-icon:hover {
-      background-color: var(--vscode-list-hoverBackground);
-    }
-    
-    .task-list {
-      display: block;
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .task-filter-bar {
-      display: flex;
-      gap: 5px;
-      margin-bottom: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .task-filter-select {
-      min-width: 160px;
-      max-width: 220px;
-    }
-
-    .task-filter-btn {
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-
-    .task-filter-btn.active {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-    }
-
-    .task-sections {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 5px;
-      align-items: start;
-    }
-
-    .task-sections-column {
-      display: grid;
-      gap: 5px;
-      align-content: start;
-      min-width: 0;
-    }
-
-    .task-sections.filtered {
-      grid-template-columns: 1fr;
-    }
-
-    .task-sections.filtered .task-sections-column {
-      display: contents;
-    }
-
-    .task-section {
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 6px;
-      padding: 5px;
-      background-color: var(--vscode-editor-background);
-      min-width: 0;
-    }
-
-    .task-section-title {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 3px;
-      color: var(--vscode-descriptionForeground);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .task-section-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border: none;
-      background: transparent;
-      color: var(--vscode-foreground);
-      cursor: pointer;
-      border-radius: 3px;
-      padding: 0;
-      opacity: 0.7;
-      transition: opacity 0.12s ease, transform 0.2s ease;
-      font-size: 10px;
-      line-height: 1;
-    }
-
-    .task-section-toggle:hover {
-      opacity: 1;
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .task-section.is-collapsed .task-section-toggle {
-      transform: rotate(-90deg);
-    }
-
-    .task-section-body {
-      display: grid;
-      grid-template-rows: 1fr;
-      overflow: hidden;
-      transition: grid-template-rows 0.2s ease, opacity 0.2s ease;
-    }
-
-    .task-section.is-collapsed .task-section-body {
-      grid-template-rows: 0fr;
-      opacity: 0.8;
-    }
-
-    .task-section-body-inner {
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .task-subsection {
-      border: 1px solid color-mix(in srgb, var(--vscode-panel-border) 72%, transparent);
-      border-radius: 5px;
-      padding: 4px;
-      margin-bottom: 6px;
-      background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-editorWidget-background));
-      min-width: 0;
-    }
-
-    .task-subsection:last-child {
-      margin-bottom: 0;
-    }
-
-    .task-subsection-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 4px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-      font-weight: 600;
-      min-width: 0;
-    }
-
-    .task-subsection-name {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .task-subsection-count,
-    .task-section-count {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-
-    .task-subsection-body {
-      min-width: 0;
-    }
-    
-    .task-card {
-      display: grid;
-      gap: 3px;
-      padding: 5px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
-      background-color: var(--vscode-editor-background);
-      margin-bottom: 4px;
-    }
-
-    .task-card.other-workspace {
-      border-left-width: 4px;
-      border-left-color: var(--vscode-inputValidation-warningBorder);
-    }
-    
-    .task-card.disabled {
-      opacity: 0.6;
-    }
-    
-    .task-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 6px;
-      margin-bottom: 1px;
-    }
-
-    .task-header-main {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      min-width: 0;
-    }
-    
-    .task-name {
-      font-weight: 600;
-      font-size: 12px;
-      line-height: 1.35;
-    }
-    
-    .task-name.clickable, .task-status, .task-badge.clickable {
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    
-    .task-name.clickable:hover, .task-status:hover, .task-badge.clickable:hover {
-      opacity: 0.7;
-    }
-    
-    .task-status {
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-size: 11px;
-      line-height: 1.3;
-    }
-    
-    .task-status.enabled {
-      background-color: var(--vscode-testing-iconPassed);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .task-status.disabled {
-      background-color: var(--vscode-disabledForeground);
-      color: var(--vscode-button-foreground);
-    }
-    
-    .task-info {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px 8px;
-      font-size: 11px;
-      line-height: 1.4;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 1px;
-    }
-    
-    .task-info span {
-      margin-right: 0;
-    }
-
-    .task-badge {
-      display: inline-block;
-      padding: 1px 6px;
-      border-radius: 10px;
-      font-size: 11px;
-      background-color: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      margin-right: 0;
-    }
-
-    .task-badges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 3px;
-      margin-top: 1px;
-      margin-bottom: 1px;
-    }
-
-    .task-badge.label {
-      background-color: var(--vscode-editorInfo-background);
-      color: var(--vscode-editorInfo-foreground);
-    }
-    
-    .task-prompt {
-      padding: 4px 5px;
-      background-color: var(--vscode-textBlockQuote-background);
-      border-radius: 4px;
-      font-size: 11px;
-      line-height: 1.4;
-      white-space: pre-wrap;
-      max-height: 28px;
-      overflow: hidden;
-      margin-bottom: 1px;
-    }
-    
-    .task-actions {
-      display: flex;
-      gap: 3px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .task-actions button {
-      padding: 3px 6px;
-      font-size: 11px;
-      line-height: 1.2;
-    }
-    
-    .empty-state {
-      text-align: center;
-      padding: 10px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 12px;
-    }
-
-    @media (max-width: 920px) {
-      .task-sections {
-        grid-template-columns: 1fr;
-      }
-
-      .task-sections-column {
-        display: grid;
-      }
-    }
-    
-    .radio-group {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    
-    .radio-group label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: normal;
-      cursor: pointer;
-      user-select: none;
-      min-height: 28px;
-    }
-    
-    .preset-select {
-      margin-bottom: 8px;
-    }
-    
-    .section-title {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--vscode-foreground);
-    }
-    
-    .inline-group {
-      display: flex;
-      gap: 12px;
-    }
-    
-    .inline-group .form-group {
-      flex: 1;
-    }
-
-    .template-row {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .template-row select {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .friendly-cron {
-      margin-top: 8px;
-      padding: 8px;
-      border: 1px dashed var(--vscode-panel-border);
-      border-radius: 6px;
-      background-color: var(--vscode-editorWidget-background);
-    }
-
-    .friendly-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .friendly-grid .form-group {
-      flex: 1 1 160px;
-      margin-bottom: 6px;
-    }
-
-    .friendly-field {
-      display: none;
-    }
-
-    .friendly-field.visible {
-      display: block;
-    }
-
-    .friendly-actions {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      margin-top: 6px;
-    }
-
-    .task-editor-shell {
-      display: grid;
-      gap: 12px;
-    }
-
-    .task-editor-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      padding: 10px 12px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 92%, transparent),
-        color-mix(in srgb, var(--vscode-sideBar-background) 88%, transparent)
-      );
-    }
-
-    .task-editor-header-copy {
-      display: grid;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .task-editor-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .task-editor-card {
-      display: grid;
-      gap: 10px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      padding: 12px;
-    }
-
-    .task-editor-card.is-wide {
-      grid-column: 1 / -1;
-    }
-
-    .task-editor-card .section-title {
-      margin-bottom: 0;
-    }
-
-    .task-editor-card .note {
-      margin-top: -3px;
-    }
-
-    .task-editor-options-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px 12px;
-      align-items: start;
-    }
-
-    .task-editor-options-grid .form-group.wide {
-      grid-column: 1 / -1;
-    }
-
-    .cron-preview {
-      margin-top: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      flex-wrap: wrap;
-    }
-
-    .cron-preview strong {
-      color: var(--vscode-foreground);
-    }
-
-    .note {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
-      margin-top: 3px;
-      margin-bottom: 0;
-    }
+${buildSchedulerWebviewSharedStyles()}
 
     .board-columns-shell {
       width: 100%;
@@ -4927,145 +3822,14 @@ export class SchedulerWebview {
         </div>
       </div>
 
-      <form id="task-form" novalidate>
-        <div id="form-error" style="display:none; background:var(--vscode-inputValidation-errorBackground); color:var(--vscode-inputValidation-errorForeground); padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;"></div>
-        <input type="hidden" id="edit-task-id" value="">
-
-        <div class="task-editor-grid">
-          <section class="task-editor-card">
-            <div class="section-title">${escapeHtml(strings.taskEditorPromptTitle)}</div>
-
-            <div class="form-group" style="margin:0;">
-              <label for="task-name">${escapeHtml(strings.labelTaskName)}</label>
-              <input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required>
-            </div>
-
-            <div class="form-group" style="margin:0;">
-              <label for="task-labels">${escapeHtml(strings.labelTaskLabels)}</label>
-              <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
-            </div>
-
-            ${buildPromptSourceRadioGroupMarkup(strings)}
-
-            <div class="form-group" id="template-select-group" style="display: none; margin:0;">
-              <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
-              <div class="template-row">
-                <select id="template-select">
-                  <option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option>
-                </select>
-                <button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
-              </div>
-            </div>
-
-            <div class="form-group" id="prompt-group" style="margin:0;">
-              <label for="prompt-text">${escapeHtml(strings.labelPrompt)}</label>
-              <textarea id="prompt-text" placeholder="${escapeHtmlAttr(strings.placeholderPrompt)}" required style="min-height:220px;"></textarea>
-            </div>
-
-            <div class="form-group" id="skill-select-group" style="margin:0;">
-              <label for="skill-select">${escapeHtml(strings.labelSkills)}</label>
-              <div class="template-row">
-                <select id="skill-select">
-                  <option value="">${escapeHtml(strings.placeholderSelectSkill)}</option>
-                </select>
-                <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
-              </div>
-              <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
-            </div>
-          </section>
-
-          <section class="task-editor-card">
-            <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
-
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.labelSchedule)}</label>
-              <div class="preset-select">
-                <select id="cron-preset">
-                  <option value="">${escapeHtml(strings.labelCustom)}</option>
-                  ${allPresets.map((p) => `<option value="${escapeHtmlAttr(p.expression)}">${escapeHtml(p.name)}</option>`).join("")}
-                </select>
-              </div>
-              <input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>
-              <div class="cron-preview">
-                <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-                <span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-                <button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
-              </div>
-            </div>
-
-            ${buildFriendlyCronBuilderMarkup(strings, "friendly")}
-
-            <div class="section-title">${escapeHtml(strings.taskEditorRuntimeTitle)}</div>
-            <div class="inline-group">
-              <div class="form-group" style="margin:0;">
-                <label for="agent-select">${escapeHtml(strings.labelAgent)}</label>
-                <select id="agent-select">
-                  ${initialAgents.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectAgent)}</option>` + initialAgents.map((a) => `<option value="${escapeHtmlAttr(a.id || "")}">${escapeHtml(a.name || "")}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoAgents)}</option>`}
-                </select>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label for="model-select">${escapeHtml(strings.labelModel)}</label>
-                <select id="model-select">
-                  ${initialModels.length > 0 ? `<option value="">${escapeHtml(strings.placeholderSelectModel)}</option>` + initialModels.map((m) => `<option value="${escapeHtmlAttr(m.id || "")}">${escapeHtml(formatModelLabel(m))}</option>`).join("") : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`}
-                </select>
-                <p class="note">${escapeHtml(strings.labelModelNote)}</p>
-              </div>
-            </div>
-          </section>
-
-          <section class="task-editor-card is-wide">
-            <div class="section-title">${escapeHtml(strings.taskEditorOptionsTitle)}</div>
-            <div class="task-editor-options-grid">
-              ${buildTaskScopeRadioGroupMarkup(strings, defaultScope)}
-
-              <div class="form-group" style="margin:0;">
-                <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
-                <input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}">
-                <p class="note">${escapeHtml(strings.webviewJitterNote)}</p>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="run-first">
-                  <span>${escapeHtml(strings.labelRunFirstInOneMinute)}</span>
-                </label>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="one-time">
-                  <span>${escapeHtml(strings.labelOneTime)}</span>
-                </label>
-              </div>
-
-              <div class="form-group" style="margin:0;">
-                <label class="checkbox-group">
-                  <input type="checkbox" id="manual-session">
-                  <span>${escapeHtml(strings.labelManualSession)}</span>
-                </label>
-                <p class="note">${escapeHtml(strings.labelManualSessionNote)}</p>
-              </div>
-
-              <div class="form-group wide" id="chat-session-group" style="margin:0;">
-                <label for="chat-session">${escapeHtml(strings.labelChatSession)}</label>
-                <select id="chat-session">
-                  <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
-                  <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
-                </select>
-                <p class="note">${escapeHtml(strings.labelChatSessionRecurringOnly)}</p>
-              </div>
-            </div>
-
-            <div class="section-title">${escapeHtml(strings.taskEditorActionsTitle)}</div>
-            <div class="button-group" style="margin:0;">
-              <button type="submit" class="btn-primary" id="submit-btn">${escapeHtml(strings.actionCreate)}</button>
-              <button type="button" class="btn-secondary" id="new-task-btn" style="display:none;">${escapeHtml(strings.actionNewTask)}</button>
-              <button type="button" class="btn-secondary" id="test-btn">${escapeHtml(strings.taskEditorTestPrompt)}</button>
-            </div>
-          </section>
-        </div>
-      </form>
+      ${buildSchedulerTaskEditorMarkup({
+        strings,
+        allPresets,
+        initialAgents,
+        initialModels,
+        defaultScope,
+        defaultJitterSeconds,
+      })}
     </div>
   </div>
   
