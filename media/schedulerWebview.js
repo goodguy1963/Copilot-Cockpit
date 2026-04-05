@@ -79,6 +79,17 @@ import {
   bindRestoreHistoryButton,
   bindTaskTestButton,
 } from "./schedulerWebviewToolbarBindings.js";
+import { bindJobToolbarButtons } from "./schedulerWebviewJobBindings.js";
+import {
+  bindLanguageSelectors,
+  bindTemplateRefreshButton,
+  bindUtilityActionButtons,
+} from "./schedulerWebviewUtilityBindings.js";
+import {
+  bindJobDragAndDrop,
+  bindJobNodeWindowChange,
+  handleSchedulerDetailClick,
+} from "./schedulerWebviewJobInteractions.js";
 import { createSchedulerWebviewTransientState } from "./schedulerWebviewTransientState.js";
 
 (function () {
@@ -5236,185 +5247,64 @@ syncTodoLabelSuggestions();
     renderResearchTab();
   }
 
-  if (jobsNewFolderBtn) {
-    jobsNewFolderBtn.addEventListener("click", function () {
-      vscode.postMessage({
-        type: "requestCreateJobFolder",
-        parentFolderId: selectedJobFolderId || undefined,
-      });
-    });
-  }
-
-  if (jobsRenameFolderBtn) {
-    jobsRenameFolderBtn.addEventListener("click", function () {
-      if (!selectedJobFolderId) return;
-      vscode.postMessage({
-        type: "requestRenameJobFolder",
-        folderId: selectedJobFolderId,
-      });
-    });
-  }
-
-  if (jobsDeleteFolderBtn) {
-    jobsDeleteFolderBtn.addEventListener("click", function () {
-      if (!selectedJobFolderId) return;
-      vscode.postMessage({ type: "requestDeleteJobFolder", folderId: selectedJobFolderId });
-    });
-  }
-
-  if (jobsNewJobBtn) {
-    jobsNewJobBtn.addEventListener("click", function () {
-      isCreatingJob = true;
-      syncEditorTabLabels();
-      vscode.postMessage({
-        type: "requestCreateJob",
-        folderId: selectedJobFolderId || undefined,
-      });
-      switchTab("jobs-edit");
-    });
-  }
-
   var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
-  if (jobsEmptyNewBtn) {
-    jobsEmptyNewBtn.addEventListener("click", function () {
-      isCreatingJob = true;
-      syncEditorTabLabels();
-      vscode.postMessage({
-        type: "requestCreateJob",
-        folderId: selectedJobFolderId || undefined,
-      });
-    });
-  }
-
-  if (jobsBackBtn) {
-    jobsBackBtn.addEventListener("click", function () {
-      switchTab("jobs");
-    });
-  }
-
-  if (jobsOpenEditorBtn) {
-    jobsOpenEditorBtn.addEventListener("click", function () {
-      openJobEditor(selectedJobId || "");
-    });
-  }
-
-  if (jobsSaveBtn) {
-    jobsSaveBtn.addEventListener("click", submitJobEditor);
-  }
-
-  if (jobsSaveDeckBtn) {
-    jobsSaveDeckBtn.addEventListener("click", submitJobEditor);
-  }
-
-  if (jobsDuplicateBtn) {
-    jobsDuplicateBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsPauseBtn) {
-    jobsPauseBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsCompileBtn) {
-    jobsCompileBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsStatusPill) {
-    jobsStatusPill.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsToggleSidebarBtn) {
-    jobsToggleSidebarBtn.addEventListener("click", function () {
+  bindJobToolbarButtons({
+    jobsNewFolderBtn: jobsNewFolderBtn,
+    jobsRenameFolderBtn: jobsRenameFolderBtn,
+    jobsDeleteFolderBtn: jobsDeleteFolderBtn,
+    jobsNewJobBtn: jobsNewJobBtn,
+    jobsEmptyNewBtn: jobsEmptyNewBtn,
+    jobsBackBtn: jobsBackBtn,
+    jobsOpenEditorBtn: jobsOpenEditorBtn,
+    jobsSaveBtn: jobsSaveBtn,
+    jobsSaveDeckBtn: jobsSaveDeckBtn,
+    jobsDuplicateBtn: jobsDuplicateBtn,
+    jobsPauseBtn: jobsPauseBtn,
+    jobsCompileBtn: jobsCompileBtn,
+    jobsStatusPill: jobsStatusPill,
+    jobsToggleSidebarBtn: jobsToggleSidebarBtn,
+    jobsShowSidebarBtn: jobsShowSidebarBtn,
+    jobsDeleteBtn: jobsDeleteBtn,
+    jobsAttachBtn: jobsAttachBtn,
+    jobsExistingTaskSelect: jobsExistingTaskSelect,
+    jobsExistingWindowInput: jobsExistingWindowInput,
+    jobsCreateStepBtn: jobsCreateStepBtn,
+    jobsStepNameInput: jobsStepNameInput,
+    jobsStepPromptInput: jobsStepPromptInput,
+    jobsStepWindowInput: jobsStepWindowInput,
+    jobsStepAgentSelect: jobsStepAgentSelect,
+    jobsStepModelSelect: jobsStepModelSelect,
+    jobsStepLabelsInput: jobsStepLabelsInput,
+    jobsCreatePauseBtn: jobsCreatePauseBtn,
+    jobsPauseNameInput: jobsPauseNameInput,
+    defaultPauseTitle: strings.jobsPauseDefaultTitle || "Manual review",
+    getSelectedJobFolderId: function () {
+      return selectedJobFolderId;
+    },
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    setCreatingJob: function (value) {
+      isCreatingJob = value;
+    },
+    syncEditorTabLabels: syncEditorTabLabels,
+    switchTab: switchTab,
+    openJobEditor: openJobEditor,
+    submitJobEditor: submitJobEditor,
+    toggleJobsSidebar: function () {
       jobsSidebarHidden = !jobsSidebarHidden;
       applyJobsSidebarState();
       persistTaskFilter();
-    });
-  }
-
-  if (jobsShowSidebarBtn) {
-    jobsShowSidebarBtn.addEventListener("click", function () {
+    },
+    showJobsSidebar: function () {
       jobsSidebarHidden = false;
       applyJobsSidebarState();
       persistTaskFilter();
-    });
-  }
-
-  if (jobsDeleteBtn) {
-    jobsDeleteBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
-    });
-  }
-
-  if (jobsAttachBtn) {
-    jobsAttachBtn.addEventListener("click", function () {
-      if (!selectedJobId || !jobsExistingTaskSelect || !jobsExistingTaskSelect.value) return;
-      vscode.postMessage({
-        type: "attachTaskToJob",
-        jobId: selectedJobId,
-        taskId: jobsExistingTaskSelect.value,
-        windowMinutes: jobsExistingWindowInput ? Number(jobsExistingWindowInput.value || 30) : 30,
-      });
-    });
-  }
-
-  if (jobsCreateStepBtn) {
-    jobsCreateStepBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      var name = jobsStepNameInput ? jobsStepNameInput.value.trim() : "";
-      var prompt = jobsStepPromptInput ? jobsStepPromptInput.value.trim() : "";
-      if (!name || !prompt) return;
-      var selectedJob = getJobById(selectedJobId);
-      vscode.postMessage({
-        type: "createJobTask",
-        jobId: selectedJobId,
-        windowMinutes: jobsStepWindowInput ? Number(jobsStepWindowInput.value || 30) : 30,
-        data: {
-          name: name,
-          prompt: prompt,
-          cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
-          agent: jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
-          model: jobsStepModelSelect ? jobsStepModelSelect.value : "",
-          labels: parseLabels(jobsStepLabelsInput ? jobsStepLabelsInput.value : ""),
-          scope: "workspace",
-          promptSource: "inline",
-          oneTime: false,
-        },
-      });
-      if (jobsStepNameInput) jobsStepNameInput.value = "";
-      if (jobsStepPromptInput) jobsStepPromptInput.value = "";
-      if (jobsStepLabelsInput) jobsStepLabelsInput.value = "";
-      if (jobsStepWindowInput) jobsStepWindowInput.value = "30";
-    });
-  }
-
-  if (jobsCreatePauseBtn) {
-    jobsCreatePauseBtn.addEventListener("click", function () {
-      if (!selectedJobId) return;
-      var title = jobsPauseNameInput ? jobsPauseNameInput.value.trim() : "";
-      vscode.postMessage({
-        type: "createJobPause",
-        jobId: selectedJobId,
-        data: {
-          title: title || strings.jobsPauseDefaultTitle || "Manual review",
-        },
-      });
-      if (jobsPauseNameInput) {
-        jobsPauseNameInput.value = "";
-      }
-    });
-  }
+    },
+    getJobById: getJobById,
+    parseLabels: parseLabels,
+    vscode: vscode,
+  });
 
   document.addEventListener("click", function (e) {
     var target = e && e.target;
@@ -5429,310 +5319,89 @@ syncTodoLabelSuggestions();
         return;
       }
     }
-
-    var researchProfileCard = getClosestEventTarget(e, "[data-research-id]");
-    if (researchProfileCard && researchProfileList && researchProfileList.contains(researchProfileCard)) {
-      e.preventDefault();
-      e.stopPropagation();
-      selectResearchProfile(researchProfileCard.getAttribute("data-research-id") || "");
+    if (handleSchedulerDetailClick(e, {
+      getClosestEventTarget: getClosestEventTarget,
+      researchProfileList: researchProfileList,
+      researchRunList: researchRunList,
+      selectResearchProfile: selectResearchProfile,
+      selectResearchRun: selectResearchRun,
+      jobsFolderList: jobsFolderList,
+      jobsList: jobsList,
+      setSelectedJobFolderId: function (value) {
+        selectedJobFolderId = value;
+      },
+      setSelectedJobId: function (value) {
+        selectedJobId = value;
+      },
+      getSelectedJobId: function () {
+        return selectedJobId;
+      },
+      persistTaskFilter: persistTaskFilter,
+      renderJobsTab: renderJobsTab,
+      openJobEditor: openJobEditor,
+      editTask: typeof window.editTask === "function" ? window.editTask : undefined,
+      runTask: typeof window.runTask === "function" ? window.runTask : undefined,
+      getJobById: getJobById,
+      vscode: vscode,
+    })) {
       return;
-    }
-
-    var researchRunCard = getClosestEventTarget(e, "[data-run-id]");
-    if (researchRunCard && researchRunList && researchRunList.contains(researchRunCard)) {
-      e.preventDefault();
-      e.stopPropagation();
-      selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
-      return;
-    }
-
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && jobsFolderList && jobsFolderList.contains(folderItem)) {
-      selectedJobFolderId = folderItem.getAttribute("data-job-folder") || "";
-      selectedJobId = "";
-      persistTaskFilter();
-      renderJobsTab();
-      return;
-    }
-
-    var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
-    if (openJobEditorButton && jobsList && jobsList.contains(openJobEditorButton)) {
-      openJobEditor(openJobEditorButton.getAttribute("data-job-open-editor") || "");
-      return;
-    }
-
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobsList && jobsList.contains(jobItem)) {
-      selectedJobId = jobItem.getAttribute("data-job-id") || "";
-      persistTaskFilter();
-      renderJobsTab();
-      return;
-    }
-
-    var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
-    if (!jobAction) return;
-
-    if (jobAction === "detach-node") {
-      var detachNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && detachNodeId) {
-        vscode.postMessage({ type: "requestDeleteJobTask", jobId: selectedJobId, nodeId: detachNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "edit-task") {
-      var editTaskId = target.getAttribute("data-job-task-id") || "";
-      if (editTaskId && typeof window.editTask === "function") {
-        window.editTask(editTaskId);
-      }
-      return;
-    }
-
-    if (jobAction === "edit-pause") {
-      var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && editPauseNodeId) {
-        vscode.postMessage({ type: "requestRenameJobPause", jobId: selectedJobId, nodeId: editPauseNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "delete-pause") {
-      var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && deletePauseNodeId) {
-        vscode.postMessage({ type: "requestDeleteJobPause", jobId: selectedJobId, nodeId: deletePauseNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "approve-pause") {
-      var approveNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && approveNodeId) {
-        vscode.postMessage({ type: "approveJobPause", jobId: selectedJobId, nodeId: approveNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "reject-pause") {
-      var rejectNodeId = target.getAttribute("data-job-node-id") || "";
-      if (selectedJobId && rejectNodeId) {
-        vscode.postMessage({ type: "rejectJobPause", jobId: selectedJobId, nodeId: rejectNodeId });
-      }
-      return;
-    }
-
-    if (jobAction === "run-task") {
-      var runTaskId = target.getAttribute("data-job-task-id") || "";
-      if (runTaskId && typeof window.runTask === "function") {
-        window.runTask(runTaskId);
-      }
     }
   });
 
-  document.addEventListener("change", function (e) {
-    var target = e && e.target;
-    if (!target) return;
-    if (target.classList && target.classList.contains("job-node-window-input")) {
-      if (!selectedJobId) return;
-      var nodeId = target.getAttribute("data-job-node-window-id") || "";
-      if (!nodeId) return;
-      vscode.postMessage({
-        type: "updateJobNodeWindow",
-        jobId: selectedJobId,
-        nodeId: nodeId,
-        windowMinutes: Number(target.value || 30),
-      });
-    }
+  bindJobNodeWindowChange(document, {
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    vscode: vscode,
   });
 
-  document.addEventListener("dragstart", function (e) {
-    var target = e && e.target;
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobsList && jobsList.contains(jobItem)) {
-      draggedJobId = jobItem.getAttribute("data-job-id") || "";
-      if (jobItem.classList) jobItem.classList.add("dragging");
-      if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = "move";
-      }
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card) return;
-    draggedJobNodeId = card.getAttribute("data-job-node-id") || "";
-    if (card.classList) card.classList.add("dragging");
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-    }
-  });
-
-  document.addEventListener("dragend", function (e) {
-    var target = e && e.target;
-    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
-    if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (card && card.classList) card.classList.remove("dragging");
-    draggedJobId = "";
-    draggedJobNodeId = "";
-    Array.prototype.forEach.call(document.querySelectorAll(".jobs-step-card.drag-over"), function (item) {
-      if (item && item.classList) item.classList.remove("drag-over");
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".jobs-folder-item.drag-over"), function (item) {
-      if (item && item.classList) item.classList.remove("drag-over");
-    });
-  });
-
-  document.addEventListener("dragover", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && draggedJobId) {
-      e.preventDefault();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
-      }
-      if (folderItem.classList) folderItem.classList.add("drag-over");
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card || !draggedJobNodeId) return;
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "move";
-    }
-    if (card.classList) card.classList.add("drag-over");
-  });
-
-  document.addEventListener("dragleave", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (card && card.classList) card.classList.remove("drag-over");
-  });
-
-  document.addEventListener("drop", function (e) {
-    var target = e && e.target;
-    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
-    if (folderItem && draggedJobId) {
-      e.preventDefault();
-      if (folderItem.classList) folderItem.classList.remove("drag-over");
-      var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
-      var draggedJob = getJobById(draggedJobId);
-      if (!draggedJob) return;
-      if ((draggedJob.folderId || "") === droppedFolderId) return;
-      vscode.postMessage({
-        type: "updateJob",
-        jobId: draggedJobId,
-        data: {
-          folderId: droppedFolderId || undefined,
-        },
-      });
-      return;
-    }
-    var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
-    if (!card || !draggedJobNodeId || !selectedJobId) return;
-    e.preventDefault();
-    if (card.classList) card.classList.remove("drag-over");
-    var targetNodeId = card.getAttribute("data-job-node-id") || "";
-    var selectedJob = getJobById(selectedJobId);
-    if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
-    var targetIndex = selectedJob.nodes.findIndex(function (node) {
-      return node && node.id === targetNodeId;
-    });
-    if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
-    vscode.postMessage({
-      type: "reorderJobNode",
-      jobId: selectedJobId,
-      nodeId: draggedJobNodeId,
-      targetIndex: targetIndex,
-    });
+  bindJobDragAndDrop(document, {
+    jobsList: jobsList,
+    getDraggedJobId: function () {
+      return draggedJobId;
+    },
+    setDraggedJobId: function (value) {
+      draggedJobId = value;
+    },
+    getDraggedJobNodeId: function () {
+      return draggedJobNodeId;
+    },
+    setDraggedJobNodeId: function (value) {
+      draggedJobNodeId = value;
+    },
+    getSelectedJobId: function () {
+      return selectedJobId;
+    },
+    getJobById: getJobById,
+    vscode: vscode,
   });
 
   // Template refresh button (Create tab)
-  if (templateRefreshBtn) {
-    templateRefreshBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "refreshPrompts" });
+  bindTemplateRefreshButton(templateRefreshBtn, {
+    templateSelect: templateSelect,
+    document: document,
+    vscode: vscode,
+  });
 
-      // If a template is currently selected, re-load its content as well.
-      var selectedPath = templateSelect ? templateSelect.value : "";
-      var sourceEl = document.querySelector(
-        'input[name="prompt-source"]:checked',
-      );
-      var source = sourceEl ? sourceEl.value : "inline";
-      if (selectedPath && (source === "local" || source === "global")) {
-        vscode.postMessage({
-          type: "loadPromptTemplate",
-          path: selectedPath,
-          source: source,
-        });
-      }
-    });
-  }
+  bindClickAction(insertSkillBtn, function () {
+    insertSelectedSkillReference();
+  });
 
-  if (insertSkillBtn) {
-    insertSkillBtn.addEventListener("click", function () {
-      insertSelectedSkillReference();
-    });
-  }
+  bindUtilityActionButtons(vscode, {
+    setupMcp: setupMcpBtn,
+    syncBundledSkills: syncBundledSkillsBtn,
+    importStorageFromJson: importStorageFromJsonBtn,
+    exportStorageToJson: exportStorageToJsonBtn,
+  });
 
-  if (setupMcpBtn) {
-    setupMcpBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "setupMcp" });
-    });
-  }
-
-  if (syncBundledSkillsBtn) {
-    syncBundledSkillsBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "syncBundledSkills" });
-    });
-  }
-
-  if (importStorageFromJsonBtn) {
-    importStorageFromJsonBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "importStorageFromJson" });
-    });
-  }
-
-  if (exportStorageToJsonBtn) {
-    exportStorageToJsonBtn.addEventListener("click", function () {
-      vscode.postMessage({ type: "exportStorageToJson" });
-    });
-  }
-
-  function syncLanguageSelectors(value) {
-    var nextValue = value || "auto";
-    if (helpLanguageSelect) {
-      helpLanguageSelect.value = nextValue;
-    }
-    if (settingsLanguageSelect) {
-      settingsLanguageSelect.value = nextValue;
-    }
-  }
-
-  function saveLanguageSelection(value) {
-    var nextValue = value || "auto";
-    syncLanguageSelectors(nextValue);
-    vscode.postMessage({
-      type: "setLanguage",
-      language: nextValue,
-    });
-  }
-
-  syncLanguageSelectors(
+  bindLanguageSelectors(
+    helpLanguageSelect,
+    settingsLanguageSelect,
+    vscode,
     typeof initialData.languageSetting === "string" && initialData.languageSetting
       ? initialData.languageSetting
-      : "auto"
+      : "auto",
   );
-
-  if (helpLanguageSelect) {
-    helpLanguageSelect.addEventListener("change", function () {
-      saveLanguageSelection(helpLanguageSelect.value);
-    });
-  }
-
-  if (settingsLanguageSelect) {
-    settingsLanguageSelect.addEventListener("change", function () {
-      saveLanguageSelection(settingsLanguageSelect.value);
-    });
-  }
 
   var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
   if (btnIntroTutorial) {
