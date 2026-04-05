@@ -73,6 +73,11 @@ import {
   syncRecurringPromptBackupsForTasks,
 } from "./scheduleManagerMaintenance";
 import {
+  persistScheduleManagerTaskStore,
+  resolveScheduleManagerStoragePaths,
+  selectScheduleManagerTaskStore,
+} from "./scheduleManagerStoragePolicy";
+import {
   applyTaskUpdatesToTask,
   applyTaskPromptUpdates,
   createDuplicateTaskInput,
@@ -197,19 +202,14 @@ export class ScheduleManager {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    this.storageFilePath = path.join(
+    const storagePaths = resolveScheduleManagerStoragePaths(
       this.context.globalStorageUri.fsPath,
       STORAGE_FILE_NAME,
-    );
-    this.storageMetaFilePath = path.join(
-      this.context.globalStorageUri.fsPath,
       STORAGE_META_FILE_NAME,
     );
+    this.storageFilePath = storagePaths.storageFilePath;
+    this.storageMetaFilePath = storagePaths.storageMetaFilePath;
     this.loadDailyExecCount();
-    this.dailyLimitNotifiedDate = this.context.globalState.get<string>(
-      DAILY_LIMIT_NOTIFIED_DATE_KEY,
-      "",
-    );
     this.loadTasks();
   }
 
@@ -628,49 +628,20 @@ export class ScheduleManager {
       [],
     );
     const fileLoad = this.loadTasksFromFile();
-    const fileTasks = fileLoad.tasks;
-
-    const globalMeta = readTaskStorageMetaFromState(
-      this.context.globalState,
-      STORAGE_REVISION_KEY,
-      STORAGE_SAVED_AT_KEY,
-    );
-    const fileMeta =
-      readTaskStorageMetaFromFile(this.storageMetaFilePath) || {
-        revision: 0,
-        savedAt: "",
-      };
-
-    const globalStoreExists =
-      (Array.isArray(savedTasks) && savedTasks.length > 0) ||
-      (typeof globalMeta.revision === "number" && globalMeta.revision > 0);
-
-    const fileStoreExists =
-      fileLoad.ok ||
-      fs.existsSync(this.storageMetaFilePath) ||
-      (typeof fileMeta.revision === "number" && fileMeta.revision > 0);
-
-    const selection = selectTaskStore<ScheduledTask>(
-      {
-        kind: "globalState",
-        exists: globalStoreExists,
-        ok: true,
-        tasks: savedTasks,
-        revision: globalMeta.revision,
+    const selection = selectScheduleManagerTaskStore({
+      globalState: this.context.globalState,
+      keys: {
+        taskList: STORAGE_KEY,
+        revision: STORAGE_REVISION_KEY,
+        savedAt: STORAGE_SAVED_AT_KEY,
       },
-      {
-        kind: "file",
-        exists: fileStoreExists,
-        ok: fileLoad.ok,
-        tasks: fileTasks,
-        revision: fileMeta.revision,
-      },
-    );
+      savedTasks: savedTasks,
+      fileLoad: fileLoad,
+      storageMetaFilePath: this.storageMetaFilePath,
+    });
 
-    // Choose newer store by revision (handles deletes correctly).
-    // IMPORTANT: an empty task array can still be the newest state (e.g., deleting the last task).
-    const tasksToLoad = selection.chosenTasks;
-    this.storageRevision = selection.chosenRevision || 0;
+    const tasksToLoad = selection.tasksToLoad;
+    this.storageRevision = selection.revision;
 
     /* --- HBG Custom: Load from .vscode/scheduler.json --- */
     const workspaceState = this.loadWorkspaceSchedulerState();
@@ -1236,72 +1207,30 @@ export class ScheduleManager {
     }
     /* -------------------------------------------------------- */
 
-    const nextRevision = bumpRevision
-      ? this.storageRevision + 1
-      : this.storageRevision;
-    const meta: TaskStorageMeta = {
-      revision: nextRevision,
-      savedAt: new Date().toISOString(),
-    };
-
-    // Prefer file persistence for responsiveness and reliability.
-    // If file save succeeds, return immediately and sync globalState in background.
-    try {
-      await this.saveTasksToFile(tasksArray);
-      await writeTaskStorageMetaToFile(this.storageMetaFilePath, meta);
-      if (this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()) {
-        await syncGlobalTasksToSqlite(this.context.globalStorageUri.fsPath, tasksArray);
-      }
-      this.storageRevision = meta.revision;
-
-      void Promise.all([
-        this.saveTasksToGlobalState(tasksArray),
-        writeTaskStorageMetaToState(
-          this.context.globalState,
-          STORAGE_REVISION_KEY,
-          STORAGE_SAVED_AT_KEY,
-          meta,
-        ),
-      ]).catch((error) =>
-        logDebug(
-          "[CopilotScheduler] Task save to globalState failed (file succeeded):",
-          toSafeSchedulerErrorDetails(error),
-        ),
-      );
-
-      this.notifyTasksChanged();
-      return;
-    } catch (fileError) {
-      // If file persistence fails, fall back to globalState (await so at least one store succeeds).
-      try {
-        await this.saveTasksToGlobalState(tasksArray);
-        await writeTaskStorageMetaToState(
-          this.context.globalState,
-          STORAGE_REVISION_KEY,
-          STORAGE_SAVED_AT_KEY,
-          meta,
-        );
-        this.storageRevision = meta.revision;
-      } catch (globalStateError) {
-        throw globalStateError instanceof Error
-          ? globalStateError
-          : new Error(String(globalStateError ?? ""));
-      }
-
-      // Best-effort background file sync for future reliability.
-      void Promise.all([
-        this.saveTasksToFile(tasksArray),
-        writeTaskStorageMetaToFile(this.storageMetaFilePath, meta),
-      ]).catch((error) =>
-        logDebug(
-          "[CopilotScheduler] Task save to file failed (globalState succeeded):",
-          {
-            fileError: toSafeSchedulerErrorDetails(fileError),
-            syncError: toSafeSchedulerErrorDetails(error),
-          },
-        ),
-      );
-    }
+    this.storageRevision = await persistScheduleManagerTaskStore({
+      tasksArray: tasksArray,
+      bumpRevision: bumpRevision,
+      currentRevision: this.storageRevision,
+      storageMetaFilePath: this.storageMetaFilePath,
+      globalState: this.context.globalState,
+      keys: {
+        revision: STORAGE_REVISION_KEY,
+        savedAt: STORAGE_SAVED_AT_KEY,
+      },
+      saveTasksToFile: (nextTasks) => this.saveTasksToFile(nextTasks),
+      saveTasksToGlobalState: (nextTasks) => this.saveTasksToGlobalState(nextTasks),
+      syncGlobalTasksToSqlite:
+        this.context.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()
+          ? async () => {
+              await syncGlobalTasksToSqlite(
+                this.context.globalStorageUri.fsPath,
+                tasksArray,
+              );
+            }
+          : undefined,
+      logDebug: logDebug,
+      toSafeSchedulerErrorDetails: toSafeSchedulerErrorDetails,
+    });
 
     this.notifyTasksChanged();
   }

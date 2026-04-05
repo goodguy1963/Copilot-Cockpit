@@ -101,6 +101,13 @@ import {
   runPromptMaintenanceCycle as runPromptMaintenanceCycleWithDeps,
   syncRecurringPromptBackupsIfNeeded as syncRecurringPromptBackupsIfNeededWithDeps,
 } from "./extensionPromptMaintenance";
+import {
+  maybePromptReloadAfterUpdate as maybePromptReloadAfterUpdateWithUi,
+  maybeShowDisclaimerOnce as maybeShowDisclaimerOnceWithUi,
+  maybeWarnCronInterval as maybeWarnCronIntervalWithUi,
+  notifyError as notifyErrorWithUi,
+  notifyInfo as notifyInfoWithUi,
+} from "./extensionUiFlows";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
@@ -205,28 +212,18 @@ function getNotificationMode(): NotificationMode {
 }
 
 async function maybeWarnCronInterval(cronExpression?: string): Promise<void> {
-  if (!cronExpression) return;
-  const enabled = getSchedulerSetting<boolean>("minimumIntervalWarning", true);
-  if (!enabled) return;
-  const warning = scheduleManager.checkMinimumInterval(cronExpression);
-  if (warning) {
-    // Non-blocking warning: do not stall create/update until the user dismisses
-    void vscode.window.showInformationMessage(warning);
-  }
+  await maybeWarnCronIntervalWithUi({
+    cronExpression,
+    scheduleManager,
+    getSetting: getSchedulerSetting,
+  });
 }
 
 async function maybeShowDisclaimerOnce(task: ScheduledTask): Promise<void> {
-  if (!task.enabled) return;
-  if (scheduleManager.isDisclaimerAccepted()) return;
-  const choice = await vscode.window.showInformationMessage(
-    messages.disclaimerMessage(),
-    messages.disclaimerAccept(),
-    messages.disclaimerDecline(),
-  );
-  if (choice !== messages.disclaimerAccept()) {
-    return;
-  }
-  await scheduleManager.setDisclaimerAccepted(true);
+  await maybeShowDisclaimerOnceWithUi({
+    task,
+    scheduleManager,
+  });
 }
 
 function logExtensionErrorWithSanitizedDetails(
@@ -332,20 +329,7 @@ function maybePromptReloadAfterUpdate(
   currentVersion: string,
   lastVersion: string | undefined,
 ): void {
-  if (!lastVersion || lastVersion === currentVersion) {
-    return;
-  }
-
-  void vscode.window
-    .showInformationMessage(
-      messages.reloadAfterUpdate(currentVersion),
-      messages.reloadNow(),
-    )
-    .then((choice) => {
-      if (choice === messages.reloadNow()) {
-        void vscode.commands.executeCommand("workbench.action.reloadWindow");
-      }
-    });
+  maybePromptReloadAfterUpdateWithUi(currentVersion, lastVersion);
 }
 
 async function ensureSchedulerSkillOnStartup(
@@ -432,44 +416,23 @@ function getCurrentMcpSetupStatus(): StorageSettingsView["mcpSetupStatus"] {
 }
 
 export function notifyInfo(message: string, timeoutMs = 4000): void {
-  if (!shouldNotify()) return;
-  const mode = getNotificationMode();
-  switch (mode) {
-    case "silentStatus":
-      vscode.window.setStatusBarMessage(message, timeoutMs);
-      break;
-    case "silentToast":
-      void vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: message },
-        () => new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-      );
-      break;
-    default:
-      void vscode.window.showInformationMessage(message);
-  }
+  notifyInfoWithUi({
+    message,
+    timeoutMs,
+    shouldNotify: shouldNotify(),
+    mode: getNotificationMode(),
+  });
 }
 
 export function notifyError(message: string, timeoutMs = 6000): void {
-  const safeMessage = sanitizeErrorDetailsForLog(message);
-  const displayMessage = safeMessage || messages.webviewUnknown() || "";
-  const mode = getNotificationMode();
-  if (mode === "silentStatus") {
-    vscode.window.setStatusBarMessage(`⚠ ${displayMessage}`, timeoutMs);
-    logError(displayMessage);
-    return;
-  }
-  if (mode === "silentToast") {
-    void vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `⚠ ${displayMessage}`,
-      },
-      () => new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-    );
-    logError(displayMessage);
-    return;
-  }
-  void vscode.window.showErrorMessage(displayMessage);
+  notifyErrorWithUi({
+    message,
+    timeoutMs,
+    mode: getNotificationMode(),
+    sanitizeErrorDetailsForLog,
+    fallbackMessage: messages.webviewUnknown() || "",
+    logError,
+  });
 }
 
 // Global instances
