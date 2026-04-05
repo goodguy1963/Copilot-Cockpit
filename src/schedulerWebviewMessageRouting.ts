@@ -3,10 +3,9 @@ import type {
   SkillReference,
   PromptTemplate,
   TaskAction,
-  AgentInfo,
-  ModelInfo,
   WebviewToExtensionMessage,
 } from "./types";
+import type { AgentInfo, ModelInfo } from "./types";
 
 type PostMessage = (message: { type: string; [key: string]: unknown }) => void;
 type TaskActionCallback = ((action: TaskAction) => void) | undefined;

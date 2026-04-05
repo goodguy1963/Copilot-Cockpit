@@ -261,9 +261,7 @@ export function buildFriendlyCronBuilderMarkup(
                               `<option value="${escapeHtmlAttr(value)}">${escapeHtml(getWebviewString(strings, labelKey))}</option>`,
                           )
                           .join("")}
-                      </select>
-                    </div>
-                    <div class="form-group friendly-field" data-field="interval">
+                      </select></div><div class="form-group friendly-field" data-field="interval">
                       <label for="${escapeHtmlAttr(intervalId)}">${escapeHtml(getWebviewString(strings, "labelInterval"))}</label>
                       <input type="number" id="${escapeHtmlAttr(intervalId)}" min="1" max="59" value="5">
                     </div>
@@ -284,14 +282,10 @@ export function buildFriendlyCronBuilderMarkup(
                               `<option value="${escapeHtmlAttr(value)}">${escapeHtml(getWebviewString(strings, labelKey))}</option>`,
                           )
                           .join("")}
-                      </select>
-                    </div>
-                    <div class="form-group friendly-field" data-field="dom">
+                      </select></div><div class="form-group friendly-field" data-field="dom">
                       <label for="${escapeHtmlAttr(dayOfMonthId)}">${escapeHtml(getWebviewString(strings, "labelDayOfMonth"))}</label>
                       <input type="number" id="${escapeHtmlAttr(dayOfMonthId)}" min="1" max="31" value="1">
-                    </div>
-                  </div>
-                  <div class="friendly-actions">
+                    </div></div><div class="friendly-actions">
                     <button type="button" class="btn-secondary" id="${escapeHtmlAttr(generateButtonId)}">${escapeHtml(getWebviewString(strings, "labelFriendlyGenerate"))}</button>
                   </div>
                 </div>`;

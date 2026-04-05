@@ -74,9 +74,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
                     <p id="todo-comment-draft-status" class="note todo-comment-draft-status">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</p>
                     <div class="button-group" style="margin:0;justify-content:flex-end;">
                       <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
-                    </div>
-                  </div>
-                </div>
+                    </div></div></div>
               </div>
             </section>
           </section>
@@ -136,9 +134,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
               <button type="button" class="btn-secondary" id="todo-delete-btn">${escapeHtml(strings.boardDeleteTodo)}</button>
               <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
             </div>
-          </section>
-        </div>
-      </form>
+          </section></div></form>
     </div>
   </div>`;
 }
@@ -148,9 +144,7 @@ export function buildSchedulerListTabMarkup(options: {
 }): string {
   const { strings } = options;
 
-  return `<div id="list-tab" class="tab-content">
-    <div id="success-toast" style="display:none; background:var(--vscode-notificationsInfoIcon-foreground); color:var(--vscode-button-foreground); padding:8px 14px; border-radius:4px; margin-bottom:12px; font-size:13px; opacity:1; transition:opacity 0.5s ease-out;"></div>
-    <div class="button-group" style="margin-bottom: 16px;">
+  return `<div id="list-tab" class="tab-content"><div id="success-toast" style="display:none; background:var(--vscode-notificationsInfoIcon-foreground); color:var(--vscode-button-foreground); padding:8px 14px; border-radius:4px; margin-bottom:12px; font-size:13px; opacity:1; transition:opacity 0.5s ease-out;"></div><div class="button-group" style="margin-bottom: 16px;">
       <button class="btn-secondary" id="refresh-btn">${escapeHtml(strings.actionRefresh)}</button>
       <button class="btn-secondary" id="auto-show-startup-btn"></button>
     </div>
@@ -169,9 +163,7 @@ export function buildSchedulerListTabMarkup(options: {
       <label for="task-label-filter">${escapeHtml(strings.labelFilterByLabel)}</label>
       <select id="task-label-filter" class="task-filter-select">
         <option value="">${escapeHtml(strings.labelAllLabels)}</option>
-      </select>
-    </div>
-    <div id="task-list" class="task-list">
+      </select></div><div id="task-list" class="task-list">
       <div class="empty-state">${escapeHtml(strings.noTasksFound)}</div>
     </div>
   </div>`;
