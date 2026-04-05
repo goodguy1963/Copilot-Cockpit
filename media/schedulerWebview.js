@@ -6075,21 +6075,26 @@ syncTodoLabelSuggestions();
   }
 
   // Helper functions
+  var htmlEscapeNode = document.createElement("div");
+
   function escapeHtml(text) {
     if (text == null) return "";
-    var div = document.createElement("div");
-    div.textContent = String(text);
-    return div.innerHTML;
+    htmlEscapeNode.textContent = String(text);
+    return htmlEscapeNode.innerHTML;
   }
 
   function escapeAttr(text) {
-    if (typeof text !== "string") text = String(text || "");
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+    var normalized = typeof text === "string" ? text : String(text || "");
+    var replacements = [
+      [/&/g, "&amp;"],
+      [/"/g, "&quot;"],
+      [/'/g, "&#39;"],
+      [/</g, "&lt;"],
+      [/>/g, "&gt;"],
+    ];
+    return replacements.reduce(function (value, replacement) {
+      return value.replace(replacement[0], replacement[1]);
+    }, normalized);
   }
 
   function isInlineTaskSelectActive() {
@@ -6134,36 +6139,50 @@ syncTodoLabelSuggestions();
 
   function generateCronFromFriendly() {
     if (!friendlyFrequency || !cronExpression) return;
-    var expr = buildFriendlyCronExpression(friendlyFrequency.value, {
+    applyFriendlyCronResult({
+      frequency: friendlyFrequency.value,
       interval: friendlyInterval ? friendlyInterval.value : "",
       minute: friendlyMinute ? friendlyMinute.value : "",
       hour: friendlyHour ? friendlyHour.value : "",
       dow: friendlyDow ? friendlyDow.value : "",
       dom: friendlyDom ? friendlyDom.value : "",
+      cronInput: cronExpression,
+      cronPresetInput: cronPreset,
+      onUpdate: updateCronPreview,
     });
-
-    if (expr) {
-      cronExpression.value = expr;
-      if (cronPreset) cronPreset.value = "";
-      updateCronPreview();
-    }
   }
 
   function generateJobsCronFromFriendly() {
     if (!jobsFriendlyFrequency || !jobsCronInput) return;
-    var expr = buildFriendlyCronExpression(jobsFriendlyFrequency.value, {
+    applyFriendlyCronResult({
+      frequency: jobsFriendlyFrequency.value,
       interval: jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
       minute: jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
       hour: jobsFriendlyHour ? jobsFriendlyHour.value : "",
       dow: jobsFriendlyDow ? jobsFriendlyDow.value : "",
       dom: jobsFriendlyDom ? jobsFriendlyDom.value : "",
+      cronInput: jobsCronInput,
+      cronPresetInput: jobsCronPreset,
+      onUpdate: updateJobsCronPreview,
     });
+  }
 
-    if (expr) {
-      jobsCronInput.value = expr;
-      if (jobsCronPreset) jobsCronPreset.value = "";
-      updateJobsCronPreview();
+  function applyFriendlyCronResult(options) {
+    var expr = buildFriendlyCronExpression(options.frequency, {
+      interval: options.interval,
+      minute: options.minute,
+      hour: options.hour,
+      dow: options.dow,
+      dom: options.dom,
+    });
+    if (!expr) {
+      return;
     }
+    options.cronInput.value = expr;
+    if (options.cronPresetInput) {
+      options.cronPresetInput.value = "";
+    }
+    options.onUpdate();
   }
 
   function resetTaskFormSessionState() {
@@ -6281,6 +6300,71 @@ syncTodoLabelSuggestions();
     resetForm();
     switchTab("create");
     focusTaskNameField();
+  }
+
+  function setRadioValue(groupName, selectedValue) {
+    var radio = document.querySelector(
+      'input[name="' + groupName + '"][value="' + selectedValue + '"]',
+    );
+    if (radio) {
+      radio.checked = true;
+    }
+  }
+
+  function getTaskChatSessionValue(task) {
+    if (task.chatSession === "continue") {
+      return "continue";
+    }
+    if (task.chatSession === "new") {
+      return "new";
+    }
+    return defaultChatSession;
+  }
+
+  function populateTaskEditor(task, taskId) {
+    var nameInput = document.getElementById("task-name");
+    var promptInput = document.getElementById("prompt-text");
+    var promptSourceValue = task.promptSource || "inline";
+
+    setEditingMode(taskId);
+    if (nameInput) nameInput.value = task.name || "";
+    if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
+    if (promptInput) {
+      promptInput.value = typeof task.prompt === "string" ? task.prompt : "";
+    }
+    if (cronExpression) cronExpression.value = task.cronExpression || "";
+    if (cronPreset) cronPreset.value = "";
+    updateCronPreview();
+
+    pendingAgentValue = restoreTaskSelectValue(agentSelect, task.agent || "");
+    pendingModelValue = restoreTaskSelectValue(modelSelect, task.model || "");
+    editingTaskEnabled = task.enabled !== false;
+    setRadioValue("scope", task.scope || "workspace");
+    setRadioValue("prompt-source", promptSourceValue);
+
+    applyPromptSource(promptSourceValue, true);
+    pendingTemplatePath = task.promptPath || "";
+    if (templateSelect) {
+      pendingTemplatePath = restoreTaskSelectValue(templateSelect, pendingTemplatePath);
+    }
+    if (jitterSecondsInput) {
+      jitterSecondsInput.value = String(task.jitterSeconds ?? defaultJitterSeconds);
+    }
+
+    var runFirstEl = document.getElementById("run-first");
+    if (runFirstEl) runFirstEl.checked = false;
+
+    var oneTimeEl = document.getElementById("one-time");
+    if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+    var manualSessionEl = document.getElementById("manual-session");
+    if (manualSessionEl) {
+      manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
+    }
+    if (chatSessionSelect) {
+      chatSessionSelect.value = getTaskChatSessionValue(task);
+    }
+    syncRecurringChatSessionUi();
+    switchTab("create");
   }
 
   function updateTemplateOptions(source, selectedPath) {
@@ -7359,70 +7443,7 @@ syncTodoLabelSuggestions();
   window.editTask = function (id) {
     var task = findTaskById(id);
     if (!task) return;
-
-    setEditingMode(id);
-    var taskNameEl = document.getElementById("task-name");
-    var promptTextEl = document.getElementById("prompt-text");
-    if (taskNameEl) taskNameEl.value = task.name || "";
-    if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
-    if (promptTextEl)
-      promptTextEl.value = typeof task.prompt === "string" ? task.prompt : "";
-    if (cronExpression) cronExpression.value = task.cronExpression || "";
-    if (cronPreset) cronPreset.value = "";
-    updateCronPreview();
-
-    // Restore agent/model — if options not loaded yet, store as pending
-    pendingAgentValue = task.agent || "";
-    pendingModelValue = task.model || "";
-    pendingAgentValue = restoreTaskSelectValue(agentSelect, pendingAgentValue);
-    pendingModelValue = restoreTaskSelectValue(modelSelect, pendingModelValue);
-    editingTaskEnabled = task.enabled !== false;
-    var scopeValue = task.scope || "workspace";
-    var scopeRadio = document.querySelector(
-      'input[name="scope"][value="' + scopeValue + '"]',
-    );
-    if (scopeRadio) {
-      scopeRadio.checked = true;
-    }
-    var sourceValue = task.promptSource || "inline";
-    var sourceRadio = document.querySelector(
-      'input[name="prompt-source"][value="' + sourceValue + '"]',
-    );
-    if (sourceRadio) {
-      sourceRadio.checked = true;
-    }
-
-    applyPromptSource(sourceValue, true);
-    pendingTemplatePath = task.promptPath || "";
-    if (templateSelect) {
-      pendingTemplatePath = restoreTaskSelectValue(templateSelect, pendingTemplatePath);
-    }
-
-    if (jitterSecondsInput) {
-      jitterSecondsInput.value = String(
-        task.jitterSeconds ?? defaultJitterSeconds,
-      );
-    }
-
-    // Clear "run first" checkbox in edit mode (not applicable for existing tasks)
-    var runFirstEl = document.getElementById("run-first");
-    if (runFirstEl) runFirstEl.checked = false;
-
-    var oneTimeEl = document.getElementById("one-time");
-    if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
-    var manualSessionEl = document.getElementById("manual-session");
-    if (manualSessionEl) manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
-    if (chatSessionSelect) {
-      chatSessionSelect.value = task.chatSession === "continue"
-        ? "continue"
-        : task.chatSession === "new"
-          ? "new"
-          : defaultChatSession;
-    }
-    syncRecurringChatSessionUi();
-
-    // Switch to edit tab (same form)
-    switchTab("create");
+    populateTaskEditor(task, id);
   };
 
   if (newTaskBtn) {
