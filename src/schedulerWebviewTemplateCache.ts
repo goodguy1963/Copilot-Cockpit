@@ -291,20 +291,18 @@ export async function loadPromptTemplateContent(
     const uri = vscode.Uri.file(path.resolve(templatePath));
     const fileBuffer = await vscode.workspace.fs.readFile(uri);
     const content = Buffer.from(fileBuffer).toString("utf8");
-    postMessage({
-      type: "promptTemplateLoaded",
-      content,
-      path: templatePath,
-    });
+    const message = { type: "promptTemplateLoaded", path: templatePath, content };
+    postMessage(message);
   } catch (error) {
     const templateFile = path.basename(templatePath);
     const rawError = error instanceof Error ? error.message : String(error ?? "");
     const safeErrorMessage = sanitizeAbsolutePathDetails(rawError);
-    logError("[CopilotScheduler] Template load failed:", {
+    const details = {
       templateFile,
       source,
       error: safeErrorMessage || messages.webviewUnknown(),
-    });
+    };
+    logError("[CopilotScheduler] Template load failed:", details);
     notifyError(messages.templateLoadError());
   }
 }
