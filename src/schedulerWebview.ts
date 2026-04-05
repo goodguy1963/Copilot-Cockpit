@@ -109,18 +109,37 @@ import {
   flushSchedulerWebviewPendingMessages,
   postSchedulerWebviewMessage,
   resetSchedulerWebviewQueueState,
+  type SchedulerWebviewQueueState,
   type SchedulerWebviewMessage,
 } from "./schedulerWebviewSupport";
 import {
   refreshSchedulerCatalogCaches,
   refreshSchedulerWebviewLanguagePanel,
-  replayExistingSchedulerWebviewPanel,
 } from "./schedulerWebviewRenderSupport";
-import { createSchedulerWebviewPanel } from "./schedulerWebviewPanelSupport";
+import {
+  dispatchCachedCatalogMessages,
+  dispatchCockpitBoardUpdate,
+  dispatchExecutionDefaultsUpdate,
+  dispatchJobFolderUpdate,
+  dispatchJobUpdate,
+  dispatchResearchStateUpdate,
+  dispatchReviewDefaultsUpdate,
+  dispatchScheduleHistoryUpdate,
+  dispatchStorageSettingsUpdate,
+  dispatchTaskUpdate,
+  dispatchTelegramNotificationUpdate,
+  dispatchWebviewError,
+} from "./schedulerWebviewUpdateDispatch";
+import {
+  createFreshSchedulerPanel,
+  replaySchedulerPanel,
+} from "./schedulerWebviewPanelLifecycle";
 import {
   assignSchedulerWebviewRuntimeState,
   createSchedulerWebviewCatalogState,
   createSchedulerWebviewRuntimeState,
+  type SchedulerWebviewCatalogState,
+  type SchedulerWebviewRuntimeState,
 } from "./schedulerWebviewStateStore";
 
 type OutgoingWebviewMessage = SchedulerWebviewMessage;
@@ -153,201 +172,91 @@ export class SchedulerWebview {
     messageBatchDelayMs: 25,
   });
 
-  private static get cachedAgents(): AgentInfo[] {
-    return this.catalogState.agents;
+  private static readCatalogState<K extends keyof SchedulerWebviewCatalogState>(
+    key: K,
+  ): SchedulerWebviewCatalogState[K] {
+    return this.catalogState[key];
   }
 
-  private static set cachedAgents(value: AgentInfo[]) {
-    this.catalogState.agents = value;
+  private static writeCatalogState<K extends keyof SchedulerWebviewCatalogState>(
+    key: K,
+    value: SchedulerWebviewCatalogState[K],
+  ): void {
+    this.catalogState[key] = value;
   }
 
-  private static get cachedModels(): ModelInfo[] {
-    return this.catalogState.models;
+  private static readRuntimeState<K extends keyof SchedulerWebviewRuntimeState>(
+    key: K,
+  ): SchedulerWebviewRuntimeState[K] {
+    return this.runtimeState[key];
   }
 
-  private static set cachedModels(value: ModelInfo[]) {
-    this.catalogState.models = value;
+  private static writeRuntimeState<K extends keyof SchedulerWebviewRuntimeState>(
+    key: K,
+    value: SchedulerWebviewRuntimeState[K],
+  ): void {
+    this.runtimeState[key] = value;
   }
 
-  private static get cachedPromptTemplates(): PromptTemplate[] {
-    return this.catalogState.promptTemplates;
+  private static readQueueState<K extends keyof SchedulerWebviewQueueState>(
+    key: K,
+  ): SchedulerWebviewQueueState[K] {
+    return this.messageQueueState[key];
   }
 
-  private static set cachedPromptTemplates(value: PromptTemplate[]) {
-    this.catalogState.promptTemplates = value;
+  private static writeQueueState<K extends keyof SchedulerWebviewQueueState>(
+    key: K,
+    value: SchedulerWebviewQueueState[K],
+  ): void {
+    this.messageQueueState[key] = value;
   }
 
-  private static get cachedSkillReferences(): SkillReference[] {
-    return this.catalogState.skillReferences;
-  }
-
-  private static set cachedSkillReferences(value: SkillReference[]) {
-    this.catalogState.skillReferences = value;
-  }
-
-  private static get onTaskActionCallback():
-    | ((action: TaskAction) => void)
-    | undefined {
-    return this.runtimeState.onTaskActionCallback;
-  }
-
-  private static set onTaskActionCallback(
-    value: ((action: TaskAction) => void) | undefined,
-  ) {
-    this.runtimeState.onTaskActionCallback = value;
-  }
-
-  private static get onTestPromptCallback():
-    | ((prompt: string, agent?: string, model?: string) => void)
-    | undefined {
-    return this.runtimeState.onTestPromptCallback;
-  }
-
-  private static set onTestPromptCallback(
-    value: ((prompt: string, agent?: string, model?: string) => void) | undefined,
-  ) {
-    this.runtimeState.onTestPromptCallback = value;
-  }
-
-  private static get extensionUri(): vscode.Uri {
-    return this.runtimeState.extensionUri as vscode.Uri;
-  }
-
-  private static set extensionUri(value: vscode.Uri) {
-    this.runtimeState.extensionUri = value;
-  }
-
-  private static get currentTasks(): ScheduledTask[] {
-    return this.runtimeState.tasks;
-  }
-
-  private static set currentTasks(value: ScheduledTask[]) {
-    this.runtimeState.tasks = value;
-  }
-
-  private static get currentJobs(): JobDefinition[] {
-    return this.runtimeState.jobs;
-  }
-
-  private static set currentJobs(value: JobDefinition[]) {
-    this.runtimeState.jobs = value;
-  }
-
-  private static get currentJobFolders(): JobFolder[] {
-    return this.runtimeState.jobFolders;
-  }
-
-  private static set currentJobFolders(value: JobFolder[]) {
-    this.runtimeState.jobFolders = value;
-  }
-
-  private static get currentCockpitBoard(): CockpitBoard {
-    return this.runtimeState.cockpitBoard;
-  }
-
-  private static set currentCockpitBoard(value: CockpitBoard) {
-    this.runtimeState.cockpitBoard = value;
-  }
-
-  private static get currentTelegramNotification(): TelegramNotificationView {
-    return this.runtimeState.telegramNotification;
-  }
-
-  private static set currentTelegramNotification(value: TelegramNotificationView) {
-    this.runtimeState.telegramNotification = value;
-  }
-
-  private static get currentExecutionDefaults(): ExecutionDefaultsView {
-    return this.runtimeState.executionDefaults;
-  }
-
-  private static set currentExecutionDefaults(value: ExecutionDefaultsView) {
-    this.runtimeState.executionDefaults = value;
-  }
-
-  private static get currentReviewDefaults(): ReviewDefaultsView {
-    return this.runtimeState.reviewDefaults;
-  }
-
-  private static set currentReviewDefaults(value: ReviewDefaultsView) {
-    this.runtimeState.reviewDefaults = value;
-  }
-
-  private static get currentStorageSettings(): StorageSettingsView {
-    return this.runtimeState.storageSettings;
-  }
-
-  private static set currentStorageSettings(value: StorageSettingsView) {
-    this.runtimeState.storageSettings = value;
-  }
-
-  private static get currentResearchProfiles(): ResearchProfile[] {
-    return this.runtimeState.researchProfiles;
-  }
-
-  private static set currentResearchProfiles(value: ResearchProfile[]) {
-    this.runtimeState.researchProfiles = value;
-  }
-
-  private static get currentActiveResearchRun(): ResearchRun | undefined {
-    return this.runtimeState.activeResearchRun;
-  }
-
-  private static set currentActiveResearchRun(value: ResearchRun | undefined) {
-    this.runtimeState.activeResearchRun = value;
-  }
-
-  private static get currentRecentResearchRuns(): ResearchRun[] {
-    return this.runtimeState.recentResearchRuns;
-  }
-
-  private static set currentRecentResearchRuns(value: ResearchRun[]) {
-    this.runtimeState.recentResearchRuns = value;
-  }
-
-  private static get currentScheduleHistory(): ScheduleHistoryEntry[] {
-    return this.runtimeState.scheduleHistory;
-  }
-
-  private static set currentScheduleHistory(value: ScheduleHistoryEntry[]) {
-    this.runtimeState.scheduleHistory = value;
-  }
-
-  private static get webviewReady(): boolean {
-    return this.messageQueueState.webviewReady;
-  }
-
-  private static set webviewReady(value: boolean) {
-    this.messageQueueState.webviewReady = value;
-  }
-
-  private static get pendingMessages(): OutgoingWebviewMessage[] {
-    return this.messageQueueState.pendingMessages;
-  }
-
-  private static set pendingMessages(value: OutgoingWebviewMessage[]) {
-    this.messageQueueState.pendingMessages = value;
-  }
-
-  private static get lastBatchedMessageSignatures(): Map<string, string> {
-    return this.messageQueueState.lastBatchedMessageSignatures;
-  }
-
-  private static set lastBatchedMessageSignatures(value: Map<string, string>) {
-    this.messageQueueState.lastBatchedMessageSignatures = value;
-  }
-
-  private static get pendingMessageFlushTimer():
-    | ReturnType<typeof setTimeout>
-    | undefined {
-    return this.messageQueueState.pendingMessageFlushTimer;
-  }
-
-  private static set pendingMessageFlushTimer(
-    value: ReturnType<typeof setTimeout> | undefined,
-  ) {
-    this.messageQueueState.pendingMessageFlushTimer = value;
-  }
+  private static get cachedAgents(): AgentInfo[] { return this.readCatalogState("agents"); }
+  private static set cachedAgents(value: AgentInfo[]) { this.writeCatalogState("agents", value); }
+  private static get cachedModels(): ModelInfo[] { return this.readCatalogState("models"); }
+  private static set cachedModels(value: ModelInfo[]) { this.writeCatalogState("models", value); }
+  private static get cachedPromptTemplates(): PromptTemplate[] { return this.readCatalogState("promptTemplates"); }
+  private static set cachedPromptTemplates(value: PromptTemplate[]) { this.writeCatalogState("promptTemplates", value); }
+  private static get cachedSkillReferences(): SkillReference[] { return this.readCatalogState("skillReferences"); }
+  private static set cachedSkillReferences(value: SkillReference[]) { this.writeCatalogState("skillReferences", value); }
+  private static get onTaskActionCallback(): ((action: TaskAction) => void) | undefined { return this.readRuntimeState("onTaskActionCallback"); }
+  private static set onTaskActionCallback(value: ((action: TaskAction) => void) | undefined) { this.writeRuntimeState("onTaskActionCallback", value); }
+  private static get onTestPromptCallback(): ((prompt: string, agent?: string, model?: string) => void) | undefined { return this.readRuntimeState("onTestPromptCallback"); }
+  private static set onTestPromptCallback(value: ((prompt: string, agent?: string, model?: string) => void) | undefined) { this.writeRuntimeState("onTestPromptCallback", value); }
+  private static get extensionUri(): vscode.Uri { return this.readRuntimeState("extensionUri") as vscode.Uri; }
+  private static set extensionUri(value: vscode.Uri) { this.writeRuntimeState("extensionUri", value); }
+  private static get currentTasks(): ScheduledTask[] { return this.readRuntimeState("tasks"); }
+  private static set currentTasks(value: ScheduledTask[]) { this.writeRuntimeState("tasks", value); }
+  private static get currentJobs(): JobDefinition[] { return this.readRuntimeState("jobs"); }
+  private static set currentJobs(value: JobDefinition[]) { this.writeRuntimeState("jobs", value); }
+  private static get currentJobFolders(): JobFolder[] { return this.readRuntimeState("jobFolders"); }
+  private static set currentJobFolders(value: JobFolder[]) { this.writeRuntimeState("jobFolders", value); }
+  private static get currentCockpitBoard(): CockpitBoard { return this.readRuntimeState("cockpitBoard"); }
+  private static set currentCockpitBoard(value: CockpitBoard) { this.writeRuntimeState("cockpitBoard", value); }
+  private static get currentTelegramNotification(): TelegramNotificationView { return this.readRuntimeState("telegramNotification"); }
+  private static set currentTelegramNotification(value: TelegramNotificationView) { this.writeRuntimeState("telegramNotification", value); }
+  private static get currentExecutionDefaults(): ExecutionDefaultsView { return this.readRuntimeState("executionDefaults"); }
+  private static set currentExecutionDefaults(value: ExecutionDefaultsView) { this.writeRuntimeState("executionDefaults", value); }
+  private static get currentReviewDefaults(): ReviewDefaultsView { return this.readRuntimeState("reviewDefaults"); }
+  private static set currentReviewDefaults(value: ReviewDefaultsView) { this.writeRuntimeState("reviewDefaults", value); }
+  private static get currentStorageSettings(): StorageSettingsView { return this.readRuntimeState("storageSettings"); }
+  private static set currentStorageSettings(value: StorageSettingsView) { this.writeRuntimeState("storageSettings", value); }
+  private static get currentResearchProfiles(): ResearchProfile[] { return this.readRuntimeState("researchProfiles"); }
+  private static set currentResearchProfiles(value: ResearchProfile[]) { this.writeRuntimeState("researchProfiles", value); }
+  private static get currentActiveResearchRun(): ResearchRun | undefined { return this.readRuntimeState("activeResearchRun"); }
+  private static set currentActiveResearchRun(value: ResearchRun | undefined) { this.writeRuntimeState("activeResearchRun", value); }
+  private static get currentRecentResearchRuns(): ResearchRun[] { return this.readRuntimeState("recentResearchRuns"); }
+  private static set currentRecentResearchRuns(value: ResearchRun[]) { this.writeRuntimeState("recentResearchRuns", value); }
+  private static get currentScheduleHistory(): ScheduleHistoryEntry[] { return this.readRuntimeState("scheduleHistory"); }
+  private static set currentScheduleHistory(value: ScheduleHistoryEntry[]) { this.writeRuntimeState("scheduleHistory", value); }
+  private static get webviewReady(): boolean { return this.readQueueState("webviewReady"); }
+  private static set webviewReady(value: boolean) { this.writeQueueState("webviewReady", value); }
+  private static get pendingMessages(): OutgoingWebviewMessage[] { return this.readQueueState("pendingMessages"); }
+  private static set pendingMessages(value: OutgoingWebviewMessage[]) { this.writeQueueState("pendingMessages", value); }
+  private static get lastBatchedMessageSignatures(): Map<string, string> { return this.readQueueState("lastBatchedMessageSignatures"); }
+  private static set lastBatchedMessageSignatures(value: Map<string, string>) { this.writeQueueState("lastBatchedMessageSignatures", value); }
+  private static get pendingMessageFlushTimer(): ReturnType<typeof setTimeout> | undefined { return this.readQueueState("pendingMessageFlushTimer"); }
+  private static set pendingMessageFlushTimer(value: ReturnType<typeof setTimeout> | undefined) { this.writeQueueState("pendingMessageFlushTimer", value); }
 
   private static resetWebviewReadyState(): void {
     resetSchedulerWebviewQueueState(this.messageQueueState);
@@ -472,7 +381,7 @@ export class SchedulerWebview {
     };
 
     if (this.panel) {
-      replayExistingSchedulerWebviewPanel({
+      replaySchedulerPanel({
         panel: this.panel,
         tasks,
         jobs,
@@ -517,40 +426,25 @@ export class SchedulerWebview {
       // New webview instance (or re-created panel) starts as not-ready.
       this.resetWebviewReadyState();
 
-      this.panel = createSchedulerWebviewPanel({
+      this.panel = createFreshSchedulerPanel({
         extensionUri,
-        title: messages.webviewTitle(),
-        renderHtml: (webview) =>
+        tasks,
+        cachedAgents: this.cachedAgents,
+        cachedModels: this.cachedModels,
+        cachedPromptTemplates: this.cachedPromptTemplates,
+        renderHtml: (webview, currentTasks, agents, models, promptTemplates) =>
           this.getWebviewContent(
             webview,
-            tasks,
-            this.cachedAgents,
-            this.cachedModels,
-            this.cachedPromptTemplates,
+            currentTasks,
+            agents,
+            models,
+            promptTemplates,
           ),
-        onDidReceiveMessage: async (message: WebviewToExtensionMessage) => {
-          try {
-            await this.handleMessage(message);
-          } catch (error) {
-            const rawDetailsForLog =
-              error instanceof Error ? error.message : String(error ?? "");
-            const detailsForLog =
-              this.sanitizeErrorDetailsForUser(rawDetailsForLog);
-            const rawDetailsForUser =
-              error instanceof Error ? error.message : String(error ?? "");
-            const detailsForUser =
-              this.sanitizeErrorDetailsForUser(rawDetailsForUser);
-            logError("[CopilotScheduler] Webview message handling failed:", {
-              type: (message as { type?: unknown } | undefined)?.type,
-              error: detailsForLog,
-            });
-            this.showError(
-              messages.webviewMessageHandlingFailed(
-                detailsForUser || messages.webviewUnknown(),
-              ),
-            );
-          }
-        },
+        handleMessage: (message: WebviewToExtensionMessage) =>
+          this.handleMessage(message),
+        sanitizeErrorDetailsForUser: (message) =>
+          this.sanitizeErrorDetailsForUser(message),
+        showError: (message) => this.showError(message),
         onDidDispose: () => {
           this.panel = undefined;
           this.resetWebviewReadyState();
@@ -565,53 +459,57 @@ export class SchedulerWebview {
    * Update tasks in the webview
    */
   static updateTasks(tasks: ScheduledTask[]): void {
-    this.currentTasks = tasks;
-    this.postMessage(createUpdateTasksMessage(tasks));
+    dispatchTaskUpdate(this.runtimeState, tasks, (message) => this.postMessage(message));
   }
 
   static updateJobs(jobs: JobDefinition[]): void {
-    this.currentJobs = jobs;
-    this.postMessage(createUpdateJobsMessage(jobs));
+    dispatchJobUpdate(this.runtimeState, jobs, (message) => this.postMessage(message));
   }
 
   static updateJobFolders(jobFolders: JobFolder[]): void {
-    this.currentJobFolders = jobFolders;
-    this.postMessage(createUpdateJobFoldersMessage(jobFolders));
+    dispatchJobFolderUpdate(this.runtimeState, jobFolders, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateCockpitBoard(cockpitBoard: CockpitBoard): void {
-    this.currentCockpitBoard = cockpitBoard;
-    this.postMessage(createUpdateCockpitBoardMessage(cockpitBoard));
+    dispatchCockpitBoardUpdate(this.runtimeState, cockpitBoard, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateTelegramNotification(
     telegramNotification: TelegramNotificationView,
   ): void {
-    this.currentTelegramNotification = telegramNotification;
-    this.postMessage(
-      createUpdateTelegramNotificationMessage(telegramNotification),
+    dispatchTelegramNotificationUpdate(
+      this.runtimeState,
+      telegramNotification,
+      (message) => this.postMessage(message),
     );
   }
 
   static updateExecutionDefaults(
     executionDefaults: ExecutionDefaultsView,
   ): void {
-    this.currentExecutionDefaults = executionDefaults;
-    this.postMessage(createUpdateExecutionDefaultsMessage(executionDefaults));
+    dispatchExecutionDefaultsUpdate(this.runtimeState, executionDefaults, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateReviewDefaults(
     reviewDefaults: ReviewDefaultsView,
   ): void {
-    this.currentReviewDefaults = reviewDefaults;
-    this.postMessage(createUpdateReviewDefaultsMessage(reviewDefaults));
+    dispatchReviewDefaultsUpdate(this.runtimeState, reviewDefaults, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateStorageSettings(
     storageSettings: StorageSettingsView,
   ): void {
-    this.currentStorageSettings = storageSettings;
-    this.postMessage(createUpdateStorageSettingsMessage(storageSettings));
+    dispatchStorageSettingsUpdate(this.runtimeState, storageSettings, (message) =>
+      this.postMessage(message),
+    );
   }
 
   static updateResearchState(
@@ -619,25 +517,30 @@ export class SchedulerWebview {
     activeRun: ResearchRun | undefined,
     recentRuns: ResearchRun[],
   ): void {
-    this.currentResearchProfiles = profiles;
-    this.currentActiveResearchRun = activeRun;
-    this.currentRecentResearchRuns = recentRuns;
-    this.postMessage(
-      createUpdateResearchStateMessage(profiles, activeRun, recentRuns),
+    dispatchResearchStateUpdate(
+      this.runtimeState,
+      profiles,
+      activeRun,
+      recentRuns,
+      (message) => this.postMessage(message),
     );
   }
 
   static updateScheduleHistory(entries: ScheduleHistoryEntry[]): void {
-    this.currentScheduleHistory = entries;
-    this.postMessage(createUpdateScheduleHistoryMessage(entries));
+    dispatchScheduleHistoryUpdate(this.runtimeState, entries, (message) =>
+      this.postMessage(message),
+    );
   }
 
   /**
    * Show an error message inside the webview
    */
   static showError(errorMessage: string): void {
-    const safe = this.sanitizeErrorDetailsForUser(errorMessage);
-    this.postMessage(createShowErrorMessage(safe || messages.webviewUnknown()));
+    dispatchWebviewError(
+      errorMessage,
+      (message) => this.postMessage(message),
+      (message) => this.sanitizeErrorDetailsForUser(message),
+    );
   }
 
   private static sanitizeErrorDetailsForUser(message: string): string {
@@ -645,14 +548,9 @@ export class SchedulerWebview {
   }
 
   private static postCachedCatalogMessages(): void {
-    postSchedulerCatalogMessages(
+    dispatchCachedCatalogMessages(
+      this.catalogState,
       (message) => this.postMessage(message),
-      {
-        agents: this.cachedAgents,
-        models: this.cachedModels,
-        promptTemplates: this.cachedPromptTemplates,
-        skillReferences: this.cachedSkillReferences,
-      },
     );
   }
 
