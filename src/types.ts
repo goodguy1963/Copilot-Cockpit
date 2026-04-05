@@ -797,6 +797,26 @@ export interface ExecutionDefaultsView {
 }
 
 /**
+ * Workspace-level default review text used by Todo review workflows.
+ */
+export interface ReviewDefaultsView {
+  /** Default reusable text inserted when a todo enters a review state */
+  spotReviewTemplate: string;
+
+  /** Prompt template used for automatic bot-review planning runs */
+  botReviewPromptTemplate: string;
+
+  /** Agent used for automatic bot-review planning runs */
+  botReviewAgent: string;
+
+  /** Model used for automatic bot-review planning runs */
+  botReviewModel: string;
+
+  /** Chat session behavior used for automatic bot-review planning runs */
+  botReviewChatSession: ChatSessionBehavior;
+}
+
+/**
  * Workspace storage backend settings exposed in the Settings tab.
  */
 export interface StorageSettingsView {
@@ -1396,6 +1416,7 @@ export interface TaskAction {
   | "saveTelegramNotification"
   | "testTelegramNotification"
   | "saveExecutionDefaults"
+  | "saveReviewDefaults"
   | "createTodo"
   | "updateTodo"
   | "deleteTodo"
@@ -1473,6 +1494,9 @@ export interface TaskAction {
 
   /** Default execution settings payload */
   executionDefaults?: Partial<ExecutionDefaultsView>;
+
+  /** Default review settings payload */
+  reviewDefaults?: Partial<ReviewDefaultsView>;
 
   /** Todo identifier */
   todoId?: string;
@@ -1613,6 +1637,7 @@ export type WebviewToExtensionMessage =
   | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
+  | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
   | { type: "setStorageSettings"; data: StorageSettingsView }
   | { type: "createTodo"; data: CreateCockpitTodoInput }
   | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }

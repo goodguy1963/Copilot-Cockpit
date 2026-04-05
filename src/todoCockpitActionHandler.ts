@@ -1,4 +1,6 @@
 import {
+  COCKPIT_NEEDS_BOT_REVIEW_FLAG,
+  COCKPIT_NEEDS_USER_REVIEW_FLAG,
   COCKPIT_FINAL_USER_CHECK_FLAG,
   COCKPIT_ON_SCHEDULE_LIST_FLAG,
   COCKPIT_READY_FLAG,
@@ -37,6 +39,8 @@ import type {
   CockpitTodoCard,
   CreateCockpitTodoInput,
   CreateTaskInput,
+  ExecuteOptions,
+  ReviewDefaultsView,
   ScheduledTask,
   TaskAction,
   UpdateCockpitBoardFiltersInput,
@@ -231,6 +235,8 @@ type TodoCockpitActionHandlerDeps = {
   getPrimaryWorkspaceRootPath: () => string | undefined;
   getCurrentCockpitBoard: () => CockpitBoard;
   getCurrentTasks: () => ScheduledTask[];
+  getReviewDefaults: () => ReviewDefaultsView;
+  executeBotReviewPrompt: (prompt: string, options: ExecuteOptions) => Promise<void>;
   createTask: (input: CreateTaskInput) => Promise<{ id: string; name: string }>;
   removeLabelFromAllTasks: (labelName: string) => Promise<unknown>;
   refreshSchedulerUiState: (immediate?: boolean) => void;
@@ -242,6 +248,103 @@ type TodoCockpitActionHandlerDeps = {
 
 function getTodoWorkflowFlag(todo: Pick<CockpitTodoCard, "flags">): string | undefined {
   return getActiveCockpitWorkflowFlag(todo.flags);
+}
+
+const REVIEW_TEMPLATE_COMMENT_LABEL = "spot-review-template";
+
+function isReviewWorkflowFlag(flag: string | undefined): boolean {
+  return flag === COCKPIT_NEEDS_BOT_REVIEW_FLAG
+    || flag === COCKPIT_NEEDS_USER_REVIEW_FLAG;
+}
+
+function maybeSeedSpotReviewTemplate(
+  workspaceRoot: string,
+  todo: CockpitTodoCard,
+  previousWorkflowFlag: string | undefined,
+  deps: TodoCockpitActionHandlerDeps,
+): void {
+  const nextWorkflowFlag = getTodoWorkflowFlag(todo);
+  if (!isReviewWorkflowFlag(nextWorkflowFlag) || nextWorkflowFlag === previousWorkflowFlag) {
+    return;
+  }
+
+  const template = deps.getReviewDefaults().spotReviewTemplate.trim();
+  if (!template) {
+    return;
+  }
+
+  const comments = Array.isArray(todo.comments) ? todo.comments : [];
+  const lastComment = comments.length > 0 ? comments[comments.length - 1] : undefined;
+  const lastCommentLabels = Array.isArray(lastComment?.labels) ? lastComment.labels : [];
+  const lastCommentIsTemplate = lastComment?.source === "system-event"
+    && lastComment?.body?.trim() === template
+    && lastCommentLabels.includes(REVIEW_TEMPLATE_COMMENT_LABEL);
+  if (lastCommentIsTemplate) {
+    return;
+  }
+
+  addCockpitTodoComment(workspaceRoot, todo.id, {
+    body: template,
+    author: "system",
+    source: "system-event",
+    labels: [REVIEW_TEMPLATE_COMMENT_LABEL],
+  });
+}
+
+function buildBotReviewPromptFromTodo(
+  todo: TodoPromptSource,
+  template: string,
+): string {
+  const labels = (todo.labels ?? []).join(", ") || "none";
+  const recentComments = (todo.comments ?? [])
+    .filter((comment) => comment?.body)
+    .slice(-5)
+    .map((comment) => `- ${comment.author || "system"}: ${comment.body}`)
+    .join("\n") || "- none";
+
+  return template
+    .replace(/\{\{title\}\}/g, todo.title || "")
+    .replace(/\{\{description\}\}/g, todo.description?.trim() || "")
+    .replace(/\{\{labels\}\}/g, labels)
+    .replace(/\{\{recent_comments\}\}/g, recentComments)
+    .trim();
+}
+
+async function maybeRunBotReviewPlanning(
+  todo: CockpitTodoCard,
+  previousWorkflowFlag: string | undefined,
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<"skipped" | "launched" | "failed"> {
+  const nextWorkflowFlag = getTodoWorkflowFlag(todo);
+  if (
+    nextWorkflowFlag !== COCKPIT_NEEDS_BOT_REVIEW_FLAG
+    || previousWorkflowFlag === COCKPIT_NEEDS_BOT_REVIEW_FLAG
+  ) {
+    return "skipped";
+  }
+
+  const reviewDefaults = deps.getReviewDefaults();
+  const promptTemplate = reviewDefaults.botReviewPromptTemplate.trim();
+  if (!promptTemplate) {
+    return "skipped";
+  }
+
+  const prompt = buildBotReviewPromptFromTodo(todo, promptTemplate);
+  if (!prompt) {
+    return "skipped";
+  }
+
+  try {
+    await deps.executeBotReviewPrompt(prompt, {
+      agent: reviewDefaults.botReviewAgent,
+      model: reviewDefaults.botReviewModel,
+      chatSession: reviewDefaults.botReviewChatSession,
+    });
+    return "launched";
+  } catch (_error) {
+    deps.notifyError("Todo saved, but the immediate bot review could not be started.");
+    return "failed";
+  }
 }
 
 export function isTodoCockpitAction(
@@ -271,9 +374,15 @@ export async function handleTodoCockpitAction(
         workspaceRoot,
         action.todoData as CreateCockpitTodoInput,
       );
+      maybeSeedSpotReviewTemplate(workspaceRoot, result.todo, undefined, deps);
       const revealFilters = getRevealFiltersForCreatedTodo(
         currentBoard.filters,
         result.todo,
+      );
+      const botReviewLaunchState = await maybeRunBotReviewPlanning(
+        result.todo,
+        undefined,
+        deps,
       );
       if (revealFilters) {
         setCockpitBoardFilters(workspaceRoot, revealFilters);
@@ -281,7 +390,11 @@ export async function handleTodoCockpitAction(
       deps.refreshSchedulerUiState();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
-      deps.notifyInfo("Todo Cockpit item created.");
+      deps.notifyInfo(
+        botReviewLaunchState === "launched"
+          ? "Todo Cockpit item created and bot review started."
+          : "Todo Cockpit item created.",
+      );
       return true;
     }
 
@@ -290,6 +403,7 @@ export async function handleTodoCockpitAction(
       if (!workspaceRoot || !action.todoId) {
         return true;
       }
+      const previousTodo = deps.getCurrentCockpitBoard().cards.find((entry) => entry.id === action.todoId);
       const result = updateCockpitTodo(
         workspaceRoot,
         action.todoId,
@@ -299,10 +413,25 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
+      maybeSeedSpotReviewTemplate(
+        workspaceRoot,
+        result.todo,
+        previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined,
+        deps,
+      );
+      const botReviewLaunchState = await maybeRunBotReviewPlanning(
+        result.todo,
+        previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined,
+        deps,
+      );
       deps.refreshSchedulerUiState();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
-      deps.notifyInfo(`Updated Todo Cockpit item: ${result.todo.title}`);
+      deps.notifyInfo(
+        botReviewLaunchState === "launched"
+          ? `Updated Todo Cockpit item and started bot review: ${result.todo.title}`
+          : `Updated Todo Cockpit item: ${result.todo.title}`,
+      );
       return true;
     }
 

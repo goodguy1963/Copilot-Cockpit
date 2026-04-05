@@ -22,6 +22,7 @@ import type {
   StorageSettingsView,
   ChatSessionBehavior,
   ExecutionDefaultsView,
+  ReviewDefaultsView,
   TelegramNotificationView,
   TaskScope,
   WebviewToExtensionMessage,
@@ -127,6 +128,13 @@ export class SchedulerWebview {
     agent: "agent",
     model: "",
   };
+  private static currentReviewDefaults: ReviewDefaultsView = {
+    spotReviewTemplate: "",
+    botReviewPromptTemplate: "",
+    botReviewAgent: "agent",
+    botReviewModel: "",
+    botReviewChatSession: "new",
+  };
   private static currentStorageSettings: StorageSettingsView = {
     mode: "sqlite",
     sqliteJsonMirror: true,
@@ -147,6 +155,7 @@ export class SchedulerWebview {
     "updateCockpitBoard",
     "updateTelegramNotification",
     "updateExecutionDefaults",
+    "updateReviewDefaults",
     "updateStorageSettings",
     "updateResearchState",
     "updateScheduleHistory",
@@ -325,6 +334,7 @@ export class SchedulerWebview {
     cockpitBoard: CockpitBoard,
     telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView,
+    reviewDefaults: ReviewDefaultsView,
     storageSettings: StorageSettingsView,
     researchProfiles: ResearchProfile[],
     activeResearchRun: ResearchRun | undefined,
@@ -339,6 +349,7 @@ export class SchedulerWebview {
     this.currentCockpitBoard = cockpitBoard;
     this.currentTelegramNotification = telegramNotification;
     this.currentExecutionDefaults = executionDefaults;
+    this.currentReviewDefaults = reviewDefaults;
     this.currentStorageSettings = storageSettings;
     this.currentResearchProfiles = researchProfiles;
     this.currentActiveResearchRun = activeResearchRun;
@@ -426,6 +437,7 @@ export class SchedulerWebview {
       this.updateCockpitBoard(cockpitBoard);
       this.updateTelegramNotification(telegramNotification);
       this.updateExecutionDefaults(executionDefaults);
+      this.updateReviewDefaults(reviewDefaults);
       this.updateStorageSettings(storageSettings);
       this.updateResearchState(
         researchProfiles,
@@ -571,6 +583,16 @@ export class SchedulerWebview {
     this.postMessage({
       type: "updateExecutionDefaults",
       executionDefaults,
+    });
+  }
+
+  static updateReviewDefaults(
+    reviewDefaults: ReviewDefaultsView,
+  ): void {
+    this.currentReviewDefaults = reviewDefaults;
+    this.postMessage({
+      type: "updateReviewDefaults",
+      reviewDefaults,
     });
   }
 
@@ -934,6 +956,14 @@ export class SchedulerWebview {
         });
         break;
 
+      case "saveReviewDefaults":
+        this.onTaskActionCallback?.({
+          action: "saveReviewDefaults",
+          taskId: "__settings__",
+          reviewDefaults: message.data,
+        });
+        break;
+
       case "loadPromptTemplate":
         await loadPromptTemplateContent(
           message.path,
@@ -1119,6 +1149,7 @@ export class SchedulerWebview {
       currentCockpitBoard: this.currentCockpitBoard,
       currentTelegramNotification: this.currentTelegramNotification,
       currentExecutionDefaults: this.currentExecutionDefaults,
+      currentReviewDefaults: this.currentReviewDefaults,
       currentStorageSettings: this.currentStorageSettings,
       currentResearchProfiles: this.currentResearchProfiles,
       currentActiveResearchRun: this.currentActiveResearchRun,
@@ -5871,6 +5902,45 @@ export class SchedulerWebview {
           <button type="button" class="btn-primary" id="execution-defaults-save-btn">${escapeHtml(strings.executionDefaultsSave)}</button>
         </div>
         <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
+      </section>
+      <section class="telegram-card">
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.reviewDefaultsTitle)}</div>
+          <p class="note">${escapeHtml(strings.reviewDefaultsDescription)}</p>
+        </div>
+
+        <div class="form-group" style="margin-top:8px;">
+          <label for="spot-review-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
+          <textarea id="spot-review-template-input" rows="5" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+          <textarea id="bot-review-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
+          <select id="bot-review-agent-select"></select>
+        </div>
+
+        <div class="form-group">
+          <label for="bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
+          <select id="bot-review-model-select"></select>
+        </div>
+
+        <div class="form-group">
+          <label for="bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
+          <select id="bot-review-chat-session-select">
+            <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
+            <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
+          </select>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="review-defaults-save-btn">${escapeHtml(strings.reviewDefaultsSave)}</button>
+        </div>
+        <p class="note" id="review-defaults-note">${escapeHtml(strings.reviewDefaultsSaved)}</p>
       </section>
       <section class="telegram-card">
         <div class="settings-card-header">

@@ -57,6 +57,36 @@ suite("Extension Test Suite", () => {
         "copilotCockpit.defaultModel",
       ),
     );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.spotReviewTemplate",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.botReviewPromptTemplate",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.botReviewAgent",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.botReviewModel",
+      ),
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(
+        properties,
+        "copilotCockpit.botReviewChatSession",
+      ),
+    );
     assert.strictEqual(
       (properties["copilotCockpit.storageMode"] as { default?: unknown } | undefined)
         ?.default,

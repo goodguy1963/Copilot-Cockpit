@@ -9,6 +9,7 @@ import type {
   PromptTemplate,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsView,
   ScheduleHistoryEntry,
   ScheduledTask,
   SkillReference,
@@ -91,6 +92,7 @@ type BuildSchedulerWebviewInitialDataParams = {
   currentCockpitBoard: CockpitBoard;
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
+  currentReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
@@ -121,6 +123,7 @@ export function buildSchedulerWebviewInitialData(
     cockpitBoard: params.currentCockpitBoard,
     telegramNotification: params.currentTelegramNotification,
     executionDefaults: params.currentExecutionDefaults,
+    reviewDefaults: params.currentReviewDefaults,
     storageSettings: params.currentStorageSettings,
     researchProfiles: params.currentResearchProfiles,
     activeResearchRun: params.currentActiveResearchRun,
