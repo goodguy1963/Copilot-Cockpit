@@ -780,23 +780,26 @@ export interface ExecutionDefaultsView {
 }
 
 /**
- * Workspace-level default review text used by Todo review workflows.
+ * Workspace-level Todo handoff settings used by review and ready workflows.
  */
 export interface ReviewDefaultsView {
-  /** Default reusable text inserted when a todo enters a review state */
-  spotReviewTemplate: string;
+  /** Default reusable text inserted when a todo enters needs-bot-review */
+  needsBotReviewCommentTemplate: string;
 
-  /** Prompt template used for automatic bot-review planning runs */
-  botReviewPromptTemplate: string;
+  /** Prompt template used for automatic needs-bot-review planning runs */
+  needsBotReviewPromptTemplate: string;
 
-  /** Agent used for automatic bot-review planning runs */
-  botReviewAgent: string;
+  /** Agent used for automatic needs-bot-review planning runs */
+  needsBotReviewAgent: string;
 
-  /** Model used for automatic bot-review planning runs */
-  botReviewModel: string;
+  /** Model used for automatic needs-bot-review planning runs */
+  needsBotReviewModel: string;
 
-  /** Chat session behavior used for automatic bot-review planning runs */
-  botReviewChatSession: ChatSessionBehavior;
+  /** Chat session behavior used for automatic needs-bot-review planning runs */
+  needsBotReviewChatSession: ChatSessionBehavior;
+
+  /** Prompt template used when creating a ready task draft from a Todo */
+  readyPromptTemplate: string;
 }
 
 /**

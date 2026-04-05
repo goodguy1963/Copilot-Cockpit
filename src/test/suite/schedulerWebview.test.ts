@@ -327,6 +327,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
   test("settings tab includes editable spot-review defaults plumbing", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
+<<<<<<< HEAD
     expectSourceToIncludeSnippets(
       scriptSource,
       [
@@ -335,6 +336,15 @@ suite("SchedulerWebview Message Queue Tests", () => {
       'var botReviewAgentSelect = document.getElementById("bot-review-agent-select")',
       'var botReviewModelSelect = document.getElementById("bot-review-model-select")',
       'var botReviewChatSessionSelect = document.getElementById("bot-review-chat-session-select")',
+=======
+    [
+      'var needsBotReviewCommentTemplateInput = document.getElementById("needs-bot-review-comment-template-input")',
+      'var needsBotReviewPromptTemplateInput = document.getElementById("needs-bot-review-prompt-template-input")',
+      'var needsBotReviewAgentSelect = document.getElementById("needs-bot-review-agent-select")',
+      'var needsBotReviewModelSelect = document.getElementById("needs-bot-review-model-select")',
+      'var needsBotReviewChatSessionSelect = document.getElementById("needs-bot-review-chat-session-select")',
+      'var readyPromptTemplateInput = document.getElementById("ready-prompt-template-input")',
+>>>>>>> main
       'type: "saveReviewDefaults"',
       'case "updateReviewDefaults":',
       'function renderReviewDefaultsControls() {',

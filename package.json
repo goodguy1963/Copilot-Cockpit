@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "VS Code-native orchestration for AI agents with controlled workflows, scheduling, and human-in-the-loop execution",
-  "version": "99.0.99",
+  "version": "99.0.100",
   "publisher": "local-dev",
   "license": "CC-BY-NC-SA-4.0",
   "icon": "images/icon.png",
@@ -231,31 +231,31 @@
           "scope": "resource",
           "description": "%config.defaultModel%"
         },
-        "copilotCockpit.spotReviewTemplate": {
+        "copilotCockpit.needsBotReviewCommentTemplate": {
           "type": "string",
-          "default": "Spot review request: review the current context, call out risks or unclear assumptions, and propose the smallest safe next step.",
+          "default": "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.",
           "scope": "resource",
-          "description": "%config.spotReviewTemplate%"
+          "description": "%config.needsBotReviewCommentTemplate%"
         },
-        "copilotCockpit.botReviewPromptTemplate": {
+        "copilotCockpit.needsBotReviewPromptTemplate": {
           "type": "string",
-          "default": "You are preparing a spot review plan for this Todo.\n\nTodo title: {{title}}\nTodo description:\n{{description}}\n\nLabels: {{labels}}\nRecent coordination:\n{{recent_comments}}\n\nResearch what is needed to review this item, identify missing context and risks, and propose the smallest safe next steps.",
+          "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch what is needed to review this item, identify missing context and risks, and return a plan-only response. If the request is clear, provide two concrete implementation options or one blocking clarification when the ambiguity is material.",
           "scope": "resource",
-          "description": "%config.botReviewPromptTemplate%"
+          "description": "%config.needsBotReviewPromptTemplate%"
         },
-        "copilotCockpit.botReviewAgent": {
+        "copilotCockpit.needsBotReviewAgent": {
           "type": "string",
           "default": "agent",
           "scope": "resource",
-          "description": "%config.botReviewAgent%"
+          "description": "%config.needsBotReviewAgent%"
         },
-        "copilotCockpit.botReviewModel": {
+        "copilotCockpit.needsBotReviewModel": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "%config.botReviewModel%"
+          "description": "%config.needsBotReviewModel%"
         },
-        "copilotCockpit.botReviewChatSession": {
+        "copilotCockpit.needsBotReviewChatSession": {
           "type": "string",
           "default": "new",
           "scope": "resource",
@@ -267,7 +267,13 @@
             "%config.chatSession.new%",
             "%config.chatSession.continue%"
           ],
-          "description": "%config.botReviewChatSession%"
+          "description": "%config.needsBotReviewChatSession%"
+        },
+        "copilotCockpit.readyPromptTemplate": {
+          "type": "string",
+          "default": "You are preparing the execution artifact for a Todo that is now ready.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nCreate or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
+          "scope": "resource",
+          "description": "%config.readyPromptTemplate%"
         },
         "copilotCockpit.defaultScope": {
           "type": "string",
