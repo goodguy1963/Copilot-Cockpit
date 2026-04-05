@@ -2,19 +2,19 @@ import * as path from "path";
 import * as fs from "fs";
 import * as vscode from "vscode";
 import type {
-  ScheduledTask,
   CreateTaskInput,
-  TaskScope,
+  ScheduledTask,
   JobDefinition,
   JobFolder,
   JobNode,
   JobPauseNode,
   JobRuntimeState,
   JobTaskNode,
-  SchedulerWorkspaceConfig,
   CreateJobInput,
-  CreateJobPauseInput,
   CreateJobFolderInput,
+  CreateJobPauseInput,
+  SchedulerWorkspaceConfig,
+  TaskScope,
 } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError } from "./logger";
@@ -242,14 +242,12 @@ export class ScheduleManager {
     await writeScheduledTasksToStorageFile(this.storageFilePath, tasksArray);
   }
 
-  private async saveTasksToGlobalState(
-    tasksArray: ScheduledTask[],
-  ): Promise<void> {
+  private async saveTasksToGlobalState(storedTasks: ScheduledTask[]): Promise<void> {
     const globalState = this.context.globalState;
     await updateMementoWithTimeout(
       globalState,
       TASK_STORAGE.stateKey,
-      tasksArray,
+      storedTasks,
       10000,
       messages.storageWriteTimeout(),
     );
@@ -289,14 +287,9 @@ export class ScheduleManager {
     );
   }
 
-  /**
-   * Replace prompts for a batch of tasks and persist once when anything changed.
-   */
-  async updateTaskPrompts(
-    updates: Array<{ id: string; prompt: string }>,
-  ): Promise<number> {
+  async updateTaskPrompts(updates: Array<{ id: string; prompt: string }>): Promise<number> {
     const updateCount = Array.isArray(updates) ? updates.length : 0;
-    if (updateCount === 0) {
+    if (updateCount < 1) {
       return 0;
     }
     const changedCount = applyTaskPromptUpdates(this.tasks, updates, new Date());
@@ -2806,11 +2799,8 @@ export class ScheduleManager {
     return this.getAllTasks().filter((task) => task.scope === scope);
   }
 
-  async updateTask(
-    id: string,
-    updates: Partial<CreateTaskInput>,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.findStoredTask(id);
+  async updateTask(taskId: string, updates: Partial<CreateTaskInput>): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
     if (task === undefined) return undefined;
     this.assertTaskUpdateInput(task, updates);
 
@@ -2828,7 +2818,7 @@ export class ScheduleManager {
       runFirstInOneMinute: updates.runFirstInOneMinute,
       referenceTime: now,
     });
-    await this.finalizeTaskUpdate(task, id, now);
+    await this.finalizeTaskUpdate(task, taskId, now);
     return task;
   }
 
@@ -2843,11 +2833,8 @@ export class ScheduleManager {
     return this.persistEnabledTaskChange(task, !task.enabled);
   }
 
-  async setTaskEnabled(
-    id: string,
-    enabled: boolean,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.findStoredTask(id);
+  async setTaskEnabled(taskId: string, enabled: boolean): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
     if (task === undefined) return undefined;
     return this.persistEnabledTaskChange(task, enabled);
   }
@@ -2858,10 +2845,8 @@ export class ScheduleManager {
     return this.createTask(createDuplicateTaskInput(original, messages.taskCopySuffix()));
   }
 
-  async moveTaskToCurrentWorkspace(
-    id: string,
-  ): Promise<ScheduledTask | undefined> {
-    const task = this.findStoredTask(id);
+  async moveTaskToCurrentWorkspace(taskId: string): Promise<ScheduledTask | undefined> {
+    const task = this.findStoredTask(taskId);
     if (task === undefined) return undefined;
 
     if (task.scope !== "workspace") {
@@ -2897,12 +2882,15 @@ export class ScheduleManager {
   }
 
   private async runSchedulerTick(): Promise<void> {
-    if (this.schedulerTickInProgress) {
+    if (this.schedulerTickInProgress !== false) {
       this.schedulerTickPending = true;
       return;
     }
 
-    this.schedulerTickInProgress = true;
+    const markTickRunning = (): void => {
+      this.schedulerTickInProgress = true;
+    };
+    markTickRunning();
     try {
       await this.flushSchedulerTicks();
     } catch (error) {
