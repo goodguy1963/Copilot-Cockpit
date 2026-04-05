@@ -582,6 +582,7 @@ import {
   var helpWarpLayer = document.getElementById("help-warp-layer");
   var helpIntroRocket = document.getElementById("help-intro-rocket");
   var promptGroup = document.getElementById("prompt-group");
+  var promptTextEl = document.getElementById("prompt-text");
   var jitterSecondsInput = document.getElementById("jitter-seconds");
   var friendlyFrequency = document.getElementById("friendly-frequency");
   var friendlyInterval = document.getElementById("friendly-interval");
@@ -2177,6 +2178,14 @@ import {
       : "var(--vscode-badge-background)";
   }
 
+  function getValidLabelColorValue(color, fallbackColor) {
+    var value = String(color || "");
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      return value;
+    }
+    return fallbackColor || "#4f8cff";
+  }
+
   function upsertLocalLabelDefinition(name, color, previousName) {
     var normalizedName = normalizeTodoLabel(name);
     var nextColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || ""))
@@ -2448,6 +2457,7 @@ syncTodoLabelSuggestions();
     var prevName = editingLabelOriginalName;
     editingLabelOriginalName = "";
     var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
+    var existingDefinition = getLabelDefinition(label);
     todoLabelsInput.value = "";
     if (prevName) {
       var prevKey = normalizeTodoLabelKey(prevName);
@@ -2472,7 +2482,7 @@ syncTodoLabelSuggestions();
     setTodoEditorLabels(currentTodoLabels.concat([label]), true);
     selectedTodoLabelName = label;
     if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
-    if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+    if (!existingDefinition && pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
       upsertLocalLabelDefinition(label, pendingColor);
       vscode.postMessage({
         type: "saveTodoLabelDefinition",
@@ -4161,9 +4171,13 @@ syncTodoLabelSuggestions();
             if (normalizeTodoLabelKey(eCatalog[ei].name) === normalizeTodoLabelKey(eName)) { eEntry = eCatalog[ei]; break; }
           }
           if (todoLabelsInput) todoLabelsInput.value = eEntry ? eEntry.name : eName;
-          if (todoLabelColorInput && eEntry && eEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(eEntry.color)) todoLabelColorInput.value = eEntry.color;
-          editingLabelOriginalName = eName;
+          if (todoLabelColorInput) {
+            todoLabelColorInput.value = getValidLabelColorValue(eEntry && eEntry.color, "#4f8cff");
+          }
+          selectedTodoLabelName = eEntry ? eEntry.name : eName;
+          editingLabelOriginalName = eEntry ? eEntry.name : eName;
           syncTodoEditorTransientDraft();
+          syncTodoLabelEditor();
           if (todoLabelsInput) todoLabelsInput.focus();
           return;
         }
@@ -4194,8 +4208,12 @@ syncTodoLabelSuggestions();
           var name = selectBtn.getAttribute("data-label-catalog-select") || "";
           if (!name) return;
           // Add the label to the current todo directly (catalog only shows un-applied labels)
+          var definition = getLabelDefinition(name);
           editingLabelOriginalName = "";
           if (todoLabelsInput) todoLabelsInput.value = name;
+          if (todoLabelColorInput) {
+            todoLabelColorInput.value = getValidLabelColorValue(definition && definition.color, todoLabelColorInput.value || "#4f8cff");
+          }
           syncTodoEditorTransientDraft();
           addEditorLabelFromInput();
         }
@@ -7218,8 +7236,8 @@ syncTodoLabelSuggestions();
       keepSelection && templateSelect ? templateSelect.value : "";
     var usesInlinePrompt = effectiveSource === "inline";
 
-    if (promptText) {
-      promptText.required = usesInlinePrompt;
+    if (promptTextEl) {
+      promptTextEl.required = usesInlinePrompt;
     }
     if (templateSelect) {
       templateSelect.required = !usesInlinePrompt;

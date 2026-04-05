@@ -458,6 +458,11 @@ type SystemFlagSeed = {
   aliases?: string[];
 };
 
+const DEPRECATED_SCHEDULED_FLAG_KEYS = new Set([
+  "linked-scheduled-task",
+  "linked scheduled task",
+]);
+
 const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
   { key: "new", name: "new", color: "#a78bfa", aliases: ["NEW"] },
   { key: "needs-bot-review", name: "needs-bot-review", color: "#f59e0b" },
@@ -467,12 +472,6 @@ const SYSTEM_FLAG_SEEDS: SystemFlagSeed[] = [
     key: "on-schedule-list",
     name: "ON-SCHEDULE-LIST",
     color: "#14b8a6",
-  },
-  {
-    key: "linked-scheduled-task",
-    name: "Linked scheduled task",
-    color: "#0ea5e9",
-    defaultEnabled: false,
   },
   { key: "final-user-check", name: "FINAL-USER-CHECK", color: "#8b5cf6" },
   { key: "rejected", name: "rejected", color: "#ef4444", aliases: ["abgelehnt"] },
@@ -521,6 +520,7 @@ function normalizeFlags(values: unknown): string[] {
   return values
     .map((value) => normalizeFlagName(value))
     .filter((value): value is string => Boolean(value))
+    .filter((value) => !DEPRECATED_SCHEDULED_FLAG_KEYS.has(normalizeLabelKey(value)))
     .filter((value) => {
       const key = normalizeSystemFlagKey(value) ?? normalizeLabelKey(value);
       if (!key || seen.has(key)) {
@@ -537,6 +537,10 @@ function normalizeFlagDefinition(
 ): CockpitLabelDefinition | undefined {
   const normalized = normalizeLabelDefinition(label, index);
   if (!normalized) {
+    return undefined;
+  }
+
+  if (DEPRECATED_SCHEDULED_FLAG_KEYS.has(normalizeLabelKey(normalized.key || normalized.name))) {
     return undefined;
   }
 
@@ -557,7 +561,7 @@ function normalizeFlagDefinition(
 
 function normalizeDeletedFlagCatalogKeys(values: unknown): string[] {
   return normalizeCatalogKeyList(values).filter(
-    (key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key),
+    (key) => !SYSTEM_FLAG_SEED_BY_KEY.has(key) && !DEPRECATED_SCHEDULED_FLAG_KEYS.has(key),
   );
 }
 

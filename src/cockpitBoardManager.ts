@@ -160,8 +160,8 @@ function renameFlagOnTodoCards(
   }
 }
 
-const LINKED_SCHEDULED_TASK_FLAG = "Linked scheduled task";
 const ON_SCHEDULE_LIST_FLAG = "ON-SCHEDULE-LIST";
+const LEGACY_LINKED_SCHEDULED_TASK_FLAG_KEY = normalizeLabelKey("Linked scheduled task");
 
 function ensureCardFlag(card: CockpitTodoCard, flag: string): void {
   const flags = new Set(normalizeStringList(card.flags));
@@ -170,7 +170,9 @@ function ensureCardFlag(card: CockpitTodoCard, flag: string): void {
 }
 
 function ensureScheduledTaskFlags(card: CockpitTodoCard): void {
-  ensureCardFlag(card, LINKED_SCHEDULED_TASK_FLAG);
+  card.flags = normalizeStringList(card.flags).filter(
+    (flag) => normalizeLabelKey(flag) !== LEGACY_LINKED_SCHEDULED_TASK_FLAG_KEY,
+  );
   ensureCardFlag(card, ON_SCHEDULE_LIST_FLAG);
 }
 
@@ -719,7 +721,7 @@ function createRecurringTaskTodoCard(
     dueAt: undefined,
     status: "active",
     labels: ["scheduled-task", "recurring-task"],
-    flags: [LINKED_SCHEDULED_TASK_FLAG, ON_SCHEDULE_LIST_FLAG],
+    flags: [ON_SCHEDULE_LIST_FLAG],
     comments: [],
     taskSnapshot: buildTaskSnapshot(task),
     taskId: task.id,

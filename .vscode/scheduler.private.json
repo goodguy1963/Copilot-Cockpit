@@ -1,27 +1,5 @@
 {
-    "tasks": [
-        {
-            "id": "task_1775345013763_x49eed",
-            "name": "5",
-            "cron": "*/5 * * * *",
-            "prompt": "5",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "",
-            "chatSession": "new",
-            "promptSource": "inline",
-            "promptPath": "",
-            "promptBackupPath": ".vscode/scheduler-prompt-backups/task_1775345013763_x49eed.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-04T23:23:33.998Z",
-            "jitterSeconds": 0,
-            "oneTime": false,
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-04T23:25:00.000Z",
-            "createdAt": "2026-04-04T23:23:33.763Z",
-            "updatedAt": "2026-04-04T23:23:33.763Z"
-        }
-    ],
+    "tasks": [],
     "jobs": [
         {
             "id": "job_1774810756188_5bn3xr",
@@ -39,11 +17,11 @@
         "version": 4,
         "sections": [
             {
-                "id": "unsorted",
-                "title": "Unsorted",
+                "id": "section_mnc64kul_2dygkl",
+                "title": "NEXT",
                 "order": 0,
-                "createdAt": "2026-03-27T21:51:28.296Z",
-                "updatedAt": "2026-03-27T21:51:28.296Z"
+                "createdAt": "2026-03-29T19:44:49.293Z",
+                "updatedAt": "2026-03-29T21:40:46.161Z"
             },
             {
                 "id": "section_mn9hvobp_ttw2do",
@@ -53,11 +31,11 @@
                 "updatedAt": "2026-03-27T22:50:30.757Z"
             },
             {
-                "id": "section_mnc64kul_2dygkl",
-                "title": "NEXT",
+                "id": "unsorted",
+                "title": "Unsorted",
                 "order": 2,
-                "createdAt": "2026-03-29T19:44:49.293Z",
-                "updatedAt": "2026-03-29T21:40:46.161Z"
+                "createdAt": "2026-03-27T21:51:28.296Z",
+                "updatedAt": "2026-03-27T21:51:28.296Z"
             },
             {
                 "id": "recurring-tasks",
@@ -915,11 +893,10 @@
                         "createdAt": "2026-03-31T20:40:41.430Z"
                     }
                 ],
-                "taskId": "task_1774787767353_rj7u9d",
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:55.019Z",
                 "createdAt": "2026-03-29T11:13:32.810Z",
-                "updatedAt": "2026-04-04T23:19:26.601Z"
+                "updatedAt": "2026-04-05T09:08:06.058Z"
             },
             {
                 "id": "todo_mnbmrdjq_6ot5nl",
@@ -1211,18 +1188,176 @@
                 "title": "5",
                 "description": "Auto-generated from scheduler.json",
                 "sectionId": "unsorted",
-                "order": 2,
+                "order": 4,
                 "priority": "urgent",
                 "status": "active",
                 "labels": [
                     "scheduled-task"
                 ],
-                "flags": [],
-                "comments": [],
+                "flags": [
+                    "ON-SCHEDULE-LIST"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnli64r2_9a9tb2",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T08:31:52.590Z"
+                    }
+                ],
                 "taskId": "task_1775345013763_x49eed",
                 "archived": false,
                 "createdAt": "2026-04-04T23:23:33.763Z",
-                "updatedAt": "2026-04-04T23:23:33.763Z"
+                "updatedAt": "2026-04-05T08:31:52.590Z"
+            },
+            {
+                "id": "todo_mnlgrcql_4eiaae",
+                "title": "Todo",
+                "description": "What do to and how todo",
+                "sectionId": "unsorted",
+                "order": 2,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnlgrcql_fwqo4a",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-05T07:52:23.613Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T07:52:23.613Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-04-05T07:52:23.613Z",
+                "updatedAt": "2026-04-05T07:52:23.613Z"
+            },
+            {
+                "id": "todo_mnlgrfps_e5bxc2",
+                "title": "Todo",
+                "description": "What do to and how todo",
+                "sectionId": "unsorted",
+                "order": 3,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnlgrfps_6ot9te",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-05T07:52:27.472Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T07:52:27.472Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-04-05T07:52:27.472Z",
+                "updatedAt": "2026-04-05T07:52:27.472Z"
+            },
+            {
+                "id": "todo_mnlh0qow_xywi1h",
+                "title": "po",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "unsorted",
+                "order": 5,
+                "priority": "urgent",
+                "status": "active",
+                "labels": [
+                    "scheduled-task"
+                ],
+                "flags": [
+                    "ON-SCHEDULE-LIST"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnlh0qow_580seu",
+                        "author": "system",
+                        "body": "Recurring task linked. Future schedule, prompt, model, and label changes will be recorded here.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T07:59:41.510Z"
+                    },
+                    {
+                        "id": "comment_mnlh0v0r_d4jckl",
+                        "author": "system",
+                        "body": "Recurring task updated: description updated.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-05T07:59:41.510Z"
+                    },
+                    {
+                        "id": "comment_mnlijiyn_oqm0tv",
+                        "author": "system",
+                        "body": "Scheduled task changed to one-time. This card was moved out of Recurring Tasks and kept as the linked planning record.",
+                        "labels": [
+                            "scheduled-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-04-05T08:42:17.663Z"
+                    }
+                ],
+                "taskId": "task_1775375981510_z24i3d",
+                "archived": false,
+                "createdAt": "2026-04-05T07:59:41.510Z",
+                "updatedAt": "2026-04-05T08:42:17.663Z"
+            },
+            {
+                "id": "todo_mnli5fh7_2cfcq6",
+                "title": "hjhj",
+                "description": "hjhj",
+                "sectionId": "section_mnc64kul_2dygkl",
+                "order": 0,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [],
+                "comments": [
+                    {
+                        "id": "comment_mnli5fh7_dgjj1m",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-05T08:31:19.963Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-05T08:31:19.963Z"
+                    },
+                    {
+                        "id": "comment_mnli5fh7_b8ruvb",
+                        "author": "system",
+                        "body": "hjhj",
+                        "labels": [],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-05T08:31:19.963Z"
+                    }
+                ],
+                "archived": false,
+                "createdAt": "2026-04-05T08:31:19.963Z",
+                "updatedAt": "2026-04-05T08:31:28.193Z"
             }
         ],
         "labelCatalog": [
@@ -1231,42 +1366,42 @@
                 "key": "recurring-task",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-30T16:04:32.137Z",
-                "updatedAt": "2026-03-31T20:21:56.942Z"
+                "updatedAt": "2026-04-05T08:43:28.212Z"
             },
             {
                 "name": "scheduled-task",
                 "key": "scheduled-task",
                 "color": "#4f8cff",
                 "createdAt": "2026-03-29T21:44:30.056Z",
-                "updatedAt": "2026-04-04T23:15:31.645Z"
+                "updatedAt": "2026-04-05T08:43:34.055Z"
             }
         ],
         "deletedLabelCatalogKeys": [
-            "dfffd",
+            "1",
             "2",
             "23",
-            "1",
             "3444",
             "as",
             "bug",
-            "qwqw",
+            "dfffd",
             "from-todo-cockpit",
+            "qwqw",
             "test"
         ],
         "flagCatalog": [
+            {
+                "name": "FINAL-USER-CHECK",
+                "key": "final-user-check",
+                "color": "#8b5cf6",
+                "createdAt": "2026-04-05T07:46:38.859Z",
+                "updatedAt": "2026-04-05T07:46:38.859Z"
+            },
             {
                 "name": "go",
                 "key": "go",
                 "color": "#22c55e",
                 "createdAt": "2026-03-31T20:23:48.542Z",
                 "updatedAt": "2026-03-31T20:23:48.542Z"
-            },
-            {
-                "name": "Linked scheduled task",
-                "key": "linked-scheduled-task",
-                "color": "#0ea5e9",
-                "createdAt": "2026-04-04T23:11:31.701Z",
-                "updatedAt": "2026-04-04T23:11:31.701Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1305,11 +1440,11 @@
             }
         ],
         "deletedFlagCatalogKeys": [
-            "task-disabled",
-            "task-enabled",
+            "go1",
             "hgjg",
             "lölö",
-            "go1"
+            "task-disabled",
+            "task-enabled"
         ],
         "archives": {
             "completedSuccessfully": [],
@@ -1326,6 +1461,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-04T23:23:33.951Z"
+        "updatedAt": "2026-04-05T09:08:06.058Z"
     }
 }
