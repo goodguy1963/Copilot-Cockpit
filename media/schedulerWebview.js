@@ -29,6 +29,13 @@ import {
   updateAgentOptions as updateTaskAgentOptions,
   updateModelOptions as updateTaskModelOptions,
 } from "./schedulerWebviewTaskSelectState.js";
+import {
+  formatCountdown,
+  formatModelLabel,
+  getNextRunCountdownText,
+  normalizeDefaultJitterSeconds,
+  sanitizeAbsolutePaths,
+} from "./schedulerWebviewDisplayUtils.js";
 
 (function () {
   var vscode = null;
@@ -55,105 +62,6 @@ import {
       ? initialData.logDirectory
       : "";
 
-  function basenameAny(p) {
-    if (!p) return "";
-    var s = String(p);
-    var i1 = s.lastIndexOf("\\");
-    var i2 = s.lastIndexOf("/");
-    return s.substring(Math.max(i1, i2) + 1);
-  }
-
-  function basenameFromPathLike(p) {
-    if (!p) return "";
-    var s = String(p);
-    if (/^file:\/\/\/?/i.test(s)) {
-      try {
-        var u = new URL(s);
-        if (u.protocol === "file:") {
-          s = decodeURIComponent(u.pathname || "");
-        } else {
-          s = s.replace(/^file:\/\/\/?/i, "");
-        }
-      } catch (_e) {
-        s = s.replace(/^file:\/\/\/?/i, "");
-      }
-    }
-    return basenameAny(s);
-  }
-
-  function getModelSourceLabel(model) {
-    var id = model && model.id ? String(model.id).trim() : "";
-    var name = model && model.name ? String(model.name).trim() : "";
-    var vendor = model && model.vendor ? String(model.vendor).trim() : "";
-    var description = model && model.description ? String(model.description).trim() : "";
-    var normalized = (id + " " + name + " " + vendor + " " + description).toLowerCase();
-
-    if (normalized.indexOf("openrouter") >= 0) {
-      return "OpenRouter";
-    }
-
-    if (
-      normalized.indexOf("copilot") >= 0 ||
-      normalized.indexOf("codex") >= 0 ||
-      normalized.indexOf("github") >= 0 ||
-      normalized.indexOf("microsoft") >= 0
-    ) {
-      return "Copilot";
-    }
-
-    return vendor;
-  }
-
-  function formatModelLabel(model) {
-    var name = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
-    var source = getModelSourceLabel(model);
-    if (!source || source.toLowerCase() === name.toLowerCase()) {
-      return name;
-    }
-    return name + " • " + source;
-  }
-
-  function formatCountdown(totalSec) {
-    var remaining = Math.max(0, Math.floor(totalSec));
-    var units = [
-      { label: "y", seconds: 365 * 24 * 60 * 60 },
-      { label: "mo", seconds: 30 * 24 * 60 * 60 },
-      { label: "w", seconds: 7 * 24 * 60 * 60 },
-      { label: "d", seconds: 24 * 60 * 60 },
-      { label: "h", seconds: 60 * 60 },
-      { label: "m", seconds: 60 },
-      { label: "s", seconds: 1 },
-    ];
-    var parts = [];
-
-    for (var i = 0; i < units.length; i += 1) {
-      var unit = units[i];
-      var value = Math.floor(remaining / unit.seconds);
-      if (value <= 0) {
-        continue;
-      }
-      parts.push(String(value) + unit.label);
-      remaining -= value * unit.seconds;
-    }
-
-    if (parts.length === 0) {
-      return "0s";
-    }
-
-    return parts.join(" ");
-  }
-
-  function getNextRunCountdownText(enabled, nextRunMs) {
-    if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
-      return "";
-    }
-    var diffMs = nextRunMs - Date.now();
-    if (diffMs > 0) {
-      return " (in " + formatCountdown(Math.floor(diffMs / 1000)) + ")";
-    }
-    return " (due now)";
-  }
-
   function refreshTaskCountdowns() {
     if (!taskList || !taskList.isConnected) {
       taskList = document.getElementById("task-list");
@@ -166,50 +74,6 @@ import {
       var enabled = node.getAttribute("data-enabled") === "true";
       node.textContent = getNextRunCountdownText(enabled, nextRunMs);
     });
-  }
-
-  function sanitizeAbsolutePaths(text) {
-    if (!text) return "";
-    var s = String(text);
-    return (
-      s
-        // Quoted file URIs (may include spaces)
-        .replace(/'(file:\/\/[^']+)'/gi, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"(file:\/\/[^"]+)"/gi, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted file URIs (no spaces)
-        .replace(/file:\/\/[^\s"'`]+/gi, function (m) {
-          return basenameFromPathLike(m);
-        })
-        // Quoted Windows absolute paths / UNC (may include spaces)
-        .replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted Windows absolute paths / UNC (no spaces)
-        .replace(
-          /(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,
-          function (_m, prefix, p1) {
-            return String(prefix) + basenameFromPathLike(p1);
-          },
-        )
-        // Quoted POSIX absolute paths (may include spaces)
-        .replace(/'(\/[^']+)'/g, function (_m, p1) {
-          return "'" + basenameFromPathLike(p1) + "'";
-        })
-        .replace(/"(\/[^\"]+)"/g, function (_m, p1) {
-          return '"' + basenameFromPathLike(p1) + '"';
-        })
-        // Unquoted POSIX absolute paths (no spaces) — only when preceded by start/whitespace/(
-        .replace(/(^|[\s(])(\/[^\s"'`]+)/g, function (_m, prefix, p1) {
-          return String(prefix) + basenameFromPathLike(p1);
-        })
-    );
   }
 
   var globalErrorHideTimer = 0;
@@ -557,15 +421,9 @@ import {
       : (currentTodoDraft.flagColor || "#f59e0b");
   }
 
-  var defaultJitterSeconds = (function () {
-    var raw = initialData.defaultJitterSeconds;
-    var n = typeof raw === "number" ? raw : Number(raw);
-    if (!isFinite(n)) return 600;
-    var i = Math.floor(n);
-    if (i < 0) return 0;
-    if (i > 1800) return 1800;
-    return i;
-  })();
+  var defaultJitterSeconds = normalizeDefaultJitterSeconds(
+    initialData.defaultJitterSeconds,
+  );
   var locale =
     typeof initialData.locale === "string" && initialData.locale
       ? initialData.locale

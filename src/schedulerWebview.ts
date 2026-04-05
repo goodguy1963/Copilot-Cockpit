@@ -85,8 +85,17 @@ import {
   postSchedulerCatalogMessages,
   runSchedulerCatalogRefreshTasks,
 } from "./schedulerWebviewState";
+import {
+  backupGithubFolderSnapshot,
+  buildHelpChatPrompt,
+  createSchedulerWebviewQueueState,
+  flushSchedulerWebviewPendingMessages,
+  postSchedulerWebviewMessage,
+  resetSchedulerWebviewQueueState,
+  type SchedulerWebviewMessage,
+} from "./schedulerWebviewSupport";
 
-type OutgoingWebviewMessage = { type: string;[key: string]: unknown };
+type OutgoingWebviewMessage = SchedulerWebviewMessage;
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
 
 /**
@@ -121,98 +130,79 @@ export class SchedulerWebview {
   private static currentActiveResearchRun: ResearchRun | undefined;
   private static currentRecentResearchRuns: ResearchRun[] = [];
   private static currentScheduleHistory: ScheduleHistoryEntry[] = [];
-  private static readonly batchedMessageTypes = new Set<string>([
-    "updateTasks",
-    "updateJobs",
-    "updateJobFolders",
-    "updateCockpitBoard",
-    "updateTelegramNotification",
-    "updateExecutionDefaults",
-    "updateReviewDefaults",
-    "updateStorageSettings",
-    "updateResearchState",
-    "updateScheduleHistory",
-    "updateAgents",
-    "updateModels",
-    "updatePromptTemplates",
-    "updateSkills",
-  ]);
-  private static readonly messageBatchDelayMs = 25;
-  private static webviewReady = false;
-  private static pendingMessages: OutgoingWebviewMessage[] = [];
-  private static lastBatchedMessageSignatures = new Map<string, string>();
-  private static pendingMessageFlushTimer:
+  private static readonly messageQueueState = createSchedulerWebviewQueueState({
+    batchedMessageTypes: [
+      "updateTasks",
+      "updateJobs",
+      "updateJobFolders",
+      "updateCockpitBoard",
+      "updateTelegramNotification",
+      "updateExecutionDefaults",
+      "updateReviewDefaults",
+      "updateStorageSettings",
+      "updateResearchState",
+      "updateScheduleHistory",
+      "updateAgents",
+      "updateModels",
+      "updatePromptTemplates",
+      "updateSkills",
+    ],
+    messageBatchDelayMs: 25,
+  });
+
+  private static get webviewReady(): boolean {
+    return this.messageQueueState.webviewReady;
+  }
+
+  private static set webviewReady(value: boolean) {
+    this.messageQueueState.webviewReady = value;
+  }
+
+  private static get pendingMessages(): OutgoingWebviewMessage[] {
+    return this.messageQueueState.pendingMessages;
+  }
+
+  private static set pendingMessages(value: OutgoingWebviewMessage[]) {
+    this.messageQueueState.pendingMessages = value;
+  }
+
+  private static get lastBatchedMessageSignatures(): Map<string, string> {
+    return this.messageQueueState.lastBatchedMessageSignatures;
+  }
+
+  private static set lastBatchedMessageSignatures(value: Map<string, string>) {
+    this.messageQueueState.lastBatchedMessageSignatures = value;
+  }
+
+  private static get pendingMessageFlushTimer():
     | ReturnType<typeof setTimeout>
-    | undefined;
+    | undefined {
+    return this.messageQueueState.pendingMessageFlushTimer;
+  }
+
+  private static set pendingMessageFlushTimer(
+    value: ReturnType<typeof setTimeout> | undefined,
+  ) {
+    this.messageQueueState.pendingMessageFlushTimer = value;
+  }
 
   private static resetWebviewReadyState(): void {
-    if (this.pendingMessageFlushTimer) {
-      clearTimeout(this.pendingMessageFlushTimer);
-      this.pendingMessageFlushTimer = undefined;
-    }
-    this.webviewReady = false;
-    this.pendingMessages = [];
-    this.lastBatchedMessageSignatures.clear();
-  }
-
-  private static getMessageSignature(message: OutgoingWebviewMessage): string {
-    return JSON.stringify(message);
-  }
-
-  private static shouldSkipRedundantBatchedMessage(
-    message: OutgoingWebviewMessage,
-  ): boolean {
-    if (!this.shouldBatchMessage(message)) {
-      return false;
-    }
-
-    const signature = this.getMessageSignature(message);
-    const previousSignature = this.lastBatchedMessageSignatures.get(message.type);
-    if (previousSignature === signature) {
-      return true;
-    }
-
-    this.lastBatchedMessageSignatures.set(message.type, signature);
-    return false;
-  }
-
-  private static getHelpChatLanguageInstruction(): string {
-    switch (getCurrentLanguage()) {
-      case "de":
-        return "Answer in Deutsch.";
-      case "ja":
-        return "Answer in Japanese.";
-      default:
-        return "Answer in English.";
-    }
+    resetSchedulerWebviewQueueState(this.messageQueueState);
   }
 
   private static async launchHelpChat(prompt: string): Promise<void> {
-    const fullPrompt = `${this.getHelpChatLanguageInstruction()}\n\n${prompt}`;
-
-    await new CopilotExecutor().executePrompt(fullPrompt, {
-      chatSession: "new",
-    });
+    await new CopilotExecutor().executePrompt(
+      buildHelpChatPrompt(getCurrentLanguage(), prompt),
+      {
+        chatSession: "new",
+      },
+    );
   }
 
   private static async backupGithubFolder(
     workspaceRoot: string,
   ): Promise<string | undefined> {
-    const sourceDir = path.join(workspaceRoot, ".github");
-    if (!fs.existsSync(sourceDir)) {
-      return undefined;
-    }
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const backupDir = path.join(
-      workspaceRoot,
-      ".github-scheduler-backups",
-      timestamp,
-    );
-
-    fs.mkdirSync(path.dirname(backupDir), { recursive: true });
-    fs.cpSync(sourceDir, backupDir, { recursive: true });
-    return backupDir;
+    return backupGithubFolderSnapshot(workspaceRoot);
   }
 
   /**
@@ -225,75 +215,17 @@ export class SchedulerWebview {
     }
   }
 
-  private static enqueueMessage(message: OutgoingWebviewMessage): void {
-    const existingIndex = this.pendingMessages.findIndex(
-      (m) => m.type === message.type,
-    );
-    if (existingIndex >= 0) {
-      this.pendingMessages[existingIndex] = message;
-      return;
-    }
-    this.pendingMessages.push(message);
-  }
-
-  private static shouldBatchMessage(message: OutgoingWebviewMessage): boolean {
-    return this.batchedMessageTypes.has(message.type);
-  }
-
-  private static sendMessageNow(message: OutgoingWebviewMessage): void {
-    if (!this.panel || !this.webviewReady) {
-      return;
-    }
-
-    void this.panel.webview.postMessage(message);
-  }
-
-  private static schedulePendingMessagesFlush(): void {
-    if (this.pendingMessageFlushTimer) {
-      return;
-    }
-
-    this.pendingMessageFlushTimer = setTimeout(() => {
-      this.pendingMessageFlushTimer = undefined;
-      this.flushPendingMessages();
-    }, this.messageBatchDelayMs);
-  }
-
   private static postMessage(message: OutgoingWebviewMessage): void {
-    if (!this.panel) return;
-
-    if (this.shouldSkipRedundantBatchedMessage(message)) {
-      return;
-    }
-
-    if (!this.webviewReady) {
-      this.enqueueMessage(message);
-      return;
-    }
-
-    if (this.shouldBatchMessage(message)) {
-      this.enqueueMessage(message);
-      this.schedulePendingMessagesFlush();
-      return;
-    }
-
-    this.sendMessageNow(message);
+    postSchedulerWebviewMessage(
+      this.messageQueueState,
+      this.panel,
+      message,
+      () => this.flushPendingMessages(),
+    );
   }
 
   private static flushPendingMessages(): void {
-    if (!this.panel || !this.webviewReady) return;
-
-    if (this.pendingMessageFlushTimer) {
-      clearTimeout(this.pendingMessageFlushTimer);
-      this.pendingMessageFlushTimer = undefined;
-    }
-
-    if (this.pendingMessages.length === 0) return;
-    const queue = this.pendingMessages;
-    this.pendingMessages = [];
-    for (const message of queue) {
-      this.sendMessageNow(message);
-    }
+    flushSchedulerWebviewPendingMessages(this.messageQueueState, this.panel);
   }
 
   /**
