@@ -97,6 +97,10 @@ import {
   promptToPickTask,
   promptToPickTaskId,
 } from "./extensionTaskPicker";
+import {
+  runPromptMaintenanceCycle as runPromptMaintenanceCycleWithDeps,
+  syncRecurringPromptBackupsIfNeeded as syncRecurringPromptBackupsIfNeededWithDeps,
+} from "./extensionPromptMaintenance";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
@@ -225,82 +229,6 @@ async function maybeShowDisclaimerOnce(task: ScheduledTask): Promise<void> {
   await scheduleManager.setDisclaimerAccepted(true);
 }
 
-async function syncPromptTemplatesIfNeeded(
-  context: vscode.ExtensionContext,
-  force = false,
-): Promise<void> {
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  if (!force) {
-    const last = context.globalState.get<string>(PROMPT_SYNC_DATE_KEY, "");
-    if (last === todayKey) {
-      return;
-    }
-  }
-
-  const tasks = scheduleManager.getAllTasks();
-  const promptUpdates: Array<{ id: string; prompt: string }> = [];
-
-  for (const task of tasks) {
-    if (task.promptSource === "inline") continue;
-    if (!task.promptPath) continue;
-    try {
-      // Background sync should only read persisted file contents.
-      const latest = await resolvePromptText(task, false);
-      if (latest && latest !== task.prompt) {
-        // Avoid syncing empty prompts (would break validation and UX)
-        if (latest.trim()) {
-          promptUpdates.push({ id: task.id, prompt: latest });
-        }
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error ?? "");
-      logError(
-        `[CopilotScheduler] Prompt sync failed for task "${task.name}": ${sanitizeErrorDetailsForLog(errorMessage)}`,
-      );
-    }
-  }
-
-  const updated =
-    promptUpdates.length > 0
-      ? (await scheduleManager.updateTaskPrompts(promptUpdates)) > 0
-      : false;
-
-  if (updated) {
-    SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
-    // treeProvider.refresh() is already triggered by updateTaskPrompts → saveTasks → notifyTasksChanged callback.
-  }
-
-  await context.globalState.update(PROMPT_SYNC_DATE_KEY, todayKey);
-}
-
-async function syncRecurringPromptBackupsIfNeeded(
-  context: vscode.ExtensionContext,
-  force = false,
-): Promise<void> {
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
-  if (!force) {
-    const last = context.globalState.get<string>(
-      PROMPT_BACKUP_SYNC_MONTH_KEY,
-      "",
-    );
-    if (last === monthKey) {
-      return;
-    }
-  }
-
-  const updated = await scheduleManager.ensureRecurringPromptBackups();
-
-  if (updated > 0) {
-    SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
-  }
-
-  await context.globalState.update(PROMPT_BACKUP_SYNC_MONTH_KEY, monthKey);
-}
-
 function logExtensionErrorWithSanitizedDetails(
   prefix: string,
   error: unknown,
@@ -317,22 +245,35 @@ function runPromptMaintenanceCycle(
   context: vscode.ExtensionContext,
   force: boolean,
 ): void {
-  void syncPromptTemplatesIfNeeded(context, force).catch((error) =>
-    logExtensionErrorWithSanitizedDetails(
-      force
-        ? "[CopilotScheduler] Prompt template sync failed:"
-        : "[CopilotScheduler] Prompt template daily sync failed:",
-      error,
-    ),
+  runPromptMaintenanceCycleWithDeps(
+    context,
+    getPromptMaintenanceDeps(),
+    getPromptMaintenanceKeys(),
+    force,
+    logExtensionErrorWithSanitizedDetails,
   );
-  void syncRecurringPromptBackupsIfNeeded(context, force).catch((error) =>
-    logExtensionErrorWithSanitizedDetails(
-      force
-        ? "[CopilotScheduler] Recurring prompt backup sync failed:"
-        : "[CopilotScheduler] Prompt backup monthly sync failed:",
-      error,
-    ),
-  );
+}
+
+function getPromptMaintenanceDeps() {
+  return {
+    getAllTasks: () => scheduleManager.getAllTasks(),
+    updateTaskPrompts: (updates: Array<{ id: string; prompt: string }>) =>
+      scheduleManager.updateTaskPrompts(updates),
+    ensureRecurringPromptBackups: () =>
+      scheduleManager.ensureRecurringPromptBackups(),
+    updateWebviewTasks: (tasks: ScheduledTask[]) =>
+      SchedulerWebview.updateTasks(tasks),
+    resolvePromptText,
+    logError,
+    sanitizeErrorDetailsForLog,
+  };
+}
+
+function getPromptMaintenanceKeys() {
+  return {
+    promptSyncDateKey: PROMPT_SYNC_DATE_KEY,
+    promptBackupSyncMonthKey: PROMPT_BACKUP_SYNC_MONTH_KEY,
+  };
 }
 
 function clearPromptSyncIntervalHandle(): void {
@@ -1487,7 +1428,12 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         scheduleCockpitBoardSqliteHydration(true);
         refreshSchedulerUiState(true);
-        await syncRecurringPromptBackupsIfNeeded(context, true);
+        await syncRecurringPromptBackupsIfNeededWithDeps(
+          context,
+          getPromptMaintenanceDeps(),
+          getPromptMaintenanceKeys(),
+          true,
+        );
       } catch (error) {
         logError(
           "[CopilotScheduler] Prompt backup sync after scheduler reload failed:",
@@ -1538,7 +1484,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Also perform an initial reload to catch any existing file
     scheduleManager.reloadTasks();
-    void syncRecurringPromptBackupsIfNeeded(context, true).catch((error) =>
+    void syncRecurringPromptBackupsIfNeededWithDeps(
+      context,
+      getPromptMaintenanceDeps(),
+      getPromptMaintenanceKeys(),
+      true,
+    ).catch((error) =>
       logError(
         "[CopilotScheduler] Initial prompt backup sync failed:",
         sanitizeErrorDetailsForLog(

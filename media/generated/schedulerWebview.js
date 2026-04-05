@@ -2006,6 +2006,233 @@
     control.addEventListener("change", handler);
   }
 
+  // media/schedulerWebviewBindings.js
+  function bindInputFeedbackClear(elements, clearFeedback) {
+    elements.forEach(function(element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", clearFeedback);
+      element.addEventListener("change", clearFeedback);
+    });
+  }
+  function bindClickAction(button, action) {
+    if (!button) {
+      return;
+    }
+    button.addEventListener("click", action);
+  }
+  function bindSelectChange(select, onChange) {
+    if (!select) {
+      return;
+    }
+    select.addEventListener("change", function() {
+      onChange(select);
+    });
+  }
+  function bindDocumentValueDelegates(document2, eventName, handlersById) {
+    document2.addEventListener(eventName, function(event) {
+      var target = event && event.target;
+      if (!target || typeof target.id !== "string") {
+        return;
+      }
+      var handler = handlersById[target.id];
+      if (typeof handler === "function") {
+        handler(target);
+      }
+    });
+  }
+  function bindOpenCronGuruButton(button, getExpression, windowObject) {
+    bindClickAction(button, function() {
+      var expression = getExpression().trim();
+      if (!expression) {
+        expression = "* * * * *";
+      }
+      var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
+      windowObject.open(targetUrl, "_blank");
+    });
+  }
+  function bindInlineTaskQuickUpdate(document2, vscode) {
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      if (!target) return;
+      if (target.classList.contains("task-agent-select")) {
+        vscode.postMessage({
+          type: "updateTask",
+          taskId: target.getAttribute("data-id"),
+          data: { agent: target.value }
+        });
+        return;
+      }
+      if (target.classList.contains("task-model-select")) {
+        vscode.postMessage({
+          type: "updateTask",
+          taskId: target.getAttribute("data-id"),
+          data: { model: target.value }
+        });
+      }
+    });
+  }
+
+  // media/schedulerWebviewFormBindings.js
+  function bindPromptSourceDelegation(document2, applyPromptSource) {
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      if (target && target.name === "prompt-source" && target.checked) {
+        applyPromptSource(target.value);
+      }
+    });
+  }
+  function bindCronPresetPair(presetControl, valueControl, onSynchronized) {
+    if (!presetControl || !valueControl) {
+      return;
+    }
+    presetControl.addEventListener("change", function() {
+      if (presetControl.value) {
+        valueControl.value = presetControl.value;
+      }
+      onSynchronized();
+    });
+    valueControl.addEventListener("input", function() {
+      presetControl.value = "";
+      onSynchronized();
+    });
+  }
+  function bindTemplateSelectionLoader(templateSelect, document2, vscode) {
+    if (!templateSelect) {
+      return;
+    }
+    templateSelect.addEventListener("change", function() {
+      var selectedPath = templateSelect.value;
+      if (!selectedPath) {
+        return;
+      }
+      var sourceEl = document2.querySelector(
+        'input[name="prompt-source"]:checked'
+      );
+      vscode.postMessage({
+        type: "loadPromptTemplate",
+        path: selectedPath,
+        source: sourceEl ? sourceEl.value : "inline"
+      });
+    });
+  }
+
+  // media/schedulerWebviewTaskSubmit.js
+  function showFormError(formErrorElement, message) {
+    if (!formErrorElement) {
+      return false;
+    }
+    formErrorElement.textContent = message;
+    formErrorElement.style.display = "block";
+    return true;
+  }
+  function validateTaskSubmission(options) {
+    var taskData = options.taskData;
+    var promptSourceValue = options.promptSourceValue;
+    var formErr = options.formErr;
+    var strings = options.strings;
+    var editingTaskId = options.editingTaskId;
+    var getTaskByIdLocal = options.getTaskByIdLocal;
+    var nameValue = (taskData.name || "").trim();
+    if (!nameValue) {
+      showFormError(formErr, strings.taskNameRequired || "");
+      return false;
+    }
+    var templateValue = (taskData.promptPath || "").trim();
+    if (promptSourceValue !== "inline" && !templateValue) {
+      showFormError(formErr, strings.templateRequired || "");
+      return false;
+    }
+    var promptValue = (taskData.prompt || "").trim();
+    if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
+      var editingTask = getTaskByIdLocal(editingTaskId);
+      taskData.prompt = editingTask && typeof editingTask.prompt === "string" ? editingTask.prompt : "";
+      promptValue = (taskData.prompt || "").trim();
+    }
+    if (promptSourceValue === "inline" && !promptValue) {
+      showFormError(formErr, strings.promptRequired || "");
+      return false;
+    }
+    var cronValue = (taskData.cronExpression || "").trim();
+    if (!cronValue) {
+      showFormError(
+        formErr,
+        strings.cronExpressionRequired || strings.invalidCronExpression || ""
+      );
+      return false;
+    }
+    return true;
+  }
+  function postTaskSubmission(vscode, editingTaskId, taskData) {
+    if (editingTaskId) {
+      vscode.postMessage({
+        type: "updateTask",
+        taskId: editingTaskId,
+        data: taskData
+      });
+      return;
+    }
+    vscode.postMessage({
+      type: "createTask",
+      data: taskData
+    });
+  }
+
+  // media/schedulerWebviewToolbarBindings.js
+  function bindTaskTestButton(button, options) {
+    bindClickAction(button, function() {
+      var promptTextEl = options.document.getElementById("prompt-text");
+      var prompt = promptTextEl ? promptTextEl.value : "";
+      var agent = options.agentSelect ? options.agentSelect.value : "";
+      var model = options.modelSelect ? options.modelSelect.value : "";
+      if (!prompt) {
+        return;
+      }
+      options.vscode.postMessage({
+        type: "testPrompt",
+        prompt,
+        agent,
+        model
+      });
+    });
+  }
+  function bindRefreshButton(button, vscode) {
+    bindClickAction(button, function() {
+      vscode.postMessage({ type: "refreshTasks" });
+      vscode.postMessage({ type: "refreshAgents" });
+      vscode.postMessage({ type: "refreshPrompts" });
+    });
+  }
+  function bindAutoShowStartupButton(button, vscode) {
+    bindClickAction(button, function() {
+      vscode.postMessage({ type: "toggleAutoShowOnStartup" });
+    });
+  }
+  function bindRestoreHistoryButton(button, options) {
+    bindClickAction(button, function() {
+      var snapshotId = options.scheduleHistorySelect ? options.scheduleHistorySelect.value : "";
+      if (!snapshotId) {
+        options.window.alert(
+          options.strings.scheduleHistoryRestoreSelectRequired || "Select a backup version first"
+        );
+        return;
+      }
+      var selectedEntry = (Array.isArray(options.scheduleHistory) ? options.scheduleHistory : []).find(function(entry) {
+        return entry && entry.id === snapshotId;
+      });
+      var selectedLabel = options.formatHistoryLabel(selectedEntry);
+      var confirmText = (options.strings.scheduleHistoryRestoreConfirm || "Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}", selectedLabel).replace("{timestamp}", selectedLabel);
+      if (!options.window.confirm(confirmText)) {
+        return;
+      }
+      options.vscode.postMessage({
+        type: "restoreScheduleHistory",
+        snapshotId
+      });
+    });
+  }
+
   // media/schedulerWebviewTransientState.js
   function createSchedulerWebviewTransientState(createEmptyTodoDraft, localStorage2, helpWarpSeenKey) {
     return {
@@ -6271,38 +6498,14 @@
         renderTaskList(tasks);
       });
     }
-    document.addEventListener("change", function(e) {
-      var target = e.target;
-      if (target && target.name === "prompt-source" && target.checked) {
-        applyPromptSource(target.value);
-      }
+    bindPromptSourceDelegation(document, applyPromptSource);
+    bindCronPresetPair(cronPreset, cronExpression, function() {
+      updateCronPreview();
     });
-    if (cronPreset && cronExpression) {
-      cronPreset.addEventListener("change", function() {
-        if (cronPreset.value) {
-          cronExpression.value = cronPreset.value;
-        }
-        updateCronPreview();
-      });
-      cronExpression.addEventListener("input", function() {
-        cronPreset.value = "";
-        updateCronPreview();
-      });
-    }
-    if (jobsCronPreset && jobsCronInput) {
-      jobsCronPreset.addEventListener("change", function() {
-        if (jobsCronPreset.value) {
-          jobsCronInput.value = jobsCronPreset.value;
-        }
-        updateJobsCronPreview();
-        syncEditorTabLabels();
-      });
-      jobsCronInput.addEventListener("input", function() {
-        jobsCronPreset.value = "";
-        updateJobsCronPreview();
-        syncEditorTabLabels();
-      });
-    }
+    bindCronPresetPair(jobsCronPreset, jobsCronInput, function() {
+      updateJobsCronPreview();
+      syncEditorTabLabels();
+    });
     if (friendlyFrequency) {
       friendlyFrequency.addEventListener("change", function() {
         updateFriendlyVisibility();
@@ -6314,149 +6517,82 @@
         syncEditorTabLabels();
       });
     }
-    [telegramEnabledInput, telegramBotTokenInput, telegramChatIdInput, telegramMessagePrefixInput].forEach(function(element) {
-      if (!element || typeof element.addEventListener !== "function") {
-        return;
-      }
-      element.addEventListener("input", clearTelegramFeedback);
-      element.addEventListener("change", clearTelegramFeedback);
+    bindInputFeedbackClear(
+      [
+        telegramEnabledInput,
+        telegramBotTokenInput,
+        telegramChatIdInput,
+        telegramMessagePrefixInput
+      ],
+      clearTelegramFeedback
+    );
+    bindClickAction(telegramSaveBtn, function() {
+      submitTelegramForm("saveTelegramNotification");
     });
-    if (telegramSaveBtn) {
-      telegramSaveBtn.addEventListener("click", function() {
-        submitTelegramForm("saveTelegramNotification");
+    bindClickAction(telegramTestBtn, function() {
+      submitTelegramForm("testTelegramNotification");
+    });
+    bindClickAction(executionDefaultsSaveBtn, function() {
+      vscode.postMessage({
+        type: "saveExecutionDefaults",
+        data: collectExecutionDefaultsFormData()
       });
-    }
-    if (telegramTestBtn) {
-      telegramTestBtn.addEventListener("click", function() {
-        submitTelegramForm("testTelegramNotification");
+    });
+    bindClickAction(reviewDefaultsSaveBtn, function() {
+      vscode.postMessage({
+        type: "saveReviewDefaults",
+        data: collectReviewDefaultsFormData()
       });
-    }
-    if (executionDefaultsSaveBtn) {
-      executionDefaultsSaveBtn.addEventListener("click", function() {
-        vscode.postMessage({
-          type: "saveExecutionDefaults",
-          data: collectExecutionDefaultsFormData()
-        });
+    });
+    bindClickAction(settingsStorageSaveBtn, function() {
+      vscode.postMessage({
+        type: "setStorageSettings",
+        data: collectStorageSettingsFormData()
       });
-    }
-    if (reviewDefaultsSaveBtn) {
-      reviewDefaultsSaveBtn.addEventListener("click", function() {
-        vscode.postMessage({
-          type: "saveReviewDefaults",
-          data: collectReviewDefaultsFormData()
-        });
+    });
+    bindSelectChange(settingsLogLevelSelect, function(control) {
+      currentLogLevel = control.value || "info";
+      debugTools.setLogLevel(currentLogLevel);
+      renderLoggingControls();
+      vscode.postMessage({
+        type: "setLogLevel",
+        logLevel: currentLogLevel
       });
-    }
-    if (settingsStorageSaveBtn) {
-      settingsStorageSaveBtn.addEventListener("click", function() {
-        vscode.postMessage({
-          type: "setStorageSettings",
-          data: collectStorageSettingsFormData()
-        });
-      });
-    }
-    if (settingsLogLevelSelect) {
-      settingsLogLevelSelect.addEventListener("change", function() {
-        currentLogLevel = settingsLogLevelSelect.value || "info";
-        debugTools.setLogLevel(currentLogLevel);
-        renderLoggingControls();
-        vscode.postMessage({
-          type: "setLogLevel",
-          logLevel: currentLogLevel
-        });
-      });
-    }
-    if (settingsOpenLogFolderBtn) {
-      settingsOpenLogFolderBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "openLogFolder" });
-      });
-    }
-    document.addEventListener("change", function(e) {
-      var target = e && e.target;
-      if (target && target.id === "friendly-frequency") {
+    });
+    bindClickAction(settingsOpenLogFolderBtn, function() {
+      vscode.postMessage({ type: "openLogFolder" });
+    });
+    bindDocumentValueDelegates(document, "change", {
+      "friendly-frequency": function() {
         updateFriendlyVisibility();
-      }
-      if (target && target.id === "jobs-friendly-frequency") {
+      },
+      "jobs-friendly-frequency": function() {
         updateJobsFriendlyVisibility();
       }
     });
-    document.addEventListener("input", function(e) {
-      var target = e && e.target;
-      if (target && target.id === "friendly-frequency") {
+    bindDocumentValueDelegates(document, "input", {
+      "friendly-frequency": function() {
         updateFriendlyVisibility();
-      }
-      if (target && target.id === "jobs-friendly-frequency") {
+      },
+      "jobs-friendly-frequency": function() {
         updateJobsFriendlyVisibility();
       }
     });
-    if (friendlyGenerate) {
-      friendlyGenerate.addEventListener("click", function() {
-        generateCronFromFriendly();
-      });
-    }
-    if (jobsFriendlyGenerate) {
-      jobsFriendlyGenerate.addEventListener("click", function() {
-        generateJobsCronFromFriendly();
-        syncEditorTabLabels();
-      });
-    }
-    if (openGuruBtn) {
-      openGuruBtn.addEventListener("click", function() {
-        var expression = cronExpression ? cronExpression.value.trim() : "";
-        if (!expression) {
-          expression = "* * * * *";
-        }
-        var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
-        window.open(targetUrl, "_blank");
-      });
-    }
-    if (jobsOpenGuruBtn) {
-      jobsOpenGuruBtn.addEventListener("click", function() {
-        var expression = jobsCronInput ? jobsCronInput.value.trim() : "";
-        if (!expression) {
-          expression = "* * * * *";
-        }
-        var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
-        window.open(targetUrl, "_blank");
-      });
-    }
-    document.addEventListener("change", function(e) {
-      var target = e.target;
-      if (!target) return;
-      if (target.classList.contains("task-agent-select")) {
-        var taskId = target.getAttribute("data-id");
-        var value = target.value;
-        vscode.postMessage({
-          type: "updateTask",
-          taskId,
-          data: { agent: value }
-        });
-      } else if (target.classList.contains("task-model-select")) {
-        var taskId = target.getAttribute("data-id");
-        var value = target.value;
-        vscode.postMessage({
-          type: "updateTask",
-          taskId,
-          data: { model: value }
-        });
-      }
+    bindClickAction(friendlyGenerate, function() {
+      generateCronFromFriendly();
     });
-    if (templateSelect) {
-      templateSelect.addEventListener("change", function() {
-        var selectedPath = templateSelect.value;
-        if (selectedPath) {
-          var sourceEl = document.querySelector(
-            'input[name="prompt-source"]:checked'
-          );
-          var source = sourceEl ? sourceEl.value : "inline";
-          vscode.postMessage({
-            type: "loadPromptTemplate",
-            path: selectedPath,
-            source
-          });
-        }
-      });
-    }
+    bindClickAction(jobsFriendlyGenerate, function() {
+      generateJobsCronFromFriendly();
+      syncEditorTabLabels();
+    });
+    bindOpenCronGuruButton(openGuruBtn, function() {
+      return cronExpression ? cronExpression.value : "";
+    }, window);
+    bindOpenCronGuruButton(jobsOpenGuruBtn, function() {
+      return jobsCronInput ? jobsCronInput.value : "";
+    }, window);
+    bindInlineTaskQuickUpdate(document, vscode);
+    bindTemplateSelectionLoader(templateSelect, document, vscode);
     if (taskForm) {
       taskForm.addEventListener("submit", function(e) {
         e.preventDefault();
@@ -6506,112 +6642,37 @@
         if (!taskData.oneTime) {
           taskData.chatSession = chatSessionSelect && chatSessionSelect.value === "continue" ? "continue" : "new";
         }
-        var nameValue = (taskData.name || "").trim();
-        if (!nameValue) {
-          if (formErr) {
-            formErr.textContent = strings.taskNameRequired || "";
-            formErr.style.display = "block";
-          }
-          return;
-        }
-        var templateValue = (taskData.promptPath || "").trim();
-        if (promptSourceValue !== "inline" && !templateValue) {
-          if (formErr) {
-            formErr.textContent = strings.templateRequired || "";
-            formErr.style.display = "block";
-          }
-          return;
-        }
-        var promptValue = (taskData.prompt || "").trim();
-        if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
-          var editingTask = getTaskByIdLocal(editingTaskId);
-          taskData.prompt = editingTask && typeof editingTask.prompt === "string" ? editingTask.prompt : "";
-          promptValue = (taskData.prompt || "").trim();
-        }
-        if (promptSourceValue === "inline" && !promptValue) {
-          if (formErr) {
-            formErr.textContent = strings.promptRequired || "";
-            formErr.style.display = "block";
-          }
-          return;
-        }
-        var cronValue = (taskData.cronExpression || "").trim();
-        if (!cronValue) {
-          if (formErr) {
-            formErr.textContent = strings.cronExpressionRequired || strings.invalidCronExpression || "";
-            formErr.style.display = "block";
-          }
+        if (!validateTaskSubmission({
+          taskData,
+          promptSourceValue,
+          formErr,
+          strings,
+          editingTaskId,
+          getTaskByIdLocal
+        })) {
           return;
         }
         pendingSubmit = true;
         if (submitBtn) submitBtn.disabled = true;
-        if (editingTaskId) {
-          vscode.postMessage({
-            type: "updateTask",
-            taskId: editingTaskId,
-            data: taskData
-          });
-        } else {
-          vscode.postMessage({
-            type: "createTask",
-            data: taskData
-          });
-        }
+        postTaskSubmission(vscode, editingTaskId, taskData);
       });
     }
-    if (testBtn) {
-      testBtn.addEventListener("click", function() {
-        var promptTextEl2 = document.getElementById("prompt-text");
-        var prompt = promptTextEl2 ? promptTextEl2.value : "";
-        var agent = agentSelect ? agentSelect.value : "";
-        var model = modelSelect ? modelSelect.value : "";
-        if (prompt) {
-          vscode.postMessage({
-            type: "testPrompt",
-            prompt,
-            agent,
-            model
-          });
-        }
-      });
-    }
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "refreshTasks" });
-        vscode.postMessage({ type: "refreshAgents" });
-        vscode.postMessage({ type: "refreshPrompts" });
-      });
-    }
-    if (autoShowStartupBtn) {
-      autoShowStartupBtn.addEventListener("click", function() {
-        vscode.postMessage({ type: "toggleAutoShowOnStartup" });
-      });
-    }
-    if (restoreHistoryBtn) {
-      restoreHistoryBtn.addEventListener("click", function() {
-        var snapshotId = scheduleHistorySelect ? scheduleHistorySelect.value : "";
-        if (!snapshotId) {
-          window.alert(
-            strings.scheduleHistoryRestoreSelectRequired || "Select a backup version first"
-          );
-          return;
-        }
-        var selectedEntry = (Array.isArray(scheduleHistory) ? scheduleHistory : []).find(
-          function(entry) {
-            return entry && entry.id === snapshotId;
-          }
-        );
-        var selectedLabel = formatHistoryLabel(selectedEntry);
-        var confirmText = (strings.scheduleHistoryRestoreConfirm || "Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}", selectedLabel).replace("{timestamp}", selectedLabel);
-        if (!window.confirm(confirmText)) {
-          return;
-        }
-        vscode.postMessage({
-          type: "restoreScheduleHistory",
-          snapshotId
-        });
-      });
-    }
+    bindTaskTestButton(testBtn, {
+      document,
+      agentSelect,
+      modelSelect,
+      vscode
+    });
+    bindRefreshButton(refreshBtn, vscode);
+    bindAutoShowStartupButton(autoShowStartupBtn, vscode);
+    bindRestoreHistoryButton(restoreHistoryBtn, {
+      scheduleHistorySelect,
+      scheduleHistory,
+      strings,
+      formatHistoryLabel,
+      window,
+      vscode
+    });
     function handleResearchToolbarAction(actionId) {
       if (actionId === "research-new-btn") {
         isCreatingResearchProfile = true;
