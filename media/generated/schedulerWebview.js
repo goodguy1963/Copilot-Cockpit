@@ -1539,22 +1539,67 @@
     return Math.max(0, Math.min(1800, Math.floor(parsed)));
   }
 
-  // media/schedulerWebview.js
-  (function() {
-    var vscode = null;
-    var strings = {};
+  // media/schedulerWebviewBootstrap.js
+  function readInitialWebviewBootstrap(documentRef) {
     var initialData = {};
     try {
-      var initialScript = document.getElementById("initial-data");
+      var initialScript = documentRef.getElementById("initial-data");
       if (initialScript && initialScript.textContent) {
         initialData = JSON.parse(initialScript.textContent) || {};
       }
-    } catch (e) {
+    } catch (_error) {
       initialData = {};
     }
-    strings = initialData.strings || {};
-    var currentLogLevel = typeof initialData.logLevel === "string" && initialData.logLevel ? initialData.logLevel : "info";
-    var currentLogDirectory = typeof initialData.logDirectory === "string" ? initialData.logDirectory : "";
+    return {
+      initialData,
+      strings: initialData.strings || {},
+      currentLogLevel: typeof initialData.logLevel === "string" && initialData.logLevel ? initialData.logLevel : "info",
+      currentLogDirectory: typeof initialData.logDirectory === "string" ? initialData.logDirectory : ""
+    };
+  }
+  function firstErrorLine(reason, unknownText) {
+    var raw = unknownText || "";
+    if (reason) {
+      if (typeof reason === "string") {
+        raw = reason;
+      } else if (typeof reason === "object" && reason.message) {
+        raw = String(reason.message);
+      } else {
+        raw = String(reason);
+      }
+    }
+    return String(raw).split(/\r?\n/)[0];
+  }
+  function installGlobalErrorHandlers(params) {
+    params.window.onerror = function(msg, _url, line) {
+      var prefix = params.strings.webviewScriptErrorPrefix || "";
+      var linePrefix = params.strings.webviewLinePrefix || "";
+      var lineSuffix = params.strings.webviewLineSuffix || "";
+      params.showGlobalError(
+        prefix + params.sanitizeAbsolutePaths(String(msg)) + linePrefix + String(line) + lineSuffix
+      );
+    };
+    params.window.onunhandledrejection = function(event) {
+      var prefix = params.strings.webviewUnhandledErrorPrefix || "";
+      params.showGlobalError(
+        prefix + params.sanitizeAbsolutePaths(
+          firstErrorLine(
+            event && event.reason ? event.reason : null,
+            params.strings.webviewUnknown || ""
+          )
+        )
+      );
+    };
+  }
+
+  // media/schedulerWebview.js
+  (function() {
+    var vscode = null;
+    var bootstrapData = readInitialWebviewBootstrap(document);
+    var initialData = bootstrapData.initialData;
+    var strings = bootstrapData.strings;
+    var currentLogLevel = bootstrapData.currentLogLevel;
+    var currentLogDirectory = bootstrapData.currentLogDirectory;
     function refreshTaskCountdowns() {
       if (!taskList || !taskList.isConnected) {
         taskList = document.getElementById("task-list");
@@ -1611,31 +1656,12 @@
         }, durationMs);
       }
     }
-    window.onerror = function(msg, url, line, col, error) {
-      var prefix = strings.webviewScriptErrorPrefix || "";
-      var linePrefix = strings.webviewLinePrefix || "";
-      var lineSuffix = strings.webviewLineSuffix || "";
-      showGlobalError(
-        prefix + sanitizeAbsolutePaths(String(msg)) + linePrefix + String(line) + lineSuffix
-      );
-    };
-    window.onunhandledrejection = function(ev) {
-      var prefix = strings.webviewUnhandledErrorPrefix || "";
-      var unknown = strings.webviewUnknown || "";
-      var reason = ev && ev.reason ? ev.reason : null;
-      var raw = unknown;
-      if (reason) {
-        if (typeof reason === "string") {
-          raw = reason;
-        } else if (typeof reason === "object" && reason.message) {
-          raw = String(reason.message);
-        } else {
-          raw = String(reason);
-        }
-      }
-      raw = String(raw).split(/\r?\n/)[0];
-      showGlobalError(prefix + sanitizeAbsolutePaths(raw));
-    };
+    installGlobalErrorHandlers({
+      window,
+      strings,
+      showGlobalError,
+      sanitizeAbsolutePaths
+    });
     if (typeof acquireVsCodeApi === "function") {
       vscode = acquireVsCodeApi();
     } else {

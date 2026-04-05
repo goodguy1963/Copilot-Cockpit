@@ -36,31 +36,18 @@ import {
   normalizeDefaultJitterSeconds,
   sanitizeAbsolutePaths,
 } from "./schedulerWebviewDisplayUtils.js";
+import {
+  installGlobalErrorHandlers,
+  readInitialWebviewBootstrap,
+} from "./schedulerWebviewBootstrap.js";
 
 (function () {
   var vscode = null;
-  var strings = {};
-
-  // Initial data (JSON from inline script tag)
-  var initialData = {};
-  try {
-    var initialScript = document.getElementById("initial-data");
-    if (initialScript && initialScript.textContent) {
-      initialData = JSON.parse(initialScript.textContent) || {};
-    }
-  } catch (e) {
-    initialData = {};
-  }
-
-  strings = initialData.strings || {};
-  var currentLogLevel =
-    typeof initialData.logLevel === "string" && initialData.logLevel
-      ? initialData.logLevel
-      : "info";
-  var currentLogDirectory =
-    typeof initialData.logDirectory === "string"
-      ? initialData.logDirectory
-      : "";
+  var bootstrapData = readInitialWebviewBootstrap(document);
+  var initialData = bootstrapData.initialData;
+  var strings = bootstrapData.strings;
+  var currentLogLevel = bootstrapData.currentLogLevel;
+  var currentLogDirectory = bootstrapData.currentLogDirectory;
 
   function refreshTaskCountdowns() {
     if (!taskList || !taskList.isConnected) {
@@ -125,38 +112,12 @@ import {
     }
   }
 
-  // Global error handler for debugging (kept minimal to avoid breaking the UI)
-  window.onerror = function (msg, url, line, col, error) {
-    var prefix = strings.webviewScriptErrorPrefix || "";
-    var linePrefix = strings.webviewLinePrefix || "";
-    var lineSuffix = strings.webviewLineSuffix || "";
-    showGlobalError(
-      prefix +
-      sanitizeAbsolutePaths(String(msg)) +
-      linePrefix +
-      String(line) +
-      lineSuffix,
-    );
-  };
-
-  window.onunhandledrejection = function (ev) {
-    var prefix = strings.webviewUnhandledErrorPrefix || "";
-    var unknown = strings.webviewUnknown || "";
-    var reason = ev && ev.reason ? ev.reason : null;
-    var raw = unknown;
-    if (reason) {
-      if (typeof reason === "string") {
-        raw = reason;
-      } else if (typeof reason === "object" && reason.message) {
-        raw = String(reason.message);
-      } else {
-        raw = String(reason);
-      }
-    }
-    // Avoid showing multi-line stack traces in UI; keep only the first line.
-    raw = String(raw).split(/\r?\n/)[0];
-    showGlobalError(prefix + sanitizeAbsolutePaths(raw));
-  };
+  installGlobalErrorHandlers({
+    window: window,
+    strings: strings,
+    showGlobalError: showGlobalError,
+    sanitizeAbsolutePaths: sanitizeAbsolutePaths,
+  });
 
   if (typeof acquireVsCodeApi === "function") {
     vscode = acquireVsCodeApi();
