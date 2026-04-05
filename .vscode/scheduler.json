@@ -1,33 +1,5 @@
 {
-    "tasks": [
-        {
-            "id": "task_1775394665589_8trdb5",
-            "name": "Test Task One",
-            "cron": "0 9 * * 1-5",
-            "prompt": "Task goal: Test Task One\n\nContext:\nAuto-generated from scheduler.json\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n\nProduce the approved execution artifact for this todo and keep any unresolved questions explicit.",
-            "enabled": false,
-            "promptSource": "inline",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "createdAt": "2026-04-05T13:11:05.589Z",
-            "updatedAt": "2026-04-05T13:11:05.589Z"
-        }
-    ],
-    "jobs": [
-        {
-            "id": "job_1774810756188_5bn3xr",
-            "name": "Test",
-            "cronExpression": "0 9 * * 1-5",
-            "paused": false,
-            "archived": false,
-            "nodes": [],
-            "createdAt": "2026-03-29T18:59:16.188Z",
-            "updatedAt": "2026-04-04T13:55:08.493Z"
-        }
-    ],
+    "tasks": [],
+    "jobs": [],
     "jobFolders": []
 }

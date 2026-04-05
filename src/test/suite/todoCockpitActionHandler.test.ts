@@ -40,11 +40,12 @@ suite("Todo Cockpit Action Handler", () => {
       }) as CockpitBoard,
       getCurrentTasks: () => [],
       getReviewDefaults: () => ({
-        spotReviewTemplate: "Spot review request",
-        botReviewPromptTemplate: "Review {{title}}\n{{description}}\n{{labels}}\n{{recent_comments}}",
-        botReviewAgent: "agent",
-        botReviewModel: "gpt-5",
-        botReviewChatSession: "new" as const,
+        needsBotReviewCommentTemplate: "Needs bot review",
+        needsBotReviewPromptTemplate: "BOT\n{{todo_context}}\n\n{{mcp_skill_guidance}}",
+        needsBotReviewAgent: "agent",
+        needsBotReviewModel: "gpt-5",
+        needsBotReviewChatSession: "new" as const,
+        readyPromptTemplate: "READY\n{{todo_context}}\n\n{{mcp_skill_guidance}}",
       }),
       executeBotReviewPrompt: async (_prompt: string, _options: ExecuteOptions) => undefined,
       createTask: async (_input: CreateTaskInput) => ({ id: "task-1", name: "Task" }),
@@ -139,7 +140,7 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
-  test("createTodo seeds the configured review template when created in a review state", async () => {
+  test("createTodo seeds the configured needs-bot-review comment when created in needs-bot-review", async () => {
     const workspaceRoot = createWorkspaceRoot();
 
     try {
@@ -163,9 +164,9 @@ suite("Todo Cockpit Action Handler", () => {
       assert.ok(createdTodo);
       assert.ok(
         createdTodo?.comments?.some((comment) =>
-          comment.body === "Spot review request"
+          comment.body === "Needs bot review"
           && Array.isArray(comment.labels)
-          && comment.labels.includes("spot-review-template")
+          && comment.labels.includes("needs-bot-review-template")
         ),
       );
     } finally {
@@ -201,9 +202,11 @@ suite("Todo Cockpit Action Handler", () => {
 
       assert.strictEqual(handled, true);
       assert.strictEqual(launches.length, 1);
-      assert.ok(launches[0]?.prompt.includes("Review Review me"));
+      assert.ok(launches[0]?.prompt.includes("BOT"));
+      assert.ok(launches[0]?.prompt.includes("Todo title: Review me"));
       assert.ok(launches[0]?.prompt.includes("Inspect this todo"));
       assert.ok(launches[0]?.prompt.includes("alpha"));
+      assert.ok(launches[0]?.prompt.includes("MCP and skill usage guidance:"));
       assert.deepStrictEqual(launches[0]?.options, {
         agent: "agent",
         model: "gpt-5",
@@ -214,7 +217,7 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
-  test("updateTodo seeds the configured review template only when entering a review state", async () => {
+  test("updateTodo seeds the configured needs-bot-review comment only when entering needs-bot-review", async () => {
     const workspaceRoot = createWorkspaceRoot();
 
     try {
@@ -231,7 +234,7 @@ suite("Todo Cockpit Action Handler", () => {
           action: "updateTodo",
           taskId: "",
           todoId: created.todo.id,
-          todoData: { flags: ["needs-user-review"] },
+          todoData: { flags: ["needs-bot-review"] },
         },
         {
           ...createDeps(workspaceRoot),
@@ -243,7 +246,7 @@ suite("Todo Cockpit Action Handler", () => {
       let board = readSchedulerConfig(workspaceRoot).cockpitBoard;
       let updatedTodo = board?.cards.find((card) => card.id === created.todo.id);
       assert.strictEqual(
-        updatedTodo?.comments?.filter((comment) => comment.body === "Spot review request").length,
+        updatedTodo?.comments?.filter((comment) => comment.body === "Needs bot review").length,
         1,
       );
 
@@ -264,9 +267,50 @@ suite("Todo Cockpit Action Handler", () => {
       board = readSchedulerConfig(workspaceRoot).cockpitBoard;
       updatedTodo = board?.cards.find((card) => card.id === created.todo.id);
       assert.strictEqual(
-        updatedTodo?.comments?.filter((comment) => comment.body === "Spot review request").length,
+        updatedTodo?.comments?.filter((comment) => comment.body === "Needs bot review").length,
         1,
       );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("needs-user-review does not seed the needs-bot-review comment or launch bot review", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "User review first",
+        sectionId: "",
+        priority: "low",
+        flags: ["new"],
+      });
+
+      const boardBeforeUpdate = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { flags: ["needs-user-review"] },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeUpdate,
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard;
+      const updatedTodo = board?.cards.find((card) => card.id === created.todo.id);
+      assert.strictEqual(
+        updatedTodo?.comments?.filter((comment) => comment.body === "Needs bot review").length,
+        0,
+      );
+      assert.strictEqual(launches.length, 0);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
@@ -321,6 +365,51 @@ suite("Todo Cockpit Action Handler", () => {
 
       assert.strictEqual(launches.length, 1);
       assert.ok(launches[0]?.prompt.includes("Review transition"));
+      assert.ok(launches[0]?.prompt.includes("MCP and skill usage guidance:"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("createTaskFromTodo uses the ready prompt with Todo context and MCP guidance", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const createdTaskInputs: CreateTaskInput[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Ready todo",
+        description: "Ship the actual task draft",
+        sectionId: "",
+        priority: "low",
+        labels: ["ops"],
+        flags: ["ready"],
+      });
+
+      const boardBeforeAction = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTaskFromTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeAction,
+          createTask: async (input: CreateTaskInput) => {
+            createdTaskInputs.push(input);
+            return { id: "task-1", name: input.name };
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(createdTaskInputs.length, 1);
+      assert.ok(createdTaskInputs[0]?.prompt.includes("READY"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Todo title: Ready todo"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Ship the actual task draft"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("ops"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("MCP and skill usage guidance:"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Treat Todo Cockpit cards and scheduled tasks as separate artifacts"));
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
