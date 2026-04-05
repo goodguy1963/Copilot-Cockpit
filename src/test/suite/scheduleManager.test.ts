@@ -1,7 +1,7 @@
 import * as assert from "assert";
-import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import * as fs from "fs";
 import * as vscode from "vscode";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import { ensureTaskTodosInBoard } from "../../cockpitBoardManager";
@@ -623,31 +623,32 @@ suite("ScheduleManager Prompt Source Migration Tests", () => {
     fs.mkdirSync(promptsDir, { recursive: true });
     const templatePath = path.join(promptsDir, promptPathName);
 
+    const timestamp = new Date().toISOString();
+
     try {
       fs.writeFileSync(templatePath, "hello", "utf8");
 
-      const now = new Date();
       const rawTask: {
+        cronExpression: string;
+        createdAt: string;
+        enabled: boolean;
         id: string;
         name: string;
         prompt: string;
-        cronExpression: string;
-        enabled: boolean;
-        scope: string;
         promptPath: string;
         promptSource?: "inline";
-        createdAt: string;
+        scope: string;
         updatedAt: string;
       } = {
-        enabled: false,
+        cronExpression: "0 * * * *",
+        createdAt: timestamp,
         id: taskId,
+        enabled: false,
         name: "t",
         prompt: "OLD",
         promptPath: templatePath,
         scope: "global",
-        cronExpression: "0 * * * *",
-        updatedAt: now.toISOString(),
-        createdAt: now.toISOString(),
+        updatedAt: timestamp,
       };
       if (promptSource) {
         rawTask.promptSource = promptSource;
@@ -658,10 +659,18 @@ suite("ScheduleManager Prompt Source Migration Tests", () => {
         const manager = new ScheduleManager(
           createMockContext(tmp, [rawTask]),
         );
-        const loaded = manager.getTask(rawTask.id);
-        assert.ok(loaded);
-        assert.strictEqual(loaded?.promptSource, "local");
-        assert.strictEqual(loaded?.promptPath, templatePath);
+        const loadedTask = manager.getTask(rawTask.id);
+        assert.ok(loadedTask);
+        assert.deepStrictEqual(
+          {
+            promptPath: loadedTask?.promptPath,
+            promptSource: loadedTask?.promptSource,
+          },
+          {
+            promptPath: templatePath,
+            promptSource: "local",
+          },
+        );
       } finally {
         removeTestPath(tmp);
       }
@@ -947,16 +956,16 @@ suite("ScheduleManager Prompt Backup Tests", () => {
     const now = new Date("2026-03-15T12:00:00.000Z");
 
     const rawTask = {
+      enabled: false,
+      cronExpression: "0 * * * *",
       id: "t-inline-backup-only",
       name: "Inline backup",
       prompt: "INLINE",
-      enabled: false,
-      scope: "global",
-      promptSource: "inline",
+      createdAt: now.toISOString(),
       promptBackupPath: ".github/scheduler-prompt-backups/t-inline-backup-only.prompt.md",
       promptBackupUpdatedAt: now.toISOString(),
-      cronExpression: "0 * * * *",
-      createdAt: now.toISOString(),
+      promptSource: "inline",
+      scope: "global",
       updatedAt: now.toISOString(),
     };
 

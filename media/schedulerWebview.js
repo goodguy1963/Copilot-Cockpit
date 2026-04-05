@@ -5490,15 +5490,19 @@ syncTodoLabelSuggestions();
   }
 
   function getTaskActionHandlers() {
-    return {
-      toggle: window.toggleTask,
-      run: window.runTask,
-      edit: window.editTask,
-      copy: window.copyPrompt,
-      duplicate: window.duplicateTask,
-      move: window.moveTaskToCurrentWorkspace,
-      delete: window.deleteTask,
-    };
+    var actionEntries = [
+      ["toggle", window.toggleTask],
+      ["run", window.runTask],
+      ["edit", window.editTask],
+      ["copy", window.copyPrompt],
+      ["duplicate", window.duplicateTask],
+      ["move", window.moveTaskToCurrentWorkspace],
+      ["delete", window.deleteTask],
+    ];
+    return actionEntries.reduce(function (handlers, entry) {
+      handlers[entry[0]] = entry[1];
+      return handlers;
+    }, {});
   }
 
   function getTaskStatusPresentation(task) {
@@ -5541,15 +5545,18 @@ syncTodoLabelSuggestions();
     }
     var prefix = strings.webviewSuccessPrefix || "\u2714 ";
     toast.textContent = prefix + messageText;
-    toast.style.display = "block";
-    toast.style.opacity = "1";
+    updateToastVisibility(toast, "block", "1");
     setTimeout(function () {
       toast.style.opacity = "0";
     }, 3000);
     setTimeout(function () {
-      toast.style.display = "none";
-      toast.style.opacity = "1";
+      updateToastVisibility(toast, "none", "1");
     }, 3500);
+  }
+
+  function updateToastVisibility(toast, display, opacity) {
+    toast.style.display = display;
+    toast.style.opacity = opacity;
   }
 
   function scrollSelectorIntoView(selector, focusWhenPresent) {
@@ -5563,6 +5570,140 @@ syncTodoLabelSuggestions();
     if (focusWhenPresent && typeof element.focus === "function") {
       element.focus();
     }
+  }
+
+  function getPromptTemplateSourceValue() {
+    var sourceElement = document.querySelector('input[name="prompt-source"]:checked');
+    return sourceElement ? sourceElement.value : "inline";
+  }
+
+  function renderOneTimeBadge(task, taskIdEscaped) {
+    if (task.oneTime !== true) {
+      return "";
+    }
+    return (
+      '<span class="task-badge clickable" data-action="toggle" data-id="' +
+      taskIdEscaped +
+      '">' +
+      escapeHtml(strings.labelOneTime || "One-time") +
+      "</span>"
+    );
+  }
+
+  function renderManualSessionBadge(task) {
+    if (task.oneTime === true || task.manualSession !== true) {
+      return "";
+    }
+    var label = strings.labelManualSession || "Manual session";
+    return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(label) + "</span>";
+  }
+
+  function renderChatSessionBadge(task) {
+    if (task.oneTime === true) {
+      return "";
+    }
+    var label = strings.labelChatSession || "Recurring chat session";
+    var badgeText = task.chatSession === "continue"
+      ? strings.labelChatSessionBadgeContinue || "Chat: Continue"
+      : strings.labelChatSessionBadgeNew || "Chat: New";
+    return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(badgeText) + "</span>";
+  }
+
+  function sortVisibleSectionsForRecurringTasks() {
+    if (filters.showRecurringTasks !== true) {
+      return;
+    }
+    visibleSections.sort(function (left, right) {
+      var leftRecurring = isRecurringTodoSectionId(left.id);
+      var rightRecurring = isRecurringTodoSectionId(right.id);
+      if (leftRecurring === rightRecurring) {
+        return 0;
+      }
+      return leftRecurring ? -1 : 1;
+    });
+  }
+
+  function buildTaskActionMarkup(taskIdEscaped, toggleTitle, toggleIcon, scopeValue, inThisWorkspace) {
+    var actionsHtml = buildBaseTaskActionsMarkup({
+      taskId: taskIdEscaped,
+      toggleTitle: toggleTitle,
+      toggleIcon: toggleIcon,
+      strings: strings,
+      escapeAttr: escapeAttr,
+    });
+    if (scopeValue === "workspace" && !inThisWorkspace) {
+      actionsHtml = appendTaskActionIcon(actionsHtml, {
+        className: "btn-secondary btn-icon",
+        action: "move",
+        taskId: taskIdEscaped,
+        title: strings.actionMoveToCurrentWorkspace || "",
+        icon: "📌",
+      });
+      sortVisibleSectionsForRecurringTasks();
+    }
+    if (scopeValue === "global" || inThisWorkspace) {
+      actionsHtml = appendTaskActionIcon(actionsHtml, {
+        className: "btn-danger btn-icon",
+        action: "delete",
+        taskId: taskIdEscaped,
+        title: strings.actionDelete,
+        icon: "🗑️",
+      });
+    }
+    return actionsHtml;
+  }
+
+  function setPromptTextValue(content) {
+    var promptTextEl = document.getElementById("prompt-text");
+    if (promptTextEl) {
+      promptTextEl.value = content;
+    }
+  }
+
+  function switchToListView(successMessage) {
+    pendingSubmit = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+    }
+    hideGlobalError();
+    resetForm();
+    switchTab("list");
+    if (successMessage) {
+      showSuccessToast(successMessage);
+    }
+  }
+
+  function focusJobView(folderId, jobId) {
+    selectedJobFolderId = typeof folderId === "string" ? folderId : "";
+    isCreatingJob = true;
+    selectedJobId = "";
+    persistTaskFilter();
+    renderJobsTab();
+    switchTab("jobs");
+    setTimeout(function () {
+      scrollSelectorIntoView(
+        jobId ? '[data-job-id="' + jobId + '"]' : "",
+        false,
+      );
+    }, 50);
+  }
+
+  function focusResearchProfileView(researchId) {
+    switchTab("research");
+    if (researchId) {
+      selectResearchProfile(researchId);
+    } else {
+      isCreatingResearchProfile = true;
+      selectedResearchId = "";
+      resetResearchForm(null);
+      renderResearchTab();
+    }
+    setTimeout(function () {
+      scrollSelectorIntoView(
+        researchId ? '[data-research-id="' + researchId + '"]' : "#research-name",
+        !researchId,
+      );
+    }, 50);
   }
 
   document.addEventListener("click", function (e) {
@@ -5672,37 +5813,11 @@ syncTodoLabelSuggestions();
       var scopeValue = scopeState.scopeValue;
       var inThisWorkspace = scopeState.inThisWorkspace;
       var scopeInfo = scopeState.scopeInfo;
-      var oneTimeBadgeHtml =
-        task.oneTime === true
-          ? '<span class="task-badge clickable" data-action="toggle" data-id="' +
-          escapeAttr(task.id || "") +
-          '">' +
-          escapeHtml(strings.labelOneTime || "One-time") +
-          "</span>"
-          : "";
-      var manualSessionBadgeHtml =
-        task.oneTime === true || task.manualSession !== true
-          ? ""
-          : '<span class="task-badge" title="' +
-            escapeAttr(strings.labelManualSession || "Manual session") +
-            '">' +
-            escapeHtml(strings.labelManualSession || "Manual session") +
-            "</span>";
-      var chatSessionBadgeHtml =
-        task.oneTime === true
-          ? ""
-          : '<span class="task-badge" title="' +
-            escapeAttr(strings.labelChatSession || "Recurring chat session") +
-            '">' +
-            escapeHtml(
-              task.chatSession === "continue"
-                ? strings.labelChatSessionBadgeContinue || "Chat: Continue"
-                : strings.labelChatSessionBadgeNew || "Chat: New",
-            ) +
-            "</span>";
-      var labelBadgesHtml = renderTaskLabelBadges(task);
-
       var taskIdEscaped = escapeAttr(task.id || "");
+      var oneTimeBadgeHtml = renderOneTimeBadge(task, taskIdEscaped);
+      var manualSessionBadgeHtml = renderManualSessionBadge(task);
+      var chatSessionBadgeHtml = renderChatSessionBadge(task);
+      var labelBadgesHtml = renderTaskLabelBadges(task);
       var configRow = buildTaskConfigRowMarkup({
         task: task,
         taskId: taskIdEscaped,
@@ -5715,43 +5830,13 @@ syncTodoLabelSuggestions();
         formatModelLabel: formatModelLabel,
       });
 
-      var actionsHtml = buildBaseTaskActionsMarkup({
-        taskId: taskIdEscaped,
-        toggleTitle: toggleTitle,
-        toggleIcon: toggleIcon,
-        strings: strings,
-        escapeAttr: escapeAttr,
-      });
-
-      if (scopeValue === "workspace" && !inThisWorkspace) {
-        actionsHtml = appendTaskActionIcon(actionsHtml, {
-          className: "btn-secondary btn-icon",
-          action: "move",
-          taskId: taskIdEscaped,
-          title: strings.actionMoveToCurrentWorkspace || "",
-          icon: "📌",
-        });
-           if (filters.showRecurringTasks === true) {
-             visibleSections.sort(function (left, right) {
-               var leftRecurring = isRecurringTodoSectionId(left.id);
-              var rightRecurring = isRecurringTodoSectionId(right.id);
-              if (leftRecurring === rightRecurring) {
-                return 0;
-              }
-              return leftRecurring ? -1 : 1;
-            });
-          }
-      }
-
-      if (scopeValue === "global" || inThisWorkspace) {
-        actionsHtml = appendTaskActionIcon(actionsHtml, {
-          className: "btn-danger btn-icon",
-          action: "delete",
-          taskId: taskIdEscaped,
-          title: strings.actionDelete,
-          icon: "🗑️",
-        });
-      }
+      var actionsHtml = buildTaskActionMarkup(
+        taskIdEscaped,
+        toggleTitle,
+        toggleIcon,
+        scopeValue,
+        inThisWorkspace,
+      );
 
       return (
         '<div class="task-card ' +
@@ -7780,22 +7865,16 @@ syncTodoLabelSuggestions();
           promptTemplates = Array.isArray(message.templates)
             ? message.templates
             : [];
-          {
-            var sourceElement = document.querySelector(
-              'input[name="prompt-source"]:checked',
-            );
-            var currentSource = sourceElement ? sourceElement.value : "inline";
-            pendingTemplatePath = syncPromptTemplatesFromMessage({
-              promptTemplates: promptTemplates,
-              pendingTemplatePath: pendingTemplatePath,
-              templateSelect: templateSelect,
-              templateSelectGroup: templateSelectGroup,
-              currentSource: currentSource,
-              strings: strings,
-              escapeHtml: escapeHtml,
-              escapeAttr: escapeAttr,
-            });
-          }
+          pendingTemplatePath = syncPromptTemplatesFromMessage({
+            promptTemplates: promptTemplates,
+            pendingTemplatePath: pendingTemplatePath,
+            templateSelect: templateSelect,
+            templateSelectGroup: templateSelectGroup,
+            currentSource: getPromptTemplateSourceValue(),
+            strings: strings,
+            escapeHtml: escapeHtml,
+            escapeAttr: escapeAttr,
+          });
           break;
         case "updateSkills":
           skills = Array.isArray(message.skills) ? message.skills : [];
@@ -7812,18 +7891,10 @@ syncTodoLabelSuggestions();
           syncScheduleHistoryOptions();
           break;
         case "promptTemplateLoaded":
-          var promptTextEl = document.getElementById("prompt-text");
-          if (promptTextEl) promptTextEl.value = message.content;
+          setPromptTextValue(message.content);
           break;
         case "switchToList":
-          pendingSubmit = false;
-          if (submitBtn) submitBtn.disabled = false;
-          hideGlobalError();
-          resetForm();
-          switchTab("list");
-          if (message.successMessage) {
-            showSuccessToast(message.successMessage);
-          }
+          switchToListView(message.successMessage);
           break;
         case "switchToTab":
           if (message.tab) {
@@ -7837,40 +7908,10 @@ syncTodoLabelSuggestions();
           }, 100);
           break;
         case "focusJob":
-          selectedJobFolderId = typeof message.folderId === "string"
-            ? message.folderId
-            : "";
-          var focusedJobId = message.jobId || "";
-          isCreatingJob = true;
-          selectedJobId = "";
-          persistTaskFilter();
-          renderJobsTab();
-          switchTab("jobs");
-          setTimeout(function () {
-            scrollSelectorIntoView(
-              focusedJobId ? '[data-job-id="' + focusedJobId + '"]' : "",
-              false,
-            );
-          }, 50);
+          focusJobView(message.folderId, message.jobId || "");
           break;
         case "focusResearchProfile":
-          switchTab("research");
-          if (message.researchId) {
-            selectResearchProfile(message.researchId);
-          } else {
-            isCreatingResearchProfile = true;
-            selectedResearchId = "";
-            resetResearchForm(null);
-            renderResearchTab();
-          }
-          setTimeout(function () {
-            scrollSelectorIntoView(
-              message.researchId
-                ? '[data-research-id="' + message.researchId + '"]'
-                : "#research-name",
-              !message.researchId,
-            );
-          }, 50);
+          focusResearchProfileView(message.researchId);
           break;
         case "focusResearchRun":
           switchTab("research");

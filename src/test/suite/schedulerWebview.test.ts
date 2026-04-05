@@ -1,8 +1,8 @@
 import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
-import * as vscode from "vscode";
 import * as vm from "vm";
+import * as vscode from "vscode";
 import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../schedulerWebview";
 import { getResourceScopedSettingsTarget } from "../../schedulerWebviewSettingsHandler";
@@ -17,11 +17,11 @@ type WebviewPanelLike = {
 };
 
 type SchedulerWebviewInternals = {
-  panel?: WebviewPanelLike;
-  webviewReady?: boolean;
-  pendingMessages?: unknown[];
   lastBatchedMessageSignatures?: Map<string, string>;
+  panel?: WebviewPanelLike;
+  pendingMessages?: unknown[];
   pendingMessageFlushTimer?: ReturnType<typeof setTimeout>;
+  webviewReady?: boolean;
   [key: string]: unknown;
 };
 
@@ -80,6 +80,17 @@ function expectSourceToExcludeSnippets(
   }
 }
 
+function createPostedMessagePanel(sent: unknown[]): WebviewPanelLike {
+  return {
+    webview: {
+      postMessage: (message: unknown) => {
+        sent.push(message);
+        return Promise.resolve(true);
+      },
+    },
+  };
+}
+
 function withPostedWebviewMessages<T>(
   options: {
     ready?: boolean;
@@ -88,24 +99,17 @@ function withPostedWebviewMessages<T>(
   run: (ctx: { wv: SchedulerWebviewInternals; sent: unknown[] }) => T,
 ): T {
   const wv = SchedulerWebview as unknown as SchedulerWebviewInternals;
-  const originalPanel = wv.panel;
-  const originalReady = wv.webviewReady;
   const originalPending = wv.pendingMessages;
+  const originalReady = wv.webviewReady;
+  const originalPanel = wv.panel;
   const originalSignatures = wv.lastBatchedMessageSignatures;
   const originalTimer = wv.pendingMessageFlushTimer;
   const sent: unknown[] = [];
 
   try {
-    wv.panel = {
-      webview: {
-        postMessage: (message: unknown) => {
-          sent.push(message);
-          return Promise.resolve(true);
-        },
-      },
-    };
-    wv.webviewReady = options.ready ?? false;
+    wv.panel = createPostedMessagePanel(sent);
     wv.pendingMessages = [];
+    wv.webviewReady = options.ready ?? false;
 
     if (options.resetBatchState) {
       wv.lastBatchedMessageSignatures = new Map();
