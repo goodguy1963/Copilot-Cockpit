@@ -2005,6 +2005,48 @@
     }
     control.addEventListener("change", handler);
   }
+  function bindTabButtons(document2, switchTab) {
+    Array.prototype.forEach.call(
+      document2.querySelectorAll(".tab-button[data-tab]"),
+      function(button) {
+        button.addEventListener("click", function(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          var tabName = button.getAttribute("data-tab");
+          if (tabName) {
+            switchTab(tabName);
+          }
+        });
+      }
+    );
+  }
+  function bindTaskFilterBar(taskFilterBar, options) {
+    if (!taskFilterBar) {
+      return;
+    }
+    options.syncTaskFilterButtons();
+    taskFilterBar.addEventListener("click", function(event) {
+      var target = event && event.target;
+      var filterButton = target;
+      while (filterButton && filterButton !== taskFilterBar) {
+        if (filterButton.getAttribute && filterButton.getAttribute("data-filter")) {
+          break;
+        }
+        filterButton = filterButton.parentElement;
+      }
+      if (!filterButton || filterButton === taskFilterBar) {
+        return;
+      }
+      var filterValue = filterButton.getAttribute("data-filter");
+      if (!options.isValidTaskFilter(filterValue)) {
+        return;
+      }
+      options.setActiveTaskFilter(filterValue);
+      options.syncTaskFilterButtons();
+      options.persistTaskFilter();
+      options.renderTaskList();
+    });
+  }
 
   // media/schedulerWebviewBindings.js
   function bindInputFeedbackClear(elements, clearFeedback) {
@@ -2177,6 +2219,27 @@
       type: "createTask",
       data: taskData
     });
+  }
+  function buildTaskSubmissionData(options) {
+    var editorState = options.editorState || {};
+    var labels = options.parseLabels ? options.parseLabels(editorState.labels || "") : [];
+    return {
+      name: editorState.name || "",
+      prompt: editorState.prompt || "",
+      cronExpression: editorState.cronExpression || "",
+      labels,
+      agent: editorState.agent || "",
+      model: editorState.model || "",
+      scope: editorState.scope || "workspace",
+      promptSource: editorState.promptSource || "inline",
+      promptPath: editorState.promptPath || "",
+      runFirstInOneMinute: !!options.runFirstInOneMinute,
+      oneTime: !!editorState.oneTime,
+      manualSession: !!editorState.manualSession,
+      jitterSeconds: Number(editorState.jitterSeconds || 0),
+      enabled: options.editingTaskId ? options.editingTaskEnabled : true,
+      chatSession: editorState.oneTime ? "" : editorState.chatSession || "new"
+    };
   }
 
   // media/schedulerWebviewToolbarBindings.js
@@ -6906,43 +6969,23 @@
     bindGenericChange(manualSessionToggle, function() {
       syncRecurringChatSessionUi();
     });
-    Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function(button) {
-      button.addEventListener("click", function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var tabName = button.getAttribute("data-tab");
-        if (tabName) {
-          switchTab(tabName);
-        }
-      });
+    bindTabButtons(document, switchTab);
+    bindTaskFilterBar(taskFilterBar, {
+      syncTaskFilterButtons,
+      isValidTaskFilter,
+      setActiveTaskFilter: function(value) {
+        activeTaskFilter = value;
+      },
+      persistTaskFilter,
+      renderTaskList: function() {
+        renderTaskList(tasks);
+      }
     });
-    if (taskFilterBar) {
-      syncTaskFilterButtons();
-      taskFilterBar.addEventListener("click", function(e) {
-        var target = e && e.target;
-        var filterButton = target;
-        while (filterButton && filterButton !== taskFilterBar) {
-          if (filterButton.getAttribute && filterButton.getAttribute("data-filter")) {
-            break;
-          }
-          filterButton = filterButton.parentElement;
-        }
-        if (!filterButton || filterButton === taskFilterBar) return;
-        var filterValue = filterButton.getAttribute("data-filter");
-        if (!isValidTaskFilter(filterValue)) return;
-        activeTaskFilter = filterValue;
-        syncTaskFilterButtons();
-        persistTaskFilter();
-        renderTaskList(tasks);
-      });
-    }
-    if (taskLabelFilter) {
-      taskLabelFilter.addEventListener("change", function() {
-        activeLabelFilter = taskLabelFilter.value || "";
-        persistTaskFilter();
-        renderTaskList(tasks);
-      });
-    }
+    bindSelectValueChange(taskLabelFilter, function(control) {
+      activeLabelFilter = control.value || "";
+      persistTaskFilter();
+      renderTaskList(tasks);
+    });
     bindPromptSourceDelegation(document, applyPromptSource);
     bindCronPresetPair(cronPreset, cronExpression, function() {
       updateCronPreview();
@@ -6951,17 +6994,13 @@
       updateJobsCronPreview();
       syncEditorTabLabels();
     });
-    if (friendlyFrequency) {
-      friendlyFrequency.addEventListener("change", function() {
-        updateFriendlyVisibility();
-      });
-    }
-    if (jobsFriendlyFrequency) {
-      jobsFriendlyFrequency.addEventListener("change", function() {
-        updateJobsFriendlyVisibility();
-        syncEditorTabLabels();
-      });
-    }
+    bindSelectValueChange(friendlyFrequency, function() {
+      updateFriendlyVisibility();
+    });
+    bindSelectValueChange(jobsFriendlyFrequency, function() {
+      updateJobsFriendlyVisibility();
+      syncEditorTabLabels();
+    });
     bindInputFeedbackClear(
       [
         telegramEnabledInput,
@@ -7046,50 +7085,18 @@
         if (formErr) {
           formErr.style.display = "none";
         }
-        var taskNameEl = document.getElementById("task-name");
-        var promptTextEl2 = document.getElementById("prompt-text");
-        var scopeEl = document.querySelector('input[name="scope"]:checked');
-        var promptSourceEl = document.querySelector(
-          'input[name="prompt-source"]:checked'
-        );
         var runFirstEl = document.getElementById("run-first");
-        var oneTimeEl = document.getElementById("one-time");
-        var manualSessionEl = document.getElementById("manual-session");
-        var promptSourceValue = promptSourceEl ? promptSourceEl.value : "inline";
-        var agentValue = agentSelect ? agentSelect.value : "";
-        if (!agentValue && pendingAgentValue) {
-          agentValue = pendingAgentValue;
-        }
-        var modelValue = modelSelect ? modelSelect.value : "";
-        if (!modelValue && pendingModelValue) {
-          modelValue = pendingModelValue;
-        }
-        var promptPathValue = templateSelect ? templateSelect.value : "";
-        if (promptSourceValue !== "inline" && editingTaskId && !promptPathValue && pendingTemplatePath) {
-          promptPathValue = pendingTemplatePath;
-        }
-        var taskData = {
-          name: taskNameEl ? taskNameEl.value : "",
-          prompt: promptTextEl2 ? promptTextEl2.value : "",
-          cronExpression: cronExpression ? cronExpression.value : "",
-          labels: parseLabels(taskLabelsInput ? taskLabelsInput.value : ""),
-          agent: agentValue,
-          model: modelValue,
-          scope: scopeEl ? scopeEl.value : "workspace",
-          promptSource: promptSourceValue,
-          promptPath: promptPathValue,
-          runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
-          oneTime: oneTimeEl ? oneTimeEl.checked : false,
-          manualSession: oneTimeEl && oneTimeEl.checked ? false : !!(manualSessionEl && manualSessionEl.checked),
-          jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0,
-          enabled: editingTaskId ? editingTaskEnabled : true
-        };
-        if (!taskData.oneTime) {
-          taskData.chatSession = chatSessionSelect && chatSessionSelect.value === "continue" ? "continue" : "new";
-        }
+        var editorState = getCurrentTaskEditorState();
+        var taskData = buildTaskSubmissionData({
+          editorState,
+          parseLabels,
+          editingTaskId,
+          editingTaskEnabled,
+          runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false
+        });
         if (!validateTaskSubmission({
           taskData,
-          promptSourceValue,
+          promptSourceValue: editorState.promptSource,
           formErr,
           strings,
           editingTaskId,

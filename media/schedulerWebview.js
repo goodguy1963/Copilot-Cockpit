@@ -54,6 +54,8 @@ import {
 import {
   activateSchedulerTab,
   bindGenericChange,
+  bindTabButtons,
+  bindTaskFilterBar,
   bindSelectValueChange,
 } from "./schedulerWebviewTabState.js";
 import {
@@ -70,6 +72,7 @@ import {
   bindTemplateSelectionLoader,
 } from "./schedulerWebviewFormBindings.js";
 import {
+  buildTaskSubmissionData,
   postTaskSubmission,
   validateTaskSubmission,
 } from "./schedulerWebviewTaskSubmit.js";
@@ -4877,48 +4880,25 @@ syncTodoLabelSuggestions();
     syncRecurringChatSessionUi();
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll(".tab-button[data-tab]"), function (button) {
-    button.addEventListener("click", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      var tabName = button.getAttribute("data-tab");
-      if (tabName) {
-        switchTab(tabName);
-      }
-    });
+  bindTabButtons(document, switchTab);
+
+  bindTaskFilterBar(taskFilterBar, {
+    syncTaskFilterButtons: syncTaskFilterButtons,
+    isValidTaskFilter: isValidTaskFilter,
+    setActiveTaskFilter: function (value) {
+      activeTaskFilter = value;
+    },
+    persistTaskFilter: persistTaskFilter,
+    renderTaskList: function () {
+      renderTaskList(tasks);
+    },
   });
 
-  if (taskFilterBar) {
-    syncTaskFilterButtons();
-    taskFilterBar.addEventListener("click", function (e) {
-      var target = e && e.target;
-      var filterButton = target;
-      while (filterButton && filterButton !== taskFilterBar) {
-        if (
-          filterButton.getAttribute &&
-          filterButton.getAttribute("data-filter")
-        ) {
-          break;
-        }
-        filterButton = filterButton.parentElement;
-      }
-      if (!filterButton || filterButton === taskFilterBar) return;
-      var filterValue = filterButton.getAttribute("data-filter");
-      if (!isValidTaskFilter(filterValue)) return;
-      activeTaskFilter = filterValue;
-      syncTaskFilterButtons();
-      persistTaskFilter();
-      renderTaskList(tasks);
-    });
-  }
-
-  if (taskLabelFilter) {
-    taskLabelFilter.addEventListener("change", function () {
-      activeLabelFilter = taskLabelFilter.value || "";
-      persistTaskFilter();
-      renderTaskList(tasks);
-    });
-  }
+  bindSelectValueChange(taskLabelFilter, function (control) {
+    activeLabelFilter = control.value || "";
+    persistTaskFilter();
+    renderTaskList(tasks);
+  });
 
   // Use event delegation for prompt source radio buttons
   bindPromptSourceDelegation(document, applyPromptSource);
@@ -4932,18 +4912,14 @@ syncTodoLabelSuggestions();
     syncEditorTabLabels();
   });
 
-  if (friendlyFrequency) {
-    friendlyFrequency.addEventListener("change", function () {
-      updateFriendlyVisibility();
-    });
-  }
+  bindSelectValueChange(friendlyFrequency, function () {
+    updateFriendlyVisibility();
+  });
 
-  if (jobsFriendlyFrequency) {
-    jobsFriendlyFrequency.addEventListener("change", function () {
-      updateJobsFriendlyVisibility();
-      syncEditorTabLabels();
-    });
-  }
+  bindSelectValueChange(jobsFriendlyFrequency, function () {
+    updateJobsFriendlyVisibility();
+    syncEditorTabLabels();
+  });
 
   bindInputFeedbackClear(
     [
@@ -5042,69 +5018,19 @@ syncTodoLabelSuggestions();
         formErr.style.display = "none";
       }
 
-      var taskNameEl = document.getElementById("task-name");
-      var promptTextEl = document.getElementById("prompt-text");
-      var scopeEl = document.querySelector('input[name="scope"]:checked');
-      var promptSourceEl = document.querySelector(
-        'input[name="prompt-source"]:checked',
-      );
       var runFirstEl = document.getElementById("run-first");
-      var oneTimeEl = document.getElementById("one-time");
-      var manualSessionEl = document.getElementById("manual-session");
-
-      var promptSourceValue = promptSourceEl ? promptSourceEl.value : "inline";
-
-      // Preserve values if dropdown options are not loaded yet
-      var agentValue = agentSelect ? agentSelect.value : "";
-      if (!agentValue && pendingAgentValue) {
-        agentValue = pendingAgentValue;
-      }
-      var modelValue = modelSelect ? modelSelect.value : "";
-      if (!modelValue && pendingModelValue) {
-        modelValue = pendingModelValue;
-      }
-      var promptPathValue = templateSelect ? templateSelect.value : "";
-      if (
-        promptSourceValue !== "inline" &&
-        editingTaskId &&
-        !promptPathValue &&
-        pendingTemplatePath
-      ) {
-        promptPathValue = pendingTemplatePath;
-      }
-
-      var taskData = {
-        name: taskNameEl ? taskNameEl.value : "",
-        prompt: promptTextEl ? promptTextEl.value : "",
-        cronExpression: cronExpression ? cronExpression.value : "",
-        labels: parseLabels(taskLabelsInput ? taskLabelsInput.value : ""),
-        agent: agentValue,
-        model: modelValue,
-        scope: scopeEl ? scopeEl.value : "workspace",
-        promptSource: promptSourceValue,
-        promptPath: promptPathValue,
+      var editorState = getCurrentTaskEditorState();
+      var taskData = buildTaskSubmissionData({
+        editorState: editorState,
+        parseLabels: parseLabels,
+        editingTaskId: editingTaskId,
+        editingTaskEnabled: editingTaskEnabled,
         runFirstInOneMinute: runFirstEl ? runFirstEl.checked : false,
-        oneTime: oneTimeEl ? oneTimeEl.checked : false,
-        manualSession:
-          oneTimeEl && oneTimeEl.checked
-            ? false
-            : !!(manualSessionEl && manualSessionEl.checked),
-        jitterSeconds: jitterSecondsInput
-          ? Number(jitterSecondsInput.value || 0)
-          : 0,
-        enabled: editingTaskId ? editingTaskEnabled : true,
-      };
-
-      if (!taskData.oneTime) {
-        taskData.chatSession =
-          chatSessionSelect && chatSessionSelect.value === "continue"
-            ? "continue"
-            : "new";
-      }
+      });
 
       if (!validateTaskSubmission({
         taskData: taskData,
-        promptSourceValue: promptSourceValue,
+        promptSourceValue: editorState.promptSource,
         formErr: formErr,
         strings: strings,
         editingTaskId: editingTaskId,
