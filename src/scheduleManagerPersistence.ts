@@ -112,16 +112,18 @@ export function readScheduledTasksFromStorageFile(
 }
 
 export function reviveScheduledTaskDates(task: ScheduledTask): boolean {
-  task.createdAt = new Date(task.createdAt);
-  task.updatedAt = new Date(task.updatedAt);
+  const reviveDate = (value: Date | string): Date => new Date(value);
+
+  task.createdAt = reviveDate(task.createdAt);
+  task.updatedAt = reviveDate(task.updatedAt);
   if (task.lastRun !== undefined) {
-    task.lastRun = new Date(task.lastRun);
+    task.lastRun = reviveDate(task.lastRun);
   }
   if (task.promptBackupUpdatedAt !== undefined) {
-    task.promptBackupUpdatedAt = new Date(task.promptBackupUpdatedAt);
+    task.promptBackupUpdatedAt = reviveDate(task.promptBackupUpdatedAt);
   }
   if (task.nextRun !== undefined) {
-    task.nextRun = new Date(task.nextRun);
+    task.nextRun = reviveDate(task.nextRun);
   }
 
   let changed = false;

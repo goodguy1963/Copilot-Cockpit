@@ -1248,27 +1248,40 @@ export class ScheduleManager {
       now: Date;
     },
   ): ScheduledTask {
-    const { id, enabled, effectiveScope, workspacePath, jitterSeconds, oneTime, nextRun, now } = params;
-    return {
+    const {
       id,
-      name: input.name,
-      cronExpression: input.cronExpression,
-      prompt: input.prompt,
       enabled,
-      agent: input.agent,
-      model: input.model,
-      scope: effectiveScope,
+      effectiveScope,
       workspacePath,
-      promptSource: input.promptSource || "inline",
-      promptPath: input.promptPath,
       jitterSeconds,
       oneTime,
+      nextRun,
+      now,
+    } = params;
+    const sessionState = {
       manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
       chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
       labels: normalizeScheduledTaskLabels(input.labels),
+    };
+
+    return {
+      id,
+      enabled,
+      scope: effectiveScope,
+      workspacePath,
+      jitterSeconds,
+      oneTime,
       nextRun,
       createdAt: now,
       updatedAt: now,
+      name: input.name,
+      cronExpression: input.cronExpression,
+      prompt: input.prompt,
+      agent: input.agent,
+      model: input.model,
+      promptSource: input.promptSource || "inline",
+      promptPath: input.promptPath,
+      ...sessionState,
     };
   }
 
@@ -1287,6 +1300,117 @@ export class ScheduleManager {
     this.schedulerTimeout = undefined;
     void this.runSchedulerTick();
     this.armSchedulerInterval();
+  }
+
+  private getSchedulerTickSettings(): {
+    maxDailyLimit: number;
+    defaultJitterSeconds: number;
+  } {
+    const configuredDailyLimit = getCompatibleConfigurationValue<number>(
+      "maxDailyExecutions",
+      24,
+    );
+    const safeMaxDaily = Number.isFinite(configuredDailyLimit)
+      ? configuredDailyLimit
+      : 24;
+
+    return {
+      maxDailyLimit: safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100),
+      defaultJitterSeconds: getCompatibleConfigurationValue<number>("jitterSeconds", 0),
+    };
+  }
+
+  private shouldSkipScheduledTask(task: ScheduledTask): boolean {
+    if (!task.enabled || !task.nextRun) {
+      return true;
+    }
+    if (this.isTaskSuppressedByJob(task)) {
+      return true;
+    }
+    if (!this.shouldTaskRunInCurrentWorkspace(task)) {
+      return true;
+    }
+    return this.suppressedOverdueTaskIds.has(task.id);
+  }
+
+  private async executeDueTask(
+    task: ScheduledTask,
+    now: Date,
+    nowMinute: Date,
+    maxDailyLimit: number,
+    defaultJitterSeconds: number,
+  ): Promise<{ executedCount: number; needsSave: boolean; deleteTask: boolean }> {
+    if (!this.isTaskDueAt(task, nowMinute)) {
+      return { executedCount: 0, needsSave: false, deleteTask: false };
+    }
+
+    if (this.isDailyLimitReached(maxDailyLimit)) {
+      logDebug(
+        `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
+      );
+      const todayKey = getSchedulerLocalDateKey();
+      this.notifyDailyLimitReachedOnce(todayKey, maxDailyLimit);
+      task.nextRun = this.getScheduledTaskNextRun(task, now);
+      return { executedCount: 0, needsSave: true, deleteTask: false };
+    }
+
+    const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
+    await applyScheduleJitter(maxJitterSeconds);
+
+    let executedAt: Date | undefined;
+    if (this.onExecuteCallback) {
+      try {
+        await this.onExecuteCallback(task);
+        executedAt = new Date();
+        this.incrementDailyExecCountInMemory(new Date());
+        task.lastRun = executedAt;
+        task.lastError = undefined;
+        task.lastErrorAt = undefined;
+        this.handleSuccessfulJobTaskExecution(task, executedAt);
+        this.syncJobTaskSchedules(executedAt);
+        if (this.isOneTimeExecutionTask(task)) {
+          return { executedCount: 1, needsSave: true, deleteTask: true };
+        }
+
+        task.nextRun = this.getScheduledTaskNextRun(task, new Date());
+        return { executedCount: 1, needsSave: true, deleteTask: false };
+      } catch (error) {
+        const details = toSafeSchedulerErrorDetails(error);
+        logError("[CopilotScheduler] Task execution error:", {
+          taskId: task.id,
+          taskName: task.name,
+          error: details,
+        });
+        task.lastError = details;
+        task.lastErrorAt = new Date();
+      }
+    }
+
+    task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
+    return { executedCount: 0, needsSave: true, deleteTask: false };
+  }
+
+  private applyScheduledTaskDeletions(taskIds: readonly string[]): void {
+    for (const taskId of taskIds) {
+      this.tasks.delete(taskId);
+      this.pendingDeletedTaskIds.add(taskId);
+      this.suppressedOverdueTaskIds.delete(taskId);
+    }
+  }
+
+  private async persistDailyExecCountSafely(executedCount: number): Promise<void> {
+    if (executedCount < 1) {
+      return;
+    }
+
+    try {
+      await this.persistDailyExecCount();
+    } catch (error) {
+      logError(
+        "[CopilotScheduler] Failed to persist daily execution count:",
+        toSafeSchedulerErrorDetails(error),
+      );
+    }
   }
 
   private generateScopedId(prefix: string): string {
@@ -2533,15 +2657,18 @@ export class ScheduleManager {
    */
   async recalculateAllNextRuns(): Promise<void> {
     const now = new Date();
-    let changed = false;
-    for (const task of this.tasks.values()) {
-      if (!task.enabled) continue;
-      const newNextRun = this.getScheduledTaskNextRun(task, now);
-      changed = this.replaceTaskNextRun(task, newNextRun) || changed;
+    const changed = Array.from(this.tasks.values())
+      .filter((task) => task.enabled)
+      .reduce((didChange, task) => {
+        const nextRun = this.getScheduledTaskNextRun(task, now);
+        return this.replaceTaskNextRun(task, nextRun) || didChange;
+      }, false);
+
+    if (!changed) {
+      return;
     }
-    if (changed) {
-      await this.saveTasks();
-    }
+
+    await this.saveTasks();
   }
 
   /**
@@ -2738,131 +2865,39 @@ export class ScheduleManager {
    * Check and execute tasks that are due
    */
   private async checkAndExecuteTasks(): Promise<void> {
-    const enabled = getCompatibleConfigurationValue<boolean>("enabled", true);
-
-    if (!enabled) {
+    if (!getCompatibleConfigurationValue<boolean>("enabled", true)) {
       return;
     }
 
     const now = new Date();
     const nowMinute = this.truncateToMinute(now);
-
-    // Read config values once per tick (avoid redundant reads inside the loop)
-    const rawMaxDaily = getCompatibleConfigurationValue<number>(
-      "maxDailyExecutions",
-      24,
-    );
-    const safeMaxDaily = Number.isFinite(rawMaxDaily) ? rawMaxDaily : 24;
-    const maxDailyLimit =
-      safeMaxDaily === 0 ? 0 : Math.min(Math.max(safeMaxDaily, 1), 100);
-    const defaultJitterSeconds = getCompatibleConfigurationValue<number>(
-      "jitterSeconds",
-      0,
-    );
+    const { maxDailyLimit, defaultJitterSeconds } = this.getSchedulerTickSettings();
 
     let needsSave = false;
     let executedCount = 0;
     const tasksToDelete: string[] = [];
 
     for (const task of this.tasks.values()) {
-      if (!task.enabled || !task.nextRun) {
+      if (this.shouldSkipScheduledTask(task)) {
         continue;
       }
 
-      if (this.isTaskSuppressedByJob(task)) {
-        continue;
-      }
-
-      // Check if task should run in current workspace
-      if (!this.shouldTaskRunInCurrentWorkspace(task)) {
-        continue;
-      }
-
-      if (this.suppressedOverdueTaskIds.has(task.id)) {
-        continue;
-      }
-
-      // Check if due
-      if (this.isTaskDueAt(task, nowMinute)) {
-        // Safety: Check daily execution limit
-        if (this.isDailyLimitReached(maxDailyLimit)) {
-          logDebug(
-            `[CopilotScheduler] Daily limit (${maxDailyLimit}) reached, skipping task: ${task.name}`,
-          );
-          const todayKey = getSchedulerLocalDateKey();
-          this.notifyDailyLimitReachedOnce(todayKey, maxDailyLimit);
-          // Still advance nextRun so it doesn't keep retrying
-          task.nextRun = this.getScheduledTaskNextRun(task, now);
-          needsSave = true;
-          continue;
-        }
-
-        // Safety: Apply jitter (random delay)
-        const maxJitterSeconds = task.jitterSeconds ?? defaultJitterSeconds;
-        await applyScheduleJitter(maxJitterSeconds);
-
-        // Execute
-        let executedSuccessfully = false;
-        if (this.onExecuteCallback) {
-          try {
-            await this.onExecuteCallback(task);
-            // Track daily execution count
-            this.incrementDailyExecCountInMemory(new Date());
-            executedCount++;
-            // Only record lastRun on successful execution
-            task.lastRun = new Date();
-            task.lastError = undefined;
-            task.lastErrorAt = undefined;
-            this.handleSuccessfulJobTaskExecution(task, task.lastRun);
-            needsSave = this.syncJobTaskSchedules(task.lastRun) || needsSave;
-            executedSuccessfully = true;
-          } catch (error) {
-            const details = toSafeSchedulerErrorDetails(error);
-            logError("[CopilotScheduler] Task execution error:", {
-              taskId: task.id,
-              taskName: task.name,
-              error: details,
-            });
-            task.lastError = details;
-            task.lastErrorAt = new Date();
-          }
-        }
-
-        // Advance to cron-based next run only on success.
-        // On failure, retry in one minute so the run does not silently disappear.
-        if (executedSuccessfully) {
-          if (this.isOneTimeExecutionTask(task)) {
-            tasksToDelete.push(task.id);
-            needsSave = true;
-          } else {
-            task.nextRun = this.getScheduledTaskNextRun(task, new Date());
-            needsSave = true;
-          }
-        } else {
-          task.nextRun = this.truncateToMinute(new Date(now.getTime() + 60 * 1000));
-          needsSave = true;
-        }
+      const outcome = await this.executeDueTask(
+        task,
+        now,
+        nowMinute,
+        maxDailyLimit,
+        defaultJitterSeconds,
+      );
+      executedCount += outcome.executedCount;
+      needsSave = outcome.needsSave || needsSave;
+      if (outcome.deleteTask) {
+        tasksToDelete.push(task.id);
       }
     }
 
-    // Process deletions for one-time tasks
-    for (const id of tasksToDelete) {
-      this.tasks.delete(id);
-      this.pendingDeletedTaskIds.add(id);
-      this.suppressedOverdueTaskIds.delete(id);
-    }
-
-    // Persist once per tick to reduce I/O overhead.
-    if (executedCount > 0) {
-      try {
-        await this.persistDailyExecCount();
-      } catch (error) {
-        logError(
-          "[CopilotScheduler] Failed to persist daily execution count:",
-          toSafeSchedulerErrorDetails(error),
-        );
-      }
-    }
+    this.applyScheduledTaskDeletions(tasksToDelete);
+    await this.persistDailyExecCountSafely(executedCount);
 
     if (needsSave) {
       await this.saveTasks();
