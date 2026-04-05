@@ -45,11 +45,15 @@ import {
 } from "./extensionCompat";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
+  buildFriendlyCronBuilderMarkup,
+  buildPromptSourceRadioGroupMarkup,
   buildSchedulerWebviewInitialData,
+  buildTaskScopeRadioGroupMarkup,
   escapeHtml,
   escapeHtmlAttr,
   formatModelLabel,
   getWebviewNonce,
+  normalizeSchedulerWebviewJitterSeconds,
   serializeForWebview,
 } from "./schedulerWebviewContentUtils";
 import { renderSchedulerWebviewDocument } from "./schedulerWebviewDocument";
@@ -645,6 +649,25 @@ export class SchedulerWebview {
     return sanitizeAbsolutePathDetails(message);
   }
 
+  private static postCachedCatalogMessages(): void {
+    this.postMessage({
+      type: "updateAgents",
+      agents: this.cachedAgents,
+    });
+    this.postMessage({
+      type: "updateModels",
+      models: this.cachedModels,
+    });
+    this.postMessage({
+      type: "updatePromptTemplates",
+      templates: this.cachedPromptTemplates,
+    });
+    this.postMessage({
+      type: "updateSkills",
+      skills: this.cachedSkillReferences,
+    });
+  }
+
   /**
    * Refresh language in the webview
    */
@@ -667,23 +690,7 @@ export class SchedulerWebview {
         this.cachedPromptTemplates,
       );
 
-      // Re-send cached data once the webview is ready again.
-      this.postMessage({
-        type: "updateAgents",
-        agents: this.cachedAgents,
-      });
-      this.postMessage({
-        type: "updateModels",
-        models: this.cachedModels,
-      });
-      this.postMessage({
-        type: "updatePromptTemplates",
-        templates: this.cachedPromptTemplates,
-      });
-      this.postMessage({
-        type: "updateSkills",
-        skills: this.cachedSkillReferences,
-      });
+      this.postCachedCatalogMessages();
 
       // Re-fetch agents/models/templates so that localized names reflect the new language
       void this.refreshCachesAndNotifyPanel(true).catch(() => { });
@@ -716,22 +723,7 @@ export class SchedulerWebview {
 
     if (!this.panel) return;
 
-    this.postMessage({
-      type: "updateAgents",
-      agents: this.cachedAgents,
-    });
-    this.postMessage({
-      type: "updateModels",
-      models: this.cachedModels,
-    });
-    this.postMessage({
-      type: "updatePromptTemplates",
-      templates: this.cachedPromptTemplates,
-    });
-    this.postMessage({
-      type: "updateSkills",
-      skills: this.cachedSkillReferences,
-    });
+    this.postCachedCatalogMessages();
   }
 
   /**
@@ -1121,16 +1113,9 @@ export class SchedulerWebview {
       "jitterSeconds",
       600,
     );
-    // Keep the Webview resilient even if settings are corrupted/out-of-range.
-    const defaultJitterSeconds = (() => {
-      const n =
-        typeof defaultJitterSecondsRaw === "number"
-          ? defaultJitterSecondsRaw
-          : Number(defaultJitterSecondsRaw);
-      if (!Number.isFinite(n)) return 600;
-      const i = Math.floor(n);
-      return Math.min(Math.max(i, 0), 1800);
-    })();
+    const defaultJitterSeconds = normalizeSchedulerWebviewJitterSeconds(
+      defaultJitterSecondsRaw,
+    );
     const initialTasks = Array.isArray(tasks) ? tasks : [];
     const initialAgents = Array.isArray(agents) ? agents : [];
     const initialModels = Array.isArray(models) ? models : [];
@@ -5096,23 +5081,7 @@ export class SchedulerWebview {
               <input type="text" id="task-labels" placeholder="${escapeHtmlAttr(strings.placeholderTaskLabels)}">
             </div>
 
-            <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.labelPromptType)}</label>
-              <div class="radio-group">
-                <label>
-                  <input type="radio" name="prompt-source" value="inline" checked>
-                  ${escapeHtml(strings.labelPromptInline)}
-                </label>
-                <label>
-                  <input type="radio" name="prompt-source" value="local">
-                  ${escapeHtml(strings.labelPromptLocal)}
-                </label>
-                <label>
-                  <input type="radio" name="prompt-source" value="global">
-                  ${escapeHtml(strings.labelPromptGlobal)}
-                </label>
-              </div>
-            </div>
+            ${buildPromptSourceRadioGroupMarkup(strings)}
 
             <div class="form-group" id="template-select-group" style="display: none; margin:0;">
               <label for="template-select">${escapeHtml(strings.labelPrompt)}</label>
@@ -5160,53 +5129,7 @@ export class SchedulerWebview {
               </div>
             </div>
 
-            <div class="friendly-cron" id="friendly-builder">
-              <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-              <div class="friendly-grid">
-                <div class="form-group">
-                  <label for="friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-                  <select id="friendly-frequency">
-                    <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                    <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                    <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                    <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                    <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                    <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-                  </select>
-                </div>
-                <div class="form-group friendly-field" data-field="interval">
-                  <label for="friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-                  <input type="number" id="friendly-interval" min="1" max="59" value="5">
-                </div>
-                <div class="form-group friendly-field" data-field="minute">
-                  <label for="friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-                  <input type="number" id="friendly-minute" min="0" max="59" value="0">
-                </div>
-                <div class="form-group friendly-field" data-field="hour">
-                  <label for="friendly-hour">${escapeHtml(strings.labelHour)}</label>
-                  <input type="number" id="friendly-hour" min="0" max="23" value="9">
-                </div>
-                <div class="form-group friendly-field" data-field="dow">
-                  <label for="friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-                  <select id="friendly-dow">
-                    <option value="0">${escapeHtml(strings.daySun)}</option>
-                    <option value="1">${escapeHtml(strings.dayMon)}</option>
-                    <option value="2">${escapeHtml(strings.dayTue)}</option>
-                    <option value="3">${escapeHtml(strings.dayWed)}</option>
-                    <option value="4">${escapeHtml(strings.dayThu)}</option>
-                    <option value="5">${escapeHtml(strings.dayFri)}</option>
-                    <option value="6">${escapeHtml(strings.daySat)}</option>
-                  </select>
-                </div>
-                <div class="form-group friendly-field" data-field="dom">
-                  <label for="friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-                  <input type="number" id="friendly-dom" min="1" max="31" value="1">
-                </div>
-              </div>
-              <div class="friendly-actions">
-                <button type="button" class="btn-secondary" id="friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-              </div>
-            </div>
+            ${buildFriendlyCronBuilderMarkup(strings, "friendly")}
 
             <div class="section-title">${escapeHtml(strings.taskEditorRuntimeTitle)}</div>
             <div class="inline-group">
@@ -5230,19 +5153,7 @@ export class SchedulerWebview {
           <section class="task-editor-card is-wide">
             <div class="section-title">${escapeHtml(strings.taskEditorOptionsTitle)}</div>
             <div class="task-editor-options-grid">
-              <div class="form-group" style="margin:0;">
-                <label>${escapeHtml(strings.labelScope)}</label>
-                <div class="radio-group">
-                  <label>
-                    <input type="radio" name="scope" value="workspace" ${defaultScope === "workspace" ? "checked" : ""}>
-                    ${escapeHtml(strings.labelScopeWorkspace)}
-                  </label>
-                  <label>
-                    <input type="radio" name="scope" value="global" ${defaultScope === "global" ? "checked" : ""}>
-                    ${escapeHtml(strings.labelScopeGlobal)}
-                  </label>
-                </div>
-              </div>
+              ${buildTaskScopeRadioGroupMarkup(strings, defaultScope)}
 
               <div class="form-group" style="margin:0;">
                 <label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label>
@@ -5530,53 +5441,7 @@ export class SchedulerWebview {
                 </div>
               </div>
               <div class="form-group wide">
-                <div class="friendly-cron" id="jobs-friendly-builder">
-                  <div class="section-title">${escapeHtml(strings.labelFriendlyBuilder)}</div>
-                  <div class="friendly-grid">
-                    <div class="form-group">
-                      <label for="jobs-friendly-frequency">${escapeHtml(strings.labelFrequency)}</label>
-                      <select id="jobs-friendly-frequency">
-                        <option value="">${escapeHtml(strings.labelFriendlySelect)}</option>
-                        <option value="every-n">${escapeHtml(strings.labelEveryNMinutes)}</option>
-                        <option value="hourly">${escapeHtml(strings.labelHourlyAtMinute)}</option>
-                        <option value="daily">${escapeHtml(strings.labelDailyAtTime)}</option>
-                        <option value="weekly">${escapeHtml(strings.labelWeeklyAtTime)}</option>
-                        <option value="monthly">${escapeHtml(strings.labelMonthlyAtTime)}</option>
-                      </select>
-                    </div>
-                    <div class="form-group friendly-field" data-field="interval">
-                      <label for="jobs-friendly-interval">${escapeHtml(strings.labelInterval)}</label>
-                      <input type="number" id="jobs-friendly-interval" min="1" max="59" value="5">
-                    </div>
-                    <div class="form-group friendly-field" data-field="minute">
-                      <label for="jobs-friendly-minute">${escapeHtml(strings.labelMinute)}</label>
-                      <input type="number" id="jobs-friendly-minute" min="0" max="59" value="0">
-                    </div>
-                    <div class="form-group friendly-field" data-field="hour">
-                      <label for="jobs-friendly-hour">${escapeHtml(strings.labelHour)}</label>
-                      <input type="number" id="jobs-friendly-hour" min="0" max="23" value="9">
-                    </div>
-                    <div class="form-group friendly-field" data-field="dow">
-                      <label for="jobs-friendly-dow">${escapeHtml(strings.labelDayOfWeek)}</label>
-                      <select id="jobs-friendly-dow">
-                        <option value="0">${escapeHtml(strings.daySun)}</option>
-                        <option value="1">${escapeHtml(strings.dayMon)}</option>
-                        <option value="2">${escapeHtml(strings.dayTue)}</option>
-                        <option value="3">${escapeHtml(strings.dayWed)}</option>
-                        <option value="4">${escapeHtml(strings.dayThu)}</option>
-                        <option value="5">${escapeHtml(strings.dayFri)}</option>
-                        <option value="6">${escapeHtml(strings.daySat)}</option>
-                      </select>
-                    </div>
-                    <div class="form-group friendly-field" data-field="dom">
-                      <label for="jobs-friendly-dom">${escapeHtml(strings.labelDayOfMonth)}</label>
-                      <input type="number" id="jobs-friendly-dom" min="1" max="31" value="1">
-                    </div>
-                  </div>
-                  <div class="friendly-actions">
-                    <button type="button" class="btn-secondary" id="jobs-friendly-generate">${escapeHtml(strings.labelFriendlyGenerate)}</button>
-                  </div>
-                </div>
+                ${buildFriendlyCronBuilderMarkup(strings, "jobs-friendly")}
               </div>
             </div>
           </section>
