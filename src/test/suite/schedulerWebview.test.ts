@@ -1,28 +1,39 @@
-import * as assert from "assert";
 import * as fs from "fs";
 import * as path from "path";
 import * as vm from "vm";
+import * as assert from "assert";
 import * as vscode from "vscode";
 import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../schedulerWebview";
 import { getResourceScopedSettingsTarget } from "../../schedulerWebviewSettingsHandler";
 import { overrideWorkspaceFolders } from "./helpers/vscodeTestHarness";
 
-type WebviewLike = {
-  postMessage: (message: unknown) => Thenable<boolean>;
-};
-
 type WebviewPanelLike = {
-  webview: WebviewLike;
+  webview: {
+    postMessage(message: unknown): Thenable<boolean>;
+  };
 };
 
 type SchedulerWebviewInternals = {
-  lastBatchedMessageSignatures?: Map<string, string>;
   panel?: WebviewPanelLike;
-  pendingMessages?: unknown[];
-  pendingMessageFlushTimer?: ReturnType<typeof setTimeout>;
   webviewReady?: boolean;
+  pendingMessageFlushTimer?: ReturnType<typeof setTimeout>;
+  pendingMessages?: unknown[];
+  lastBatchedMessageSignatures?: Map<string, string>;
   [key: string]: unknown;
+};
+
+type RefreshableSchedulerWebviewInternals = SchedulerWebviewInternals & {
+  cachedAgents?: unknown[];
+  cachedModels?: unknown[];
+  cachedPromptTemplates?: unknown[];
+  cachedSkillReferences?: unknown[];
+  flushPendingMessages?: () => void;
+  handleMessage?: (message: unknown) => Promise<void>;
+  refreshAgentsAndModelsCache?: (force?: boolean) => Promise<void>;
+  refreshPromptTemplatesCache?: (force?: boolean) => Promise<void>;
+  refreshSkillReferencesCache?: (force?: boolean) => Promise<void>;
+  sanitizeErrorDetailsForUser?: (message: string) => string;
 };
 
 function resolveWorkspacePath(...segments: string[]): string {
@@ -35,6 +46,10 @@ function readWorkspaceFile(...segments: string[]): string {
 
 function readSchedulerWebviewScriptSource(): string {
   return readWorkspaceFile("../../../media/schedulerWebview.js");
+}
+
+function readGeneratedSchedulerWebviewScriptSource(): string {
+  return readWorkspaceFile("../../../media/generated/schedulerWebview.js");
 }
 
 function readSchedulerWebviewTemplateSource(): string {
@@ -81,14 +96,11 @@ function expectSourceToExcludeSnippets(
 }
 
 function createPostedMessagePanel(sent: unknown[]): WebviewPanelLike {
-  return {
-    webview: {
-      postMessage: (message: unknown) => {
-        sent.push(message);
-        return Promise.resolve(true);
-      },
-    },
+  const postMessage = (message: unknown) => {
+    sent.push(message);
+    return Promise.resolve(true);
   };
+  return { webview: { postMessage } };
 }
 
 function withPostedWebviewMessages<T>(
@@ -99,12 +111,14 @@ function withPostedWebviewMessages<T>(
   run: (ctx: { wv: SchedulerWebviewInternals; sent: unknown[] }) => T,
 ): T {
   const wv = SchedulerWebview as unknown as SchedulerWebviewInternals;
-  const originalPending = wv.pendingMessages;
-  const originalReady = wv.webviewReady;
-  const originalPanel = wv.panel;
-  const originalSignatures = wv.lastBatchedMessageSignatures;
-  const originalTimer = wv.pendingMessageFlushTimer;
   const sent: unknown[] = [];
+  const originalState = {
+    lastBatchedMessageSignatures: wv.lastBatchedMessageSignatures,
+    panel: wv.panel,
+    pendingMessageFlushTimer: wv.pendingMessageFlushTimer,
+    pendingMessages: wv.pendingMessages,
+    webviewReady: wv.webviewReady,
+  };
 
   try {
     wv.panel = createPostedMessagePanel(sent);
@@ -121,12 +135,81 @@ function withPostedWebviewMessages<T>(
     if (wv.pendingMessageFlushTimer) {
       clearTimeout(wv.pendingMessageFlushTimer);
     }
-    wv.panel = originalPanel;
-    wv.webviewReady = originalReady;
-    wv.pendingMessages = originalPending;
-    wv.lastBatchedMessageSignatures = originalSignatures;
-    wv.pendingMessageFlushTimer = originalTimer;
+    Object.assign(wv, originalState);
   }
+}
+
+async function withRefreshCacheHarness(
+  run: (ctx: { sent: unknown[]; wv: RefreshableSchedulerWebviewInternals }) => Promise<void>,
+): Promise<void> {
+  const wv = SchedulerWebview as unknown as RefreshableSchedulerWebviewInternals;
+  const restoreState = {
+    cachedAgents: wv.cachedAgents,
+    cachedModels: wv.cachedModels,
+    cachedPromptTemplates: wv.cachedPromptTemplates,
+    cachedSkillReferences: wv.cachedSkillReferences,
+    refreshAgentsAndModelsCache: wv.refreshAgentsAndModelsCache,
+    refreshPromptTemplatesCache: wv.refreshPromptTemplatesCache,
+    refreshSkillReferencesCache: wv.refreshSkillReferencesCache,
+  };
+
+  await withPostedWebviewMessages({ ready: true }, async ({ sent }) => {
+    wv.cachedAgents = [];
+    wv.cachedModels = [];
+    wv.cachedPromptTemplates = [];
+    wv.cachedSkillReferences = [];
+    wv.refreshAgentsAndModelsCache = async () => {
+      wv.cachedAgents = [{ id: "agent" }];
+      wv.cachedModels = [{ id: "gpt-4o" }];
+    };
+    wv.refreshPromptTemplatesCache = async () => {
+      wv.cachedPromptTemplates = [{ path: "prompt.md" }];
+    };
+    wv.refreshSkillReferencesCache = async () => {
+      wv.cachedSkillReferences = [{ path: "SKILL.md" }];
+    };
+
+    try {
+      await run({ sent, wv });
+    } finally {
+      Object.assign(wv, restoreState);
+    }
+  });
+}
+
+function getSinglePostedMessage<T>(sent: unknown[]): T {
+  assert.strictEqual(sent.length, 1);
+  return sent[0] as T;
+}
+
+function expectSanitizedPathResult(
+  sanitize: (message: string) => string,
+  input: string,
+  removedSnippet: string,
+  keptSnippet: string,
+): void {
+  const output = sanitize(input);
+  assert.ok(!output.includes(removedSnippet));
+  assert.ok(output.includes(keptSnippet));
+}
+
+function expectSanitizerPassthrough(
+  sanitize: (message: string) => string,
+  input: string,
+): void {
+  assert.strictEqual(sanitize(input), input);
+}
+
+function expectPostedErrorMessageText(
+  message: { type?: unknown; text?: unknown },
+  removedSnippet: string,
+  keptSnippet: string,
+): void {
+  assert.strictEqual(message.type, "showError");
+  assert.ok(typeof message.text === "string");
+  const text = message.text as string;
+  assert.ok(!text.includes(removedSnippet));
+  assert.ok(text.includes(keptSnippet));
 }
 
 type QueuedUpdateCase = {
@@ -178,9 +261,7 @@ suite("SchedulerWebview Message Queue Tests", () => {
     const scriptPath = resolveWorkspacePath(
       "../../../media/generated/schedulerWebview.js",
     );
-    const scriptSource = readWorkspaceFile(
-      "../../../media/generated/schedulerWebview.js",
-    );
+    const scriptSource = readGeneratedSchedulerWebviewScriptSource();
 
     assert.doesNotThrow(() => {
       new vm.Script(scriptSource, { filename: scriptPath });
@@ -2581,64 +2662,12 @@ suite("SchedulerWebview Jobs Request Tests", () => {
   });
 
   test("refreshAgents and refreshPrompts post refreshed caches", async () => {
-    const wv = SchedulerWebview as unknown as {
-      handleMessage?: (message: unknown) => Promise<void>;
-      panel?: WebviewPanelLike;
-      webviewReady?: boolean;
-      pendingMessages?: unknown[];
-      flushPendingMessages?: () => void;
-      cachedAgents?: unknown[];
-      cachedModels?: unknown[];
-      cachedPromptTemplates?: unknown[];
-      cachedSkillReferences?: unknown[];
-      refreshAgentsAndModelsCache?: (force?: boolean) => Promise<void>;
-      refreshPromptTemplatesCache?: (force?: boolean) => Promise<void>;
-      refreshSkillReferencesCache?: (force?: boolean) => Promise<void>;
-    };
-
-    const originalPanel = wv.panel;
-    const originalReady = wv.webviewReady;
-    const originalPending = wv.pendingMessages;
-    const originalAgents = wv.cachedAgents;
-    const originalModels = wv.cachedModels;
-    const originalTemplates = wv.cachedPromptTemplates;
-    const originalSkills = wv.cachedSkillReferences;
-    const originalRefreshAgents = wv.refreshAgentsAndModelsCache;
-    const originalRefreshPrompts = wv.refreshPromptTemplatesCache;
-    const originalRefreshSkills = wv.refreshSkillReferencesCache;
-    const sent: unknown[] = [];
-
-    try {
-      wv.panel = {
-        webview: {
-          postMessage: (message: unknown) => {
-            sent.push(message);
-            return Promise.resolve(true);
-          },
-        },
-      };
-      wv.webviewReady = true;
-      wv.pendingMessages = [];
-      wv.cachedAgents = [];
-      wv.cachedModels = [];
-      wv.cachedPromptTemplates = [];
-      wv.cachedSkillReferences = [];
-      wv.refreshAgentsAndModelsCache = async () => {
-        wv.cachedAgents = [{ id: "agent" }];
-        wv.cachedModels = [{ id: "gpt-4o" }];
-      };
-      wv.refreshPromptTemplatesCache = async () => {
-        wv.cachedPromptTemplates = [{ path: "prompt.md" }];
-      };
-      wv.refreshSkillReferencesCache = async () => {
-        wv.cachedSkillReferences = [{ path: "SKILL.md" }];
-      };
-
+    await withRefreshCacheHarness(async ({ sent, wv }) => {
       assert.ok(typeof wv.handleMessage === "function");
       assert.ok(typeof wv.flushPendingMessages === "function");
-      await wv.handleMessage!({ type: "refreshAgents" });
-      await wv.handleMessage!({ type: "refreshPrompts" });
-      wv.flushPendingMessages!();
+      await wv.handleMessage?.({ type: "refreshAgents" });
+      await wv.handleMessage?.({ type: "refreshPrompts" });
+      wv.flushPendingMessages?.();
 
       assert.deepStrictEqual(sent, [
         { type: "updateAgents", agents: [{ id: "agent" }] },
@@ -2646,18 +2675,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         { type: "updatePromptTemplates", templates: [{ path: "prompt.md" }] },
         { type: "updateSkills", skills: [{ path: "SKILL.md" }] },
       ]);
-    } finally {
-      wv.panel = originalPanel;
-      wv.webviewReady = originalReady;
-      wv.pendingMessages = originalPending;
-      wv.cachedAgents = originalAgents;
-      wv.cachedModels = originalModels;
-      wv.cachedPromptTemplates = originalTemplates;
-      wv.cachedSkillReferences = originalSkills;
-      wv.refreshAgentsAndModelsCache = originalRefreshAgents;
-      wv.refreshPromptTemplatesCache = originalRefreshPrompts;
-      wv.refreshSkillReferencesCache = originalRefreshSkills;
-    }
+    });
   });
 });
 
@@ -2691,59 +2709,62 @@ suite("SchedulerWebview settings target Tests", () => {
 
 suite("SchedulerWebview Error Detail Sanitization Tests", () => {
   test("Sanitizes absolute paths to basenames (Windows and POSIX)", () => {
-    const wv = SchedulerWebview as unknown as {
-      sanitizeErrorDetailsForUser?: (message: string) => string;
-    };
+    const wv = SchedulerWebview as unknown as RefreshableSchedulerWebviewInternals;
 
     assert.ok(typeof wv.sanitizeErrorDetailsForUser === "function");
 
     const sanitize = wv.sanitizeErrorDetailsForUser!;
 
-    const win =
-      "ENOENT: no such file or directory, open 'C:\\Users\\me\\secret folder\\a b.md'";
-    const winOut = sanitize(win);
-    assert.ok(!winOut.includes("C:\\Users\\me"));
-    assert.ok(winOut.includes("'a b.md'"));
+    expectSanitizedPathResult(
+      sanitize,
+      "ENOENT: no such file or directory, open 'C:\\Users\\me\\secret folder\\a b.md'",
+      "C:\\Users\\me",
+      "'a b.md'",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "ENOENT: no such file or directory, open '/Users/me/secret folder/a b.md'",
+      "/Users/me/secret folder",
+      "'a b.md'",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "open /Users/me/a.md",
+      "/Users/me/",
+      "a.md",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "at foo (/Users/me/a.md:1:2)",
+      "/Users/me/",
+      "(a.md:1:2)",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "open C:/Users/me/a.md",
+      "C:/Users/me/",
+      "a.md",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "open \\\\server\\share\\secret\\a.md",
+      "\\\\server\\share",
+      "a.md",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "open file:///C:/Users/me/secret%20folder/a%20b.md",
+      "file:///C:/Users/me",
+      "a b.md",
+    );
+    expectSanitizedPathResult(
+      sanitize,
+      "open file://server/share/secret/a.md",
+      "file://server/share",
+      "a.md",
+    );
 
-    const posix =
-      "ENOENT: no such file or directory, open '/Users/me/secret folder/a b.md'";
-    const posixOut = sanitize(posix);
-    assert.ok(!posixOut.includes("/Users/me/secret folder"));
-    assert.ok(posixOut.includes("'a b.md'"));
-
-    const posixUnquoted = "open /Users/me/a.md";
-    const posixUnquotedOut = sanitize(posixUnquoted);
-    assert.ok(!posixUnquotedOut.includes("/Users/me/"));
-    assert.ok(posixUnquotedOut.includes("a.md"));
-
-    const posixParen = "at foo (/Users/me/a.md:1:2)";
-    const posixParenOut = sanitize(posixParen);
-    assert.ok(!posixParenOut.includes("/Users/me/"));
-    assert.ok(posixParenOut.includes("(a.md:1:2)"));
-
-    const winForward = "open C:/Users/me/a.md";
-    const winForwardOut = sanitize(winForward);
-    assert.ok(!winForwardOut.includes("C:/Users/me/"));
-    assert.ok(winForwardOut.includes("a.md"));
-
-    const uncPath = "open \\\\server\\share\\secret\\a.md";
-    const uncOut = sanitize(uncPath);
-    assert.ok(!uncOut.includes("\\\\server\\share"));
-    assert.ok(uncOut.includes("a.md"));
-
-    const fileUri = "open file:///C:/Users/me/secret%20folder/a%20b.md";
-    const fileUriOut = sanitize(fileUri);
-    assert.ok(!fileUriOut.includes("file:///C:/Users/me"));
-    assert.ok(fileUriOut.includes("a b.md"));
-
-    const fileUriHost = "open file://server/share/secret/a.md";
-    const fileUriHostOut = sanitize(fileUriHost);
-    assert.ok(!fileUriHostOut.includes("file://server/share"));
-    assert.ok(fileUriHostOut.includes("a.md"));
-
-    const webUrl = "see https://example.com/path";
-    const webUrlOut = sanitize(webUrl);
-    assert.strictEqual(webUrlOut, webUrl);
+    expectSanitizerPassthrough(sanitize, "see https://example.com/path");
   });
 });
 
@@ -2752,12 +2773,11 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
     withPostedWebviewMessages({ ready: true }, ({ sent }) => {
       SchedulerWebview.focusJob("job-1", "folder-1");
 
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
+      const message = getSinglePostedMessage<{
         type?: unknown;
         jobId?: unknown;
         folderId?: unknown;
-      };
+      }>(sent);
       assert.strictEqual(message.type, "focusJob");
       assert.strictEqual(message.jobId, "job-1");
       assert.strictEqual(message.folderId, "folder-1");
@@ -2768,11 +2788,10 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
     withPostedWebviewMessages({ ready: true }, ({ sent }) => {
       SchedulerWebview.focusResearchProfile("research-1");
 
-      assert.strictEqual(sent.length, 1);
-      const message = sent[0] as {
+      const message = getSinglePostedMessage<{
         type?: unknown;
         researchId?: unknown;
-      };
+      }>(sent);
       assert.strictEqual(message.type, "focusResearchProfile");
       assert.strictEqual(message.researchId, "research-1");
     });
@@ -2784,12 +2803,8 @@ suite("SchedulerWebview showError Sanitization Tests", () => {
         "ENOENT: no such file or directory, open 'C:\\Users\\me\\secret folder\\a b.md'",
       );
 
-      assert.strictEqual(sent.length, 1);
-      const m = sent[0] as { type?: unknown; text?: unknown };
-      assert.strictEqual(m.type, "showError");
-      assert.ok(typeof m.text === "string");
-      assert.ok(!(m.text as string).includes("C:\\Users\\me"));
-      assert.ok((m.text as string).includes("a b.md"));
+      const m = getSinglePostedMessage<{ type?: unknown; text?: unknown }>(sent);
+      expectPostedErrorMessageText(m, "C:\\Users\\me", "a b.md");
     });
   });
 });
