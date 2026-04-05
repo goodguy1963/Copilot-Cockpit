@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
+import type { ScheduledTask } from "./types";
 
 export type TaskStorageMeta = {
   revision: number;
@@ -74,4 +75,75 @@ export async function writeTaskStorageMetaToState(
 ): Promise<void> {
   await globalState.update(revisionKey, meta.revision);
   await globalState.update(savedAtKey, meta.savedAt);
+}
+
+export type StoredTasksReadResult = {
+  tasks: ScheduledTask[];
+  ok: boolean;
+  error?: string;
+};
+
+export function readScheduledTasksFromStorageFile(
+  storageFilePath: string | undefined,
+): StoredTasksReadResult {
+  if (!storageFilePath || !fs.existsSync(storageFilePath)) {
+    return { tasks: [], ok: false };
+  }
+
+  try {
+    const raw = fs.readFileSync(storageFilePath, "utf8");
+    if (raw.trim().length === 0) {
+      return { tasks: [], ok: true };
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return { tasks: [], ok: false };
+    }
+
+    return { tasks: parsed as ScheduledTask[], ok: true };
+  } catch (error) {
+    return {
+      tasks: [],
+      ok: false,
+      error: toSafeSchedulerErrorDetails(error),
+    };
+  }
+}
+
+export async function writeScheduledTasksToStorageFile(
+  storageFilePath: string,
+  tasks: ScheduledTask[],
+): Promise<void> {
+  await fs.promises.mkdir(path.dirname(storageFilePath), { recursive: true });
+  await fs.promises.writeFile(storageFilePath, JSON.stringify(tasks), "utf8");
+}
+
+export async function updateMementoWithTimeout<T>(
+  globalState: vscode.Memento,
+  key: string,
+  value: T,
+  timeoutMs: number,
+  timeoutMessage: string,
+): Promise<void> {
+  const pendingWrite = Promise.resolve(globalState.update(key, value));
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  const outcome = await Promise.race([
+    pendingWrite.then(() => "persisted" as const),
+    new Promise<"timed-out">((resolve) => {
+      timeoutHandle = setTimeout(() => resolve("timed-out"), timeoutMs);
+    }),
+  ]);
+
+  if (timeoutHandle) {
+    clearTimeout(timeoutHandle);
+  }
+
+  if (outcome === "persisted") {
+    return;
+  }
+
+  void pendingWrite.catch(() => undefined);
+  throw new Error(timeoutMessage);
 }
