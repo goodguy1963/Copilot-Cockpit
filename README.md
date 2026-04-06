@@ -107,8 +107,8 @@ After installation, the extension creates or repairs repo-local support files fo
 
 | Surface | Status | What It Can Do |
 | --- | --- | --- |
-| GitHub Copilot in VS Code | Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
-| OpenRouter.AI | Supported | Task execution through the extension's native chat/model flow when OpenRouter-backed models are available |
+| [GitHub Copilot in VS Code](https://github.com/features/copilot/plans)| Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
+| [OpenRouter.ai](https://openrouter.ai/) | Supported | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | ChatGPT Codex in VS Code | Experimental | Repo-local MCP, repo-local skills, todo coordination, and task-draft coordination |
 
 ### 🚧 Codex Limitation
