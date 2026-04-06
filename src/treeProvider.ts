@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { messages, formatCronForDisplay } from "./i18n"; // local-diverge-3
 import { getCockpitCommandId } from "./extensionCompat";
-import { ScheduleManager } from "./copilotManager";
+import { ScheduleManager } from "./cockpitManager";
 import type { ScheduledTask, TaskScope, TreeContextValue } from "./types";
 
 type TaskBuckets = {
@@ -229,11 +229,11 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   readonly onDidChangeTreeData: vscode.Event<TreeChangeTarget> =
     this.treeChangeEmitter.event;
 
-  private readonly copilotManager: ScheduleManager;
+  private readonly cockpitManager: ScheduleManager;
 
-  constructor(copilotManager: ScheduleManager) { // data-source
-    this.copilotManager = copilotManager; // store-ref
-    this.copilotManager.setOnTasksChangedCallback(this.refresh.bind(this));
+  constructor(cockpitManager: ScheduleManager) { // data-source
+    this.cockpitManager = cockpitManager; // store-ref
+    this.cockpitManager.setOnTasksChangedCallback(this.refresh.bind(this));
   }
 
   refresh(): void { // emit-change
@@ -268,7 +268,7 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   }
 
   private async buildRootNodes(): Promise<WorkspaceTreeNode[]> {
-    const registeredTasks = this.copilotManager.getAllTasks();
+    const registeredTasks = this.cockpitManager.getAllTasks();
     const globalCount = registeredTasks.filter((task) => task.scope === "global").length;
     const workspaceCount = registeredTasks.length - globalCount;
 
@@ -284,13 +284,13 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   }
 
   private async buildTaskNodesForScope(scope: TaskScope): Promise<WorkspaceTreeNode[]> {
-    return this.toTaskNodes(this.copilotManager.queryTasksByScope(scope));
+    return this.toTaskNodes(this.cockpitManager.queryTasksByScope(scope));
   }
 
   private splitWorkspaceTasks(): TaskBuckets {
-    return this.copilotManager.queryTasksByScope("workspace").reduce<TaskBuckets>(
+    return this.cockpitManager.queryTasksByScope("workspace").reduce<TaskBuckets>(
       (buckets, task) => {
-        if (this.copilotManager.isTaskBoundToThisWorkspace(task)) {
+        if (this.cockpitManager.isTaskBoundToThisWorkspace(task)) {
           buckets.currentWorkspace.push(task);
         } else {
           buckets.otherWorkspaces.push(task);
@@ -329,7 +329,7 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   ): ScheduledTaskItem[] {
     return sortTasksByName(tasks).map((task) => {
       const appliesHere = appliesToCurrentWorkspace
-        ?? this.copilotManager.isTaskBoundToThisWorkspace(task);
+        ?? this.cockpitManager.isTaskBoundToThisWorkspace(task);
       return new ScheduledTaskItem(task, appliesHere);
     });
   }
@@ -341,7 +341,7 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
 
       if (task.scope === "workspace") {
         const { currentWorkspace, otherWorkspaces } = this.splitWorkspaceTasks();
-        const inCurrentWorkspace = this.copilotManager.isTaskBoundToThisWorkspace(task);
+        const inCurrentWorkspace = this.cockpitManager.isTaskBoundToThisWorkspace(task);
         return new WorkspaceGroupItem( // parent-link
           inCurrentWorkspace ? "this" : "other",
           inCurrentWorkspace
@@ -350,7 +350,7 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
         );
       }
 
-      const scopeCount = this.copilotManager
+      const scopeCount = this.cockpitManager
         .getAllTasks()
         .filter((candidate) => candidate.scope === task.scope).length;
       return new ScopeGroupItem(task.scope, scopeCount);

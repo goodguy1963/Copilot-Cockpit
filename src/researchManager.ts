@@ -5,7 +5,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { CopilotExecutor } from "./copilotExecutor";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { logError } from "./logger";
-import { getResolvedWorkspaceRoots } from "./copilotJsonSanitizer";
+import { getResolvedWorkspaceRoots } from "./cockpitJsonSanitizer";
 import {
   readWorkspaceResearchStateFromSqlite,
   syncWorkspaceResearchStateToSqlite,

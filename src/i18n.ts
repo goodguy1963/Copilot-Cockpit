@@ -495,7 +495,7 @@ export const messages = {
     actionInsertSkill: ["Insert Skill", "スキルを挿入", "Skill einfügen"],
   }),
 
-  // Webview-only runtime strings (used in media/copilotWebview.js)
+  // Webview-only runtime strings (used in media/cockpitWebview.js)
   ...buildStaticMessageMap({
     webviewScriptErrorPrefix: ["Script error: ", "スクリプトエラー: "],
     webviewUnhandledErrorPrefix: ["Unhandled error: ", "未処理のエラー: "],
@@ -546,29 +546,29 @@ export const messages = {
           "Scheduler auto-open on startup was disabled for this repo",
           "このリポジトリの起動時自動表示を無効化しました",
         ),
-  copilotHistoryLabel: () => t("Backup History", "バックアップ履歴", "Backup-Verlauf"),
-  copilotHistoryPlaceholder: () =>
+  cockpitHistoryLabel: () => t("Backup History", "バックアップ履歴", "Backup-Verlauf"),
+  cockpitHistoryPlaceholder: () =>
     t("Select a backup version", "復元するバックアップを選択"),
-  copilotHistoryEmpty: () =>
+  cockpitHistoryEmpty: () =>
     t("No backup versions yet", "まだバックアップはありません"),
-  copilotHistoryNote: () =>
+  cockpitHistoryNote: () =>
     t(
       "The scheduler keeps the last 100 workspace schedule changes in .vscode/scheduler-history.",
       "Scheduler はワークスペースの直近100件の変更を .vscode/scheduler-history に保存します。",
     ),
-  copilotHistoryRestoreSelectRequired: () =>
+  cockpitHistoryRestoreSelectRequired: () =>
     t("Select a backup version first", "先にバックアップを選択してください"),
-  copilotHistoryRestoreConfirm: (createdAt: string) =>
+  cockpitHistoryRestoreConfirm: (createdAt: string) =>
     t(
       `Restore the repo schedule from ${createdAt}? The current state will be backed up first.`,
       `${createdAt} のバックアップでリポジトリのスケジュールを復元しますか？ 現在の状態は先にバックアップされます。`,
     ),
-  copilotHistoryRestored: (createdAt: string) =>
+  cockpitHistoryRestored: (createdAt: string) =>
     t(
       `Repo schedule restored from backup ${createdAt}`,
       `バックアップ ${createdAt} からリポジトリのスケジュールを復元しました`,
     ),
-  copilotHistorySnapshotNotFound: () =>
+  cockpitHistorySnapshotNotFound: () =>
     t("The selected backup version was not found", "選択したバックアップが見つかりません"),
 
   // ==================== Clipboard ====================

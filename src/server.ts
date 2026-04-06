@@ -43,13 +43,13 @@ import {
     readSchedulerConfig,
     sanitizeSchedulerJsonValue,
     writeSchedulerConfig,
-} from "./copilotJsonSanitizer.js";
+} from "./cockpitJsonSanitizer.js";
 import {
     createScheduleHistorySnapshot,
     getScheduleHistoryRoot,
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
-} from "./copilotHistory.js";
+} from "./cockpitHistory.js";
 import { logError } from "./logger.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());

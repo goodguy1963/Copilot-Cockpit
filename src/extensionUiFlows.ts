@@ -14,7 +14,7 @@ type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 export async function warnIfCronTooFrequent(options: {
   cronExpression?: string;
-  copilotManager: CronWarningScheduleManager;
+  cockpitManager: CronWarningScheduleManager;
   getSetting: <T>(key: string, defaultValue: T) => T;
 }): Promise<void> {
   if (!options.cronExpression) {
@@ -26,7 +26,7 @@ export async function warnIfCronTooFrequent(options: {
     return;
   }
 
-  const warning = options.copilotManager.validateMinimumInterval(options.cronExpression);
+  const warning = options.cockpitManager.validateMinimumInterval(options.cronExpression);
   if (warning) {
     void vscode.window.showInformationMessage(warning);
   }
@@ -34,12 +34,12 @@ export async function warnIfCronTooFrequent(options: {
 
 export async function maybeShowDisclaimerOnce(options: {
   task: { enabled: boolean };
-  copilotManager: DisclaimerScheduleManager;
+  cockpitManager: DisclaimerScheduleManager;
 }): Promise<void> {
   if (!options.task.enabled) {
     return;
   }
-  if (options.copilotManager.hasAcceptedDisclaimer()) {
+  if (options.cockpitManager.hasAcceptedDisclaimer()) {
     return;
   }
 
@@ -52,7 +52,7 @@ export async function maybeShowDisclaimerOnce(options: {
     return;
   }
 
-  await options.copilotManager.storeDisclaimerAcceptance(true);
+  await options.cockpitManager.storeDisclaimerAcceptance(true);
 }
 
 export function maybePromptReloadAfterUpdate(
