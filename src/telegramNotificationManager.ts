@@ -4,7 +4,7 @@ import * as path from "path";
 import {
   readSchedulerConfig,
   writeSchedulerConfig,
-} from "./copilotJsonSanitizer";
+} from "./cockpitJsonSanitizer";
 import type {
   SaveTelegramNotificationInput,
   SchedulerWorkspaceConfig,

@@ -31,7 +31,7 @@ import {
   setCockpitBoardFiltersInBoard,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
-import { SchedulerWebview } from "./copilotWebview";
+import { SchedulerWebview } from "./cockpitWebview";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,

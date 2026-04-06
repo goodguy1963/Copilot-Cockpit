@@ -477,7 +477,7 @@
     "copy:sql-wasm": "node ./scripts/copy-sql-wasm.js",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --external:vscode --platform=node --format=cjs",
-    "esbuild-webview": "esbuild ./media/copilotWebview.entry.js --bundle --outfile=media/generated/copilotWebview.js --format=iife --platform=browser",
+    "esbuild-webview": "esbuild ./media/cockpitWebview.entry.js --bundle --outfile=media/generated/cockpitWebview.js --format=iife --platform=browser",
     "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap && npm run copy:sql-wasm",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "watch:server": "npm run esbuild-server -- --sourcemap --watch",

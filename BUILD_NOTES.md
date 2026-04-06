@@ -41,7 +41,7 @@
     - Added `stdio` transport for MCP communication.
 
 3. Hybrid Storage
-    - Modified `copilotManager.ts` to sync between internal `globalState` and `.vscode/scheduler.json`.
+    - Modified `cockpitManager.ts` to sync between internal `globalState` and `.vscode/scheduler.json`.
     - Workspace-scoped tasks are now visible/editable in `.vscode/scheduler.json`.
 
 ## Installation Instructions

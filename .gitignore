@@ -7,7 +7,7 @@ dist/
 Thumbs.db
 *.log
 /images/early version.mp4
-
+.vscode-test/
 
 # Local output artifacts
 output_sessions/
@@ -30,11 +30,11 @@ FULL_SPECIFICATION.md
 /.github/skills/
 /output_sessions/
 .copilot-cockpit-logs/
-.vscode/scheduler-history/
-.vscode/scheduler.private.json
-.vscode/scheduler-prompt-backups/
+.vscode/copilot-history/
+.vscode/copilot.private.json
+.vscode/copilot-prompt-backups/
 .vscode/mcp.json
-.vscode/scheduler.json
-.vscode/scheduler.private.json
+.vscode/copilot.json
+.vscode/copilot.private.json
 
 analysis_tools/

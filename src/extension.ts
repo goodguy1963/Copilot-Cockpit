@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { ScheduleManager } from "./copilotManager"; // local-diverge-3
+import { ScheduleManager } from "./cockpitManager"; // local-diverge-3
 import { CopilotExecutor } from "./copilotExecutor";
 import { ResearchManager } from "./researchManager";
 import {
@@ -8,7 +8,7 @@ import {
   ScheduledTaskItem,
   type WorkspaceTreeNode,
 } from "./treeProvider";
-import { SchedulerWebview } from "./copilotWebview";
+import { SchedulerWebview } from "./cockpitWebview";
 import { messages } from "./i18n";
 import { logDebug } from "./logger";
 import { logError } from "./logger";
@@ -47,7 +47,7 @@ import {
   getResolvedWorkspaceRoots,
   setSchedulerConflictNotifier,
   wasSchedulerConfigWrittenRecently,
-} from "./copilotJsonSanitizer";
+} from "./cockpitJsonSanitizer";
 import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
 import {
   type BundledSkillSyncResult,
@@ -240,7 +240,7 @@ function resolveNotifyMode(): NotificationMode {
 async function warnIfCronTooFrequent(cronExpression?: string): Promise<void> {
   await maybeWarnCronIntervalWithUi({
     cronExpression,
-    copilotManager: scheduler,
+    cockpitManager: scheduler,
     getSetting: getSchedulerSetting,
   });
 }
@@ -248,7 +248,7 @@ async function warnIfCronTooFrequent(cronExpression?: string): Promise<void> {
 async function maybeShowDisclaimerOnce(task: ScheduledTask): Promise<void> {
   await maybeShowDisclaimerOnceWithUi({
     task,
-    copilotManager: scheduler,
+    cockpitManager: scheduler,
   });
 }
 
@@ -2331,7 +2331,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
 
       case "restoreHistory": {
         if (!action.historyId) {
-          const msg = messages.copilotHistorySnapshotNotFound();
+          const msg = messages.cockpitHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
@@ -2340,7 +2340,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           .getWorkspaceScheduleHistory()
           .find((entry) => entry.id === action.historyId);
         if (!historyEntry) {
-          const msg = messages.copilotHistorySnapshotNotFound();
+          const msg = messages.cockpitHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
@@ -2349,7 +2349,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           action.historyId,
         );
         if (!restored) {
-          const msg = messages.copilotHistorySnapshotNotFound();
+          const msg = messages.cockpitHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
@@ -2357,7 +2357,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         const restoredLabel = messages.formatDateTime(
           new Date(historyEntry.createdAt),
         );
-        const restoreMsg = messages.copilotHistoryRestored(restoredLabel);
+        const restoreMsg = messages.cockpitHistoryRestored(restoredLabel);
         notifyInfo(restoreMsg);
         refreshSchedulerUiState();
         SchedulerWebview.switchToList(restoreMsg);

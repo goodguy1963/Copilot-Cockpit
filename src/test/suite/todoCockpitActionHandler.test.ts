@@ -4,8 +4,8 @@ import * as os from "os";
 import * as path from "path";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import { createCockpitTodo } from "../../cockpitBoardManager";
-import { readSchedulerConfig } from "../../copilotJsonSanitizer";
-import { SchedulerWebview } from "../../copilotWebview";
+import { readSchedulerConfig } from "../../cockpitJsonSanitizer";
+import { SchedulerWebview } from "../../cockpitWebview";
 import { handleTodoCockpitAction } from "../../todoCockpitActionHandler";
 import type { CockpitBoard, CreateTaskInput, ExecuteOptions } from "../../types";
 
