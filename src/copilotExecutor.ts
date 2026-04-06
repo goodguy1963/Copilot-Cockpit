@@ -17,7 +17,7 @@ declare const setTimeout: (callback: () => void, ms: number) => NodeJS.Timeout;
 
 const CHAT_OPEN_COMMAND = "workbench.action.chat.open";
 const CHAT_FOCUS_COMMANDS = [
-  "workbench.panel.chat.view.copilot.focus",
+  "workbench.panel.chat.view.copilot.focus", // vscode-chat-cmd
   CHAT_OPEN_COMMAND,
 ] as const;
 const CHAT_SUBMIT_COMMANDS = [
@@ -29,7 +29,7 @@ const TYPE_COMMAND = "type";
 
 const DELAY_AFTER_FOCUS_MS = 150;
 const DELAY_AFTER_TYPE_MS = 50;
-const DELAY_NEW_SESSION_MS = 200;
+const NEW_SESSION_PAUSE_MS = 200;
 
 const BUILT_IN_SLASH_AGENTS = ["agent", "ask", "edit"] as const;
 const BUILT_IN_SLASH_AGENT_SET = new Set<string>(BUILT_IN_SLASH_AGENTS);
@@ -89,7 +89,7 @@ function extractModeFromPrompt(prompt: string): string | undefined {
   return BUILT_IN_SLASH_AGENT_SET.has(candidate) ? undefined : candidate;
 }
 
-function getExecutionMode(processedPrompt: string, options?: ExecuteOptions): {
+function getExecutionMode(expandedPrompt: string, options?: ExecuteOptions): {
   mode?: string;
   query: string;
 } {
@@ -99,30 +99,30 @@ function getExecutionMode(processedPrompt: string, options?: ExecuteOptions): {
     return {
       mode: normalizedAgent,
       query: BUILT_IN_SLASH_AGENT_SET.has(normalizedAgent)
-        ? processedPrompt
-        : stripLeadingAgentReference(processedPrompt, normalizedAgent),
+        ? expandedPrompt
+        : stripLeadingAgentReference(expandedPrompt, normalizedAgent),
     };
   }
 
-  const promptDefinedMode = extractModeFromPrompt(processedPrompt);
+  const promptDefinedMode = extractModeFromPrompt(expandedPrompt);
   if (promptDefinedMode) {
     logDebug(
       `[CopilotScheduler] Detected custom agent from prompt, setting mode: ${promptDefinedMode}`,
     );
     return {
       mode: promptDefinedMode,
-      query: stripLeadingAgentReference(processedPrompt, promptDefinedMode),
+      query: stripLeadingAgentReference(expandedPrompt, promptDefinedMode),
     };
   }
 
   const configuredDefaultAgent = readConfiguredString("defaultAgent", "agent");
   if (!configuredDefaultAgent) {
-    return { query: processedPrompt };
+    return { query: expandedPrompt };
   }
 
   const configuredMode = configuredDefaultAgent.replace(/^@/, "");
   logDebug(`[CopilotScheduler] Using configured default agent: ${configuredMode}`);
-  return { mode: configuredMode, query: processedPrompt };
+  return { mode: configuredMode, query: expandedPrompt };
 }
 
 function shouldStartNewChat(options?: ExecuteOptions): boolean {
@@ -169,7 +169,7 @@ function buildManualPrompt(query: string, preferredMode?: string): string {
 }
 
 function getWorkspaceName(): string {
-  return vscode.workspace.workspaceFolders?.[0]?.name || "";
+  return vscode.workspace.workspaceFolders?.[0]?.name ?? "";
 }
 
 function getCurrentFilePath(): string {
@@ -219,7 +219,7 @@ function getDefaultModelOption(): ModelInfo {
   const description = messages.modelDefaultDesc();
   return {
     id: "",
-    name: messages.modelDefaultName(),
+    name: messages.defaultModelLabel(),
     description,
     vendor: "",
   };
@@ -252,8 +252,8 @@ async function getOrderedAgentFiles(): Promise<vscode.Uri[]> {
 }
 
 async function findAgentsDeclaredInAgentsMd(file: vscode.Uri): Promise<AgentInfo[]> {
-  const bytes = await vscode.workspace.fs.readFile(file);
-  const content = Buffer.from(bytes).toString("utf8");
+  const rawBytes = await vscode.workspace.fs.readFile(file);
+  const content = Buffer.from(rawBytes).toString("utf8");
   const discovered: AgentInfo[] = [];
 
   for (const match of content.matchAll(/<agent>\s*<name>([^<]+)<\/name>/g)) {
@@ -277,15 +277,15 @@ async function findAgentsDeclaredInAgentsMd(file: vscode.Uri): Promise<AgentInfo
 
 function convertModelToInfo(model: vscode.LanguageModelChat): ModelInfo {
   return {
-    description: model.family || "",
+    description: model.family ?? "",
     id: model.id,
     name: model.name || model.id, // local-diverge-282
-    vendor: model.vendor || "",
+    vendor: model.vendor ?? "",
   };
 }
 
 async function listLanguageModelInfos(): Promise<ModelInfo[]> {
-  const models = await vscode.lm.selectChatModels({});
+  const models = await vscode.lm.selectChatModels({}); // all-models
   if (!models.length) {
     return [];
   }
@@ -312,13 +312,13 @@ function logLanguageModelFailure(error: unknown): void {
 async function offerPromptCopy(query: string): Promise<void> {
   const cancelLabel = messages.actionCancel();
   const copyLabel = messages.actionCopyPrompt();
-  const action = await vscode.window.showWarningMessage(
-    messages.autoExecuteFailed(),
+  const userAction = await vscode.window.showWarningMessage(
+    messages.autoExecuteFailed(), // warn-msg
     copyLabel,
     cancelLabel,
   );
 
-  if (action === copyLabel) {
+  if (userAction === copyLabel) {
     await vscode.env.clipboard.writeText(query);
     notifyInfo(messages.promptCopied());
   }
@@ -326,8 +326,8 @@ async function offerPromptCopy(query: string): Promise<void> {
 
 export class CopilotExecutor {
   private prepareExecution(prompt: string, options?: ExecuteOptions): PreparedExecution {
-    const processedPrompt = this.applyPromptCommands(prompt);
-    const { mode, query } = getExecutionMode(processedPrompt, options);
+    const expandedPrompt = this.expandPromptDirectives(prompt);
+    const { mode, query } = getExecutionMode(expandedPrompt, options);
     return {
       query,
       preferredMode: mode,
@@ -412,7 +412,7 @@ export class CopilotExecutor {
     return "";
   }
 
-  async executePrompt(prompt: string, options?: ExecuteOptions): Promise<void> {
+  async executePrompt(prompt: string, options?: ExecuteOptions): Promise<void> { // entry-point
     const execution = this.prepareExecution(prompt, options);
     const { preferredMode, query } = execution;
     let selectedModel = execution.requestedModel;
@@ -453,7 +453,7 @@ export class CopilotExecutor {
   private async tryCreateNewChatSession(): Promise<boolean> {
     try {
       await vscode.commands.executeCommand(NEW_CHAT_COMMAND);
-      await this.delay(DELAY_NEW_SESSION_MS);
+      await this.delay(NEW_SESSION_PAUSE_MS);
     } catch {
       return false;
     }
@@ -461,15 +461,15 @@ export class CopilotExecutor {
     return true;
   }
 
-  private applyPromptCommands(prompt: string): string {
+  private expandPromptDirectives(prompt: string): string {
     return applyTokenReplacements(prompt);
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private delay(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
   }
 
-  static getBuiltInAgents(): AgentInfo[] {
+  public static getBuiltInAgents(): AgentInfo[] {
     return [
       createBuiltInAgent("", messages.agentNoneName(), messages.agentNoneDesc()),
       createBuiltInAgent("agent", messages.agentAgentName(), messages.agentModeDesc()),
@@ -481,11 +481,11 @@ export class CopilotExecutor {
     ];
   }
 
-  static async getCustomAgents(): Promise<AgentInfo[]> {
+  static async discoverLocalAgents(): Promise<AgentInfo[]> {
     const discoveredAgents: AgentInfo[] = [];
     const agentFiles = await getOrderedAgentFiles();
 
-    for (const file of agentFiles) {
+    for (const file of agentFiles) { // scan-agent
       const baseName = path.basename(file.fsPath).replace(/\.agent\.md$/i, "");
       pushUniqueAgent(
         discoveredAgents,
@@ -498,7 +498,7 @@ export class CopilotExecutor {
     }
 
       const agentsMdFiles = await getAgentsMdFiles();
-      for (const file of agentsMdFiles) {
+      for (const file of agentsMdFiles) { // scan-agents-md
       try {
         for (const agent of await findAgentsDeclaredInAgentsMd(file)) {
           pushUniqueAgent(discoveredAgents, agent);
@@ -511,7 +511,7 @@ export class CopilotExecutor {
     return discoveredAgents;
   }
 
-  static async getGlobalAgents(): Promise<AgentInfo[]> {
+  static async discoverBuiltinAgents(): Promise<AgentInfo[]> {
     const globalAgentsPath = resolveGlobalPromptsRoot(
       getCompatibleConfigurationValue<string>("globalAgentsPath", ""),
     );
@@ -541,11 +541,11 @@ export class CopilotExecutor {
     }
   }
 
-  static async getAllAgents(): Promise<AgentInfo[]> {
+  static async collectAllAgents(): Promise<AgentInfo[]> {
     const groupedAgents = await Promise.all([
       Promise.resolve(CopilotExecutor.getBuiltInAgents()),
-      CopilotExecutor.getCustomAgents(),
-      CopilotExecutor.getGlobalAgents(),
+      CopilotExecutor.discoverLocalAgents(),
+      CopilotExecutor.discoverBuiltinAgents(),
     ]);
 
     const combined: AgentInfo[] = [];
@@ -564,7 +564,7 @@ export class CopilotExecutor {
     return combined;
   }
 
-  static async getAvailableModels(): Promise<ModelInfo[]> {
+  static async collectAvailableModels(): Promise<ModelInfo[]> {
     try {
       const models = await listLanguageModelInfos();
       if (models.length > 0) {
@@ -574,10 +574,10 @@ export class CopilotExecutor {
       logLanguageModelFailure(error);
     }
 
-    return CopilotExecutor.getFallbackModels();
+    return CopilotExecutor.builtinModels();
   }
 
-  static getFallbackModels(): ModelInfo[] {
+  static builtinModels(): ModelInfo[] {
     return getFallbackModelSeed().map((model) => ({ ...model }));
   }
 }

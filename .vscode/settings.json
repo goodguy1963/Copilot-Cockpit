@@ -1,5 +1,6 @@
 {
     "copilotScheduler.autoShowOnStartup": true,
-    "copilotCockpit.language": "auto",
-    "copilotCockpit.logLevel": "debug"
+    "copilotCockpit.language": "en",
+    "copilotCockpit.logLevel": "debug",
+    "WhiteSource Advise.Diff.BaseBranch": "main"
 }

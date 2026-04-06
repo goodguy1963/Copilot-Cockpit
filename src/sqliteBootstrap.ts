@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import initSqlJs from "sql.js";
 import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
-import { readSchedulerConfig, writeSchedulerConfig } from "./schedulerJsonSanitizer";
+import { readSchedulerConfig, writeSchedulerConfig } from "./copilotJsonSanitizer";
 import type { ResearchWorkspaceConfig, SchedulerWorkspaceConfig } from "./types";
 import {
   GLOBAL_SQLITE_SCHEMA_STATEMENTS,

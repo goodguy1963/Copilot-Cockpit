@@ -43,13 +43,13 @@ import {
     readSchedulerConfig,
     sanitizeSchedulerJsonValue,
     writeSchedulerConfig,
-} from "./schedulerJsonSanitizer.js";
+} from "./copilotJsonSanitizer.js";
 import {
     createScheduleHistorySnapshot,
     getScheduleHistoryRoot,
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
-} from "./scheduleHistory.js";
+} from "./copilotHistory.js";
 import { logError } from "./logger.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
@@ -617,7 +617,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 description: { type: "string", description: "Optional task description." },
                 cron: { type: "string", description: "Cron expression for the schedule." },
                 prompt: { type: "string", description: "Prompt content or resolved prompt text." },
-                enabled: { type: "boolean", description: "Whether the task is enabled." },
+                enabled: { type: "boolean", description: "Active state of the task." },
                 oneTime: { type: "boolean", description: "Whether the task runs once and then removes itself." },
                 chatSession: { type: "string", description: "Recurring tasks only: 'new' or 'continue'. One-time tasks ignore this field." },
                 agent: { type: "string", description: "Optional agent/mode to use for execution." },

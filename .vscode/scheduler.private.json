@@ -1,16 +1,37 @@
 {
-    "tasks": [],
+    "tasks": [
+        {
+            "id": "task_1775454758902_rj7k0b",
+            "name": "Test Task One",
+            "cron": "0 9 * * 1-5",
+            "prompt": "You are preparing the execution artifact for a Todo that is now ready.\n\nTodo title: Test Task One\n\nTodo description:\nAuto-generated from scheduler.json\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n- system: Linked task draft created: Test Task One.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nCreate or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
+            "enabled": false,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "agent",
+            "model": "",
+            "promptSource": "inline",
+            "promptPath": "",
+            "jitterSeconds": 0,
+            "oneTime": true,
+            "labels": [
+                "from-todo-cockpit"
+            ],
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "createdAt": "2026-04-06T05:52:38.902Z",
+            "updatedAt": "2026-04-06T08:00:38.513Z"
+        }
+    ],
     "jobs": [],
     "jobFolders": [],
     "cockpitBoard": {
         "version": 4,
         "sections": [
             {
-                "id": "section_mnc64kul_2dygkl",
-                "title": "NEXT",
+                "id": "section_mn9hvobp_ttw2do",
+                "title": "Bugs",
                 "order": 0,
-                "createdAt": "2026-03-29T19:44:49.293Z",
-                "updatedAt": "2026-03-29T21:40:46.161Z"
+                "createdAt": "2026-03-27T22:50:30.757Z",
+                "updatedAt": "2026-03-27T22:50:30.757Z"
             },
             {
                 "id": "unsorted",
@@ -20,11 +41,11 @@
                 "updatedAt": "2026-03-27T21:51:28.296Z"
             },
             {
-                "id": "section_mn9hvobp_ttw2do",
-                "title": "Bugs",
+                "id": "section_mnc64kul_2dygkl",
+                "title": "NEXT",
                 "order": 2,
-                "createdAt": "2026-03-27T22:50:30.757Z",
-                "updatedAt": "2026-03-27T22:50:30.757Z"
+                "createdAt": "2026-03-29T19:44:49.293Z",
+                "updatedAt": "2026-03-29T21:40:46.161Z"
             },
             {
                 "id": "recurring-tasks",
@@ -117,12 +138,24 @@
                         "source": "system-event",
                         "sequence": 5,
                         "createdAt": "2026-04-05T13:11:05.655Z"
+                    },
+                    {
+                        "id": "comment_mnmrx7p6_qnghn0",
+                        "author": "system",
+                        "body": "Linked task draft created: Test Task One.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 6,
+                        "createdAt": "2026-04-06T05:52:38.970Z"
                     }
                 ],
+                "taskId": "task_1775454758902_rj7k0b",
                 "archived": false,
                 "approvedAt": "2026-04-05T13:11:05.633Z",
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-05T22:21:48.471Z"
+                "updatedAt": "2026-04-06T08:00:38.513Z"
             },
             {
                 "id": "todo_mnam08r9_95mmdu",
@@ -910,8 +943,8 @@
                 "id": "todo_mnbmrdjq_6ot5nl",
                 "title": "fgfg",
                 "description": "fgfg",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 3,
+                "sectionId": "unsorted",
+                "order": 5,
                 "priority": "medium",
                 "dueAt": "2026-03-05T11:42:00.000Z",
                 "status": "active",
@@ -957,14 +990,14 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:49.936Z",
                 "createdAt": "2026-03-29T10:42:40.598Z",
-                "updatedAt": "2026-04-04T23:19:08.529Z"
+                "updatedAt": "2026-04-06T07:37:15.511Z"
             },
             {
                 "id": "todo_mnbssevh_q7ta3h",
                 "title": "sdsd",
                 "description": "sdsd",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 2,
+                "sectionId": "unsorted",
+                "order": 0,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -1009,14 +1042,14 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T18:52:33.149Z",
                 "createdAt": "2026-03-29T13:31:26.669Z",
-                "updatedAt": "2026-04-04T00:49:57.085Z"
+                "updatedAt": "2026-04-06T07:48:50.824Z"
             },
             {
                 "id": "todo_mnc4hppm_dztwob",
                 "title": "aa",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 1,
+                "sectionId": "unsorted",
+                "order": 7,
                 "priority": "medium",
                 "status": "active",
                 "labels": [],
@@ -1073,7 +1106,7 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T19:00:55.154Z",
                 "createdAt": "2026-03-29T18:59:02.815Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-06T07:38:34.747Z"
             },
             {
                 "id": "todo_mncadsha_oflulp",
@@ -1111,14 +1144,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-03-29T21:43:57.468Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-06T07:38:13.670Z"
             },
             {
                 "id": "todo_mnli5fh7_2cfcq6",
                 "title": "hjhj",
                 "description": "hjhj",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 0,
+                "sectionId": "unsorted",
+                "order": 10,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -1150,14 +1183,14 @@
                 "archived": false,
                 "approvedAt": "2026-04-05T12:33:18.634Z",
                 "createdAt": "2026-04-05T08:31:19.963Z",
-                "updatedAt": "2026-04-05T23:07:05.388Z"
+                "updatedAt": "2026-04-06T07:06:13.320Z"
             },
             {
                 "id": "todo_mnanctyt_pez9mw",
                 "title": "2",
                 "description": "whats next?",
                 "sectionId": "unsorted",
-                "order": 1,
+                "order": 4,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -1211,19 +1244,19 @@
                 "archived": false,
                 "approvedAt": "2026-03-29T10:05:13.288Z",
                 "createdAt": "2026-03-28T18:11:35.477Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-06T07:34:29.013Z"
             },
             {
                 "id": "todo_mnbnv2qm_uzedu5",
                 "title": "xyyx",
                 "description": "Auto-generated from scheduler.json",
                 "sectionId": "unsorted",
-                "order": 5,
+                "order": 3,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
                 "flags": [
-                    "ready"
+                    "FINAL-USER-CHECK"
                 ],
                 "comments": [
                     {
@@ -1258,19 +1291,54 @@
                         "source": "system-event",
                         "sequence": 3,
                         "createdAt": "2026-03-31T20:40:41.430Z"
+                    },
+                    {
+                        "id": "comment_mnmrzyr9_eim025",
+                        "author": "system",
+                        "body": "Linked task draft created: xyyx.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-06T05:54:47.349Z"
+                    },
+                    {
+                        "id": "comment_mnmt81at_d9dtuu",
+                        "author": "system",
+                        "body": "Linked task left draft-only mode and is now an active execution artifact.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-enabled"
+                        ],
+                        "source": "system-event",
+                        "sequence": 5,
+                        "createdAt": "2026-04-06T06:29:03.383Z"
+                    },
+                    {
+                        "id": "comment_mnmvdzbh_oso3g4",
+                        "author": "system",
+                        "body": "Linked one-time task is no longer present. Todo moved to FINAL-USER-CHECK for acceptance.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-complete"
+                        ],
+                        "source": "system-event",
+                        "sequence": 6,
+                        "createdAt": "2026-04-06T07:29:40.109Z"
                     }
                 ],
                 "archived": false,
                 "approvedAt": "2026-03-29T12:05:55.019Z",
                 "createdAt": "2026-03-29T11:13:32.810Z",
-                "updatedAt": "2026-04-05T12:32:13.217Z"
+                "updatedAt": "2026-04-06T07:40:35.417Z"
             },
             {
                 "id": "todo_mncda6f2_9y5ib4",
                 "title": "assa",
                 "description": "Auto-generated from scheduler.json",
                 "sectionId": "unsorted",
-                "order": 0,
+                "order": 6,
                 "priority": "medium",
                 "status": "active",
                 "labels": [],
@@ -1304,14 +1372,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-03-29T21:48:19.929Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-06T07:38:30.110Z"
             },
             {
                 "id": "todo_mnkykzwf_7kdb54",
                 "title": "5",
                 "description": "Auto-generated from scheduler.json",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 1,
+                "sectionId": "unsorted",
+                "order": 2,
                 "priority": "urgent",
                 "status": "active",
                 "labels": [],
@@ -1345,14 +1413,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-04T23:23:33.763Z",
-                "updatedAt": "2026-04-05T23:01:47.828Z"
+                "updatedAt": "2026-04-06T07:48:47.470Z"
             },
             {
                 "id": "todo_mnlgrcql_4eiaae",
                 "title": "Todo",
                 "description": "What do to and how todo",
                 "sectionId": "unsorted",
-                "order": 2,
+                "order": 9,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -1374,14 +1442,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-05T07:52:23.613Z",
-                "updatedAt": "2026-04-05T07:52:23.613Z"
+                "updatedAt": "2026-04-06T07:40:23.554Z"
             },
             {
                 "id": "todo_mnlgrfps_e5bxc2",
                 "title": "Todo",
                 "description": "What do to and how todo",
                 "sectionId": "unsorted",
-                "order": 3,
+                "order": 8,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -1403,14 +1471,14 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-05T07:52:27.472Z",
-                "updatedAt": "2026-04-05T07:52:27.472Z"
+                "updatedAt": "2026-04-06T07:38:26.038Z"
             },
             {
                 "id": "todo_mnlh0qow_xywi1h",
                 "title": "po",
                 "description": "Auto-generated from scheduler.json",
                 "sectionId": "unsorted",
-                "order": 4,
+                "order": 1,
                 "priority": "urgent",
                 "status": "active",
                 "labels": [],
@@ -1466,7 +1534,7 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-05T07:59:41.510Z",
-                "updatedAt": "2026-04-05T12:33:05.493Z"
+                "updatedAt": "2026-04-06T07:48:49.253Z"
             }
         ],
         "labelCatalog": [],
@@ -1496,8 +1564,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-05T23:10:02.317Z",
-                "updatedAt": "2026-04-05T23:10:02.317Z"
+                "createdAt": "2026-04-06T09:58:53.602Z",
+                "updatedAt": "2026-04-06T09:58:53.602Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1559,11 +1627,11 @@
             "statuses": [],
             "archiveOutcomes": [],
             "flags": [],
-            "sortBy": "manual",
+            "sortBy": "priority",
             "sortDirection": "desc",
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-05T23:10:01.470Z"
+        "updatedAt": "2026-04-06T09:58:53.547Z"
     }
 }

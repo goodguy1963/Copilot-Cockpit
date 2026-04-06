@@ -1,0 +1,542 @@
+﻿
+> copilot-cockpit@99.0.123 pretest
+> npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm
+
+
+> copilot-cockpit@99.0.123 esbuild-webview
+> esbuild ./media/schedulerWebview.entry.js --bundle --outfile=media/generated/schedulerWebview.js --format=iife --platform=browser
+
+node.exe : 
+In Zeile:1 Zeichen:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  media\generated\schedulerWebview.js  425.0kb
+
+Done in 22ms
+
+> copilot-cockpit@99.0.123 copy:sql-wasm
+> node ./scripts/copy-sql-wasm.js
+
+F:\HBG Webserver\extensions\source-scheduler\out\sql-wasm.wasm
+
+> copilot-cockpit@99.0.123 test
+> node ./out/test/runTest.js
+
+- Resolving version...
+Ô£ö Validated version: 1.114.0
+Ô£ö Found existing install in F:\HBG Webserver\extensions\source-scheduler\.vsc
+ode-test\vscode-win32-x64-archive-1.114.0
+
+[main 2026-04-06T09:17:04.875Z] update#setState disabled
+[main 2026-04-06T09:17:04.875Z] update#ctor - updates are disabled by the environment
+Started local extension host with pid 27124.
+Loading development extension at c:\Users\sabin\AppData\Local\Temp\copilot-cockpit-test-I1gbKw\extension-under-test
+Settings Sync: Account status changed from uninitialized to unavailable
+[0m[0m
+[0m  Todo Cockpit Action Handler[0m
+  [32m  Ô£ö[0m[90m updateTodo returns to the board and resets the todo editor[0m[31m (86ms)[0m
+  [32m  Ô£ö[0m[90m addTodoComment keeps the active todo editor open[0m[33m (62ms)[0m
+  [32m  Ô£ö[0m[90m createTodo seeds the configured needs-bot-review comment when created in needs-bot-review[0m[33m (72ms)[0m
+  [32m  Ô£ö[0m[90m createTodo launches bot review immediately when created in needs-bot-review[0m[33m (65ms)[0m
+  [32m  Ô£ö[0m[90m updateTodo seeds the configured needs-bot-review comment only when entering needs-bot-review[0m[31m (107ms)[0m
+  [32m  Ô£ö[0m[90m needs-user-review does not seed the needs-bot-review comment or launch bot review[0m[33m (55ms)[0m
+  [32m  Ô£ö[0m[90m updateTodo launches bot review only on transition into needs-bot-review[0m[31m (101ms)[0m
+  [32m  Ô£ö[0m[90m createTaskFromTodo uses the ready prompt with Todo context and MCP guidance[0m[33m (75ms)[0m
+  [32m  Ô£ö[0m[90m createTodo clears hiding filters so the new card is visible in the board[0m[33m (55ms)[0m
+  [32m  Ô£ö[0m[90m setTodoFilters skips refresh when the effective filters are unchanged[0m
+  [32m  Ô£ö[0m[90m setTodoFilters triggers one immediate scheduler refresh after persisting recurring visibility[0m
+  [32m  Ô£ö[0m[90m archiveTodo with archived false restores an archived card[0m[33m (72ms)[0m
+  [32m  Ô£ö[0m[90m linkTodoTask keeps ready when the linked one-time task is still draft-only[0m[33m (54ms)[0m
+  [32m  Ô£ö[0m[90m linkTodoTask moves to ON-SCHEDULE-LIST when the linked one-time task is enabled[0m[33m (52ms)[0m
+[0m  Template validation behavior[0m
+  [32m  Ô£ö[0m[90m accepts a cached local prompt inside the prompts directory[0m
+  [32m  Ô£ö[0m[90m rejects non-markdown and agent-markdown files[0m
+  [32m  Ô£ö[0m[90m rejects uncached and out-of-root local templates[0m
+  [36m  - rejects symlink escapes from the prompts directory[0m
+[0m  Telegram notification manager behavior[0m
+  [32m  Ô£ö[0m[90m stores Telegram secrets privately while keeping the public file redacted[0m
+  [32m  Ô£ö[0m[90m turning Telegram notifications off removes generated hook files[0m[33m (41ms)[0m
+[0m  Task store selection behavior[0m
+  [32m  Ô£ö[0m[90m prefers the newest healthy source and plans healing for the older copy[0m
+  [32m  Ô£ö[0m[90m prefers the file when revisions match and the file is valid[0m
+  [32m  Ô£ö[0m[90m falls back to global state when a same-revision file is invalid[0m
+  [32m  Ô£ö[0m[90m never heals global state from a broken file snapshot[0m
+  [32m  Ô£ö[0m[90m an invalid file never beats an existing global snapshot[0m
+[0m  SQLite Storage Foundation Tests[0m
+  [32m  Ô£ö[0m[90m normalizes storage mode to known values[0m
+  [32m  Ô£ö[0m[90m defaults JSON mirror to enabled[0m
+  [32m  Ô£ö[0m[90m builds workspace storage paths under .vscode[0m
+  [32m  Ô£ö[0m[90m builds global storage database path[0m
+  [32m  Ô£ö[0m[90m builds research and global store helper paths[0m
+  [32m  Ô£ö[0m[90m defines workspace schema for core state domains[0m
+  [32m  Ô£ö[0m[90m defines global schema for task state[0m
+[0m  SQLite Bootstrap Tests[0m
+  [32m  Ô£ö[0m[90m bootstraps a workspace sqlite database file[0m
+  [32m  Ô£ö[0m[90m bootstraps from the private scheduler mirror when the public mirror is malformed[0m
+  [32m  Ô£ö[0m[90m bootstraps a global sqlite database file[0m
+[CopilotScheduler] Cockpit normalization summary {
+  kind: 'normalize-board',
+  mode: 'canonical-primary',
+  legacyReadyStatusCount: 0,
+  legacyGoFlagCount: 1,
+  legacyRejectedFlagCount: 0,
+  contradictoryArchivedWorkflowFlagCount: 0
+}
+  [32m  Ô£ö[0m[90m syncs and reads cockpit board state through sqlite[0m
+  [32m  Ô£ö[0m[90m exports sqlite workspace state back into json mirrors[0m[33m (44ms)[0m
+  [32m  Ô£ö[0m[90m bootstraps successfully when both scheduler mirrors are absent (empty state)[0m
+  [32m  Ô£ö[0m[90m export skips global tasks when global sqlite database does not exist[0m
+  [32m  Ô£ö[0m[90m export preserves tombstones in the public scheduler mirror[0m
+  [32m  Ô£ö[0m[90m exports authoritative sqlite state into stale mirrors and preserves metadata versions[0m[33m (64ms)[0m
+[0m  Skill Bootstrap Tests[0m
+  [32m  Ô£ö[0m[90m creates the scheduler skill in each workspace root when missing[0m
+  [32m  Ô£ö[0m[90m does not overwrite an existing workspace skill[0m
+  [32m  Ô£ö[0m[90m creates the cockpit todo skill in each workspace root when missing[0m
+  [32m  Ô£ö[0m[90m syncs every bundled skill file under .github/skills recursively[0m[33m (39ms)[0m
+  [32m  Ô£ö[0m[90m updates previously managed bundled skill files when the bundled content changes[0m
+  [32m  Ô£ö[0m[90m updates existing bundled skill files when they are not explicitly marked as customized[0m
+  [32m  Ô£ö[0m[90m does not overwrite bundled skill files explicitly marked as customized[0m
+[0m  Scheduler MCP Server Tests[0m
+  [32m  Ô£ö[0m[90m exports the expanded MCP tool set[0m
+  [32m  Ô£ö[0m[90m MCP tool definitions match the dispatch switch cases[0m
+  [32m  Ô£ö[0m[90m cockpit tools create and comment on internal todos[0m
+  [32m  Ô£ö[0m[90m routing cards tool matches canonical workflow flags only[0m
+  [32m  Ô£ö[0m[90m cockpit tools update move filter and delete todos[0m
+  [32m  Ô£ö[0m[90m protected cockpit flag definitions cannot be removed[0m
+  [32m  Ô£ö[0m[90m closeout helper clears stale task links and keeps the current section when the requested section is missing[0m
+  [32m  Ô£ö[0m[90m closeout helper preserves requested flags[0m
+  [32m  Ô£ö[0m[90m closeout helper does not recreate a missing todo[0m
+  [32m  Ô£ö[0m[90m cockpit seed tool surfaces scheduled tasks inside Todo Cockpit[0m
+  [32m  Ô£ö[0m[90m job tools can create a job, attach a task, and compile it[0m
+  [32m  Ô£ö[0m[90m research tools create and list profiles[0m
+  [32m  Ô£ö[0m[90m update_task preserves existing metadata while updating selected fields[0m
+  [32m  Ô£ö[0m[90m one-time tasks do not keep a task-level chat session[0m
+  [32m  Ô£ö[0m[90m run_task marks an enabled task due now[0m
+  [32m  Ô£ö[0m[90m restore_snapshot snapshots current state before writing restored config[0m
+[0m  SchedulerWebviewTemplateCache Tests[0m
+  [32m  Ô£ö[0m[90m refreshAgentsAndModels preserves cached custom lists when refresh is empty[0m
+  [32m  Ô£ö[0m[90m refreshAgentsAndModels falls back only when cache is empty[0m
+[0m  Task Handler Tests[0m
+  [32m  Ô£ö[0m[90m refreshTasks dispatches refresh action[0m
+  [32m  Ô£ö[0m[90m createTask dispatches edit action for create mode[0m
+  [32m  Ô£ö[0m[90m updateTask dispatches edit action for existing tasks[0m
+  [32m  Ô£ö[0m[90m runTask dispatches run action with taskId[0m
+  [32m  Ô£ö[0m[90m toggleTask dispatches toggle action[0m
+  [32m  Ô£ö[0m[90m deleteTask dispatches delete action[0m
+  [32m  Ô£ö[0m[90m duplicateTask dispatches duplicate action[0m
+  [32m  Ô£ö[0m[90m moveTaskToCurrentWorkspace dispatches moveToCurrentWorkspace[0m
+  [32m  Ô£ö[0m[90m copyTask dispatches copy action[0m
+  [32m  Ô£ö[0m[90m does not misroute cockpit lifecycle messages through the generic task handler[0m
+  [32m  Ô£ö[0m[90m returns false for unrelated message type[0m
+  [32m  Ô£ö[0m[90m tolerates undefined callback[0m
+[0m  SchedulerWebviewStrings Tests[0m
+  [32m  Ô£ö[0m[90m falls back to English for unsupported languages[0m[33m (56ms)[0m
+  [32m  Ô£ö[0m[90m returns localized German and Japanese labels for representative keys[0m[33m (47ms)[0m
+  [32m  Ô£ö[0m[90m builds a non-empty string catalog for the webview[0m
+[0m  Scheduler webview settings handler behavior[0m
+  [32m  Ô£ö[0m[90m uses a workspace-folder target when a folder is open[0m
+  [32m  Ô£ö[0m[90m setStorageSettings normalizes state and posts it back to the webview[0m
+[0m  Research Handler Tests[0m
+  [32m  Ô£ö[0m[90m createResearchProfile dispatches correct action[0m
+  [32m  Ô£ö[0m[90m updateResearchProfile carries researchId[0m
+  [32m  Ô£ö[0m[90m deleteResearchProfile dispatches delete[0m
+  [32m  Ô£ö[0m[90m duplicateResearchProfile dispatches duplicate[0m
+  [32m  Ô£ö[0m[90m startResearchRun dispatches start[0m
+  [32m  Ô£ö[0m[90m stopResearchRun dispatches stop without researchId[0m
+  [32m  Ô£ö[0m[90m returns false for unrelated message type[0m
+  [32m  Ô£ö[0m[90m tolerates undefined callback[0m
+[0m  Job Handler Tests[0m
+  [32m  Ô£ö[0m[90m createJob dispatches createJob action[0m
+  [32m  Ô£ö[0m[90m updateJob carries jobId and data[0m
+  [32m  Ô£ö[0m[90m deleteJob dispatches delete[0m
+  [32m  Ô£ö[0m[90m duplicateJob dispatches duplicate[0m
+  [32m  Ô£ö[0m[90m toggleJobPaused dispatches toggle[0m
+  [32m  Ô£ö[0m[90m createJobFolder dispatches correct action[0m
+  [32m  Ô£ö[0m[90m renameJobFolder carries folderId[0m
+  [32m  Ô£ö[0m[90m deleteJobFolder carries folderId[0m
+  [32m  Ô£ö[0m[90m createJobTask dispatches with jobId and data[0m
+  [32m  Ô£ö[0m[90m attachTaskToJob carries task and job ids[0m
+  [32m  Ô£ö[0m[90m detachTaskFromJob dispatches detach[0m
+  [32m  Ô£ö[0m[90m deleteJobTask dispatches delete[0m
+  [32m  Ô£ö[0m[90m createJobPause dispatches createJobPause[0m
+  [32m  Ô£ö[0m[90m approveJobPause dispatches approve[0m
+  [32m  Ô£ö[0m[90m rejectJobPause dispatches reject[0m
+  [32m  Ô£ö[0m[90m reorderJobNode dispatches reorder with targetIndex[0m
+  [32m  Ô£ö[0m[90m updateJobNodeWindow dispatches update with windowMinutes[0m
+  [32m  Ô£ö[0m[90m compileJob dispatches compile[0m
+  [32m  Ô£ö[0m[90m returns false for unrelated message type[0m
+  [32m  Ô£ö[0m[90m tolerates undefined callback for direct cases[0m
+[0m  Scheduler Webview Job Dialog Tests[0m
+  [32m  Ô£ö[0m[90m promptForJobFolderName trims valid input[0m
+  [32m  Ô£ö[0m[90m promptForJobFolderName returns undefined for whitespace input[0m
+  [32m  Ô£ö[0m[90m handleCreateJobRequest dispatches trimmed name with default cron[0m
+  [32m  Ô£ö[0m[90m handleCreateJobFolderRequest dispatches parent folder with trimmed name[0m
+  [32m  Ô£ö[0m[90m handleRenameJobFolderRequest ignores unknown folder ids[0m
+  [32m  Ô£ö[0m[90m handleRenameJobFolderRequest dispatches trimmed rename[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobFolderRequest dispatches only after confirmation[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobTaskRequest dispatches detach when chosen[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobTaskRequest dispatches delete when chosen[0m
+  [32m  Ô£ö[0m[90m handleRenameJobPauseRequest dispatches trimmed pause title[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobPauseRequest dispatches delete after confirmation[0m
+  [32m  Ô£ö[0m[90m promptForJobFolderName returns undefined when user dismisses (undefined result)[0m
+  [32m  Ô£ö[0m[90m handleCreateJobRequest does not dispatch when user cancels the input box[0m
+  [32m  Ô£ö[0m[90m handleCreateJobRequest dispatches without folderId when no folder is given[0m
+  [32m  Ô£ö[0m[90m handleCreateJobFolderRequest does not dispatch when user cancels[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobFolderRequest does not dispatch when user cancels the confirmation[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobFolderRequest does nothing for an unknown folder id[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobTaskRequest does not dispatch when user cancels[0m
+  [32m  Ô£ö[0m[90m handleRenameJobPauseRequest does nothing when the node is a task type, not a pause[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobPauseRequest does nothing when the node is a task type, not a pause[0m
+  [32m  Ô£ö[0m[90m handleDeleteJobPauseRequest does not dispatch when user cancels the confirmation[0m
+  [32m  Ô£ö[0m[90m handleRenameJobPauseRequest does not dispatch when user cancels[0m
+[0m  SchedulerWebviewDocument Tests[0m
+  [32m  Ô£ö[0m[90m renderSchedulerWebviewDocument injects CSP, nonce-bound scripts, and an escaped title[0m
+[0m  SchedulerWebviewContentUtils Tests[0m
+  [32m  Ô£ö[0m[90m getWebviewNonce returns a 32 character alphanumeric token[0m
+  [32m  Ô£ö[0m[90m serializeForWebview escapes script-breaking characters[0m
+  [32m  Ô£ö[0m[90m escapeHtmlAttr escapes attribute-sensitive characters[0m
+  [32m  Ô£ö[0m[90m escapeHtml escapes text-node-sensitive characters[0m
+  [32m  Ô£ö[0m[90m getModelSourceLabel detects OpenRouter and Copilot sources from normalized metadata[0m
+  [32m  Ô£ö[0m[90m formatModelLabel appends the source when it differs from the model name[0m
+  [32m  Ô£ö[0m[90m buildSchedulerWebviewInitialData assembles the expected host payload[0m
+[0m  SchedulerWebview Cockpit Bridge Tests[0m
+  [32m  Ô£ö[0m[90m creates outgoing cockpit update messages[0m
+  [32m  Ô£ö[0m[90m routes Todo Cockpit messages into task actions[0m
+  [32m  Ô£ö[0m[90m routes linked-task lifecycle messages through the cockpit bridge[0m
+  [32m  Ô£ö[0m[90m ignores non-cockpit webview messages[0m
+[0m  SchedulerWebview Message Queue Behavior[0m
+  [32m  Ô£ö[0m[90m webview client script parses[0m
+  [32m  Ô£ö[0m[90m todo editor click handlers use normalized event target lookups[0m
+  [32m  Ô£ö[0m[90m todo create draft keeps transient label and flag editor fields[0m
+  [32m  Ô£ö[0m[90m settings tab includes editable spot-review defaults plumbing[0m
+  [32m  Ô£ö[0m[90m todo label and flag saves use rename-aware updates instead of delete-and-readd[0m
+  [32m  Ô£ö[0m[90m todo label catalog edit and add flows preserve shared definition colors[0m
+  [32m  Ô£ö[0m[90m todo flag picker localizes protected flags and hides destructive controls[0m
+  [32m  Ô£ö[0m[90m todo editor keeps upload wiring and sticky filter footer anchors[0m
+  [32m  Ô£ö[0m[90m research tab exposes the AutoAgent example loader without host-side profile creation[0m
+  [32m  Ô£ö[0m[90m webview runtime persists the active tab and per-tab scroll positions[0m
+  [32m  Ô£ö[0m[90m webview runtime keeps pending recurring filter state across stale board refreshes[0m
+  [32m  Ô£ö[0m[90m webview runtime orders visible recurring sections first and resolves task-list selects through execution defaults[0m
+  [32m  Ô£ö[0m[90m task list adds manual sessions filter and collapsible manual recurring one-time sections[0m
+  [32m  Ô£ö[0m[90m task list recovers restored label filters that would otherwise hide all tasks and ready todo drafts[0m
+  [32m  Ô£ö[0m[90m task editor disables native submit blocking and syncs prompt-source required fields[0m
+  [32m  Ô£ö[0m[90m webview supports cross-platform save shortcuts for task and todo editors[0m
+  [32m  Ô£ö[0m[90m board filter footer compacts on narrow screens and chip scaling uses dedicated slider vars[0m
+  [32m  Ô£ö[0m[90m todo board cards use icon-only compact actions and keep board rows on one line[0m
+  [32m  Ô£ö[0m[90m list view rows reuse board chips and switch between compact and detailed lines[0m
+  [32m  Ô£ö[0m[90m editor tabs use symbol states and dirty badges[0m
+  [32m  Ô£ö[0m[90m job focus resets jobs editor state and keeps editor tabs compact[0m
+  [32m  Ô£ö[0m[90m todo comments style human form input separately and todo saves reset to create mode[0m
+  [32m  Ô£ö[0m[90m Queues messages until panel is ready then flushes (dedup by type)[0m
+  [32m  Ô£ö[0m[90m Batches repeated update messages while ready[0m
+  [32m  Ô£ö[0m[90m Skips identical batched update payloads after they were already sent[0m
+  [32m  Ô£ö[0m[90m Queues schedule history updates until ready[0m
+  [32m  Ô£ö[0m[90m Queues research state updates until ready[0m
+  [32m  Ô£ö[0m[90m Queues Telegram notification updates until ready[0m
+  [32m  Ô£ö[0m[90m Queues execution default updates until ready[0m
+  [32m  Ô£ö[0m[90m Queues storage settings updates until ready[0m
+  [32m  Ô£ö[0m[90m Queues cockpit board updates until ready[0m
+  [32m  Ô£ö[0m[90m board target helpers resolve text-node button clicks[0m
+  [32m  Ô£ö[0m[90m board drag-handle helper keeps drag handles draggable[0m
+  [32m  Ô£ö[0m[90m board target helpers treat custom todo action controls as interactive[0m
+  [32m  Ô£ö[0m[90m board target helpers ignore plain non-interactive text nodes[0m
+  [32m  Ô£ö[0m[90m board interaction binding installs direct listeners and routes text-node edit clicks[0m
+  [32m  Ô£ö[0m[90m board interaction binding handles todo completion on click[0m
+  [32m  Ô£ö[0m[90m board interaction binding reinstalls click delegation when the board root changes[0m
+  [32m  Ô£ö[0m[90m board interaction binding reinstalls pointer listeners when the window changes[0m
+  [32m  Ô£ö[0m[90m board interaction binding routes inline delete confirmation, restore, and purge clicks[0m
+  [32m  Ô£ö[0m[90m board interaction binding collapses sections when clicking the section header[0m
+  [32m  Ô£ö[0m[90m board todo completion approves active cards and uses yes no finalize controls for ready cards[0m
+  [32m  Ô£ö[0m[90m todo editor completion requires a confirm step before finalizing ready cards[0m
+  [32m  Ô£ö[0m[90m archived todo completion button restores instead of completing again[0m
+  [32m  Ô£ö[0m[90m board interaction binding uses pointer drag for todo moves[0m
+  [32m  Ô£ö[0m[90m board interaction binding completes todo drop on lost pointer capture using the last drag target[0m
+  [32m  Ô£ö[0m[90m board interaction binding cancels stale drag state on window blur[0m
+  [32m  Ô£ö[0m[90m board interaction binding starts todo drag from card body after movement threshold[0m
+  [32m  Ô£ö[0m[90m board interaction binding computes same-section drop index after excluding the dragged todo[0m
+  [32m  Ô£ö[0m[90m board interaction binding does not start todo drag from todo action buttons[0m
+  [32m  Ô£ö[0m[90m board interaction binding suppresses follow-up click selection after drag[0m
+  [32m  Ô£ö[0m[90m board interaction binding reorders sections using only section elements[0m
+  [32m  Ô£ö[0m[90m board interaction binding starts section drag from header body after movement threshold[0m
+[0m  SchedulerWebview Jobs Request Tests[0m
+  [32m  Ô£ö[0m[90m requestCreateJob uses VS Code input boxes and dispatches createJob[0m
+  [32m  Ô£ö[0m[90m requestDeleteJobFolder confirms before dispatching deleteJobFolder[0m
+  [32m  Ô£ö[0m[90m requestDeleteJobTask can detach from workflow without deleting the task[0m
+  [32m  Ô£ö[0m[90m requestDeleteJobTask can delete the task entirely[0m
+  [32m  Ô£ö[0m[90m createJobPause and compileJob forward the expected task actions[0m
+  [32m  Ô£ö[0m[90m requestRenameJobPause and requestDeleteJobPause prompt before dispatching[0m
+  [32m  Ô£ö[0m[90m createTask and updateTask dispatch edit actions[0m
+  [32m  Ô£ö[0m[90m settings messages dispatch the expected task actions[0m
+  [32m  Ô£ö[0m[90m testPrompt invokes the configured callback[0m
+  [32m  Ô£ö[0m[90m refreshAgents and refreshPrompts post refreshed caches[0m
+[0m  SchedulerWebview settings target Tests[0m
+  [32m  Ô£ö[0m[90m uses workspace-folder target for resource-scoped settings when a folder is open[0m
+  [32m  Ô£ö[0m[90m falls back to global target when no workspace folder is open[0m
+[0m  SchedulerWebview Error Detail Sanitization[0m
+  [32m  Ô£ö[0m[90m Strips absolute paths to basenames on Windows and POSIX[0m
+[0m  SchedulerWebview showError Path Sanitization[0m
+  [32m  Ô£ö[0m[90m focusJob posts job selection message[0m
+  [32m  Ô£ö[0m[90m focusResearchProfile posts research selection message[0m
+  [32m  Ô£ö[0m[90m showError strips abs paths before posting to webview[0m
+[0m  Board Render State Tests[0m
+  [32m  Ô£ö[0m[90m second render request after first rAF fires schedules a new frame[0m
+  [32m  Ô£ö[0m[90m finishBoardDrag flushes pending render that was deferred during drag[0m
+[0m  SchedulerStore Tests[0m
+  [32m  Ô£ö[0m[90m getPrivateSchedulerConfigPath returns the sibling private config path[0m
+  [32m  Ô£ö[0m[90m findWorkspaceRoot walks up to the nearest workspace with scheduler config[0m
+  [32m  Ô£ö[0m[90m findWorkspaceRoot falls back to the current working directory when no config exists[0m
+  [32m  Ô£ö[0m[90m getActiveSchedulerReadPath prefers the newer valid private config over an older public config[0m
+  [32m  Ô£ö[0m[90m getActiveSchedulerReadPath falls back to the valid public config when private is invalid[0m
+  [32m  Ô£ö[0m[90m readSchedulerConfig strips a leading BOM[0m
+  [32m  Ô£ö[0m[90m writeSchedulerConfig writes a sanitized public file and full private file[0m
+  [32m  Ô£ö[0m[90m writeSchedulerConfig rejects invalid configs without a tasks array[0m
+  [32m  Ô£ö[0m[90m readSchedulerConfig returns empty tasks list when no config files exist[0m
+[SchedulerStore] Failed to read config from C:\Users\sabin\AppData\Local\Temp\c
+opilot-cockpit-store-3N3HLE\.vscode\scheduler.json: SyntaxError: Expected 
+property name or '}' in JSON at position 2 (line 1 column 3)
+  [32m  Ô£ö[0m[90m readSchedulerConfig returns empty tasks list when the file contains malformed JSON[0m
+  [32m  Ô£ö[0m[90m getActiveSchedulerReadPath returns the private path when only the private file exists[0m
+[0m  Scheduler Json Sanitizer Tests[0m
+[CopilotScheduler] Cockpit normalization summary {
+  kind: 'normalize-board',
+  mode: 'canonical-primary',
+  legacyReadyStatusCount: 0,
+  legacyGoFlagCount: 1,
+  legacyRejectedFlagCount: 0,
+  contradictoryArchivedWorkflowFlagCount: 0
+}
+  [32m  Ô£ö[0m[90m keeps cockpit board state private while round-tripping it from the private config[0m
+  [32m  Ô£ö[0m[90m tracks recent scheduler config writes for watcher suppression[0m
+  [32m  Ô£ö[0m[90m merges stale task writes so newer additions are not dropped[0m
+[CopilotScheduler] Resolved concurrent task field conflict {
+  recordType: 'task',
+  recordId: 'task-a',
+  conflictedFields: [ 'updatedAt' ],
+  currentUpdatedAt: '2026-04-02T10:05:00.000Z',
+  nextUpdatedAt: '2026-04-02T10:06:00.000Z'
+}
+  [32m  Ô£ö[0m[90m merges independent field edits on the same task[0m
+  [32m  Ô£ö[0m[90m merges stale cockpit board writes so independent todo edits survive[0m[33m (51ms)[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'task-a' ] }
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'task-a' ] }
+  [32m  Ô£ö[0m[90m keeps deleted tasks tombstoned against stale concurrent edits[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'todoCard', suppressedIds: [ 'card-a' ] }
+  [32m  Ô£ö[0m[90m keeps purged todos tombstoned against stale concurrent edits[0m[33m (50ms)[0m
+[CopilotScheduler] Resolved concurrent job field conflict {
+  recordType: 'job',
+  recordId: 'job-a',
+  conflictedFields: [ 'updatedAt' ],
+  currentUpdatedAt: '2026-04-02T10:05:00.000Z',
+  nextUpdatedAt: '2026-04-02T10:06:00.000Z'
+}
+  [32m  Ô£ö[0m[90m merges independent field edits on the same job[0m
+[CopilotScheduler] Resolved concurrent job folder field conflict {
+  recordType: 'job folder',
+  recordId: 'folder-a',
+  conflictedFields: [ 'updatedAt' ],
+  currentUpdatedAt: '2026-04-02T10:05:00.000Z',
+  nextUpdatedAt: '2026-04-02T10:06:00.000Z'
+}
+  [32m  Ô£ö[0m[90m merges independent field edits on the same job folder[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'job', suppressedIds: [ 'job-a' ] }
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'job', suppressedIds: [ 'job-a' ] }
+  [32m  Ô£ö[0m[90m keeps deleted jobs tombstoned against stale concurrent edits[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'jobFolder', suppressedIds: [ 'folder-a' ] }
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'jobFolder', suppressedIds: [ 'folder-a' ] }
+  [32m  Ô£ö[0m[90m keeps deleted job folders tombstoned against stale concurrent edits[0m
+  [32m  Ô£ö[0m[90m cleans up temp files and preserves the original config when atomic rename fails[0m
+[CopilotScheduler] Recovered pending scheduler config transaction {
+  workspaceRoot: 'C:\\Users\\sabin\\AppData\\Local\\Temp\\copilot-scheduler-sanitizer-1cfwiG'
+}
+  [32m  Ô£ö[0m[90m recovers a pending transaction after a mid-commit failure[0m
+  [32m  Ô£ö[0m[90m fails fast when another writer holds the scheduler lock[0m
+  [32m  Ô£ö[0m[90m reads the transaction snapshot while a writer holds the lock[0m
+  [32m  Ô£ö[0m[90m clears a stale scheduler lock before writing[0m
+[0m  ScheduleManager Cron Interval Validation[0m
+  [32m  Ô£ö[0m[90m validateMinimumInterval falls back to local time when timezone is invalid[0m
+  [32m  Ô£ö[0m[90m validateMinimumInterval returns undefined for long intervals even with invalid timezone[0m
+[0m  ScheduleManager Recurring Chat Session Tests[0m
+  [32m  Ô£ö[0m[90m persists chatSession only for recurring tasks[0m[31m (83ms)[0m
+  [32m  Ô£ö[0m[90m clears chatSession when a task becomes one-time[0m
+  [32m  Ô£ö[0m[90m allows updating a local template task without resubmitting inline prompt text[0m
+  [32m  Ô£ö[0m[90m persists manualSession separately from recurring and clears it for one-time tasks[0m[33m (73ms)[0m
+[0m  ScheduleManager Todo Lifecycle Sync Tests[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'task_1775467031226_59ybxx' ] }
+  [32m  Ô£ö[0m[90m linked one-time tasks move from ready to ON-SCHEDULE-LIST and then FINAL-USER-CHECK[0m[33m (69ms)[0m
+[0m  ScheduleManager Jobs Tests[0m
+  [32m  Ô£ö[0m[90m persists jobs and folders in workspace scheduler config[0m[31m (124ms)[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'job', suppressedIds: [ 'job_1775467031421_gfff21' ] }
+  [32m  Ô£ö[0m[90m deleting a job detaches child tasks instead of deleting them[0m[31m (120ms)[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'task_1775467031562_achy5s' ] }
+  [32m  Ô£ö[0m[90m deleting a job step removes the task from the task list too[0m[31m (114ms)[0m
+  [32m  Ô£ö[0m[90m attaching an existing job task again creates a reusable copy for the workflow[0m[31m (176ms)[0m
+  [32m  Ô£ö[0m[90m pause checkpoints block downstream steps until approval[0m[31m (239ms)[0m
+  [32m  Ô£ö[0m[90m pause checkpoints can be renamed and deleted[0m[31m (173ms)[0m
+  [32m  Ô£ö[0m[90m compiling a job creates one combined task and archives the source job[0m[31m (271ms)[0m
+[0m  ScheduleManager PromptSource Upgrade[0m
+  [32m  Ô£ö[0m[90m migrates missing promptSource to local when promptPath is under .github/prompts[0m
+  [32m  Ô£ö[0m[90m heals inline promptSource to local when promptPath exists under .github/prompts[0m
+[0m  ScheduleManager Workspace JSON Sanitization Tests[0m
+  [32m  Ô£ö[0m[90m redacts Discord webhook URLs when persisting workspace scheduler JSON[0m[33m (59ms)[0m
+[0m  ScheduleManager Nested Workspace Root Tests[0m
+  [32m  Ô£ö[0m[90m keeps workspace tasks isolated to the opened workspace root[0m[33m (51ms)[0m
+  [32m  Ô£ö[0m[90m mirrors workspace tasks into sqlite and hydrates them when sqlite mode is enabled[0m[31m (120ms)[0m
+  [32m  Ô£ö[0m[90m hydrates jobs and folders from sqlite when sqlite mode is enabled[0m[31m (108ms)[0m
+[0m  ScheduleManager Prompt Backup Tests[0m
+  [32m  Ô£ö[0m[90m keeps inline promptSource when only backup metadata is present[0m
+  [32m  Ô£ö[0m[90m writes backup-only prompt files for recurring inline workspace tasks[0m[33m (73ms)[0m
+  [32m  Ô£ö[0m[90m migrates legacy recurring prompt backups into .vscode[0m[31m (83ms)[0m
+[0m  ScheduleManager Overdue Task Tests[0m
+  [32m  Ô£ö[0m[90m lists overdue tasks only for the current workspace[0m
+  [32m  Ô£ö[0m[90m can defer recurring overdue tasks and reschedule one-time overdue tasks[0m[33m (52ms)[0m
+[CopilotScheduler] Suppressed tombstoned records during merge {
+  recordType: 'task',
+  suppressedIds: [ 'overdue-one-time-manual-run' ]
+}
+  [32m  Ô£ö[0m[90m manual run removes a one-time overdue task from persisted state[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'overdue-one-time-reload' ] }
+  [32m  Ô£ö[0m[90m reload does not resurrect a manually run one-time overdue task[0m
+  [32m  Ô£ö[0m[90m scheduler tick does not execute disabled tasks[0m
+[CopilotScheduler] Suppressed tombstoned records during merge { recordType: 'task', suppressedIds: [ 'tick-one-time-success' ] }
+  [32m  Ô£ö[0m[90m scheduler tick removes a successful one-time due task from persisted state[0m
+[CopilotScheduler] Task execution error: {
+  error: 'tick failure',
+  taskId: 'tick-one-time-failure',
+  taskName: 'Tick one-time failure'
+}
+  [32m  Ô£ö[0m[90m scheduler tick keeps a failing one-time due task and schedules a retry[0m
+[0m  ScheduleManager History Snapshot Tests[0m
+  [32m  Ô£ö[0m[90m stores sanitized public history, private history, and trims to 100 snapshots[0m[31m (2958ms)[0m
+  [32m  Ô£ö[0m[90m restores a previous workspace schedule snapshot and snapshots the pre-restore state[0m[31m (118ms)[0m
+[0m  ScheduleHistory Tests[0m
+  [32m  Ô£ö[0m[90m creates and reads paired public/private snapshots[0m
+  [32m  Ô£ö[0m[90m increments the snapshot id when the timestamp already exists[0m
+  [32m  Ô£ö[0m[90m trims history to the newest 100 entries[0m[31m (87ms)[0m
+  [32m  Ô£ö[0m[90m listScheduleHistoryEntries returns empty array when the history directory does not exist[0m
+  [32m  Ô£ö[0m[90m listScheduleHistoryEntries returns entries in descending order (newest first)[0m
+  [32m  Ô£ö[0m[90m ignores invalid snapshot payloads when reading and listing[0m
+[0m  ResearchManager behavior[0m
+  [32m  Ô£ö[0m[90m createProfile writes a repo-local research.json file[0m
+  [32m  Ô£ö[0m[90m startRun records a baseline-only benchmark result[0m[31m (238ms)[0m
+  [32m  Ô£ö[0m[90m sqlite mode rehydrates research state instead of trusting stale json[0m[31m (124ms)[0m
+[0m  Release Pipeline Contract Tests[0m
+  [32m  Ô£ö[0m[90m bumpWorkspaceVersion updates package metadata and build notes[0m
+  [32m  Ô£ö[0m[90m release tag validation rejects mismatched package versions[0m
+  [32m  Ô£ö[0m[90m install executable resolution rejects unknown channels[0m
+  [32m  Ô£ö[0m[90m cleanupVsixArtifacts keeps only the current package artifact[0m
+  [32m  Ô£ö[0m[90m extractTopChangelogSection returns the leading release notes body[0m
+  [32m  Ô£ö[0m[90m GitHub release workflow enforces the tested release contract[0m
+[0m  Prompt resolver behavior[0m
+  [32m  Ô£ö[0m[90m rejects traversal and non-prompt file shapes[0m
+  [32m  Ô£ö[0m[90m resolves allowed global and local prompt paths[0m
+  [32m  Ô£ö[0m[90m falls back to the Insiders prompts root on Windows[0m
+  [36m  - blocks symlink escapes from an allowed base directory[0m
+[0m  Prompt Backup Helpers[0m
+  [32m  Ô£ö[0m[90m default backup path stays outside .github/prompts[0m
+  [32m  Ô£ö[0m[90m default backup path shortens long task ids[0m
+  [32m  Ô£ö[0m[90m resolvePromptBackupPath allows current and legacy backup-root paths only[0m
+  [32m  Ô£ö[0m[90m getCanonicalPromptBackupPath rewrites legacy paths into .vscode[0m
+  [32m  Ô£ö[0m[90m renderPromptBackupContent adds metadata header and preserves prompt body[0m
+[0m  Private config ignore behavior[0m
+  [32m  Ô£ö[0m[90m creates both ignore files with cockpit-private defaults[0m
+  [32m  Ô£ö[0m[90m preserves existing ignore content while appending missing cockpit entries[0m
+  [32m  Ô£ö[0m[90m updates several workspace roots in one pass[0m
+[0m  MCP Launcher Script Tests[0m
+  [32m  Ô£ö[0m[90m resolveServerPath selects the newest installed extension runtime[0m
+  [32m  Ô£ö[0m[90m resolveServerPath falls back to the last known server when no versioned candidate exists[0m
+  [32m  Ô£ö[0m[90m resolveServerPath throws a repairable error when no runtime can be found[0m
+  [32m  Ô£ö[0m[90m main spawns the resolved server and forwards process signals[0m
+  [32m  Ô£ö[0m[90m listVersionedCandidates returns empty array for a directory with no matching entries[0m
+  [32m  Ô£ö[0m[90m main forwards SIGINT and SIGHUP to the child process[0m
+  [32m  Ô£ö[0m[90m main exits with the child process exit code on non-zero exit[0m
+  [32m  Ô£ö[0m[90m resolveServerPath prefers the version with the greater patch number[0m
+[0m  MCP Config Manager Tests[0m
+  [32m  Ô£ö[0m[90m creates .vscode/mcp.json when missing[0m
+  [32m  Ô£ö[0m[90m merges scheduler server into existing mcp config without dropping other servers[0m
+  [32m  Ô£ö[0m[90m keeps the stable launcher path configured across extension version changes[0m
+  [32m  Ô£ö[0m[90m marks a mismatched scheduler server entry as stale[0m
+  [32m  Ô£ö[0m[90m repairs invalid mcp config by backing it up and rewriting a valid scheduler entry[0m
+[0m  ExtensionCompat Tests[0m
+  [32m  Ô£ö[0m[90m getCompatibleConfigurationValue prefers explicit cockpit config over legacy config[0m
+  [32m  Ô£ö[0m[90m getCompatibleConfigurationValue falls back to explicit legacy config when cockpit is unset[0m
+  [32m  Ô£ö[0m[90m updateCompatibleConfigurationValue updates cockpit and explicit legacy config[0m
+  [32m  Ô£ö[0m[90m affectsCompatibleConfiguration checks both cockpit and legacy namespaces[0m
+  [32m  Ô£ö[0m[90m builds command ids for cockpit and legacy namespaces[0m
+[0m  Extension Integration Tests[0m
+  [32m  Ô£ö[0m[90m extension entry is discoverable[0m
+  [32m  Ô£ö[0m[90m extension activates successfully[0m
+  [32m  Ô£ö[0m[90m package contributes Cockpit settings with expected defaults[0m
+  [32m  Ô£ö[0m[90m cockpit and scheduler command aliases are registered[0m
+  [32m  Ô£ö[0m[90m ui refresh queue coalesces rapid refresh requests[0m[33m (51ms)[0m
+  [32m  Ô£ö[0m[90m manual run refresh helper requests an immediate refresh[0m
+  [32m  Ô£ö[0m[90m one-time tasks default task execution chat session to new[0m
+  [32m  Ô£ö[0m[90m recurring tasks keep task execution chat session undefined by default[0m
+  [32m  Ô£ö[0m[90m explicit task chat session settings are preserved[0m
+  [32m  Ô£ö[0m[90m cron expression placeholder test still passes in host environment[0m
+  [32m  Ô£ö[0m[90m i18n message builders are exposed[0m
+  [32m  Ô£ö[0m[90m repair plan auto-fixes stale roots and prompts for invalid ones[0m
+  [32m  Ô£ö[0m[90m repair plan prompts for missing roots without auto-repair[0m
+  [32m  Ô£ö[0m[90m error details sanitization hides local filesystem paths but keeps filenames[0m
+[0m    resolvePromptText Behavior[0m
+    [32m  Ô£ö[0m[90m prefers open document text when preferOpenDocument=true[0m[31m (359ms)[0m
+(node:27124) [DEP0040] DeprecationWarning: The `punycode` module is 
+deprecated. Please use a userland alternative instead.
+(Use `Code --trace-deprecation ...` to show where the warning was created)
+    [32m  Ô£ö[0m[90m reads persisted file when preferOpenDocument=false[0m[31m (216ms)[0m
+[0m  Error Sanitizer Unit Tests[0m
+  [32m  Ô£ö[0m[90m sanitizes quoted Windows, POSIX, UNC, and file URI paths to basenames[0m
+  [32m  Ô£ö[0m[90m leaves non-path messages unchanged[0m
+  [32m  Ô£ö[0m[90m returns an empty string unchanged[0m
+  [32m  Ô£ö[0m[90m does not touch relative paths[0m
+  [32m  Ô£ö[0m[90m sanitizes multiple Windows paths in a single message[0m
+  [32m  Ô£ö[0m[90m sanitizes malformed file URIs by falling back to string handling[0m
+[0m  CopilotExecutor Test Suite[0m
+  [32m  Ô£ö[0m[90m continue-mode execution does not create a new chat session[0m
+  [32m  Ô£ö[0m[90m manual fallback still executes when model pinning is unsupported[0m
+[0m  Cockpit Semantics Docs Contract Tests[0m
+  [32m  Ô£ö[0m[90m keeps .github/skills/cockpit-scheduler-router/SKILL.md aligned with the live Cockpit semantics[0m
+  [32m  Ô£ö[0m[90m keeps .github/skills/cockpit-todo-agent/SKILL.md aligned with the live Cockpit semantics[0m
+  [32m  Ô£ö[0m[90m keeps .github/prompts/cockpit-scheduler-router.prompt.md aligned with the live Cockpit semantics[0m
+  [32m  Ô£ö[0m[90m keeps README.md aligned with the live Cockpit semantics[0m
+  [32m  Ô£ö[0m[90m keeps TODO_COCKPIT_FEATURES.md aligned with the live Cockpit semantics[0m
+[0m  Cockpit Routing Tests[0m
+  [32m  Ô£ö[0m[90m canonical-primary ignores legacy label and comment-label routing[0m
+  [32m  Ô£ö[0m[90m off mode falls back to legacy routing signals[0m
+[0m  Cockpit Board Manager Tests[0m
+  [32m  Ô£ö[0m[90m creating a todo adds an initial creation system-event comment[0m
+  [32m  Ô£ö[0m[90m migrates legacy archive buckets into archive sections[0m
+  [32m  Ô£ö[0m[90m approving a todo marks it ready without archiving it[0m
+  [32m  Ô£ö[0m[90m finalizing a ready todo archives it into the completed archive section[0m
+  [32m  Ô£ö[0m[90m deleting a todo archives it into the rejected archive section[0m
+  [32m  Ô£ö[0m[90m restoring a rejected archived todo reopens it as active in unsorted[0m
+  [32m  Ô£ö[0m[90m restoring a completed archived todo brings it back as ready[0m
+  [32m  Ô£ö[0m[90m syncing tasks creates one recurring history card and skips one-time task cards[0m
+  [32m  Ô£ö[0m[90m syncing a changed recurring task adds one history comment and updates the snapshot[0m
+  [32m  Ô£ö[0m[90m syncing a disabled recurring task reopens the linked todo and drops stale enabled comments[0m
+  [32m  Ô£ö[0m[90m linked one-time task drafts stay ready until they are enabled[0m
+  [32m  Ô£ö[0m[90m linked one-time tasks move to ON-SCHEDULE-LIST only after enablement[0m
+  [32m  Ô£ö[0m[90m missing linked one-time execution moves the todo to FINAL-USER-CHECK[0m
+  [32m  Ô£ö[0m[90m renaming a todo label definition migrates applied card labels and filters[0m[31m (87ms)[0m
+  [32m  Ô£ö[0m[90m renaming a todo flag definition migrates applied card flags and filters[0m[31m (97ms)[0m
+[CopilotScheduler] Cockpit normalization summary {
+  kind: 'normalize-board',
+  mode: 'canonical-primary',
+  legacyReadyStatusCount: 0,
+  legacyGoFlagCount: 1,
+  legacyRejectedFlagCount: 1,
+  contradictoryArchivedWorkflowFlagCount: 0
+}
+  [32m  Ô£ö[0m[90m normalizes protected flags and keeps them undeletable[0m
+  [32m  Ô£ö[0m[90m can disable built-in default flags without deleting protected behavior[0m[33m (49ms)[0m
+  [32m  Ô£ö[0m[90m default built-in flags use workflow order and keep ON-SCHEDULE-LIST as the only scheduled system flag[0m
+  [32m  Ô£ö[0m[90m task-linked todos keep ON-SCHEDULE-LIST as the only scheduled system flag in the catalog[0m
+  [32m  Ô£ö[0m[90m normalization removes legacy linked scheduled task flags from existing cards and the flag catalog[0m
+  [32m  Ô£ö[0m[90m getCockpitBoard prefers runtime persistence hook over stale json[0m
+  [32m  Ô£ö[0m[90m rejects deprecated and protected section names during section mutations[0m[33m (63ms)[0m
+[92m [0m[32m 371 passing[0m[90m (9s)[0m
+[36m [0m[36m 2 pending[0m
+[main 2026-04-06T09:17:17.996Z] Extension host with pid 27124 exited with code: 0, signal: unknown.
+Exit code:   0

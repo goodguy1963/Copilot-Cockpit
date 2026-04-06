@@ -10,7 +10,7 @@ type PromptMaintenanceDeps = {
   updateWebviewTasks: (tasks: ScheduledTask[]) => void;
   resolvePromptText: (task: ScheduledTask, preferOpenDocument: boolean) => Promise<string>;
   logError: (...args: unknown[]) => void;
-  sanitizeErrorDetailsForLog: (message: string) => string;
+  redactPathsForLog: (message: string) => string;
 };
 
 type PromptMaintenanceKeys = {
@@ -52,7 +52,7 @@ export async function syncPromptTemplatesIfNeeded(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error ?? "");
       deps.logError(
-        `[CopilotScheduler] Prompt sync failed for task "${task.name}": ${deps.sanitizeErrorDetailsForLog(errorMessage)}`,
+        `[CopilotScheduler] Prompt sync failed for task "${task.name}": ${deps.redactPathsForLog(errorMessage)}`,
       );
     }
   }

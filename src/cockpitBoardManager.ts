@@ -21,7 +21,7 @@ import {
 import {
   readSchedulerConfig,
   writeSchedulerConfig,
-} from "./schedulerJsonSanitizer";
+} from "./copilotJsonSanitizer";
 import type {
   AddCockpitTodoCommentInput,
   CockpitArchiveOutcome,

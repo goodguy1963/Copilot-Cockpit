@@ -5,7 +5,7 @@ import * as os from "os";
 import {
   REDACTED_TELEGRAM_BOT_TOKEN,
   getPrivateSchedulerConfigPath,
-} from "../../schedulerJsonSanitizer";
+} from "../../copilotJsonSanitizer";
 import {
   getTelegramNotificationView,
   saveTelegramNotificationConfig,

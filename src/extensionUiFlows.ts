@@ -2,19 +2,19 @@ import * as vscode from "vscode";
 import { messages } from "./i18n";
 
 type DisclaimerScheduleManager = {
-  isDisclaimerAccepted: () => boolean;
-  setDisclaimerAccepted: (accepted: boolean) => Promise<void>;
+  hasAcceptedDisclaimer: () => boolean;
+  storeDisclaimerAcceptance: (accepted: boolean) => Promise<void>;
 };
 
 type CronWarningScheduleManager = {
-  checkMinimumInterval: (cronExpression: string) => string | undefined;
+  validateMinimumInterval: (cronExpression: string) => string | undefined;
 };
 
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
-export async function maybeWarnCronInterval(options: {
+export async function warnIfCronTooFrequent(options: {
   cronExpression?: string;
-  scheduleManager: CronWarningScheduleManager;
+  copilotManager: CronWarningScheduleManager;
   getSetting: <T>(key: string, defaultValue: T) => T;
 }): Promise<void> {
   if (!options.cronExpression) {
@@ -26,7 +26,7 @@ export async function maybeWarnCronInterval(options: {
     return;
   }
 
-  const warning = options.scheduleManager.checkMinimumInterval(options.cronExpression);
+  const warning = options.copilotManager.validateMinimumInterval(options.cronExpression);
   if (warning) {
     void vscode.window.showInformationMessage(warning);
   }
@@ -34,12 +34,12 @@ export async function maybeWarnCronInterval(options: {
 
 export async function maybeShowDisclaimerOnce(options: {
   task: { enabled: boolean };
-  scheduleManager: DisclaimerScheduleManager;
+  copilotManager: DisclaimerScheduleManager;
 }): Promise<void> {
   if (!options.task.enabled) {
     return;
   }
-  if (options.scheduleManager.isDisclaimerAccepted()) {
+  if (options.copilotManager.hasAcceptedDisclaimer()) {
     return;
   }
 
@@ -52,7 +52,7 @@ export async function maybeShowDisclaimerOnce(options: {
     return;
   }
 
-  await options.scheduleManager.setDisclaimerAccepted(true);
+  await options.copilotManager.storeDisclaimerAcceptance(true);
 }
 
 export function maybePromptReloadAfterUpdate(
@@ -104,12 +104,12 @@ export function notifyError(options: {
   message: string;
   timeoutMs?: number;
   mode: NotificationMode;
-  sanitizeErrorDetailsForLog: (message: string) => string;
+  redactPathsForLog: (message: string) => string;
   fallbackMessage: string;
   logError: (...args: unknown[]) => void;
 }): void {
   const timeoutMs = options.timeoutMs ?? 6000;
-  const safeMessage = options.sanitizeErrorDetailsForLog(options.message);
+  const safeMessage = options.redactPathsForLog(options.message);
   const displayMessage = safeMessage || options.fallbackMessage || "";
 
   if (options.mode === "silentStatus") {

@@ -8,7 +8,7 @@ import {
   resolveLocalPromptPath, // local-diverge-8
   resolveAllowedPathInBaseDir,
   resolveGlobalPromptsRoot,
-} from "../../promptResolver";
+} from "../../promptResolver"; // module
 
 function canonicalize(filePath: string | undefined): string {
   const candidatePath = filePath ? path.resolve(filePath) : "";

@@ -2,27 +2,27 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { messages, formatCronForDisplay } from "./i18n"; // local-diverge-3
 import { getCockpitCommandId } from "./extensionCompat";
-import { ScheduleManager } from "./scheduleManager";
+import { ScheduleManager } from "./copilotManager";
 import type { ScheduledTask, TaskScope, TreeContextValue } from "./types";
 
 type TaskBuckets = {
   currentWorkspace: ScheduledTask[];
   otherWorkspaces: ScheduledTask[];
 };
-type WorkspaceTaskGroup = "this" | "other";
-type TreeRefreshTarget = WorkspaceTreeNode | undefined | null | void;
+type TreeWorkspaceSegment = "this" | "other";
+type TreeChangeTarget = WorkspaceTreeNode | undefined | null | void;
 
 const WORKSPACE_SCOPE_ICON = new vscode.ThemeIcon("folder");
 const GLOBAL_SCOPE_ICON = new vscode.ThemeIcon("globe");
 const LINKED_WORKSPACE_ICON = new vscode.ThemeIcon("link");
 const CURRENT_WORKSPACE_ICON = new vscode.ThemeIcon("home");
 const ENABLED_TASK_ICON = new vscode.ThemeIcon(
-  "clock",
-  new vscode.ThemeColor("charts.green"),
+  "clock", // icon-id
+  new vscode.ThemeColor("charts.green"), // active-tint
 );
 const DISABLED_TASK_ICON = new vscode.ThemeIcon(
-  "circle-slash",
-  new vscode.ThemeColor("disabledForeground"),
+  "circle-slash", // icon-id
+  new vscode.ThemeColor("disabledForeground"), // muted-tint
 );
 
 function countLabel(count: number): string {
@@ -31,14 +31,14 @@ function countLabel(count: number): string {
 
 function scopeHeading(scope: TaskScope): string {
   return scope === "global"
-    ? messages.treeGroupGlobal()
-    : messages.treeGroupWorkspace();
+    ? messages.treeGroupGlobal() // scope-label
+    : messages.treeGroupWorkspace(); // scope-label
 }
 
-function workspaceHeading(group: WorkspaceTaskGroup): string {
+function workspaceHeading(group: TreeWorkspaceSegment): string {
   return group === "this"
-    ? messages.treeGroupThisWorkspace()
-    : messages.treeGroupOtherWorkspace();
+    ? messages.treeGroupThisWorkspace() // ws-label
+    : messages.treeGroupOtherWorkspace(); // ws-label
 }
 
 function sortTasksByName(tasks: readonly ScheduledTask[]): ScheduledTask[] {
@@ -50,7 +50,7 @@ function collapseToSingleLine(value: string): string {
 }
 
 function appendValueBlock(markdown: vscode.MarkdownString, value: string): void {
-  if (value.includes("```")) {
+  if (value.indexOf("```") >= 0) {
     markdown.appendText(value);
     return;
   }
@@ -73,7 +73,7 @@ function createTaskDescription(
 
   const workspaceName = task.workspacePath
     ? path.basename(task.workspacePath)
-    : messages.labelOtherWorkspaceShort();
+    : messages.labelOtherWorkspaceShort(); // ws-badge
   return `${nextRunLabel} • ${workspaceName}`;
 }
 
@@ -90,8 +90,8 @@ function getTaskContextValue(
   }
 
   return task.enabled
-    ? "enabledOtherWorkspaceTask"
-    : "disabledOtherWorkspaceTask";
+    ? ("enabledOtherWorkspaceTask" as const)
+    : ("disabledOtherWorkspaceTask" as const);
 }
 
 function getTaskIcon(task: ScheduledTask): vscode.ThemeIcon {
@@ -110,8 +110,8 @@ function createTaskTooltip(
   markdown.appendMarkdown("\n\n");
 
   const statusLabel = task.enabled
-    ? `✅ ${messages.labelEnabled()}`
-    : `⏸️ ${messages.labelDisabled()}`;
+    ? `✅ ${messages.labelEnabled()}` /* active */
+    : `⏸️ ${messages.labelDisabled()}`; /* paused */
   markdown.appendMarkdown(`**${messages.labelStatus()}:** ${statusLabel}\n\n`);
 
   const schedule = collapseToSingleLine(task.cronExpression);
@@ -126,8 +126,8 @@ function createTaskTooltip(
   }
 
   const scopeLabel = task.scope === "global"
-    ? messages.treeGroupGlobal()
-    : `📁 ${messages.labelScopeWorkspace()}`;
+    ? messages.treeGroupGlobal() /* scope-val */
+    : `📁 ${messages.labelScopeWorkspace()}`; /* scope-val */
   markdown.appendMarkdown(`**${messages.labelScope()}:** ${scopeLabel}\n\n`);
 
   if (task.scope === "workspace") {
@@ -139,32 +139,32 @@ function createTaskTooltip(
     }
 
     const workspaceStatus = appliesToCurrentWorkspace
-      ? messages.labelThisWorkspaceShort()
-      : messages.labelOtherWorkspaceShort();
+      ? messages.labelThisWorkspaceShort() /* loc-tag */
+      : messages.labelOtherWorkspaceShort(); /* loc-tag */
     markdown.appendMarkdown(
       `**${messages.tooltipAppliesHere()}:** ${workspaceStatus}\n\n`,
     );
   }
 
-  if (task.nextRun && task.enabled) {
+  if (task.enabled && task.nextRun) { // show-next-run
     markdown.appendMarkdown(
-      `**${messages.labelNextRun()}:** ${messages.formatDateTime(task.nextRun)}\n\n`,
+      `**${messages.labelNextRun()}:** ${messages.formatDateTime(task.nextRun)} \n\n`,
     );
   }
 
-  if (task.lastRun) {
+  if (task.lastRun != null) {
     markdown.appendMarkdown(
-      `**${messages.labelLastRun()}:** ${messages.formatDateTime(task.lastRun)}\n\n`,
+      `**${messages.labelLastRun()}:** ${messages.formatDateTime(task.lastRun)} \n\n`,
     );
   }
 
-  if (task.agent) {
+  if (task.agent != null) {
     markdown.appendMarkdown(`**${messages.labelAgent()}:** `);
     markdown.appendText(collapseToSingleLine(task.agent));
     markdown.appendMarkdown("\n\n");
   }
 
-  if (task.model) {
+  if (task.model != null) {
     markdown.appendMarkdown(`**${messages.labelModel()}:** `);
     markdown.appendText(collapseToSingleLine(task.model));
     markdown.appendMarkdown("\n\n");
@@ -182,8 +182,8 @@ function createTaskTooltip(
 export class ScopeGroupItem extends vscode.TreeItem {
   public readonly scope: TaskScope; constructor(scope: TaskScope, taskCount: number) {
     super(scopeHeading(scope), vscode.TreeItemCollapsibleState.Expanded);
-    this.id = `scope-${scope}`;
-    this.scope = scope;
+    this.id = `scope-grp-${scope}`;
+    this.scope = scope; // tree-node
     this.contextValue = "scopeGroup"; // local-diverge-187
     this.description = countLabel(taskCount);
     this.iconPath = scope === "global" ? GLOBAL_SCOPE_ICON : WORKSPACE_SCOPE_ICON;
@@ -191,10 +191,10 @@ export class ScopeGroupItem extends vscode.TreeItem {
 }
 
 export class WorkspaceGroupItem extends vscode.TreeItem {
-  public readonly group: WorkspaceTaskGroup; constructor(group: WorkspaceTaskGroup, taskCount: number) {
+  public readonly group: TreeWorkspaceSegment; constructor(group: TreeWorkspaceSegment, taskCount: number) {
     super(workspaceHeading(group), vscode.TreeItemCollapsibleState.Expanded);
-    this.id = `workspace-group-${group}`;
-    this.group = group;
+    this.id = `ws-grp-${group}`;
+    this.group = group; // tree-node
     this.contextValue = "workspaceGroup"; // local-diverge-198
     this.description = countLabel(taskCount);
     this.iconPath = group === "this" ? CURRENT_WORKSPACE_ICON : LINKED_WORKSPACE_ICON;
@@ -202,22 +202,22 @@ export class WorkspaceGroupItem extends vscode.TreeItem {
 }
 
 export class ScheduledTaskItem extends vscode.TreeItem {
-  private readonly inThisWorkspace: boolean;
+  private readonly belongsToCurrentWorkspace: boolean;
   public readonly task: ScheduledTask; // local-diverge-206
 
-  constructor(task: ScheduledTask, inThisWorkspace: boolean) {
-    super(task.name, vscode.TreeItemCollapsibleState.None);
+  constructor(task: ScheduledTask, belongsToCurrentWorkspace: boolean) {
+    super(task.name, vscode.TreeItemCollapsibleState.None); // leaf-node
 
-    this.inThisWorkspace = inThisWorkspace;
-    this.task = task;
-    this.contextValue = getTaskContextValue(task, inThisWorkspace);
-    this.description = createTaskDescription(task, inThisWorkspace);
-    this.tooltip = createTaskTooltip(task, inThisWorkspace);
+    this.belongsToCurrentWorkspace = belongsToCurrentWorkspace;
+    this.task = task; // tree-ref
+    this.contextValue = getTaskContextValue(task, belongsToCurrentWorkspace);
+    this.description = createTaskDescription(task, belongsToCurrentWorkspace);
+    this.tooltip = createTaskTooltip(task, belongsToCurrentWorkspace);
     this.iconPath = getTaskIcon(task);
-    this.command = {
+    this.command = { // edit-on-click
       command: getCockpitCommandId("editTask"),
-      title: messages.actionEdit(),
-      arguments: [this],
+      title: messages.actionEdit(), // action-label
+      arguments: [this], // tree-arg
     };
   }
 }
@@ -225,41 +225,41 @@ export class ScheduledTaskItem extends vscode.TreeItem {
 export type WorkspaceTreeNode = ScopeGroupItem | WorkspaceGroupItem | ScheduledTaskItem;
 
 export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<WorkspaceTreeNode> {
-  private readonly treeChangeEmitter = new vscode.EventEmitter<TreeRefreshTarget>();
-  readonly onDidChangeTreeData: vscode.Event<TreeRefreshTarget> =
+  private readonly treeChangeEmitter = new vscode.EventEmitter<TreeChangeTarget>();
+  readonly onDidChangeTreeData: vscode.Event<TreeChangeTarget> =
     this.treeChangeEmitter.event;
 
-  private readonly scheduleManager: ScheduleManager;
+  private readonly copilotManager: ScheduleManager;
 
-  constructor(scheduleManager: ScheduleManager) {
-    this.scheduleManager = scheduleManager;
-    this.scheduleManager.setOnTasksChangedCallback(this.refresh.bind(this));
+  constructor(copilotManager: ScheduleManager) { // data-source
+    this.copilotManager = copilotManager; // store-ref
+    this.copilotManager.setOnTasksChangedCallback(this.refresh.bind(this));
   }
 
-  refresh(): void {
+  refresh(): void { // emit-change
     this.treeChangeEmitter.fire();
   }
 
-  getTreeItem(element: WorkspaceTreeNode): vscode.TreeItem {
+  public getTreeItem(element: WorkspaceTreeNode): vscode.TreeItem {
     return element;
   }
 
-  getChildren(element?: WorkspaceTreeNode): Thenable<WorkspaceTreeNode[]> {
+  public getChildren(element?: WorkspaceTreeNode): Thenable<WorkspaceTreeNode[]> {
     if (!element) {
       return this.buildRootNodes();
     }
 
-    if (element instanceof ScopeGroupItem) {
+    if (element instanceof ScopeGroupItem) { // scope-branch
       return element.scope === "workspace"
         ? this.buildWorkspaceGroupNodes()
         : this.buildTaskNodesForScope(element.scope);
     }
 
-    if (element instanceof WorkspaceGroupItem) {
+    if (element instanceof WorkspaceGroupItem) { // ws-branch
       return this.buildTaskNodesForWorkspaceGroup(element.group);
     }
 
-    return Promise.resolve([]);
+    return Promise.resolve([] as WorkspaceTreeNode[]);
   }
 
   private getWorkspaceScopeCount(): number {
@@ -268,15 +268,15 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   }
 
   private async buildRootNodes(): Promise<WorkspaceTreeNode[]> {
-    const allTasks = this.scheduleManager.getAllTasks();
-    const globalCount = allTasks.filter((task) => task.scope === "global").length;
-    const workspaceCount = allTasks.length - globalCount;
+    const registeredTasks = this.copilotManager.getAllTasks();
+    const globalCount = registeredTasks.filter((task) => task.scope === "global").length;
+    const workspaceCount = registeredTasks.length - globalCount;
 
     const nodes: WorkspaceTreeNode[] = [];
-    if (globalCount > 0 || allTasks.length === 0) {
+    if (globalCount > 0 || registeredTasks.length === 0) {
       nodes.push(new ScopeGroupItem("global", globalCount));
     }
-    if (workspaceCount > 0 || allTasks.length === 0) {
+    if (workspaceCount > 0 || registeredTasks.length === 0) {
       nodes.push(new ScopeGroupItem("workspace", workspaceCount));
     }
 
@@ -284,13 +284,13 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   }
 
   private async buildTaskNodesForScope(scope: TaskScope): Promise<WorkspaceTreeNode[]> {
-    return this.toTaskNodes(this.scheduleManager.getTasksByScope(scope));
+    return this.toTaskNodes(this.copilotManager.queryTasksByScope(scope));
   }
 
   private splitWorkspaceTasks(): TaskBuckets {
-    return this.scheduleManager.getTasksByScope("workspace").reduce<TaskBuckets>(
+    return this.copilotManager.queryTasksByScope("workspace").reduce<TaskBuckets>(
       (buckets, task) => {
-        if (this.scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
+        if (this.copilotManager.isTaskBoundToThisWorkspace(task)) {
           buckets.currentWorkspace.push(task);
         } else {
           buckets.otherWorkspaces.push(task);
@@ -316,8 +316,8 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   }
 
   private async buildTaskNodesForWorkspaceGroup(
-    group: WorkspaceTaskGroup,
-  ): Promise<WorkspaceTreeNode[]> {
+    group: TreeWorkspaceSegment,
+  ): Promise<WorkspaceTreeNode[]> { // ws-subtree
     const { currentWorkspace, otherWorkspaces } = this.splitWorkspaceTasks();
     const tasks = group === "this" ? currentWorkspace : otherWorkspaces;
     return this.toTaskNodes(tasks, group === "this");
@@ -329,7 +329,7 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   ): ScheduledTaskItem[] {
     return sortTasksByName(tasks).map((task) => {
       const appliesHere = appliesToCurrentWorkspace
-        ?? this.scheduleManager.shouldTaskRunInCurrentWorkspace(task);
+        ?? this.copilotManager.isTaskBoundToThisWorkspace(task);
       return new ScheduledTaskItem(task, appliesHere);
     });
   }
@@ -337,12 +337,12 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
   getParent(element: WorkspaceTreeNode): vscode.ProviderResult<WorkspaceTreeNode> {
     const isTaskLeaf = element instanceof ScheduledTaskItem;
     if (isTaskLeaf) {
-      const task = element.task;
+      const { task } = element;
 
       if (task.scope === "workspace") {
         const { currentWorkspace, otherWorkspaces } = this.splitWorkspaceTasks();
-        const inCurrentWorkspace = this.scheduleManager.shouldTaskRunInCurrentWorkspace(task);
-        return new WorkspaceGroupItem(
+        const inCurrentWorkspace = this.copilotManager.isTaskBoundToThisWorkspace(task);
+        return new WorkspaceGroupItem( // parent-link
           inCurrentWorkspace ? "this" : "other",
           inCurrentWorkspace
             ? currentWorkspace.length
@@ -350,13 +350,13 @@ export class ScheduledTaskTreeProvider implements vscode.TreeDataProvider<Worksp
         );
       }
 
-      const scopeCount = this.scheduleManager
+      const scopeCount = this.copilotManager
         .getAllTasks()
         .filter((candidate) => candidate.scope === task.scope).length;
       return new ScopeGroupItem(task.scope, scopeCount);
     }
 
-    if (element instanceof WorkspaceGroupItem) {
+    if (element instanceof WorkspaceGroupItem) { // resolve-children
       return new ScopeGroupItem("workspace", this.getWorkspaceScopeCount());
     }
 

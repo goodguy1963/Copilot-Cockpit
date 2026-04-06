@@ -1,5 +1,7 @@
 /** Shared Cockpit scheduler types. */
-export type TaskScope = "global" | "workspace";
+export type TaskScope =
+  | "global"
+  | "workspace";
 
 export type PromptSource = "inline" | "local" | "global";
 
@@ -12,7 +14,7 @@ export type CockpitDeterministicStateMode =
   | "canonical-primary";
 
 /**
- * Chat session behavior
+ * Conversation session strategy
  */
 export type ChatSessionBehavior = "new" | "continue";
 
@@ -98,7 +100,7 @@ export interface JobFolder {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -109,11 +111,11 @@ export interface JobDefinition {
   /** Unique job identifier */
   id: string;
 
-  /** Job name */
-  name: string;
-
   /** Job-level cron expression */
   cronExpression: string;
+
+  /** Job name */
+  name: string;
 
   /** Optional folder containing the job */
   folderId?: string;
@@ -139,7 +141,7 @@ export interface JobDefinition {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -231,7 +233,7 @@ export interface CockpitBoardSection {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -309,7 +311,7 @@ export interface CockpitLabelDefinition {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 
   /** Built-in palette entry that should stay protected from user deletion */
@@ -380,7 +382,7 @@ export interface CockpitTodoCard {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -462,7 +464,7 @@ export interface CockpitBoard {
   /** Persisted board filters */
   filters?: CockpitBoardFilters;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -724,7 +726,7 @@ export interface TelegramNotificationConfig {
   /** Optional prefix prepended above the final assistant reply */
   messagePrefix?: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -744,7 +746,7 @@ export interface TelegramNotificationView {
   /** Whether a bot token is already stored privately */
   hasBotToken: boolean;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt?: string;
 
   /** Whether the generated Stop hook files currently exist */
@@ -795,7 +797,7 @@ export interface ReviewDefaultsView {
   /** Model used for automatic needs-bot-review planning runs */
   needsBotReviewModel: string;
 
-  /** Chat session behavior used for automatic needs-bot-review planning runs */
+  /** Conversation session strategy used for automatic needs-bot-review planning runs */
   needsBotReviewChatSession: ChatSessionBehavior;
 
   /** Prompt template used when creating a ready task draft from a Todo */
@@ -910,7 +912,7 @@ export interface ResearchProfile {
   /** Creation timestamp */
   createdAt: string;
 
-  /** Last update timestamp */
+  /** Most recent modification time */
   updatedAt: string;
 }
 
@@ -1108,7 +1110,7 @@ export interface CreateJobPauseInput {
 }
 
 interface TaskCopilotSelection {
-  /** AI model to use (gpt-4o, claude-sonnet-4, etc.) */
+  /** LLM model identifier (e.g. gpt-4o, claude-sonnet-4) */
   model?: string;
 
   /** Copilot mode or agent identifier (@workspace, agent, ask, edit, etc.). */
@@ -1116,14 +1118,14 @@ interface TaskCopilotSelection {
 }
 
 interface TaskPromptConfiguration {
-  /** Prompt text to send to Copilot (when promptSource is "inline") */
+  /** Inline prompt body forwarded to Copilot (used when promptSource is "inline") */
   prompt: string;
 
-  /** Path to prompt file (when promptSource is not "inline") */
+  /** File-based prompt path (used when promptSource is not "inline") */
   promptPath?: string;
 
   /** Prompt source discriminator. */
-  promptSource: PromptSource;
+  promptSource: PromptSource; // origin
 
   /** Workspace-relative path to backup-only prompt export for recurring inline tasks. */
   promptBackupPath?: string;
@@ -1133,10 +1135,10 @@ interface TaskPromptConfiguration {
 }
 
 interface TaskExecutionSettings extends TaskCopilotSelection {
-  /** Whether the task is enabled */
+  /** Active state of the task */
   enabled: boolean;
 
-  /** Max random delay in seconds applied before execution (0 = off). */
+  /** Upper-bound random jitter in seconds before execution starts (0 disables). */
   jitterSeconds?: number;
 
   /** Whether task should execute once and then be removed. */
@@ -1153,13 +1155,13 @@ interface TaskExecutionSettings extends TaskCopilotSelection {
 }
 
 interface TaskExecutionAudit {
-  /** Last update timestamp */
-  updatedAt: Date;
+  /** Most recent modification time */
+  updatedAt: Date; // last-modified
 
   /** Creation timestamp */
-  createdAt: Date;
+  createdAt: Date; // birth-stamp
 
-  /** Next scheduled execution time */
+  /** Upcoming scheduled run instant */
   nextRun?: Date;
 
   /** Timestamp of last execution error */
@@ -1184,10 +1186,10 @@ export interface ScheduledTask
   /** Optional task description */
   description?: string;
 
-  /** Unique identifier (e.g., "task_1700000000000_abc123") */
+  /** Task identifier string (e.g. "task_1700000000000_abc123") */
   id: string;
 
-  /** Cron expression (e.g., "0 9 * * 1-5") */
+  /** Cron schedule string (e.g. "0 9 * * 1-5") */
   cronExpression: string;
 
   /** Parent job when this task is job-managed. */
@@ -1200,11 +1202,11 @@ export interface ScheduledTask
   workspacePath?: string;
 
   /** Task scope */
-  scope: TaskScope;
+  scope: TaskScope; // visibility
 }
 
 interface CreateTaskExecutionInput extends TaskCopilotSelection {
-  /** Whether the task is enabled (default: true) */
+  /** Active state of the task (default: true) */
   enabled?: boolean;
 
   /** Whether task should execute once and then be removed. */
@@ -1219,10 +1221,10 @@ interface CreateTaskExecutionInput extends TaskCopilotSelection {
   /** Optional manual labels for filtering and organization. */
   labels?: string[];
 
-  /** Task scope (default: "workspace") */
-  scope?: TaskScope;
+  /** Visibility scope (defaults to "workspace") */
+  scope?: TaskScope; // optional-scope
 
-  /** Max random delay in seconds applied before execution (0 = off; undefined = use configured default). */
+  /** Upper-bound random jitter in seconds before execution (0 disables; undefined falls back to the global default). */
   jitterSeconds?: number;
 }
 
@@ -1230,8 +1232,8 @@ interface CreateTaskPromptInput {
   /** Path to prompt file */
   promptPath?: string;
 
-  /** Prompt source type (default: "inline") */
-  promptSource?: PromptSource;
+  /** Origin of the prompt content (defaults to "inline") */
+  promptSource?: PromptSource; // optional-origin
 
   /** Prompt text */
   prompt: string;
@@ -1253,7 +1255,7 @@ export interface CreateTaskInput
 
   /**
    * Whether to schedule the first execution soon after creation.
-   * Despite the legacy name, the actual delay is FIRST_RUN_DELAY_MINUTES (3 min).
+   * Despite the legacy name, the actual delay is INITIAL_TICK_DELAY_MIN (3 min).
    * Kept as-is to avoid breaking the Webview ↔ Extension message contract. // local-diverge-1257
    */
   runFirstInOneMinute?: boolean;
@@ -1261,14 +1263,14 @@ export interface CreateTaskInput
 
 /** Agent definition. */
 export interface AgentInfo {
-  /** File path for custom agents */
+  /** Disk path pointing to a custom agent definition */
   filePath?: string; // local-diverge-1265
 
-  /** Agent ID (e.g., "@workspace", "agent") */
+  /** Agent identifier string (e.g. "@workspace", "agent") */
   id: string;
 
-  /** Whether this is a custom agent */
-  isCustom: boolean;
+  /** True when the agent is user-defined */
+  isCustom: boolean; // user-defined
 
   /** Description */
   description: string;
@@ -1282,7 +1284,7 @@ export interface ModelInfo {
   /** Vendor name */
   vendor: string; // local-diverge-1283
 
-  /** Model ID (e.g., "gpt-4o") */
+  /** Model identifier string (e.g. "gpt-4o") */
   id: string;
 
   /** Description */
@@ -1294,16 +1296,16 @@ export interface ModelInfo {
 
 /** Prompt template definition. */
 export interface PromptTemplate {
-  /** File content (loaded on demand) */
+  /** Body text loaded lazily from disk */
   content?: string; // local-diverge-1298
 
   /** Template file path */
   path: string;
 
   /** Source type */
-  source: "local" | "global";
+  source: "local" | "global"; // store-origin
 
-  /** Template name (derived from filename) */
+  /** Display name inferred from the file name */
   name: string;
 }
 
@@ -1398,11 +1400,11 @@ type TodoActionName =
   | "createTaskFromTodo";
 
 type TaskActionName =
-  | "duplicate"
-  | "copy"
+  | "duplicate" // clone-action
+  | "copy" // clipboard-action
   | "edit" // local-diverge-1403
-  | "run"
-  | "delete"
+  | "run" // execute-action
+  | "delete" // remove-action
   | "toggle" // local-diverge-1406
   | "moveToCurrentWorkspace"
   | "restoreHistory"
@@ -1435,7 +1437,7 @@ type SectionDirection = "left" | "right";
 
 /** Task action from Webview. */
 export interface TaskAction {
-  /** Additional data for the action */
+  /** Supplementary payload for the action */
   data?: Partial<CreateTaskInput>; // local-diverge-1439
 
   /** Task identifier carried by task-centric actions. */
@@ -1535,7 +1537,7 @@ export interface TaskAction {
 }
 
 /**
- * Execute options for CopilotExecutor
+ * Runtime options forwarded to CopilotExecutor
  */
 export interface ExecuteOptions {
   /** Model to use */
@@ -1549,8 +1551,8 @@ export interface ExecuteOptions {
 }
 
 type TaskEditorMessage =
-  | { type: "duplicateTask"; taskId: string }
-  | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> }
+  | { type: "duplicateTask"; taskId: string } // clone-msg
+  | { type: "updateTask"; taskId: string; data: Partial<CreateTaskInput> } // patch-msg
   | { type: "testPrompt"; prompt: string; agent?: string; model?: string } // local-diverge-1554
   | { type: "createTask"; data: CreateTaskInput };
 
@@ -1615,8 +1617,8 @@ type SchedulerControlMessage =
   | { type: "refreshTasks" }
   | { type: "restoreScheduleHistory"; snapshotId: string }
   | { type: "toggleAutoShowOnStartup" }
-  | { type: "refreshAgents" }
-  | { type: "refreshPrompts" }
+  | { type: "refreshAgents" } // reload-agents
+  | { type: "refreshPrompts" } // reload-templates
   | { type: "setupMcp" }
   | { type: "syncBundledSkills" }
   | { type: "importStorageFromJson" }
@@ -1663,8 +1665,8 @@ type TodoBoardMessage =
   | { type: "createTaskFromTodo"; todoId: string };
 
 type CockpitSectionMessage =
-  | { type: "deleteTask"; taskId: string }
-  | { type: "toggleTask"; taskId: string }
+  | { type: "deleteTask"; taskId: string } // outgoing-msg
+  | { type: "toggleTask"; taskId: string } // outgoing-msg
   | { type: "runTask"; taskId: string } // local-diverge-1668
   | { type: "addCockpitSection"; title: string }
   | { type: "renameCockpitSection"; sectionId: string; title: string }
@@ -1674,8 +1676,8 @@ type CockpitSectionMessage =
   | { type: "setLanguage"; language: "auto" | "en" | "ja" | "de" }
   | { type: "setLogLevel"; logLevel: LogLevel }
   | { type: "openLogFolder" }
-  | { type: "copyTask"; taskId: string }
-  | { type: "moveTaskToCurrentWorkspace"; taskId: string }
+  | { type: "copyTask"; taskId: string } // outgoing-msg
+  | { type: "moveTaskToCurrentWorkspace"; taskId: string } // outgoing-msg
   | { type: "loadPromptTemplate"; path: string; source: "local" | "global" } // local-diverge-1679
   | { type: "debugWebview"; event: string; detail?: unknown }
   | { type: "webviewReady" }
@@ -1695,13 +1697,13 @@ export type WebviewToExtensionMessage =
 
 /** TreeView context values. */
 export type TreeContextValue =
-  | "enabledTask"
+  | "enabledTask" // context-key
   | "disabledTask" // local-diverge-1699
-  | "workspaceGroup"
-  | "scopeGroup"
+  | "workspaceGroup" // context-key
+  | "scopeGroup" // context-key
   | "enabledOtherWorkspaceTask" // local-diverge-1702
   | "disabledOtherWorkspaceTask"
-  | "enabledWorkspaceTask"
+  | "enabledWorkspaceTask" // context-key
   | "disabledWorkspaceTask";
 
 

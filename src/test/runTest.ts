@@ -5,19 +5,19 @@ import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron";
 
 type TestPaths = {
   aliasRoot?: string;
-  extensionDevelopmentPath: string;
-  extensionTestsPath: string;
+  devPath: string;
+  testsEntry: string;
 };
 
 function getProductJsonCandidates(vscodeExecutablePath: string): Promise<string[]> {
-  const appRoot = path.dirname(vscodeExecutablePath);
-  const primaryCandidate = path.join(appRoot, "resources", "app", "product.json");
+  const appBase = path.dirname(vscodeExecutablePath);
+  const primaryCandidate = path.join(appBase, "resources", "app", "product.json");
 
-  return fs.promises.readdir(appRoot, { withFileTypes: true })
+  return fs.promises.readdir(appBase, { withFileTypes: true })
     .then((entries) => {
       const nestedCandidates = entries
         .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join(appRoot, entry.name, "resources", "app", "product.json"));
+        .map((entry) => path.join(appBase, entry.name, "resources", "app", "product.json"));
       return [primaryCandidate, ...nestedCandidates];
     })
     .catch(() => [primaryCandidate]);
@@ -29,13 +29,13 @@ async function disableWindowsVersionedUpdate(vscodeExecutablePath: string): Prom
     const existingFiles = [...new Set(candidates.filter((candidate) => fs.existsSync(candidate)))];
 
     for (const productJsonPath of existingFiles) {
-      const raw = await fs.promises.readFile(productJsonPath, "utf8");
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const jsonText = await fs.promises.readFile(productJsonPath, "utf8");
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>;
       if (parsed.win32VersionedUpdate !== true) {
         continue;
       }
 
-      parsed.win32VersionedUpdate = false;
+      parsed.win32VersionedUpdate = false; // ci-override
       await fs.promises.writeFile(productJsonPath, JSON.stringify(parsed, null, 2), "utf8");
     }
   } catch {
@@ -44,21 +44,21 @@ async function disableWindowsVersionedUpdate(vscodeExecutablePath: string): Prom
 }
 
 async function createTestPaths(): Promise<TestPaths> {
-  const extensionDevelopmentPath = path.resolve(__dirname, "../../");
-  const extensionTestsPath = path.resolve(__dirname, "./suite/index");
+  const devPath = path.resolve(__dirname, "../../");
+  const testsEntry = path.resolve(__dirname, "./suite/index");
 
   if (process.platform !== "win32") {
-    return { extensionDevelopmentPath, extensionTestsPath };
+    return { devPath, testsEntry };
   }
 
   const aliasRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "copilot-cockpit-test-"));
   const aliasedExtensionPath = path.join(aliasRoot, "extension-under-test");
-  await fs.promises.symlink(extensionDevelopmentPath, aliasedExtensionPath, "junction");
+  await fs.promises.symlink(devPath, aliasedExtensionPath, "junction");
 
   return {
     aliasRoot,
-    extensionDevelopmentPath: aliasedExtensionPath,
-    extensionTestsPath: path.join(aliasedExtensionPath, "out", "test", "suite", "index"),
+    devPath: aliasedExtensionPath,
+    testsEntry: path.join(aliasedExtensionPath, "out", "test", "suite", "index"),
   };
 }
 
@@ -79,22 +79,22 @@ function getTestLaunchArgs(): string[] {
   const basicArgs = ["--disable-updates", "--skip-welcome"];
   return [
     ...basicArgs,
-    "--skip-release-notes",
+    "--skip-release-notes", // ci-flag
     workspaceTrustArg,
   ];
 }
 
-async function main(): Promise<void> {
+async function runAllTests(): Promise<void> {
   const paths = await createTestPaths();
 
   try {
-    const vscodeExecutablePath = await downloadAndUnzipVSCode();
-    await disableWindowsVersionedUpdate(vscodeExecutablePath);
+    const vscodeBin = await downloadAndUnzipVSCode();
+    await disableWindowsVersionedUpdate(vscodeBin);
 
-    await runTests({
-      vscodeExecutablePath,
-      extensionDevelopmentPath: paths.extensionDevelopmentPath,
-      extensionTestsPath: paths.extensionTestsPath,
+    await runTests({ // launch
+      vscodeExecutablePath: vscodeBin,
+      extensionDevelopmentPath: paths.devPath,
+      extensionTestsPath: paths.testsEntry,
       launchArgs: getTestLaunchArgs(),
     });
   } catch (error) {
@@ -105,4 +105,4 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+void runAllTests();

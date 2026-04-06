@@ -3,7 +3,7 @@
 ## Current fork status
 
 - Private repo target: `goodguy1963/source-scheduler-private`
-- Current local fork version: `99.0.109`
+- Current local fork version: `99.0.123`
 
 ## Changes made on 2026-03-23
 
@@ -41,7 +41,7 @@
     - Added `stdio` transport for MCP communication.
 
 3. Hybrid Storage
-    - Modified `scheduleManager.ts` to sync between internal `globalState` and `.vscode/scheduler.json`.
+    - Modified `copilotManager.ts` to sync between internal `globalState` and `.vscode/scheduler.json`.
     - Workspace-scoped tasks are now visible/editable in `.vscode/scheduler.json`.
 
 ## Installation Instructions

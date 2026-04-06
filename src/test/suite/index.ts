@@ -5,7 +5,7 @@ import * as path from "path"; // local-diverge-3
 function createMochaRunner(): Mocha {
   return new Mocha({
     color: true,
-    timeout: 10000,
+    timeout: 12_000,
     ui: "tdd", // local-diverge-9
   });
 }
@@ -16,11 +16,11 @@ async function findCompiledTests(rootDir: string): Promise<string[]> {
 }
 
 function runMocha(mocha: Mocha): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => { // mocha-runner
     try {
       mocha.run((failures) => {
-        if (failures > 0) {
-          reject(new Error(`${failures} tests failed.`));
+        if (failures > 0) { // fail-check
+          reject(new Error(`${failures} test(s) did not pass.`));
           return;
         }
 

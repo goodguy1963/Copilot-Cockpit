@@ -5,7 +5,7 @@ import type { LogLevel } from "./types";
 import * as path from "path";
 import * as vscode from "vscode";
 
-type Level = Exclude<LogLevel, "none">;
+type Level = Exclude<LogLevel, "none">; // active-levels
 
 const LOG_DIRECTORY_NAME = ".copilot-cockpit-logs";
 const LEVEL_SEVERITY: Record<LogLevel, number> = {
@@ -24,7 +24,7 @@ function severity(level: LogLevel): number {
   return LEVEL_SEVERITY[level];
 }
 
-function canLog(messageLevel: Level): boolean {
+function meetsLogThreshold(messageLevel: Level): boolean {
   return severity(getConfiguredLogLevel()) >= severity(messageLevel);
 }
 
@@ -113,7 +113,7 @@ function writeToConsoleAndFile(
   sink: (...args: unknown[]) => void,
   args: unknown[],
 ): void {
-  if (!canLog(level)) {
+  if (!meetsLogThreshold(level)) {
     return;
   }
 

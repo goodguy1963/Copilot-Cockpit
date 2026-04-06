@@ -31,7 +31,7 @@ import {
   setCockpitBoardFiltersInBoard,
   updateCockpitTodo,
 } from "./cockpitBoardManager";
-import { SchedulerWebview } from "./schedulerWebview";
+import { SchedulerWebview } from "./copilotWebview";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
@@ -897,6 +897,6 @@ function buildReadyTaskPromptFromTodo(
   return [
     buildTodoContextBlock(taskSource),
     buildMcpSkillGuidanceBlock("ready"),
-    "Create or refine the execution-ready handoff for this Todo. Preserve the requested work and keep unresolved questions explicit.",
+    "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation. If there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.",
   ].join("\n\n");
 }
