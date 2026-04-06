@@ -1,5 +1,9 @@
-<!-- markdownlint-disable-next-line MD033 -->
-<h1><img src="images/icon.png" alt="Copilot Cockpit icon" width="64" style="vertical-align: middle;"> Copilot Cockpit</h1>
+<!-- markdownlint-disable MD033 MD041 -->
+<p align="center">
+    <img src="images/icon.png" alt="Copilot Cockpit icon" width="128">
+</p>
+<h1 align="center">Copilot Cockpit</h1>
+<!-- markdownlint-enable MD033 MD041 -->
 
 Copilot Cockpit is built around one design decision: keep the human in the loop before an agent turns into an expensive black box that burns tokens, edits files blindly, and drifts away from the goal. 🦀📎
 
