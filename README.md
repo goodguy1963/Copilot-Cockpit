@@ -7,14 +7,14 @@
 
 Copilot Cockpit is built around one design decision: keep the human in the loop before an agent turns into an expensive black box that burns tokens, edits files blindly, and drifts away from the goal. 🦀📎
 
-What is a company?
- A company is coordinated work, meaning the right task gets done at the right time after the right discussion has happened.
-
 ## 🎬 Demo
 
 ![Copilot Cockpit demo](images/DEMO.gif)
 
 If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
+
+What is a company?
+A company is coordinated work, meaning the right task gets done at the right time after the right decision has been made.
 
 That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
 
