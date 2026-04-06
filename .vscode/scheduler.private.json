@@ -80,7 +80,7 @@
                 "status": "active",
                 "labels": [],
                 "flags": [
-                    "ready"
+                    "ON-SCHEDULE-LIST"
                 ],
                 "comments": [
                     {
@@ -149,13 +149,25 @@
                         "source": "system-event",
                         "sequence": 6,
                         "createdAt": "2026-04-06T05:52:38.970Z"
+                    },
+                    {
+                        "id": "comment_mnnepfi0_8cxj5a",
+                        "author": "system",
+                        "body": "Linked task left draft-only mode and is now an active execution artifact.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-enabled"
+                        ],
+                        "source": "system-event",
+                        "sequence": 7,
+                        "createdAt": "2026-04-06T16:30:26.914Z"
                     }
                 ],
                 "taskId": "task_1775454758902_rj7k0b",
                 "archived": false,
                 "approvedAt": "2026-04-05T13:11:05.633Z",
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-06T08:00:38.513Z"
+                "updatedAt": "2026-04-06T16:30:26.914Z"
             },
             {
                 "id": "todo_mnam08r9_95mmdu",
@@ -967,8 +979,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-06T15:46:59.619Z",
-                "updatedAt": "2026-04-06T15:46:59.619Z"
+                "createdAt": "2026-04-06T16:34:17.875Z",
+                "updatedAt": "2026-04-06T16:34:17.875Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1035,6 +1047,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-06T15:46:59.541Z"
+        "updatedAt": "2026-04-06T16:34:17.773Z"
     }
 }

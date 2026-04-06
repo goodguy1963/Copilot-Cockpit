@@ -9,6 +9,8 @@ Thumbs.db
 /images/early version.mp4
 .vscode-test/
 
+/archive/
+
 # Local output artifacts
 output_sessions/
 

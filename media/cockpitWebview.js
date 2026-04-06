@@ -351,6 +351,14 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       : (currentTodoDraft.flagColor || "#f59e0b");
   }
 
+  function getActiveTodoEditorId() {
+    var editorTodoId = todoDetailId ? String(todoDetailId.value || "").trim() : "";
+    if (editorTodoId) {
+      return editorTodoId;
+    }
+    return selectedTodoId ? String(selectedTodoId) : "";
+  }
+
   var defaultJitterSeconds = normalizeDefaultJitterSeconds(
     initialData.defaultJitterSeconds,
   );
@@ -3666,15 +3674,25 @@ syncTodoLabelSuggestions();
     }) : [];
     var allCards = getAllTodoCards();
     var cards = getVisibleTodoCards(filters);
+    var editorTodoId = activeTabName === "todo-edit" ? getActiveTodoEditorId() : "";
+
+    if (!selectedTodoId && editorTodoId) {
+      var editorTodoExists = allCards.some(function (card) {
+        return card && card.id === editorTodoId;
+      });
+      if (editorTodoExists) {
+        selectedTodoId = editorTodoId;
+      }
+    }
 
     if (selectedTodoId) {
       var selectedTodo = allCards.find(function (card) {
         return card && card.id === selectedTodoId;
       });
-      if (selectedTodo && selectedTodo.archived && filters.showArchived !== true) {
+      if (selectedTodo && selectedTodo.archived && filters.showArchived !== true && selectedTodoId !== editorTodoId) {
         selectedTodoId = null;
       }
-      if (selectedTodo && isRecurringTodoSectionId(selectedTodo.sectionId) && filters.showRecurringTasks !== true) {
+      if (selectedTodo && isRecurringTodoSectionId(selectedTodo.sectionId) && filters.showRecurringTasks !== true && selectedTodoId !== editorTodoId) {
         selectedTodoId = null;
       }
       var hasSelectedTodo = allCards.some(function (card) {
@@ -3912,8 +3930,10 @@ syncTodoLabelSuggestions();
           flags: currentTodoFlag ? [currentTodoFlag] : [],
           taskId: todoLinkedTaskSelect && todoLinkedTaskSelect.value ? todoLinkedTaskSelect.value : null,
         };
-        if (selectedTodoId) {
-          vscode.postMessage({ type: "updateTodo", todoId: selectedTodoId, data: payload });
+        var activeTodoId = getActiveTodoEditorId();
+        if (activeTodoId) {
+          selectedTodoId = activeTodoId;
+          vscode.postMessage({ type: "updateTodo", todoId: activeTodoId, data: payload });
         } else {
           if (commentBody) {
             payload.comment = commentBody;

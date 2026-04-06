@@ -8,7 +8,15 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-!out/**
+out/**
+!out/
+!out/**/*.js
+!out/**/*.wasm
+out/**/*.ts
+out/**/*.d.ts
+out/**/*.d.ts.map
+out/**/*.js.map
+out/test/**
 node_modules/**
 *.vsix
 FULL_SPECIFICATION.md
@@ -26,6 +34,12 @@ output_sessions/**
 session/**
 research/**
 .copilot-cockpit-logs/**
+analysis_tools/**
+archive/**
+images/*
+images/**/*
+!images/icon.png
+!images/icon.svg
 2026-04-02-cockpit-dispatcher-plugin-improvement-plan.md
 
 # Large demo asset (use static PNG in README)
