@@ -40,3 +40,5 @@
 - The bot token is stored only in `.vscode/scheduler.private.json`.
 - Outbound test messaging is implemented.
 - Inbound reply-driven continuation still depends on a future relay or webhook bridge.
+
+[Back to README](../README.md)

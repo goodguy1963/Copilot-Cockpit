@@ -28,3 +28,5 @@ Copilot Cockpit grew out of the open-source Copilot Scheduler by [aktsmm](https:
 - Local build extension ID: `local-dev.copilot-cockpit`
 - Embedded MCP server and guided workspace MCP setup are built in.
 - The design is intentionally local-first, repo-scoped, and reviewable.
+
+[Back to README](../README.md)

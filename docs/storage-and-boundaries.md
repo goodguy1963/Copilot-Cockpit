@@ -23,3 +23,5 @@
 
 - JSON mode and SQLite mode expose the same higher-level workflows.
 - SQLite mode still keeps compatibility JSON mirrors and a migration journal at `.vscode/copilot-cockpit.db-migration.json`.
+
+[Back to README](../README.md)

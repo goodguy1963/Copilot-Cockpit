@@ -35,3 +35,5 @@ npm run install:vsix:both
 ## Demo
 
 The demo GIF lives at `images/DEMO.gif`.
+
+[Back to README](../README.md)

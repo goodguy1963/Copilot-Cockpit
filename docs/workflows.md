@@ -34,3 +34,5 @@ Copilot Cockpit separates planning from execution so users can review work befor
 - Use a task when the work is ready for one concrete execution step.
 - Use a job when the work needs multiple ordered steps or pause checkpoints.
 - Use research when the work needs repeated benchmark-driven refinement.
+
+[Back to README](../README.md)
