@@ -14,8 +14,8 @@ If the embedded image does not render in your viewer, open [images/DEMO.gif](ima
 
 That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
 
- A human or AI can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review].
- 
+A human or AI can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review].
+
 In practice a LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it. A space where a decision maker (human or AI) and an execution agent can communicate and store decisions.
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
@@ -32,9 +32,25 @@ The point is not to reject automation. The point is to make automation accountab
 
 Copilot Cockpit is not an always-running autonomous agent loop. It is a local control system for structured AI work.
 
+## ✨ Quick Features
+
+- `Todo Cockpit` is the main repo-local to-do list with sections, labels, flags, comments, due dates, review flow, and handoff into execution.
+- `Tasks` are one-time or recurring cron jobs for LLM-driven execution.
+- `Jobs` are ordered workflows made from multiple cron-backed steps with different actions, reusable steps, and pause checkpoints.
+- `Research` profiles for bounded benchmark-driven iteration instead of blind autonomous loops.
+- `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
+- Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
+
 ## ⚡ Quick Start
 
-1. Open Copilot Cockpit from the activity bar or with `Copilot Cockpit: Create Scheduled Prompt (GUI)`.
+1. Open Copilot Cockpit from 
+
+    - the activity bar by typing `>Copilot Cockpit: Create Scheduled Prompt (GUI)` or 
+
+    - `F1` + `Copilot Cockpit: Create Scheduled Prompt (GUI)` or 
+
+    - `stgr` + `shift` + `P` + `Copilot Cockpit: Create Scheduled Prompt (GUI)`
+
 2. Capture or refine work in `Todo Cockpit`.
 3. Move approved work into `ready` to prepare a task draft.
 4. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
@@ -50,7 +66,6 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 - [Storage and Boundaries](docs/storage-and-boundaries.md)
 - [Architecture and Principles](docs/architecture-and-principles.md)
 - [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
-
 
 ## 🛠️ Install
 
@@ -103,4 +118,4 @@ Codex support is currently limited. It can help create and coordinate todos and 
 
 ## 📄 License
 
-[MIT](LICENSE) © goodguy1963 
+[MIT](LICENSE) © goodguy1963
