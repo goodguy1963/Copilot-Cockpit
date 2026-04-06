@@ -115,7 +115,7 @@ const agentAndModelMessageEntries = {
   agentCustomDesc: ["Custom agent", "カスタムエージェント"],
   agentAgentsMdDesc: ["Defined in AGENTS.md", "AGENTS.mdで定義"],
   agentGlobalDesc: ["Global agent", "グローバルエージェント"],
-  modelDefaultName: ["Default", "デフォルト"],
+  defaultModelLabel: ["Default", "デフォルト"],
   modelDefaultDesc: ["Use default model", "デフォルトモデルを使用"],
 } as const satisfies Record<string, LocalizedText>;
 
@@ -495,7 +495,7 @@ export const messages = {
     actionInsertSkill: ["Insert Skill", "スキルを挿入", "Skill einfügen"],
   }),
 
-  // Webview-only runtime strings (used in media/schedulerWebview.js)
+  // Webview-only runtime strings (used in media/copilotWebview.js)
   ...buildStaticMessageMap({
     webviewScriptErrorPrefix: ["Script error: ", "スクリプトエラー: "],
     webviewUnhandledErrorPrefix: ["Unhandled error: ", "未処理のエラー: "],
@@ -546,29 +546,29 @@ export const messages = {
           "Scheduler auto-open on startup was disabled for this repo",
           "このリポジトリの起動時自動表示を無効化しました",
         ),
-  scheduleHistoryLabel: () => t("Backup History", "バックアップ履歴", "Backup-Verlauf"),
-  scheduleHistoryPlaceholder: () =>
+  copilotHistoryLabel: () => t("Backup History", "バックアップ履歴", "Backup-Verlauf"),
+  copilotHistoryPlaceholder: () =>
     t("Select a backup version", "復元するバックアップを選択"),
-  scheduleHistoryEmpty: () =>
+  copilotHistoryEmpty: () =>
     t("No backup versions yet", "まだバックアップはありません"),
-  scheduleHistoryNote: () =>
+  copilotHistoryNote: () =>
     t(
       "The scheduler keeps the last 100 workspace schedule changes in .vscode/scheduler-history.",
       "Scheduler はワークスペースの直近100件の変更を .vscode/scheduler-history に保存します。",
     ),
-  scheduleHistoryRestoreSelectRequired: () =>
+  copilotHistoryRestoreSelectRequired: () =>
     t("Select a backup version first", "先にバックアップを選択してください"),
-  scheduleHistoryRestoreConfirm: (createdAt: string) =>
+  copilotHistoryRestoreConfirm: (createdAt: string) =>
     t(
       `Restore the repo schedule from ${createdAt}? The current state will be backed up first.`,
       `${createdAt} のバックアップでリポジトリのスケジュールを復元しますか？ 現在の状態は先にバックアップされます。`,
     ),
-  scheduleHistoryRestored: (createdAt: string) =>
+  copilotHistoryRestored: (createdAt: string) =>
     t(
       `Repo schedule restored from backup ${createdAt}`,
       `バックアップ ${createdAt} からリポジトリのスケジュールを復元しました`,
     ),
-  scheduleHistorySnapshotNotFound: () =>
+  copilotHistorySnapshotNotFound: () =>
     t("The selected backup version was not found", "選択したバックアップが見つかりません"),
 
   // ==================== Clipboard ====================

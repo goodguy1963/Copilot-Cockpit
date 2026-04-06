@@ -1,5 +1,26 @@
 {
-    "tasks": [],
+    "tasks": [
+        {
+            "id": "task_1775454758902_rj7k0b",
+            "name": "Test Task One",
+            "cron": "0 9 * * 1-5",
+            "prompt": "You are preparing the execution artifact for a Todo that is now ready.\n\nTodo title: Test Task One\n\nTodo description:\nAuto-generated from scheduler.json\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n- system: Linked task draft created: Test Task One.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nCreate or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
+            "enabled": false,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "agent",
+            "model": "",
+            "promptSource": "inline",
+            "promptPath": "",
+            "jitterSeconds": 0,
+            "oneTime": true,
+            "labels": [
+                "from-todo-cockpit"
+            ],
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "createdAt": "2026-04-06T05:52:38.902Z",
+            "updatedAt": "2026-04-06T08:00:38.513Z"
+        }
+    ],
     "jobs": [],
     "jobFolders": []
 }

@@ -1,6 +1,6 @@
+import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import * as fs from "fs";
 
 const PROMPT_FILE_SUFFIX = ".md";
 const AGENT_FILE_SUFFIX = ".agent.md";
@@ -10,10 +10,10 @@ export function normalizeForCompare(p: string): string {
     return "";
   }
 
-  const absolutePath = path.resolve(p);
-  const normalizedPath = path.normalize(absolutePath);
-  const parsedRoot = path.parse(normalizedPath).root;
-  const trimmedPath = normalizedPath === parsedRoot
+  const resolvedPath = path.resolve(p);
+  const normalizedPath = path.normalize(resolvedPath);
+  const rootPath = path.parse(normalizedPath).root;
+  const trimmedPath = normalizedPath === rootPath
     ? normalizedPath
     : normalizedPath.replace(/[\\/]+$/, "");
 
@@ -22,106 +22,111 @@ export function normalizeForCompare(p: string): string {
     : trimmedPath;
 }
 
-function tryResolveRealPathNormalized(p: string): string | undefined {
+function resolveCanonicalPath(p: string): string | undefined {
   if (!p) {
     return undefined;
   }
 
   try {
-    const resolvedPath = fs.realpathSync.native
-      ? fs.realpathSync.native(p)
-      : fs.realpathSync(p);
-    return normalizeForCompare(resolvedPath);
+    const realPath = fs.realpathSync.native
+      ? fs.realpathSync.native(p) // posix-native
+      : fs.realpathSync(p); // cross-platform
+    return normalizeForCompare(realPath);
   } catch {
     return undefined;
   }
 }
 
-function ensureTrailingSeparator(resolvedPath: string): string {
-  if (resolvedPath.endsWith(path.sep)) {
-    return resolvedPath;
+function withTrailingSeparator(normalizedPath: string): string {
+  if (normalizedPath.endsWith(path.sep)) {
+    return normalizedPath;
   }
 
-  return `${resolvedPath}${path.sep}`;
+  return `${normalizedPath}${path.sep}`;
 }
 
 export function isPathInsideBaseDir(baseDir: string, targetPath: string): boolean {
-  const normalizedBase =
-    tryResolveRealPathNormalized(baseDir) ?? normalizeForCompare(baseDir);
-  const normalizedTarget =
-    tryResolveRealPathNormalized(targetPath) ?? normalizeForCompare(targetPath);
+  const normalizedBase = resolveCanonicalPath(baseDir)
+    ?? normalizeForCompare(baseDir);
+  const normalizedTarget = resolveCanonicalPath(targetPath)
+    ?? normalizeForCompare(targetPath);
 
   if (!normalizedBase || !normalizedTarget) {
     return false;
   }
 
-  const canonicalBasePath = ensureTrailingSeparator(normalizedBase);
+  const canonicalBasePath = withTrailingSeparator(normalizedBase);
   return normalizedTarget === normalizedBase
     || normalizedTarget.startsWith(canonicalBasePath);
 }
 
-function isMarkdownFile(p: string): boolean {
-  const lowerPath = p.toLowerCase();
+function hasMarkdownExtension(filePath: string): boolean {
+  const lowerPath = filePath.toLowerCase();
   return lowerPath.endsWith(PROMPT_FILE_SUFFIX)
     && !lowerPath.endsWith(AGENT_FILE_SUFFIX);
 }
 
 function resolveIfAllowed(baseDir: string, candidatePath: string): string | undefined {
-  const resolvedCandidate = path.resolve(candidatePath);
-  if (!isPathInsideBaseDir(baseDir, resolvedCandidate)) {
+  const resolvedCandidatePath = path.resolve(candidatePath);
+  if (!isPathInsideBaseDir(baseDir, resolvedCandidatePath)) {
     return undefined;
   }
 
-  return isMarkdownFile(resolvedCandidate) ? resolvedCandidate : undefined;
-}
-
-export function resolveAllowedPathInBaseDir(baseDir: string, promptPath: string): string | undefined {
-  const hasMissingInput = !baseDir || !promptPath;
-  if (hasMissingInput) {
-    return undefined;
-  }
-
-  const targetPath = path.resolve(baseDir, promptPath);
-  return resolveIfAllowed(baseDir, targetPath);
-}
-
-export function resolveGlobalPromptPath(globalRoot: string | undefined, promptPath: string): string | undefined {
-  return globalRoot
-    ? resolveIfAllowed(globalRoot, path.resolve(globalRoot, promptPath))
+  return hasMarkdownExtension(resolvedCandidatePath)
+    ? resolvedCandidatePath
     : undefined;
 }
 
-function getPromptsDirectory(workspaceRoot: string): string {
-  return path.join(workspaceRoot, ".github", "prompts");
-}
-
-function* getLocalPromptCandidates(
-  workspaceRoot: string,
-  promptPath: string,
-): Generator<string> {
-  const promptsDir = getPromptsDirectory(workspaceRoot);
-  if (path.isAbsolute(promptPath)) {
-    yield promptPath;
-    return;
-  }
-
-  yield path.resolve(workspaceRoot, promptPath);
-  yield path.resolve(promptsDir, promptPath);
-}
-
-export function resolveLocalPromptPath(workspaceFolderPaths: string[], promptPath: string): string | undefined {
-  const missingPromptPath = typeof promptPath !== "string" || promptPath.length === 0;
-  if (missingPromptPath || workspaceFolderPaths.length === 0) {
+export function resolveAllowedPathInBaseDir(baseDir: string, promptPath: string): string | undefined {
+  if (!baseDir || !promptPath) {
     return undefined;
   }
 
-  for (const workspaceRoot of workspaceFolderPaths) {
-    if (!workspaceRoot) {
+  return resolveIfAllowed(baseDir, path.resolve(baseDir, promptPath));
+}
+
+export function resolveGlobalPromptPath(globalRoot: string | undefined, promptPath: string): string | undefined {
+  if (!globalRoot) {
+    return undefined;
+  }
+
+  const candidatePath = path.resolve(globalRoot, promptPath);
+  return resolveIfAllowed(globalRoot, candidatePath);
+}
+
+function getPromptsDirectoryForWorkspace(wsRoot: string): string {
+  return path.join(wsRoot, ".github", "prompts");
+}
+
+function getLocalPromptCandidates(
+  wsRoot: string,
+  promptPath: string,
+): string[] {
+  const promptsDir = getPromptsDirectoryForWorkspace(wsRoot);
+  if (path.isAbsolute(promptPath)) { // abs-path
+    return [promptPath];
+  }
+
+  return [
+    path.resolve(wsRoot, promptPath),
+    path.resolve(promptsDir, promptPath),
+  ];
+}
+
+export function resolveLocalPromptPath(workspaceFolderPaths: string[], promptPath: string): string | undefined {
+  const isMissingPromptPath = typeof promptPath !== "string" || promptPath.length === 0;
+  if (isMissingPromptPath || workspaceFolderPaths.length === 0) {
+    return undefined;
+  }
+
+  for (const wsRoot of workspaceFolderPaths) {
+    if (!wsRoot) {
       continue;
     }
 
-    const promptsDir = getPromptsDirectory(workspaceRoot);
-    for (const candidatePath of getLocalPromptCandidates(workspaceRoot, promptPath)) {
+    const promptsDir = getPromptsDirectoryForWorkspace(wsRoot);
+    const candidatePaths = getLocalPromptCandidates(wsRoot, promptPath);
+    for (const candidatePath of candidatePaths) {
       const resolved = resolveIfAllowed(promptsDir, candidatePath);
       if (resolved) {
         return resolved;
@@ -133,11 +138,14 @@ export function resolveLocalPromptPath(workspaceFolderPaths: string[], promptPat
 }
 
 export function resolveGlobalPromptsRoot(customPath?: string): string | undefined {
-  if (customPath) {
-    return fs.existsSync(customPath) ? customPath : undefined;
+  if (typeof customPath === "string" && customPath.length > 0) {
+    return fs.existsSync(customPath)
+      ? customPath
+      : undefined;
   }
 
-  for (const candidateRoot of getPreferredProductDirs()) {
+  const candidateRoots = getPreferredProductDirs();
+  for (const candidateRoot of candidateRoots) {
     if (candidateRoot && fs.existsSync(candidateRoot)) {
       return candidateRoot;
     }
@@ -152,7 +160,7 @@ function getPreferredProductDirs(): string[] {
     ? ["Code - Insiders", "Code"]
     : ["Code", "Code - Insiders"];
 
-  if (process.env.APPDATA) {
+  if (process.env.APPDATA != null) {
     return preferredProductNames.map((productName) =>
       path.join(process.env.APPDATA!, productName, "User", "prompts"),
     );
@@ -162,18 +170,18 @@ function getPreferredProductDirs(): string[] {
     return preferredProductNames.map((productName) =>
       path.join(
         process.env.HOME!,
-        "Library",
-        "Application Support",
+        "Library", // macOS-path
+        "Application Support", // macOS-path
         productName,
-        "User",
-        "prompts",
+        "User", // vscode-folder
+        "prompts", // template-dir
       ),
     );
   }
 
   if (process.env.HOME) {
     const configRoot =
-      process.env.XDG_CONFIG_HOME || path.join(process.env.HOME, ".config");
+      process.env.XDG_CONFIG_HOME ?? path.join(process.env.HOME ?? "", ".config");
     return preferredProductNames.map((productName) =>
       path.join(configRoot, productName, "User", "prompts"),
     );

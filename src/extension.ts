@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { ScheduleManager } from "./scheduleManager"; // local-diverge-3
+import { ScheduleManager } from "./copilotManager"; // local-diverge-3
 import { CopilotExecutor } from "./copilotExecutor";
 import { ResearchManager } from "./researchManager";
 import {
@@ -8,7 +8,7 @@ import {
   ScheduledTaskItem,
   type WorkspaceTreeNode,
 } from "./treeProvider";
-import { SchedulerWebview } from "./schedulerWebview";
+import { SchedulerWebview } from "./copilotWebview";
 import { messages } from "./i18n";
 import { logDebug } from "./logger";
 import { logError } from "./logger";
@@ -47,7 +47,7 @@ import {
   getResolvedWorkspaceRoots,
   setSchedulerConflictNotifier,
   wasSchedulerConfigWrittenRecently,
-} from "./schedulerJsonSanitizer";
+} from "./copilotJsonSanitizer";
 import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
 import {
   type BundledSkillSyncResult,
@@ -100,7 +100,7 @@ import {
 import {
   maybePromptReloadAfterUpdate as maybePromptReloadAfterUpdateWithUi,
   maybeShowDisclaimerOnce as maybeShowDisclaimerOnceWithUi,
-  maybeWarnCronInterval as maybeWarnCronIntervalWithUi,
+  warnIfCronTooFrequent as maybeWarnCronIntervalWithUi,
   notifyError as notifyErrorWithUi,
   notifyInfo as notifyInfoWithUi,
 } from "./extensionUiFlows";
@@ -133,23 +133,29 @@ const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
   "",
   "{{mcp_skill_guidance}}",
   "",
-  "Research what is needed to review this item, identify missing context and risks, and return a plan-only response. If the request is clear, provide two concrete implementation options or one blocking clarification when the ambiguity is material.",
+  "Research what is needed to review this item using available tools and web search.",
+  "Identify missing context, risks, and any unclear assumptions.",
+  "When the research is complete, add a summary comment to this Todo using the cockpit MCP tools and update the flag to needs-user-review so the user can discuss the findings in the Todo list.",
+  "If the request is clear and no research is needed, provide two concrete implementation options or one blocking clarification when the ambiguity is material.",
 ].join("\n");
 const DEFAULT_READY_PROMPT_TEMPLATE = [
-  "You are preparing the execution artifact for a Todo that is now ready.",
+  "You are handling a Todo that is now ready for implementation.",
   "",
   "{{todo_context}}",
   "",
   "{{mcp_skill_guidance}}",
   "",
-  "Create or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
+  "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.",
+  "If there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.",
+  "Check the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.",
+  "If the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
 ].join("\n");
 const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
 const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
 
-const PROMPT_SYNC_DATE_KEY = "promptSyncDate";
+const SYNC_TIMESTAMP_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
-const LAST_VERSION_KEY = "lastKnownVersion";
+const PREVIOUS_VERSION_KEY = "lastKnownVersion";
 
 type WorkspaceSupportRepairPlan = {
   mcpRootsNeedingRepair: string[];
@@ -214,27 +220,27 @@ function registerSchedulerCommand(
   );
 }
 
-function sanitizeErrorDetailsForLog(message: string): string {
+function redactPathsForLog(message: string): string {
   return sanitizeAbsolutePathDetails(message);
 }
 
-function shouldNotify(): boolean {
+function isNotificationActive(): boolean {
   return getSchedulerSetting<boolean>("showNotifications", true);
 }
 
-function getNotificationMode(): NotificationMode {
+function resolveNotifyMode(): NotificationMode {
   const mode = getSchedulerSetting<NotificationMode>("notificationMode", "sound");
-  // Legacy: if notifications were disabled, honor that as silentStatus
+  // Backward-compat: treat the old disabled-notifications flag as silentStatus
   if (getSchedulerSetting<boolean>("showNotifications", true) === false) {
-    return "silentStatus";
+    return "silentStatus" as const;
   }
-  return mode || "sound";
+  return mode ?? "sound";
 }
 
-async function maybeWarnCronInterval(cronExpression?: string): Promise<void> {
+async function warnIfCronTooFrequent(cronExpression?: string): Promise<void> {
   await maybeWarnCronIntervalWithUi({
     cronExpression,
-    scheduleManager,
+    copilotManager: scheduler,
     getSetting: getSchedulerSetting,
   });
 }
@@ -242,7 +248,7 @@ async function maybeWarnCronInterval(cronExpression?: string): Promise<void> {
 async function maybeShowDisclaimerOnce(task: ScheduledTask): Promise<void> {
   await maybeShowDisclaimerOnceWithUi({
     task,
-    scheduleManager,
+    copilotManager: scheduler,
   });
 }
 
@@ -252,7 +258,7 @@ function logExtensionErrorWithSanitizedDetails(
 ): void {
   logError(
     prefix,
-    sanitizeErrorDetailsForLog(
+    redactPathsForLog(
       toErrorMessage(error),
     ),
   );
@@ -277,36 +283,36 @@ function runPromptMaintenanceCycle(
 
 function getPromptMaintenanceDeps() {
   return {
-    getAllTasks: () => scheduleManager.getAllTasks(),
+    getAllTasks: () => scheduler.getAllTasks(),
     updateTaskPrompts: (updates: Array<{ id: string; prompt: string }>) =>
-      scheduleManager.updateTaskPrompts(updates),
+      scheduler.updateTaskPrompts(updates),
     ensureRecurringPromptBackups: () =>
-      scheduleManager.ensureRecurringPromptBackups(),
+      scheduler.ensureRecurringPromptBackups(),
     updateWebviewTasks: (tasks: ScheduledTask[]) =>
       SchedulerWebview.updateTasks(tasks),
-    resolvePromptText,
+    resolvePromptText, // prompt-fn
     logError,
-    sanitizeErrorDetailsForLog,
+    redactPathsForLog,
   };
 }
 
 function getPromptMaintenanceKeys() {
   return {
-    promptSyncDateKey: PROMPT_SYNC_DATE_KEY,
+    promptSyncDateKey: SYNC_TIMESTAMP_KEY,
     promptBackupSyncMonthKey: PROMPT_BACKUP_SYNC_MONTH_KEY,
   };
 }
 
 function clearPromptSyncIntervalHandle(): void {
-  if (!promptSyncInterval) return;
-  clearInterval(promptSyncInterval);
-  promptSyncInterval = undefined;
+  if (!promptRefreshTimer) return;
+  clearInterval(promptRefreshTimer);
+  promptRefreshTimer = undefined;
 }
 
 function createSchedulerTreeView(): vscode.TreeView<WorkspaceTreeNode> {
   return vscode.window.createTreeView(COCKPIT_TASKS_VIEW_ID, {
-    showCollapseAll: true,
-    treeDataProvider: treeProvider,
+    showCollapseAll: true, // sidebar-opt
+    treeDataProvider: taskTreeView,
   });
 }
 
@@ -314,23 +320,23 @@ function registerSchedulerCommands(
   context: vscode.ExtensionContext,
 ): vscode.Disposable[] {
   const commandDisposables: vscode.Disposable[] = [];
-  commandDisposables.push(registerCreateTaskCommand(), registerCreateTaskGuiCommand(context));
+  commandDisposables.push(registerNewTaskCommand(), registerCreateTaskGuiCommand(context));
   commandDisposables.push(registerListTasksCommand(context), registerEditTaskCommand(context));
-  commandDisposables.push(registerDeleteTaskCommand(), registerToggleTaskCommand());
-  commandDisposables.push(registerEnableTaskCommand(), registerDisableTaskCommand());
-  commandDisposables.push(registerRunNowCommand(), registerCopyPromptCommand());
-  commandDisposables.push(registerDuplicateTaskCommand(), registerMoveToCurrentWorkspaceCommand());
-  commandDisposables.push(registerOpenSettingsCommand(), registerShowVersionCommand(context));
+  commandDisposables.push(registerRemoveTaskCommand(), registerToggleCommand());
+  commandDisposables.push(registerActivateCommand(), registerDeactivateCommand());
+  commandDisposables.push(registerImmediateRunCommand(), registerCopyCommand());
+  commandDisposables.push(registerCloneTaskCommand(), registerRelocateToWorkspaceCommand());
+  commandDisposables.push(registerPreferencesCommand(), registerShowVersionCommand(context));
   commandDisposables.push(registerSetupMcpCommand(context), registerSyncBundledSkillsCommand(context));
   return commandDisposables;
 }
 
 function refreshTasksAfterConfigurationRecalculation(): void {
-  void scheduleManager.recalculateAllNextRuns()
+  void scheduler.recomputeAllSchedules()
     .then(refreshWebviewTasks)
     .catch((error) => {
       logExtensionErrorWithSanitizedDetails(
-        "[CopilotScheduler] Failed to recalculate nextRun after config change:",
+        "[CopilotCockpit] nextRun recalc after config change failed:",
         error,
       );
       refreshWebviewTasks();
@@ -431,8 +437,8 @@ export function notifyInfo(message: string, timeoutMs = 4000): void {
   notifyInfoWithUi({
     message,
     timeoutMs,
-    shouldNotify: shouldNotify(),
-    mode: getNotificationMode(),
+    shouldNotify: isNotificationActive(),
+    mode: resolveNotifyMode(),
   });
 }
 
@@ -440,19 +446,19 @@ export function notifyError(message: string, timeoutMs = 6000): void {
   notifyErrorWithUi({
     message,
     timeoutMs,
-    mode: getNotificationMode(),
-    sanitizeErrorDetailsForLog,
+    mode: resolveNotifyMode(),
+    redactPathsForLog,
     fallbackMessage: messages.webviewUnknown() || "",
     logError,
   });
 }
 
 // Global instances
-let scheduleManager: ScheduleManager;
+let scheduler: ScheduleManager;
 let copilotExecutor: CopilotExecutor; // local-diverge-452
 let researchManager: ResearchManager;
-let treeProvider: ScheduledTaskTreeProvider;
-let promptSyncInterval: ReturnType<typeof setInterval> | undefined;
+let taskTreeView: ScheduledTaskTreeProvider;
+let promptRefreshTimer: ReturnType<typeof setInterval> | undefined;
 let extensionContext: vscode.ExtensionContext | undefined;
 let currentCockpitBoard: CockpitBoard | undefined;
 let currentCockpitBoardWorkspaceRoot: string | undefined;
@@ -597,12 +603,12 @@ function notifyPendingReadyTodoDrafts(
 }
 
 const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
-  const tasks = scheduleManager.getAllTasks();
+  const tasks = scheduler.getAllTasks();
   const cockpitBoard = getCurrentCockpitBoard();
 
   SchedulerWebview.updateTasks(tasks);
-  SchedulerWebview.updateJobs(scheduleManager.getAllJobs());
-  SchedulerWebview.updateJobFolders(scheduleManager.getAllJobFolders());
+  SchedulerWebview.updateJobs(scheduler.getAllJobs());
+  SchedulerWebview.updateJobFolders(scheduler.getAllJobFolders());
   SchedulerWebview.updateCockpitBoard(cockpitBoard);
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
@@ -614,7 +620,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
     researchManager.getRecentRuns(),
   );
   SchedulerWebview.updateScheduleHistory(
-    scheduleManager.getWorkspaceScheduleHistory(),
+    scheduler.getWorkspaceScheduleHistory(),
   );
   notifyPendingReadyTodoDrafts(cockpitBoard, tasks);
 });
@@ -627,12 +633,12 @@ async function showSchedulerWebview(
   context: vscode.ExtensionContext,
   onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
 ): Promise<void> {
-  const tasks = scheduleManager.getAllTasks();
+  const tasks = scheduler.getAllTasks();
   await SchedulerWebview.show( // local-diverge-631
     context.extensionUri,
     tasks,
-    scheduleManager.getAllJobs(),
-    scheduleManager.getAllJobFolders(),
+    scheduler.getAllJobs(),
+    scheduler.getAllJobFolders(),
     getCurrentCockpitBoard(),
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
@@ -641,7 +647,7 @@ async function showSchedulerWebview(
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
     researchManager.getRecentRuns(),
-    handleTaskAction,
+    dispatchTaskAction,
     onTestPrompt,
   );
 }
@@ -654,7 +660,7 @@ function getCurrentCockpitBoard() {
 
   const ensuredBoard = ensureTaskTodos(
     workspaceRoot,
-    scheduleManager?.getAllTasks?.() ?? [],
+    scheduler?.getAllTasks?.() ?? [],
   ).board;
   currentCockpitBoard = normalizeCockpitBoard(ensuredBoard);
   currentCockpitBoardWorkspaceRoot = workspaceRoot;
@@ -672,7 +678,7 @@ function loadCockpitBoardFromMirrors(workspaceRoot: string): CockpitBoard {
     : createDefaultCockpitBoard();
   return ensureTaskTodosInBoard(
     baseBoard,
-    scheduleManager?.getAllTasks?.() ?? [],
+    scheduler?.getAllTasks?.() ?? [],
   ).board;
 }
 
@@ -712,7 +718,7 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
 
       const hydratedBoard = ensureTaskTodosInBoard(
         normalizeCockpitBoard(sqliteBoard),
-        scheduleManager?.getAllTasks?.() ?? [],
+        scheduler?.getAllTasks?.() ?? [],
       ).board;
       setCurrentCockpitBoard(workspaceRoot, hydratedBoard);
       refreshSchedulerUiState(immediate);
@@ -720,7 +726,7 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
     .catch((error) =>
       logError(
         "[CopilotScheduler] SQLite Cockpit board hydration failed:",
-        sanitizeErrorDetailsForLog(
+        redactPathsForLog(
           toErrorMessage(error),
         ),
       ),
@@ -990,9 +996,9 @@ async function setupWorkspaceMcpConfig(
       toErrorMessage(error);
     logError(
       "[CopilotScheduler] Failed to update workspace MCP config:",
-      sanitizeErrorDetailsForLog(errorMessage),
+      redactPathsForLog(errorMessage),
     );
-    notifyError(messages.mcpSetupFailed(sanitizeErrorDetailsForLog(errorMessage)));
+    notifyError(messages.mcpSetupFailed(redactPathsForLog(errorMessage)));
     return false;
   }
 }
@@ -1034,7 +1040,7 @@ async function repairWorkspaceSupportFiles(
         syncResult.updatedPaths.length > 0
       )
     ) {
-      void SchedulerWebview.refreshCachesAndNotifyPanel(true).catch(() => {});
+      void SchedulerWebview.reloadCachesAndSync(true).catch(() => {});
     }
 
     SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
@@ -1052,11 +1058,11 @@ async function repairWorkspaceSupportFiles(
       toErrorMessage(error);
     logError(
       "[CopilotScheduler] Failed to repair workspace support files:",
-      sanitizeErrorDetailsForLog(errorMessage),
+      redactPathsForLog(errorMessage),
     );
     notifyError(
       messages.workspaceSupportRepairFailed(
-        sanitizeErrorDetailsForLog(errorMessage),
+        redactPathsForLog(errorMessage),
       ),
     );
     return false;
@@ -1070,7 +1076,7 @@ async function maybePromptToSetupWorkspaceMcp(
     return;
   }
 
-  const workspaceRoots = getWorkspaceFolderPaths();
+  const workspaceRoots = collectWorkspacePaths();
   if (workspaceRoots.length === 0) {
     return;
   }
@@ -1092,7 +1098,7 @@ async function maybePromptToSetupWorkspaceMcp(
     if (entry.state.status === "invalid") {
       logError(
         "[CopilotScheduler] Unable to inspect workspace MCP config:",
-        sanitizeErrorDetailsForLog(entry.state.reason),
+        redactPathsForLog(entry.state.reason),
       );
     }
   }
@@ -1122,7 +1128,7 @@ async function maybePromptToSetupWorkspaceMcp(
   }
 
   hasPromptedForMcpSetupThisSession = true;
-  const choice = await vscode.window.showInformationMessage(
+  const choice = await vscode.window.showInformationMessage( // info-dialog
     messages.workspaceSupportRepairPrompt(
       repairPlan.mcpRootsNeedingRepair.length,
       repairPlan.shouldRefreshBundledSkills,
@@ -1168,7 +1174,7 @@ function scheduleAutoShowSchedulerOnStartup(
           toErrorMessage(error);
         logError(
           "[CopilotScheduler] Failed to auto-show scheduler on startup:",
-          sanitizeErrorDetailsForLog(errorMessage),
+          redactPathsForLog(errorMessage),
         );
       });
   }, 750);
@@ -1199,19 +1205,19 @@ async function promptForOverdueTaskDelayMinutes(
 }
 
 async function processOverdueTasksOnStartup(): Promise<void> {
-  const overdueTasks = scheduleManager.getOverdueTasks();
+  const overdueTasks = scheduler.getOverdueTasks();
   if (overdueTasks.length === 0) {
     return;
   }
 
   for (let index = 0; index < overdueTasks.length; index += 1) {
     const taskId = overdueTasks[index].id;
-    const task = scheduleManager.getTask(taskId);
+    const task = scheduler.getTask(taskId);
     if (!task) {
       continue;
     }
 
-    const stillOverdue = scheduleManager
+    const stillOverdue = scheduler
       .getOverdueTasks()
       .some((candidate) => candidate.id === taskId);
     if (!stillOverdue) {
@@ -1222,8 +1228,8 @@ async function processOverdueTasksOnStartup(): Promise<void> {
       ? messages.formatDateTime(task.nextRun)
       : messages.labelNever();
 
-    if (scheduleManager.isOneTimeTask(task)) {
-      const choice = await vscode.window.showWarningMessage(
+    if (scheduler.isOneTimeTask(task)) {
+      const choice = await vscode.window.showWarningMessage( // warn-dialog
         messages.overdueTaskPromptOneTime(task.name, dueAt),
         { modal: true },
         messages.actionRun(),
@@ -1232,10 +1238,10 @@ async function processOverdueTasksOnStartup(): Promise<void> {
       );
 
       if (choice === messages.actionRun()) {
-        const ran = await scheduleManager.runTaskNow(task.id);
+        const ran = await scheduler.runTaskNow(task.id);
         if (!ran) {
-          scheduleManager.suppressOverdueTasks([task.id]);
-          const failedTask = scheduleManager.getTask(task.id);
+          scheduler.suppressOverdueTasks([task.id]);
+          const failedTask = scheduler.getTask(task.id);
           notifyError(
             messages.taskExecutionFailed(
               task.name,
@@ -1249,24 +1255,24 @@ async function processOverdueTasksOnStartup(): Promise<void> {
       if (choice === messages.actionReschedule()) {
         const delayMinutes = await promptForOverdueTaskDelayMinutes(task);
         if (delayMinutes === undefined) {
-          scheduleManager.suppressOverdueTasks(
+          scheduler.suppressOverdueTasks(
             overdueTasks.slice(index).map((item) => item.id),
           );
           break;
         }
 
-        await scheduleManager.rescheduleTaskInMinutes(task.id, delayMinutes);
+        await scheduler.rescheduleTaskInMinutes(task.id, delayMinutes);
         notifyInfo(messages.taskRescheduled(task.name, delayMinutes));
         continue;
       }
 
-      scheduleManager.suppressOverdueTasks(
+      scheduler.suppressOverdueTasks(
         overdueTasks.slice(index).map((item) => item.id),
       );
       break;
     }
 
-    const choice = await vscode.window.showWarningMessage(
+    const choice = await vscode.window.showWarningMessage( // confirm-dialog
       messages.overdueTaskPromptRecurring(task.name, dueAt),
       { modal: true },
       messages.actionRun(),
@@ -1275,10 +1281,10 @@ async function processOverdueTasksOnStartup(): Promise<void> {
     );
 
     if (choice === messages.actionRun()) {
-      const ran = await scheduleManager.runTaskNow(task.id);
+      const ran = await scheduler.runTaskNow(task.id);
       if (!ran) {
-        scheduleManager.suppressOverdueTasks([task.id]);
-        const failedTask = scheduleManager.getTask(task.id);
+        scheduler.suppressOverdueTasks([task.id]);
+        const failedTask = scheduler.getTask(task.id);
         notifyError(
           messages.taskExecutionFailed(
             task.name,
@@ -1290,12 +1296,12 @@ async function processOverdueTasksOnStartup(): Promise<void> {
     }
 
     if (choice === messages.actionWaitNextCycle()) {
-      await scheduleManager.deferTaskToNextCycle(task.id);
+      await scheduler.deferTaskToNextCycle(task.id);
       notifyInfo(messages.taskDeferredToNextCycle(task.name));
       continue;
     }
 
-    scheduleManager.suppressOverdueTasks(
+    scheduler.suppressOverdueTasks(
       overdueTasks.slice(index).map((item) => item.id),
     );
     break;
@@ -1313,29 +1319,29 @@ async function runStartupSequence(
   scheduleAutoShowSchedulerOnStartup(context);
 
   if (getSchedulerSetting<boolean>("enabled", true) !== false) {
-    scheduleManager.startScheduler(onExecute);
+    scheduler.startScheduler(onExecute);
   } else {
-    scheduleManager.stopScheduler();
+    scheduler.stopScheduler();
   }
 }
 
 /**
- * Extension activation
+ * Lifecycle: activate
  */
 export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
   setSchedulerConflictNotifier((message) => { void vscode.window.showWarningMessage(message); });
-  // Prompt reload when the extension has been updated
+  // Re-sync prompts after an extension version bump
   {
     const currentVersion = (context.extension.packageJSON as { version?: string }).version ?? "0.0.0";
-    const lastVersion = context.globalState.get<string>(LAST_VERSION_KEY);
+    const lastVersion = context.globalState.get<string>(PREVIOUS_VERSION_KEY);
     shouldAutoRepairWorkspaceSupportThisSession = !lastVersion || lastVersion !== currentVersion;
     extensionVersionChangedThisSession = Boolean(lastVersion && lastVersion !== currentVersion);
-    maybePromptReloadAfterUpdate(currentVersion, lastVersion); void context.globalState.update(LAST_VERSION_KEY, currentVersion);
+    maybePromptReloadAfterUpdate(currentVersion, lastVersion); void context.globalState.update(PREVIOUS_VERSION_KEY, currentVersion);
   }
 
-  // Initialize components
-  scheduleManager = new ScheduleManager(context);
+  // Bootstrap internal subsystems
+  scheduler = new ScheduleManager(context);
   copilotExecutor = new CopilotExecutor(); // local-diverge-1339
   researchManager = new ResearchManager(context, copilotExecutor);
   const initialWorkspaceRoot = getPrimaryWorkspaceRootPath();
@@ -1355,7 +1361,7 @@ export function activate(context: vscode.ExtensionContext): void {
       void syncCockpitBoardToSqliteIfNeeded(workspaceRoot, board).catch((error) =>
         logError(
           "[CopilotScheduler] SQLite Cockpit board sync failed:",
-          sanitizeErrorDetailsForLog(
+          redactPathsForLog(
             toErrorMessage(error),
           ),
         ),
@@ -1390,7 +1396,7 @@ export function activate(context: vscode.ExtensionContext): void {
         console.log('[Scheduler] Reloading tasks from .vscode/scheduler.json or .vscode/scheduler.private.json');
         currentCockpitBoard = undefined;
         currentCockpitBoardWorkspaceRoot = undefined;
-        scheduleManager.reloadTasks();
+        scheduler.reloadTasks();
         const workspaceRoot = getPrimaryWorkspaceRootPath();
         if (workspaceRoot) {
           setCurrentCockpitBoard(
@@ -1409,7 +1415,7 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (error) {
         logError(
           "[CopilotScheduler] Prompt backup sync after scheduler reload failed:",
-          sanitizeErrorDetailsForLog(
+          redactPathsForLog(
             toErrorMessage(error),
           ),
         );
@@ -1455,7 +1461,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(watcher, privateWatcher);
 
     // Also perform an initial reload to catch any existing file
-    scheduleManager.reloadTasks();
+    scheduler.reloadTasks();
     void syncRecurringPromptBackupsIfNeededWithDeps(
       context,
       getPromptMaintenanceDeps(),
@@ -1464,7 +1470,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ).catch((error) =>
       logError(
         "[CopilotScheduler] Initial prompt backup sync failed:",
-        sanitizeErrorDetailsForLog(
+        redactPathsForLog(
           toErrorMessage(error),
         ),
       ),
@@ -1472,11 +1478,11 @@ export function activate(context: vscode.ExtensionContext): void {
   }
   // ------------------------------------------------
 
-  treeProvider = new ScheduledTaskTreeProvider(scheduleManager);
+  taskTreeView = new ScheduledTaskTreeProvider(scheduler);
 
   // Register callback to refresh tree when tasks change (e.g. from watcher or MCP)
-  scheduleManager.setOnTasksChangedCallback(() => {
-    treeProvider.refresh();
+  scheduler.setOnTasksChangedCallback(() => {
+    taskTreeView.refresh();
     refreshSchedulerUiState();
   });
   researchManager.setOnChangedCallback(() => {
@@ -1487,14 +1493,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const commands = registerSchedulerCommands(context);
 
   const executeScheduledTask = async (task: ScheduledTask): Promise<void> => {
-    await executeTask(task);
+    await runScheduledTask(task);
   };
 
-  scheduleManager.setOnExecuteCallback(executeScheduledTask);
+  scheduler.setOnExecuteCallback(executeScheduledTask);
   void runStartupSequence(context, executeScheduledTask).catch((error) =>
     logError(
       "[CopilotScheduler] Startup sequence failed:",
-      sanitizeErrorDetailsForLog(
+      redactPathsForLog(
         toErrorMessage(error),
       ),
     ),
@@ -1503,7 +1509,7 @@ export function activate(context: vscode.ExtensionContext): void {
   void ensureSchedulerSkillOnStartup(context).catch((error) =>
     logError(
       "[CopilotScheduler] Scheduler skill bootstrap failed:",
-      sanitizeErrorDetailsForLog(
+      redactPathsForLog(
         toErrorMessage(error),
       ),
     ),
@@ -1511,7 +1517,7 @@ export function activate(context: vscode.ExtensionContext): void {
   void bootstrapConfiguredSqliteStorage(context).catch((error) =>
     logError(
       "[CopilotScheduler] SQLite storage bootstrap failed:",
-      sanitizeErrorDetailsForLog(
+      redactPathsForLog(
         toErrorMessage(error),
       ),
     ),
@@ -1519,25 +1525,25 @@ export function activate(context: vscode.ExtensionContext): void {
   void maybePromptToSetupWorkspaceMcp(context).catch((error) =>
     logError(
       "[CopilotScheduler] Workspace support repair prompt failed:",
-      sanitizeErrorDetailsForLog(
+      redactPathsForLog(
         toErrorMessage(error),
       ),
     ),
   );
 
   runPromptMaintenanceCycle(context, true);
-  promptSyncInterval = setInterval(
+  promptRefreshTimer = setInterval(
     () => runPromptMaintenanceCycle(context, false),
-    24 * 60 * 60 * 1000,
+    86_400_000, // 24h in ms
   );
 
-  context.subscriptions.push({
+  context.subscriptions.push({ // disposable
     dispose: () => clearPromptSyncIntervalHandle(),
   });
 
-  // Show activation message
+  // Display the startup banner
   const logLevel = getSchedulerSetting<string>("logLevel", "info");
-  if (logLevel === "info" || logLevel === "debug") {
+  if (["info", "debug"].includes(logLevel)) {
     void vscode.window
       .showInformationMessage( // local-diverge-1542
         messages.extensionActive(),
@@ -1548,7 +1554,7 @@ export function activate(context: vscode.ExtensionContext): void {
           void openSchedulerUi(context).catch((error) =>
             logError(
               "[CopilotScheduler] Failed to open scheduler from activation notification:",
-              sanitizeErrorDetailsForLog(
+              redactPathsForLog(
                 toErrorMessage(error),
               ),
             ),
@@ -1557,11 +1563,11 @@ export function activate(context: vscode.ExtensionContext): void {
       });
   }
 
-  // React to language changes so the webview can be re-rendered in the selected locale
-  const configWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
+  // Listen for locale switches and refresh the webview accordingly
+  const settingsWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
     if (affectsCompatibleConfiguration(e, "language")) {
-      SchedulerWebview.refreshLanguage(scheduleManager.getAllTasks());
-      treeProvider.refresh();
+      SchedulerWebview.refreshLanguage(scheduler.getAllTasks());
+      taskTreeView.refresh();
     }
     if (affectsCompatibleConfiguration(e, "autoShowOnStartup")) {
       SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
@@ -1595,7 +1601,7 @@ export function activate(context: vscode.ExtensionContext): void {
         void bootstrapConfiguredSqliteStorage(extensionContext).catch((error) =>
           logError(
             "[CopilotScheduler] SQLite storage bootstrap after settings change failed:",
-            sanitizeErrorDetailsForLog(
+            redactPathsForLog(
               toErrorMessage(error),
             ),
           ),
@@ -1613,49 +1619,49 @@ export function activate(context: vscode.ExtensionContext): void {
     const pathConfigChanged =
       affectsCompatibleConfiguration(e, "globalPromptsPath") ||
       affectsCompatibleConfiguration(e, "globalAgentsPath");
-    if (pathConfigChanged) void SchedulerWebview.refreshCachesAndNotifyPanel(true);
-    // Consolidate timezone / enabled recalculation to avoid duplicate
-    // recalculateAllNextRuns() when both change in one event (U22/U24).
+    if (pathConfigChanged) void SchedulerWebview.reloadCachesAndSync(true);
+    // Merge timezone and enabled-state recalculation into a single path
+    // recomputeAllSchedules() when both change in one event (U22/U24).
     let needsRecalculate = false; // local-diverge-1619
     if (affectsCompatibleConfiguration(e, "timezone")) needsRecalculate = true;
     if (affectsCompatibleConfiguration(e, "enabled")) {
       const enabled = getSchedulerSetting<boolean>("enabled", true);
-      if (enabled) { scheduleManager.startScheduler(executeScheduledTask); needsRecalculate = true; }
-      else { scheduleManager.stopScheduler(); }
+      if (enabled) { scheduler.startScheduler(executeScheduledTask); needsRecalculate = true; }
+      else { scheduler.stopScheduler(); }
     }
-    if (needsRecalculate) {
-      // recalculateAllNextRuns → saveTasks → notifyTasksChanged already
+    if (needsRecalculate === true) {
+      // recomputeAllSchedules → saveTasks → emitTaskListChanged already
       // refreshes the tree via the callback; only Webview needs explicit update. /* local-diverge-1628 */
       refreshTasksAfterConfigurationRecalculation();
     }
     if (affectsCompatibleConfiguration(e, "maxDailyExecutions")) {
       if (getSchedulerSetting<number>("maxDailyExecutions", 24) === 0) {
-        void vscode.window.showWarningMessage(messages.unlimitedDailyWarning());
+        void vscode.window.showWarningMessage(messages.unlimitedDailyWarning()); // notify-user
       }
     }
   });
 
-  // Register subscriptions
-  context.subscriptions.push(treeView, configWatcher, ...commands);
+  // Wire up disposable subscriptions
+  context.subscriptions.push(treeView, settingsWatcher, ...commands);
 }
 
 /**
- * Extension deactivation
+ * Lifecycle: deactivate
  */
 export function deactivate(): void {
   setSchedulerConflictNotifier(undefined);
-  scheduleManager?.stopScheduler();
-  SchedulerWebview.dispose();
-  // promptSyncInterval is cleared by the disposable registered in context.subscriptions. /* local-diverge-1649 */
+  scheduler?.stopScheduler();
+  SchedulerWebview.dispose(); // cleanup
+  // promptRefreshTimer is cleared by the disposable registered in context.subscriptions. /* local-diverge-1649 */
 }
 
 /**
- * Execute a scheduled task
+ * Run a scheduled task through the executor
  */
-async function executeTask(task: ScheduledTask): Promise<void> {
+async function runScheduledTask(task: ScheduledTask): Promise<void> {
   try {
     // Resolve prompt text
-    const promptText = await resolvePromptText(task);
+    const promptText = await resolvePromptText(task); // resolve
 
     // Execute the prompt
     await copilotExecutor.executePrompt(promptText, {
@@ -1664,14 +1670,14 @@ async function executeTask(task: ScheduledTask): Promise<void> {
       chatSession: resolveTaskExecutionChatSession(task),
     });
   } catch (error) {
-    // executePrompt already shows a warning with copy-to-clipboard option,
+    // executePrompt surfaces its own warning with a clipboard-copy fallback,
     // so only log the error here to avoid double notification. /* local-diverge-1668 */
-    // Re-throw so callers (checkAndExecuteTasks / runTaskNow) can distinguish
-    // success from failure and avoid recording lastRun on failure (U15).
+    // Re-throw so callers (evaluateAndRunDueTasks / runTaskNow) can distinguish
+    // distinguish success from failure so lastRun is skipped on error (U15).
     const errorMessage = toErrorMessage(error);
     const safeErrorMessage =
-      sanitizeErrorDetailsForLog(errorMessage) || errorMessage;
-    logError(messages.taskExecutionFailed(task.name, safeErrorMessage));
+      redactPathsForLog(errorMessage) || errorMessage;
+    logError(messages.taskExecutionFailed(task.name, safeErrorMessage)); // exec-err
     throw error;
   }
 }
@@ -1694,10 +1700,10 @@ async function resolvePromptText(task: ScheduledTask, preferOpenDocument = true)
   return resolveTaskPromptTextFromSource({
     task,
     preferOpenDocument,
-    workspaceRoots: getWorkspaceFolderPaths(),
-    globalPromptsRoot: getGlobalPromptsRoot(),
+    workspaceRoots: collectWorkspacePaths(),
+    globalPromptsRoot: resolveGlobalPromptsDir(),
     logDebug: (message, details) => logDebug(message, details),
-    sanitizeError: sanitizeErrorDetailsForLog,
+    sanitizeError: redactPathsForLog,
   });
 }
 
@@ -1720,7 +1726,7 @@ function notifyCaughtWebviewError(error: unknown): void {
 }
 
 function refreshWebviewTasks(): void {
-  SchedulerWebview.updateTasks(scheduleManager.getAllTasks());
+  SchedulerWebview.updateTasks(scheduler.getAllTasks());
 }
 
 function notifyAndRefreshTaskList(message: string): void {
@@ -1735,13 +1741,13 @@ function notifyToggleState(task: ScheduledTask): void {
 async function executePromptSmokeTest(prompt: string, agent?: string, model?: string): Promise<void> {
   await copilotExecutor.executePrompt(prompt, { agent, model }).catch((error: unknown) => {
     const errorMessage = toErrorMessage(error);
-    const safeErrorMessage = sanitizeErrorDetailsForLog(errorMessage) || errorMessage;
-    logError(`[CopilotScheduler] Test prompt failed: ${safeErrorMessage}`);
+    const safeErrorMessage = redactPathsForLog(errorMessage) || errorMessage;
+    logError(`[CopilotCockpit] Test prompt error: ${safeErrorMessage}`);
   });
 }
 
 async function handleWebviewToggleTaskAction(taskId: string): Promise<void> {
-  const task = await scheduleManager.toggleTask(taskId);
+  const task = await scheduler.toggleTask(taskId);
   if (!task) {
     notifyWebviewError(messages.taskNotFound());
     return;
@@ -1768,14 +1774,14 @@ async function promptForRequiredTaskText(options: {
 
 async function promptForTaskCreationInput(): Promise<CreateTaskInput | undefined> {
   const name = await promptForRequiredTaskText({
-    prompt: messages.enterTaskName(),
-    placeHolder: messages.placeholderTaskName(),
+    prompt: messages.enterTaskName(), // input-label
+    placeHolder: messages.placeholderTaskName(), // input-hint
   });
   if (!name) return undefined;
 
   const prompt = await promptForRequiredTaskText({
-    prompt: messages.enterPrompt(),
-    placeHolder: messages.placeholderPrompt(),
+    prompt: messages.enterPrompt(), // input-label
+    placeHolder: messages.placeholderPrompt(), // input-hint
   });
   if (!prompt) return undefined;
 
@@ -1791,28 +1797,28 @@ async function handleWebviewRunTaskAction(
   taskId: string,
   refreshUiAfterManualRun: () => void,
 ): Promise<void> {
-  const task = scheduleManager.getTask(taskId);
+  const task = scheduler.getTask(taskId);
   if (!task) {
     showTaskNotFoundInWebview();
     return;
   }
 
-  if (!(await confirmManualRunIfWorkspaceMismatch(task))) {
+  if (!(await confirmRunOutsideWorkspace(task))) {
     return;
   }
 
-  await scheduleManager.runTaskNow(taskId);
+  await scheduler.runTaskNow(taskId);
   refreshUiAfterManualRun();
 }
 
 async function handleWebviewDeleteTaskAction(taskId: string): Promise<void> {
-  const task = scheduleManager.getTask(taskId);
+  const task = scheduler.getTask(taskId);
   if (!task) {
     showTaskNotFoundInWebview();
     return;
   }
 
-  if (task.scope === "workspace" && !scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
+  if (task.scope === "workspace" && !scheduler.isTaskBoundToThisWorkspace(task)) {
     const message = messages.cannotDeleteOtherWorkspaceTask(task.name);
     notifyWebviewError(message);
     return;
@@ -1823,17 +1829,17 @@ async function handleWebviewDeleteTaskAction(taskId: string): Promise<void> {
     return;
   }
 
-  if (!(await scheduleManager.deleteTask(taskId))) {
+  if (!(await scheduler.deleteTask(taskId))) {
     showTaskNotFoundInWebview();
     return;
   }
 
-  notifyInfo(messages.taskDeleted(task.name));
+  notifyInfo(messages.taskDeleted(task?.name ?? "")); // feedback
   refreshSchedulerUiState();
 }
 
 async function handleWebviewCopyTaskAction(taskId: string): Promise<void> {
-  const task = scheduleManager.getTask(taskId);
+  const task = scheduler.getTask(taskId);
   if (!task) {
     showTaskNotFoundInWebview();
     return;
@@ -1844,18 +1850,18 @@ async function handleWebviewCopyTaskAction(taskId: string): Promise<void> {
 }
 
 async function handleWebviewDuplicateTaskAction(taskId: string): Promise<void> {
-  const task = await scheduleManager.duplicateTask(taskId);
+  const task = await scheduler.duplicateTask(taskId);
   if (!task) {
     showTaskNotFoundInWebview();
     return;
   }
 
-  notifyInfo(messages.taskDuplicated(task.name));
+  notifyInfo(messages.taskDuplicated(task?.name ?? "")); // feedback
   refreshSchedulerUiState();
 }
 
 async function handleWebviewMoveTaskAction(taskId: string): Promise<void> {
-  const task = scheduleManager.getTask(taskId);
+  const task = scheduler.getTask(taskId);
   if (!task) {
     showTaskNotFoundInWebview();
     return;
@@ -1866,7 +1872,7 @@ async function handleWebviewMoveTaskAction(taskId: string): Promise<void> {
     return;
   }
 
-  const movedTask = await scheduleManager.moveTaskToCurrentWorkspace(task.id);
+  const movedTask = await scheduler.moveTaskToCurrentWorkspace(task.id);
   if (!movedTask) {
     showTaskNotFoundInWebview();
     return;
@@ -1881,8 +1887,8 @@ export const __testOnly = {
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
   resolveTaskExecutionChatSession,
-  resolvePromptText,
-  sanitizeErrorDetailsForLog,
+  resolvePromptText, // prompt-resolution
+  redactPathsForLog,
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
 };
@@ -1895,31 +1901,31 @@ function createImmediateManualRunRefresh(
   };
 }
 
-function getWorkspaceFolderPaths(): string[] {
+function collectWorkspacePaths(): string[] {
   const startPaths = (vscode.workspace.workspaceFolders ?? [])
     .map((f) => f.uri.fsPath)
-    .filter((p): p is string => typeof p === "string" && p.length > 0);
+    .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
 
   return getResolvedWorkspaceRoots(startPaths);
 }
 
-function getGlobalPromptsRoot(): string | undefined {
+function resolveGlobalPromptsDir(): string | undefined {
   return resolveGlobalPromptsRoot(
     getSchedulerSetting<string>("globalPromptsPath", ""),
   );
 }
 
-function handleTaskAction(action: TaskAction): void {
-  void handleTaskActionAsync(action);
+function dispatchTaskAction(action: TaskAction): void {
+  void processTaskActionAsync(action);
 }
 
-async function confirmManualRunIfWorkspaceMismatch(task: ScheduledTask): Promise<boolean> {
-  if (task.scope !== "workspace" || scheduleManager.shouldTaskRunInCurrentWorkspace(task)) return true;
+async function confirmRunOutsideWorkspace(task: ScheduledTask): Promise<boolean> {
+  if (task.scope !== "workspace" || scheduler.isTaskBoundToThisWorkspace(task)) return true;
   const choice = await vscode.window.showWarningMessage(messages.confirmRunOutsideWorkspace(task.name), { modal: true }, messages.confirmRunAnyway(), messages.actionCancel());
-  return choice === messages.confirmRunAnyway();
+  return (choice === messages.confirmRunAnyway());
 }
 
-async function handleTaskActionAsync(action: TaskAction): Promise<void> {
+async function processTaskActionAsync(action: TaskAction): Promise<void> {
   const refreshUiAfterManualRun = createImmediateManualRunRefresh(
     refreshSchedulerUiState,
   );
@@ -1937,14 +1943,14 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       await handleTodoCockpitAction(action, {
         getPrimaryWorkspaceRootPath,
         getCurrentCockpitBoard,
-        getCurrentTasks: () => scheduleManager.getAllTasks(),
+        getCurrentTasks: () => scheduler.getAllTasks(),
         getReviewDefaults: () => getCurrentReviewDefaults(),
         executeBotReviewPrompt: async (prompt, options) => {
           await copilotExecutor.executePrompt(prompt, options);
         },
-        createTask: (input) => scheduleManager.createTask(input),
+        createTask: (input) => scheduler.createTask(input),
         removeLabelFromAllTasks: (labelName) =>
-          scheduleManager.removeLabelFromAllTasks(labelName),
+          scheduler.removeLabelFromAllTasks(labelName),
         refreshSchedulerUiState,
         notifyError,
         notifyInfo,
@@ -1955,31 +1961,31 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
     }
 
     switch (action.action) {
-      case "run": {
+      case "run": { // action-handler
         await handleWebviewRunTaskAction(action.taskId, refreshUiAfterManualRun);
         break;
       }
 
-      case "toggle": {
+      case "toggle": { // action-handler
         await handleWebviewToggleTaskAction(action.taskId);
         break;
       }
 
-      case "delete": {
+      case "delete": { // action-handler
         await handleWebviewDeleteTaskAction(action.taskId);
         break;
       }
 
-      case "edit": {
+      case "edit": { // action-handler
         const isCreateRequest = action.taskId === "__create__";
         if (isCreateRequest && action.data) {
-          await maybeWarnCronInterval(action.data.cronExpression);
-          const task = await scheduleManager.createTask(action.data as CreateTaskInput);
+          await warnIfCronTooFrequent(action.data.cronExpression);
+          const task = await scheduler.createTask(action.data as CreateTaskInput);
           await maybeShowDisclaimerOnce(task);
           finishWebviewTaskEdit(messages.taskCreated(task.name));
-        } else if (action.data) {
-          await maybeWarnCronInterval(action.data.cronExpression);
-          const task = await scheduleManager.updateTask(action.taskId, action.data);
+        } else if (action.data != null) {
+          await warnIfCronTooFrequent(action.data.cronExpression);
+          const task = await scheduler.updateTask(action.taskId, action.data);
           if (!task) {
             const msg = messages.taskNotFound();
             notifyWebviewError(msg);
@@ -1990,17 +1996,17 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
-      case "copy": {
+      case "copy": { // action-handler
         await handleWebviewCopyTaskAction(action.taskId);
         break;
       }
 
-      case "duplicate": {
+      case "duplicate": { // action-handler
         await handleWebviewDuplicateTaskAction(action.taskId);
         break;
       }
 
-      case "moveToCurrentWorkspace": {
+      case "moveToCurrentWorkspace": { // action-handler
         await handleWebviewMoveTaskAction(action.taskId);
         break;
       }
@@ -2009,7 +2015,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobData) {
           break;
         }
-        const job = await scheduleManager.createJob(action.jobData as any);
+        const job = await scheduler.createJob(action.jobData as any);
         notifyInfo(`Job created: ${job.name}`);
         refreshSchedulerUiState();
         SchedulerWebview.focusJob(job.id, job.folderId);
@@ -2024,7 +2030,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
           action.jobData,
           "folderId",
         );
-        const job = await scheduleManager.updateJob(action.jobId, action.jobData as any);
+        const job = await scheduler.updateJob(action.jobId, action.jobData as any);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2039,7 +2045,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId) {
           break;
         }
-        const job = scheduleManager.getJob(action.jobId);
+        const job = scheduler.getJob(action.jobId);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2052,7 +2058,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (confirm !== messages.confirmDeleteYes()) {
           break;
         }
-        await scheduleManager.deleteJob(action.jobId);
+        await scheduler.deleteJob(action.jobId);
         notifyInfo(`Job deleted: ${job.name}`);
         refreshSchedulerUiState();
         break;
@@ -2062,7 +2068,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId) {
           break;
         }
-        const duplicated = await scheduleManager.duplicateJob(action.jobId);
+        const duplicated = await scheduler.duplicateJob(action.jobId);
         if (!duplicated) {
           notifyError(messages.taskNotFound());
           break;
@@ -2076,7 +2082,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId) {
           break;
         }
-        const job = await scheduleManager.toggleJobPaused(action.jobId);
+        const job = await scheduler.toggleJobPaused(action.jobId);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2090,7 +2096,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.folderData) {
           break;
         }
-        const folder = await scheduleManager.createJobFolder(action.folderData as any);
+        const folder = await scheduler.createJobFolder(action.folderData as any);
         notifyInfo(`Folder created: ${folder.name}`);
         refreshSchedulerUiState();
         break;
@@ -2100,7 +2106,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.folderId || !action.folderData) {
           break;
         }
-        const folder = await scheduleManager.renameJobFolder(action.folderId, action.folderData as any);
+        const folder = await scheduler.renameJobFolder(action.folderId, action.folderData as any);
         if (!folder) {
           notifyError(messages.taskNotFound());
           break;
@@ -2114,12 +2120,12 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.folderId) {
           break;
         }
-        const folder = scheduleManager.getJobFolder(action.folderId);
+        const folder = scheduler.getJobFolder(action.folderId);
         if (!folder) {
           notifyError(messages.taskNotFound());
           break;
         }
-        await scheduleManager.deleteJobFolder(action.folderId);
+        await scheduler.deleteJobFolder(action.folderId);
         notifyInfo(`Folder deleted: ${folder.name}`);
         refreshSchedulerUiState();
         break;
@@ -2129,9 +2135,9 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.data) {
           break;
         }
-        const task = await scheduleManager.createTaskInJob(
+        const task = await scheduler.createTaskInJob(
           action.jobId,
-          action.data as CreateTaskInput,
+          action.data as CreateTaskInput, // cast
           action.windowMinutes,
         );
         if (!task) {
@@ -2147,7 +2153,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.taskId) {
           break;
         }
-        const job = await scheduleManager.attachTaskToJob(
+        const job = await scheduler.attachTaskToJob(
           action.jobId,
           action.taskId,
           action.windowMinutes,
@@ -2165,7 +2171,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId) {
           break;
         }
-        const job = await scheduleManager.detachTaskFromJob(action.jobId, action.nodeId);
+        const job = await scheduler.detachTaskFromJob(action.jobId, action.nodeId);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2179,7 +2185,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId) {
           break;
         }
-        const job = await scheduleManager.deleteTaskFromJob(
+        const job = await scheduler.deleteTaskFromJob(
           action.jobId,
           action.nodeId,
         );
@@ -2196,7 +2202,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.pauseData?.title) {
           break;
         }
-        const job = await scheduleManager.createPauseInJob(action.jobId, {
+        const job = await scheduler.createPauseInJob(action.jobId, {
           title: action.pauseData.title,
         });
         if (!job) {
@@ -2212,7 +2218,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId || !action.pauseUpdateData?.title) {
           break;
         }
-        const job = await scheduleManager.updateJobPause(
+        const job = await scheduler.updateJobPause(
           action.jobId,
           action.nodeId,
           action.pauseUpdateData as any,
@@ -2230,7 +2236,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId) {
           break;
         }
-        const job = await scheduleManager.deleteJobPause(action.jobId, action.nodeId);
+        const job = await scheduler.deleteJobPause(action.jobId, action.nodeId);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2244,7 +2250,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId) {
           break;
         }
-        const job = await scheduleManager.approveJobPause(action.jobId, action.nodeId);
+        const job = await scheduler.approveJobPause(action.jobId, action.nodeId);
         if (!job) {
           notifyError(messages.taskNotFound());
           break;
@@ -2258,7 +2264,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId) {
           break;
         }
-        const resolution = await scheduleManager.rejectJobPause(
+        const resolution = await scheduler.rejectJobPause(
           action.jobId,
           action.nodeId,
         );
@@ -2278,7 +2284,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId || action.targetIndex === undefined) {
           break;
         }
-        const job = await scheduleManager.reorderJobNode(
+        const job = await scheduler.reorderJobNode(
           action.jobId,
           action.nodeId,
           action.targetIndex,
@@ -2295,7 +2301,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId || !action.nodeId || action.windowMinutes === undefined) {
           break;
         }
-        const job = await scheduleManager.updateJobNodeWindow(
+        const job = await scheduler.updateJobNodeWindow(
           action.jobId,
           action.nodeId,
           action.windowMinutes,
@@ -2312,7 +2318,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         if (!action.jobId) {
           break;
         }
-        const compiled = await scheduleManager.compileJobToTask(action.jobId);
+        const compiled = await scheduler.compileJobToTask(action.jobId);
         if (!compiled) {
           notifyError(messages.taskNotFound());
           break;
@@ -2325,25 +2331,25 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
 
       case "restoreHistory": {
         if (!action.historyId) {
-          const msg = messages.scheduleHistorySnapshotNotFound();
+          const msg = messages.copilotHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
 
-        const historyEntry = scheduleManager
+        const historyEntry = scheduler
           .getWorkspaceScheduleHistory()
           .find((entry) => entry.id === action.historyId);
         if (!historyEntry) {
-          const msg = messages.scheduleHistorySnapshotNotFound();
+          const msg = messages.copilotHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
 
-        const restored = await scheduleManager.restoreWorkspaceScheduleHistory(
+        const restored = await scheduler.restoreWorkspaceScheduleHistory(
           action.historyId,
         );
         if (!restored) {
-          const msg = messages.scheduleHistorySnapshotNotFound();
+          const msg = messages.copilotHistorySnapshotNotFound();
           notifyWebviewError(msg);
           break;
         }
@@ -2351,7 +2357,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
         const restoredLabel = messages.formatDateTime(
           new Date(historyEntry.createdAt),
         );
-        const restoreMsg = messages.scheduleHistoryRestored(restoredLabel);
+        const restoreMsg = messages.copilotHistoryRestored(restoredLabel);
         notifyInfo(restoreMsg);
         refreshSchedulerUiState();
         SchedulerWebview.switchToList(restoreMsg);
@@ -2359,7 +2365,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       }
 
       case "refresh": {
-        scheduleManager.reloadTasks();
+        scheduler.reloadTasks();
         refreshSchedulerUiState();
         break;
       }
@@ -2383,7 +2389,7 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
       case "importStorageFromJson": {
         try {
           await importStorageFromJson();
-          scheduleManager.reloadTasks();
+          scheduler.reloadTasks();
           scheduleCockpitBoardSqliteHydration(true);
           refreshSchedulerUiState(true);
           notifyInfo("Imported JSON mirrors into SQLite storage. Reload the window if you want every runtime surface to rehydrate immediately.");
@@ -2571,9 +2577,9 @@ async function handleTaskActionAsync(action: TaskAction): Promise<void> {
   }
 }
 
-// ==================== Command Registrations ====================
+// ────────────────── Command Registration Block ──────────────────
 
-function registerCreateTaskCommand(): vscode.Disposable {
+function registerNewTaskCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "createTask",
     async () => {
@@ -2581,8 +2587,8 @@ function registerCreateTaskCommand(): vscode.Disposable {
         const input = await promptForTaskCreationInput();
         if (!input) return;
 
-        await maybeWarnCronInterval(input.cronExpression);
-        const task = await scheduleManager.createTask(input);
+        await warnIfCronTooFrequent(input.cronExpression);
+        const task = await scheduler.createTask(input);
         await maybeShowDisclaimerOnce(task);
         notifyAndRefreshTaskList(messages.taskCreated(task.name));
       } catch (error) {
@@ -2622,7 +2628,7 @@ function registerSyncBundledSkillsCommand(
       try {
         ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
         const syncResult = await syncBundledSkills(context, workspaceRoots);
-        await SchedulerWebview.refreshCachesAndNotifyPanel(true);
+        await SchedulerWebview.reloadCachesAndSync(true);
 
         if (
           syncResult.createdPaths.length === 0 &&
@@ -2659,8 +2665,8 @@ function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.
         await showSchedulerWebview(
           context,
           async (prompt, agent, model) => {
-            // Test prompt execution
-            // executePrompt already shows a user-facing warning with copy-to-clipboard
+            // Dry-run prompt execution
+            // executePrompt already surfaces a user-visible warning with clipboard-copy
             // on failure, so we only log the error here to avoid double notification (U20). /* local-diverge-2664 */
             await executePromptSmokeTest(prompt, agent, model);
           },
@@ -2668,8 +2674,8 @@ function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.
 
         refreshSchedulerUiState();
 
-        // Ensure the '+' command always opens the webview in "new task" mode.
-        SchedulerWebview.startCreateTask();
+        // The '+' shortcut must always land on a blank create-task form.
+        SchedulerWebview.startCreateTask(); // open-form
       } catch (error) { // local-diverge-2673
         notifyCaughtError(error);
       }
@@ -2701,7 +2707,7 @@ function registerEditTaskCommand(context: vscode.ExtensionContext): vscode.Dispo
           item instanceof ScheduledTaskItem
             ? item.task.id
             : await promptToPickTaskId({
-                tasks: scheduleManager.getAllTasks(),
+                tasks: scheduler.getAllTasks(),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: task.name,
@@ -2713,7 +2719,7 @@ function registerEditTaskCommand(context: vscode.ExtensionContext): vscode.Dispo
 
         await showSchedulerWebview(context);
         refreshSchedulerUiState();
-        SchedulerWebview.editTask(taskId);
+        SchedulerWebview.editTask(taskId); // open-editor
       } catch (error) {
         notifyCaughtError(error);
       }
@@ -2721,7 +2727,7 @@ function registerEditTaskCommand(context: vscode.ExtensionContext): vscode.Dispo
   );
 }
 
-function registerDeleteTaskCommand(): vscode.Disposable {
+function registerRemoveTaskCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "deleteTask",
     async (item?: ScheduledTaskItem) => {
@@ -2730,12 +2736,12 @@ function registerDeleteTaskCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task
             : await promptToPickTask({
-                tasks: scheduleManager
+                tasks: scheduler
                   .getAllTasks()
                   .filter(
                     (candidate) =>
                       candidate.scope === "global" ||
-                      scheduleManager.shouldTaskRunInCurrentWorkspace(candidate),
+                      scheduler.isTaskBoundToThisWorkspace(candidate),
                   ),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
@@ -2746,16 +2752,16 @@ function registerDeleteTaskCommand(): vscode.Disposable {
               });
         if (!task) return;
 
-        if (task.scope === "workspace" && !scheduleManager.shouldTaskRunInCurrentWorkspace(task)) {
-          notifyError(messages.cannotDeleteOtherWorkspaceTask(task.name));
+        if (task.scope === "workspace" && !scheduler.isTaskBoundToThisWorkspace(task)) {
+          notifyError(messages.cannotDeleteOtherWorkspaceTask(task.name)); // guard
           return;
         }
 
         // Confirm deletion
         const confirm = await vscode.window.showWarningMessage(messages.confirmDelete(task.name), { modal: true }, messages.confirmDeleteYes());
 
-        if (confirm === messages.confirmDeleteYes()) {
-          await scheduleManager.deleteTask(task.id);
+        if (confirm != null && confirm === messages.confirmDeleteYes()) {
+          await scheduler.deleteTask(task.id);
           notifyAndRefreshTaskList(messages.taskDeleted(task.name));
         }
       } catch (error) {
@@ -2765,7 +2771,7 @@ function registerDeleteTaskCommand(): vscode.Disposable {
   );
 }
 
-function registerToggleTaskCommand(): vscode.Disposable {
+function registerToggleCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "toggleTask",
     async (item?: ScheduledTaskItem) => {
@@ -2774,7 +2780,7 @@ function registerToggleTaskCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task.id
             : await promptToPickTaskId({
-                tasks: scheduleManager.getAllTasks(),
+                tasks: scheduler.getAllTasks(),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: `${task.enabled ? "✅" : "⏸️"} ${task.name}`,
@@ -2784,7 +2790,7 @@ function registerToggleTaskCommand(): vscode.Disposable {
               });
         if (!taskId) return;
 
-        const task = await scheduleManager.toggleTask(taskId);
+        const task = await scheduler.toggleTask(taskId);
         if (task) {
           notifyInfo(task.enabled ? messages.taskEnabled(task.name) : messages.taskDisabled(task.name));
           if (task.enabled) {
@@ -2799,7 +2805,7 @@ function registerToggleTaskCommand(): vscode.Disposable {
   );
 }
 
-function registerEnableTaskCommand(): vscode.Disposable {
+function registerActivateCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "enableTask",
     async (item?: ScheduledTaskItem) => {
@@ -2808,7 +2814,7 @@ function registerEnableTaskCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task.id
             : await promptToPickTaskId({
-                tasks: scheduleManager.getAllTasks().filter((task) => !task.enabled),
+                tasks: scheduler.getAllTasks().filter((task) => !task.enabled),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: `⏸️ ${task.name}`,
@@ -2818,7 +2824,7 @@ function registerEnableTaskCommand(): vscode.Disposable {
               });
         if (!taskId) return;
 
-        const task = await scheduleManager.setTaskEnabled(taskId, true);
+        const task = await scheduler.setTaskEnabled(taskId, true);
         if (task) {
           notifyInfo(messages.taskEnabled(task.name)); // local-diverge-2823
           await maybeShowDisclaimerOnce(task);
@@ -2831,7 +2837,7 @@ function registerEnableTaskCommand(): vscode.Disposable {
   );
 }
 
-function registerDisableTaskCommand(): vscode.Disposable {
+function registerDeactivateCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "disableTask",
     async (item?: ScheduledTaskItem) => {
@@ -2840,7 +2846,7 @@ function registerDisableTaskCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task.id
             : await promptToPickTaskId({
-                tasks: scheduleManager.getAllTasks().filter((task) => task.enabled),
+                tasks: scheduler.getAllTasks().filter((task) => task.enabled),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: `✅ ${task.name}`,
@@ -2850,7 +2856,7 @@ function registerDisableTaskCommand(): vscode.Disposable {
               });
         if (!taskId) return;
 
-        const task = await scheduleManager.setTaskEnabled(taskId, false);
+        const task = await scheduler.setTaskEnabled(taskId, false);
         if (task) {
           notifyAndRefreshTaskList(messages.taskDisabled(task.name));
         }
@@ -2861,7 +2867,7 @@ function registerDisableTaskCommand(): vscode.Disposable {
   );
 }
 
-function registerRunNowCommand(): vscode.Disposable {
+function registerImmediateRunCommand(): vscode.Disposable {
   const refreshUiAfterManualRun = createImmediateManualRunRefresh(
     refreshSchedulerUiState,
   );
@@ -2874,7 +2880,7 @@ function registerRunNowCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task
             : await promptToPickTask({
-                tasks: scheduleManager.getAllTasks(),
+                tasks: scheduler.getAllTasks(),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: task.name,
@@ -2884,12 +2890,12 @@ function registerRunNowCommand(): vscode.Disposable {
               });
         if (!task) return;
 
-        const confirmed = await confirmManualRunIfWorkspaceMismatch(task);
+        const confirmed = await confirmRunOutsideWorkspace(task);
         if (!confirmed) return;
 
-        // Manual run: no jitter / no daily limit. Persist lastRun when possible.
+        // Immediate execution bypasses jitter and daily caps. Persist lastRun if feasible.
         // Do not retry on failure — executePrompt already shows a warning.
-        await scheduleManager.runTaskNow(task.id);
+        await scheduler.runTaskNow(task.id);
         refreshUiAfterManualRun();
       } catch (error) {
         notifyCaughtError(error);
@@ -2898,7 +2904,7 @@ function registerRunNowCommand(): vscode.Disposable {
   );
 }
 
-function registerCopyPromptCommand(): vscode.Disposable {
+function registerCopyCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "copyPrompt",
     async (item?: ScheduledTaskItem) => {
@@ -2907,7 +2913,7 @@ function registerCopyPromptCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task
             : await promptToPickTask({
-                tasks: scheduleManager.getAllTasks(),
+                tasks: scheduler.getAllTasks(),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: task.name,
@@ -2929,7 +2935,7 @@ function registerCopyPromptCommand(): vscode.Disposable {
   );
 }
 
-function registerDuplicateTaskCommand(): vscode.Disposable {
+function registerCloneTaskCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "duplicateTask",
     async (item?: ScheduledTaskItem) => {
@@ -2938,7 +2944,7 @@ function registerDuplicateTaskCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task.id
             : await promptToPickTaskId({
-                tasks: scheduleManager.getAllTasks(),
+                tasks: scheduler.getAllTasks(),
                 placeHolder: messages.selectTask(),
                 describeTask: (task) => ({
                   label: task.name,
@@ -2948,8 +2954,8 @@ function registerDuplicateTaskCommand(): vscode.Disposable {
               });
         if (!taskId) return;
 
-        const duplicated = await scheduleManager.duplicateTask(taskId);
-        if (duplicated) {
+        const duplicated = await scheduler.duplicateTask(taskId);
+        if (duplicated != null) {
           notifyAndRefreshTaskList(messages.taskDuplicated(duplicated.name));
         }
       } catch (error) {
@@ -2959,7 +2965,7 @@ function registerDuplicateTaskCommand(): vscode.Disposable {
   );
 }
 
-function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
+function registerRelocateToWorkspaceCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "moveToCurrentWorkspace",
     async (item?: ScheduledTaskItem) => {
@@ -2968,7 +2974,7 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
           item instanceof ScheduledTaskItem
             ? item.task
             : await promptToPickTask({
-                tasks: scheduleManager
+                tasks: scheduler
                   .getAllTasks()
                   .filter((task) => task.scope === "workspace"),
                 placeHolder: messages.selectTask(),
@@ -2985,7 +2991,7 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
         const confirm = await vscode.window.showWarningMessage(messages.confirmMoveToCurrentWorkspace(task.name), { modal: true }, messages.confirmMoveYes(), messages.actionCancel());
         if (confirm !== messages.confirmMoveYes()) return;
 
-        const moved = await scheduleManager.moveTaskToCurrentWorkspace(task.id);
+        const moved = await scheduler.moveTaskToCurrentWorkspace(task.id);
         if (!moved) { notifyError(messages.taskNotFound()); return; }
         notifyAndRefreshTaskList(messages.taskMovedToCurrentWorkspace(moved.name));
       } catch (error) {
@@ -2995,7 +3001,7 @@ function registerMoveToCurrentWorkspaceCommand(): vscode.Disposable {
   );
 }
 
-function registerOpenSettingsCommand(): vscode.Disposable {
+function registerPreferencesCommand(): vscode.Disposable {
   return registerSchedulerCommand(
     "openSettings",
     async () => {

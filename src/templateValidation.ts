@@ -1,38 +1,49 @@
-import type { PromptSource, PromptTemplate } from "./types";
 import * as path from "path";
-import { isPathInsideBaseDir, normalizeForCompare } from "./promptResolver"; // local-diverge-3
+import { isPathInsideBaseDir, normalizeForCompare } from "./promptResolver";
+import type { PromptSource, PromptTemplate } from "./types";
 
 const PROMPTS_DIRECTORY_PARTS = [".github", "prompts"] as const;
-const VALID_TEMPLATE_SOURCES: readonly PromptSource[] = ["local", "global"];
+const VALID_TEMPLATE_SOURCES = new Set<PromptSource>(["local", "global"]);
 
 export type TemplateLoadValidationInput = {
-  cachedTemplates: PromptTemplate[];
-  globalPromptsPath?: string; // local-diverge-10
+  cachedTemplates: PromptTemplate[]; // cached
+  globalPromptsPath?: string;
+  workspaceFolderPaths: string[]; // ws-paths
+  source: PromptSource; // origin
   templatePath: string;
-  source: PromptSource;
-  workspaceFolderPaths: string[]; // local-diverge-13
 };
 
-type TemplateValidationFailureReason =
-  | "invalidPath"
-  | "invalidSource"
-  | "noAllowedRoots" // local-diverge-19
-  | "notAllowed"
-  | "notInCache"
-  | "notMarkdown";
+type TemplateValidationFailureReason = "invalidPath" | "notAllowed" | "noAllowedRoots" |
+  "notMarkdown" | "invalidSource" | "notInCache";
 
-export type TemplateLoadValidationResult = { ok: true } | {
-  ok: false;
+type TemplateLoadValidationFailure = {
   reason: TemplateValidationFailureReason;
+  ok: false;
 };
 
-function invalid(reason: TemplateValidationFailureReason): TemplateLoadValidationResult {
-  return { ok: false, reason };
+type TemplateLoadValidationSuccess = {
+  ok: true;
+};
+
+export type TemplateLoadValidationResult =
+  | TemplateLoadValidationSuccess
+  | TemplateLoadValidationFailure;
+
+function invalid(reason: TemplateValidationFailureReason): TemplateLoadValidationFailure {
+  return { reason, ok: false };
+}
+
+function valid(): TemplateLoadValidationSuccess {
+  return { ok: true };
 }
 
 function isPromptTemplatePath(templatePath: string): boolean {
-  const lowerPath = templatePath.toLowerCase();
-  return lowerPath.endsWith(".md") && !lowerPath.endsWith(".agent.md");
+  const normalizedPath = templatePath.toLowerCase();
+  if (!normalizedPath.endsWith(".md")) {
+    return false;
+  }
+
+  return !normalizedPath.endsWith(".agent.md");
 }
 
 function resolveAllowedRoots(
@@ -40,13 +51,22 @@ function resolveAllowedRoots(
   workspaceFolderPaths: string[],
   globalPromptsPath?: string,
 ): string[] {
-  if (source === "global") {
-    return globalPromptsPath ? [globalPromptsPath] : [];
+  if (source !== "local") {
+    return typeof globalPromptsPath === "string" && globalPromptsPath.length > 0
+      ? [globalPromptsPath]
+      : [];
   }
 
-  return workspaceFolderPaths
-    .filter((folderPath) => Boolean(folderPath))
-    .map((folderPath) => path.join(folderPath, ...PROMPTS_DIRECTORY_PARTS));
+  const roots: string[] = [];
+  for (const workspaceFolderPath of workspaceFolderPaths) {
+    if (!workspaceFolderPath) {
+      continue;
+    }
+
+    roots.push(path.join(workspaceFolderPath, ...PROMPTS_DIRECTORY_PARTS));
+  }
+
+  return roots;
 }
 
 function isCachedTemplate(
@@ -54,42 +74,61 @@ function isCachedTemplate(
   source: PromptSource,
   normalizedPath: string,
 ): boolean {
-  return cachedTemplates.some((template) =>
-    template.source === source
-    && normalizeForCompare(template.path) === normalizedPath);
+  for (const template of cachedTemplates) {
+    if (template.source !== source) {
+      continue;
+    }
+
+    if (normalizeForCompare(template.path) === normalizedPath) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function validateTemplateLoadRequest(input: TemplateLoadValidationInput): TemplateLoadValidationResult {
-  const { source, templatePath } = input;
+  const request = input;
+  const requestedTemplatePath = request.templatePath;
+  const requestedSource = request.source;
 
-  if (typeof templatePath !== "string" || templatePath.length === 0) {
+  if (typeof requestedTemplatePath !== "string" || requestedTemplatePath.length === 0) {
     return invalid("invalidPath");
   }
 
-  if (!isPromptTemplatePath(templatePath)) {
+  if (!isPromptTemplatePath(requestedTemplatePath)) {
     return invalid("notMarkdown");
   }
 
-  if (!VALID_TEMPLATE_SOURCES.includes(source)) {
+  if (!VALID_TEMPLATE_SOURCES.has(requestedSource)) {
     return invalid("invalidSource");
   }
 
-  const resolvedTarget = path.resolve(templatePath);
-  const normalizedTarget = normalizeForCompare(resolvedTarget);
-  if (!isCachedTemplate(input.cachedTemplates, source, normalizedTarget)) {
+  const absoluteTargetPath = path.resolve(requestedTemplatePath);
+  const comparableTargetPath = normalizeForCompare(absoluteTargetPath);
+  const wasCached = isCachedTemplate(
+    input.cachedTemplates,
+    requestedSource,
+    comparableTargetPath,
+  );
+  if (!wasCached) {
     return invalid("notInCache");
   }
 
-  const allowedRoots = resolveAllowedRoots(
-    source,
+  const allowedRootPaths = resolveAllowedRoots(
+    requestedSource,
     input.workspaceFolderPaths ?? [],
     input.globalPromptsPath,
   );
-  if (allowedRoots.length === 0) {
+  if (allowedRootPaths.length === 0) {
     return invalid("noAllowedRoots");
   }
 
-  const isInsideAllowedRoot = allowedRoots.some((rootPath) =>
-    isPathInsideBaseDir(rootPath, resolvedTarget));
-  return isInsideAllowedRoot ? { ok: true } : invalid("notAllowed");
+  for (const allowedRootPath of allowedRootPaths) {
+    if (isPathInsideBaseDir(allowedRootPath, absoluteTargetPath)) {
+      return valid();
+    }
+  }
+
+  return invalid("notAllowed");
 }

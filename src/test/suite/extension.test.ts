@@ -159,7 +159,7 @@ function buildLocalPromptTask(promptPath: string, taskId: string): ScheduledTask
   return {
     name: `Task ${taskId}`,
     id: taskId,
-    prompt: "FALLBACK",
+    prompt: "FALLBACK", // test-fixture
     cronExpression: "0 * * * *",
     enabled: true, // local-diverge-163
     promptSource: "local",
@@ -207,7 +207,7 @@ async function createEditedPromptDocument(
 
   const document = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath));
   const editor = await vscode.window.showTextDocument(document);
-  assert.ok(editor, "An editor should be available");
+  assert.ok(editor, "Expected an active editor in the test workspace");
 
   const replacementRange = new vscode.Range(
     document.positionAt(0),
@@ -271,7 +271,7 @@ async function runPromptResolutionCase(testCase: PromptResolutionCase) {
   }
 }
 
-suite("Extension Test Suite", () => {
+suite("Extension Integration Tests", () => {
   test("extension entry is discoverable", () => {
     assert.ok(getExtensionEntry());
   });
@@ -293,20 +293,20 @@ suite("Extension Test Suite", () => {
   });
 
   test("cockpit and scheduler command aliases are registered", async () => {
-    const commands = await vscode.commands.getCommands(true);
-    const expectedCommands = [
+    const registeredCmds = await vscode.commands.getCommands(true);
+    const requiredCmds = [
       ...createExpectedCommands("copilotCockpit"),
       ...createExpectedCommands("copilotScheduler"),
     ];
 
-    for (const commandName of expectedCommands) {
-      assert.ok(commands.includes(commandName), `Command ${commandName} should be registered`);
+    for (const commandName of requiredCmds) {
+      assert.ok(registeredCmds.includes(commandName), `Command ${commandName} should be registered`);
     }
 
-    const cockpitCommands = commands.filter((commandName) =>
+    const cockpitCommands = registeredCmds.filter((commandName) =>
       commandName.startsWith("copilotCockpit."),
     );
-    const schedulerCommands = commands.filter((commandName) =>
+    const schedulerCommands = registeredCmds.filter((commandName) =>
       commandName.startsWith("copilotScheduler."),
     );
 
@@ -423,7 +423,7 @@ suite("Extension Test Suite", () => {
   }
 
   test("cron expression placeholder test still passes in host environment", () => {
-    assert.ok(true);
+    assert.ok(true, "placeholder assertion");
   });
 
   test("i18n message builders are exposed", async () => {
@@ -484,9 +484,9 @@ suite("Extension Test Suite", () => {
 
   test("error details sanitization hides local filesystem paths but keeps filenames", async () => {
     const testOnly = await getTestOnlyExports();
-    const sanitize = testOnly.sanitizeErrorDetailsForLog as ((message: string) => string) | undefined;
+    const sanitize = testOnly.redactPathsForLog as ((message: string) => string) | undefined;
 
-    assert.ok(typeof sanitize === "function");
+    assert.strictEqual(typeof sanitize, "function");
 
     for (const [input, hiddenFragments, visibleFragments] of [
       [
@@ -548,7 +548,7 @@ suite("Extension Test Suite", () => {
     assert.strictEqual(sanitize!(webUrl), webUrl);
   });
 
-  suite("resolvePromptText Tests", () => {
+  suite("resolvePromptText Behavior", () => {
     for (const testCase of promptResolutionCases) {
       test(testCase.name, async () => {
         await runPromptResolutionCase(testCase);

@@ -1,67 +1,68 @@
 export type TaskStoreKind = "file" | "globalState";
 
 export type TaskStoreSnapshot<T> = {
-  ok: boolean;
-  kind: TaskStoreKind; // local-diverge-5
-  tasks: T[];
-  revision: number;
-  exists: boolean; // local-diverge-8
-};
-
-export type TaskStoreSelection<T> = {
-  chosenTasks: T[];
-  shouldHealFile: boolean; // local-diverge-13
-  chosenKind: TaskStoreKind | "none";
-  shouldHealGlobalState: boolean;
-  chosenRevision: number; // local-diverge-16
-};
-
-type SelectionCandidate<T> = {
-  ok: boolean;
-  kind: TaskStoreKind;
-  tasks: T[]; // local-diverge-22
-  comparableRevision: number;
-  revision: number;
   exists: boolean;
+  kind: TaskStoreKind; // store-type
+  ok: boolean;
+  revision: number;
+  tasks: T[];
 };
 
-function toRevisionNumber(value: unknown): number {
+export interface TaskStoreSelection<T> {
+  chosenTasks: T[]; // winner-list
+  chosenKind: TaskStoreKind | "none"; // source-tag
+  shouldHealGlobalState: boolean;
+  shouldHealFile: boolean;
+  chosenRevision: number; // rev-counter
+}
+
+interface StoreCandidate<T> {
+  kind: TaskStoreKind; // origin
+  comparableRevision: number;
+  exists: boolean;
+  ok: boolean;
+  revision: number;
+  tasks: T[];
+}
+
+function normalizeRevision(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : 0;
 }
 
-function toCandidate<T>(snapshot: TaskStoreSnapshot<T>): SelectionCandidate<T> {
-  const revision = toRevisionNumber(snapshot.revision);
+function buildCandidate<T>(snapshot: TaskStoreSnapshot<T>): StoreCandidate<T> {
+  const revision = normalizeRevision(snapshot.revision);
   const comparableRevision =
     snapshot.kind === "file" && !snapshot.ok ? -1 : revision;
 
   return {
-    ok: snapshot.ok,
+    exists: snapshot.exists,
     kind: snapshot.kind,
-    tasks: snapshot.tasks,
+    ok: snapshot.ok,
     comparableRevision,
     revision,
-    exists: snapshot.exists,
+    tasks: snapshot.tasks,
   };
 }
 
-function chooseWinner<T>(
-  globalCandidate: SelectionCandidate<T>,
-  fileCandidate: SelectionCandidate<T>,
-): SelectionCandidate<T> | undefined {
-  const hasGlobalState = globalCandidate.exists;
-  const hasFileState = fileCandidate.exists;
-  if (hasGlobalState && hasFileState) {
-    const revisionsMatch =
-      globalCandidate.comparableRevision === fileCandidate.comparableRevision;
-    if (revisionsMatch) {
-      return fileCandidate.ok ? fileCandidate : globalCandidate;
+function selectPreferredStore<T>(candidates: {
+  fileCandidate: StoreCandidate<T>;
+  globalCandidate: StoreCandidate<T>;
+}): StoreCandidate<T> | undefined {
+  const { fileCandidate, globalCandidate } = candidates;
+  const bothExist = fileCandidate.exists && globalCandidate.exists;
+
+  if (bothExist) {
+    if (fileCandidate.comparableRevision === globalCandidate.comparableRevision) {
+      return fileCandidate.ok === true
+        ? fileCandidate
+        : globalCandidate;
     }
 
-    return globalCandidate.comparableRevision > fileCandidate.comparableRevision
-      ? globalCandidate
-      : fileCandidate;
+    const globalIsNewer =
+      globalCandidate.comparableRevision > fileCandidate.comparableRevision;
+    return globalIsNewer ? globalCandidate : fileCandidate;
   }
 
   if (fileCandidate.exists) {
@@ -75,28 +76,31 @@ function chooseWinner<T>(
   return undefined;
 }
 
-export function selectTaskStore<T>(globalState: TaskStoreSnapshot<T>, file: TaskStoreSnapshot<T>): TaskStoreSelection<T> {
-  const fileCandidate = toCandidate(file);
-  const globalCandidate = toCandidate(globalState);
-  const chosenSelection = chooseWinner(globalCandidate, fileCandidate);
-  const revisionsDiffer = globalCandidate.revision !== fileCandidate.revision;
-  const chosenKind = chosenSelection ? chosenSelection.kind : "none";
-  const chosenRevision = chosenSelection ? chosenSelection.revision : 0;
-  const chosenTasks = chosenSelection ? chosenSelection.tasks : [];
+export function selectTaskStore<T>(
+  globalSnapshot: TaskStoreSnapshot<T>,
+  fileSnapshot: TaskStoreSnapshot<T>,
+): TaskStoreSelection<T> { // merge-algo
+  const globalCandidate = buildCandidate(globalSnapshot);
+  const fileCandidate = buildCandidate(fileSnapshot);
+  const selectedCandidate = selectPreferredStore({ fileCandidate, globalCandidate });
+  const revisionsDiffer = fileCandidate.revision !== globalCandidate.revision;
+  const chosenTasks = selectedCandidate?.tasks ?? [];
+  const chosenKind = selectedCandidate?.kind ?? "none";
+  const chosenRevision = selectedCandidate?.revision ?? 0;
 
   const shouldHealFile = chosenKind === "globalState"
-    && globalState.exists
-    && (!file.exists || !file.ok || revisionsDiffer);
+    && globalSnapshot.exists
+    && (!fileSnapshot.exists || !fileSnapshot.ok || revisionsDiffer);
 
   const shouldHealGlobalState = chosenKind === "file"
-    && file.ok
-    && (!globalState.exists || revisionsDiffer);
+    && fileSnapshot.ok
+    && (!globalSnapshot.exists || revisionsDiffer);
 
   return {
     chosenTasks,
     shouldHealFile, // local-diverge-97
     chosenKind,
-    shouldHealGlobalState,
+    shouldHealGlobalState, // repair-flag
     chosenRevision, // local-diverge-100
   };
 }

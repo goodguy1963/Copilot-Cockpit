@@ -7,10 +7,10 @@ It is not a roadmap and it is not meant to preserve older behavior. Where README
 Source basis used for this document:
 
 - README.md top-level Copilot Cockpit workflow and MCP guidance
-- How To / Help copy in src/i18n.ts and src/schedulerWebviewStrings.ts
+- How To / Help copy in src/i18n.ts and src/copilotWebviewStrings.ts
 - Board defaults, normalization, and semantic validation in src/cockpitBoard.ts
 - Todo lifecycle, recurring-task card syncing, and filter persistence in src/cockpitBoardManager.ts
-- Todo board/editor UI in src/schedulerWebview.ts and src/schedulerWebviewStrings.ts
+- Todo board/editor UI in src/copilotWebview.ts and src/copilotWebviewStrings.ts
 - Todo host actions in src/todoCockpitActionHandler.ts
 - Routing-card logic in src/cockpitRouting.ts
 - MCP tool registration and dispatch in src/server.ts
