@@ -32,7 +32,7 @@ import {
   updateCockpitTodo,
 } from "./cockpitBoardManager";
 import { SchedulerWebview } from "./cockpitWebview";
-import { isTodoDraftTask } from "./todoDraftTasks";
+import { findTodoDraftTaskForTodo, isTodoDraftTask } from "./todoDraftTasks";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
@@ -302,6 +302,7 @@ function buildTodoRecentCommentsText(todo: TodoPromptSource): string {
 
 function buildTodoContextBlock(todo: TodoPromptSource): string {
   const sections: string[] = [
+    `Todo ID: ${todo.id || ""}`,
     `Todo title: ${todo.title || ""}`,
     `Todo description:\n${todo.description?.trim() || "(none)"}`,
     `Todo labels: ${(todo.labels ?? []).join(", ") || "none"}`,
@@ -398,16 +399,17 @@ async function ensureReadyTodoTaskDraft(
   todo: CockpitTodoCard,
   deps: TodoCockpitActionHandlerDeps,
 ): Promise<{ taskId: string; taskName: string; created: boolean }> {
+  const currentTasks = deps.getCurrentTasks();
   const existingTask = todo.taskId
-    ? deps.getCurrentTasks().find((task) => task.id === todo.taskId)
-    : undefined;
+    ? currentTasks.find((task) => task.id === todo.taskId)
+    : findTodoDraftTaskForTodo(currentTasks, todo);
   if (existingTask) {
-    if (existingTask.enabled !== false) {
-      updateCockpitTodo(workspaceRoot, todo.id, {
-        taskId: existingTask.id,
-        flags: [COCKPIT_ON_SCHEDULE_LIST_FLAG],
-      });
-    }
+    updateCockpitTodo(workspaceRoot, todo.id, {
+      taskId: existingTask.id,
+      flags: existingTask.enabled !== false
+        ? [COCKPIT_ON_SCHEDULE_LIST_FLAG]
+        : [COCKPIT_READY_FLAG],
+    });
     return {
       taskId: existingTask.id,
       taskName: existingTask.name || todo.title,
@@ -560,7 +562,9 @@ export async function handleTodoCockpitAction(
       const linkedTask = currentTodo.taskId
         ? deps.getCurrentTasks().find((task) => task.id === currentTodo.taskId)
         : undefined;
-      const linkedDraftTask = isTodoDraftTask(linkedTask) ? linkedTask : undefined;
+      const linkedDraftTask = linkedTask && isTodoDraftTask(linkedTask)
+        ? linkedTask
+        : findTodoDraftTaskForTodo(deps.getCurrentTasks(), currentTodo);
       if (linkedDraftTask) {
         const deletedLinkedTask = await deps.deleteTask(linkedDraftTask.id);
         if (!deletedLinkedTask) {

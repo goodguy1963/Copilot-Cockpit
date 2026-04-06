@@ -6,7 +6,7 @@ Copilot Cockpit is built around one design decision: keep the human in the loop 
 What is a company?
  A company is coordinated work, meaning the right task gets done at the right time after the right discussion has happened.
 
-## Demo
+## 🎬 Demo
 
 ![Copilot Cockpit demo](images/DEMO.gif)
 
@@ -20,7 +20,7 @@ In practice a LLM is the native execution chat surface, while Copilot Cockpit is
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
-## Mental Model
+## 🧠 Mental Model
 
 - `Todo Cockpit` is the planning and approval layer.
 - `Tasks` are concrete scheduled execution units.
@@ -32,7 +32,7 @@ The point is not to reject automation. The point is to make automation accountab
 
 Copilot Cockpit is not an always-running autonomous agent loop. It is a local control system for structured AI work.
 
-## Quick Start
+## ⚡ Quick Start
 
 1. Open Copilot Cockpit from the activity bar or with `Copilot Cockpit: Create Scheduled Prompt (GUI)`.
 2. Capture or refine work in `Todo Cockpit`.
@@ -40,7 +40,7 @@ Copilot Cockpit is not an always-running autonomous agent loop. It is a local co
 4. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
 5. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
 
-## Documentation
+## 📚 Documentation
 
 Detailed documentation lives under [docs/index.md](docs/index.md).
 
@@ -52,15 +52,15 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 - [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
 
 
-## Install
+## 🛠️ Install
 
-### From Release
+### 📦 From Release
 
 1. Download the latest VSIX from the GitHub releases page.
 2. Run `Extensions: Install from VSIX...` in VS Code.
 3. Select the VSIX and reload VS Code.
 
-### From Source
+### 🧪 From Source
 
 ```text
 npm run package:vsix
@@ -71,7 +71,7 @@ npm run install:vsix:both
 
 After installation, the extension creates or repairs repo-local support files for the current workspace.
 
-## Key Files
+## 🗂️ Key Files
 
 | Purpose | Copilot / Native Path | Codex Path |
 | --- | --- | --- |
@@ -80,7 +80,7 @@ After installation, the extension creates or repairs repo-local support files fo
 | Instructions | prompt and skill references in the repo | `AGENTS.md` |
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
 
-## Support
+## 🤝 Support
 
 | Surface | Status | What It Can Do |
 | --- | --- | --- |
@@ -88,11 +88,11 @@ After installation, the extension creates or repairs repo-local support files fo
 | OpenRouter.AI | Supported | Task execution through the extension's native chat/model flow when OpenRouter-backed models are available |
 | ChatGPT Codex in VS Code | Experimental | Repo-local MCP, repo-local skills, todo coordination, and task-draft coordination |
 
-### Codex Limitation
+### 🚧 Codex Limitation
 
 Codex support is currently limited. It can help create and coordinate todos and task drafts, but scheduled task execution does not run through Codex today. Tasks run through Copilot Chat in VS Code. Scheduling tasks directly through the Codex VS Code extension is not implemented yet.
 
-## Notes
+## 📝 Notes
 
 - The extension bundles an embedded MCP server at `out/server.js`.
 - `Set Up MCP` repairs only the local scheduler entry and preserves unrelated MCP servers.
@@ -101,6 +101,6 @@ Codex support is currently limited. It can help create and coordinate todos and 
 - The workflow is inspired by the AK TM style of agent-oriented task management and disciplined handoff.
 - Copilot Cockpit grew out of the idea of Copilot Scheduler by [aktsmm](https://github.com/aktsmm).
 
-## License
+## 📄 License
 
 [MIT](LICENSE) © goodguy1963 

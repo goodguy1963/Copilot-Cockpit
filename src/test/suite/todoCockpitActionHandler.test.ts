@@ -7,7 +7,7 @@ import { createCockpitTodo } from "../../cockpitBoardManager";
 import { readSchedulerConfig } from "../../cockpitJsonSanitizer";
 import { SchedulerWebview } from "../../cockpitWebview";
 import { handleTodoCockpitAction } from "../../todoCockpitActionHandler";
-import type { CockpitBoard, CreateTaskInput, ExecuteOptions } from "../../types";
+import type { CockpitBoard, CreateTaskInput, ExecuteOptions, ScheduledTask } from "../../types";
 
 suite("Todo Cockpit Action Handler", () => {
   function createWorkspaceRoot(): string {
@@ -499,6 +499,61 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
+  test("deleteTodo removes a matching draft task even when the direct link is missing", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const deletedTaskIds: string[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Draft-backed todo",
+        description: "Draft task",
+        sectionId: "",
+        priority: "low",
+        flags: ["ready"],
+      });
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "deleteTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard,
+          getCurrentTasks: () => [{
+            id: "task-draft-1",
+            name: "Draft-backed todo",
+            description: "Draft task",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            cronExpression: "0 9 * * 1-5",
+            prompt: `READY\n\nTodo ID: ${created.todo.id}`,
+            enabled: false,
+            oneTime: true,
+            scope: "workspace",
+            promptSource: "inline",
+            labels: ["from-todo-cockpit"],
+          } as ScheduledTask],
+          deleteTask: async (taskId: string) => {
+            deletedTaskIds.push(taskId);
+            return true;
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(deletedTaskIds, ["task-draft-1"]);
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const archivedTodo = board.cards.find((card) => card.id === created.todo.id);
+      assert.ok(archivedTodo?.archived);
+      assert.strictEqual(archivedTodo?.status, "rejected");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("createTaskFromTodo uses the ready prompt with Todo context and MCP guidance", async () => {
     const workspaceRoot = createWorkspaceRoot();
     const createdTaskInputs: CreateTaskInput[] = [];
@@ -532,6 +587,7 @@ suite("Todo Cockpit Action Handler", () => {
 
       assert.strictEqual(handled, true);
       assert.strictEqual(createdTaskInputs.length, 1);
+      assert.ok(createdTaskInputs[0]?.prompt.includes(`Todo ID: ${created.todo.id}`));
       assert.ok(createdTaskInputs[0]?.prompt.includes("READY"));
       assert.ok(createdTaskInputs[0]?.prompt.includes("Todo title: Ready todo"));
       assert.ok(createdTaskInputs[0]?.prompt.includes("Ship the actual task draft"));
@@ -539,6 +595,77 @@ suite("Todo Cockpit Action Handler", () => {
       assert.ok(createdTaskInputs[0]?.prompt.includes("MCP and skill usage guidance:"));
       assert.ok(createdTaskInputs[0]?.prompt.includes("Treat Todo Cockpit cards and scheduled tasks as separate artifacts"));
     } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("createTaskFromTodo relinks an existing draft instead of creating a duplicate", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const createdTaskInputs: CreateTaskInput[] = [];
+    const editedTaskIds: string[] = [];
+
+    const webview = SchedulerWebview as unknown as {
+      editTask: (taskId?: string) => void;
+    };
+    const originalEditTask = webview.editTask;
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Ready todo",
+        description: "Ship the actual task draft",
+        sectionId: "",
+        priority: "low",
+        labels: ["ops"],
+        flags: ["ready"],
+      });
+
+      webview.editTask = (taskId?: string) => {
+        if (taskId) {
+          editedTaskIds.push(taskId);
+        }
+      };
+
+      const boardBeforeAction = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTaskFromTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeAction,
+          getCurrentTasks: () => [{
+            id: "task-draft-2",
+            name: "Ready todo",
+            description: "Ship the actual task draft",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            cronExpression: "0 9 * * 1-5",
+            prompt: `READY\n\nTodo ID: ${created.todo.id}\n\nTodo title: Ready todo`,
+            enabled: false,
+            oneTime: true,
+            scope: "workspace",
+            promptSource: "inline",
+            labels: ["ops", "from-todo-cockpit"],
+          } as ScheduledTask],
+          createTask: async (input: CreateTaskInput) => {
+            createdTaskInputs.push(input);
+            return { id: "task-draft-2", name: input.name };
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(createdTaskInputs.length, 0);
+      assert.deepStrictEqual(editedTaskIds, ["task-draft-2"]);
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const updatedTodo = board.cards.find((card) => card.id === created.todo.id);
+      assert.strictEqual(updatedTodo?.taskId, "task-draft-2");
+      assert.deepStrictEqual(updatedTodo?.flags, ["ready"]);
+    } finally {
+      webview.editTask = originalEditTask;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

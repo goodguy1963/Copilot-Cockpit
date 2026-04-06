@@ -5,7 +5,7 @@
             "name": "Test Task One",
             "cron": "0 9 * * 1-5",
             "prompt": "You are preparing the execution artifact for a Todo that is now ready.\n\nTodo title: Test Task One\n\nTodo description:\nAuto-generated from scheduler.json\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n- system: Linked task draft created: Test Task One.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nCreate or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
-            "enabled": false,
+            "enabled": true,
             "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "",
@@ -17,8 +17,70 @@
                 "from-todo-cockpit"
             ],
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-04-07T07:00:00.000Z",
             "createdAt": "2026-04-06T05:52:38.902Z",
-            "updatedAt": "2026-04-06T08:00:38.513Z"
+            "updatedAt": "2026-04-06T19:56:39.037Z"
+        },
+        {
+            "id": "task_1775502809138_tliwcp",
+            "name": "Update security",
+            "cron": "0 9 * * 1-5",
+            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo title: Update security\n\nTodo description:\n\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:13:21.912Z.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "agent": "agent",
+            "model": "",
+            "chatSession": "new",
+            "promptSource": "inline",
+            "promptPath": "",
+            "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/task_1775502809138_tliwcp.prompt.md",
+            "promptBackupUpdatedAt": "2026-04-06T19:26:44.624Z",
+            "jitterSeconds": 0,
+            "oneTime": false,
+            "labels": [
+                "from-todo-cockpit"
+            ],
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "lastRun": "2026-04-06T19:14:06.702Z",
+            "nextRun": "2026-04-07T07:00:00.000Z",
+            "createdAt": "2026-04-06T19:13:29.138Z",
+            "updatedAt": "2026-04-06T19:26:44.589Z"
+        },
+        {
+            "id": "task_1775503674129_t6xo6s",
+            "name": "Update security",
+            "cron": "0 9 * * 1-5",
+            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo title: Update security\n\nTodo description:\nGitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:26:18.987Z.\n- system: Linked task draft created: Update security.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "promptSource": "inline",
+            "jitterSeconds": 0,
+            "oneTime": true,
+            "labels": [
+                "from-todo-cockpit"
+            ],
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-04-07T07:00:00.000Z",
+            "createdAt": "2026-04-06T19:27:54.129Z",
+            "updatedAt": "2026-04-06T19:56:43.381Z"
+        },
+        {
+            "id": "task_1775505409270_e9qth9",
+            "name": "Update security",
+            "cron": "0 9 * * 1-5",
+            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo ID: todo_mnnkzlgr_79l0en\n\nTodo title: Update security\n\nTodo description:\nGitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:26:18.987Z.\n- system: Linked task draft created: Update security.\n- system: Linked task draft created: Update security.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
+            "enabled": true,
+            "description": "Auto-generated from scheduler.json",
+            "promptSource": "inline",
+            "jitterSeconds": 0,
+            "oneTime": true,
+            "labels": [
+                "from-todo-cockpit"
+            ],
+            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
+            "nextRun": "2026-04-07T07:00:00.000Z",
+            "createdAt": "2026-04-06T19:56:49.270Z",
+            "updatedAt": "2026-04-06T20:26:10.809Z"
         }
     ],
     "jobs": [],
@@ -34,18 +96,18 @@
                 "updatedAt": "2026-03-27T22:50:30.757Z"
             },
             {
-                "id": "section_mnc64kul_2dygkl",
-                "title": "NEXT",
-                "order": 1,
-                "createdAt": "2026-03-29T19:44:49.293Z",
-                "updatedAt": "2026-03-29T21:40:46.161Z"
-            },
-            {
                 "id": "unsorted",
                 "title": "Unsorted",
-                "order": 2,
+                "order": 1,
                 "createdAt": "2026-03-27T21:51:28.296Z",
                 "updatedAt": "2026-03-27T21:51:28.296Z"
+            },
+            {
+                "id": "section_mnc64kul_2dygkl",
+                "title": "NEXT",
+                "order": 2,
+                "createdAt": "2026-03-29T19:44:49.293Z",
+                "updatedAt": "2026-03-29T21:40:46.161Z"
             },
             {
                 "id": "recurring-tasks",
@@ -80,7 +142,7 @@
                 "status": "active",
                 "labels": [],
                 "flags": [
-                    "ready"
+                    "ON-SCHEDULE-LIST"
                 ],
                 "comments": [
                     {
@@ -151,23 +213,23 @@
                         "createdAt": "2026-04-06T05:52:38.970Z"
                     },
                     {
-                        "id": "comment_mnnistme_au8g6j",
+                        "id": "comment_mnnm2lw7_xi77sm",
                         "author": "system",
-                        "body": "Linked task returned to draft-only mode. Todo moved back to ready.",
+                        "body": "Linked task left draft-only mode and is now an active execution artifact.",
                         "labels": [
                             "scheduled-task",
-                            "task-disabled"
+                            "task-enabled"
                         ],
                         "source": "system-event",
                         "sequence": 7,
-                        "createdAt": "2026-04-06T08:00:38.513Z"
+                        "createdAt": "2026-04-06T19:56:39.037Z"
                     }
                 ],
                 "taskId": "task_1775454758902_rj7k0b",
                 "archived": false,
                 "approvedAt": "2026-04-05T13:11:05.633Z",
                 "createdAt": "2026-03-24T19:54:59.685Z",
-                "updatedAt": "2026-04-06T08:00:38.513Z"
+                "updatedAt": "2026-04-06T19:56:39.037Z"
             },
             {
                 "id": "todo_mnbmt2du_vey8le",
@@ -635,7 +697,223 @@
                 "archived": false,
                 "approvedAt": "2026-04-06T17:04:28.291Z",
                 "createdAt": "2026-04-06T17:04:08.673Z",
-                "updatedAt": "2026-04-06T17:04:28.291Z"
+                "updatedAt": "2026-04-06T19:23:26.979Z"
+            },
+            {
+                "id": "todo_mnnkixvc_zp4yod",
+                "title": "Update security",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "recurring-tasks",
+                "order": 0,
+                "priority": "medium",
+                "status": "active",
+                "labels": [
+                    "scheduled-task",
+                    "recurring-task"
+                ],
+                "flags": [
+                    "ON-SCHEDULE-LIST"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnnkixvc_pby654",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-06T19:13:21.912Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-06T19:13:21.912Z"
+                    },
+                    {
+                        "id": "comment_mnnkj3hs_46989k",
+                        "author": "system",
+                        "body": "Linked task draft created: Update security.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-06T19:13:29.200Z"
+                    },
+                    {
+                        "id": "comment_mnnkjp48_ekc2pm",
+                        "author": "system",
+                        "body": "Recurring task updated: agent changed from \"-\" to \"agent\".",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-04-06T19:13:57.132Z"
+                    },
+                    {
+                        "id": "comment_mnnkq4yx_66pzss",
+                        "author": "system",
+                        "body": "Recurring task updated: description updated.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-06T19:13:57.132Z"
+                    },
+                    {
+                        "id": "comment_mnnkxknp_w27iq6",
+                        "author": "system",
+                        "body": "Recurring task updated: task disabled.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 5,
+                        "createdAt": "2026-04-06T19:24:44.533Z"
+                    },
+                    {
+                        "id": "comment_mnnkxm81_oy5qcb",
+                        "author": "system",
+                        "body": "Recurring task updated: task enabled.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 6,
+                        "createdAt": "2026-04-06T19:24:46.564Z"
+                    },
+                    {
+                        "id": "comment_mnnkyu01_02usxp",
+                        "author": "system",
+                        "body": "Recurring task updated: task disabled.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 7,
+                        "createdAt": "2026-04-06T19:25:43.303Z"
+                    },
+                    {
+                        "id": "comment_mnnkyv7s_302bgl",
+                        "author": "system",
+                        "body": "Recurring task updated: task enabled.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 8,
+                        "createdAt": "2026-04-06T19:25:44.879Z"
+                    },
+                    {
+                        "id": "comment_mnnl05ac_xwxcsq",
+                        "author": "system",
+                        "body": "Recurring task updated: prompt updated.",
+                        "labels": [
+                            "recurring-task"
+                        ],
+                        "source": "system-event",
+                        "sequence": 9,
+                        "createdAt": "2026-04-06T19:26:44.589Z"
+                    }
+                ],
+                "taskId": "task_1775502809138_tliwcp",
+                "archived": false,
+                "createdAt": "2026-04-06T19:13:21.912Z",
+                "updatedAt": "2026-04-06T19:26:44.589Z"
+            },
+            {
+                "id": "todo_mnnkzlgr_79l0en",
+                "title": "Update security",
+                "description": "GitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.",
+                "sectionId": "unsorted",
+                "order": 0,
+                "priority": "none",
+                "status": "active",
+                "labels": [],
+                "flags": [
+                    "ON-SCHEDULE-LIST"
+                ],
+                "comments": [
+                    {
+                        "id": "comment_mnnkzlgr_1of2bh",
+                        "author": "system",
+                        "body": "Todo created on 2026-04-06T19:26:18.987Z.",
+                        "labels": [
+                            "created"
+                        ],
+                        "source": "system-event",
+                        "sequence": 1,
+                        "createdAt": "2026-04-06T19:26:18.987Z"
+                    },
+                    {
+                        "id": "comment_mnnkzs30_09xfm1",
+                        "author": "system",
+                        "body": "Linked task draft created: Update security.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 2,
+                        "createdAt": "2026-04-06T19:26:27.564Z"
+                    },
+                    {
+                        "id": "comment_mnnl1mxg_fvx3k4",
+                        "author": "system",
+                        "body": "Linked task draft created: Update security.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 3,
+                        "createdAt": "2026-04-06T19:27:54.196Z"
+                    },
+                    {
+                        "id": "comment_mnnm2trq_yjfi7n",
+                        "author": "system",
+                        "body": "Linked task draft created: Update security.",
+                        "labels": [
+                            "task-draft"
+                        ],
+                        "source": "system-event",
+                        "sequence": 4,
+                        "createdAt": "2026-04-06T19:56:49.334Z"
+                    },
+                    {
+                        "id": "comment_mnnn4l03_don9on",
+                        "author": "system",
+                        "body": "Linked task left draft-only mode and is now an active execution artifact.",
+                        "labels": [
+                            "scheduled-task",
+                            "task-enabled"
+                        ],
+                        "source": "system-event",
+                        "sequence": 5,
+                        "createdAt": "2026-04-06T20:26:10.809Z"
+                    }
+                ],
+                "taskId": "task_1775505409270_e9qth9",
+                "archived": false,
+                "approvedAt": "2026-04-06T19:26:27.476Z",
+                "createdAt": "2026-04-06T19:26:18.987Z",
+                "updatedAt": "2026-04-06T20:26:10.809Z"
+            },
+            {
+                "id": "todo_mnnn531j_rqp4ie",
+                "title": "Update security",
+                "description": "Auto-generated from scheduler.json",
+                "sectionId": "unsorted",
+                "order": 1,
+                "priority": "medium",
+                "status": "active",
+                "labels": [
+                    "from-todo-cockpit",
+                    "scheduled-task"
+                ],
+                "flags": [],
+                "comments": [],
+                "taskId": "task_1775503674129_t6xo6s",
+                "archived": false,
+                "createdAt": "2026-04-06T19:27:54.129Z",
+                "updatedAt": "2026-04-06T19:56:43.381Z"
             }
         ],
         "labelCatalog": [],
@@ -665,8 +943,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-06T18:36:32.922Z",
-                "updatedAt": "2026-04-06T18:36:32.922Z"
+                "createdAt": "2026-04-06T20:26:34.261Z",
+                "updatedAt": "2026-04-06T20:26:34.261Z"
             },
             {
                 "name": "needs-bot-review",
@@ -733,6 +1011,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-06T18:36:32.853Z"
+        "updatedAt": "2026-04-06T20:26:34.279Z"
     }
 }

@@ -6305,8 +6305,8 @@ syncTodoLabelSuggestions();
         '<div class="task-header-main">' +
         '<div class="task-title-row">' +
         '<span class="task-name">' + title + '</span>' +
-        '</div>' +
         '<span class="task-status enabled">' + escapeHtml(strings.boardFlagPresetReady || "Ready") + '</span>' +
+        '</div>' +
         '</div>' +
         '<div class="task-badges task-badges-inline"><span class="task-badge">Ready Todo</span></div>' +
         '</div>' +
