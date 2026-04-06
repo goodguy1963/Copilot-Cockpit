@@ -34,7 +34,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: npm run package:vsix
 
-      # Pull the top section from CHANGELOG.md as release notes
+      # Generate release notes from CHANGELOG.md when present, otherwise write fallback notes
       - name: Extract changelog section
         run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md
 

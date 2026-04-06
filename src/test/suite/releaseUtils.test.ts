@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as assert from "assert";
 import * as os from "os";
 import * as path from "path";
+import { spawnSync } from "child_process";
 
 const releaseUtils = require("../../../scripts/release-utils.js") as {
   assertReleaseTagMatchesVersion: (tag: string | undefined, version: string) => void;
@@ -137,6 +138,33 @@ suite("Release Pipeline Contract Tests", () => {
       releaseUtils.extractTopChangelogSection("# Changelog\n"),
       "See CHANGELOG.md for details.",
     );
+  });
+
+  test("release-notes script writes fallback notes when changelog is missing", () => {
+    const scriptPath = path.resolve(__dirname, "../../../scripts/release-notes.js");
+    const missingChangelogPath = path.join(
+      os.tmpdir(),
+      `copilot-cockpit-missing-changelog-${Date.now()}.md`,
+    );
+    const outputPath = path.join(
+      os.tmpdir(),
+      `copilot-cockpit-release-notes-${Date.now()}.md`,
+    );
+
+    try {
+      const result = spawnSync(process.execPath, [scriptPath, missingChangelogPath, outputPath], {
+        encoding: "utf8",
+      });
+
+      assert.strictEqual(result.status, 0, result.stderr || result.stdout);
+      assert.ok(fs.existsSync(outputPath));
+      assert.strictEqual(
+        fs.readFileSync(outputPath, "utf8"),
+        "Release notes unavailable: CHANGELOG.md was not found for this build.\n",
+      );
+    } finally {
+      fs.rmSync(outputPath, { force: true });
+    }
   });
 
   test("GitHub release workflow enforces the tested release contract", () => {
