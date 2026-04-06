@@ -6,7 +6,11 @@ Copilot Cockpit is built around one design decision: keep the human in the loop 
  One of the core questions behind the plugin is: What is a company?
  A company is coordinated work, meaning the right task gets done at the right time after the right discussion has happened.
 
-That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start. A human can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review]. In practice a LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it.
+That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
+
+ A human or AI can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review].
+ 
+In practice a LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it. A space where a decision maker (human or AI) and an execution agent can communicate and store decisions.
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
