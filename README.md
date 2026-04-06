@@ -3,7 +3,7 @@
 
 Copilot Cockpit is built around one design decision: keep the human in the loop before an agent turns into an expensive black box that burns tokens, edits files blindly, and drifts away from the goal. 🦀📎
 
- One of the core questions behind the plugin is: What is a company?
+What is a company?
  A company is coordinated work, meaning the right task gets done at the right time after the right discussion has happened.
 
 ## Demo
@@ -20,7 +20,7 @@ In practice a LLM is the native execution chat surface, while Copilot Cockpit is
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
-## What It Is
+## Mental Model>
 
 - `Todo Cockpit` is the planning and approval layer.
 - `Tasks` are concrete scheduled execution units.
@@ -39,6 +39,18 @@ Copilot Cockpit is not an always-running autonomous agent loop. It is a local co
 3. Move approved work into `ready` to prepare a task draft.
 4. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
 5. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
+
+## Documentation
+
+The top-level README stays dense on purpose. Detailed documentation now lives under [docs/index.md](docs/index.md).
+
+- [Getting Started](docs/getting-started.md)
+- [Workflows](docs/workflows.md)
+- [Integrations](docs/integrations.md)
+- [Storage and Boundaries](docs/storage-and-boundaries.md)
+- [Architecture and Principles](docs/architecture-and-principles.md)
+- [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
+
 
 ## Install
 
@@ -67,17 +79,6 @@ After installation, the extension creates or repairs repo-local support files fo
 | Skills | `.github/skills` | `.agents/skills` |
 | Instructions | prompt and skill references in the repo | `AGENTS.md` |
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
-
-## Documentation
-
-The top-level README stays dense on purpose. Detailed documentation now lives under [docs/index.md](docs/index.md).
-
-- [Getting Started](docs/getting-started.md)
-- [Workflows](docs/workflows.md)
-- [Integrations](docs/integrations.md)
-- [Storage and Boundaries](docs/storage-and-boundaries.md)
-- [Architecture and Principles](docs/architecture-and-principles.md)
-- [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
 
 ## Support Matrix
 
