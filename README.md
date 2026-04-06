@@ -42,7 +42,7 @@ Copilot Cockpit is not an always-running autonomous agent loop. It is a local co
 
 ## Documentation
 
-The top-level README stays dense on purpose. Detailed documentation now lives under [docs/index.md](docs/index.md).
+Detailed documentation lives under [docs/index.md](docs/index.md).
 
 - [Getting Started](docs/getting-started.md)
 - [Workflows](docs/workflows.md)
@@ -99,7 +99,7 @@ Codex support is currently limited. It can help create and coordinate todos and 
 - `Sync Bundled Skills` targets Copilot-style repo-local skills under `.github/skills`.
 - `Add Skills To Codex` targets Codex-style repo-local skills under `.agents/skills` and refreshes the managed `AGENTS.md` block.
 - The workflow is inspired by the AK TM style of agent-oriented task management and disciplined handoff.
-- Copilot Cockpit grew out of the open-source Copilot Scheduler by [aktsmm](https://github.com/aktsmm).
+- Copilot Cockpit grew out of the idea of Copilot Scheduler by [aktsmm](https://github.com/aktsmm).
 
 ## License
 
