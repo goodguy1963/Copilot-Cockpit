@@ -71,7 +71,7 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 
 ### 📦 From Release
 
-1. Download the latest VSIX from the GitHub releases page.
+1. Download the latest VSIX from the [GitHub releases page](https://github.com/goodguy1963/Copilot-Cockpit/releases)
 2. Run `Extensions: Install from VSIX...` in VS Code.
 3. Select the VSIX and reload VS Code.
 
