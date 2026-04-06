@@ -20,7 +20,7 @@ In practice a LLM is the native execution chat surface, while Copilot Cockpit is
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
-## Mental Model>
+## Mental Model
 
 - `Todo Cockpit` is the planning and approval layer.
 - `Tasks` are concrete scheduled execution units.
@@ -80,7 +80,7 @@ After installation, the extension creates or repairs repo-local support files fo
 | Instructions | prompt and skill references in the repo | `AGENTS.md` |
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
 
-## Support Matrix
+## Support
 
 | Surface | Status | What It Can Do |
 | --- | --- | --- |
