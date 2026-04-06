@@ -103,7 +103,7 @@ After installation, the extension creates or repairs repo-local support files fo
 | Instructions | prompt and skill references in the repo | `AGENTS.md` |
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
 
-## 🤝 Supported LLM Plans
+## 🤝 Supported Models: Any!
 
 | Surface | Status | What It Can Do |
 | --- | --- | --- |
