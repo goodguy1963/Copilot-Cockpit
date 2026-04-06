@@ -3,7 +3,7 @@ import * as os from "os";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
 import type { LogLevel } from "./types";
 import * as path from "path";
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 
 type Level = Exclude<LogLevel, "none">; // active-levels
 
@@ -15,6 +15,14 @@ const LEVEL_SEVERITY: Record<LogLevel, number> = {
   debug: 3,
 };
 let fileWriteFailed = false;
+
+function getOptionalVscode(): typeof import("vscode") | undefined {
+  try {
+    return require("vscode") as typeof import("vscode");
+  } catch {
+    return undefined;
+  }
+}
 
 export function getConfiguredLogLevel(): LogLevel {
   return getCompatibleConfigurationValue<LogLevel>("logLevel", "info");
@@ -29,7 +37,7 @@ function meetsLogThreshold(messageLevel: Level): boolean {
 }
 
 function getPrimaryWorkspacePath(): string | undefined {
-  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  return getOptionalVscode()?.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
 export function getLogDirectoryPath(): string {
@@ -122,10 +130,15 @@ function writeToConsoleAndFile(
 }
 
 export async function revealLogDirectory(): Promise<void> {
+  const vscodeApi = getOptionalVscode();
+  if (!vscodeApi) {
+    return;
+  }
+
   const directory = getCurrentLogDirectory();
-  await vscode.commands.executeCommand(
+  await vscodeApi.commands.executeCommand(
     "revealFileInOS",
-    vscode.Uri.file(directory),
+    vscodeApi.Uri.file(directory),
   );
 }
 

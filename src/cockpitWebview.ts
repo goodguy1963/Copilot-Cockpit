@@ -74,6 +74,7 @@ import {
   postAutoShowOnStartup,
   postEditTask,
   postFocusJob,
+  postFocusReadyTodoDraft,
   postFocusResearchProfile,
   postFocusResearchRun,
   postFocusTask,
@@ -613,6 +614,10 @@ export class SchedulerWebview {
    */
   static focusTask(taskId: string): void { // highlight
     postFocusTask((message) => this.postMessage(message), taskId);
+  }
+
+  static focusReadyTodoDraft(todoId: string): void {
+    postFocusReadyTodoDraft((message) => this.postMessage(message), todoId);
   }
 
   static focusJob(jobId: string, folderId?: string): void {

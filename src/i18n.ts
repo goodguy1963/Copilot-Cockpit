@@ -1037,15 +1037,77 @@ export const messages = {
       "このリポジトリにはまだ scheduler MCP 設定がありません。今すぐ .vscode/mcp.json に追加またはマージしますか？",
     ),
   mcpSetupAction: () => t("Set Up MCP", "MCP をセットアップ"),
+  codexSetupAction: () =>
+    t(
+      "Add MCP To Codex",
+      "Codex に MCP を追加",
+      "MCP zu Codex hinzufügen",
+    ),
+  codexSkillsSetupAction: () =>
+    t(
+      "Add Skills To Codex",
+      "Codex にスキルを追加",
+      "Skills zu Codex hinzufügen",
+    ),
   mcpSetupCompleted: (configPath: string) =>
     t(
       `Scheduler MCP config updated: ${configPath}`,
       `Scheduler MCP 設定を更新しました: ${configPath}`,
     ),
+  codexSetupCompleted: (configPath: string) =>
+    t(
+      `Scheduler Codex MCP config updated: ${configPath}`,
+      `Scheduler の Codex MCP 設定を更新しました: ${configPath}`,
+      `Scheduler-Codex-MCP-Konfiguration aktualisiert: ${configPath}`,
+    ),
+  codexSkillsSetupCompleted: (created: number, updated: number, skipped: number) =>
+    t(
+      `Scheduler Codex skills synced. Created ${created}, updated ${updated}, skipped ${skipped} customized files.`,
+      `Scheduler の Codex スキル同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
+      `Scheduler-Codex-Skills synchronisiert. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
+    ),
   mcpSetupFailed: (reason: string) =>
     t(
       `Failed to update .vscode/mcp.json: ${reason}`,
       `.vscode/mcp.json の更新に失敗しました: ${reason}`,
+    ),
+  codexSetupFailed: (reason: string) =>
+    t(
+      `Failed to update .codex/config.toml: ${reason}`,
+      `.codex/config.toml の更新に失敗しました: ${reason}`,
+      `Aktualisierung von .codex/config.toml fehlgeschlagen: ${reason}`,
+    ),
+  codexSkillsSetupFailed: (reason: string) =>
+    t(
+      `Failed to sync Codex skills: ${reason}`,
+      `Codex スキルの同期に失敗しました: ${reason}`,
+      `Synchronisierung der Codex-Skills fehlgeschlagen: ${reason}`,
+    ),
+  readyTodoDraftActionSingle: () =>
+    t("Open Draft", "下書きを開く", "Entwurf öffnen"),
+  readyTodoDraftActionMultiple: () =>
+    t("Open Drafts", "下書きを開く", "Entwürfe öffnen"),
+  confirmDeleteLinkedDraftTask: (taskName: string, todoTitle: string) =>
+    t(
+      `Task "${taskName}" is the draft linked to Todo "${todoTitle}". Delete only the draft, or delete the Todo too?`,
+      `タスク「${taskName}」は Todo「${todoTitle}」にリンクされた下書きです。下書きだけを削除しますか、それとも Todo も削除しますか？`,
+      `Task "${taskName}" ist der mit Todo "${todoTitle}" verknüpfte Entwurf. Nur den Entwurf löschen oder auch das Todo löschen?`,
+    ),
+  confirmDeleteDraftOnlyAction: () =>
+    t("Delete Draft Only", "下書きだけ削除", "Nur Entwurf löschen"),
+  confirmDeleteDraftAndTodoAction: () =>
+    t("Delete Draft And Todo", "下書きと Todo を削除", "Entwurf und Todo löschen"),
+  draftTaskDeletedTodoNeedsUserReview: (taskName: string, todoTitle: string) =>
+    t(
+      `Deleted draft task "${taskName}". Todo "${todoTitle}" moved to needs-user-review.`,
+      `下書きタスク「${taskName}」を削除しました。Todo「${todoTitle}」を needs-user-review に戻しました。`,
+      `Entwurfs-Task "${taskName}" gelöscht. Todo "${todoTitle}" wurde auf needs-user-review gesetzt.`,
+    ),
+  draftTaskDeletedWithTodo: (taskName: string, todoTitle: string) =>
+    t(
+      `Deleted draft task "${taskName}" together with Todo "${todoTitle}".`,
+      `下書きタスク「${taskName}」を Todo「${todoTitle}」と一緒に削除しました。`,
+      `Entwurfs-Task "${taskName}" zusammen mit Todo "${todoTitle}" gelöscht.`,
     ),
   workspaceSupportRepairPrompt: (
     mcpRepoCount: number,

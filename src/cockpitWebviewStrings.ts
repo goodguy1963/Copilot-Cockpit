@@ -615,7 +615,20 @@ export function buildSchedulerWebviewStrings(
     skillInsertNote: messages.skillInsertNote(),
     skillSentenceTemplate: messages.skillSentenceTemplate("{skill}"),
     actionSetupMcp: messages.mcpSetupAction(),
+    actionSetupCodex: messages.codexSetupAction(),
+    actionSetupCodexSkills: messages.codexSkillsSetupAction(),
     actionSyncBundledSkills: localize("Sync Bundled Skills", "同梱スキルを同期", "Gebündelte Skills synchronisieren"),
+    settingsSupportTitle: localize("Workspace Support", "ワークスペース支援", "Workspace-Support"),
+    settingsSupportBody: localize(
+      "Configure repo-local Copilot MCP and skills here, then add the separate Codex MCP and Codex skills files when you want the same workspace guidance in ChatGPT Codex.",
+      "ここで repo-local の Copilot 用 MCP とスキルを設定し、同じワークスペースガイダンスを ChatGPT Codex でも使いたいときは別の Codex 用 MCP と Codex 用スキルファイルを追加します。",
+      "Konfigurieren Sie hier repo-lokales Copilot-MCP und Skills und fügen Sie danach bei Bedarf die separaten Codex-MCP- und Codex-Skill-Dateien für ChatGPT Codex hinzu.",
+    ),
+    settingsMaintenanceNote: localize(
+      "Import and export keep the JSON mirrors aligned with SQLite when you need to repair or migrate workspace state manually.",
+      "手動でワークスペース状態を修復または移行するときに、Import と Export で JSON ミラーと SQLite の整合を保てます。",
+      "Import und Export halten die JSON-Spiegel mit SQLite synchron, wenn Sie den Workspace-Status manuell reparieren oder migrieren müssen.",
+    ),
     settingsMaintenanceTitle: localize("Workspace Maintenance", "ワークスペース保守", "Workspace-Wartung"),
     settingsMaintenanceBody: localize(
       "Repair repo-local support files after plugin updates. Use this when a workspace was opened before new bundled skills were added.",

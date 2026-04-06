@@ -18,10 +18,6 @@ import {
     listCockpitRoutingCards,
 } from "./cockpitRouting.js";
 import {
-    getConfiguredCockpitDeterministicStateMode,
-    getConfiguredCockpitLegacyFallbackOnError,
-} from "./cockpitStateMode.js";
-import {
     addTodoCommentInBoard,
     approveTodoInBoard,
     createTodoInBoard,
@@ -50,7 +46,6 @@ import {
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
 } from "./cockpitHistory.js";
-import { logError } from "./logger.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
 
@@ -103,6 +98,102 @@ type SchedulerServerContext = {
     createHistorySnapshot: (publicConfig: SchedulerConfig, privateConfig: SchedulerConfig) => void;
     readCurrentConfigs: () => { publicConfig: SchedulerConfig; privateConfig: SchedulerConfig };
 };
+
+type CockpitDeterministicStateMode = "off" | "shadow" | "dual-write" | "canonical-primary";
+
+const DEFAULT_COCKPIT_STATE_MODE: CockpitDeterministicStateMode = "canonical-primary";
+const SETTINGS_CACHE_TTL_MS = 1000;
+
+let cachedWorkspaceSettings:
+    | {
+        workspaceRoot: string;
+        loadedAt: number;
+        values: Record<string, unknown>;
+    }
+    | undefined;
+
+function normalizeCockpitDeterministicStateMode(
+    value: unknown,
+): CockpitDeterministicStateMode {
+    switch (value) {
+        case "off":
+        case "shadow":
+        case "dual-write":
+        case "canonical-primary":
+            return value;
+        default:
+            return DEFAULT_COCKPIT_STATE_MODE;
+    }
+}
+
+function getWorkspaceSettings(workspaceRoot: string): Record<string, unknown> {
+    const normalizedRoot = path.resolve(workspaceRoot || process.cwd());
+    const now = Date.now();
+    if (
+        cachedWorkspaceSettings
+        && cachedWorkspaceSettings.workspaceRoot === normalizedRoot
+        && now - cachedWorkspaceSettings.loadedAt < SETTINGS_CACHE_TTL_MS
+    ) {
+        return cachedWorkspaceSettings.values;
+    }
+
+    const settingsPath = path.join(normalizedRoot, ".vscode", "settings.json");
+    let values: Record<string, unknown> = {};
+
+    try {
+        if (fs.existsSync(settingsPath)) {
+            const raw = fs.readFileSync(settingsPath, "utf8").replace(/^\uFEFF/, "");
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                values = parsed as Record<string, unknown>;
+            }
+        }
+    } catch {
+        values = {};
+    }
+
+    cachedWorkspaceSettings = {
+        workspaceRoot: normalizedRoot,
+        loadedAt: now,
+        values,
+    };
+    return values;
+}
+
+function getWorkspaceSetting<T>(
+    workspaceRoot: string,
+    key: string,
+    defaultValue: T,
+): T {
+    const settings = getWorkspaceSettings(workspaceRoot);
+    const cockpitKey = `copilotCockpit.${key}`;
+    if (Object.prototype.hasOwnProperty.call(settings, cockpitKey)) {
+        return settings[cockpitKey] as T;
+    }
+
+    const legacyKey = `copilotScheduler.${key}`;
+    if (Object.prototype.hasOwnProperty.call(settings, legacyKey)) {
+        return settings[legacyKey] as T;
+    }
+
+    return defaultValue;
+}
+
+function getConfiguredCockpitDeterministicStateMode(
+    workspaceRoot: string,
+): CockpitDeterministicStateMode {
+    return normalizeCockpitDeterministicStateMode(
+        getWorkspaceSetting<CockpitDeterministicStateMode>(
+            workspaceRoot,
+            "deterministicCockpitStateMode",
+            DEFAULT_COCKPIT_STATE_MODE,
+        ),
+    );
+}
+
+function getConfiguredCockpitLegacyFallbackOnError(workspaceRoot: string): boolean {
+    return getWorkspaceSetting<boolean>(workspaceRoot, "legacyFallbackOnError", true) !== false;
+}
 
 function ensureConfig(raw: unknown): SchedulerConfig {
     if (raw && typeof raw === "object" && Array.isArray((raw as SchedulerConfig).tasks)) {
@@ -1995,7 +2086,7 @@ export async function handleSchedulerToolCall(
                 const signals = Array.isArray(args.signals)
                     ? args.signals.filter((entry): entry is string => typeof entry === "string")
                     : DEFAULT_ROUTING_SIGNALS;
-                const deterministicStateMode = getConfiguredCockpitDeterministicStateMode();
+                const deterministicStateMode = getConfiguredCockpitDeterministicStateMode(context.workspaceRoot);
                 let cards;
                 try {
                     cards = listCockpitRoutingCards(board, {
@@ -2004,10 +2095,10 @@ export async function handleSchedulerToolCall(
                         deterministicStateMode,
                     });
                 } catch (error) {
-                    if (!getConfiguredCockpitLegacyFallbackOnError()) {
+                    if (!getConfiguredCockpitLegacyFallbackOnError(context.workspaceRoot)) {
                         throw error;
                     }
-                    logError("[CopilotScheduler] Falling back to legacy cockpit routing after canonical routing error:", error instanceof Error ? error.message : String(error ?? ""));
+                    console.error("[CopilotScheduler] Falling back to legacy cockpit routing after canonical routing error:", error instanceof Error ? error.message : String(error ?? ""));
                     cards = listCockpitRoutingCards(board, {
                         signals,
                         includeArchived: args.includeArchived !== false,

@@ -3410,6 +3410,8 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       await wv.handleMessage!({ type: "restoreScheduleHistory", snapshotId: "snap-1" });
       await wv.handleMessage!({ type: "toggleAutoShowOnStartup" });
       await wv.handleMessage!({ type: "setupMcp" });
+      await wv.handleMessage!({ type: "setupCodex" });
+      await wv.handleMessage!({ type: "setupCodexSkills" });
       await wv.handleMessage!({ type: "syncBundledSkills" });
       await wv.handleMessage!({ type: "importStorageFromJson" });
       await wv.handleMessage!({ type: "exportStorageToJson" });
@@ -3438,6 +3440,14 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         },
         {
           action: "setupMcp",
+          taskId: "__settings__",
+        },
+        {
+          action: "setupCodex",
+          taskId: "__settings__",
+        },
+        {
+          action: "setupCodexSkills",
           taskId: "__settings__",
         },
         {

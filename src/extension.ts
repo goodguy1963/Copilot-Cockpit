@@ -14,6 +14,7 @@ import { logDebug } from "./logger";
 import { logError } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
+  COCKPIT_NEEDS_USER_REVIEW_FLAG,
   COCKPIT_READY_FLAG,
   createDefaultCockpitBoard,
   getActiveCockpitWorkflowFlag,
@@ -53,8 +54,13 @@ import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
   previewBundledSkillSyncForWorkspaceRoots,
+  syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "./skillBootstrap";
+import {
+  findLinkedTodoByTaskId,
+  isTodoDraftTask,
+} from "./todoDraftTasks";
 import {
   affectsCompatibleConfiguration,
   COCKPIT_TASKS_VIEW_ID,
@@ -81,6 +87,7 @@ import {
   ensureWorkspaceMcpSupportFiles,
   type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
+  upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
 } from "./mcpConfigManager";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
@@ -122,6 +129,7 @@ import type {
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
+const CODEX_SKILL_SYNC_STATE_KEY = "codexSkillSyncState";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
@@ -390,6 +398,26 @@ async function syncBundledSkills(
   return syncResult;
 }
 
+async function syncCodexSkills(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<BundledSkillSyncResult> {
+  const syncState = context.globalState.get<BundledSkillSyncState>(
+    CODEX_SKILL_SYNC_STATE_KEY,
+    {},
+  );
+  const syncResult = await syncBundledCodexSkillsForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+    syncState,
+  );
+  await context.globalState.update(
+    CODEX_SKILL_SYNC_STATE_KEY,
+    syncResult.nextState,
+  );
+  return syncResult;
+}
+
 async function updateWorkspaceTimestampMap(
   context: vscode.ExtensionContext,
   key: string,
@@ -546,20 +574,6 @@ function createUiRefreshQueue(
 
 let lastPendingReadyTodoDraftIds = new Set<string>();
 
-function isTodoDraftTask(task: ScheduledTask | undefined): boolean {
-  if (!task) {
-    return false;
-  }
-  const isOneTimeTask = task.oneTime === true || task.id.startsWith("exec-");
-  if (!isOneTimeTask) {
-    return false;
-  }
-  return Array.isArray(task.labels)
-    && task.labels.some((label) =>
-      String(label || "").trim().toLowerCase() === "from-todo-cockpit"
-    );
-}
-
 function getPendingReadyTodoDrafts(
   board: CockpitBoard,
   tasks: ScheduledTask[],
@@ -593,13 +607,32 @@ function notifyPendingReadyTodoDrafts(
   }
 
   if (addedTodos.length === 1) {
-    notifyInfo(
-      `Ready Todo waiting for task draft: ${addedTodos[0]?.title || "Untitled Todo"}`,
-    );
+    const todo = addedTodos[0];
+    const action = messages.readyTodoDraftActionSingle();
+    void vscode.window.showInformationMessage(
+      `Ready Todo waiting for task draft: ${todo?.title || "Untitled Todo"}`,
+      action,
+    ).then(async (choice) => {
+      if (choice !== action || !todo?.id || !extensionContext) {
+        return;
+      }
+      await showSchedulerWebview(extensionContext);
+      SchedulerWebview.focusReadyTodoDraft(todo.id);
+    });
     return;
   }
 
-  notifyInfo(`${addedTodos.length} ready Todos are waiting for task drafts.`);
+  const action = messages.readyTodoDraftActionMultiple();
+  void vscode.window.showInformationMessage(
+    `${addedTodos.length} ready Todos are waiting for task drafts.`,
+    action,
+  ).then(async (choice) => {
+    if (choice !== action || !extensionContext) {
+      return;
+    }
+    await showSchedulerWebview(extensionContext);
+    SchedulerWebview.switchToTab("list");
+  });
 }
 
 const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
@@ -999,6 +1032,65 @@ async function setupWorkspaceMcpConfig(
       redactPathsForLog(errorMessage),
     );
     notifyError(messages.mcpSetupFailed(redactPathsForLog(errorMessage)));
+    return false;
+  }
+}
+
+async function setupWorkspaceCodexConfig(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  try {
+    const result = upsertSchedulerCodexConfig(
+      workspaceRoot,
+      context.extensionUri.fsPath,
+    );
+    notifyInfo(messages.codexSetupCompleted(result.configPath));
+    return true;
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logError(
+      "[CopilotScheduler] Failed to update workspace Codex config:",
+      redactPathsForLog(errorMessage),
+    );
+    notifyError(messages.codexSetupFailed(redactPathsForLog(errorMessage)));
+    return false;
+  }
+}
+
+async function setupWorkspaceCodexSkills(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoots = getResolvedWorkspaceRoots(
+    (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
+  );
+  if (workspaceRoots.length === 0) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  try {
+    const result = await syncCodexSkills(context, workspaceRoots);
+    notifyInfo(
+      messages.codexSkillsSetupCompleted(
+        result.createdPaths.length,
+        result.updatedPaths.length,
+        result.skippedPaths.length,
+      ),
+    );
+    return true;
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logError(
+      "[CopilotScheduler] Failed to sync workspace Codex skills:",
+      redactPathsForLog(errorMessage),
+    );
+    notifyError(messages.codexSkillsSetupFailed(redactPathsForLog(errorMessage)));
     return false;
   }
 }
@@ -1811,6 +1903,63 @@ async function handleWebviewRunTaskAction(
   refreshUiAfterManualRun();
 }
 
+async function handleLinkedDraftTaskDeleteChoice(
+  task: ScheduledTask,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return false;
+  }
+
+  const linkedTodo = findLinkedTodoByTaskId(getCurrentCockpitBoard(), task.id);
+  if (!linkedTodo || linkedTodo.archived) {
+    return false;
+  }
+
+  const deleteDraftOnly = messages.confirmDeleteDraftOnlyAction();
+  const deleteDraftAndTodo = messages.confirmDeleteDraftAndTodoAction();
+  const choice = await vscode.window.showWarningMessage(
+    messages.confirmDeleteLinkedDraftTask(task.name, linkedTodo.title),
+    { modal: true },
+    deleteDraftOnly,
+    deleteDraftAndTodo,
+  );
+  if (choice !== deleteDraftOnly && choice !== deleteDraftAndTodo) {
+    return true;
+  }
+
+  if (!(await scheduler.deleteTask(task.id))) {
+    showTaskNotFoundInWebview();
+    return true;
+  }
+
+  if (choice === deleteDraftAndTodo) {
+    addCockpitTodoComment(workspaceRoot, linkedTodo.id, {
+      body: `Deleted linked draft task: ${task.name || linkedTodo.title}.`,
+      author: "system",
+      source: "system-event",
+      labels: ["task-draft"],
+    });
+    rejectCockpitTodo(workspaceRoot, linkedTodo.id);
+    notifyInfo(messages.draftTaskDeletedWithTodo(task.name, linkedTodo.title));
+  } else {
+    updateCockpitTodo(workspaceRoot, linkedTodo.id, {
+      taskId: "",
+      flags: [COCKPIT_NEEDS_USER_REVIEW_FLAG],
+    });
+    addCockpitTodoComment(workspaceRoot, linkedTodo.id, {
+      body: `Deleted linked task draft: ${task.name || linkedTodo.title}. Todo moved back to needs-user-review for manual follow-up.`,
+      author: "system",
+      source: "system-event",
+      labels: ["task-draft", "needs-user-review"],
+    });
+    notifyInfo(messages.draftTaskDeletedTodoNeedsUserReview(task.name, linkedTodo.title));
+  }
+
+  refreshSchedulerUiState();
+  return true;
+}
+
 async function handleWebviewDeleteTaskAction(taskId: string): Promise<void> {
   const task = scheduler.getTask(taskId);
   if (!task) {
@@ -1822,6 +1971,13 @@ async function handleWebviewDeleteTaskAction(taskId: string): Promise<void> {
     const message = messages.cannotDeleteOtherWorkspaceTask(task.name);
     notifyWebviewError(message);
     return;
+  }
+
+  if (isTodoDraftTask(task)) {
+    const handled = await handleLinkedDraftTaskDeleteChoice(task);
+    if (handled) {
+      return;
+    }
   }
 
   const confirmation = await vscode.window.showWarningMessage(messages.confirmDelete(task.name), { modal: true }, messages.confirmDeleteYes());
@@ -1949,6 +2105,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           await copilotExecutor.executePrompt(prompt, options);
         },
         createTask: (input) => scheduler.createTask(input),
+        deleteTask: (taskId) => scheduler.deleteTask(taskId),
         removeLabelFromAllTasks: (labelName) =>
           scheduler.removeLabelFromAllTasks(labelName),
         refreshSchedulerUiState,
@@ -2376,6 +2533,24 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         await setupWorkspaceMcpConfig(extensionContext);
+        break;
+      }
+
+      case "setupCodex": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupWorkspaceCodexConfig(extensionContext);
+        break;
+      }
+
+      case "setupCodexSkills": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupWorkspaceCodexSkills(extensionContext);
         break;
       }
 

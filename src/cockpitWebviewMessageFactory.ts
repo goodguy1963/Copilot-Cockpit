@@ -130,6 +130,13 @@ export function createFocusTaskMessage(taskId: string): SchedulerWebviewMessage 
   };
 }
 
+export function createFocusReadyTodoDraftMessage(todoId: string): SchedulerWebviewMessage {
+  return {
+    type: "focusReadyTodoDraft",
+    todoId,
+  };
+}
+
 export function createFocusJobMessage(
   jobId: string,
   folderId?: string,

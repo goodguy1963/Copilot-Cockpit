@@ -32,6 +32,7 @@ import {
   updateCockpitTodo,
 } from "./cockpitBoardManager";
 import { SchedulerWebview } from "./cockpitWebview";
+import { isTodoDraftTask } from "./todoDraftTasks";
 import type {
   AddCockpitTodoCommentInput,
   CockpitBoard,
@@ -239,6 +240,7 @@ type TodoCockpitActionHandlerDeps = {
   getReviewDefaults: () => ReviewDefaultsView;
   executeBotReviewPrompt: (prompt: string, options: ExecuteOptions) => Promise<void>;
   createTask: (input: CreateTaskInput) => Promise<{ id: string; name: string }>;
+  deleteTask: (taskId: string) => Promise<boolean>;
   removeLabelFromAllTasks: (labelName: string) => Promise<unknown>;
   refreshSchedulerUiState: (immediate?: boolean) => void;
   notifyError: (message: string) => void;
@@ -391,6 +393,56 @@ async function maybeRunBotReviewPlanning(
   }
 }
 
+async function ensureReadyTodoTaskDraft(
+  workspaceRoot: string,
+  todo: CockpitTodoCard,
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<{ taskId: string; taskName: string; created: boolean }> {
+  const existingTask = todo.taskId
+    ? deps.getCurrentTasks().find((task) => task.id === todo.taskId)
+    : undefined;
+  if (existingTask) {
+    if (existingTask.enabled !== false) {
+      updateCockpitTodo(workspaceRoot, todo.id, {
+        taskId: existingTask.id,
+        flags: [COCKPIT_ON_SCHEDULE_LIST_FLAG],
+      });
+    }
+    return {
+      taskId: existingTask.id,
+      taskName: existingTask.name || todo.title,
+      created: false,
+    };
+  }
+
+  const createdTask = await deps.createTask({
+    name: todo.title,
+    description: todo.description,
+    cronExpression: "0 9 * * 1-5",
+    prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults()),
+    enabled: false,
+    oneTime: true,
+    labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
+    scope: "workspace",
+    promptSource: "inline",
+  });
+  updateCockpitTodo(workspaceRoot, todo.id, {
+    taskId: createdTask.id,
+    flags: [COCKPIT_READY_FLAG],
+  });
+  addCockpitTodoComment(workspaceRoot, todo.id, {
+    body: `Linked task draft created: ${createdTask.name}.`,
+    author: "system",
+    source: "system-event",
+    labels: ["task-draft"],
+  });
+  return {
+    taskId: createdTask.id,
+    taskName: createdTask.name,
+    created: true,
+  };
+}
+
 export function isTodoCockpitAction(
   action: TaskAction["action"],
 ): action is TodoCockpitTaskAction {
@@ -448,6 +500,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       const previousTodo = deps.getCurrentCockpitBoard().cards.find((entry) => entry.id === action.todoId);
+      const previousWorkflowFlag = previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined;
       const result = updateCockpitTodo(
         workspaceRoot,
         action.todoId,
@@ -460,14 +513,27 @@ export async function handleTodoCockpitAction(
       maybeSeedNeedsBotReviewCommentTemplate(
         workspaceRoot,
         result.todo,
-        previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined,
+        previousWorkflowFlag,
         deps,
       );
       const botReviewLaunchState = await maybeRunBotReviewPlanning(
         result.todo,
-        previousTodo ? getTodoWorkflowFlag(previousTodo) : undefined,
+        previousWorkflowFlag,
         deps,
       );
+      const transitionedToReady = previousWorkflowFlag !== COCKPIT_READY_FLAG
+        && getTodoWorkflowFlag(result.todo) === COCKPIT_READY_FLAG;
+      if (transitionedToReady) {
+        const draftTask = await ensureReadyTodoTaskDraft(workspaceRoot, result.todo, deps);
+        deps.refreshSchedulerUiState();
+        SchedulerWebview.editTask(draftTask.taskId);
+        deps.notifyInfo(
+          draftTask.created
+            ? `Updated Todo Cockpit item and created task draft: ${draftTask.taskName}`
+            : `Updated Todo Cockpit item and opened task draft: ${draftTask.taskName}`,
+        );
+        return true;
+      }
       deps.refreshSchedulerUiState();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
@@ -483,6 +549,30 @@ export async function handleTodoCockpitAction(
       const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
       if (!workspaceRoot || !action.todoId) {
         return true;
+      }
+      const currentTodo = deps.getCurrentCockpitBoard().cards.find((entry) =>
+        entry.id === action.todoId
+      );
+      if (!currentTodo) {
+        deps.notifyError("Todo Cockpit item not found.");
+        return true;
+      }
+      const linkedTask = currentTodo.taskId
+        ? deps.getCurrentTasks().find((task) => task.id === currentTodo.taskId)
+        : undefined;
+      const linkedDraftTask = isTodoDraftTask(linkedTask) ? linkedTask : undefined;
+      if (linkedDraftTask) {
+        const deletedLinkedTask = await deps.deleteTask(linkedDraftTask.id);
+        if (!deletedLinkedTask) {
+          deps.notifyError("Linked task draft could not be deleted.");
+          return true;
+        }
+        addCockpitTodoComment(workspaceRoot, currentTodo.id, {
+          body: `Deleted linked task draft: ${linkedDraftTask.name || currentTodo.title}.`,
+          author: "system",
+          source: "system-event",
+          labels: ["task-draft"],
+        });
       }
       const result = rejectCockpitTodo(workspaceRoot, action.todoId);
       if (!result.todo) {
@@ -837,49 +927,14 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Task drafts can only be created or refreshed from ready todos.");
         return true;
       }
-
-      const existingTask = todo.taskId
-        ? deps.getCurrentTasks().find((task) => task.id === todo.taskId)
-        : undefined;
-      if (existingTask) {
-        if (existingTask.enabled !== false) {
-          updateCockpitTodo(workspaceRoot, todo.id, {
-            taskId: existingTask.id,
-            flags: [COCKPIT_ON_SCHEDULE_LIST_FLAG],
-          });
-        }
-        deps.refreshSchedulerUiState();
-        SchedulerWebview.switchToTab("list");
-        SchedulerWebview.focusTask(existingTask.id);
-        deps.notifyInfo(`Reused linked task for Todo Cockpit: ${existingTask.name || todo.title}`);
-        return true;
-      }
-
-      const createdTask = await deps.createTask({
-        name: todo.title,
-        description: todo.description,
-        cronExpression: "0 9 * * 1-5",
-        prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults()),
-        enabled: false,
-        oneTime: true,
-        labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
-        scope: "workspace",
-        promptSource: "inline",
-      });
-      updateCockpitTodo(workspaceRoot, todo.id, {
-        taskId: createdTask.id,
-        flags: [COCKPIT_READY_FLAG],
-      });
-      addCockpitTodoComment(workspaceRoot, todo.id, {
-        body: `Linked task draft created: ${createdTask.name}.`,
-        author: "system",
-        source: "system-event",
-        labels: ["task-draft"],
-      });
+      const draftTask = await ensureReadyTodoTaskDraft(workspaceRoot, todo, deps);
       deps.refreshSchedulerUiState();
-      SchedulerWebview.switchToTab("list");
-      SchedulerWebview.focusTask(createdTask.id);
-      deps.notifyInfo(`Created scheduled task draft from Todo Cockpit: ${createdTask.name}`);
+      SchedulerWebview.editTask(draftTask.taskId);
+      deps.notifyInfo(
+        draftTask.created
+          ? `Created scheduled task draft from Todo Cockpit: ${draftTask.taskName}`
+          : `Opened linked task draft from Todo Cockpit: ${draftTask.taskName}`,
+      );
       return true;
     }
   }

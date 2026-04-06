@@ -391,6 +391,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     skillSelect,
     insertSkillBtn,
     setupMcpBtn,
+    setupCodexBtn,
+    setupCodexSkillsBtn,
     syncBundledSkillsBtn,
     importStorageFromJsonBtn,
     exportStorageToJsonBtn,
@@ -5373,6 +5375,8 @@ syncTodoLabelSuggestions();
 
   bindUtilityActionButtons(vscode, {
     setupMcp: setupMcpBtn,
+    setupCodex: setupCodexBtn,
+    setupCodexSkills: setupCodexSkillsBtn,
     syncBundledSkills: syncBundledSkillsBtn,
     importStorageFromJson: importStorageFromJsonBtn,
     exportStorageToJson: exportStorageToJsonBtn,
@@ -6039,6 +6043,16 @@ syncTodoLabelSuggestions();
     switchTab("list");
     setTimeout(function () {
       scrollTaskCardIntoView(taskId);
+    }, 100);
+  }
+
+  function focusReadyTodoDraftView(todoId) {
+    switchTab("list");
+    setTimeout(function () {
+      scrollSelectorIntoView(
+        todoId ? '[data-ready-todo-id="' + todoId + '"]' : '[data-task-section="todo-draft"]',
+        false,
+      );
     }, 100);
   }
 
@@ -8296,6 +8310,9 @@ syncTodoLabelSuggestions();
           break;
         case "focusTask":
           focusTaskView(message.taskId);
+          break;
+        case "focusReadyTodoDraft":
+          focusReadyTodoDraftView(message.todoId);
           break;
         case "focusJob":
           focusJobView(message.folderId, message.jobId || "");

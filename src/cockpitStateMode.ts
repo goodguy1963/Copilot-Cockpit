@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import { getCompatibleConfigurationValue } from "./extensionCompat";
 import type { CockpitDeterministicStateMode } from "./types";
 

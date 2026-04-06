@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 
 export const COCKPIT_CONFIG_NAMESPACE = "copilotCockpit";
 export const LEGACY_SCHEDULER_CONFIG_NAMESPACE = "copilotScheduler";
@@ -36,6 +36,14 @@ type ConfigurationInspection<T> = {
   workspaceFolderLanguageValue?: T;
 };
 
+function getOptionalVscode(): typeof import("vscode") | undefined {
+  try {
+    return require("vscode") as typeof import("vscode");
+  } catch {
+    return undefined;
+  }
+}
+
 function hasExplicitConfigValue<T>(
   configuration: vscode.WorkspaceConfiguration,
   key: string,
@@ -58,7 +66,17 @@ function hasExplicitConfigValue<T>(
 export function getCockpitConfiguration(
   scope?: vscode.ConfigurationScope,
 ): vscode.WorkspaceConfiguration {
-  return vscode.workspace.getConfiguration(COCKPIT_CONFIG_NAMESPACE, scope);
+  const vscodeApi = getOptionalVscode();
+  if (!vscodeApi) {
+    return {
+      get: <T>(_key: string, defaultValue?: T) => defaultValue as T,
+      has: () => false,
+      inspect: () => undefined,
+      update: async () => undefined,
+    } as unknown as vscode.WorkspaceConfiguration;
+  }
+
+  return vscodeApi.workspace.getConfiguration(COCKPIT_CONFIG_NAMESPACE, scope);
 }
 
 export function getCompatibleConfigurationValue<T>(
@@ -66,12 +84,17 @@ export function getCompatibleConfigurationValue<T>(
   defaultValue: T,
   scope?: vscode.ConfigurationScope,
 ): T {
+  const vscodeApi = getOptionalVscode();
+  if (!vscodeApi) {
+    return defaultValue;
+  }
+
   const cockpitConfiguration = getCockpitConfiguration(scope);
   if (hasExplicitConfigValue<T>(cockpitConfiguration, key)) {
     return cockpitConfiguration.get<T>(key, defaultValue);
   }
 
-  const legacyConfiguration = vscode.workspace.getConfiguration(
+  const legacyConfiguration = vscodeApi.workspace.getConfiguration(
     LEGACY_SCHEDULER_CONFIG_NAMESPACE,
     scope,
   );
@@ -88,9 +111,14 @@ export async function updateCompatibleConfigurationValue(
   target: vscode.ConfigurationTarget,
   scope?: vscode.ConfigurationScope,
 ): Promise<void> {
+  const vscodeApi = getOptionalVscode();
+  if (!vscodeApi) {
+    return;
+  }
+
   await getCockpitConfiguration(scope).update(key, value, target);
 
-  const legacyConfiguration = vscode.workspace.getConfiguration(
+  const legacyConfiguration = vscodeApi.workspace.getConfiguration(
     LEGACY_SCHEDULER_CONFIG_NAMESPACE,
     scope,
   );

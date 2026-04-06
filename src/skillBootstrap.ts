@@ -7,6 +7,13 @@ export const BUNDLED_SKILLS_RELATIVE_PATH = path.join(
   "skills",
 );
 
+export const CODEX_SKILLS_RELATIVE_PATH = path.join(
+  ".agents",
+  "skills",
+);
+
+export const CODEX_AGENTS_RELATIVE_PATH = "AGENTS.md";
+
 export const COCKPIT_SCHEDULER_SKILL_RELATIVE_PATH = path.join(
   ".github",
   "skills",
@@ -35,6 +42,66 @@ export interface BundledSkillSyncResult {
 }
 
 const BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY = "copilotCockpitCustomize";
+const CODEX_AGENTS_MANAGED_START = "<!-- copilot-cockpit-codex:start -->";
+const CODEX_AGENTS_MANAGED_END = "<!-- copilot-cockpit-codex:end -->";
+
+function mapBundledSkillPathToCodex(relativePath: string): string {
+  return path.join(
+    CODEX_SKILLS_RELATIVE_PATH,
+    path.relative(BUNDLED_SKILLS_RELATIVE_PATH, relativePath),
+  );
+}
+
+function buildManagedCodexAgentsBlock(): string {
+  return [
+    CODEX_AGENTS_MANAGED_START,
+    "## Copilot Cockpit",
+    "",
+    "- Repo-local Codex skills for this project live under `.agents/skills`.",
+    "- Repo-local Codex MCP config for this project lives in `.codex/config.toml`.",
+    "- Use the Copilot Cockpit scheduler and todo skills when the task touches scheduled work, Todo Cockpit state, or MCP-backed workflow routing.",
+    "- Codex cannot start a new session through the Copilot Cockpit task scheduler integration. Creating and running task drafts from Codex is still a manual step in this repo.",
+    CODEX_AGENTS_MANAGED_END,
+  ].join("\n");
+}
+
+function upsertManagedCodexAgentsDoc(content: string | undefined): {
+  content: string;
+  changed: boolean;
+  created: boolean;
+} {
+  const managedBlock = buildManagedCodexAgentsBlock();
+  const normalized = (content ?? "").replace(/\r\n/g, "\n");
+  const pattern = new RegExp(
+    `${CODEX_AGENTS_MANAGED_START}[\\s\\S]*?${CODEX_AGENTS_MANAGED_END}`,
+    "m",
+  );
+
+  if (!normalized.trim()) {
+    return {
+      content: `${managedBlock}\n`,
+      changed: true,
+      created: true,
+    };
+  }
+
+  if (pattern.test(normalized)) {
+    const nextContent = normalized.replace(pattern, managedBlock);
+    return {
+      content: nextContent.endsWith("\n") ? nextContent : `${nextContent}\n`,
+      changed: nextContent !== normalized,
+      created: false,
+    };
+  }
+
+  const separator = normalized.endsWith("\n") ? "\n" : "\n\n";
+  const nextContent = `${normalized}${separator}${managedBlock}\n`;
+  return {
+    content: nextContent,
+    changed: true,
+    created: false,
+  };
+}
 
 async function collectBundledSkillSyncResult(
   extensionRoot: string,
@@ -272,6 +339,140 @@ export async function previewBundledSkillSyncForWorkspaceRoots(
     syncState,
     false,
   );
+}
+
+export async function syncBundledCodexSkillsForWorkspaceRoots(
+  extensionRoot: string,
+  workspaceRoots: string[],
+  syncState: BundledSkillSyncState = {},
+): Promise<BundledSkillSyncResult> {
+  const normalizedState = normalizeSyncState(syncState);
+  const result: BundledSkillSyncResult = {
+    createdPaths: [],
+    updatedPaths: [],
+    skippedPaths: [],
+    unchangedPaths: [],
+    nextState: { ...normalizedState },
+  };
+
+  if (!extensionRoot || workspaceRoots.length === 0) {
+    return result;
+  }
+
+  const bundledRelativePaths = await collectBundledRelativeFilePaths(
+    extensionRoot,
+    BUNDLED_SKILLS_RELATIVE_PATH,
+  );
+  if (bundledRelativePaths.length === 0) {
+    return result;
+  }
+
+  const bundledContentByRelativePath = new Map<string, string>();
+
+  for (const workspaceRoot of workspaceRoots) {
+    if (!workspaceRoot) {
+      continue;
+    }
+
+    const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
+    const nextWorkspaceState: Record<string, string> = {};
+
+    for (const relativePath of bundledRelativePaths) {
+      let bundledContent = bundledContentByRelativePath.get(relativePath);
+      if (bundledContent === undefined) {
+        bundledContent = await fs.promises.readFile(
+          path.join(extensionRoot, relativePath),
+          "utf8",
+        );
+        bundledContentByRelativePath.set(relativePath, bundledContent);
+      }
+
+      const targetRelativePath = mapBundledSkillPathToCodex(relativePath);
+      const bundledHash = createContentHash(bundledContent);
+      const targetPath = path.join(workspaceRoot, targetRelativePath);
+      const previousManagedHash = previousWorkspaceState[targetRelativePath];
+
+      let currentContent: string | undefined;
+      try {
+        currentContent = await fs.promises.readFile(targetPath, "utf8");
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        if (code && code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (currentContent === undefined) {
+        await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+        await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        result.createdPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = bundledHash;
+        continue;
+      }
+
+      const currentHash = createContentHash(currentContent);
+      if (currentHash === bundledHash) {
+        result.unchangedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = bundledHash;
+        continue;
+      }
+
+      if (previousManagedHash && currentHash === previousManagedHash) {
+        await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = bundledHash;
+        continue;
+      }
+
+      if (!isBundledSkillCustomizationProtected(currentContent)) {
+        await fs.promises.writeFile(targetPath, bundledContent, "utf8");
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = bundledHash;
+        continue;
+      }
+
+      result.skippedPaths.push(targetPath);
+      if (previousManagedHash) {
+        nextWorkspaceState[targetRelativePath] = previousManagedHash;
+      }
+    }
+
+    const agentsPath = path.join(workspaceRoot, CODEX_AGENTS_RELATIVE_PATH);
+    let currentAgentsContent: string | undefined;
+    try {
+      currentAgentsContent = await fs.promises.readFile(agentsPath, "utf8");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (code && code !== "ENOENT") {
+        throw error;
+      }
+    }
+
+    const nextAgents = upsertManagedCodexAgentsDoc(currentAgentsContent);
+    if (nextAgents.changed) {
+      await fs.promises.mkdir(path.dirname(agentsPath), { recursive: true });
+      await fs.promises.writeFile(agentsPath, nextAgents.content, "utf8");
+      if (nextAgents.created) {
+        result.createdPaths.push(agentsPath);
+      } else {
+        result.updatedPaths.push(agentsPath);
+      }
+    } else {
+      result.unchangedPaths.push(agentsPath);
+    }
+
+    if (Object.keys(nextWorkspaceState).length > 0) {
+      result.nextState[workspaceRoot] = nextWorkspaceState;
+    } else {
+      delete result.nextState[workspaceRoot];
+    }
+  }
+
+  return result;
 }
 
 async function ensureBundledFileForWorkspaceRoots(

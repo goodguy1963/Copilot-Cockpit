@@ -1410,6 +1410,8 @@ type TaskActionName =
   | "restoreHistory"
   | "refresh"
   | "setupMcp"
+  | "setupCodex"
+  | "setupCodexSkills"
   | "syncBundledSkills"
   | "importStorageFromJson"
   | "exportStorageToJson"
@@ -1620,6 +1622,8 @@ type SchedulerControlMessage =
   | { type: "refreshAgents" } // reload-agents
   | { type: "refreshPrompts" } // reload-templates
   | { type: "setupMcp" }
+  | { type: "setupCodex" }
+  | { type: "setupCodexSkills" }
   | { type: "syncBundledSkills" }
   | { type: "importStorageFromJson" }
   | { type: "exportStorageToJson" };

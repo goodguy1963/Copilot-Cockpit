@@ -23,6 +23,8 @@ export function createSchedulerWebviewDomRefs(document) {
     skillSelect: document.getElementById("skill-select"),
     insertSkillBtn: document.getElementById("insert-skill-btn"),
     setupMcpBtn: document.getElementById("setup-mcp-btn"),
+    setupCodexBtn: document.getElementById("setup-codex-btn"),
+    setupCodexSkillsBtn: document.getElementById("setup-codex-skills-btn"),
     syncBundledSkillsBtn: document.getElementById("sync-bundled-skills-btn"),
     importStorageFromJsonBtn: document.getElementById("import-storage-from-json-btn"),
     exportStorageToJsonBtn: document.getElementById("export-storage-to-json-btn"),

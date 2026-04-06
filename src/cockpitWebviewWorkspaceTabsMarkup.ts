@@ -486,7 +486,25 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
         <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
       </section>
-      <section class="telegram-card">
+      <section class="telegram-card" style="grid-column:span 2;">
+        <div class="settings-card-header">
+          <div class="section-title">${escapeHtml(strings.settingsSupportTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
+        </div>
+        <div class="button-group" style="margin-top:8px;">
+          <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
+          <button type="button" class="btn-secondary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+          <button type="button" class="btn-secondary" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
+          <button type="button" class="btn-secondary" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+        </div>
+        <div class="note" style="display:grid;gap:6px;margin-top:10px;">
+          <div><strong>${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
+          <div><strong>${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>
+        </div>
+      </section>
+      <section class="telegram-card" style="grid-column:span 2;">
         <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.reviewDefaultsTitle)}</div>
           <p class="note">${escapeHtml(strings.reviewDefaultsDescription)}</p>
@@ -582,12 +600,6 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <button type="button" class="btn-primary" id="settings-storage-save-btn">${escapeHtml(strings.settingsStorageSave)}</button>
         </div>
         <p class="note" id="settings-storage-note">${escapeHtml(strings.settingsStorageSaved)}</p>
-        <div class="note" style="display:grid;gap:6px;margin-top:10px;">
-          <div><strong>${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
-          <div><strong>${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
-          <div><strong>${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
-          <div><strong>${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>
-        </div>
       </section>
       <section class="telegram-card">
         <div class="settings-card-header">
@@ -610,7 +622,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <button type="button" class="btn-secondary" id="settings-open-log-folder-btn">${escapeHtml(strings.settingsLoggingOpenFolder)}</button>
         </div>
       </section>
-      <section class="telegram-card">
+      <section class="telegram-card" style="grid-column:span 2;">
         <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.telegramTitle)}</div>
           <p class="note">${escapeHtml(strings.telegramDescription)}</p>
@@ -645,14 +657,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <button type="button" class="btn-primary" id="telegram-save-btn">${escapeHtml(strings.telegramSave)}</button>
           <button type="button" class="btn-secondary" id="telegram-test-btn">${escapeHtml(strings.telegramTest)}</button>
         </div>
-      </section>
-
-      <aside class="telegram-status-card">
-        <div class="settings-card-header">
-          <div class="section-title">${escapeHtml(strings.tabTelegram)}</div>
-          <p class="note">${escapeHtml(strings.telegramWorkspaceNote)}</p>
-        </div>
-        <div class="telegram-status-grid">
+        <div class="telegram-status-grid" style="margin-top:12px;">
           <div class="telegram-status-item">
             <div class="telegram-status-label">${escapeHtml(strings.telegramBotToken)}</div>
             <div class="telegram-status-value" id="telegram-token-status"></div>
@@ -671,7 +676,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
         </div>
         <p class="note" id="telegram-status-note">${escapeHtml(strings.telegramStatusSaved)}</p>
-      </aside>
+      </section>
       <section class="telegram-card">
         <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.settingsMaintenanceTitle)}</div>
@@ -680,9 +685,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <div class="button-group">
           <button type="button" class="btn-secondary" id="import-storage-from-json-btn">${escapeHtml(strings.settingsStorageImportJsonToDb)}</button>
           <button type="button" class="btn-secondary" id="export-storage-to-json-btn">${escapeHtml(strings.settingsStorageExportDbToJson)}</button>
-          <button type="button" class="btn-primary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
         </div>
-        <p class="note">${escapeHtml(strings.settingsStorageMaintenanceNote)}</p>
+        <p class="note">${escapeHtml(strings.settingsMaintenanceNote)}</p>
       </section>
     </div>
   </div>
@@ -817,9 +821,6 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
             <li>${escapeHtml(strings.helpMcpItemTools)}</li>
           </ul>
-          <div class="button-group" style="margin-top:8px;">
-            <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
-          </div>
         </section>
         <section class="help-section is-featured">
           <h3>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>

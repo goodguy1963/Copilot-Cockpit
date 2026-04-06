@@ -28,6 +28,13 @@ export type SchedulerMcpWriteResult = {
   backupPath?: string;
 };
 
+export type SchedulerCodexWriteResult = {
+  configPath: string;
+  createdFile: boolean;
+  createdDirectory: boolean;
+  updated: boolean;
+};
+
 type WorkspaceMcpLauncherState = {
   extensionIdPrefix?: string;
   preferredExtensionDir: string;
@@ -41,6 +48,8 @@ const MCP_SUPPORT_DIR_PARTS = [
   "copilot-cockpit-support",
   "mcp",
 ] as const;
+
+const CODEX_CONFIG_DIR_PARTS = [".codex"] as const;
 
 function stripBom(text: string): string {
   return text.replace(/^\uFEFF/, "");
@@ -58,6 +67,10 @@ function getInvalidMcpBackupPath(configPath: string): string {
 
 export function getWorkspaceMcpConfigPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, ".vscode", "mcp.json");
+}
+
+export function getWorkspaceCodexConfigPath(workspaceRoot: string): string {
+  return path.join(workspaceRoot, ...CODEX_CONFIG_DIR_PARTS, "config.toml");
 }
 
 export function buildSchedulerMcpServerEntry(
@@ -80,6 +93,56 @@ export function getWorkspaceMcpLauncherPath(workspaceRoot: string): string {
 
 export function getWorkspaceMcpLauncherStatePath(workspaceRoot: string): string {
   return path.join(getWorkspaceMcpSupportDirectory(workspaceRoot), "state.json");
+}
+
+function escapeTomlString(value: string): string {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+}
+
+function buildSchedulerCodexServerTable(workspaceRoot: string): string {
+  const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+  return [
+    "[mcp_servers.scheduler]",
+    'command = "node"',
+    `args = ["${escapeTomlString(launcherPath)}"]`,
+    "enabled = true",
+    "startup_timeout_sec = 30",
+  ].join("\n");
+}
+
+function upsertNamedTomlTable(options: {
+  content: string;
+  tableName: string;
+  replacement: string;
+}): string {
+  const normalizedContent = options.content.replace(/\r\n/g, "\n");
+  const lines = normalizedContent.split("\n");
+  const header = `[${options.tableName}]`;
+  const startIndex = lines.findIndex((line) => line.trim() === header);
+
+  if (startIndex < 0) {
+    const trimmed = normalizedContent.trim();
+    return trimmed
+      ? `${trimmed}\n\n${options.replacement}\n`
+      : `${options.replacement}\n`;
+  }
+
+  let endIndex = lines.length;
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (line.startsWith("[") && line.endsWith("]")) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  const before = lines.slice(0, startIndex).join("\n").trimEnd();
+  const after = lines.slice(endIndex).join("\n").trim();
+  return [before, options.replacement, after]
+    .filter((part) => part.length > 0)
+    .join("\n\n") + "\n";
 }
 
 function getExtensionIdPrefix(extensionRoot: string): string | undefined {
@@ -283,5 +346,41 @@ export function upsertSchedulerMcpConfig(
     updated,
     repairedInvalidFile,
     backupPath,
+  };
+}
+
+export function upsertSchedulerCodexConfig(
+  workspaceRoot: string,
+  extensionRoot: string,
+): SchedulerCodexWriteResult {
+  const configPath = getWorkspaceCodexConfigPath(workspaceRoot);
+  const configDir = path.dirname(configPath);
+  ensureWorkspaceMcpSupportFiles(workspaceRoot, extensionRoot);
+
+  const createdDirectory = !fs.existsSync(configDir);
+  if (createdDirectory) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+
+  const createdFile = !fs.existsSync(configPath);
+  const currentContent = createdFile
+    ? ""
+    : stripBom(fs.readFileSync(configPath, "utf8"));
+  const nextContent = upsertNamedTomlTable({
+    content: currentContent,
+    tableName: "mcp_servers.scheduler",
+    replacement: buildSchedulerCodexServerTable(workspaceRoot),
+  });
+  const updated = currentContent !== nextContent;
+
+  if (updated) {
+    fs.writeFileSync(configPath, nextContent, "utf8");
+  }
+
+  return {
+    configPath,
+    createdFile,
+    createdDirectory,
+    updated,
   };
 }

@@ -49,6 +49,7 @@ suite("Todo Cockpit Action Handler", () => {
       }),
       executeBotReviewPrompt: async (_prompt: string, _options: ExecuteOptions) => undefined,
       createTask: async (_input: CreateTaskInput) => ({ id: "task-1", name: "Task" }),
+      deleteTask: async (_taskId: string) => true,
       removeLabelFromAllTasks: async () => undefined,
       refreshSchedulerUiState: () => undefined,
       notifyError: (_message: string) => undefined,
@@ -99,6 +100,76 @@ suite("Todo Cockpit Action Handler", () => {
     } finally {
       webview.startCreateTodo = originalStartCreateTodo;
       webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("updateTodo entering ready opens the task draft editor", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const webview = SchedulerWebview as unknown as {
+      startCreateTodo: () => void;
+      switchToTab: (tab: string) => void;
+      editTask: (taskId?: string) => void;
+    };
+    const originalStartCreateTodo = webview.startCreateTodo;
+    const originalSwitchToTab = webview.switchToTab;
+    const originalEditTask = webview.editTask;
+    let startCreateTodoCalls = 0;
+    const switchedTabs: string[] = [];
+    const editedTaskIds: string[] = [];
+    const createdTaskInputs: CreateTaskInput[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Todo",
+        sectionId: "",
+        priority: "low",
+        flags: ["needs-user-review"],
+      });
+
+      webview.startCreateTodo = () => {
+        startCreateTodoCalls += 1;
+      };
+      webview.switchToTab = (tab: string) => {
+        switchedTabs.push(tab);
+      };
+      webview.editTask = (taskId?: string) => {
+        if (taskId) {
+          editedTaskIds.push(taskId);
+        }
+      };
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "updateTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          todoData: { flags: ["ready"] },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard,
+          createTask: async (input: CreateTaskInput) => {
+            createdTaskInputs.push(input);
+            return { id: "task-draft-2", name: input.name };
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(startCreateTodoCalls, 0);
+      assert.deepStrictEqual(switchedTabs, []);
+      assert.deepStrictEqual(editedTaskIds, ["task-draft-2"]);
+      assert.strictEqual(createdTaskInputs.length, 1);
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const updatedTodo = board.cards.find((card) => card.id === created.todo.id);
+      assert.strictEqual(updatedTodo?.taskId, "task-draft-2");
+      assert.deepStrictEqual(updatedTodo?.flags, ["ready"]);
+    } finally {
+      webview.startCreateTodo = originalStartCreateTodo;
+      webview.switchToTab = originalSwitchToTab;
+      webview.editTask = originalEditTask;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
@@ -366,6 +437,63 @@ suite("Todo Cockpit Action Handler", () => {
       assert.strictEqual(launches.length, 1);
       assert.ok(launches[0]?.prompt.includes("Review transition"));
       assert.ok(launches[0]?.prompt.includes("MCP and skill usage guidance:"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("deleteTodo removes a linked draft task before archiving the todo", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const deletedTaskIds: string[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Draft-backed todo",
+        sectionId: "",
+        priority: "low",
+        taskId: "task-draft-1",
+        flags: ["ready"],
+      });
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "deleteTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard,
+          getCurrentTasks: () => [{
+            id: "task-draft-1",
+            name: "Draft task",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            cronExpression: "0 9 * * 1-5",
+            prompt: "Draft",
+            enabled: false,
+            oneTime: true,
+            scope: "workspace",
+            promptSource: "inline",
+            labels: ["from-todo-cockpit"],
+          }],
+          deleteTask: async (taskId: string) => {
+            deletedTaskIds.push(taskId);
+            return true;
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(deletedTaskIds, ["task-draft-1"]);
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const archivedTodo = board.cards.find((card) => card.id === created.todo.id);
+      assert.ok(archivedTodo?.archived);
+      assert.strictEqual(archivedTodo?.status, "rejected");
+      assert.ok(
+        archivedTodo?.comments.some((comment) => comment.body.includes("Deleted linked task draft")),
+      );
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

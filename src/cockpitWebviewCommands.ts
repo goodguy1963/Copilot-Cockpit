@@ -1,6 +1,7 @@
 import {
   createEditTaskMessage,
   createFocusJobMessage,
+  createFocusReadyTodoDraftMessage,
   createFocusResearchProfileMessage,
   createFocusResearchRunMessage,
   createFocusTaskMessage,
@@ -56,6 +57,13 @@ export function postFocusTask(postMessage: PostMessage, taskId: string): void {
     return;
   }
   postMessage(createFocusTaskMessage(taskId));
+}
+
+export function postFocusReadyTodoDraft(postMessage: PostMessage, todoId: string): void {
+  if (!todoId) {
+    return;
+  }
+  postMessage(createFocusReadyTodoDraftMessage(todoId));
 }
 
 export function postFocusJob(
