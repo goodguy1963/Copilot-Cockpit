@@ -665,8 +665,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-06T18:25:03.905Z",
-                "updatedAt": "2026-04-06T18:25:03.905Z"
+                "createdAt": "2026-04-06T18:36:32.922Z",
+                "updatedAt": "2026-04-06T18:36:32.922Z"
             },
             {
                 "name": "needs-bot-review",
@@ -733,6 +733,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-06T18:25:03.803Z"
+        "updatedAt": "2026-04-06T18:36:32.853Z"
     }
 }

@@ -6,6 +6,12 @@ Copilot Cockpit is built around one design decision: keep the human in the loop 
  One of the core questions behind the plugin is: What is a company?
  A company is coordinated work, meaning the right task gets done at the right time after the right discussion has happened.
 
+## Demo
+
+![Copilot Cockpit demo](images/DEMO.gif)
+
+If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
+
 That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
 
  A human or AI can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review].
@@ -72,12 +78,6 @@ The top-level README stays dense on purpose. Detailed documentation now lives un
 - [Storage and Boundaries](docs/storage-and-boundaries.md)
 - [Architecture and Principles](docs/architecture-and-principles.md)
 - [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
-
-## Demo
-
-![Copilot Cockpit demo](images/DEMO.gif)
-
-If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
 ## Support Matrix
 
