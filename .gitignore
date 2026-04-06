@@ -36,5 +36,6 @@ FULL_SPECIFICATION.md
 .vscode/mcp.json
 .vscode/copilot.json
 .vscode/copilot.private.json
-
+.vscode/cockpit-prompt-backups/
+.vscode/scheduler-history
 analysis_tools/
