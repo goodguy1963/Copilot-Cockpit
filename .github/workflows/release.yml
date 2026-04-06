@@ -38,11 +38,18 @@ jobs:
       - name: Extract changelog section
         run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md
 
-      - name: Create GitHub Release with VSIX
+      - name: Create or update GitHub Release with VSIX
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            archive/vsix/latest/copilot-cockpit-*.vsix \
-            --title "Copilot Cockpit ${{ github.ref_name }}" \
-            --notes-file release-notes.md
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            gh release upload "${{ github.ref_name }}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber
+            gh release edit "${{ github.ref_name }}" \
+              --title "Copilot Cockpit ${{ github.ref_name }}" \
+              --notes-file release-notes.md
+          else
+            gh release create "${{ github.ref_name }}" \
+              archive/vsix/latest/copilot-cockpit-*.vsix \
+              --title "Copilot Cockpit ${{ github.ref_name }}" \
+              --notes-file release-notes.md
+          fi

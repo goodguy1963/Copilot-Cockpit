@@ -177,5 +177,8 @@ suite("Release Pipeline Contract Tests", () => {
         "run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md",
       ),
     );
+    assert.ok(workflow.includes("gh release view \"${{ github.ref_name }}\" >/dev/null 2>&1"));
+    assert.ok(workflow.includes("gh release upload \"${{ github.ref_name }}\" archive/vsix/latest/copilot-cockpit-*.vsix --clobber"));
+    assert.ok(workflow.includes('gh release edit "${{ github.ref_name }}" \\'));
   });
 });
