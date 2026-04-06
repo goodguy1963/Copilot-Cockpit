@@ -13,6 +13,8 @@ Copilot Cockpit is built around one design decision: keep the human in the loop 
 
 If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
+## 🔆 Intro 
+
 What is a company?
 
 A company is coordinated work, meaning the right task gets done at the right time after the right decision has been made.
