@@ -1,32 +1,11 @@
 {
     "tasks": [
         {
-            "id": "task_1775454758902_rj7k0b",
-            "name": "Test Task One",
-            "cron": "0 9 * * 1-5",
-            "prompt": "You are preparing the execution artifact for a Todo that is now ready.\n\nTodo title: Test Task One\n\nTodo description:\nAuto-generated from scheduler.json\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Final accepted and archived as completed.\n- system: Restored from archive and marked ready again.\n- system: Completed and moved to the completed archive.\n- system: Linked task draft no longer exists. Cleared the stale task link and kept the Todo ready.\n- system: Linked task draft created: Test Task One.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nCreate or refine the execution-ready handoff for this Todo. Preserve the user's actual requested work, keep unresolved questions explicit, and prefer existing repo-local skills and MCP tools over ad-hoc file edits when those tools are available.",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "",
-            "promptSource": "inline",
-            "promptPath": "",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-07T07:00:00.000Z",
-            "createdAt": "2026-04-06T05:52:38.902Z",
-            "updatedAt": "2026-04-06T19:56:39.037Z"
-        },
-        {
             "id": "task_1775502809138_tliwcp",
             "name": "Update security",
             "cron": "0 9 * * 1-5",
             "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo title: Update security\n\nTodo description:\n\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:13:21.912Z.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
-            "enabled": true,
+            "enabled": false,
             "description": "Auto-generated from scheduler.json",
             "agent": "agent",
             "model": "",
@@ -34,7 +13,7 @@
             "promptSource": "inline",
             "promptPath": "",
             "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/task_1775502809138_tliwcp.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-06T22:12:40.499Z",
+            "promptBackupUpdatedAt": "2026-04-07T07:27:56.616Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "labels": [
@@ -45,64 +24,7 @@
             "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
             "lastRun": "2026-04-06T21:55:51.070Z",
             "createdAt": "2026-04-06T19:13:29.138Z",
-            "updatedAt": "2026-04-06T21:56:22.765Z"
-        },
-        {
-            "id": "task_1775503674129_t6xo6s",
-            "name": "Update security",
-            "cron": "0 9 * * 1-5",
-            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo title: Update security\n\nTodo description:\nGitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:26:18.987Z.\n- system: Linked task draft created: Update security.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "promptSource": "inline",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-07T07:00:00.000Z",
-            "createdAt": "2026-04-06T19:27:54.129Z",
-            "updatedAt": "2026-04-06T19:56:43.381Z"
-        },
-        {
-            "id": "task_1775505409270_e9qth9",
-            "name": "Update security",
-            "cron": "0 9 * * 1-5",
-            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo ID: todo_mnnkzlgr_79l0en\n\nTodo title: Update security\n\nTodo description:\nGitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T19:26:18.987Z.\n- system: Linked task draft created: Update security.\n- system: Linked task draft created: Update security.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "promptSource": "inline",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-07T07:00:00.000Z",
-            "createdAt": "2026-04-06T19:56:49.270Z",
-            "updatedAt": "2026-04-06T20:26:10.809Z"
-        },
-        {
-            "id": "task_1775512522769_3qh3ay",
-            "name": "1",
-            "cron": "0 9 * * 1-5",
-            "prompt": "You are handling a Todo that is now ready for implementation.\n\nTodo ID: todo_mnnfwrfl_ck412j\n\nTodo title: 1\n\nTodo description:\n(none)\n\nTodo labels: none\n\nLinked task: none\n\nRecent coordination:\n- system: Todo created on 2026-04-06T17:04:08.673Z.\n\nMCP and skill usage guidance:\n- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.\n- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.\n- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.\n- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.\n- This is a ready handoff: prepare or refine the execution-ready draft, preserve the requested work, and reuse an existing linked task when it is still valid instead of creating duplicates.\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
-            "enabled": true,
-            "description": "Auto-generated from scheduler.json",
-            "agent": "agent",
-            "model": "",
-            "promptSource": "inline",
-            "promptPath": "",
-            "jitterSeconds": 0,
-            "oneTime": true,
-            "labels": [
-                "from-todo-cockpit"
-            ],
-            "workspacePath": "f:\\HBG Webserver\\extensions\\source-scheduler",
-            "nextRun": "2026-04-07T07:00:00.000Z",
-            "createdAt": "2026-04-06T21:55:22.769Z",
-            "updatedAt": "2026-04-06T21:55:35.070Z"
+            "updatedAt": "2026-04-07T07:01:23.702Z"
         },
         {
             "id": "task_1775512595615_fnembj",
