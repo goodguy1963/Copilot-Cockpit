@@ -6,11 +6,13 @@ export type McpServerEntry = {
   type: "stdio";
   command: string;
   args: string[];
+  env?: Record<string, string>;
 };
 
 type NodeLaunchCommand = {
   command: string;
   argsPrefix: string[];
+  env?: Record<string, string>;
 };
 
 type NodeResolutionRuntime = {
@@ -228,6 +230,16 @@ export function resolveNodeLaunchCommand(
     };
   }
 
+  if (runtime.fileExists(runtime.execPath)) {
+    return {
+      command: runtime.execPath,
+      argsPrefix: [],
+      env: {
+        ELECTRON_RUN_AS_NODE: "1",
+      },
+    };
+  }
+
   const pathResolvedNode = resolveNodeFromPath(runtime);
   if (pathResolvedNode) {
     return {
@@ -266,6 +278,7 @@ export function buildSchedulerMcpServerEntry(
   return {
     type: "stdio",
     command: nodeLaunch.command,
+    ...(nodeLaunch.env ? { env: nodeLaunch.env } : {}),
     args:
       nodeLaunch.argsPrefix.length > 0
         ? [...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
@@ -302,6 +315,13 @@ function buildSchedulerCodexServerTable(workspaceRoot: string): string {
     "[mcp_servers.scheduler]",
     `command = "${escapeTomlString(nodeLaunch.command)}"`,
     `args = [${args.map((value) => `"${escapeTomlString(value)}"`).join(", ")}]`,
+    ...(nodeLaunch.env
+      ? [
+        `env = { ${Object.entries(nodeLaunch.env)
+          .map(([key, value]) => `${key} = "${escapeTomlString(value)}"`)
+          .join(", ")} }`,
+      ]
+      : []),
     "enabled = true",
     "startup_timeout_sec = 30",
   ].join("\n");
@@ -442,19 +462,28 @@ export function getSchedulerMcpSetupState(
     const actualType = scheduler.type;
     const actualCommand = scheduler.command;
     const actualArgs = Array.isArray(scheduler.args) ? scheduler.args : undefined;
+    const actualEnv = isPlainObject(scheduler.env)
+      ? Object.fromEntries(
+        Object.entries(scheduler.env)
+          .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      )
+      : undefined;
+    const expectedEnv = expected.env;
 
     if (
       actualType === expected.type &&
       actualCommand === expected.command &&
       actualArgs &&
       actualArgs.length === expected.args.length &&
-      actualArgs.every((value, index) => value === expected.args[index])
+      actualArgs.every((value, index) => value === expected.args[index]) &&
+      JSON.stringify(actualEnv ?? {}) === JSON.stringify(expectedEnv ?? {})
     ) {
-      if (!fs.existsSync(expected.args[0])) {
+      const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+      if (!fs.existsSync(launcherPath)) {
         return {
           status: "stale",
           configPath,
-          reason: `Configured server path does not exist: ${expected.args[0]}`,
+          reason: `Configured launcher path does not exist: ${launcherPath}`,
         };
       }
 
@@ -478,6 +507,7 @@ export function getSchedulerMcpSetupState(
           type: actualType,
           command: actualCommand,
           args: actualArgs,
+          env: actualEnv,
         })} instead of ${JSON.stringify(expected)}.`,
     };
   } catch (error) {

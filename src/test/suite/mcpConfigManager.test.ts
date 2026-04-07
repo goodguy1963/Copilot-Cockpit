@@ -42,9 +42,10 @@ suite("MCP Config Manager Tests", () => {
       assert.strictEqual(fs.existsSync(configPath), true);
 
       const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-        servers?: Record<string, { command?: string; args?: string[] }>;
+        servers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>;
       };
       assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
+      assert.deepStrictEqual(saved.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
       assert.strictEqual(
         fs.existsSync(getWorkspaceMcpLauncherPath(workspaceRoot)),
         true,
@@ -101,12 +102,13 @@ suite("MCP Config Manager Tests", () => {
       const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
       const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-        servers?: Record<string, { command?: string; args?: string[] }>;
+        servers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>;
         metadata?: { owner?: string };
       };
       assert.strictEqual(saved.metadata?.owner, "tests");
       assert.strictEqual(saved.servers?.existing?.args?.[0], "existing-server.js");
       assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
+      assert.deepStrictEqual(saved.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
       assert.strictEqual(
         saved.servers?.scheduler?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
@@ -225,9 +227,10 @@ suite("MCP Config Manager Tests", () => {
       const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
       const repaired = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-        servers?: Record<string, { command?: string; args?: string[] }>;
+        servers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>;
       };
       assert.strictEqual(repaired.servers?.scheduler?.command, expectedEntry.command);
+      assert.deepStrictEqual(repaired.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
       assert.strictEqual(
         repaired.servers?.scheduler?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
@@ -240,7 +243,7 @@ suite("MCP Config Manager Tests", () => {
     }
   });
 
-  test("falls back to the user's interactive login shell on macOS when node is not directly discoverable", () => {
+  test("prefers the VS Code runtime with ELECTRON_RUN_AS_NODE when the extension host is not plain node", () => {
     const launch = resolveNodeLaunchCommand({
       platform: "darwin",
       execPath: "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper",
@@ -248,11 +251,12 @@ suite("MCP Config Manager Tests", () => {
         PATH: "",
         SHELL: "/bin/zsh",
       },
-      fileExists: (filePath: string) => filePath === "/bin/zsh",
+      fileExists: (filePath: string) => filePath === "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper",
     });
 
-    assert.strictEqual(launch.command, "/bin/zsh");
-    assert.deepStrictEqual(launch.argsPrefix, ["-ilc"]);
+    assert.strictEqual(launch.command, "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper");
+    assert.deepStrictEqual(launch.argsPrefix, []);
+    assert.deepStrictEqual(launch.env ?? {}, { ELECTRON_RUN_AS_NODE: "1" });
   });
 
   test("prefers an absolute node executable when one is available on macOS", () => {
@@ -267,6 +271,7 @@ suite("MCP Config Manager Tests", () => {
 
     assert.strictEqual(launch.command, "/opt/homebrew/bin/node");
     assert.deepStrictEqual(launch.argsPrefix, []);
+    assert.strictEqual(launch.env, undefined);
   });
 
   test("builds a shell command that resolves node before launching the MCP server", () => {
