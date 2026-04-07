@@ -239,18 +239,19 @@ suite("MCP Config Manager Tests", () => {
     }
   });
 
-  test("falls back to a login shell on macOS when node is not directly discoverable", () => {
+  test("falls back to the user's interactive login shell on macOS when node is not directly discoverable", () => {
     const launch = resolveNodeLaunchCommand({
       platform: "darwin",
       execPath: "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper",
       env: {
         PATH: "",
+        SHELL: "/bin/zsh",
       },
-      fileExists: (filePath: string) => filePath === "/bin/bash",
+      fileExists: (filePath: string) => filePath === "/bin/zsh",
     });
 
-    assert.strictEqual(launch.command, "/bin/bash");
-    assert.deepStrictEqual(launch.argsPrefix, ["-lc"]);
+    assert.strictEqual(launch.command, "/bin/zsh");
+    assert.deepStrictEqual(launch.argsPrefix, ["-ilc"]);
   });
 
   test("prefers an absolute node executable when one is available on macOS", () => {

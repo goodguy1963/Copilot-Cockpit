@@ -166,12 +166,26 @@ function getKnownNodeInstallLocations(runtime: NodeResolutionRuntime): string[] 
   ];
 }
 
+function getPosixShellCandidates(runtime: NodeResolutionRuntime): string[] {
+  return [
+    runtime.env.SHELL,
+    "/bin/zsh",
+    "/bin/bash",
+    "/bin/sh",
+  ].filter((value, index, values): value is string =>
+    typeof value === "string"
+    && value.length > 0
+    && values.indexOf(value) === index,
+  );
+}
+
 function resolvePosixShellCommand(runtime: NodeResolutionRuntime): NodeLaunchCommand | undefined {
-  for (const shellPath of ["/bin/bash", "/bin/sh"]) {
+  for (const shellPath of getPosixShellCandidates(runtime)) {
     if (runtime.fileExists(shellPath)) {
+      const shellBaseName = path.basename(shellPath).toLowerCase();
       return {
         command: shellPath,
-        argsPrefix: ["-lc"],
+        argsPrefix: shellBaseName === "sh" ? ["-lc"] : ["-ilc"],
       };
     }
   }
