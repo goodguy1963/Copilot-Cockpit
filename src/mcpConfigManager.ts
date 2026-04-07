@@ -71,6 +71,14 @@ function shellEscapeSingleQuoted(value: string): string {
   return String(value).replace(/'/g, `'\\''`);
 }
 
+function shellEscapeDoubleQuoted(value: string): string {
+  return String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/\$/g, "\\$")
+    .replace(/`/g, "\\`")
+    .replace(/"/g, '\\"');
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -179,6 +187,19 @@ function getPosixShellCandidates(runtime: NodeResolutionRuntime): string[] {
   );
 }
 
+export function buildNodeShellExecutionCommand(launcherPath: string): string {
+  const escapedLauncherPath = shellEscapeDoubleQuoted(launcherPath);
+  return [
+    'NODE_BIN="$(command -v node 2>/dev/null || true)"',
+    'if [ -z "$NODE_BIN" ] && [ -n "$NVM_BIN" ] && [ -x "$NVM_BIN/node" ]; then NODE_BIN="$NVM_BIN/node"; fi',
+    'if [ -z "$NODE_BIN" ] && [ -d "$HOME/.nvm/versions/node" ]; then NODE_BIN="$(find "$HOME/.nvm/versions/node" -type f -path "*/bin/node" 2>/dev/null | sort | tail -n 1)"; fi',
+    'if [ -z "$NODE_BIN" ] && [ -d "$HOME/.asdf/installs/nodejs" ]; then NODE_BIN="$(find "$HOME/.asdf/installs/nodejs" -type f -path "*/bin/node" 2>/dev/null | sort | tail -n 1)"; fi',
+    'if [ -z "$NODE_BIN" ]; then for candidate in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node; do if [ -x "$candidate" ]; then NODE_BIN="$candidate"; break; fi; done; fi',
+    'if [ -z "$NODE_BIN" ]; then echo "Copilot Cockpit MCP launcher could not find node. Install Node.js or expose it in your shell startup." >&2; exit 127; fi',
+    `exec "$NODE_BIN" "${escapedLauncherPath}"`,
+  ].join("; ");
+}
+
 function resolvePosixShellCommand(runtime: NodeResolutionRuntime): NodeLaunchCommand | undefined {
   for (const shellPath of getPosixShellCandidates(runtime)) {
     if (runtime.fileExists(shellPath)) {
@@ -244,7 +265,7 @@ export function buildSchedulerMcpServerEntry(
     command: nodeLaunch.command,
     args:
       nodeLaunch.argsPrefix.length > 0
-        ? [...nodeLaunch.argsPrefix, `node '${shellEscapeSingleQuoted(launcherPath)}'`]
+        ? [...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
         : [launcherPath],
   };
 }
@@ -272,7 +293,7 @@ function buildSchedulerCodexServerTable(workspaceRoot: string): string {
   const nodeLaunch = resolveNodeLaunchCommand();
   const args =
     nodeLaunch.argsPrefix.length > 0
-      ? [...nodeLaunch.argsPrefix, `node '${shellEscapeSingleQuoted(launcherPath)}'`]
+      ? [...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
       : [launcherPath];
   return [
     "[mcp_servers.scheduler]",

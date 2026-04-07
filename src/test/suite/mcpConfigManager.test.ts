@@ -4,6 +4,7 @@ import * as os from "os";
 import type { SchedulerMcpSetupState } from "../../mcpConfigManager";
 import * as path from "path";
 import {
+  buildNodeShellExecutionCommand,
   buildSchedulerMcpServerEntry,
   getSchedulerMcpSetupState,
   getWorkspaceMcpConfigPath,
@@ -266,5 +267,15 @@ suite("MCP Config Manager Tests", () => {
 
     assert.strictEqual(launch.command, "/opt/homebrew/bin/node");
     assert.deepStrictEqual(launch.argsPrefix, []);
+  });
+
+  test("builds a shell command that resolves node before launching the MCP server", () => {
+    const command = buildNodeShellExecutionCommand("/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js");
+
+    assert.ok(command.includes('command -v node'));
+    assert.ok(command.includes('NVM_BIN'));
+    assert.ok(command.includes('.nvm/versions/node'));
+    assert.ok(command.includes('.asdf/installs/nodejs'));
+    assert.ok(command.includes('exec "$NODE_BIN" "/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js"'));
   });
 });
