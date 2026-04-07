@@ -273,9 +273,13 @@ suite("MCP Config Manager Tests", () => {
     const command = buildNodeShellExecutionCommand("/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js");
 
     assert.ok(command.includes('command -v node'));
+    assert.ok(command.includes('.nvm/nvm.sh'));
     assert.ok(command.includes('NVM_BIN'));
+    assert.ok(command.includes('.asdf/asdf.sh'));
     assert.ok(command.includes('.nvm/versions/node'));
     assert.ok(command.includes('.asdf/installs/nodejs'));
+    assert.ok(command.includes('.fnm/node-versions'));
+    assert.ok(command.includes('.volta/bin/node'));
     assert.ok(command.includes('exec "$NODE_BIN" "/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js"'));
   });
 });
