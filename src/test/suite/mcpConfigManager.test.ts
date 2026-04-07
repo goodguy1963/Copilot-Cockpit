@@ -9,6 +9,7 @@ import {
   getWorkspaceMcpConfigPath,
   getWorkspaceMcpLauncherPath,
   getWorkspaceMcpLauncherStatePath,
+  resolveNodeLaunchCommand,
   upsertSchedulerMcpConfig,
 } from "../../mcpConfigManager";
 
@@ -236,5 +237,33 @@ suite("MCP Config Manager Tests", () => {
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
+  });
+
+  test("falls back to a login shell on macOS when node is not directly discoverable", () => {
+    const launch = resolveNodeLaunchCommand({
+      platform: "darwin",
+      execPath: "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper",
+      env: {
+        PATH: "",
+      },
+      fileExists: (filePath: string) => filePath === "/bin/bash",
+    });
+
+    assert.strictEqual(launch.command, "/bin/bash");
+    assert.deepStrictEqual(launch.argsPrefix, ["-lc"]);
+  });
+
+  test("prefers an absolute node executable when one is available on macOS", () => {
+    const launch = resolveNodeLaunchCommand({
+      platform: "darwin",
+      execPath: "/Applications/Visual Studio Code.app/Contents/Frameworks/Code Helper.app/Contents/MacOS/Code Helper",
+      env: {
+        PATH: "/opt/homebrew/bin:/usr/bin",
+      },
+      fileExists: (filePath: string) => filePath === "/opt/homebrew/bin/node",
+    });
+
+    assert.strictEqual(launch.command, "/opt/homebrew/bin/node");
+    assert.deepStrictEqual(launch.argsPrefix, []);
   });
 });

@@ -8,6 +8,18 @@ export type McpServerEntry = {
   args: string[];
 };
 
+type NodeLaunchCommand = {
+  command: string;
+  argsPrefix: string[];
+};
+
+type NodeResolutionRuntime = {
+  platform: NodeJS.Platform;
+  execPath: string;
+  env: NodeJS.ProcessEnv;
+  fileExists: (filePath: string) => boolean;
+};
+
 export type McpWorkspaceConfig = {
   servers?: Record<string, McpServerEntry | Record<string, unknown>>;
   [key: string]: unknown;
@@ -55,6 +67,10 @@ function stripBom(text: string): string {
   return text.replace(/^\uFEFF/, "");
 }
 
+function shellEscapeSingleQuoted(value: string): string {
+  return String(value).replace(/'/g, `'\\''`);
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -73,20 +89,29 @@ export function getWorkspaceCodexConfigPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, ...CODEX_CONFIG_DIR_PARTS, "config.toml");
 }
 
-function getPathEntries(): string[] {
-  const rawPath = process.env.PATH ?? "";
+function createNodeResolutionRuntime(): NodeResolutionRuntime {
+  return {
+    platform: process.platform,
+    execPath: process.execPath,
+    env: process.env,
+    fileExists: (filePath: string) => fs.existsSync(filePath),
+  };
+}
+
+function getPathEntries(runtime: NodeResolutionRuntime): string[] {
+  const rawPath = runtime.env.PATH ?? "";
   return rawPath
     .split(path.delimiter)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
 }
 
-function getPathExtensions(): string[] {
-  if (process.platform !== "win32") {
+function getPathExtensions(runtime: NodeResolutionRuntime): string[] {
+  if (runtime.platform !== "win32") {
     return [""];
   }
 
-  const rawPathExt = process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM";
+  const rawPathExt = runtime.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM";
   const extensions = rawPathExt
     .split(";")
     .map((entry) => entry.trim().toLowerCase())
@@ -94,18 +119,18 @@ function getPathExtensions(): string[] {
   return extensions.length > 0 ? extensions : [".exe"];
 }
 
-function resolveNodeFromPath(): string | undefined {
-  const pathEntries = getPathEntries();
+function resolveNodeFromPath(runtime: NodeResolutionRuntime): string | undefined {
+  const pathEntries = getPathEntries(runtime);
   if (pathEntries.length === 0) {
     return undefined;
   }
 
-  if (process.platform === "win32") {
-    const pathExtensions = getPathExtensions();
+  if (runtime.platform === "win32") {
+    const pathExtensions = getPathExtensions(runtime);
     for (const directory of pathEntries) {
       for (const extension of pathExtensions) {
         const candidate = path.join(directory, `node${extension}`);
-        if (fs.existsSync(candidate)) {
+        if (runtime.fileExists(candidate)) {
           return candidate;
         }
       }
@@ -115,7 +140,7 @@ function resolveNodeFromPath(): string | undefined {
 
   for (const directory of pathEntries) {
     const candidate = path.join(directory, "node");
-    if (fs.existsSync(candidate)) {
+    if (runtime.fileExists(candidate)) {
       return candidate;
     }
   }
@@ -123,14 +148,14 @@ function resolveNodeFromPath(): string | undefined {
   return undefined;
 }
 
-function getKnownNodeInstallLocations(): string[] {
-  if (process.platform === "win32") {
+function getKnownNodeInstallLocations(runtime: NodeResolutionRuntime): string[] {
+  if (runtime.platform === "win32") {
     return [
-      process.env.NVM_SYMLINK,
-      process.env.VOLTA_HOME ? path.join(process.env.VOLTA_HOME, "bin", "node.exe") : undefined,
-      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "nodejs", "node.exe") : undefined,
-      process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "nodejs", "node.exe") : undefined,
-      process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "nodejs", "node.exe") : undefined,
+      runtime.env.NVM_SYMLINK,
+      runtime.env.VOLTA_HOME ? path.join(runtime.env.VOLTA_HOME, "bin", "node.exe") : undefined,
+      runtime.env.LOCALAPPDATA ? path.join(runtime.env.LOCALAPPDATA, "Programs", "nodejs", "node.exe") : undefined,
+      runtime.env.ProgramFiles ? path.join(runtime.env.ProgramFiles, "nodejs", "node.exe") : undefined,
+      runtime.env["ProgramFiles(x86)"] ? path.join(runtime.env["ProgramFiles(x86)"], "nodejs", "node.exe") : undefined,
     ].filter((value): value is string => typeof value === "string" && value.length > 0);
   }
 
@@ -141,33 +166,72 @@ function getKnownNodeInstallLocations(): string[] {
   ];
 }
 
-export function resolveNodeExecutableCommand(): string {
-  const execBaseName = path.basename(process.execPath).toLowerCase();
-  if (execBaseName === "node" || execBaseName === "node.exe") {
-    return process.execPath;
-  }
-
-  const pathResolvedNode = resolveNodeFromPath();
-  if (pathResolvedNode) {
-    return pathResolvedNode;
-  }
-
-  for (const candidate of getKnownNodeInstallLocations()) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
+function resolvePosixShellCommand(runtime: NodeResolutionRuntime): NodeLaunchCommand | undefined {
+  for (const shellPath of ["/bin/bash", "/bin/sh"]) {
+    if (runtime.fileExists(shellPath)) {
+      return {
+        command: shellPath,
+        argsPrefix: ["-lc"],
+      };
     }
   }
 
-  return "node";
+  return undefined;
+}
+
+export function resolveNodeLaunchCommand(
+  runtime: NodeResolutionRuntime = createNodeResolutionRuntime(),
+): NodeLaunchCommand {
+  const execBaseName = path.basename(runtime.execPath).toLowerCase();
+  if (execBaseName === "node" || execBaseName === "node.exe") {
+    return {
+      command: runtime.execPath,
+      argsPrefix: [],
+    };
+  }
+
+  const pathResolvedNode = resolveNodeFromPath(runtime);
+  if (pathResolvedNode) {
+    return {
+      command: pathResolvedNode,
+      argsPrefix: [],
+    };
+  }
+
+  for (const candidate of getKnownNodeInstallLocations(runtime)) {
+    if (runtime.fileExists(candidate)) {
+      return {
+        command: candidate,
+        argsPrefix: [],
+      };
+    }
+  }
+
+  if (runtime.platform !== "win32") {
+    const shellCommand = resolvePosixShellCommand(runtime);
+    if (shellCommand) {
+      return shellCommand;
+    }
+  }
+
+  return {
+    command: "node",
+    argsPrefix: [],
+  };
 }
 
 export function buildSchedulerMcpServerEntry(
   workspaceRoot: string,
 ): McpServerEntry {
+  const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+  const nodeLaunch = resolveNodeLaunchCommand();
   return {
     type: "stdio",
-    command: resolveNodeExecutableCommand(),
-    args: [getWorkspaceMcpLauncherPath(workspaceRoot)],
+    command: nodeLaunch.command,
+    args:
+      nodeLaunch.argsPrefix.length > 0
+        ? [...nodeLaunch.argsPrefix, `node '${shellEscapeSingleQuoted(launcherPath)}'`]
+        : [launcherPath],
   };
 }
 
@@ -191,11 +255,15 @@ function escapeTomlString(value: string): string {
 
 function buildSchedulerCodexServerTable(workspaceRoot: string): string {
   const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
-  const nodeCommand = resolveNodeExecutableCommand();
+  const nodeLaunch = resolveNodeLaunchCommand();
+  const args =
+    nodeLaunch.argsPrefix.length > 0
+      ? [...nodeLaunch.argsPrefix, `node '${shellEscapeSingleQuoted(launcherPath)}'`]
+      : [launcherPath];
   return [
     "[mcp_servers.scheduler]",
-    `command = "${escapeTomlString(nodeCommand)}"`,
-    `args = ["${escapeTomlString(launcherPath)}"]`,
+    `command = "${escapeTomlString(nodeLaunch.command)}"`,
+    `args = [${args.map((value) => `"${escapeTomlString(value)}"`).join(", ")}]`,
     "enabled = true",
     "startup_timeout_sec = 30",
   ].join("\n");
