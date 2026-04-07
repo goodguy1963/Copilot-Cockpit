@@ -73,12 +73,100 @@ export function getWorkspaceCodexConfigPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, ...CODEX_CONFIG_DIR_PARTS, "config.toml");
 }
 
+function getPathEntries(): string[] {
+  const rawPath = process.env.PATH ?? "";
+  return rawPath
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function getPathExtensions(): string[] {
+  if (process.platform !== "win32") {
+    return [""];
+  }
+
+  const rawPathExt = process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM";
+  const extensions = rawPathExt
+    .split(";")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+  return extensions.length > 0 ? extensions : [".exe"];
+}
+
+function resolveNodeFromPath(): string | undefined {
+  const pathEntries = getPathEntries();
+  if (pathEntries.length === 0) {
+    return undefined;
+  }
+
+  if (process.platform === "win32") {
+    const pathExtensions = getPathExtensions();
+    for (const directory of pathEntries) {
+      for (const extension of pathExtensions) {
+        const candidate = path.join(directory, `node${extension}`);
+        if (fs.existsSync(candidate)) {
+          return candidate;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  for (const directory of pathEntries) {
+    const candidate = path.join(directory, "node");
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function getKnownNodeInstallLocations(): string[] {
+  if (process.platform === "win32") {
+    return [
+      process.env.NVM_SYMLINK,
+      process.env.VOLTA_HOME ? path.join(process.env.VOLTA_HOME, "bin", "node.exe") : undefined,
+      process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Programs", "nodejs", "node.exe") : undefined,
+      process.env.ProgramFiles ? path.join(process.env.ProgramFiles, "nodejs", "node.exe") : undefined,
+      process.env["ProgramFiles(x86)"] ? path.join(process.env["ProgramFiles(x86)"], "nodejs", "node.exe") : undefined,
+    ].filter((value): value is string => typeof value === "string" && value.length > 0);
+  }
+
+  return [
+    "/usr/local/bin/node",
+    "/opt/homebrew/bin/node",
+    "/usr/bin/node",
+  ];
+}
+
+export function resolveNodeExecutableCommand(): string {
+  const execBaseName = path.basename(process.execPath).toLowerCase();
+  if (execBaseName === "node" || execBaseName === "node.exe") {
+    return process.execPath;
+  }
+
+  const pathResolvedNode = resolveNodeFromPath();
+  if (pathResolvedNode) {
+    return pathResolvedNode;
+  }
+
+  for (const candidate of getKnownNodeInstallLocations()) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "node";
+}
+
 export function buildSchedulerMcpServerEntry(
   workspaceRoot: string,
 ): McpServerEntry {
   return {
     type: "stdio",
-    command: "node",
+    command: resolveNodeExecutableCommand(),
     args: [getWorkspaceMcpLauncherPath(workspaceRoot)],
   };
 }
@@ -103,9 +191,10 @@ function escapeTomlString(value: string): string {
 
 function buildSchedulerCodexServerTable(workspaceRoot: string): string {
   const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+  const nodeCommand = resolveNodeExecutableCommand();
   return [
     "[mcp_servers.scheduler]",
-    'command = "node"',
+    `command = "${escapeTomlString(nodeCommand)}"`,
     `args = ["${escapeTomlString(launcherPath)}"]`,
     "enabled = true",
     "startup_timeout_sec = 30",

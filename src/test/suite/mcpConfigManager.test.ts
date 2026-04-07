@@ -4,6 +4,7 @@ import * as os from "os";
 import type { SchedulerMcpSetupState } from "../../mcpConfigManager";
 import * as path from "path";
 import {
+  buildSchedulerMcpServerEntry,
   getSchedulerMcpSetupState,
   getWorkspaceMcpConfigPath,
   getWorkspaceMcpLauncherPath,
@@ -33,6 +34,7 @@ suite("MCP Config Manager Tests", () => {
 
       const result = upsertSchedulerMcpConfig(workspaceRoot, extensionRoot);
       assert.strictEqual(result.createdFile, true);
+      const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
       const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
       assert.strictEqual(fs.existsSync(configPath), true);
@@ -40,7 +42,7 @@ suite("MCP Config Manager Tests", () => {
       const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
         servers?: Record<string, { command?: string; args?: string[] }>;
       };
-      assert.strictEqual(saved.servers?.scheduler?.command, "node");
+      assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
       assert.strictEqual(
         fs.existsSync(getWorkspaceMcpLauncherPath(workspaceRoot)),
         true,
@@ -94,13 +96,15 @@ suite("MCP Config Manager Tests", () => {
     try {
       const result = upsertSchedulerMcpConfig(workspaceRoot, extensionRoot);
       assert.strictEqual(result.createdFile, false);
+      const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
       const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-        servers?: Record<string, { args?: string[] }>;
+        servers?: Record<string, { command?: string; args?: string[] }>;
         metadata?: { owner?: string };
       };
       assert.strictEqual(saved.metadata?.owner, "tests");
       assert.strictEqual(saved.servers?.existing?.args?.[0], "existing-server.js");
+      assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
       assert.strictEqual(
         saved.servers?.scheduler?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
@@ -216,11 +220,12 @@ suite("MCP Config Manager Tests", () => {
       assert.strictEqual(result.repairedInvalidFile, true);
       assert.ok(result.backupPath);
       assert.strictEqual(fs.existsSync(result.backupPath!), true);
+      const expectedEntry = buildSchedulerMcpServerEntry(workspaceRoot);
 
       const repaired = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
         servers?: Record<string, { command?: string; args?: string[] }>;
       };
-      assert.strictEqual(repaired.servers?.scheduler?.command, "node");
+      assert.strictEqual(repaired.servers?.scheduler?.command, expectedEntry.command);
       assert.strictEqual(
         repaired.servers?.scheduler?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
