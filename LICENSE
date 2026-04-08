@@ -1,3 +1,24 @@
+Mixed License Notice
+
+This repository includes material derived or adapted from
+`vscode-copilot-scheduler` by aktsmm:
+
+- Upstream repository: https://github.com/aktsmm/vscode-copilot-scheduler
+- Upstream license for derived portions: Creative Commons Attribution-
+	NonCommercial-ShareAlike 4.0 International (`CC BY-NC-SA 4.0`)
+- License text: https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Those derived or adapted portions remain subject to `CC BY-NC-SA 4.0` and the
+required attribution to aktsmm.
+
+Later original additions authored for this repository are made available under
+the MIT License below, unless a file or notice states otherwise. The MIT terms
+below apply only to those later original additions and do not replace or
+override the upstream `CC BY-NC-SA 4.0` terms on derived portions.
+
+See `PROVENANCE.md` for a brief explanation of the inherited foundation versus
+later original additions in this repository.
+
 MIT License
 
 Copyright (c) 2026 goodguy1963

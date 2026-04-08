@@ -20,7 +20,7 @@ Copilot Cockpit is a local orchestration layer for AI work inside VS Code. It tr
 
 ## Foundation
 
-Copilot Cockpit grew out of the open-source Copilot Scheduler by [aktsmm](https://github.com/aktsmm). The current workflow style is also inspired by the AK TM style of agent-oriented task management and disciplined handoff.
+Copilot Cockpit is built upon [vscode-copilot-scheduler by aktsmm](https://github.com/aktsmm/vscode-copilot-scheduler). The current workflow style is also influenced by the AK TM style of agent-oriented task management and disciplined handoff.
 
 ## Fork Notes
 
@@ -28,5 +28,6 @@ Copilot Cockpit grew out of the open-source Copilot Scheduler by [aktsmm](https:
 - Local build extension ID: `local-dev.copilot-cockpit`
 - Embedded MCP server and guided workspace MCP setup are built in.
 - The design is intentionally local-first, repo-scoped, and reviewable.
+- Mixed-license attribution details are summarized in [../PROVENANCE.md](../PROVENANCE.md) and [../LICENSE](../LICENSE).
 
 [Back to README](../README.md)

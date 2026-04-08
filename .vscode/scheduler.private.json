@@ -13,7 +13,7 @@
             "promptSource": "inline",
             "promptPath": "",
             "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/task_1775502809138_tliwcp.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-07T07:27:56.616Z",
+            "promptBackupUpdatedAt": "2026-04-08T07:40:56.306Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "labels": [
@@ -678,7 +678,7 @@
                 "id": "todo_mnnfwrfl_ck412j",
                 "title": "1",
                 "sectionId": "section_mn9hvobp_ttw2do",
-                "order": 1,
+                "order": 0,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -874,8 +874,8 @@
                 "id": "todo_mnnkzlgr_79l0en",
                 "title": "Update security",
                 "description": "GitHub Dependabot found some errors in this project. Check with MCP what are our security issues and create a to-do for any of them.",
-                "sectionId": "section_mnc64kul_2dygkl",
-                "order": 0,
+                "sectionId": "unsorted",
+                "order": 1,
                 "priority": "none",
                 "status": "active",
                 "labels": [],
@@ -955,13 +955,13 @@
                 "archived": false,
                 "approvedAt": "2026-04-06T19:26:27.476Z",
                 "createdAt": "2026-04-06T19:26:18.987Z",
-                "updatedAt": "2026-04-07T07:00:06.955Z"
+                "updatedAt": "2026-04-07T07:54:42.215Z"
             },
             {
                 "id": "todo_mnnqazgw_dm5690",
                 "title": "fg",
                 "description": "fgfg",
-                "sectionId": "section_mn9hvobp_ttw2do",
+                "sectionId": "unsorted",
                 "order": 0,
                 "priority": "urgent",
                 "status": "active",
@@ -997,7 +997,7 @@
                 ],
                 "archived": false,
                 "createdAt": "2026-04-06T21:55:08.432Z",
-                "updatedAt": "2026-04-06T21:57:08.356Z"
+                "updatedAt": "2026-04-08T06:40:19.526Z"
             },
             {
                 "id": "todo_mnnqcuto_mudnru",
@@ -1071,8 +1071,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-07T07:27:57.579Z",
-                "updatedAt": "2026-04-07T07:27:57.579Z"
+                "createdAt": "2026-04-08T07:40:56.445Z",
+                "updatedAt": "2026-04-08T07:40:56.445Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1139,6 +1139,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-07T07:27:56.211Z"
+        "updatedAt": "2026-04-08T07:40:56.186Z"
     }
 }

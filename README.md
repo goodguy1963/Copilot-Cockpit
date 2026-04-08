@@ -122,8 +122,18 @@ Codex support is currently limited. It can help create and coordinate todos and 
 - `Sync Bundled Skills` targets Copilot-style repo-local skills under `.github/skills`.
 - `Add Skills To Codex` targets Codex-style repo-local skills under `.agents/skills` and refreshes the managed `AGENTS.md` block.
 - The workflow is inspired by the AK TM style of agent-oriented task management and disciplined handoff.
-- Copilot Cockpit grew out of the idea of Copilot Scheduler by [aktsmm](https://github.com/aktsmm).
+
+## 🤝 Attribution and Provenance
+
+Copilot Cockpit is built upon [vscode-copilot-scheduler by aktsmm](https://github.com/aktsmm/vscode-copilot-scheduler).
+
+This repository contains a mix of:
+
+- derived or adapted portions that originate from `vscode-copilot-scheduler` and remain subject to `CC BY-NC-SA 4.0`
+- later original additions in this repository, including major Cockpit-specific surfaces such as Todo Cockpit, Research Manager, SQLite-backed storage support, Jobs workflows, Codex coordination support, and newer MCP-oriented orchestration layers
+
+The top-level license notice and a more detailed breakdown live in [LICENSE](LICENSE) and [PROVENANCE.md](PROVENANCE.md).
 
 ## 📄 License
 
-[MIT](LICENSE) © goodguy1963
+See [LICENSE](LICENSE) for the mixed-license notice covering derived `CC BY-NC-SA 4.0` portions and later original additions in this repository. See [PROVENANCE.md](PROVENANCE.md) for a brief derived-vs-original breakdown.
