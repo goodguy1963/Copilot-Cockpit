@@ -5,75 +5,162 @@
 <h1 align="center">Copilot Cockpit</h1>
 <!-- markdownlint-enable MD033 MD041 -->
 
-Copilot Cockpit is built around one design decision: keep the human in the loop before an agent turns into an expensive black box that burns tokens, edits files blindly, and drifts away from the goal. 🦀📎
+Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
+
+The strongest demo is not claiming the repo can run itself. It is showing bounded recurring work that a person would actually keep: scouting opportunities, checking delivery risk, packaging knowledge, and then stopping for review.
 
 ## 🎬 Demo
 
 ![Copilot Cockpit demo](images/DEMO.gif)
 
+This GIF is a fast overview of the product surface. Use the feature tour below for the slower tab-by-tab explanation.
+
+For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
+
 If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
-## 🔆 Intro 
+## Why It Exists
 
-What is a company?
+Most AI automation demos jump straight to execution. That looks impressive until the model burns tokens, edits files too early, or drifts away from the real goal.
 
-A company is coordinated work, meaning the right task gets done at the right time after the right decision has been made.
-That is why the project separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
+Copilot Cockpit separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
 
-What this extension does?
-
-A human or AI can review todos via Todo Cockpit, inspect task drafts in Task List, pause jobs, and gate execution before work runs on its own [ready -> task draft -> run], while reliable workflows can still be automated through recurring tasks, job loops , or benchmark-driven research runs. VS Code is a strong home for this because it already provides two review layers: chat-driven edits can be kept or undone [chat review], and Git adds another approval boundary before changes are committed or pushed [git review].
-
-In practice a LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it. A space where a decision maker (human or AI) and an execution agent can communicate and store decisions.
+In practice, the LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it. It gives a human or AI decision-maker a place to capture work, review it, research it, discuss it, and hand it off safely.
 
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
-## ✨ Quick Features
+That matters most when the repo keeps producing more work than any one person can hold in memory: bugs, feature ideas, follow-up changes, security updates, web findings, pricing checks, customer tasks, or research that should turn into implementation later. Copilot Cockpit turns those discoveries into a visible queue so work can be found again and handled properly instead of getting lost between chat sessions.
 
-- `Todo Cockpit` is the main repo-local to-do list with sections, labels, flags, comments, due dates, review flow, and handoff into execution.
-- `Tasks` are one-time or recurring cron jobs for LLM-driven execution.
-- `Jobs` are ordered workflows made from multiple cron-backed steps with different actions, reusable steps, and pause checkpoints.
-- `Research` profiles for bounded benchmark-driven iteration instead of blind autonomous loops.
-- `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
-- Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
+## 🧠 The Core Loop
 
-## 🧠 Mental Model
+Think of Copilot Cockpit as a local control system for structured AI work:
 
-- `Todo Cockpit` is the planning and approval layer.
-- `Tasks` are concrete scheduled execution units.
-- `Jobs` are ordered multi-step workflows.
-- `Research` is bounded benchmark-driven iteration.
-- `MCP` exposes the controlled tool surface for automation.
-- Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
-- During execution handoff, live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag, and final acceptance handoff can use `FINAL-USER-CHECK`.
+1. Capture and discuss work in `Todo Cockpit`.
+2. Research and refine it until the user is happy with the direction.
+3. Move approved work into `ready`.
+4. Turn that work into a `Task`, `Job`, or `Research` run.
+5. Review outcomes before granting more autonomy.
 
-Copilot Cockpit is not an always-running autonomous agent loop. It is a local control system for structured AI work.
+This keeps the relationship collaborative: you work with the LLM, not under a black-box agent that guesses what should happen next.
+
+## ✨ Feature Tour
+
+### Todo Cockpit
+
+`Todo Cockpit` is the planning and approval hub. Use it to capture work, add comments, apply labels and flags, and hand approved work into execution.
+
+### Tasks
+
+`Tasks` are the simplest execution unit: one prompt, one scheduled action, one concrete piece of work. Use them for one-time runs or recurring execution.
+
+That includes recurring tasks such as security research, market checks, feature scouting, maintenance prompts, prompt refinement, repo upkeep, or any other repeated work that should run on a schedule and return to review.
+
+### Jobs
+
+`Jobs` are ordered multi-step workflows built from multiple steps with reusable actions and pause checkpoints. Use them when the work should not run as one uninterrupted chain.
+
+Think of `Jobs` as deeper agentic workflows inside VS Code: research, decision support, implementation steps, maintenance steps, MCP calls, or external-tool sequences that should be inspected at explicit checkpoints instead of left to one opaque run.
+
+### Research
+
+`Research` profiles are bounded benchmark-driven iteration loops. Use them when you need repeated attempts at improvement against a metric instead of one direct execution.
+
+Research is especially useful when the work should pull in fresher outside knowledge first, through web search, Perplexity, scrapers, or other tooling, and then return that material for user review before implementation begins.
+
+### Model And Agent Choice
+
+Copilot Cockpit is designed for mixed-model work. Sometimes one model is better for planning, another for implementation, and another for research or code review. The goal is not to crown one universal expert, but to let specialized agents and model choices work together under one controlled workflow.
+
+That also creates a control layer for cost: GitHub Copilot or OpenRouter can use different models with different pricing, and tasks can be routed to different agents depending on the importance, difficulty, or budget of the work. Expensive models can be reserved for the hard parts, while cheaper models handle routine research, monitoring, or maintenance.
+
+### Settings
+
+`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in.
+
+### How To Use
+
+`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything.
+
+## Common Workflows
+
+### Approval-First Work
+
+Capture work in `Todo Cockpit`, discuss it, move it into `ready`, and only then prepare the execution unit.
+
+### Research-First Collaboration
+
+Use `Research`, web search, or tool-assisted discovery to gather current information first. Review that output with the user, discuss changes, and only then convert the result into scheduled implementation work.
+
+### Scheduled Execution
+
+Use `Tasks` when one piece of work should run once or on a recurring schedule.
+
+### Multi-Step Or Measured Work
+
+Use `Jobs` when work needs ordered stages and review points. Use `Research` when the goal is measured improvement over time.
+
+### Controlled Parallel Work
+
+Run non-conflicting work in parallel, but keep conflicting work visible and scheduled in a controlled way. Copilot Cockpit helps decide what can safely run side by side and what should wait for review or sequencing.
+
+That includes deciding which agent or model should do which task, so quality, speed, and wallet impact stay under user control instead of being hidden inside one opaque automation path.
+
+### Continuous Company Memory
+
+Archive completed work, rejected ideas, and reviewed research so the repo gains project-specific intelligence over time instead of starting from scratch on every new chat.
+
+## Example Loops
+
+### Small Project Delivery Loop
+
+Start with one recurring loop that produces useful work instead of toy output.
+
+- `Small Project Opportunity Scout (Daily)` turns repo signals into a short list of next-step proposals.
+- `Delivery Risk and Security Watch (Daily)` looks for shipping, trust, and operational blind spots.
+- `Knowledge and Shipping Packager (Daily)` turns recent work into reusable docs, memory, and release material.
+- `Project Intelligence and Delivery Prep` runs those steps in sequence and stops at a review checkpoint before anything turns into real execution.
+
+This is a good fit for a solo product, an internal tool, a small SaaS, or an actively maintained extension like this repo.
+
+### Company-Scale Examples
+
+The same operating model scales by giving each team its own bounded loops, models, and review checkpoints.
+
+- Product and marketing teams can triage customer signals, monitor competitors, prepare launch briefs, and keep content pipelines moving.
+- Engineering and security teams can watch dependencies, review release readiness, monitor operational drift, and stage migration or maintenance work.
+- Operations and support teams can cluster recurring requests, maintain SOPs, monitor vendors or accounts, and convert findings into visible follow-up queues.
+
+The point is not to overclaim autonomy. The point is to show recurring, inspectable work that is useful at small scale and still makes sense when the organization gets larger.
 
 ## ⚡ Quick Start
 
-1. Open Copilot Cockpit from 
-
-    - the activity bar by typing `>Copilot Cockpit: Create Scheduled Prompt (GUI)` or 
-
-    - `F1` + `Copilot Cockpit: Create Scheduled Prompt (GUI)` or 
-
-    - `stgr` + `shift` + `P` + `Copilot Cockpit: Create Scheduled Prompt (GUI)`
-
-2. Capture or refine work in `Todo Cockpit`.
-3. Move approved work into `ready` to prepare a task draft.
-4. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
-5. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
+1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette.
+2. Start in `How To Use` if you are new to the extension.
+3. Capture or refine work in `Todo Cockpit`.
+4. Move approved work into `ready` to prepare a task draft.
+5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
+6. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
 
 ## 📚 Documentation
 
 Detailed documentation lives under [docs/index.md](docs/index.md).
 
 - [Getting Started](docs/getting-started.md)
+- [Feature Tour](docs/feature-tour.md)
 - [Workflows](docs/workflows.md)
 - [Integrations](docs/integrations.md)
 - [Storage and Boundaries](docs/storage-and-boundaries.md)
 - [Architecture and Principles](docs/architecture-and-principles.md)
 - [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
+
+## Advanced Capabilities
+
+- `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
+- Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
+- Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
+- External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
+- Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
+- During execution handoff, live scheduled cards use the built-in `ON-SCHEDULE-LIST` flag, and final acceptance handoff can use `FINAL-USER-CHECK`.
 
 ## 🛠️ Install
 
@@ -103,11 +190,12 @@ After installation, the extension creates or repairs repo-local support files fo
 | Instructions | prompt and skill references in the repo | `AGENTS.md` |
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
 
-## 🤝 Supported Models: Any!
+## 🤝 Supported Models
+Bring your own LLM via:
 
 | Surface | Status | What It Can Do |
 | --- | --- | --- |
-| [GitHub Copilot in VS Code](https://github.com/features/copilot/plans)| Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
+| [GitHub Copilot in VS Code](https://github.com/features/copilot/plans) | Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | [OpenRouter.ai](https://openrouter.ai/) | Supported | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | ChatGPT Codex in VS Code | Experimental | Repo-local MCP, repo-local skills, todo coordination, and task-draft coordination |
 

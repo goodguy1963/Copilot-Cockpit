@@ -1,8 +1,24 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as assert from "assert";
 import * as path from "path";
-import { DEFAULT_ARCHIVE_REJECTED_SECTION_ID } from "../../cockpitBoard";
-import { MCP_TOOL_DEFINITIONS, handleSchedulerToolCall } from "../../server";
+import {
+  createDefaultCockpitBoard,
+  DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
+} from "../../cockpitBoard";
+import { writeSchedulerConfig } from "../../cockpitJsonSanitizer";
+import {
+  MCP_TOOL_DEFINITIONS,
+  handleSchedulerToolCall,
+  readSchedulerServerConfigForWorkspace,
+  writeSchedulerServerConfigForWorkspace,
+} from "../../server";
+import {
+  readWorkspaceCockpitBoardFromSqlite,
+  readWorkspaceSchedulerStateFromSqlite,
+  syncWorkspaceCockpitBoardToSqlite,
+  syncWorkspaceSchedulerStateToSqlite,
+} from "../../sqliteBootstrap";
 
 function parseJsonText(result: any): any {
   assert.ok(result);
@@ -47,7 +63,112 @@ function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobF
   };
 }
 
+function createTempWorkspace(): string {
+  const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-cockpit-server-"));
+  fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+  fs.writeFileSync(
+    path.join(workspaceRoot, ".vscode", "settings.json"),
+    JSON.stringify({ "copilotCockpit.storageMode": "sqlite" }, null, 2),
+    "utf8",
+  );
+  return workspaceRoot;
+}
+
 suite("Scheduler MCP Server Tests", () => {
+  test("server workspace writes sync sqlite when sqlite mode is enabled", async () => {
+    const workspaceRoot = createTempWorkspace();
+    try {
+      const board = createDefaultCockpitBoard();
+      assert.ok(board.filters);
+      board.filters.showRecurringTasks = true;
+
+      await writeSchedulerServerConfigForWorkspace(workspaceRoot, {
+        tasks: [
+          {
+            id: "demo-task",
+            name: "Demo task",
+            cron: "15 0 * * *",
+            prompt: "Run the demo loop.",
+            enabled: true,
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: board,
+      });
+
+      const schedulerState = await readWorkspaceSchedulerStateFromSqlite(workspaceRoot);
+      const cockpitBoard = await readWorkspaceCockpitBoardFromSqlite(workspaceRoot);
+
+      assert.strictEqual(schedulerState.tasks.length, 1);
+      assert.strictEqual((schedulerState.tasks[0] as any).id, "demo-task");
+      assert.ok(cockpitBoard);
+      assert.ok(cockpitBoard?.filters);
+      assert.strictEqual(cockpitBoard.filters.showRecurringTasks, true);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("server workspace reads prefer sqlite authority when sqlite mode is enabled", async () => {
+    const workspaceRoot = createTempWorkspace();
+    try {
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [
+          {
+            id: "json-task",
+            name: "JSON task",
+            cron: "0 0 * * *",
+            prompt: "Read from json.",
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      const sqliteBoard = createDefaultCockpitBoard();
+      sqliteBoard.cards.push({
+        id: "todo-live",
+        title: "Live todo",
+        sectionId: sqliteBoard.sections[0].id,
+        order: 0,
+        priority: "medium",
+        status: "active",
+        labels: ["scheduled-task"],
+        flags: ["ON-SCHEDULE-LIST"],
+        comments: [],
+        archived: false,
+        createdAt: "2026-04-10T00:00:00.000Z",
+        updatedAt: "2026-04-10T00:00:00.000Z",
+      } as any);
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [
+          {
+            id: "sqlite-task",
+            name: "SQLite task",
+            cron: "30 1 * * *",
+            prompt: "Read from sqlite.",
+          },
+        ],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      });
+      await syncWorkspaceCockpitBoardToSqlite(workspaceRoot, sqliteBoard);
+
+      const config = await readSchedulerServerConfigForWorkspace(workspaceRoot);
+
+      assert.deepStrictEqual(config.tasks.map((task) => task.id), ["sqlite-task"]);
+      assert.strictEqual(config.cockpitBoard?.cards[0]?.id, "todo-live");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("exports the expanded MCP tool set", () => {
     const toolNames = MCP_TOOL_DEFINITIONS.map((tool) => tool.name);
 

@@ -70,6 +70,17 @@ function getAllowedPromptBackupRoots(workspaceRoot: string): string[] {
     ];
 }
 
+function stripNestedBackupRootPrefixes(relativePath: string): string {
+    let nextPath = relativePath;
+    const nestedPrefix = `${BACKUP_DIR_PARTS.join(path.sep)}${path.sep}`;
+
+    while (nextPath.startsWith(nestedPrefix)) {
+        nextPath = nextPath.slice(nestedPrefix.length);
+    }
+
+    return nextPath;
+}
+
 export function getDefaultPromptBackupRelativePath(taskId: string): string {
     const fileName = `${normalizeBackupBaseName(taskId)}.prompt.md`;
     return `${BACKUP_DIR_PARTS.join("/")}/${fileName}`;
@@ -129,9 +140,12 @@ export function getCanonicalPromptBackupPath(
 
     for (const allowedRoot of getAllowedPromptBackupRoots(workspaceRoot)) {
         if (isPathInsideBaseDir(allowedRoot, resolvedPath)) {
+            const relativeWithinAllowedRoot = stripNestedBackupRootPrefixes(
+                path.relative(allowedRoot, resolvedPath),
+            );
             return path.join(
                 getPromptBackupRoot(workspaceRoot),
-                path.relative(allowedRoot, resolvedPath),
+                relativeWithinAllowedRoot,
             );
         }
     }

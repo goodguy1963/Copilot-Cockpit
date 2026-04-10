@@ -109,6 +109,26 @@ suite("Prompt Backup Helpers", () => {
         );
     });
 
+    test("getCanonicalPromptBackupPath collapses repeated nested backup roots", () => {
+        const workspaceRoot = path.join("/tmp", "workspace");
+        const canonical = getCanonicalPromptBackupPath(
+            workspaceRoot,
+            ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/.vscode/cockpit-prompt-backups/test.prompt.md",
+        );
+
+        assert.strictEqual(
+            normalizePathForTest(canonical),
+            normalizePathForTest(
+                path.join(
+                    workspaceRoot,
+                    ".vscode",
+                    "cockpit-prompt-backups",
+                    "test.prompt.md",
+                ),
+            ),
+        );
+    });
+
     test("renderPromptBackupContent adds metadata header and preserves prompt body", () => {
         const rendered = renderPromptBackupContent(
             {

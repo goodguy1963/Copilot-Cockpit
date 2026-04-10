@@ -5,6 +5,7 @@ Use this folder for the detailed reference that used to live in the top-level RE
 ## Guides
 
 - [Getting Started](./getting-started.md)
+- [Feature Tour](./feature-tour.md)
 - [Workflows](./workflows.md)
 - [Integrations](./integrations.md)
 - [Storage and Boundaries](./storage-and-boundaries.md)
@@ -13,6 +14,7 @@ Use this folder for the detailed reference that used to live in the top-level RE
 ## Best Entry Points
 
 - If you want to install and open the extension quickly, start with [Getting Started](./getting-started.md).
+- If you want a visual mental model for the tabs and product surface, go to [Feature Tour](./feature-tour.md).
 - If you want to understand Todo Cockpit, Tasks, Jobs, and Research, go to [Workflows](./workflows.md).
 - If you want MCP, skills, Copilot, OpenRouter, Codex, or Telegram details, go to [Integrations](./integrations.md).
 - If you want persistence and repo-local boundary details, go to [Storage and Boundaries](./storage-and-boundaries.md).

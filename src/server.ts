@@ -46,6 +46,13 @@ import {
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
 } from "./cockpitHistory.js";
+import {
+    readWorkspaceCockpitBoardFromSqlite,
+    readWorkspaceSchedulerStateFromSqlite,
+    syncWorkspaceCockpitBoardToSqlite,
+    syncWorkspaceSchedulerStateToSqlite,
+} from "./sqliteBootstrap.js";
+import { getWorkspaceStoragePaths } from "./sqliteStorage.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
 
@@ -76,8 +83,11 @@ interface SchedulerTask {
 
 interface SchedulerConfig {
     tasks: SchedulerTask[];
+    deletedTaskIds?: string[];
     jobs?: any[];
+    deletedJobIds?: string[];
     jobFolders?: any[];
+    deletedJobFolderIds?: string[];
     cockpitBoard?: any;
     telegramNotification?: any;
 }
@@ -91,8 +101,8 @@ interface ResearchConfig {
 type SchedulerServerContext = {
     workspaceRoot: string;
     historyRoot: string;
-    readConfig: () => SchedulerConfig;
-    writeConfig: (config: SchedulerConfig) => void;
+    readConfig: () => SchedulerConfig | Promise<SchedulerConfig>;
+    writeConfig: (config: SchedulerConfig) => void | Promise<void>;
     listHistory: () => Array<{ id: string; createdAt: string; hasPrivate: boolean }>;
     readHistorySnapshot: (snapshotId: string) => { publicConfig?: SchedulerConfig; privateConfig?: SchedulerConfig } | undefined;
     createHistorySnapshot: (publicConfig: SchedulerConfig, privateConfig: SchedulerConfig) => void;
@@ -195,13 +205,20 @@ function getConfiguredCockpitLegacyFallbackOnError(workspaceRoot: string): boole
     return getWorkspaceSetting<boolean>(workspaceRoot, "legacyFallbackOnError", true) !== false;
 }
 
+function isWorkspaceSqliteStorageModeEnabled(workspaceRoot: string): boolean {
+    return getWorkspaceSetting<string>(workspaceRoot, "storageMode", "sqlite") === "sqlite";
+}
+
 function ensureConfig(raw: unknown): SchedulerConfig {
     if (raw && typeof raw === "object" && Array.isArray((raw as SchedulerConfig).tasks)) {
         const config = raw as SchedulerConfig;
         return {
             ...config,
+            deletedTaskIds: normalizeStringList(config.deletedTaskIds),
             jobs: Array.isArray(config.jobs) ? config.jobs : [],
+            deletedJobIds: normalizeStringList(config.deletedJobIds),
             jobFolders: Array.isArray(config.jobFolders) ? config.jobFolders : [],
+            deletedJobFolderIds: normalizeStringList(config.deletedJobFolderIds),
             cockpitBoard: config.cockpitBoard && typeof config.cockpitBoard === "object"
                 ? normalizeCockpitBoard(config.cockpitBoard)
                 : undefined,
@@ -210,7 +227,14 @@ function ensureConfig(raw: unknown): SchedulerConfig {
                 : undefined,
         };
     }
-    return { tasks: [], jobs: [], jobFolders: [] };
+    return {
+        tasks: [],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+    };
 }
 
 function nowIso(): string {
@@ -535,10 +559,9 @@ function createDefaultContext(): SchedulerServerContext {
     return {
         workspaceRoot: WORKSPACE_ROOT,
         historyRoot: getScheduleHistoryRoot(WORKSPACE_ROOT),
-        readConfig: () => ensureConfig(readSchedulerConfig(WORKSPACE_ROOT)),
-        writeConfig: (config: SchedulerConfig) => {
-            writeSchedulerConfig(WORKSPACE_ROOT, ensureConfig(config));
-        },
+        readConfig: () => readSchedulerServerConfigForWorkspace(WORKSPACE_ROOT),
+        writeConfig: (config: SchedulerConfig) =>
+            writeSchedulerServerConfigForWorkspace(WORKSPACE_ROOT, config),
         listHistory: () => listScheduleHistoryEntries(WORKSPACE_ROOT),
         readHistorySnapshot: (snapshotId: string) =>
             readScheduleHistorySnapshot(WORKSPACE_ROOT, snapshotId),
@@ -552,6 +575,52 @@ function createDefaultContext(): SchedulerServerContext {
                 ?? { tasks: [] },
         }),
     };
+}
+
+export async function readSchedulerServerConfigForWorkspace(
+    workspaceRoot: string,
+): Promise<SchedulerConfig> {
+    const baseConfig = ensureConfig(readSchedulerConfig(workspaceRoot));
+    if (!isWorkspaceSqliteStorageModeEnabled(workspaceRoot)) {
+        return baseConfig;
+    }
+
+    const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+    if (!fs.existsSync(databasePath)) {
+        return baseConfig;
+    }
+
+    const [schedulerState, cockpitBoard] = await Promise.all([
+        readWorkspaceSchedulerStateFromSqlite(workspaceRoot),
+        readWorkspaceCockpitBoardFromSqlite(workspaceRoot),
+    ]);
+
+    return ensureConfig({
+        ...baseConfig,
+        tasks: schedulerState.tasks as SchedulerTask[],
+        deletedTaskIds: schedulerState.deletedTaskIds,
+        jobs: schedulerState.jobs as any[],
+        deletedJobIds: schedulerState.deletedJobIds,
+        jobFolders: schedulerState.jobFolders as any[],
+        deletedJobFolderIds: schedulerState.deletedJobFolderIds,
+        cockpitBoard: cockpitBoard ?? baseConfig.cockpitBoard,
+    });
+}
+
+export async function writeSchedulerServerConfigForWorkspace(
+    workspaceRoot: string,
+    config: SchedulerConfig,
+): Promise<void> {
+    const normalizedConfig = ensureConfig(config);
+    if (isWorkspaceSqliteStorageModeEnabled(workspaceRoot)) {
+        await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, normalizedConfig);
+        await syncWorkspaceCockpitBoardToSqlite(
+            workspaceRoot,
+            normalizedConfig.cockpitBoard,
+        );
+    }
+
+    writeSchedulerConfig(workspaceRoot, normalizedConfig);
 }
 
 function textResponse(payload: unknown) {
@@ -1374,7 +1443,7 @@ export async function handleSchedulerToolCall(
     context: SchedulerServerContext = createDefaultContext(),
 ) {
     const args = asObject(rawArguments);
-    const config = ensureConfig(context.readConfig());
+    const config = ensureConfig(await context.readConfig());
 
     try {
         switch (toolName) {
@@ -1406,7 +1475,7 @@ export async function handleSchedulerToolCall(
                     config.tasks.push(task);
                 }
 
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${id}' saved successfully.`, task });
             }
 
@@ -1420,7 +1489,7 @@ export async function handleSchedulerToolCall(
                 const task = normalizeTaskForWrite(existing, { ...args, id });
                 const index = config.tasks.findIndex((entry) => entry.id === id);
                 config.tasks[index] = task;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${id}' updated.`, task });
             }
 
@@ -1437,7 +1506,7 @@ export async function handleSchedulerToolCall(
                 }
 
                 config.tasks.push(clone);
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${id}' duplicated as '${clone.id}'.`, task: clone });
             }
 
@@ -1449,7 +1518,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Task '${id}' not found.`);
                 }
 
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${id}' removed.`, id });
             }
 
@@ -1467,7 +1536,7 @@ export async function handleSchedulerToolCall(
                 task.updatedAt = nowIso();
                 task.lastError = undefined;
                 task.lastErrorAt = undefined;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Task '${id}' marked due now. It will run on the next scheduler tick.`,
                     id,
@@ -1491,7 +1560,7 @@ export async function handleSchedulerToolCall(
                 if (args.enabled === false) {
                     task.nextRun = undefined;
                 }
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${id}' ${args.enabled ? "enabled" : "disabled"}.`, task });
             }
 
@@ -1579,7 +1648,7 @@ export async function handleSchedulerToolCall(
                 });
                 config.jobs = Array.isArray(config.jobs) ? config.jobs : [];
                 config.jobs.push(job);
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' created.`, job: summarizeJob(config, job) });
             }
 
@@ -1611,7 +1680,7 @@ export async function handleSchedulerToolCall(
                 });
                 const index = config.jobs.findIndex((entry) => entry.id === jobId);
                 config.jobs[index] = nextJob;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' updated.`, job: summarizeJob(config, nextJob) });
             }
 
@@ -1630,7 +1699,7 @@ export async function handleSchedulerToolCall(
                     }
                 }
                 config.jobs = config.jobs.filter((entry) => entry.id !== jobId);
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' deleted.`, jobId });
             }
 
@@ -1703,7 +1772,7 @@ export async function handleSchedulerToolCall(
                 if (duplicatedTasks.length > 0) {
                     config.tasks.push(...duplicatedTasks);
                 }
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' duplicated as '${duplicateJobId}'.`, job: summarizeJob(config, duplicate) });
             }
 
@@ -1733,7 +1802,7 @@ export async function handleSchedulerToolCall(
                 }
                 config.jobFolders = Array.isArray(config.jobFolders) ? config.jobFolders : [];
                 config.jobFolders.push(folder);
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Folder '${folderId}' created.`, folder });
             }
 
@@ -1752,7 +1821,7 @@ export async function handleSchedulerToolCall(
                 folder.name = typeof args.name === "string" && args.name.trim() ? args.name.trim() : folder.name;
                 folder.parentId = parentId;
                 folder.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Folder '${folderId}' updated.`, folder });
             }
 
@@ -1772,7 +1841,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Folder '${folderId}' is not empty.`);
                 }
                 config.jobFolders = config.jobFolders.filter((entry) => entry.id !== folderId);
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Folder '${folderId}' deleted.`, folderId });
             }
 
@@ -1818,7 +1887,7 @@ export async function handleSchedulerToolCall(
                 task.jobId = jobId;
                 task.jobNodeId = node.id;
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Task '${taskId}' attached to job '${jobId}'.`, job: summarizeJob(config, job) });
             }
 
@@ -1844,7 +1913,7 @@ export async function handleSchedulerToolCall(
                     }
                 }
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Node '${nodeId}' removed from job '${jobId}'.`, job: summarizeJob(config, job) });
             }
 
@@ -1863,7 +1932,7 @@ export async function handleSchedulerToolCall(
                 job.nodes = Array.isArray(job.nodes) ? job.nodes : [];
                 job.nodes.push(node);
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Pause checkpoint added to job '${jobId}'.`, job: summarizeJob(config, job) });
             }
 
@@ -1881,7 +1950,7 @@ export async function handleSchedulerToolCall(
                 }
                 node.title = title;
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Pause '${nodeId}' updated.`, job: summarizeJob(config, job) });
             }
 
@@ -1900,7 +1969,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Pause node '${nodeId}' not found.`);
                 }
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Pause '${nodeId}' deleted.`, job: summarizeJob(config, job) });
             }
 
@@ -1920,7 +1989,7 @@ export async function handleSchedulerToolCall(
                 }
                 node.windowMinutes = windowMinutes;
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Node '${nodeId}' window updated.`, job: summarizeJob(config, job) });
             }
 
@@ -1942,7 +2011,7 @@ export async function handleSchedulerToolCall(
                 nodes.splice(clampedIndex, 0, node);
                 job.nodes = nodes;
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Node '${nodeId}' moved.`, job: summarizeJob(config, job) });
             }
 
@@ -2026,7 +2095,7 @@ export async function handleSchedulerToolCall(
                 job.archivedAt = nowIso();
                 job.lastCompiledTaskId = taskId;
                 job.updatedAt = nowIso();
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({ message: `Job '${jobId}' compiled into task '${taskId}'.`, job: summarizeJob(config, job), task: bundledTask });
             }
 
@@ -2132,7 +2201,7 @@ export async function handleSchedulerToolCall(
                     sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
                 });
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${result.todo.id}' created.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2152,7 +2221,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Comment added to Cockpit todo '${todoId}'.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2166,7 +2235,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' approved.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2180,7 +2249,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' finalized as completed.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2194,7 +2263,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' rejected.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2222,7 +2291,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' updated.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2235,7 +2304,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(result.error);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${result.todoId}' closeout applied.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2256,7 +2325,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' deleted.`,
                     todoId,
@@ -2275,7 +2344,7 @@ export async function handleSchedulerToolCall(
                     return errorResponse(`Cockpit todo '${todoId}' not found.`);
                 }
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Cockpit todo '${todoId}' moved.`,
                     todo: summarizeCockpitTodo(result.board, result.todo),
@@ -2305,7 +2374,7 @@ export async function handleSchedulerToolCall(
                     hideCardDetails: typeof args.hideCardDetails === "boolean" ? args.hideCardDetails : undefined,
                 });
                 config.cockpitBoard = board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: "Cockpit Todo filters updated.",
                     filters: board.filters,
@@ -2321,7 +2390,7 @@ export async function handleSchedulerToolCall(
                     : config.tasks;
                 const result = ensureTaskTodosInBoard(getCockpitBoard(config), tasks as any);
                 config.cockpitBoard = result.board;
-                context.writeConfig(config);
+                await context.writeConfig(config);
                 return textResponse({
                     message: `Seeded ${result.createdTodoIds.length} task-linked todo cards.`,
                     createdTodoIds: result.createdTodoIds,
@@ -2337,6 +2406,7 @@ export async function handleSchedulerToolCall(
                 const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
                 const result = saveCockpitTodoLabelDefinition(context.workspaceRoot, { name, color });
                 config.cockpitBoard = result.board;
+                await context.writeConfig(config);
                 return textResponse({ message: `Label definition '${name}' saved.` });
             }
 
@@ -2344,6 +2414,7 @@ export async function handleSchedulerToolCall(
                 const name = ensureString(args.name, "name");
                 const board = deleteCockpitTodoLabelDefinition(context.workspaceRoot, name);
                 config.cockpitBoard = board;
+                await context.writeConfig(config);
                 return textResponse({ message: `Label definition '${name}' removed.` });
             }
 
@@ -2352,6 +2423,7 @@ export async function handleSchedulerToolCall(
                 const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
                 const result = saveCockpitFlagDefinition(context.workspaceRoot, { name, color });
                 config.cockpitBoard = result.board;
+                await context.writeConfig(config);
                 return textResponse({ message: `Flag definition '${name}' saved.` });
             }
 
@@ -2362,6 +2434,7 @@ export async function handleSchedulerToolCall(
                 }
                 const board = deleteCockpitFlagDefinition(context.workspaceRoot, name);
                 config.cockpitBoard = board;
+                await context.writeConfig(config);
                 return textResponse({ message: `Flag definition '${name}' removed.` });
             }
 

@@ -10,7 +10,8 @@ Thumbs.db
 .vscode-test/
 
 /archive/
-
+/.vscode/
+archive/
 # Local output artifacts
 output_sessions/
 
