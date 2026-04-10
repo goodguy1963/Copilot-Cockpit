@@ -221,7 +221,7 @@ suite("Skill Bootstrap Tests", () => {
     try {
       const relativePath = path.join(
         BUNDLED_SKILLS_RELATIVE_PATH,
-        "scheduler-mcp-agent",
+        "cockpit-scheduler-agent",
         "SKILL.md",
       );
       const bundledSkillPath = path.join(extensionRoot, relativePath);
@@ -343,14 +343,31 @@ suite("Skill Bootstrap Tests", () => {
     );
 
     try {
-      const relativePath = path.join(
+      const schedulerRelativePath = path.join(
         BUNDLED_SKILLS_RELATIVE_PATH,
         "cockpit-scheduler-agent",
         "SKILL.md",
       );
-      const bundledSkillPath = path.join(extensionRoot, relativePath);
-      fs.mkdirSync(path.dirname(bundledSkillPath), { recursive: true });
-      fs.writeFileSync(bundledSkillPath, "---\nname: cockpit-scheduler-agent\n---\n\ncodex skill\n", "utf8");
+      const schedulerSkillPath = path.join(extensionRoot, schedulerRelativePath);
+      fs.mkdirSync(path.dirname(schedulerSkillPath), { recursive: true });
+      fs.writeFileSync(
+        schedulerSkillPath,
+        "---\nname: cockpit-scheduler-agent\ncopilotCockpitSkillType: operational\ncopilotCockpitPromptSummary: orchestrate scheduled work and MCP-backed workflow routing\n---\n\ncodex skill\n",
+        "utf8",
+      );
+
+      const introRelativePath = path.join(
+        BUNDLED_SKILLS_RELATIVE_PATH,
+        "copilot-scheduler-intro",
+        "SKILL.md",
+      );
+      const introSkillPath = path.join(extensionRoot, introRelativePath);
+      fs.mkdirSync(path.dirname(introSkillPath), { recursive: true });
+      fs.writeFileSync(
+        introSkillPath,
+        "---\nname: copilot-scheduler-intro\ncopilotCockpitSkillType: support\ncopilotCockpitPromptSummary: onboard new contributors before they change scheduler state\n---\n\nsupport skill\n",
+        "utf8",
+      );
 
       const result = await syncBundledCodexSkillsForWorkspaceRoots(
         extensionRoot,
@@ -367,11 +384,16 @@ suite("Skill Bootstrap Tests", () => {
 
       assert.ok(result.createdPaths.includes(codexSkillPath));
       assert.ok(result.createdPaths.includes(agentsPath));
-      assert.strictEqual(fs.readFileSync(codexSkillPath, "utf8"), "---\nname: cockpit-scheduler-agent\n---\n\ncodex skill\n");
+      assert.strictEqual(
+        fs.readFileSync(codexSkillPath, "utf8"),
+        "---\nname: cockpit-scheduler-agent\ncopilotCockpitSkillType: operational\ncopilotCockpitPromptSummary: orchestrate scheduled work and MCP-backed workflow routing\n---\n\ncodex skill\n",
+      );
 
       const agentsContent = fs.readFileSync(agentsPath, "utf8");
       assert.ok(agentsContent.includes(".agents/skills"));
       assert.ok(agentsContent.includes(".codex/config.toml"));
+      assert.ok(agentsContent.includes("Operational skills: cockpit-scheduler-agent (orchestrate scheduled work and MCP-backed workflow routing)."));
+      assert.ok(agentsContent.includes("Support skills: copilot-scheduler-intro (onboard new contributors before they change scheduler state)."));
       assert.ok(agentsContent.includes("cannot start a new session"));
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);

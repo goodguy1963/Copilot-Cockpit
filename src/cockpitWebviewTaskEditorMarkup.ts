@@ -89,6 +89,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
                 <button type="button" class="btn-secondary" id="insert-skill-btn">${escapeHtml(strings.actionInsertSkill)}</button>
               </div>
               <p class="note">${escapeHtml(strings.skillInsertNote)}</p>
+              <p class="note" id="skill-details-note">${escapeHtml(strings.skillMetadataEmptyState)}</p>
             </div>
           </section>
 

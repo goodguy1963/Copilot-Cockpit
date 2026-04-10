@@ -46,6 +46,7 @@ import type {
   TaskAction,
   UpdateCockpitBoardFiltersInput,
 } from "./types";
+import { listWorkspaceSkillMetadata, type ParsedSkillMetadata } from "./skillMetadata";
 
 function normalizeTodoFilterValue(value: string | undefined): string {
   return String(value || "").trim().toLowerCase();
@@ -313,14 +314,73 @@ function buildTodoContextBlock(todo: TodoPromptSource): string {
   return sections.join("\n\n");
 }
 
-function buildMcpSkillGuidanceBlock(intent: "needs-bot-review" | "ready"): string {
+type SkillGuidanceIntent = "needs-bot-review" | "ready";
+
+function selectSkillGuidanceMetadata(
+  workspaceRoot: string | undefined,
+  intent: SkillGuidanceIntent,
+): ParsedSkillMetadata[] {
+  return listWorkspaceSkillMetadata(workspaceRoot)
+    .filter((entry) => entry.type === "operational")
+    .filter((entry) => entry.workflowIntents.length === 0 || entry.workflowIntents.includes(intent))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function buildMcpSkillGuidanceBlock(
+  workspaceRoot: string | undefined,
+  intent: SkillGuidanceIntent,
+): string {
+  const metadata = selectSkillGuidanceMetadata(workspaceRoot, intent);
+  const preferredSkills = metadata.map((entry) => entry.name);
+  const toolNamespaces = Array.from(
+    new Set(metadata.flatMap((entry) => entry.toolNamespaces)),
+  ).sort((left, right) => left.localeCompare(right));
+  const readyWorkflowFlags = Array.from(
+    new Set(metadata.flatMap((entry) => entry.readyWorkflowFlags)),
+  );
+  const closeoutWorkflowFlags = Array.from(
+    new Set(metadata.flatMap((entry) => entry.closeoutWorkflowFlags)),
+  );
+
   const baseLines = [
     "MCP and skill usage guidance:",
-    "- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.",
+    preferredSkills.length > 0
+      ? `- Prefer the repo-local ${preferredSkills.join(", ")} skills when they apply.`
+      : "- Prefer the repo-local cockpit-scheduler-router and cockpit-todo-agent skills when they apply.",
     "- Treat Todo Cockpit cards and scheduled tasks as separate artifacts; do not conflate cockpit_ tools with scheduler_ tools.",
     "- If MCP tools are available, prefer cockpit_ and scheduler_ tools over editing repo-local JSON files by hand.",
     "- Confirm the required MCP tool exists before claiming a mutation or scheduler change succeeded.",
   ];
+
+  if (toolNamespaces.length > 0) {
+    baseLines.push(
+      `- Relevant MCP namespaces for this handoff: ${toolNamespaces.map((entry) => `${entry}_`).join(", ")}.`,
+    );
+  }
+
+  for (const entry of metadata) {
+    if (entry.promptSummary) {
+      baseLines.push(`- ${entry.name}: ${entry.promptSummary}`);
+    }
+  }
+
+  if (metadata.some((entry) => entry.approvalSensitive)) {
+    baseLines.push(
+      "- This handoff touches approval-sensitive workflow state; keep labels separate from single-value workflow flags and preserve the intended review checkpoint.",
+    );
+  }
+
+  if (intent === "ready" && readyWorkflowFlags.length > 0) {
+    baseLines.push(
+      `- Compatible ready-state flags for scheduling handoff: ${readyWorkflowFlags.join(", ")}.`,
+    );
+  }
+
+  if (intent === "ready" && closeoutWorkflowFlags.length > 0) {
+    baseLines.push(
+      `- Preferred closeout/review flags after execution: ${closeoutWorkflowFlags.join(", ")}.`,
+    );
+  }
 
   if (intent === "needs-bot-review") {
     baseLines.push(
@@ -338,13 +398,14 @@ function buildMcpSkillGuidanceBlock(intent: "needs-bot-review" | "ready"): strin
 function applyTodoPromptTemplate(
   todo: TodoPromptSource,
   template: string,
-  intent: "needs-bot-review" | "ready",
+  intent: SkillGuidanceIntent,
+  workspaceRoot: string | undefined,
 ): string {
   const labels = (todo.labels ?? []).join(", ") || "none";
   const recentComments = buildTodoRecentCommentsText(todo);
   const linkedTask = todo.taskId || "none";
   const todoContext = buildTodoContextBlock(todo);
-  const mcpSkillGuidance = buildMcpSkillGuidanceBlock(intent);
+  const mcpSkillGuidance = buildMcpSkillGuidanceBlock(workspaceRoot, intent);
 
   return template
     .replace(/\{\{title\}\}/g, todo.title || "")
@@ -376,7 +437,12 @@ async function maybeRunBotReviewPlanning(
     return "skipped";
   }
 
-  const prompt = applyTodoPromptTemplate(todo, promptTemplate, "needs-bot-review");
+  const prompt = applyTodoPromptTemplate(
+    todo,
+    promptTemplate,
+    "needs-bot-review",
+    deps.getPrimaryWorkspaceRootPath(),
+  );
   if (!prompt) {
     return "skipped";
   }
@@ -421,7 +487,7 @@ async function ensureReadyTodoTaskDraft(
     name: todo.title,
     description: todo.description,
     cronExpression: "0 9 * * 1-5",
-    prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults()),
+    prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults(), workspaceRoot),
     enabled: false,
     oneTime: true,
     labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
@@ -947,15 +1013,16 @@ export async function handleTodoCockpitAction(
 function buildReadyTaskPromptFromTodo(
   taskSource: TodoPromptSource,
   reviewDefaults: ReviewDefaultsView,
+  workspaceRoot: string | undefined,
 ): string {
   const promptTemplate = reviewDefaults.readyPromptTemplate.trim();
   if (promptTemplate) {
-    return applyTodoPromptTemplate(taskSource, promptTemplate, "ready");
+    return applyTodoPromptTemplate(taskSource, promptTemplate, "ready", workspaceRoot);
   }
 
   return [
     buildTodoContextBlock(taskSource),
-    buildMcpSkillGuidanceBlock("ready"),
+    buildMcpSkillGuidanceBlock(workspaceRoot, "ready"),
     "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation. If there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.",
   ].join("\n\n");
 }

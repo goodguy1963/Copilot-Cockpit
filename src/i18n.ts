@@ -973,6 +973,30 @@ export const messages = {
       `${skill} を使って、どのように進めるべきかを理解してください。`,
       `Verwende ${skill}, um zu verstehen, wie Dinge erledigt werden sollen.`,
     ),
+  skillMetadataEmptyState: () =>
+    t(
+      "Select a skill to inspect its workflow fit before inserting it into the prompt.",
+      "プロンプトへ挿入する前に、スキルを選択して適合するワークフローを確認してください。",
+      "Wählen Sie zuerst einen Skill aus, um seine Workflow-Eignung zu prüfen, bevor Sie ihn in den Prompt einfügen.",
+    ),
+  skillMetadataNone: () => t("none", "なし", "keine"),
+  skillTypeOperational: () => t("Operational", "運用", "Operativ"),
+  skillTypeSupport: () => t("Support", "補助", "Support"),
+  skillApprovalSensitive: () => t("Approval-sensitive", "承認が必要", "Freigabesensibel"),
+  skillApprovalRoutine: () => t("Routine", "通常", "Routine"),
+  skillMetadataSummaryTemplate: (
+    type: string,
+    summary: string,
+    tools: string,
+    readyFlags: string,
+    closeoutFlags: string,
+    approval: string,
+  ) =>
+    t(
+      `Type: ${type}. Focus: ${summary}. Tools: ${tools}. Ready flags: ${readyFlags}. Closeout flags: ${closeoutFlags}. Approval: ${approval}.`,
+      `種別: ${type}。役割: ${summary}。ツール: ${tools}。Ready フラグ: ${readyFlags}。Closeout フラグ: ${closeoutFlags}。承認: ${approval}。`,
+      `Typ: ${type}. Fokus: ${summary}. Tools: ${tools}. Ready-Flags: ${readyFlags}. Closeout-Flags: ${closeoutFlags}. Freigabe: ${approval}.`,
+    ),
   ...buildStaticMessageMap({ placeholderCron: schedulerUiMessageEntries.placeholderCron }),
 
   // ==================== TreeView ====================

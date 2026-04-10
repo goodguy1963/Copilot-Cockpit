@@ -22,6 +22,7 @@ import { getCompatibleConfigurationValue } from "./extensionCompat";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import { getResolvedWorkspaceRoots } from "./cockpitJsonSanitizer";
+import { readSkillMetadataFromFile } from "./skillMetadata";
 
 type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
@@ -198,11 +199,19 @@ async function getSkillReferences(): Promise<SkillReference[]> {
     const reference = basePath
       ? path.relative(basePath, resolved) || path.basename(resolved)
       : path.basename(resolved);
+    const metadata = readSkillMetadataFromFile(resolved);
     results.push({
       path: resolved,
       name: path.basename(resolved),
       reference,
       source,
+      skillType: metadata?.type,
+      toolNamespaces: metadata?.toolNamespaces,
+      workflowIntents: metadata?.workflowIntents,
+      approvalSensitive: metadata?.approvalSensitive,
+      promptSummary: metadata?.promptSummary,
+      readyWorkflowFlags: metadata?.readyWorkflowFlags,
+      closeoutWorkflowFlags: metadata?.closeoutWorkflowFlags,
     });
   };
 

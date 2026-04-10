@@ -1,6 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { createHash } from "crypto";
+import {
+  type ParsedSkillMetadata,
+  listSkillMetadataInDirectory,
+} from "./skillMetadata";
 
 export const BUNDLED_SKILLS_RELATIVE_PATH = path.join(
   ".github",
@@ -52,25 +56,58 @@ function mapBundledSkillPathToCodex(relativePath: string): string {
   );
 }
 
-function buildManagedCodexAgentsBlock(): string {
+function formatManagedSkillLine(
+  label: string,
+  skillMetadata: ParsedSkillMetadata[],
+): string | undefined {
+  if (skillMetadata.length === 0) {
+    return undefined;
+  }
+
+  const details = skillMetadata
+    .map((entry) => {
+      const summary = entry.promptSummary?.trim();
+      return summary ? `${entry.name} (${summary})` : entry.name;
+    })
+    .join(", ");
+
+  return `- ${label}: ${details}.`;
+}
+
+function buildManagedCodexAgentsBlock(extensionRoot: string): string {
+  const bundledSkillsRoot = path.join(extensionRoot, BUNDLED_SKILLS_RELATIVE_PATH);
+  const skillMetadata = listSkillMetadataInDirectory(bundledSkillsRoot);
+  const operationalLine = formatManagedSkillLine(
+    "Operational skills",
+    skillMetadata.filter((entry) => entry.type === "operational"),
+  );
+  const supportLine = formatManagedSkillLine(
+    "Support skills",
+    skillMetadata.filter((entry) => entry.type === "support"),
+  );
+
   return [
     CODEX_AGENTS_MANAGED_START,
     "## Copilot Cockpit",
     "",
     "- Repo-local Codex skills for this project live under `.agents/skills`.",
     "- Repo-local Codex MCP config for this project lives in `.codex/config.toml`.",
-    "- Use the Copilot Cockpit scheduler and todo skills when the task touches scheduled work, Todo Cockpit state, or MCP-backed workflow routing.",
+    operationalLine,
+    supportLine,
     "- Codex cannot start a new session through the Copilot Cockpit task scheduler integration. Creating and running task drafts from Codex is still a manual step in this repo.",
     CODEX_AGENTS_MANAGED_END,
-  ].join("\n");
+  ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
-function upsertManagedCodexAgentsDoc(content: string | undefined): {
+function upsertManagedCodexAgentsDoc(
+  extensionRoot: string,
+  content: string | undefined,
+): {
   content: string;
   changed: boolean;
   created: boolean;
 } {
-  const managedBlock = buildManagedCodexAgentsBlock();
+  const managedBlock = buildManagedCodexAgentsBlock(extensionRoot);
   const normalized = (content ?? "").replace(/\r\n/g, "\n");
   const pattern = new RegExp(
     `${CODEX_AGENTS_MANAGED_START}[\\s\\S]*?${CODEX_AGENTS_MANAGED_END}`,
@@ -452,7 +489,7 @@ export async function syncBundledCodexSkillsForWorkspaceRoots(
       }
     }
 
-    const nextAgents = upsertManagedCodexAgentsDoc(currentAgentsContent);
+    const nextAgents = upsertManagedCodexAgentsDoc(extensionRoot, currentAgentsContent);
     if (nextAgents.changed) {
       await fs.promises.mkdir(path.dirname(agentsPath), { recursive: true });
       await fs.promises.writeFile(agentsPath, nextAgents.content, "utf8");

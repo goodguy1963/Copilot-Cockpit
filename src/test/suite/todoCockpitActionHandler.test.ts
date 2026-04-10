@@ -288,6 +288,80 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
+  test("createTodo uses workspace skill metadata when building MCP guidance", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const routerSkillPath = path.join(
+        workspaceRoot,
+        ".github",
+        "skills",
+        "cockpit-scheduler-router",
+        "SKILL.md",
+      );
+      fs.mkdirSync(path.dirname(routerSkillPath), { recursive: true });
+      fs.writeFileSync(
+        routerSkillPath,
+        [
+          "---",
+          "name: cockpit-scheduler-router",
+          'description: "Router guidance"',
+          "copilotCockpitSkillType: operational",
+          "copilotCockpitToolNamespaces: [cockpit, scheduler]",
+          "copilotCockpitWorkflowIntents: [needs-bot-review, ready]",
+          "copilotCockpitApprovalSensitive: true",
+          'copilotCockpitPromptSummary: "Use canonical workflow flags for routing and preserve approval checkpoints."',
+          "---",
+          "",
+          "# Router skill",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTodo",
+          taskId: "",
+          todoData: {
+            title: "Review me with metadata",
+            description: "Inspect this todo",
+            sectionId: "",
+            priority: "low",
+            labels: ["alpha"],
+            flags: ["needs-bot-review"],
+          },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(launches.length, 1);
+      assert.ok(
+        launches[0]?.prompt.includes(
+          "Use canonical workflow flags for routing and preserve approval checkpoints.",
+        ),
+      );
+      assert.ok(
+        launches[0]?.prompt.includes(
+          "Relevant MCP namespaces for this handoff: cockpit_, scheduler_.",
+        ),
+      );
+      assert.ok(
+        launches[0]?.prompt.includes(
+          "This handoff touches approval-sensitive workflow state; keep labels separate from single-value workflow flags and preserve the intended review checkpoint.",
+        ),
+      );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("updateTodo seeds the configured needs-bot-review comment only when entering needs-bot-review", async () => {
     const workspaceRoot = createWorkspaceRoot();
 

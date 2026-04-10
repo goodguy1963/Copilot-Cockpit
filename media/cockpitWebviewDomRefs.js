@@ -21,6 +21,7 @@ export function createSchedulerWebviewDomRefs(document) {
     templateSelectGroup: document.getElementById("template-select-group"),
     templateRefreshBtn: document.getElementById("template-refresh-btn"),
     skillSelect: document.getElementById("skill-select"),
+    skillDetailsNote: document.getElementById("skill-details-note"),
     insertSkillBtn: document.getElementById("insert-skill-btn"),
     setupMcpBtn: document.getElementById("setup-mcp-btn"),
     setupCodexBtn: document.getElementById("setup-codex-btn"),

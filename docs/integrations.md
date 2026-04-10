@@ -31,6 +31,8 @@
 - `Add MCP To Codex` creates or updates the repo-local Codex entry in `.codex/config.toml`.
 - `Sync Bundled Skills` updates the Copilot skill files under `.github/skills`.
 - `Add Skills To Codex` syncs the same bundled skills into `.agents/skills` and refreshes the managed guidance block in `AGENTS.md`.
+- Bundled skills carry frontmatter metadata that distinguishes operational skills from support/onboarding skills.
+- Operational skill metadata declares MCP namespaces, workflow intents, and ready/closeout flag compatibility used when Todo handoff guidance is built.
 - MCP exposure is powerful: once tools are visible to an agent, they can inspect state, change saved items, and trigger allowed operations.
 - Prefer secure prompt inputs for secrets instead of storing live API keys directly in repo-local config files.
 

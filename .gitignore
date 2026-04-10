@@ -17,7 +17,6 @@ output_sessions/
 # Development files
 .github/temp/
 .github/agents/
-.github/skills/
 .github/prompts/
 session/
 AGENTS.md
@@ -29,7 +28,6 @@ FULL_SPECIFICATION.md
 
 # Copilot agent artifacts (keep local in public repos)
 /research/
-/.github/skills/
 /output_sessions/
 .copilot-cockpit-logs/
 .vscode/copilot-history/

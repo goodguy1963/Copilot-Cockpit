@@ -1324,6 +1324,27 @@ export interface SkillReference {
 
   /** Absolute file path */
   path: string;
+
+  /** Optional skill category from SKILL.md frontmatter */
+  skillType?: "operational" | "support";
+
+  /** MCP tool namespaces associated with the skill */
+  toolNamespaces?: string[];
+
+  /** Workflow intents the skill is designed to support */
+  workflowIntents?: string[];
+
+  /** Whether the skill participates in approval-sensitive flows */
+  approvalSensitive?: boolean;
+
+  /** Short prompt-ready summary extracted from skill metadata */
+  promptSummary?: string;
+
+  /** Workflow flags the skill expects in ready/scheduling flows */
+  readyWorkflowFlags?: string[];
+
+  /** Workflow flags the skill expects for closeout/review flows */
+  closeoutWorkflowFlags?: string[];
 }
 
 /**

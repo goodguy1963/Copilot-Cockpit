@@ -389,6 +389,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     templateSelectGroup,
     templateRefreshBtn,
     skillSelect,
+    skillDetailsNote,
     insertSkillBtn,
     setupMcpBtn,
     setupCodexBtn,
@@ -5373,6 +5374,12 @@ syncTodoLabelSuggestions();
     insertSelectedSkillReference();
   });
 
+  if (skillSelect && typeof skillSelect.addEventListener === "function") {
+    skillSelect.addEventListener("change", function () {
+      updateSkillDetailsNote();
+    });
+  }
+
   bindUtilityActionButtons(vscode, {
     setupMcp: setupMcpBtn,
     setupCodex: setupCodexBtn,
@@ -7008,10 +7015,78 @@ syncTodoLabelSuggestions();
     });
   }
 
+  function getSelectedSkill() {
+    if (!skillSelect) {
+      return undefined;
+    }
+
+    var selectedPath = skillSelect.value || "";
+    if (!selectedPath) {
+      return undefined;
+    }
+
+    return (Array.isArray(skills) ? skills : []).find(function (skill) {
+      return skill && skill.path === selectedPath;
+    });
+  }
+
+  function getSkillTypeLabel(skill) {
+    if (!skill || skill.skillType !== "support") {
+      return strings.skillTypeOperational || "Operational";
+    }
+
+    return strings.skillTypeSupport || "Support";
+  }
+
+  function formatSkillMetadataList(values) {
+    return Array.isArray(values) && values.length > 0
+      ? values.join(", ")
+      : (strings.skillMetadataNone || "none");
+  }
+
+  function buildSkillOptionLabel(skill) {
+    if (!skill) {
+      return "";
+    }
+
+    var reference = skill.reference || skill.name || "";
+    return getSkillTypeLabel(skill) + ": " + reference;
+  }
+
+  function buildSkillDetailsText(skill) {
+    if (!skill) {
+      return strings.skillMetadataEmptyState || "";
+    }
+
+    var template = strings.skillMetadataSummaryTemplate
+      || "Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";
+    return template
+      .replace("{type}", getSkillTypeLabel(skill))
+      .replace("{summary}", skill.promptSummary || skill.reference || skill.name || (strings.skillMetadataNone || "none"))
+      .replace("{tools}", formatSkillMetadataList(skill.toolNamespaces))
+      .replace("{readyFlags}", formatSkillMetadataList(skill.readyWorkflowFlags))
+      .replace("{closeoutFlags}", formatSkillMetadataList(skill.closeoutWorkflowFlags))
+      .replace(
+        "{approval}",
+        skill.approvalSensitive
+          ? (strings.skillApprovalSensitive || "Approval-sensitive")
+          : (strings.skillApprovalRoutine || "Routine"),
+      );
+  }
+
+  function updateSkillDetailsNote() {
+    if (!skillDetailsNote) {
+      return;
+    }
+
+    skillDetailsNote.textContent = buildSkillDetailsText(getSelectedSkill());
+  }
+
   function updateSkillOptions() {
     if (!skillSelect) return;
     var items = Array.isArray(skills) ? skills : [];
     var placeholder = strings.placeholderSelectSkill || "Select a skill";
+    var previousValue = skillSelect.value || "";
     skillSelect.innerHTML =
       '<option value="">' +
       escapeHtml(placeholder) +
@@ -7022,20 +7097,23 @@ syncTodoLabelSuggestions();
             '<option value="' +
             escapeAttr(skill.path || "") +
             '">' +
-            escapeHtml(skill.reference || skill.name || "") +
+            escapeHtml(buildSkillOptionLabel(skill)) +
             "</option>"
           );
         })
         .join("");
+
+    skillSelect.value = items.some(function (skill) {
+      return skill && skill.path === previousValue;
+    })
+      ? previousValue
+      : "";
+    updateSkillDetailsNote();
   }
 
   function insertSelectedSkillReference() {
     if (!skillSelect || !promptGroup) return;
-    var selectedPath = skillSelect.value || "";
-    if (!selectedPath) return;
-    var selectedSkill = (Array.isArray(skills) ? skills : []).find(function (skill) {
-      return skill && skill.path === selectedPath;
-    });
+    var selectedSkill = getSelectedSkill();
     if (!selectedSkill) return;
 
     var sourceRadio = document.querySelector('input[name="prompt-source"][value="inline"]');

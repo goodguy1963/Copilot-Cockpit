@@ -13,7 +13,7 @@
             "promptSource": "inline",
             "promptPath": "",
             "promptBackupPath": ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/task_1775502809138_tliwcp.prompt.md",
-            "promptBackupUpdatedAt": "2026-04-08T07:40:56.306Z",
+            "promptBackupUpdatedAt": "2026-04-10T16:16:34.989Z",
             "jitterSeconds": 0,
             "oneTime": false,
             "labels": [
@@ -1071,8 +1071,8 @@
                 "name": "GO",
                 "key": "go",
                 "color": "#22c55e",
-                "createdAt": "2026-04-08T07:40:56.445Z",
-                "updatedAt": "2026-04-08T07:40:56.445Z"
+                "createdAt": "2026-04-10T16:16:35.453Z",
+                "updatedAt": "2026-04-10T16:16:35.453Z"
             },
             {
                 "name": "needs-bot-review",
@@ -1139,6 +1139,6 @@
             "viewMode": "board",
             "showArchived": false
         },
-        "updatedAt": "2026-04-08T07:40:56.186Z"
+        "updatedAt": "2026-04-10T16:16:34.599Z"
     }
 }
