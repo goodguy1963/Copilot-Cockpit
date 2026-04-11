@@ -234,11 +234,13 @@ suite("Scheduler webview settings handler behavior", () => {
   test("planIntegration creates a .github backup before launching the planner when requested", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-plan-backup-"));
     const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
+    const normalizedWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? workspaceRoot;
     const originalShowInformationMessage = (vscode.window as any).showInformationMessage;
     const launchedPrompts: string[] = [];
     const backupCalls: string[] = [];
     const infoCalls: unknown[][] = [];
     const backupPath = path.join(workspaceRoot, ".github-scheduler-backups", "snap-1");
+    const relativeBackupPath = path.relative(normalizedWorkspaceRoot, backupPath);
 
     try {
       (vscode.window as any).showInformationMessage = async (...args: unknown[]) => {
@@ -261,11 +263,11 @@ suite("Scheduler webview settings handler behavior", () => {
       );
 
       assert.strictEqual(handled, true);
-      assert.deepStrictEqual(backupCalls, [workspaceRoot]);
+      assert.deepStrictEqual(backupCalls, [normalizedWorkspaceRoot]);
       assert.strictEqual(infoCalls.length, 2);
-      assert.strictEqual(String(infoCalls[1][0]), `Backed up .github to ${path.relative(workspaceRoot, backupPath)}`);
+      assert.strictEqual(String(infoCalls[1][0]), `Backed up .github to ${relativeBackupPath}`);
       assert.strictEqual(launchedPrompts.length, 1);
-      assert.ok(launchedPrompts[0].includes(`A backup of .github was created at ${path.relative(workspaceRoot, backupPath)}.`));
+      assert.ok(launchedPrompts[0].includes(`A backup of .github was created at ${relativeBackupPath}.`));
     } finally {
       (vscode.window as any).showInformationMessage = originalShowInformationMessage;
       restoreWorkspace();

@@ -1,1 +1,0 @@
-Moved to scripts/diagnostics/stdout.txt.

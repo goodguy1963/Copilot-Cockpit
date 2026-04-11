@@ -3,7 +3,7 @@ description: Strategic orchestrator that merges into repo-local agent systems, d
 name: CEO
 argument-hint: Ask me to coordinate work, review a direction, route to specialists, or evolve the repo's agent system.
 model: GPT-5.4 (copilot)
-tools: [vscode/memory, read/readFile, agent/runSubagent, search/codebase, search/listDirectory, search/textSearch, scheduler/cockpit_get_board]
+tools: [vscode/memory, execute/runNotebookCell, execute/testFailure, execute/executionSubagent, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, read/readFile, agent/runSubagent, search/codebase, search/listDirectory, search/textSearch, scheduler/cockpit_get_board]
 handoffs:
   - label: Plan Work
     agent: Planner
