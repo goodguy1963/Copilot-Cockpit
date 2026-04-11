@@ -85,7 +85,7 @@ When you manually sync the bundled starter agents into `.github/agents`, Copilot
 
 This is efficient because the `CEO` or orchestrator does the initial thinking once, then delegates to a subagent session (with stronger context than a typical raw user prompt: the request, relevant repo research, controlling files, constraints, and acceptance criteria. The specialist can then work inside a narrow responsibility boundary, validate that slice, and report back for final review instead of forcing the orchestrator to carry every intermediate implementation detail in one chat thread.
 
-Note: Custom subagents must be enabled in //settings/chat.customAgentInSubagent.enabled of github copilot plugin) 
+Note: Custom subagents must be enabled in //settings/chat.customAgentInSubagent.enabled of github copilot plugin
 
 ```mermaid
 flowchart TD
