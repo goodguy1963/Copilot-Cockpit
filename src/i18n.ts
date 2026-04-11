@@ -1056,6 +1056,60 @@ export const messages = {
       "同梱エージェントを同期する前に、ワークスペースフォルダーを開いてください。",
       "Öffnen Sie einen Workspace-Ordner, bevor Sie gebündelte Agenten synchronisieren.",
     ),
+  bundledAgentsSyncConfirmTitle: (workspaceCount: number) =>
+    t(
+      workspaceCount === 1
+        ? "Sync bundled starter agents into this workspace?"
+        : "Sync bundled starter agents into these workspaces?",
+      workspaceCount === 1
+        ? "このワークスペースに同梱スターターエージェントを同期しますか？"
+        : "これらのワークスペースに同梱スターターエージェントを同期しますか？",
+      workspaceCount === 1
+        ? "Gebündelte Starter-Agenten in diesen Workspace synchronisieren?"
+        : "Gebündelte Starter-Agenten in diese Workspaces synchronisieren?",
+    ),
+  bundledAgentsSyncConfirmAction: () =>
+    t(
+      "Sync Bundled Agents",
+      "同梱エージェントを同期",
+      "Gebündelte Agenten synchronisieren",
+    ),
+  bundledAgentsSyncConfirmExistingSurfaces: (surfaceSummary: string) =>
+    t(
+      `Existing agent-system surfaces were detected and will be treated as user-owned: ${surfaceSummary}`,
+      `既存のエージェント関連の構成を検出しました。これらはユーザー所有として扱います: ${surfaceSummary}`,
+      `Vorhandene Agent-System-Bestandteile wurden erkannt und werden als benutzereigen behandelt: ${surfaceSummary}`,
+    ),
+  bundledAgentsSyncConfirmNoExistingSurfaces: () =>
+    t(
+      "No existing agent-system surfaces were detected in the selected workspace folders.",
+      "選択したワークスペースでは既存のエージェント関連構成は検出されませんでした。",
+      "In den ausgewählten Workspaces wurden keine bestehenden Agent-System-Bestandteile erkannt.",
+    ),
+  bundledAgentsSyncConfirmBackup: () =>
+    t(
+      ".github will be backed up before bundled agents are synced wherever it already exists.",
+      ".github がすでに存在するワークスペースでは、同梱エージェントを同期する前にバックアップを作成します。",
+      ".github wird dort gesichert, wo es bereits existiert, bevor gebündelte Agenten synchronisiert werden.",
+    ),
+  bundledAgentsSyncConfirmNoBackup: () =>
+    t(
+      "No .github folder exists yet, so there is nothing to back up first.",
+      "まだ .github フォルダーがないため、先にバックアップするものはありません。",
+      "Es gibt noch keinen .github-Ordner, daher muss vorher nichts gesichert werden.",
+    ),
+  bundledAgentsSyncConfirmCustomizedPreserved: () =>
+    t(
+      "Customized files are still preserved: diverged files continue to be skipped instead of overwritten.",
+      "カスタマイズ済みファイルは引き続き保護され、差分のあるファイルは上書きせずにスキップします。",
+      "Angepasste Dateien bleiben geschutzt: abweichende Dateien werden weiterhin ubersprungen statt uberschrieben.",
+    ),
+  bundledAgentsSyncBackupFailed: () =>
+    t(
+      "Failed to create a .github backup before syncing bundled agents.",
+      "同梱エージェントを同期する前の .github バックアップ作成に失敗しました。",
+      "Die .github-Sicherung vor der Synchronisierung gebundelter Agenten konnte nicht erstellt werden.",
+    ),
   bundledAgentsSyncNoChanges: () =>
     t(
       "Bundled agents are already present and up to date.",

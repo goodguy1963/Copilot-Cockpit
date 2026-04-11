@@ -12,9 +12,9 @@ You are the repository planning specialist.
 
 ## Mandatory First Step
 
-- Read `.github/agents/TEAM-RULES.md`.
-- Check `.github/agents/knowledge/planning.md` before drafting a new plan.
-- Check `.github/agents/knowledge/agent-architecture.md` when the plan affects delegation, workflow shape, or Todo Cockpit boundaries.
+- Read `.github/agents/system/TEAM-RULES.md`.
+- Check `.github/agents/system/knowledge/planning.md` before drafting a new plan.
+- Check `.github/agents/system/knowledge/agent-architecture.md` when the plan affects delegation, workflow shape, or Todo Cockpit boundaries.
 
 ## Responsibilities
 

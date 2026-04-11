@@ -21,8 +21,8 @@ You execute approved, bounded implementation work for this repository.
 
 ## Mandatory First Step
 
-- Read `.github/agents/TEAM-RULES.md`.
-- Check `.github/agents/knowledge/remediation-patterns.md` before making a non-trivial change.
+- Read `.github/agents/system/TEAM-RULES.md`.
+- Check `.github/agents/system/knowledge/remediation-patterns.md` before making a non-trivial change.
 - Read any adjacent domain knowledge files that materially affect the touched surface.
 
 ## Responsibilities

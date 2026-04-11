@@ -193,9 +193,9 @@ export async function handleSettingsWebviewMessage(
         ? `A backup of .github was created at ${path.relative(root, backupPath)}.`
         : answer === "Yes, Backup"
           ? "No .github folder existed to back up."
-          : "Do not create a backup unless I ask for one. When proposing changes, mention that I chose to skip the backup.";
+          : "No upfront .github backup was created. Planning can continue. Before any implementation changes, create or use a .github backup first when available.";
       await ctx.launchHelpChat(
-        `Please use the copilot-scheduler-setup skill to evaluate this workspace and plan a structured scheduler integration. Start by summarizing the current .github state, ask 2-3 concrete setup questions plus one Todo Cockpit approval/workflow question, and wait for my answer before proposing a final plan. Workspace root: ${root}. ${backupInstruction}`,
+        `Please use the copilot-scheduler-setup skill to evaluate this workspace and plan a structured scheduler integration. Start by summarizing the current repo-local agent-system surfaces, ask 2-3 concrete setup questions plus one Todo Cockpit approval/workflow question, and wait for my answer before proposing a final plan. Treat any existing repo-local agent systems as user-owned. Do not install or sync bundled agents until I explicitly approve it. If I later approve implementation, create or use a .github backup first when available and then carry out the agreed setup safely. Workspace root: ${root}. ${backupInstruction}`,
       );
       return true;
     }

@@ -187,4 +187,89 @@ suite("Scheduler webview settings handler behavior", () => {
       }).executeCommand = originalExecute;
     }
   });
+
+  test("planIntegration launches a safe planning prompt without backing up when skipped", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-plan-skip-"));
+    const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
+    const originalShowInformationMessage = (vscode.window as any).showInformationMessage;
+    const launchedPrompts: string[] = [];
+    const backupCalls: string[] = [];
+    const infoCalls: unknown[][] = [];
+
+    try {
+      (vscode.window as any).showInformationMessage = async (...args: unknown[]) => {
+        infoCalls.push(args);
+        return infoCalls.length === 1 ? "No" : undefined;
+      };
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "planIntegration" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async (prompt) => {
+            launchedPrompts.push(prompt);
+          },
+          backupGithubFolder: async (root) => {
+            backupCalls.push(root);
+            return undefined;
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(backupCalls, []);
+      assert.strictEqual(infoCalls.length, 1);
+      assert.strictEqual(launchedPrompts.length, 1);
+      assert.ok(launchedPrompts[0].includes("Treat any existing repo-local agent systems as user-owned."));
+      assert.ok(launchedPrompts[0].includes("Do not install or sync bundled agents until I explicitly approve it."));
+      assert.ok(launchedPrompts[0].includes("If I later approve implementation, create or use a .github backup first when available and then carry out the agreed setup safely."));
+      assert.ok(launchedPrompts[0].includes("No upfront .github backup was created. Planning can continue. Before any implementation changes, create or use a .github backup first when available."));
+    } finally {
+      (vscode.window as any).showInformationMessage = originalShowInformationMessage;
+      restoreWorkspace();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("planIntegration creates a .github backup before launching the planner when requested", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-plan-backup-"));
+    const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);
+    const originalShowInformationMessage = (vscode.window as any).showInformationMessage;
+    const launchedPrompts: string[] = [];
+    const backupCalls: string[] = [];
+    const infoCalls: unknown[][] = [];
+    const backupPath = path.join(workspaceRoot, ".github-scheduler-backups", "snap-1");
+
+    try {
+      (vscode.window as any).showInformationMessage = async (...args: unknown[]) => {
+        infoCalls.push(args);
+        return infoCalls.length === 1 ? "Yes, Backup" : undefined;
+      };
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "planIntegration" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async (prompt) => {
+            launchedPrompts.push(prompt);
+          },
+          backupGithubFolder: async (root) => {
+            backupCalls.push(root);
+            return backupPath;
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(backupCalls, [workspaceRoot]);
+      assert.strictEqual(infoCalls.length, 2);
+      assert.strictEqual(String(infoCalls[1][0]), `Backed up .github to ${path.relative(workspaceRoot, backupPath)}`);
+      assert.strictEqual(launchedPrompts.length, 1);
+      assert.ok(launchedPrompts[0].includes(`A backup of .github was created at ${path.relative(workspaceRoot, backupPath)}.`));
+    } finally {
+      (vscode.window as any).showInformationMessage = originalShowInformationMessage;
+      restoreWorkspace();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });

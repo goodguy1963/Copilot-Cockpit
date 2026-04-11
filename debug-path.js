@@ -1,1 +1,1 @@
-const path = require('path'); console.log(path.join(process.cwd(), '.vscode', 'scheduler.json'));
+require('./scripts/diagnostics/debug-path.js');

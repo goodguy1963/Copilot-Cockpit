@@ -106,6 +106,13 @@ import {
   syncRecurringPromptBackupsIfNeeded as syncRecurringPromptBackupsIfNeededWithDeps,
 } from "./extensionPromptMaintenance";
 import {
+  backupGithubFolderSnapshot,
+} from "./cockpitWebviewSupport";
+import {
+  inspectBundledAgentSyncWorkspaces,
+  summarizeBundledAgentSystemSignals,
+} from "./bundledAgentSyncPreflight";
+import {
   maybePromptReloadAfterUpdate as maybePromptReloadAfterUpdateWithUi,
   maybeShowDisclaimerOnce as maybeShowDisclaimerOnceWithUi,
   warnIfCronTooFrequent as maybeWarnCronIntervalWithUi,
@@ -404,7 +411,50 @@ async function syncBundledSkills(
 async function syncBundledAgents(
   context: vscode.ExtensionContext,
   workspaceRoots: string[],
-): Promise<BundledSkillSyncResult> {
+): Promise<BundledSkillSyncResult | undefined> {
+  const inspections = inspectBundledAgentSyncWorkspaces(workspaceRoots);
+  const signalSummary = summarizeBundledAgentSystemSignals(inspections);
+  const confirmationAction = messages.bundledAgentsSyncConfirmAction();
+  const detail = [
+    signalSummary.length > 0
+      ? messages.bundledAgentsSyncConfirmExistingSurfaces(signalSummary)
+      : messages.bundledAgentsSyncConfirmNoExistingSurfaces(),
+    inspections.some((inspection) => inspection.hasGithubFolder)
+      ? messages.bundledAgentsSyncConfirmBackup()
+      : messages.bundledAgentsSyncConfirmNoBackup(),
+    messages.bundledAgentsSyncConfirmCustomizedPreserved(),
+  ].join("\n\n");
+
+  const confirmation = await vscode.window.showWarningMessage(
+    messages.bundledAgentsSyncConfirmTitle(workspaceRoots.length),
+    {
+      modal: true,
+      detail,
+    },
+    confirmationAction,
+    messages.actionCancel(),
+  );
+
+  if (confirmation !== confirmationAction) {
+    return undefined;
+  }
+
+  try {
+    for (const inspection of inspections) {
+      if (!inspection.hasGithubFolder) {
+        continue;
+      }
+      await backupGithubFolderSnapshot(inspection.workspaceRoot);
+    }
+  } catch (error) {
+    logError(
+      "[CopilotScheduler] Failed to create a .github backup before syncing bundled agents.",
+      error,
+    );
+    notifyError(messages.bundledAgentsSyncBackupFailed());
+    return undefined;
+  }
+
   const syncState = context.globalState.get<BundledSkillSyncState>(
     BUNDLED_AGENT_SYNC_STATE_KEY,
     {},
@@ -2619,6 +2669,9 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         }
 
         const syncResult = await syncBundledAgents(extensionContext, workspaceRoots);
+        if (!syncResult) {
+          break;
+        }
         await SchedulerWebview.reloadCachesAndSync(true);
 
         if (

@@ -12,10 +12,10 @@ You design and implement repo-local agents and skills.
 
 ## Mandatory First Step
 
-- Read `.github/agents/TEAM-RULES.md`.
-- Check `.github/agents/knowledge/agent-architecture.md` before creating or changing the roster.
-- Check `.github/agents/knowledge/knowledge-base-guidelines.md` before adding new shared knowledge.
-- Read `.github/agents/AGENT-SYSTEM-MAINTENANCE.md` when the change affects multiple agents or shared docs.
+- Read `.github/agents/system/TEAM-RULES.md`.
+- Check `.github/agents/system/knowledge/agent-architecture.md` before creating or changing the roster.
+- Check `.github/agents/system/knowledge/knowledge-base-guidelines.md` before adding new shared knowledge.
+- Read `.github/agents/system/AGENT-SYSTEM-MAINTENANCE.md` when the change affects multiple agents or shared docs.
 
 ## Responsibilities
 
@@ -30,7 +30,7 @@ You design and implement repo-local agents and skills.
 - Prefer one role per agent.
 - Add explicit boundaries and handoff expectations.
 - Reuse existing repo-specific vocabulary, approval flow, and Todo Cockpit workflow.
-- Document any reusable pattern in `.github/agents/knowledge/`.
+- Document any reusable pattern in `.github/agents/system/knowledge/`.
 - Decide whether the fix belongs in an agent, a skill, a shared knowledge doc, or the team rules before writing files.
 - Every new specialist should have a clear first-step knowledge check, a sharp scope, and an explicit refusal boundary.
 
@@ -43,7 +43,7 @@ You design and implement repo-local agents and skills.
 	- add a skill when the behavior should be reusable across multiple agents
 	- add shared knowledge when the issue is missing institutional memory
 	- create a new agent only when a durable specialist role is truly missing
-4. Wire the result back into `README.md`, the relevant knowledge docs, and handoffs when needed.
+4. Wire the result back into `ceo.agent.md`, `.github/agents/system/README.md`, and the relevant system docs, knowledge docs, tests, or tool surfaces when needed.
 
 ## Required Contract For New Agents
 
@@ -55,6 +55,15 @@ New or heavily revised agents should usually include:
 - collaboration rules and handoff expectations
 - output expectations
 - enough context to act independently without becoming a generalist
+
+## Roster Change Checklist
+
+When adding, removing, or renaming an agent:
+
+- update `ceo.agent.md` routing, handoffs, and any receiving prompts that mention the roster
+- update `.github/agents/system/TEAM-RULES.md`, `.github/agents/system/README.md`, `.github/agents/system/AGENT-SYSTEM-MAINTENANCE.md`, and any affected `.github/agents/system/knowledge/` docs
+- update any affected tool, discovery, packaging, or regression-test surfaces that enumerate or validate the roster
+- remove or rename stale references so the starter pack stays internally consistent after sync
 
 ## Boundaries
 

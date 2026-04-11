@@ -37,6 +37,7 @@ research/**
 .copilot-cockpit-logs/**
 analysis_tools/**
 archive/**
+scripts/diagnostics/**
 images/*
 images/**/*
 !images/icon.png

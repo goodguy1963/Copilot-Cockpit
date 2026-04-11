@@ -18,11 +18,13 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/ceo.agent.md",
       required: [
-        ".github/agents/CEO-WORKFLOW-GUIDE.md",
-        ".github/agents/knowledge/session-management.md",
+        ".github/agents/system/CEO-WORKFLOW-GUIDE.md",
+        ".github/agents/system/knowledge/session-management.md",
         "Remediation Implementer",
+        "Validate Run",
         "Documentation Specialist",
         "Implement the approved bounded fix",
+        "closeout is justified",
         "## Delegation Standard",
       ],
     },
@@ -37,9 +39,11 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/custom-agent-foundry.agent.md",
       required: [
-        ".github/agents/knowledge/knowledge-base-guidelines.md",
+        ".github/agents/system/knowledge/knowledge-base-guidelines.md",
         "## Design Workflow",
         "## Required Contract For New Agents",
+        "## Roster Change Checklist",
+        "tool, discovery, packaging, or regression-test surfaces",
       ],
     },
     {
@@ -67,15 +71,15 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
-      relativePath: ".github/agents/README.md",
+      relativePath: ".github/agents/system/README.md",
       required: [
-        "AGENT-SYSTEM-MAINTENANCE.md",
-        "knowledge/",
+        "system/AGENT-SYSTEM-MAINTENANCE.md",
+        "system/knowledge/",
         "Source-of-truth rules",
       ],
     },
     {
-      relativePath: ".github/agents/TEAM-RULES.md",
+      relativePath: ".github/agents/system/TEAM-RULES.md",
       required: [
         "## Handoff Standard",
         "## Knowledge Base Discipline",
@@ -83,31 +87,34 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
-      relativePath: ".github/agents/AGENT-SYSTEM-MAINTENANCE.md",
+      relativePath: ".github/agents/system/AGENT-SYSTEM-MAINTENANCE.md",
       required: [
         "## Source Of Truth",
+        "## Roster Change Surfaces",
         "## Safe Update Workflow",
         "## Sync Boundary",
       ],
     },
     {
-      relativePath: ".github/agents/CEO-WORKFLOW-GUIDE.md",
+      relativePath: ".github/agents/system/CEO-WORKFLOW-GUIDE.md",
       required: [
         "## Phase 3: Choose The Route",
         "## Phase 5: Integrate Results",
+        "validation-only pass",
         "## Good CEO Output",
       ],
     },
     {
-      relativePath: ".github/agents/knowledge/knowledge-base-guidelines.md",
+      relativePath: ".github/agents/system/knowledge/knowledge-base-guidelines.md",
       required: [
+        ".github/agents/system/knowledge/",
         "## What Belongs In Shared Knowledge",
         "## Writing Rules",
         "## Maintenance Triggers",
       ],
     },
     {
-      relativePath: ".github/agents/knowledge/remediation-patterns.md",
+      relativePath: ".github/agents/system/knowledge/remediation-patterns.md",
       required: [
         "bounded implementation work",
         "narrowest meaningful validation",
@@ -115,7 +122,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
-      relativePath: ".github/agents/knowledge/documentation.md",
+      relativePath: ".github/agents/system/knowledge/documentation.md",
       required: [
         "source-of-truth files",
         "smallest necessary set of docs",
@@ -123,7 +130,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
-      relativePath: ".github/agents/knowledge/session-management.md",
+      relativePath: ".github/agents/system/knowledge/session-management.md",
       required: [
         "## When Session Discipline Matters",
         "## Session Metadata To Preserve",
@@ -131,7 +138,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
-      relativePath: ".github/agents/knowledge/session-memory.md",
+      relativePath: ".github/agents/system/knowledge/session-memory.md",
       required: [
         "## Checkpoint Trigger",
         "## What A Good Checkpoint Includes",

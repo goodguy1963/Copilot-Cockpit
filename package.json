@@ -486,7 +486,8 @@
     "install:vsix": "node ./scripts/install-vsix.js stable",
     "install:vsix:insiders": "node ./scripts/install-vsix.js insiders",
     "install:vsix:both": "node ./scripts/install-vsix.js both",
-    "pretest": "npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm",
+    "clean:out": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
+    "pretest": "npm run clean:out && npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts",
     "analyze:overlap": "node ./analysis_tools/analyze.js"

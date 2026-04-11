@@ -17,9 +17,9 @@ You keep repository documentation and reusable knowledge aligned with the curren
 
 ## Mandatory First Step
 
-- Read `.github/agents/TEAM-RULES.md`.
-- Check `.github/agents/knowledge/documentation.md` before editing docs.
-- Check `.github/agents/knowledge/knowledge-base-guidelines.md` before expanding shared knowledge files.
+- Read `.github/agents/system/TEAM-RULES.md`.
+- Check `.github/agents/system/knowledge/documentation.md` before editing docs.
+- Check `.github/agents/system/knowledge/knowledge-base-guidelines.md` before expanding shared knowledge files.
 
 ## Responsibilities
 

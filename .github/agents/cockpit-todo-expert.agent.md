@@ -17,8 +17,8 @@ You own the Todo Cockpit board for this repository.
 
 ## Mandatory First Step
 
-- Read `.github/agents/TEAM-RULES.md`.
-- Check `.github/agents/knowledge/todo-cockpit.md` before changing board structure or approval flow.
+- Read `.github/agents/system/TEAM-RULES.md`.
+- Check `.github/agents/system/knowledge/todo-cockpit.md` before changing board structure or approval flow.
 - Read the bundled `cockpit-todo-agent` skill when Cockpit tool behavior or workflow transitions are relevant.
 
 ## Responsibilities
@@ -33,7 +33,7 @@ You own the Todo Cockpit board for this repository.
 
 - Do not act as the implementation specialist for unrelated code work.
 - Do not let the orchestrator bypass Todo Cockpit for durable approvals.
-- If a new workflow pattern emerges, document it in `.github/agents/knowledge/todo-cockpit.md`.
+- If a new workflow pattern emerges, document it in `.github/agents/system/knowledge/todo-cockpit.md`.
 - Do not edit Cockpit persistence files directly when MCP tools can express the change.
 
 ## Anti-Duplicate Rule
