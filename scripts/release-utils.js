@@ -8,7 +8,6 @@ const TEMP_ARTIFACTS = [
   ".tmp-package-vsix.log",
   ".tmp-playwright",
   ".tmp-pretest.log",
-  ".vscode-test",
   "npm-test-output.log",
   "npm-test-output.txt",
   "npm-test.log",

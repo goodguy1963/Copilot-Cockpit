@@ -1,10 +1,16 @@
 name: Release
 
-# Runs when you push a version tag: git tag v99.0.12 && git push origin v99.0.12
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write   # needed to create the GitHub Release
@@ -25,31 +31,76 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      - name: Cache VS Code test runtime
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            vscode-test-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
+      - name: Build and typecheck
+        run: npm run pretest
+
+      - name: Run tests
+        run: npm test
+
       # vsce package auto-calls vscode:prepublish (esbuild minify) before packing
       - name: Build & package VSIX
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: npm run package:vsix
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}" npm run package:vsix
+          else
+            npm run package:vsix
+          fi
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copilot-cockpit-vsix
+          path: archive/vsix/latest/copilot-cockpit-*.vsix
 
       # Generate release notes from CHANGELOG.md when present, otherwise write fallback notes
-      - name: Extract changelog section
-        run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md
+      - name: Generate release metadata
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            echo "RELEASE_TITLE=Copilot Cockpit ${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            echo "RELEASE_PRERELEASE=false" >> "$GITHUB_ENV"
+            node ./scripts/release-notes.js CHANGELOG.md release-notes.md
+          else
+            echo "RELEASE_TAG=edge" >> "$GITHUB_ENV"
+            echo "RELEASE_TITLE=Copilot Cockpit edge" >> "$GITHUB_ENV"
+            echo "RELEASE_PRERELEASE=true" >> "$GITHUB_ENV"
+            {
+              echo "Automated prerelease from main."
+              echo
+              echo "- Commit: ${GITHUB_SHA}"
+              echo "- Source ref: ${GITHUB_REF_NAME}"
+              echo "- Trigger: push"
+              echo "- Packaged from workspace version: $(node -p \"require('./package.json').version\")"
+            } > release-notes.md
+          fi
 
       - name: Create or update GitHub Release with VSIX
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-            gh release upload "${{ github.ref_name }}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber
-            gh release edit "${{ github.ref_name }}" \
-              --title "Copilot Cockpit ${{ github.ref_name }}" \
-              --notes-file release-notes.md
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_TITLE}" \
+              --notes-file release-notes.md \
+              $([[ "${RELEASE_PRERELEASE}" == "true" ]] && echo --prerelease || echo --latest)
           else
-            gh release create "${{ github.ref_name }}" \
+            gh release create "${RELEASE_TAG}" \
               archive/vsix/latest/copilot-cockpit-*.vsix \
-              --title "Copilot Cockpit ${{ github.ref_name }}" \
-              --notes-file release-notes.md
+              --title "${RELEASE_TITLE}" \
+              --notes-file release-notes.md \
+              $([[ "${RELEASE_PRERELEASE}" == "true" ]] && echo --prerelease)
           fi

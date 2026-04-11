@@ -171,14 +171,17 @@ suite("Release Pipeline Contract Tests", () => {
     const workflowPath = path.resolve(__dirname, "../../../.github/workflows/release.yml");
     const workflow = fs.readFileSync(workflowPath, "utf8");
 
-    assert.ok(workflow.includes("RELEASE_TAG: ${{ github.ref_name }}"));
     assert.ok(
-      workflow.includes(
-        "run: node ./scripts/release-notes.js CHANGELOG.md release-notes.md",
-      ),
+      workflow.includes("branches:") && workflow.includes("- main"),
     );
-    assert.ok(workflow.includes("gh release view \"${{ github.ref_name }}\" >/dev/null 2>&1"));
-    assert.ok(workflow.includes("gh release upload \"${{ github.ref_name }}\" archive/vsix/latest/copilot-cockpit-*.vsix --clobber"));
-    assert.ok(workflow.includes('gh release edit "${{ github.ref_name }}" \\'));
+    assert.ok(workflow.includes("uses: actions/cache@v4"));
+    assert.ok(workflow.includes("path: .vscode-test"));
+    assert.ok(workflow.includes("run: npm run pretest"));
+    assert.ok(workflow.includes("run: npm test"));
+    assert.ok(workflow.includes("RELEASE_TAG=edge"));
+    assert.ok(workflow.includes("node ./scripts/release-notes.js CHANGELOG.md release-notes.md"));
+    assert.ok(workflow.includes('gh release view "${RELEASE_TAG}" >/dev/null 2>&1'));
+    assert.ok(workflow.includes('gh release upload "${RELEASE_TAG}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber'));
+    assert.ok(workflow.includes('gh release edit "${RELEASE_TAG}" \\'));
   });
 });
