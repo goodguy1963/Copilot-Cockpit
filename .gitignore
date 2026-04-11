@@ -40,3 +40,6 @@ FULL_SPECIFICATION.md
 .vscode/cockpit-prompt-backups/
 .vscode/scheduler-history
 analysis_tools/
+
+!.github/prompts/
+!.github/prompts/**

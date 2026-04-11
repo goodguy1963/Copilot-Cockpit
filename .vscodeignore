@@ -25,6 +25,8 @@ AGENTS.md
 !.github/
 !.github/agents/
 !.github/agents/**
+!.github/prompts/
+!.github/prompts/**
 !.github/skills/
 !.github/skills/**
 

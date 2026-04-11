@@ -177,7 +177,8 @@ suite("Release Pipeline Contract Tests", () => {
     assert.ok(workflow.includes("uses: actions/cache@v4"));
     assert.ok(workflow.includes("path: .vscode-test"));
     assert.ok(workflow.includes("run: npm run pretest"));
-    assert.ok(workflow.includes("run: npm test"));
+    assert.ok(workflow.includes("Ensure Xvfb is available"));
+    assert.ok(workflow.includes('run: xvfb-run -a --server-args="-screen 0 1280x1024x24" npm test'));
     assert.ok(workflow.includes("RELEASE_TAG=edge"));
     assert.ok(workflow.includes("node ./scripts/release-notes.js CHANGELOG.md release-notes.md"));
     assert.ok(workflow.includes('gh release view "${RELEASE_TAG}" >/dev/null 2>&1'));
