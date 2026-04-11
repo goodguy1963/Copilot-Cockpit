@@ -47,6 +47,7 @@ import {
     readScheduleHistorySnapshot,
 } from "./cockpitHistory.js";
 import {
+    exportWorkspaceSqliteToJsonMirrors,
     readWorkspaceCockpitBoardFromSqlite,
     readWorkspaceSchedulerStateFromSqlite,
     syncWorkspaceCockpitBoardToSqlite,
@@ -618,6 +619,11 @@ export async function writeSchedulerServerConfigForWorkspace(
             workspaceRoot,
             normalizedConfig.cockpitBoard,
         );
+
+        // In sqlite mode, regenerate JSON mirrors from sqlite authority so
+        // compatibility files cannot drift from the live runtime store.
+        await exportWorkspaceSqliteToJsonMirrors(workspaceRoot);
+        return;
     }
 
     writeSchedulerConfig(workspaceRoot, normalizedConfig);

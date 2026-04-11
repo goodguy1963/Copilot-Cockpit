@@ -87,6 +87,16 @@ This is one of the most important distinctions in the Cockpit workflow:
 - When the user wants to update a one-time task (prompt change, timing change, etc.), use `scheduler_update_task` directly — no new card, no new card comment needed unless the user's intent changes fundamentally.
 - When the one-time task executes successfully, it deletes itself automatically. Finalize the originating todo card with `cockpit_finalize_todo`.
 
+## Example Data Rule
+
+When the user asks for demo data, example data, or screenshot seed content, `Recurring Tasks` cards do not automatically satisfy "something in Cockpit" by themselves.
+
+- A recurring-task card is the history record for a scheduled task.
+- A Cockpit planning example should usually be a separate active card in `Unsorted` or another normal planning section.
+- Only skip that extra planning card when the user explicitly asks for scheduled-only examples.
+
+If the goal is to showcase the Cockpit surface, prefer one clear unscheduled planning card with a human-review state over relying only on scheduled-task mirrors.
+
 ## Closeout Recipe For Routed Execution Work
 
 - Prefer `cockpit_closeout_todo` when implementation is complete but the user still needs to review it. Keep the card active, move it to the repo's final-review section only if that section actually exists, and use an explicit review-state flag such as `needs-user-review`.

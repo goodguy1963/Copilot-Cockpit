@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as assert from "assert";
 import * as path from "path";
+import { spawnSync } from "child_process";
 import {
   createDefaultCockpitBoard,
   DEFAULT_ARCHIVE_REJECTED_SECTION_ID,
@@ -75,6 +76,21 @@ function createTempWorkspace(): string {
 }
 
 suite("Scheduler MCP Server Tests", () => {
+  test("compiled server module loads in plain node without vscode at module load", () => {
+    const serverModulePath = path.resolve(__dirname, "../../server.js");
+    const result = spawnSync(
+      process.execPath,
+      ["-e", `require(${JSON.stringify(serverModulePath)});`],
+      { encoding: "utf8" },
+    );
+
+    assert.strictEqual(
+      result.status,
+      0,
+      result.stderr || result.stdout || "Plain node require failed.",
+    );
+  });
+
   test("server workspace writes sync sqlite when sqlite mode is enabled", async () => {
     const workspaceRoot = createTempWorkspace();
     try {
@@ -164,6 +180,69 @@ suite("Scheduler MCP Server Tests", () => {
 
       assert.deepStrictEqual(config.tasks.map((task) => task.id), ["sqlite-task"]);
       assert.strictEqual(config.cockpitBoard?.cards[0]?.id, "todo-live");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("server workspace writes export scheduler mirrors from sqlite authority", async () => {
+    const workspaceRoot = createTempWorkspace();
+    try {
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [
+          {
+            id: "demo-task",
+            name: "Demo task",
+            cron: "15 0 * * *",
+            prompt: "Run the demo loop.",
+            enabled: true,
+            promptBackupPath:
+              ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/demo-task.prompt.md",
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      await writeSchedulerServerConfigForWorkspace(workspaceRoot, {
+        tasks: [
+          {
+            id: "demo-task",
+            name: "Demo task",
+            cron: "15 0 * * *",
+            prompt: "Run the demo loop.",
+            enabled: true,
+            promptBackupPath:
+              ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      const publicMirror = JSON.parse(
+        fs.readFileSync(
+          path.join(workspaceRoot, ".vscode", "scheduler.json"),
+          "utf8",
+        ),
+      );
+      const privateMirror = JSON.parse(
+        fs.readFileSync(
+          path.join(workspaceRoot, ".vscode", "scheduler.private.json"),
+          "utf8",
+        ),
+      );
+
+      assert.strictEqual(
+        publicMirror.tasks[0]?.promptBackupPath,
+        ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+      );
+      assert.strictEqual(
+        privateMirror.tasks[0]?.promptBackupPath,
+        ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+      );
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

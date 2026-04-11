@@ -200,6 +200,17 @@ Look at the repo-local scheduler store and its compatibility mirrors as the live
 - repo-specific workflow jobs that combine task steps, pause checkpoints, and a bundled output task
 - research profiles that benchmark a change against a local command and a metric regex
 
+## Example Set Completeness
+
+When the user asks for demo data, example data, screenshot data, or onboarding seed content, do not stop after creating recurring tasks plus one job.
+
+- `Todo Cockpit` needs at least one active planning card that is not merely a recurring-task mirror.
+- `Tasks` need at least one standalone scheduled task visible in the task list.
+- `Jobs` need at least one real workflow with task nodes and a pause checkpoint.
+- `Research` needs one profile when the user asks for research coverage too.
+
+Do not count job child tasks or recurring-task cards as covering every surface by themselves. If the request is for a complete example set, create separate artifacts through MCP for each requested surface.
+
 ## Practical Examples
 
 ### 1. Create a recurring task

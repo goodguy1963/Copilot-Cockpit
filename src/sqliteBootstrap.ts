@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import initSqlJs from "sql.js";
 import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
 import { readSchedulerConfig, writeSchedulerConfig } from "./cockpitJsonSanitizer";
@@ -95,6 +95,14 @@ type WorkspaceMigrationJournal = {
   };
 };
 
+type ExtensionContextLike = {
+  globalStorageUri: vscode.ExtensionContext["globalStorageUri"];
+};
+
+type WorkspaceFolderLike = {
+  uri: vscode.WorkspaceFolder["uri"];
+};
+
 const SQLITE_MIGRATION_JOURNAL_VERSION = 1;
 
 let sqlJsModulePromise: Promise<SqlJsModule> | undefined;
@@ -128,6 +136,16 @@ async function openSqliteDatabase(
     db: new SQL.Database(),
     created: true,
   };
+}
+
+function getWorkspaceFoldersFromVsCode(): WorkspaceFolderLike[] {
+  const vscodeModule = require("vscode") as {
+    workspace?: {
+      workspaceFolders?: WorkspaceFolderLike[];
+    };
+  };
+
+  return vscodeModule.workspace?.workspaceFolders ?? [];
 }
 
 function applySchema(
@@ -649,9 +667,9 @@ export async function bootstrapGlobalSqliteStorage(
 }
 
 export async function bootstrapConfiguredSqliteStorage(
-  context: vscode.ExtensionContext,
+  context: ExtensionContextLike,
 ): Promise<SqliteBootstrapSummary> {
-  const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+  const workspaceFolders = getWorkspaceFoldersFromVsCode();
   const workspaceResults: SqliteBootstrapResult[] = [];
 
   for (const folder of workspaceFolders) {

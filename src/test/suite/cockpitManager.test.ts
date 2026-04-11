@@ -1101,6 +1101,65 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       removeTestPaths(workspaceRoot, storageRoot);
     }
   });
+
+  test("reload canonicalizes legacy workspace prompt backup paths in sqlite mode", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-sqlite-legacy-backup-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-sqlite-legacy-backup-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const createdTask = await manager.createTask({
+        name: "SQLite legacy backup path",
+        cronExpression: "0 * * * *",
+        prompt: "Recurring backup body",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      const canonicalPath = manager.getTask(createdTask.id)?.promptBackupPath;
+      assert.ok(canonicalPath);
+
+      const legacyPath = `.vscode/scheduler-prompt-backups/${canonicalPath}`;
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      const schedulerPrivatePath = getPrivateSchedulerConfigPath(schedulerJsonPath);
+
+      for (const filePath of [schedulerJsonPath, schedulerPrivatePath]) {
+        const config = JSON.parse(fs.readFileSync(filePath, "utf8")) as {
+          tasks: Array<Record<string, unknown>>;
+        };
+        const savedTask = config.tasks.find((task) => task.id === createdTask.id);
+        assert.ok(savedTask);
+        savedTask!.promptBackupPath = legacyPath;
+        fs.writeFileSync(filePath, JSON.stringify(config, null, 2), "utf8");
+      }
+
+      manager.reloadTasks();
+
+      assert.strictEqual(manager.getTask(createdTask.id)?.promptBackupPath, canonicalPath);
+
+      await (manager as unknown as {
+        persistTasks: (options?: { bumpRevision?: boolean }) => Promise<void>;
+      }).persistTasks({ bumpRevision: false });
+
+      for (const filePath of [schedulerJsonPath, schedulerPrivatePath]) {
+        const config = JSON.parse(fs.readFileSync(filePath, "utf8")) as {
+          tasks: Array<Record<string, unknown>>;
+        };
+        const savedTask = config.tasks.find((task) => task.id === createdTask.id);
+        assert.strictEqual(savedTask?.promptBackupPath, canonicalPath);
+      }
+    } finally {
+      restoreMode();
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
 });
 
 suite("ScheduleManager Overdue Task Tests", () => {

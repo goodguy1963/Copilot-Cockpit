@@ -156,6 +156,7 @@ Best for: first-time users who want the operating model before the controls.
 - Use a delivery-risk and security watcher to keep shipping and trust issues visible.
 - Use a knowledge packager to keep README, release notes, onboarding, and project memory current.
 - Stop the loop at a review checkpoint so the owner chooses what becomes real execution.
+- Add one research profile when you want to benchmark onboarding or prompt quality instead of just scheduling another task.
 
 ### Company Examples
 

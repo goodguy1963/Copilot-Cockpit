@@ -31,6 +31,7 @@ Skip toy prompts. Start with one recurring loop that would still be worth keepin
 
 - For a small project, use an opportunity scout, a delivery-risk watch, and a knowledge packager, then stop at a review checkpoint.
 - For a company team, use the same pattern for product signals, security and release readiness, support queues, or operations follow-up.
+- If you also want to show the Research surface, add one benchmarked profile that scores onboarding or prompt quality against a simple command.
 
 That keeps the demo honest: the proof is useful output plus explicit review, not a claim that the system should run unchecked.
 

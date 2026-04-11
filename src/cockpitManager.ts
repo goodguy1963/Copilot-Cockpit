@@ -25,6 +25,7 @@ import { // local-diverge-21
   writeSchedulerConfig,
 } from "./cockpitJsonSanitizer";
 import {
+  exportWorkspaceSqliteToJsonMirrors,
   readWorkspaceSchedulerStateFromSqlite,
   syncGlobalTasksToSqlite,
   syncWorkspaceSchedulerStateToSqlite,
@@ -774,6 +775,10 @@ export class ScheduleManager {
   ): WorkspaceSchedulerState {
     const tasks = Array.isArray(config.tasks)
       ? config.tasks.map((t: any) => {
+        const canonicalPromptBackupPath =
+          typeof t.promptBackupPath === "string" && t.promptBackupPath.trim().length > 0
+            ? getCanonicalPromptBackupPath(workspaceRoot, t.promptBackupPath)
+            : undefined;
         const workspacePath =
           typeof t.workspacePath === "string" && t.workspacePath.trim().length > 0
             ? path.resolve(t.workspacePath)
@@ -802,7 +807,12 @@ export class ScheduleManager {
           nextRun: t.nextRun ? new Date(t.nextRun) : undefined,
           promptSource: t.promptSource || "inline",
           promptPath: t.promptPath,
-          promptBackupPath: t.promptBackupPath,
+          promptBackupPath: canonicalPromptBackupPath
+            ? toWorkspaceRelativePromptBackupPath(
+              workspaceRoot,
+              canonicalPromptBackupPath,
+            )
+            : t.promptBackupPath,
           promptBackupUpdatedAt: t.promptBackupUpdatedAt
             ? new Date(t.promptBackupUpdatedAt)
             : undefined,
@@ -1118,11 +1128,16 @@ export class ScheduleManager {
             ...Array.from(this.pendingDeletedJobFolderIds),
           ])).filter((folderId) => !this.jobFolders.has(folderId)),
         };
-        writeSchedulerConfig(workspaceRoot, config, {
-          baseConfig: existingConfig,
-        });
         if (this.isWorkspaceSqliteModeEnabled()) {
           await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, config);
+          await exportWorkspaceSqliteToJsonMirrors(
+            workspaceRoot,
+            this.extensionCtx.globalStorageUri?.fsPath,
+          );
+        } else {
+          writeSchedulerConfig(workspaceRoot, config, {
+            baseConfig: existingConfig,
+          });
         }
         this.pendingDeletedTaskIds.clear();
         this.pendingDeletedJobIds.clear();

@@ -119,6 +119,7 @@ Start with one recurring loop that produces useful work instead of toy output.
 - `Delivery Risk and Security Watch (Daily)` looks for shipping, trust, and operational blind spots.
 - `Knowledge and Shipping Packager (Daily)` turns recent work into reusable docs, memory, and release material.
 - `Project Intelligence and Delivery Prep` runs those steps in sequence and stops at a review checkpoint before anything turns into real execution.
+- `Onboarding Example Coverage Research` benchmarks whether the docs still explain Cockpit, Tasks, Jobs, and Research with explicit review checkpoints.
 
 This is a good fit for a solo product, an internal tool, a small SaaS, or an actively maintained extension like this repo.
 

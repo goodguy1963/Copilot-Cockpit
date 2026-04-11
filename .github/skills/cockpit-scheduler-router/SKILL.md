@@ -58,6 +58,17 @@ This router skill is MCP-dependent. It must not attempt live routing or schedule
 - `ON-SCHEDULE-LIST` → manage the linked scheduler job lifecycle for live scheduled cards.
 - `needs-user-review` or `new` → keep the card active and route it for follow-up instead of scheduling immediately.
 
+## Example Set Requests
+
+When the user asks for a demo/example set across surfaces, route it as separate artifacts instead of collapsing everything into scheduled tasks.
+
+- Keep one active planning card in Cockpit.
+- Keep one standalone task in the task list.
+- Keep one job as a workflow artifact.
+- Keep one research profile when research is part of the request.
+
+Do not treat recurring task mirrors or job child tasks as a full cross-surface example set on their own.
+
 ## Rule Block: Workflow Outcomes
 
 - `ON-SCHEDULE-LIST` + completed implementation:
