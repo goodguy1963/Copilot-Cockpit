@@ -3,6 +3,7 @@ import * as assert from "assert";
 import * as path from "path";
 import * as os from "os";
 import {
+  BUNDLED_AGENTS_RELATIVE_PATH,
   BUNDLED_SKILLS_RELATIVE_PATH,
   type BundledSkillSyncState,
   CODEX_AGENTS_RELATIVE_PATH,
@@ -11,6 +12,7 @@ import {
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
   SCHEDULER_SKILL_RELATIVE_PATH,
+  syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "../../skillBootstrap";
@@ -395,6 +397,129 @@ suite("Skill Bootstrap Tests", () => {
       assert.ok(agentsContent.includes("Operational skills: cockpit-scheduler-agent (orchestrate scheduled work and MCP-backed workflow routing)."));
       assert.ok(agentsContent.includes("Support skills: copilot-scheduler-intro (onboard new contributors before they change scheduler state)."));
       assert.ok(agentsContent.includes("cannot start a new session"));
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("syncs bundled agents into repo-local .github/agents paths", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-agents-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-agents-"),
+    );
+
+    try {
+      const bundledFiles = [
+        path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md"),
+        path.join(BUNDLED_AGENTS_RELATIVE_PATH, "README.md"),
+        path.join(BUNDLED_AGENTS_RELATIVE_PATH, "knowledge", "planning.md"),
+      ];
+
+      for (const relativePath of bundledFiles) {
+        const absolutePath = path.join(extensionRoot, relativePath);
+        fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+        fs.writeFileSync(absolutePath, `content:${relativePath}\n`, "utf8");
+      }
+
+      const result = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      assert.strictEqual(result.createdPaths.length, bundledFiles.length);
+      assert.strictEqual(result.updatedPaths.length, 0);
+      assert.strictEqual(result.skippedPaths.length, 0);
+
+      for (const relativePath of bundledFiles) {
+        const targetPath = path.join(workspaceRoot, relativePath);
+        assert.strictEqual(
+          fs.readFileSync(targetPath, "utf8"),
+          `content:${relativePath}\n`,
+        );
+        assert.ok(result.nextState[workspaceRoot]?.[relativePath]);
+      }
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("updates previously managed bundled agent files when the bundled content changes", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-agents-update-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-agents-update-"),
+    );
+
+    try {
+      const relativePath = path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md");
+      const bundledAgentPath = path.join(extensionRoot, relativePath);
+      fs.mkdirSync(path.dirname(bundledAgentPath), { recursive: true });
+      fs.writeFileSync(bundledAgentPath, "version-one\n", "utf8");
+
+      const firstResult = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      fs.writeFileSync(bundledAgentPath, "version-two\n", "utf8");
+
+      const secondResult = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+        firstResult.nextState,
+      );
+
+      assert.strictEqual(secondResult.createdPaths.length, 0);
+      assert.strictEqual(secondResult.updatedPaths.length, 1);
+      assert.strictEqual(secondResult.skippedPaths.length, 0);
+      assert.strictEqual(
+        fs.readFileSync(path.join(workspaceRoot, relativePath), "utf8"),
+        "version-two\n",
+      );
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("skips bundled agent files when the workspace copy was customized", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-agents-protected-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-agents-protected-"),
+    );
+
+    try {
+      const relativePath = path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md");
+      const bundledAgentPath = path.join(extensionRoot, relativePath);
+      const workspaceAgentPath = path.join(workspaceRoot, relativePath);
+      fs.mkdirSync(path.dirname(bundledAgentPath), { recursive: true });
+      fs.writeFileSync(bundledAgentPath, "version-one\n", "utf8");
+
+      const firstResult = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      fs.writeFileSync(workspaceAgentPath, "workspace-custom\n", "utf8");
+      fs.writeFileSync(bundledAgentPath, "version-two\n", "utf8");
+
+      const secondResult = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+        firstResult.nextState,
+      );
+
+      assert.strictEqual(secondResult.createdPaths.length, 0);
+      assert.strictEqual(secondResult.updatedPaths.length, 0);
+      assert.strictEqual(secondResult.skippedPaths.length, 1);
+      assert.strictEqual(
+        fs.readFileSync(workspaceAgentPath, "utf8"),
+        "workspace-custom\n",
+      );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
     }

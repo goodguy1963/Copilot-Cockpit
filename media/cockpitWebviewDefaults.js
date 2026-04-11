@@ -91,6 +91,10 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
         value && typeof value.lastBundledSkillsSyncAt === "string"
           ? value.lastBundledSkillsSyncAt
           : (previousValue && previousValue.lastBundledSkillsSyncAt) || "",
+      lastBundledAgentsSyncAt:
+        value && typeof value.lastBundledAgentsSyncAt === "string"
+          ? value.lastBundledAgentsSyncAt
+          : (previousValue && previousValue.lastBundledAgentsSyncAt) || "",
     };
   };
 }

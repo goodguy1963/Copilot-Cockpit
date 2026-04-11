@@ -54,6 +54,7 @@ import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
   previewBundledSkillSyncForWorkspaceRoots,
+  syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "./skillBootstrap";
@@ -129,9 +130,11 @@ import type {
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
+const BUNDLED_AGENT_SYNC_STATE_KEY = "bundledAgentSyncState";
 const CODEX_SKILL_SYNC_STATE_KEY = "codexSkillSyncState";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
+const LAST_BUNDLED_AGENTS_SYNC_MAP_KEY = "lastBundledAgentsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
 const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
 const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
@@ -392,6 +395,33 @@ async function syncBundledSkills(
     await updateWorkspaceTimestampMap(
       context,
       LAST_BUNDLED_SKILLS_SYNC_MAP_KEY,
+      workspaceRoots,
+    );
+  }
+  return syncResult;
+}
+
+async function syncBundledAgents(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<BundledSkillSyncResult> {
+  const syncState = context.globalState.get<BundledSkillSyncState>(
+    BUNDLED_AGENT_SYNC_STATE_KEY,
+    {},
+  );
+  const syncResult = await syncBundledAgentsForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+    syncState,
+  );
+  await context.globalState.update(
+    BUNDLED_AGENT_SYNC_STATE_KEY,
+    syncResult.nextState,
+  );
+  if (syncResult.createdPaths.length > 0 || syncResult.updatedPaths.length > 0) {
+    await updateWorkspaceTimestampMap(
+      context,
+      LAST_BUNDLED_AGENTS_SYNC_MAP_KEY,
       workspaceRoots,
     );
   }
@@ -870,6 +900,10 @@ function getCurrentStorageSettings(): StorageSettingsView {
     ),
     lastBundledSkillsSyncAt: getWorkspaceTimestamp(
       LAST_BUNDLED_SKILLS_SYNC_MAP_KEY,
+      workspaceRoot,
+    ),
+    lastBundledAgentsSyncAt: getWorkspaceTimestamp(
+      LAST_BUNDLED_AGENTS_SYNC_MAP_KEY,
       workspaceRoot,
     ),
   };
@@ -2558,6 +2592,48 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         await vscode.commands.executeCommand(
           getCockpitCommandId("syncBundledSkills"),
         );
+        break;
+      }
+
+      case "syncBundledAgents": {
+        if (!extensionContext) {
+          notifyError(messages.bundledAgentsSyncWorkspaceRequired());
+          break;
+        }
+
+        const workspaceRoots = getResolvedWorkspaceRoots(
+          (vscode.workspace.workspaceFolders ?? []).map((folder) =>
+            folder.uri.fsPath
+          ),
+        );
+        if (workspaceRoots.length === 0) {
+          notifyError(messages.bundledAgentsSyncWorkspaceRequired());
+          break;
+        }
+
+        const syncResult = await syncBundledAgents(extensionContext, workspaceRoots);
+        await SchedulerWebview.reloadCachesAndSync(true);
+
+        if (
+          syncResult.createdPaths.length === 0
+          && syncResult.updatedPaths.length === 0
+          && syncResult.skippedPaths.length === 0
+        ) {
+          notifyInfo(messages.bundledAgentsSyncNoChanges());
+          break;
+        }
+
+        const summary = messages.bundledAgentsSyncCompleted(
+          syncResult.createdPaths.length,
+          syncResult.updatedPaths.length,
+          syncResult.skippedPaths.length,
+        );
+        if (syncResult.skippedPaths.length > 0) {
+          void vscode.window.showWarningMessage(summary);
+          break;
+        }
+
+        notifyInfo(summary);
         break;
       }
 

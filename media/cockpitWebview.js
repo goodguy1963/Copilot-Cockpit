@@ -395,6 +395,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     setupCodexBtn,
     setupCodexSkillsBtn,
     syncBundledSkillsBtn,
+    syncBundledAgentsBtn,
+    openCopilotSettingsBtn,
+    openExtensionSettingsBtn,
     importStorageFromJsonBtn,
     exportStorageToJsonBtn,
     helpLanguageSelect,
@@ -599,6 +602,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsMcpStatusValue,
     settingsMcpUpdatedValue,
     settingsSkillsUpdatedValue,
+    settingsAgentsUpdatedValue,
     settingsLogLevelSelect,
     settingsLogDirectoryInput,
     settingsOpenLogFolderBtn,
@@ -1389,6 +1393,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
     if (settingsSkillsUpdatedValue) {
       settingsSkillsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledSkillsSyncAt);
+    }
+    if (settingsAgentsUpdatedValue) {
+      settingsAgentsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledAgentsSyncAt);
     }
   }
 
@@ -5413,6 +5420,9 @@ syncTodoLabelSuggestions();
     setupCodex: setupCodexBtn,
     setupCodexSkills: setupCodexSkillsBtn,
     syncBundledSkills: syncBundledSkillsBtn,
+    syncBundledAgents: syncBundledAgentsBtn,
+    openCopilotSettings: openCopilotSettingsBtn,
+    openExtensionSettings: openExtensionSettingsBtn,
     importStorageFromJson: importStorageFromJsonBtn,
     exportStorageToJson: exportStorageToJsonBtn,
   });

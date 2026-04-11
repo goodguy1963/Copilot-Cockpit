@@ -79,6 +79,7 @@ suite("Scheduler webview settings handler behavior", () => {
             mcpSetupStatus: "configured",
             lastMcpSupportUpdateAt: "",
             lastBundledSkillsSyncAt: "",
+            lastBundledAgentsSyncAt: "",
           },
         },
         {
@@ -112,6 +113,7 @@ suite("Scheduler webview settings handler behavior", () => {
             mcpSetupStatus: "workspace-required",
             lastMcpSupportUpdateAt: "",
             lastBundledSkillsSyncAt: "",
+            lastBundledAgentsSyncAt: "",
           },
         },
       ]);
@@ -121,6 +123,68 @@ suite("Scheduler webview settings handler behavior", () => {
       }).updateCompatibleConfigurationValue = originalUpdate;
       restoreWorkspace();
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("opens extension settings from the settings webview action", async () => {
+    const originalExecute = vscode.commands.executeCommand;
+    const executeCalls: unknown[][] = [];
+
+    try {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = (async (...args: unknown[]) => {
+        executeCalls.push(args);
+      }) as typeof vscode.commands.executeCommand;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "openExtensionSettings" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(executeCalls, [
+        ["workbench.action.openSettings", "@ext:local-dev.copilot-cockpit"],
+      ]);
+    } finally {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = originalExecute;
+    }
+  });
+
+  test("opens Copilot settings from the settings webview action", async () => {
+    const originalExecute = vscode.commands.executeCommand;
+    const executeCalls: unknown[][] = [];
+
+    try {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = (async (...args: unknown[]) => {
+        executeCalls.push(args);
+      }) as typeof vscode.commands.executeCommand;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "openCopilotSettings" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(executeCalls, [
+        ["workbench.action.openSettings", "@feature:chat @ext:github.copilot-chat @ext:github.copilot mcp agent model"],
+      ]);
+    } finally {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = originalExecute;
     }
   });
 });

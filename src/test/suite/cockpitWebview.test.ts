@@ -1117,6 +1117,7 @@ test("todo comments style human form input separately and todo saves reset to cr
         mcpSetupStatus: "configured",
         lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
         lastBundledSkillsSyncAt: "2026-04-04T10:01:00.000Z",
+        lastBundledAgentsSyncAt: "2026-04-04T10:02:00.000Z",
       }],
       messageType: "updateStorageSettings",
       verify: (message) => {
@@ -3458,6 +3459,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       await wv.handleMessage!({ type: "setupCodex" });
       await wv.handleMessage!({ type: "setupCodexSkills" });
       await wv.handleMessage!({ type: "syncBundledSkills" });
+      await wv.handleMessage!({ type: "syncBundledAgents" });
       await wv.handleMessage!({ type: "importStorageFromJson" });
       await wv.handleMessage!({ type: "exportStorageToJson" });
       await wv.handleMessage!({
@@ -3497,6 +3499,10 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         },
         {
           action: "syncBundledSkills",
+          taskId: "__settings__",
+        },
+        {
+          action: "syncBundledAgents",
           taskId: "__settings__",
         },
         {

@@ -1050,6 +1050,28 @@ export const messages = {
       `同梱スキルの同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
       `Die Synchronisierung der gebündelten Skills ist abgeschlossen. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
     ),
+  bundledAgentsSyncWorkspaceRequired: () =>
+    t(
+      "Open a workspace folder before syncing bundled agents.",
+      "同梱エージェントを同期する前に、ワークスペースフォルダーを開いてください。",
+      "Öffnen Sie einen Workspace-Ordner, bevor Sie gebündelte Agenten synchronisieren.",
+    ),
+  bundledAgentsSyncNoChanges: () =>
+    t(
+      "Bundled agents are already present and up to date.",
+      "同梱エージェントはすでに存在し、最新です。",
+      "Gebündelte Agenten sind bereits vorhanden und aktuell.",
+    ),
+  bundledAgentsSyncCompleted: (
+    created: number,
+    updated: number,
+    skipped: number,
+  ) =>
+    t(
+      `Bundled agent sync finished. Created ${created}, updated ${updated}, skipped ${skipped} customized files.`,
+      `同梱エージェントの同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
+      `Die Synchronisierung der gebündelten Agenten ist abgeschlossen. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
+    ),
   mcpSetupWorkspaceRequired: () =>
     t(
       "Open a workspace folder before setting up the scheduler MCP config.",

@@ -504,14 +504,20 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <div class="button-group" style="margin-top:8px;">
           <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
           <button type="button" class="btn-secondary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+          <button type="button" class="btn-secondary" id="sync-bundled-agents-btn">${escapeHtml(strings.actionSyncBundledAgents)}</button>
           <button type="button" class="btn-secondary" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
           <button type="button" class="btn-secondary" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+        </div>
+        <div class="button-group" style="margin-top:8px;">
+          <button type="button" class="btn-secondary" id="open-copilot-settings-btn">${escapeHtml(strings.actionOpenCopilotSettings)}</button>
+          <button type="button" class="btn-secondary" id="open-extension-settings-btn">${escapeHtml(strings.actionOpenCockpitSettings)}</button>
         </div>
         <div class="settings-metrics-grid">
           <div class="settings-metric"><strong>🧪 ${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
           <div class="settings-metric"><strong>🔌 ${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
           <div class="settings-metric"><strong>🕒 ${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
           <div class="settings-metric"><strong>📚 ${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>
+          <div class="settings-metric"><strong>🤖 ${escapeHtml(strings.settingsStorageLastAgentsUpdateLabel)}</strong> <span id="settings-agents-updated-value">-</span></div>
         </div>
       </section>
       <section class="telegram-card settings-card settings-card-review" style="grid-column:span 2;">

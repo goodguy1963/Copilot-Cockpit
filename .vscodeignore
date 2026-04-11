@@ -23,6 +23,8 @@ FULL_SPECIFICATION.md
 AGENTS.md
 .github/**
 !.github/
+!.github/agents/
+!.github/agents/**
 !.github/skills/
 !.github/skills/**
 

@@ -108,6 +108,7 @@ export async function handleSettingsWebviewMessage(
         mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",
         lastMcpSupportUpdateAt: current?.lastMcpSupportUpdateAt ?? "",
         lastBundledSkillsSyncAt: current?.lastBundledSkillsSyncAt ?? "",
+        lastBundledAgentsSyncAt: current?.lastBundledAgentsSyncAt ?? "",
       };
       if (updatedBoard && ctx.updateCockpitBoard) {
         ctx.updateCockpitBoard(updatedBoard);
@@ -124,6 +125,20 @@ export async function handleSettingsWebviewMessage(
     }
     case "openLogFolder": {
       await revealLogDirectory();
+      return true;
+    }
+    case "openExtensionSettings": {
+      await vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@ext:local-dev.copilot-cockpit",
+      );
+      return true;
+    }
+    case "openCopilotSettings": {
+      await vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "@feature:chat @ext:github.copilot-chat @ext:github.copilot mcp agent model",
+      );
       return true;
     }
     case "introTutorial": {

@@ -833,6 +833,9 @@ export interface StorageSettingsView {
 
   /** Last time bundled skills were updated for this workspace */
   lastBundledSkillsSyncAt: string;
+
+  /** Last time bundled starter agents were synced for this workspace */
+  lastBundledAgentsSyncAt: string;
 }
 
 /**
@@ -1434,6 +1437,7 @@ type TaskActionName =
   | "setupCodex"
   | "setupCodexSkills"
   | "syncBundledSkills"
+  | "syncBundledAgents"
   | "importStorageFromJson"
   | "exportStorageToJson"
   | "saveTelegramNotification"
@@ -1646,6 +1650,7 @@ type SchedulerControlMessage =
   | { type: "setupCodex" }
   | { type: "setupCodexSkills" }
   | { type: "syncBundledSkills" }
+  | { type: "syncBundledAgents" }
   | { type: "importStorageFromJson" }
   | { type: "exportStorageToJson" };
 
@@ -1708,6 +1713,8 @@ type CockpitSectionMessage =
   | { type: "webviewReady" }
   | { type: "introTutorial" }
   | { type: "planIntegration" }
+  | { type: "openExtensionSettings" }
+  | { type: "openCopilotSettings" }
   | { type: "restoreBackup" };
 
 /** Webview message types (Webview → Extension). */

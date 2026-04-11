@@ -45,8 +45,17 @@ jobs:
       - name: Build and typecheck
         run: npm run pretest
 
+      - name: Ensure Xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
       - name: Run tests
-        run: npm test
+        shell: bash
+        run: xvfb-run -a --server-args="-screen 0 1280x1024x24" npm test
 
       # vsce package auto-calls vscode:prepublish (esbuild minify) before packing
       - name: Build & package VSIX
