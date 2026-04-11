@@ -181,6 +181,8 @@ suite("Release Pipeline Contract Tests", () => {
     assert.ok(workflow.includes('run: xvfb-run -a --server-args="-screen 0 1280x1024x24" npm test'));
     assert.ok(workflow.includes("RELEASE_TAG=edge"));
     assert.ok(workflow.includes("node ./scripts/release-notes.js CHANGELOG.md release-notes.md"));
+    assert.ok(workflow.includes("PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\""));
+    assert.ok(workflow.includes("echo \"- Packaged from workspace version: ${PACKAGE_VERSION}\""));
     assert.ok(workflow.includes('gh release view "${RELEASE_TAG}" >/dev/null 2>&1'));
     assert.ok(workflow.includes('gh release upload "${RELEASE_TAG}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber'));
     assert.ok(workflow.includes('gh release edit "${RELEASE_TAG}" \\'));
