@@ -3,6 +3,18 @@
     <img src="images/icon.png" alt="Copilot Cockpit icon" width="128">
 </p>
 <h1 align="center">Copilot Cockpit</h1>
+
+<p align="center">
+    <a href="https://github.com/goodguy1963/Copilot-Cockpit/actions/workflows/release.yml">
+        <img src="https://github.com/goodguy1963/Copilot-Cockpit/actions/workflows/release.yml/badge.svg" alt="Release workflow status">
+    </a>
+    <a href="https://github.com/goodguy1963/Copilot-Cockpit/releases/latest">
+        <img src="https://img.shields.io/github/v/release/goodguy1963/Copilot-Cockpit?display_name=tag&label=stable" alt="Latest stable release">
+    </a>
+    <a href="https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/edge">
+        <img src="https://img.shields.io/github/v/release/goodguy1963/Copilot-Cockpit?filter=edge&include_prereleases&label=edge" alt="Latest edge prerelease">
+    </a>
+</p>
 <!-- markdownlint-enable MD033 MD041 -->
 
 Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
@@ -165,6 +177,12 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 4. Move approved work into `ready` to prepare a task draft.
 5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
 6. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
+
+## 🚦 Release Channels
+
+- `edge` is the rolling prerelease channel. Every push to `main` validates the build on GitHub, packages a VSIX, and updates the `edge` GitHub prerelease.
+- Stable releases stay tag-based. Push a version tag such as `v1.1.150` when you want a durable release entry instead of the rolling preview channel.
+- The local VSIX install flow is still useful for immediate testing in your own editor, but GitHub now builds the release artifacts automatically.
 
 ## 📚 Documentation
 
