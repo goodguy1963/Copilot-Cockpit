@@ -115,7 +115,7 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything.
+`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync.
 
 ## Common Workflows
 
@@ -178,7 +178,7 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
 6. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
 
-The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents`. That sync is intentionally manual and skips customized workspace copies so your repo-specific agent edits are not overwritten.
+The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents`, but treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
 ## 🚦 Release Channels
 
@@ -202,7 +202,7 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
-- Bundled starter agents can be synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Custom Agent Foundry`, and `Cockpit Todo Expert`.
+- Bundled starter agents can be synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`.
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
 - Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
