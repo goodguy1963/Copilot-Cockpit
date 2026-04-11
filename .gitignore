@@ -43,3 +43,7 @@ analysis_tools/
 
 !.github/prompts/
 !.github/prompts/**
+!.github/agents/
+!.github/agents/**/
+!.github/agents/**/*.md
+.github/agents/todos/
