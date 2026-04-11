@@ -2145,6 +2145,13 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         refreshSchedulerUiState,
         notifyError,
         notifyInfo,
+        notifyInfoWithAction: (message, actionLabel, onAction) => {
+          void vscode.window.showInformationMessage(message, actionLabel).then((choice) => {
+            if (choice === actionLabel) {
+              void Promise.resolve(onAction());
+            }
+          });
+        },
         showError: SchedulerWebview.showError,
         noWorkspaceOpenMessage: messages.noWorkspaceOpen(),
       });

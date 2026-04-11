@@ -54,6 +54,7 @@ suite("Todo Cockpit Action Handler", () => {
       refreshSchedulerUiState: () => undefined,
       notifyError: (_message: string) => undefined,
       notifyInfo: (_message: string) => undefined,
+      notifyInfoWithAction: (_message: string, _actionLabel: string, _onAction: () => void | Promise<void>) => undefined,
       showError: (_message: string) => undefined,
       noWorkspaceOpenMessage: "No workspace",
     };
@@ -118,6 +119,12 @@ suite("Todo Cockpit Action Handler", () => {
     const switchedTabs: string[] = [];
     const editedTaskIds: string[] = [];
     const createdTaskInputs: CreateTaskInput[] = [];
+    const infoMessages: string[] = [];
+    const infoActions: Array<{
+      message: string;
+      actionLabel: string;
+      onAction: () => void | Promise<void>;
+    }> = [];
 
     try {
       const created = createCockpitTodo(workspaceRoot, {
@@ -153,6 +160,12 @@ suite("Todo Cockpit Action Handler", () => {
             createdTaskInputs.push(input);
             return { id: "task-draft-2", name: input.name };
           },
+          notifyInfo: (message: string) => {
+            infoMessages.push(message);
+          },
+          notifyInfoWithAction: (message, actionLabel, onAction) => {
+            infoActions.push({ message, actionLabel, onAction });
+          },
         },
       );
 
@@ -161,6 +174,13 @@ suite("Todo Cockpit Action Handler", () => {
       assert.deepStrictEqual(switchedTabs, []);
       assert.deepStrictEqual(editedTaskIds, ["task-draft-2"]);
       assert.strictEqual(createdTaskInputs.length, 1);
+      assert.deepStrictEqual(infoMessages, ["Updated Todo Cockpit item and created task draft: Todo"]);
+      assert.strictEqual(infoActions.length, 1);
+      assert.strictEqual(infoActions[0]?.message, "Updated Todo Cockpit item and created task draft: Todo");
+      assert.strictEqual(infoActions[0]?.actionLabel, "Open Draft");
+
+      await Promise.resolve(infoActions[0]?.onAction());
+      assert.deepStrictEqual(editedTaskIds, ["task-draft-2", "task-draft-2"]);
 
       const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
       const updatedTodo = board.cards.find((card) => card.id === created.todo.id);

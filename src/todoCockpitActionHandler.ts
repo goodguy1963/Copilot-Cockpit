@@ -246,6 +246,11 @@ type TodoCockpitActionHandlerDeps = {
   refreshSchedulerUiState: (immediate?: boolean) => void;
   notifyError: (message: string) => void;
   notifyInfo: (message: string) => void;
+  notifyInfoWithAction?: (
+    message: string,
+    actionLabel: string,
+    onAction: () => void | Promise<void>,
+  ) => void;
   showError: (message: string) => void;
   noWorkspaceOpenMessage: string;
 };
@@ -595,11 +600,17 @@ export async function handleTodoCockpitAction(
         const draftTask = await ensureReadyTodoTaskDraft(workspaceRoot, result.todo, deps);
         deps.refreshSchedulerUiState();
         SchedulerWebview.editTask(draftTask.taskId);
-        deps.notifyInfo(
-          draftTask.created
-            ? `Updated Todo Cockpit item and created task draft: ${draftTask.taskName}`
-            : `Updated Todo Cockpit item and opened task draft: ${draftTask.taskName}`,
+        const notificationMessage = draftTask.created
+          ? `Updated Todo Cockpit item and created task draft: ${draftTask.taskName}`
+          : `Updated Todo Cockpit item and opened task draft: ${draftTask.taskName}`;
+        deps.notifyInfoWithAction?.(
+          notificationMessage,
+          "Open Draft",
+          () => {
+            SchedulerWebview.editTask(draftTask.taskId);
+          },
         );
+        deps.notifyInfo(notificationMessage);
         return true;
       }
       deps.refreshSchedulerUiState();
