@@ -83,7 +83,7 @@ flowchart LR
 
 When you manually sync the bundled starter agents into `.github/agents`, Copilot Cockpit can add an optional orchestration layer on top of the normal task, job, and research workflow. The goal is not to replace repo-local systems or create a bloated generalist loop. The goal is to let a top-level orchestrator stay focused on direction, routing, and closeout while bounded specialists handle the detailed execution work.
 
-This is efficient because the `CEO` or orchestrator does the initial thinking once, then delegates with stronger context than a typical raw user prompt: the request, relevant repo research, controlling files, constraints, and acceptance criteria. The specialist can then work inside a narrow responsibility boundary, validate that slice, and report back for final review instead of forcing the orchestrator to carry every intermediate implementation detail in one chat thread.
+This is efficient because the `CEO` or orchestrator does the initial thinking once, then delegates to a subagent session (Note: costom subagents must be enabled in //settings/chat.customAgentInSubagent.enabled of github copilot plugin) with stronger context than a typical raw user prompt: the request, relevant repo research, controlling files, constraints, and acceptance criteria. The specialist can then work inside a narrow responsibility boundary, validate that slice, and report back for final review instead of forcing the orchestrator to carry every intermediate implementation detail in one chat thread.
 
 ```mermaid
 flowchart TD
