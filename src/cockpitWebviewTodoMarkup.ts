@@ -101,50 +101,51 @@ export function buildSchedulerTodoEditorMarkup(options: {
               <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
             </div>
           </section>
+        </div>
 
-          <section class="todo-editor-card todo-comments-spotlight" style="grid-column:1 / -1;" aria-labelledby="todo-comments-heading">
-            <div class="todo-comments-spotlight-header">
-              <div class="todo-comments-header-copy">
-                <div class="todo-comments-eyebrow">${escapeHtml(strings.boardCommentsEyebrow || "Conversation thread")}</div>
-                <div class="todo-comments-title-row">
-                    ${renderSectionTitleWithHelp(strings.boardCommentsTitle, strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.", { id: "todo-comments-heading", className: "todo-comments-title-inline" })}
-                  <span id="todo-comment-count-badge" class="todo-comments-count-badge">${escapeHtml(strings.boardCommentBadgeDraft || "Draft")}</span>
-                </div>
-                <p id="todo-comment-context-note" class="note todo-comments-context-note">${escapeHtml(strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.")}</p>
+        <section class="todo-editor-card todo-comments-spotlight" aria-labelledby="todo-comments-heading">
+          <div class="todo-comments-spotlight-header">
+            <div class="todo-comments-header-copy">
+              <div class="todo-comments-eyebrow">${escapeHtml(strings.boardCommentsEyebrow || "Conversation thread")}</div>
+              <div class="todo-comments-title-row">
+                  ${renderSectionTitleWithHelp(strings.boardCommentsTitle, strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.", { id: "todo-comments-heading", className: "todo-comments-title-inline" })}
+                <span id="todo-comment-count-badge" class="todo-comments-count-badge">${escapeHtml(strings.boardCommentBadgeDraft || "Draft")}</span>
               </div>
-              <div id="todo-comment-mode-pill" class="todo-comments-mode-pill">${escapeHtml(strings.boardCommentModeCreate || "Kickoff note")}</div>
+              <p id="todo-comment-context-note" class="note todo-comments-context-note">${escapeHtml(strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.")}</p>
+            </div>
+            <div id="todo-comment-mode-pill" class="todo-comments-mode-pill">${escapeHtml(strings.boardCommentModeCreate || "Kickoff note")}</div>
+          </div>
+
+          <div class="todo-comments-layout">
+            <div class="todo-comment-thread-shell">
+              <div class="todo-comment-thread-header">
+                <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
+                <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
+              </div>
+              <div id="todo-comment-list" class="todo-editor-comments" style="min-height:min(52vh,320px);"></div>
             </div>
 
-            <div class="todo-comments-layout">
-              <div class="todo-comment-thread-shell">
-                <div class="todo-comment-thread-header">
-                  <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
-                  <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
-                </div>
-                <div id="todo-comment-list" class="todo-editor-comments" style="min-height:min(52vh,320px);"></div>
+            <div class="todo-comment-composer-shell">
+              <div class="todo-comment-composer-topline">
+                <div id="todo-comment-composer-title" class="todo-comment-composer-title">${escapeHtml(strings.boardCommentComposerCreateTitle || "Write the kickoff comment")}</div>
+                <div id="todo-comment-composer-note" class="note todo-comment-composer-note">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</div>
               </div>
 
-              <div class="todo-comment-composer-shell">
-                <div class="todo-comment-composer-topline">
-                  <div id="todo-comment-composer-title" class="todo-comment-composer-title">${escapeHtml(strings.boardCommentComposerCreateTitle || "Write the kickoff comment")}</div>
-                  <div id="todo-comment-composer-note" class="note todo-comment-composer-note">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</div>
+              <div class="form-group" style="margin:0;">
+                <div class="todo-comment-input-label-row">
+                  <label for="todo-comment-input">${escapeHtml(strings.boardCommentComposerEditTitle || "Add to the thread")}</label>
                 </div>
+                <textarea id="todo-comment-input" class="todo-comment-textarea" placeholder="${escapeHtmlAttr(strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...")}"></textarea>
+              </div>
 
-                <div class="form-group" style="margin:0;">
-                  <div class="todo-comment-input-label-row">
-                    <label for="todo-comment-input">${escapeHtml(strings.boardCommentComposerEditTitle || "Add to the thread")}</label>
-                  </div>
-                  <textarea id="todo-comment-input" class="todo-comment-textarea" placeholder="${escapeHtmlAttr(strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...")}"></textarea>
-                </div>
-
-                <div class="todo-comment-composer-footer">
-                  <p id="todo-comment-draft-status" class="note todo-comment-draft-status">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</p>
-                  <div class="button-group" style="margin:0;justify-content:flex-end;">
-                    <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
-                  </div></div></div>
-            </div>
-          </section>
-        </div></form>
+              <div class="todo-comment-composer-footer">
+                <p id="todo-comment-draft-status" class="note todo-comment-draft-status">${escapeHtml(strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.")}</p>
+                <div class="button-group" style="margin:0;justify-content:flex-end;">
+                  <button type="button" class="btn-secondary" id="todo-add-comment-btn">${escapeHtml(strings.boardAddComment)}</button>
+                </div></div></div>
+          </div>
+        </section>
+      </form>
       <div class="todo-editor-footer">
         <button type="button" class="btn-secondary" id="todo-back-btn">${escapeHtml(strings.boardBackToCockpit)}</button>
       </div>
@@ -181,3 +182,4 @@ export function buildSchedulerListTabMarkup(options: {
     </div>
   </div>`;
 }
+

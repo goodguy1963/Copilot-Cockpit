@@ -867,7 +867,7 @@ test("todo comments style human form input separately and todo saves reset to cr
       '.todo-comments-spotlight{',
       '.todo-comments-layout{',
       'grid-template-columns: 1fr;',
-      'style="grid-column:1 / -1;"',
+      'class="todo-editor-card todo-comments-spotlight"',
       'style="min-height:min(52vh,320px);"',
       'id="todo-comment-count-badge"',
       'id="todo-comment-mode-pill"',
@@ -879,13 +879,20 @@ test("todo comments style human form input separately and todo saves reset to cr
 
     const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
     const threadMarkupIndex = templateSource.indexOf('class="todo-comment-thread-shell"');
-    const commentsSpotlightIndex = templateSource.indexOf('class="todo-editor-card todo-comments-spotlight" style="grid-column:1 / -1;"');
+    const commentsSpotlightIndex = templateSource.indexOf('class="todo-editor-card todo-comments-spotlight"');
     const asideCardIndex = templateSource.indexOf('class="todo-editor-card todo-editor-card-aside"');
+    const gridCloseBeforeCommentsIndex = templateSource.search(/<\/section>\r?\n\s*<\/div>\r?\n\r?\n\s*<section class="todo-editor-card todo-comments-spotlight"/);
     const todoSaveButtonIndex = templateSource.indexOf('id="todo-save-btn"');
     const todoBackButtonIndex = templateSource.indexOf('id="todo-back-btn"');
-    assert.ok(commentsSpotlightIndex >= 0, "expected the conversation spotlight to span the full todo editor width");
+    assert.ok(commentsSpotlightIndex >= 0, "expected the conversation spotlight section in the todo editor template");
     assert.ok(asideCardIndex >= 0, "expected todo editor aside card in the template");
-    assert.ok(commentsSpotlightIndex > asideCardIndex, "expected the conversation spotlight to render after the main editor cards as a full-width row");
+    assert.ok(commentsSpotlightIndex > asideCardIndex, "expected the conversation spotlight to render after the sticky aside card");
+    assert.ok(gridCloseBeforeCommentsIndex >= 0, "expected the comments spotlight to render after the todo editor grid closes");
+    assert.strictEqual(
+      templateSource.includes('class="todo-editor-card todo-comments-spotlight" style="grid-column:1 / -1;"'),
+      false,
+      "did not expect the comments spotlight to stay inside the grid as a full-width grid item",
+    );
     assert.ok(threadMarkupIndex >= 0, "expected thread preview shell in todo comments layout");
     assert.ok(composerMarkupIndex > threadMarkupIndex, "expected thread preview to appear before the composer in the template");
     assert.ok(todoSaveButtonIndex >= 0, "expected todo save button in the editor template");
@@ -899,7 +906,10 @@ test("todo comments style human form input separately and todo saves reset to cr
     expectSourceToIncludeSnippets(scriptSource, [
       'function renderTodoCommentSectionState(selectedTodo) {',
       'renderTodoCommentDraftPreviewMarkup(commentDraftValue)',
+      'todoAddCommentBtn.textContent = strings.boardAddComment || "Add Comment";',
       'todoAddCommentBtn.hidden = !isEditingTodo;',
+      'todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo || !commentDraftValue;',
+      'strings.boardCommentPreviewPending || "Saved on create"',
       'function getActiveTodoEditorId() {',
       'var editorTodoId = todoDetailId ? String(todoDetailId.value || "").trim() : "";',
       'var activeTodoId = getActiveTodoEditorId();',
@@ -3828,3 +3838,6 @@ suite("Board Render State Tests", () => {
     assert.strictEqual(finishRenderCalled, true, "pending render should flush on drag finish");
   });
 });
+
+
+

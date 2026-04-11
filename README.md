@@ -111,11 +111,11 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### Settings
 
-`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in.
+`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an orchestration layer that lets the CEO or orchestrator hand bounded work to the specialist designed for that job instead of bloating one chat session with every intermediate step.
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync.
+`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, delegate bounded work to the right repo-local or starter-pack specialist, and keep its own chat context cleaner because the specialist runs the internal loop and reports back after the assigned work.
 
 ## Common Workflows
 
@@ -178,7 +178,7 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
 6. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
 
-The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents`, but treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents` when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
 ## 🚦 Release Channels
 
