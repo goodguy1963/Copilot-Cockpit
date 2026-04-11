@@ -678,19 +678,19 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (!(range > 0)) {
       return 214;
     }
-    return Math.round(min + range * 0.1);
+    return Math.round(min + range * 0.16);
   }
 
   function applyCockpitColumnScale(w) {
-    var font = Math.round(10 + (w - 180) * 3 / 340);
-    var pad = Math.round(8 + (w - 180) * 6 / 340);
-    var gap = Math.round(4 + (w - 180) * 4 / 340);
-    var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));
+    var font = Math.round(9 + (w - 180) * 3 / 340);
+    var pad = Math.round(6 + (w - 180) * 5 / 340);
+    var gap = Math.round(3 + (w - 180) * 3 / 340);
+    var chipFont = Math.max(8, Math.round(8 + (w - 180) * 3 / 340));
     var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));
-    var labelPadY = Math.max(0, Math.round(1 + (w - 180) * 2 / 340));
-    var labelPadX = Math.max(4, Math.round(4 + (w - 180) * 4 / 340));
-    var flagPadY = Math.max(0, Math.round(1 + (w - 180) * 2 / 340));
-    var flagPadX = Math.max(4, Math.round(4 + (w - 180) * 4 / 340));
+    var labelPadY = Math.max(0, Math.round((w - 180) * 2 / 340));
+    var labelPadX = Math.max(4, Math.round(4 + (w - 180) * 3 / 340));
+    var flagPadY = Math.max(0, Math.round((w - 180) * 2 / 340));
+    var flagPadX = Math.max(4, Math.round(4 + (w - 180) * 3 / 340));
     document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
     document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
     document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
@@ -2991,6 +2991,21 @@ syncTodoLabelSuggestions();
         ? (strings.boardCommentsEditIntro || "Keep approvals, decisions, and handoff context in the thread while the main description stays stable.")
         : (strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.");
     }
+    var todoCommentsHeading = document.getElementById("todo-comments-heading");
+    if (todoCommentsHeading) {
+      var todoCommentsHelpText = isEditingTodo
+        ? (strings.boardCommentsEditIntro || "Keep approvals, decisions, and handoff context in the thread while the main description stays stable.")
+        : (strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.");
+      todoCommentsHeading.setAttribute("title", todoCommentsHelpText);
+      var todoCommentsHeadingHelpRoot = todoCommentsHeading.parentElement;
+      if (todoCommentsHeadingHelpRoot) {
+        todoCommentsHeadingHelpRoot.setAttribute("title", todoCommentsHelpText);
+        var todoCommentsHeadingHelpTrigger = todoCommentsHeadingHelpRoot.querySelector(".section-title-help-trigger");
+        if (todoCommentsHeadingHelpTrigger) {
+          todoCommentsHeadingHelpTrigger.setAttribute("title", todoCommentsHelpText);
+        }
+      }
+    }
     if (todoCommentComposerTitle) {
       todoCommentComposerTitle.textContent = isEditingTodo
         ? (strings.boardCommentComposerEditTitle || "Add to the thread")
@@ -3506,9 +3521,21 @@ syncTodoLabelSuggestions();
       }
     }
     if (todoDetailTitle) {
+      var todoDetailHelpText = isEditingTodo
+        ? (strings.boardDetailModeEdit || "Update this todo.")
+        : (strings.boardDetailModeCreate || "Fill the form to create a new todo.");
       todoDetailTitle.textContent = isEditingTodo
         ? (strings.boardDetailTitleEdit || "Edit Todo")
         : (strings.boardDetailTitleCreate || "Create Todo");
+      todoDetailTitle.setAttribute("title", todoDetailHelpText);
+      var todoDetailTitleHelpRoot = todoDetailTitle.parentElement;
+      if (todoDetailTitleHelpRoot) {
+        todoDetailTitleHelpRoot.setAttribute("title", todoDetailHelpText);
+        var todoDetailTitleHelpTrigger = todoDetailTitleHelpRoot.querySelector(".section-title-help-trigger");
+        if (todoDetailTitleHelpTrigger) {
+          todoDetailTitleHelpTrigger.setAttribute("title", todoDetailHelpText);
+        }
+      }
     }
     if (todoDetailModeNote) {
       todoDetailModeNote.textContent = isEditingTodo
@@ -4610,6 +4637,7 @@ syncTodoLabelSuggestions();
     currentTodoLabels = [];
     selectedTodoLabelName = "";
     currentTodoFlag = "";
+    syncEditorTabLabels();
     renderCockpitBoard();
   }
 
@@ -6745,6 +6773,13 @@ syncTodoLabelSuggestions();
     }, getTaskExecutionOptionContext()));
   }
 
+  function syncSharedAgentAndModelSelectors() {
+    renderExecutionDefaultsControls();
+    renderReviewDefaultsControls();
+    syncJobsStepSelectors();
+    syncResearchSelectors();
+  }
+
   function getTaskArrayForEditing() {
     return Array.isArray(tasks) ? tasks : [];
   }
@@ -7808,6 +7843,9 @@ syncTodoLabelSuggestions();
     ensureValidJobSelection();
     persistTaskFilter();
     syncEditorTabLabels();
+    var jobsOverviewStats = document.getElementById("jobs-overview-stats");
+    var jobsOverviewSelection = document.getElementById("jobs-overview-selection");
+    var visibleJobs = getVisibleJobs();
 
     if (jobsCurrentFolderBanner) {
       var selectedFolder = getSelectedJobFolder();
@@ -7880,7 +7918,6 @@ syncTodoLabelSuggestions();
     }
 
     if (jobsList) {
-      var visibleJobs = getVisibleJobs();
       if (visibleJobs.length === 0) {
         jobsList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsNoJobs || "No jobs in this folder yet.") + '</div>';
       } else {
@@ -7922,8 +7959,71 @@ syncTodoLabelSuggestions();
     }
 
     var selectedJob = getJobById(selectedJobId);
+    if (jobsOverviewStats) {
+      var activeJobsCount = visibleJobs.filter(function (job) {
+        return job && !job.paused && !job.archived;
+      }).length;
+      var visibleNodeCount = visibleJobs.reduce(function (total, job) {
+        return total + (Array.isArray(job && job.nodes) ? job.nodes.length : 0);
+      }, 0);
+      var folderCount = 1 + (Array.isArray(jobFolders) ? jobFolders.filter(function (folder) {
+        return folder && !isArchiveFolder(folder);
+      }).length : 0);
+      jobsOverviewStats.innerHTML = [
+        { label: strings.jobsTitle || "Jobs", value: String(visibleJobs.length) },
+        { label: strings.jobsRunning || "Active", value: String(activeJobsCount) },
+        { label: strings.jobsFoldersTitle || "Folders", value: String(folderCount) },
+        { label: strings.jobsWorkflowTaskCount || "Task steps", value: String(visibleNodeCount) }
+      ].map(function (item) {
+        return '<div class="jobs-overview-stat"><div class="jobs-overview-stat-label">' +
+          escapeHtml(item.label) +
+          '</div><div class="jobs-overview-stat-value">' +
+          escapeHtml(item.value) +
+          '</div></div>';
+      }).join("");
+    }
+    if (jobsOverviewSelection) {
+      var selectedFolderForOverview = getSelectedJobFolder();
+      var currentFolderName = selectedJobFolderId
+        ? ((selectedFolderForOverview || {}).name || (strings.jobsRootFolder || "All jobs"))
+        : (strings.jobsRootFolder || "All jobs");
+      var currentFolderPath = getFolderPath(selectedJobFolderId);
+      if (selectedJob) {
+        var selectedJobSummary = getCronSummary(selectedJob.cronExpression || "");
+        var selectedJobNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+        jobsOverviewSelection.innerHTML =
+          '<div class="jobs-overview-selection-card">' +
+          '<div class="jobs-overview-selection-header">' +
+          '<div>' +
+          '<div class="jobs-overview-selection-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</div>' +
+          '<strong class="jobs-overview-selection-title" title="' + escapeAttr(selectedJob.name || "") + '">' + escapeHtml(selectedJob.name || "") + '</strong>' +
+          '</div>' +
+          '<span class="jobs-pill' + ((selectedJob.paused || selectedJob.archived) ? ' is-inactive' : '') + '">' + escapeHtml(getJobStatusText(selectedJob)) + '</span>' +
+          '</div>' +
+          '<div class="jobs-overview-selection-meta">' +
+          '<span>' + escapeHtml(currentFolderName) + '</span>' +
+          '<span>' + escapeHtml(selectedJobSummary !== (strings.labelFriendlyFallback || "") ? selectedJobSummary : (selectedJob.cronExpression || "-")) + '</span>' +
+          '<span>' + escapeHtml(String(selectedJobNodes.length) + ' items') + '</span>' +
+          '</div>' +
+          '<div class="jobs-overview-selection-note">' + escapeHtml(currentFolderPath || (strings.jobsSelectJob || "Select a job to edit its workflow.")) + '</div>' +
+          '</div>';
+      } else {
+        jobsOverviewSelection.innerHTML =
+          '<div class="jobs-overview-selection-card jobs-overview-selection-empty">' +
+          '<div class="jobs-overview-selection-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</div>' +
+          '<strong class="jobs-overview-selection-title">' + escapeHtml(currentFolderName) + '</strong>' +
+          '<div class="jobs-overview-selection-note">' + escapeHtml(currentFolderPath || (strings.jobsRootFolder || "All jobs")) + '</div>' +
+          '<div class="jobs-overview-selection-meta">' +
+          '<span>' + escapeHtml(strings.jobsSelectJob || "Select a job to edit its workflow.") + '</span>' +
+          '</div>' +
+          '</div>';
+      }
+    }
     var isJobCreateMode = !selectedJob && isCreatingJob;
     applyJobsSidebarState();
+    if (jobsOpenEditorBtn) {
+      jobsOpenEditorBtn.disabled = !selectedJob;
+    }
     if (!selectedJob && !isJobCreateMode) {
       if (jobsWorkflowMetrics) jobsWorkflowMetrics.innerHTML = "";
       if (jobsEmptyState) jobsEmptyState.style.display = "block";
@@ -8340,6 +8440,7 @@ syncTodoLabelSuggestions();
             },
             updateOptions: populateAgentDropdown,
           });
+          syncSharedAgentAndModelSelectors();
           break;
         case "updateModels":
           pendingModelValue = refreshExecutionSelectTargets({
@@ -8357,6 +8458,7 @@ syncTodoLabelSuggestions();
             },
             updateOptions: populateModelDropdown,
           });
+          syncSharedAgentAndModelSelectors();
           break;
         case "updatePromptTemplates":
           syncPromptTemplateOptions(message.templates);

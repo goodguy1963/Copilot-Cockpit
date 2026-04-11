@@ -216,6 +216,47 @@ export function buildSchedulerWebviewStrings(
     helpSwitchTabListBtn: messages.helpSwitchTabListBtn(),
     helpSwitchTabJobsBtn: messages.helpSwitchTabJobsBtn(),
     helpSwitchTabResearchBtn: messages.helpSwitchTabResearchBtn(),
+    helpCopilotHarnessTitle: localize(
+      "How Cockpit Uses Copilot",
+      "Cockpit が Copilot をどう使うか",
+      "Wie Cockpit Copilot nutzt",
+    ),
+    helpCopilotHarnessBody: localize(
+      "Copilot Cockpit does not replace VS Code chat or host its own frontier model stack. It uses the native chat surface as the execution path, then adds workflow structure, MCP tools, skills, and review checkpoints around it.",
+      "Copilot Cockpit は VS Code chat を置き換えず、独自の frontier model stack もホストしません。ネイティブな chat surface を実行経路として使い、その周囲に workflow、MCP tools、skills、review checkpoints を追加します。",
+      "Copilot Cockpit ersetzt weder den VS Code-Chat noch hostet es einen eigenen Frontier-Model-Stack. Es nutzt die native Chat-Oberfläche als Ausführungspfad und ergänzt darum Workflow-Struktur, MCP-Tools, Skills und Review-Checkpoints.",
+    ),
+    helpCopilotHarnessNodeVsCode: localize("VS Code chat", "VS Code chat", "VS Code-Chat"),
+    helpCopilotHarnessNodeProviders: localize(
+      "Copilot / providers",
+      "Copilot / provider",
+      "Copilot / Provider",
+    ),
+    helpCopilotHarnessNodeCockpit: localize(
+      "Cockpit control layer",
+      "Cockpit 制御レイヤー",
+      "Cockpit-Kontrollebene",
+    ),
+    helpCopilotHarnessNodeWorkflow: localize(
+      "Workflow, MCP, skills",
+      "workflow・MCP・skills",
+      "Workflow, MCP, Skills",
+    ),
+    helpCopilotHarnessItemNative: localize(
+      "Tasks and jobs execute through native VS Code chat commands, not through a hidden separate runner.",
+      "task と job は隠れた別ランナーではなく、ネイティブな VS Code chat commands を通じて実行されます。",
+      "Tasks und Jobs werden über native VS Code-Chat-Befehle ausgeführt, nicht über einen versteckten separaten Runner.",
+    ),
+    helpCopilotHarnessItemModels: localize(
+      "The available model list depends on the active chat providers exposed in your VS Code environment.",
+      "利用可能な model list は、VS Code 環境で公開されている chat provider に依存します。",
+      "Die verfügbare Modellliste hängt von den aktiven Chat-Providern in Ihrer VS Code-Umgebung ab.",
+    ),
+    helpCopilotHarnessItemSkills: localize(
+      "Repo-local MCP and skills make that execution surface project-aware and approval-aware.",
+      "repo-local の MCP と skills が、その実行面を project-aware かつ approval-aware にします。",
+      "Repo-lokales MCP und Skills machen diese Ausführungsoberfläche projektbezogen und freigabebezogen.",
+    ),
     helpAgentEcosystemTitle: localize(
       "11. Agent Ecosystem Integration",
       "11. エージェントエコシステム連携",

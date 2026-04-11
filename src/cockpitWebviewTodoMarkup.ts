@@ -1,6 +1,18 @@
 import { escapeHtml, escapeHtmlAttr } from "./cockpitWebviewContentUtils";
 import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
 
+function renderSectionTitleWithHelp(
+  label: string,
+  helpText: string,
+  options: { id?: string; className?: string } = {},
+): string {
+  const idAttr = options.id ? ` id="${escapeHtmlAttr(options.id)}"` : "";
+  const className = options.className ? ` ${escapeHtmlAttr(options.className)}` : "";
+  const help = escapeHtmlAttr(helpText);
+
+  return `<div class="section-title-with-help${className}" title="${help}"><div class="section-title"${idAttr} title="${help}">${escapeHtml(label)}</div><span class="section-title-help-trigger" aria-hidden="true" title="${help}">?</span></div>`;
+}
+
 export function buildSchedulerTodoEditorMarkup(options: {
   strings: ReturnType<typeof buildSchedulerWebviewStrings>;
 }): string {
@@ -10,12 +22,8 @@ export function buildSchedulerTodoEditorMarkup(options: {
     <div class="todo-editor-shell">
       <div class="todo-editor-header">
         <div>
-          <div class="section-title" id="todo-detail-title">${escapeHtml(strings.boardDetailTitleCreate)}</div>
-          <p class="note" id="todo-detail-mode-note">${escapeHtml(strings.boardDetailModeCreate)}</p>
+          ${renderSectionTitleWithHelp(strings.boardDetailTitleCreate, strings.boardDetailModeCreate, { id: "todo-detail-title" })}
           <div id="todo-detail-status" class="note"></div>
-        </div>
-        <div class="button-group" style="margin:0;">
-          <button type="button" class="btn-secondary" id="todo-back-btn">${escapeHtml(strings.boardBackToCockpit)}</button>
         </div>
       </div>
 
@@ -40,7 +48,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
                 <div class="todo-comments-header-copy">
                   <div class="todo-comments-eyebrow">${escapeHtml(strings.boardCommentsEyebrow || "Conversation thread")}</div>
                   <div class="todo-comments-title-row">
-                    <div class="section-title" id="todo-comments-heading" style="font-size:13px;">${escapeHtml(strings.boardCommentsTitle)}</div>
+                      ${renderSectionTitleWithHelp(strings.boardCommentsTitle, strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.", { id: "todo-comments-heading", className: "todo-comments-title-inline" })}
                     <span id="todo-comment-count-badge" class="todo-comments-count-badge">${escapeHtml(strings.boardCommentBadgeDraft || "Draft")}</span>
                   </div>
                   <p id="todo-comment-context-note" class="note todo-comments-context-note">${escapeHtml(strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.")}</p>
@@ -99,7 +107,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
               </div>
             </div>
             <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.boardFieldLabels)}</label>
+              <label for="todo-labels-input" title="${escapeHtmlAttr(strings.boardLabelHint)}">${escapeHtml(strings.boardFieldLabels)}</label>
               <div id="todo-label-chip-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
               <div class="todo-inline-actions-row">
                 <input type="text" id="todo-labels-input" autocomplete="off" placeholder="${escapeHtmlAttr(strings.boardLabelInputPlaceholder)}" style="flex:1;">
@@ -114,7 +122,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
             </div>
             
             <div class="form-group" style="margin:0;">
-              <label>${escapeHtml(strings.boardFieldFlags)}</label>
+              <label for="todo-flag-name-input" title="${escapeHtmlAttr(strings.boardFlagCatalogHint)}">${escapeHtml(strings.boardFieldFlags)}</label>
               <div id="todo-flag-current" style="min-height:24px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;"></div>
               <div class="todo-inline-actions-row" style="margin-top:4px;">
                 <input type="text" id="todo-flag-name-input" autocomplete="off" placeholder="New flag name..." style="flex:1;">
@@ -135,6 +143,9 @@ export function buildSchedulerTodoEditorMarkup(options: {
               <button type="button" class="btn-secondary" id="todo-create-task-btn">${escapeHtml(strings.boardCreateTask)}</button>
             </div>
           </section></div></form>
+      <div class="todo-editor-footer">
+        <button type="button" class="btn-secondary" id="todo-back-btn">${escapeHtml(strings.boardBackToCockpit)}</button>
+      </div>
     </div>
   </div>`;
 }

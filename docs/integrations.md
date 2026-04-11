@@ -5,8 +5,11 @@
 ### GitHub Copilot in VS Code
 
 - Primary native scheduling and execution surface.
+- The scheduler uses the native VS Code chat commands to open chat, focus chat, start a new chat when needed, and submit prompts.
+- Model selection and agent or mode selection flow through the same native chat harness when the active chat surface supports them.
 - Repo-local MCP config lives in `.vscode/mcp.json`.
 - Repo-local bundled skills live in `.github/skills`.
+- This is the main reason Cockpit can benefit from ongoing VS Code Insiders and Copilot improvements without becoming its own model host.
 
 ### OpenRouter.AI
 
@@ -31,10 +34,21 @@
 - `Add MCP To Codex` creates or updates the repo-local Codex entry in `.codex/config.toml`.
 - `Sync Bundled Skills` updates the Copilot skill files under `.github/skills`.
 - `Add Skills To Codex` syncs the same bundled skills into `.agents/skills` and refreshes the managed guidance block in `AGENTS.md`.
+- The combined harness is: native VS Code chat for execution, MCP for structured tool access, and repo-local skills for behavior shaping.
 - Bundled skills carry frontmatter metadata that distinguishes operational skills from support/onboarding skills.
 - Operational skill metadata declares MCP namespaces, workflow intents, and ready/closeout flag compatibility used when Todo handoff guidance is built.
 - MCP exposure is powerful: once tools are visible to an agent, they can inspect state, change saved items, and trigger allowed operations.
 - Prefer secure prompt inputs for secrets instead of storing live API keys directly in repo-local config files.
+
+## Platform Credit
+
+Copilot Cockpit stands on top of the Visual Studio Code platform and the GitHub Copilot chat ecosystem. That includes the editor runtime, chat UI, commands, extension APIs, and the broader model-provider surfaces that users connect through those environments.
+
+Useful references:
+
+- [Visual Studio Code documentation](https://code.visualstudio.com/docs)
+- [AI agents in VS Code](https://code.visualstudio.com/docs/copilot/concepts/agents)
+- [Customize Copilot with MCP, instructions, and prompts](https://code.visualstudio.com/docs/copilot/guides/customize-copilot-guide)
 
 ## Telegram
 

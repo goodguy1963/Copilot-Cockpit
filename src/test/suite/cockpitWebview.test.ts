@@ -675,9 +675,9 @@ suite("SchedulerWebview Message Queue Behavior", () => {
 
     expectSourceToIncludeSnippets(scriptSource, [
       'document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");',
-      "var chipFont = Math.max(8, Math.round(8 + (w - 180) * 4 / 340));",
+      "var chipFont = Math.max(8, Math.round(8 + (w - 180) * 3 / 340));",
       "var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));",
-      "return Math.round(min + range * 0.1);",
+      "return Math.round(min + range * 0.16);",
       'w <= getCockpitCompactDetailsThreshold(),',
       "boardAutoCollapseSettleUntil = Date.now() + 240;",
       "boardAutoCollapseSettleDistance = Math.max(56, Math.ceil(stickyHeight + 16));",
@@ -796,6 +796,11 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'flex: 0 0 auto;',
       'id="jobs-save-deck-btn"',
       '.jobs-workflow-metric.is-compact .jobs-workflow-metric-value',
+      'id="jobs-overview-stats"',
+      'id="jobs-overview-selection"',
+      'class="jobs-editor-top-grid"',
+      '.jobs-overview-stats{',
+      '.jobs-editor-top-grid{',
     ], "compact editor tab styling");
 
     const focusJobCaseStart = scriptSource.indexOf('function focusJobView(folderId, jobId) {');
@@ -838,9 +843,17 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       scriptSource.includes('(String(metric.value || "").length > 18 ? \' is-compact\' : \'\')'),
       "expected long workflow metric values to opt into compact text styling",
     );
+    assert.ok(
+      scriptSource.includes('var jobsOverviewStats = document.getElementById("jobs-overview-stats");'),
+      "expected jobs overview stats shell to be populated at runtime",
+    );
+    assert.ok(
+      scriptSource.includes('var jobsOverviewSelection = document.getElementById("jobs-overview-selection");'),
+      "expected jobs overview selection shell to be populated at runtime",
+    );
   });
 
-  test("todo comments style human form input separately and todo saves reset to create mode", () => {
+test("todo comments style human form input separately and todo saves reset to create mode", () => {
     const templateSource = readSchedulerWebviewTemplateSource();
     const actionHandlerPath = path.resolve(
       __dirname,
@@ -864,8 +877,17 @@ suite("SchedulerWebview Message Queue Behavior", () => {
 
     const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
     const threadMarkupIndex = templateSource.indexOf('class="todo-comment-thread-shell"');
+    const todoSaveButtonIndex = templateSource.indexOf('id="todo-save-btn"');
+    const todoBackButtonIndex = templateSource.indexOf('id="todo-back-btn"');
     assert.ok(threadMarkupIndex >= 0, "expected thread preview shell in todo comments layout");
     assert.ok(composerMarkupIndex > threadMarkupIndex, "expected thread preview to appear before the composer in the template");
+    assert.ok(todoSaveButtonIndex >= 0, "expected todo save button in the editor template");
+    assert.ok(todoBackButtonIndex > todoSaveButtonIndex, "expected Back to Cockpit button after the editor panels and actions");
+    assert.strictEqual(
+      templateSource.includes('id="todo-detail-mode-note"'),
+      false,
+      "did not expect the old todo header note block to stay in the compact layout",
+    );
 
     expectSourceToIncludeSnippets(scriptSource, [
       'function renderTodoCommentSectionState(selectedTodo) {',
@@ -882,7 +904,16 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
       'var toneClass = getTodoCommentToneClass(comment);',
       `'<article class="todo-comment-card' + toneClass + userFormClass + '"`,
+      'todoDetailTitle.setAttribute("title", todoDetailHelpText);',
+      'var todoCommentsHeading = document.getElementById("todo-comments-heading");',
     ], "todo comment rendering");
+
+    expectSourceToIncludeSnippets(templateSource, [
+      'class="section-title-with-help${className}"',
+      'class="todo-editor-footer"',
+      'title="${escapeHtmlAttr(strings.boardLabelHint)}"',
+      'title="${escapeHtmlAttr(strings.boardFlagCatalogHint)}"',
+    ], "todo compact hover help markup");
 
     expectSourceToIncludeSnippets(debugHelperSource, [
       'comment: "",',
@@ -903,6 +934,20 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     assert.ok(
       updateTodoCase.includes('SchedulerWebview.switchToTab("board");'),
       "expected updated todo saves to return to the board",
+    );
+
+    const resetTodoEditorStart = scriptSource.indexOf('function resetTodoEditor() {');
+    const resetTodoEditorEnd = scriptSource.indexOf('function ensureTodoDeleteModal()', resetTodoEditorStart);
+    assert.ok(resetTodoEditorStart >= 0, "expected todo editor reset helper");
+    assert.ok(resetTodoEditorEnd > resetTodoEditorStart, "expected todo editor reset helper boundary");
+    const resetTodoEditorSource = scriptSource.slice(resetTodoEditorStart, resetTodoEditorEnd);
+    assert.ok(
+      resetTodoEditorSource.includes('selectedTodoId = null;'),
+      "expected todo editor reset to clear the selected todo id",
+    );
+    assert.ok(
+      resetTodoEditorSource.includes('syncEditorTabLabels();'),
+      "expected todo editor reset to refresh the editor tab symbol state",
     );
   });
 
@@ -3528,6 +3573,22 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         { type: "updateSkills", skills: [{ path: "SKILL.md" }] },
       ]);
     });
+  });
+
+  test("model and agent catalog updates also refresh settings and secondary selectors", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'function syncSharedAgentAndModelSelectors() {',
+      'renderExecutionDefaultsControls();',
+      'renderReviewDefaultsControls();',
+      'syncJobsStepSelectors();',
+      'syncResearchSelectors();',
+      'case "updateAgents":',
+      'syncSharedAgentAndModelSelectors();',
+      'case "updateModels":',
+      'syncSharedAgentAndModelSelectors();',
+    ], "shared selector refresh runtime");
   });
 });
 

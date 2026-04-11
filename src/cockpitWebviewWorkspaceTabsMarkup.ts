@@ -1,6 +1,18 @@
 import { buildFriendlyCronBuilderMarkup, escapeHtml, escapeHtmlAttr } from "./cockpitWebviewContentUtils";
 import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
 
+function renderSectionTitleWithHelp(
+  label: string,
+  helpText: string,
+  options: { id?: string; className?: string } = {},
+): string {
+  const idAttr = options.id ? ` id="${escapeHtmlAttr(options.id)}"` : "";
+  const className = options.className ? ` ${escapeHtmlAttr(options.className)}` : "";
+  const help = escapeHtmlAttr(helpText);
+
+  return `<div class="section-title-with-help${className}" title="${help}"><div class="section-title"${idAttr} title="${help}">${escapeHtml(label)}</div><span class="section-title-help-trigger" aria-hidden="true" title="${help}">?</span></div>`;
+}
+
 export function buildSchedulerWorkspaceTabsMarkup(options: {
   strings: ReturnType<typeof buildSchedulerWebviewStrings>;
   allPresets: Array<{ expression: string; name: string }>;
@@ -16,14 +28,16 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
   const jobsCronPresetOptions = allPresets
     .map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`)
     .join("");
+  const boardTitleHelp = `${strings.boardDescription}\n\n${strings.boardPrivacyNote}`;
 
   return `
   <div id="board-tab" class="tab-content">
-    <div class="section-title">${escapeHtml(strings.boardTitle)}</div>
-    <p class="note">${escapeHtml(strings.boardDescription)}</p>
+    <div class="board-header-row">
+      ${renderSectionTitleWithHelp(strings.boardTitle, boardTitleHelp, { className: "board-title-with-help" })}
+    </div>
     <div id="board-filter-sticky" class="board-filter-sticky">
       <div class="board-filter-header">
-        <div class="board-filter-title">${escapeHtml(strings.boardFiltersTitle)}</div>
+        <div class="board-filter-title" title="${escapeHtmlAttr(strings.boardDropHint)}">${escapeHtml(strings.boardFiltersTitle)}</div>
         <button type="button" class="btn-secondary" id="todo-toggle-filters-btn">${escapeHtml(strings.boardHideFilters)}</button>
       </div>
       <div id="board-filter-body" class="board-filter-body">
@@ -108,7 +122,6 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
     <div class="board-columns-shell">
       <div id="board-columns"></div>
     </div>
-    <p class="note">${escapeHtml(strings.boardPrivacyNote)}</p>
   </div>
 
   <div id="jobs-tab" class="tab-content">
@@ -136,16 +149,15 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
 
       <section class="jobs-main">
         <div class="jobs-overview-main">
-          <div class="jobs-overview-card">
-            <div class="section-title">${escapeHtml(strings.jobsOverviewTitle)}</div>
-            <p class="note">${escapeHtml(strings.jobsOverviewNote)}</p>
-            <div class="button-group" style="margin:0;">
-              <button type="button" class="btn-primary" id="jobs-open-editor-btn">${escapeHtml(strings.jobsOpenEditor)}</button>
+          <div class="jobs-overview-grid">
+            <div class="jobs-overview-card jobs-overview-hero">
+              ${renderSectionTitleWithHelp(strings.jobsOverviewTitle, strings.jobsOverviewNote, { className: "jobs-overview-title" })}
+              <div id="jobs-overview-stats" class="jobs-overview-stats"></div>
+              <div class="jobs-overview-actions">
+                <button type="button" class="btn-primary" id="jobs-open-editor-btn">${escapeHtml(strings.jobsOpenEditor)}</button>
+              </div>
             </div>
-          </div>
-          <div class="jobs-overview-card">
-            <div class="section-title">${escapeHtml(strings.jobsCurrentFolderLabel)}</div>
-            <p class="note">${escapeHtml(strings.jobsSelectJob)}</p>
+            <div id="jobs-overview-selection" class="jobs-overview-selection"></div>
           </div>
         </div>
       </section>
@@ -175,51 +187,51 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
 
         <div class="jobs-editor-grid">
-          <section class="jobs-main-section jobs-editor-card">
-            <div class="section-title">${escapeHtml(strings.jobsEditorDetailsTitle)}</div>
-            <p class="note">${escapeHtml(strings.jobsEditorDetailsNote)}</p>
-            <div class="jobs-job-grid jobs-job-grid-overview">
-              <div class="form-group">
-                <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
-                <input type="text" id="jobs-name-input">
-              </div>
-              <div class="form-group">
-                <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
-                <select id="jobs-folder-select"></select>
-              </div>
-              <div class="form-group">
-                <label>${escapeHtml(strings.labelStatus)}</label>
-                <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="jobs-main-section jobs-editor-card">
-            <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
-            <p class="note">${escapeHtml(strings.jobsEditorScheduleNote)}</p>
-            <div class="jobs-schedule-grid">
-              <div class="form-group">
-                <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
-                <div class="preset-select">
-                  <select id="jobs-cron-preset">
-                    <option value="">${escapeHtml(strings.labelCustom)}</option>
-                    ${jobsCronPresetOptions}
-                  </select></div></div><div class="form-group">
-                <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
-                <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
-              </div>
-              <div class="form-group wide">
-                <div class="cron-preview">
-                  <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
-                  <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
-                  <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+          <div class="jobs-editor-top-grid">
+            <section class="jobs-main-section jobs-editor-card">
+              ${renderSectionTitleWithHelp(strings.jobsEditorDetailsTitle, strings.jobsEditorDetailsNote)}
+              <div class="jobs-job-grid jobs-job-grid-overview">
+                <div class="form-group">
+                  <label for="jobs-name-input">${escapeHtml(strings.jobsName)}</label>
+                  <input type="text" id="jobs-name-input">
+                </div>
+                <div class="form-group">
+                  <label for="jobs-folder-select">${escapeHtml(strings.jobsFolder)}</label>
+                  <select id="jobs-folder-select"></select>
+                </div>
+                <div class="form-group">
+                  <label>${escapeHtml(strings.labelStatus)}</label>
+                  <button type="button" id="jobs-status-pill" class="jobs-pill is-toggle" title="${escapeHtmlAttr(strings.jobsToggleStatus)}">${escapeHtml(strings.jobsRunning)}</button>
                 </div>
               </div>
-              <div class="form-group wide">
-                ${buildFriendlyCronBuilderMarkup(strings, "jobs-friendly")}
+            </section>
+
+            <section class="jobs-main-section jobs-editor-card">
+              ${renderSectionTitleWithHelp(strings.taskEditorScheduleTitle, strings.jobsEditorScheduleNote)}
+              <div class="jobs-schedule-grid">
+                <div class="form-group">
+                  <label for="jobs-cron-preset">${escapeHtml(strings.labelPreset)}</label>
+                  <div class="preset-select">
+                    <select id="jobs-cron-preset">
+                      <option value="">${escapeHtml(strings.labelCustom)}</option>
+                      ${jobsCronPresetOptions}
+                    </select></div></div><div class="form-group">
+                  <label for="jobs-cron-input">${escapeHtml(strings.jobsCron)}</label>
+                  <input type="text" id="jobs-cron-input" placeholder="${escapeHtmlAttr(strings.placeholderCron)}">
+                </div>
+                <div class="form-group wide">
+                  <div class="cron-preview">
+                    <strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong>
+                    <span id="jobs-cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span>
+                    <button type="button" class="btn-secondary btn-icon" id="jobs-open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button>
+                  </div>
+                </div>
+                <div class="form-group wide">
+                  ${buildFriendlyCronBuilderMarkup(strings, "jobs-friendly")}
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
 
           <div class="jobs-workflow-builder-layout">
             <section class="jobs-main-section jobs-editor-card jobs-workflow-card">
@@ -326,8 +338,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
       <aside class="research-sidebar">
         <section class="research-panel">
           <div class="research-panel-header">
-            <div class="section-title">${escapeHtml(strings.researchProfilesTitle)}</div>
-            <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+            ${renderSectionTitleWithHelp(strings.researchProfilesTitle, strings.researchHelpText, { className: "research-section-title" })}
           </div>
           <div class="research-toolbar">
             <button type="button" class="btn-secondary" id="research-new-btn">${escapeHtml(strings.researchNewProfile)}</button>
@@ -346,8 +357,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
       <section class="research-main">
         <section class="research-panel">
           <div class="research-panel-header">
-            <div class="section-title">${escapeHtml(strings.researchTitle)}</div>
-            <p class="note">${escapeHtml(strings.researchHelpText)}</p>
+            ${renderSectionTitleWithHelp(strings.researchTitle, strings.researchHelpText, { className: "research-section-title" })}
           </div>
           <div id="research-form-error" class="research-form-error"></div>
           <input type="hidden" id="research-edit-id" value="">
@@ -808,6 +818,24 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <li>${escapeHtml(strings.helpTipsItem1)}</li>
             <li>${escapeHtml(strings.helpTipsItem2)}</li>
             <li>${escapeHtml(strings.helpTipsItem3)}</li>
+          </ul>
+        </section>
+        <section class="help-section is-featured">
+          <h3>${escapeHtml(strings.helpCopilotHarnessTitle)}</h3>
+          <p>${escapeHtml(strings.helpCopilotHarnessBody)}</p>
+          <div class="help-flow-diagram" role="img" aria-label="${escapeHtmlAttr(strings.helpCopilotHarnessTitle)}">
+            <span class="help-flow-node">${escapeHtml(strings.helpCopilotHarnessNodeVsCode)}</span>
+            <span class="help-flow-arrow" aria-hidden="true">→</span>
+            <span class="help-flow-node">${escapeHtml(strings.helpCopilotHarnessNodeProviders)}</span>
+            <span class="help-flow-arrow" aria-hidden="true">→</span>
+            <span class="help-flow-node">${escapeHtml(strings.helpCopilotHarnessNodeCockpit)}</span>
+            <span class="help-flow-arrow" aria-hidden="true">→</span>
+            <span class="help-flow-node">${escapeHtml(strings.helpCopilotHarnessNodeWorkflow)}</span>
+          </div>
+          <ul>
+            <li>${escapeHtml(strings.helpCopilotHarnessItemNative)}</li>
+            <li>${escapeHtml(strings.helpCopilotHarnessItemModels)}</li>
+            <li>${escapeHtml(strings.helpCopilotHarnessItemSkills)}</li>
           </ul>
         </section>
         <section class="help-section is-featured">

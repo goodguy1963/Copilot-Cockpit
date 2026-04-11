@@ -574,7 +574,7 @@ export class CopilotExecutor {
       logLanguageModelFailure(error);
     }
 
-    return CopilotExecutor.builtinModels();
+    return [];
   }
 
   static builtinModels(): ModelInfo[] {

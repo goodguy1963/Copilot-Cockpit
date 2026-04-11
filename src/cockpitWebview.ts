@@ -528,8 +528,12 @@ export class SchedulerWebview {
    * Propagate a locale change into the webview
    */
   static refreshLanguage(tasks: ScheduledTask[]): void { // i18n
-    this.agentListCache = CopilotExecutor.getBuiltInAgents();
-    this.modelListCache = CopilotExecutor.builtinModels(); // local-diverge-625
+    if (this.agentListCache.length === 0) {
+      this.agentListCache = CopilotExecutor.getBuiltInAgents();
+    }
+    if (this.modelListCache.length === 0) {
+      this.modelListCache = CopilotExecutor.builtinModels(); // local-diverge-625
+    }
     refreshSchedulerWebviewLanguagePanel({
       panel: this.activePanel,
       tasks,
@@ -1005,6 +1009,38 @@ ${buildSchedulerWebviewSharedStyles()}
 
     .help-section li + li {
       margin-top: 5px;
+    }
+
+    .help-flow-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
+    }
+
+    .help-flow-node {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 22%, var(--vscode-panel-border));
+      background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+      color: var(--vscode-foreground);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .help-flow-arrow {
+      color: var(--vscode-descriptionForeground);
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
     }
 
     @keyframes helpWarpGlow {

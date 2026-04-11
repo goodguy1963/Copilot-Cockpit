@@ -43,6 +43,30 @@ Think of Copilot Cockpit as a local control system for structured AI work:
 
 This keeps the relationship collaborative: you work with the LLM, not under a black-box agent that guesses what should happen next.
 
+## Built On VS Code And GitHub Copilot
+
+Copilot Cockpit is not a standalone model host. It is a control and orchestration layer built on top of the Visual Studio Code extension platform, the native VS Code chat surface, GitHub Copilot in VS Code, and compatible chat-provider setups that can expose other models through the same workflow.
+
+That distinction matters. The rapid model updates, agent improvements, and chat-surface improvements come from the teams behind VS Code, GitHub Copilot, and the model providers that Copilot or OpenRouter can surface in your editor. Copilot Cockpit adds structure around that foundation: planning, approval, scheduling, MCP tools, repo-local skills, review checkpoints, and project memory.
+
+In other words:
+
+- VS Code provides the extension runtime, chat UI, commands, and customization surfaces.
+- GitHub Copilot provides the native chat execution surface and model-routing experience used by the scheduler.
+- OpenRouter or other compatible providers can extend model choice when they are exposed through the same VS Code chat environment.
+- Copilot Cockpit provides the workflow harness that makes those capabilities operational for real project work.
+
+This is why the project can stay useful as the surrounding platform improves. The cockpit does not need to outgrow the editor. It needs to make the editor's AI surfaces safer, clearer, and more repeatable.
+
+```mermaid
+flowchart LR
+    A[VS Code chat] --> B[GitHub Copilot or connected provider]
+    B --> C[Copilot Cockpit control layer]
+    C --> D[Workflow review and scheduling]
+    C --> E[MCP tools]
+    C --> F[Repo-local skills and prompts]
+```
+
 ## ✨ Feature Tour
 
 ### Todo Cockpit
@@ -192,6 +216,7 @@ After installation, the extension creates or repairs repo-local support files fo
 | Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
 
 ## 🤝 Supported Models
+
 Bring your own LLM via:
 
 | Surface | Status | What It Can Do |
@@ -199,6 +224,21 @@ Bring your own LLM via:
 | [GitHub Copilot in VS Code](https://github.com/features/copilot/plans) | Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | [OpenRouter.ai](https://openrouter.ai/) | Supported | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | ChatGPT Codex in VS Code | Experimental | Repo-local MCP, repo-local skills, todo coordination, and task-draft coordination |
+
+Model availability is determined by the chat providers and integrations available in your VS Code environment. Copilot Cockpit does not bundle its own frontier models. It orchestrates the models and agents that your VS Code chat setup makes available.
+
+## Native Execution Harness
+
+The plugin already contains a concrete harness around VS Code chat and Copilot instead of only describing one at a high level.
+
+- Scheduled execution opens or focuses the native VS Code chat surface and submits prompts through VS Code chat commands.
+- Tasks can request a specific agent or mode, including built-in slash agents and custom repo-local agents.
+- Tasks can request a specific model ID when the active chat surface supports that selector.
+- The scheduler can start a fresh chat or continue an existing session depending on task configuration.
+- Repo-local MCP setup exposes the cockpit state and scheduler operations as tools instead of relying on hidden background mutation.
+- Repo-local Copilot skills under `.github/skills` shape how Copilot approaches planning, routing, and approval-aware execution in the workspace.
+
+That means Copilot Cockpit is deeper than a UI wrapper. It already uses VS Code chat as the execution harness, MCP as the structured tool harness, and repo-local skills as the behavior harness.
 
 ### 🚧 Codex Limitation
 
@@ -215,6 +255,16 @@ Codex support is currently limited. It can help create and coordinate todos and 
 ## 🤝 Attribution and Provenance
 
 Copilot Cockpit is built upon [vscode-copilot-scheduler by aktsmm](https://github.com/aktsmm/vscode-copilot-scheduler).
+
+It also depends heavily on the broader platform work provided by Visual Studio Code and GitHub Copilot. This project uses the VS Code extension runtime, the native chat surface, repo-local customization patterns, and Copilot-oriented workflows as the execution foundation that the cockpit organizes around.
+
+Credit is also due to the model and provider ecosystem that users can reach through those surfaces. In practice that can include GitHub Copilot-hosted models, OpenRouter-backed setups, and other provider integrations exposed through VS Code chat. Copilot Cockpit does not replace that layer. It makes that layer more usable for structured project delivery.
+
+Useful platform references:
+
+- [Visual Studio Code documentation](https://code.visualstudio.com/docs)
+- [VS Code AI agents and agent loop concepts](https://code.visualstudio.com/docs/copilot/concepts/agents)
+- [Customize Copilot with instructions, prompts, and MCP](https://code.visualstudio.com/docs/copilot/guides/customize-copilot-guide)
 
 This repository contains a mix of:
 
