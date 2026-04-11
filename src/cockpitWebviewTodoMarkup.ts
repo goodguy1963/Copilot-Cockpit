@@ -1,5 +1,7 @@
-import { escapeHtml, escapeHtmlAttr } from "./cockpitWebviewContentUtils";
+﻿import { escapeHtml, escapeHtmlAttr } from "./cockpitWebviewContentUtils";
 import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
+
+const TODO_EDITOR_DESCRIPTION_LAYOUT_STYLES = `<style>#todo-edit-tab .todo-editor-grid{align-items:stretch;}#todo-edit-tab .todo-editor-card-primary{grid-template-rows:auto minmax(0,1fr) auto;align-content:stretch;min-height:0;}#todo-edit-tab .todo-editor-description-group{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;}#todo-edit-tab .todo-editor-description-input{min-height:max(180px,100%);height:100%;box-sizing:border-box;resize:vertical;}</style>`;
 
 function renderSectionTitleWithHelp(
   label: string,
@@ -35,9 +37,9 @@ export function buildSchedulerTodoEditorMarkup(options: {
               <label for="todo-title-input">${escapeHtml(strings.boardFieldTitle)}</label>
               <input type="text" id="todo-title-input">
             </div>
-            <div class="form-group" style="margin:0;">
+            <div class="form-group todo-editor-description-group" style="margin:0;">
               <label for="todo-description-input">${escapeHtml(strings.boardFieldDescription)}</label>
-              <textarea id="todo-description-input" style="min-height:180px;"></textarea>
+              <textarea id="todo-description-input" class="todo-editor-description-input"></textarea>
             </div>
             <div class="todo-upload-row">
               <button type="button" class="btn-secondary" id="todo-upload-files-btn">${escapeHtml(strings.boardUploadFiles)}</button>
@@ -182,4 +184,3 @@ export function buildSchedulerListTabMarkup(options: {
     </div>
   </div>`;
 }
-

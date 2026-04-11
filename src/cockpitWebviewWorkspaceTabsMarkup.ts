@@ -459,8 +459,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
   </div>
 
   <div id="settings-tab" class="tab-content">
-    <div class="telegram-layout">
-      <section class="telegram-card">
+    <div class="telegram-layout settings-layout">
+      <section class="telegram-card settings-card settings-card-language">
         <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.settingsLanguageTitle)}</div>
           <p class="note">${escapeHtml(strings.settingsLanguageBody)}</p>
@@ -496,21 +496,23 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
         <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
       </section>
-      <section class="telegram-card settings-card settings-card-support" style="grid-column:span 2;">
+      <section class="telegram-card settings-card settings-card-support settings-card-span-full">
         <div class="settings-card-header">
           <div class="section-title">🛟 ${escapeHtml(strings.settingsSupportTitle)}</div>
           <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
         </div>
-        <div class="button-group" style="margin-top:8px;">
-          <button type="button" class="btn-primary" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
-          <button type="button" class="btn-secondary" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
-          <button type="button" class="btn-secondary" id="sync-bundled-agents-btn">${escapeHtml(strings.actionSyncBundledAgents)}</button>
-          <button type="button" class="btn-secondary" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
-          <button type="button" class="btn-secondary" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
-        </div>
-        <div class="button-group" style="margin-top:8px;">
-          <button type="button" class="btn-secondary" id="open-copilot-settings-btn">${escapeHtml(strings.actionOpenCopilotSettings)}</button>
-          <button type="button" class="btn-secondary" id="open-extension-settings-btn">${escapeHtml(strings.actionOpenCockpitSettings)}</button>
+        <div class="settings-actions-grid">
+          <div class="settings-action-group settings-action-group-primary">
+            <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn">${escapeHtml(strings.actionSyncBundledAgents)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+          </div>
+          <div class="settings-action-group settings-action-group-secondary">
+            <button type="button" class="btn-secondary settings-action-button is-open" id="open-copilot-settings-btn">${escapeHtml(strings.actionOpenCopilotSettings)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-open" id="open-extension-settings-btn">${escapeHtml(strings.actionOpenCockpitSettings)}</button>
+          </div>
         </div>
         <div class="settings-metrics-grid">
           <div class="settings-metric"><strong>🧪 ${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
@@ -520,46 +522,50 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="settings-metric"><strong>🤖 ${escapeHtml(strings.settingsStorageLastAgentsUpdateLabel)}</strong> <span id="settings-agents-updated-value">-</span></div>
         </div>
       </section>
-      <section class="telegram-card settings-card settings-card-review" style="grid-column:span 2;">
+      <section class="telegram-card settings-card settings-card-review settings-card-span-full">
         <div class="settings-card-header">
           <div class="section-title">🧭 ${escapeHtml(strings.reviewDefaultsTitle)}</div>
           <p class="note">${escapeHtml(strings.reviewDefaultsDescription)}</p>
         </div>
 
-        <div class="form-group" style="margin-top:8px;">
-          <label for="needs-bot-review-comment-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
-          <textarea id="needs-bot-review-comment-template-input" rows="5" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+        <div class="settings-review-grid">
+          <div class="form-group settings-review-field settings-review-field-comment">
+            <label for="needs-bot-review-comment-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
+            <textarea class="settings-prompt-textarea is-comment" id="needs-bot-review-comment-template-input" rows="7" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+          </div>
+
+          <div class="form-group settings-review-field settings-review-field-bot-prompt settings-review-field-wide">
+            <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+            <textarea class="settings-prompt-textarea is-workflow" id="needs-bot-review-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
+          </div>
+
+          <div class="form-group settings-review-field settings-review-field-ready-prompt settings-review-field-wide">
+            <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
+            <textarea class="settings-prompt-textarea is-workflow" id="ready-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
+          </div>
+
+          <div class="settings-review-controls settings-review-field-wide">
+            <div class="form-group">
+              <label for="needs-bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
+              <select id="needs-bot-review-agent-select"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="needs-bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
+              <select id="needs-bot-review-model-select"></select>
+            </div>
+
+            <div class="form-group">
+              <label for="needs-bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
+              <select id="needs-bot-review-chat-session-select">
+                <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
+                <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
-          <textarea id="needs-bot-review-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
-          <textarea id="ready-prompt-template-input" rows="8" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="needs-bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
-          <select id="needs-bot-review-agent-select"></select>
-        </div>
-
-        <div class="form-group">
-          <label for="needs-bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
-          <select id="needs-bot-review-model-select"></select>
-        </div>
-
-        <div class="form-group">
-          <label for="needs-bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
-          <select id="needs-bot-review-chat-session-select">
-            <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
-            <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
-          </select>
-        </div>
-
-        <div class="button-group">
+        <div class="button-group settings-review-save-row">
           <button type="button" class="btn-primary" id="review-defaults-save-btn">${escapeHtml(strings.reviewDefaultsSave)}</button>
         </div>
         <p class="note" id="review-defaults-note">${escapeHtml(strings.reviewDefaultsSaved)}</p>

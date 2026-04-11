@@ -606,9 +606,9 @@ export const messages = {
     ),
   helpTodoBody: () =>
     t(
-      "The Todo board is the planning hub. Active cards should carry one workflow flag such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK. Use ready for explicit draft preparation, ON-SCHEDULE-LIST for linked active execution, and FINAL-USER-CHECK when the task work has finished and needs acceptance.",
-      "Todoボードは計画ハブです。アクティブなカードは new、needs-bot-review、needs-user-review、ready、ON-SCHEDULE-LIST、FINAL-USER-CHECK のいずれか1つのワークフローフラグを持つ想定です。ready は明示的な下書き準備、ON-SCHEDULE-LIST はリンク済みの実行中状態、FINAL-USER-CHECK はタスク作業完了後の承認待ちに使います。",
-      "Das Todo-Board ist der Planungsknoten. Aktive Karten sollen genau ein Workflow-Flag wie new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST oder FINAL-USER-CHECK tragen. Verwenden Sie ready für die explizite Draft-Vorbereitung, ON-SCHEDULE-LIST für verknüpfte aktive Ausführung und FINAL-USER-CHECK, wenn die Task-Arbeit abgeschlossen ist und abgenommen werden muss."
+      "The Todo board is the planning hub. Labels are reusable categories: a card can carry several labels, and the same shared labels can later be reused by linked tasks or Jobs for filtering. Flags are different: use one active workflow flag such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK to show the card's current state. Comments are the working thread for handoffs, review notes, approvals, and follow-up decisions, so add a new comment instead of rewriting the description whenever the conversation moves forward.",
+      "Todoボードは計画ハブです。ラベルは再利用できる分類で、1つのカードに複数付けられ、後でリンクされた task や Job の絞り込みにも使えます。フラグは別物で、new、needs-bot-review、needs-user-review、ready、ON-SCHEDULE-LIST、FINAL-USER-CHECK などのワークフローフラグを基本的に1つだけ付けて現在の状態を示します。コメントは引き継ぎ、レビュー記録、承認、次の判断を残すための作業スレッドなので、状況が進んだら説明文を書き換えるより新しいコメントを追加してください。",
+      "Das Todo-Board ist der Planungsknoten. Labels sind wiederverwendbare Kategorien: Eine Karte kann mehrere Labels tragen, und dieselben gemeinsamen Labels lassen sich später auch bei verknüpften Tasks oder Jobs zum Filtern verwenden. Flags sind etwas anderes: Verwenden Sie genau ein aktives Workflow-Flag wie new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST oder FINAL-USER-CHECK, um den aktuellen Zustand der Karte zu zeigen. Kommentare bilden den Arbeits-Thread für Handoffs, Review-Notizen, Freigaben und Folgeentscheidungen. Fügen Sie also bei Fortschritt lieber einen neuen Kommentar hinzu, statt die Beschreibung ständig umzuschreiben."
     ),
   helpSwitchTabSettingsBtn: () => t("Switch to Settings", "設定を表示", "Zu Einstellungen wechseln"),
   helpSwitchTabTodoBtn: () => t("Switch to Todo Board", "Todoボードを表示", "Zum Todo-Board wechseln"),
@@ -619,9 +619,9 @@ export const messages = {
   helpCreateTitle: () => t("2. ✍️ Create a Task", "2. ✍️ タスクを作成", "2. ✍️ Einen Task erstellen"),
   helpCreateItemName: () =>
     t(
-      "Open the Create Task tab. Enter a name, write your prompt, set a cron schedule (or use the friendly schedule builder), and choose a scope.",
-      "Create Task タブを開き、名前・プロンプト・cronスケジュール（またはフレンドリービルダー）・スコープを設定します。",
-      "Öffnen Sie den Tab Create Task. Geben Sie einen Namen ein, schreiben Sie Ihren Prompt, legen Sie einen Cron-Zeitplan fest oder verwenden Sie den Friendly Schedule Builder, und wählen Sie einen Scope.",
+      "Open the Create Task tab. Enter a name, write your prompt, choose whether the task is recurring or one-time, set a cron schedule directly or with the friendly schedule builder, and choose a scope.",
+      "Create Task タブを開き、名前とプロンプトを入力し、その task を繰り返し実行にするか one-time にするかを決め、cron スケジュールを直接またはフレンドリービルダーで設定し、最後にスコープを選びます。",
+      "Öffnen Sie den Tab Create Task. Geben Sie einen Namen ein, schreiben Sie Ihren Prompt, entscheiden Sie, ob der Task wiederkehrend oder einmalig sein soll, legen Sie den Cron-Zeitplan direkt oder mit dem Friendly Schedule Builder fest und wählen Sie einen Scope.",
     ),
   helpCreateItemTemplates: () =>
     t(
@@ -643,22 +643,22 @@ export const messages = {
     ),
   helpCreateItemRunFirst: () =>
     t(
-      "Check Run First to fire the task 3 minutes after saving. Check One-Time for Todo Task Drafts and other single-use executions; after a successful one-time run, the linked Todo should move from ON-SCHEDULE-LIST to FINAL-USER-CHECK.",
-      "Run Firstにチェックすると保存から3分後に初回実行します。One-Time は Todo Task Drafts や単発実行向けです。one-time 実行が成功すると、リンクされた Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進む想定です。",
-      "Aktivieren Sie Run First, damit der Task 3 Minuten nach dem Speichern startet. Aktivieren Sie One-Time für Todo Task Drafts und andere Einmal-Ausführungen; nach einem erfolgreichen One-Time-Lauf sollte das verknüpfte Todo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
+      "Check Run First to fire the first run 3 minutes after saving. Leave One-Time off for a normal recurring schedule, or turn One-Time on for Todo Task Drafts and other single-use executions that should stay in the task list until they run once. After a successful linked one-time run, the source Todo should move from ON-SCHEDULE-LIST to FINAL-USER-CHECK.",
+      "Run First にチェックすると、保存から3分後に初回実行します。通常の繰り返しスケジュールなら One-Time はオフのままにし、Todo Task Drafts や一度だけ実行したいものでは One-Time をオンにして、実行されるまで task list に残します。リンクされた one-time 実行が成功すると、元の Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進む想定です。",
+      "Aktivieren Sie Run First, damit der erste Lauf 3 Minuten nach dem Speichern startet. Lassen Sie One-Time für einen normalen wiederkehrenden Zeitplan aus, oder aktivieren Sie One-Time für Todo Task Drafts und andere Einmal-Ausführungen, die in der Task List bleiben sollen, bis sie einmal gelaufen sind. Nach einem erfolgreichen verknüpften One-Time-Lauf sollte das Ursprungstodo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
     ),
   helpListTitle: () => t("3. 📋 Manage Your Tasks", "3. 📋 タスクを管理", "3. 📋 Ihre Tasks verwalten"),
   helpListItemSections: () =>
     t(
-      "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts. A linked one-time draft keeps its source Todo in ready until you enable or schedule it, and completed one-time execution should return the source Todo to FINAL-USER-CHECK for acceptance.",
-      "Task List では繰り返しタスク、一度きりタスク、Todo Task Drafts を分けて表示します。リンクされた one-time の下書きは、有効化またはスケジュールされるまで元の Todo を ready のまま保ち、完了後は元の Todo を FINAL-USER-CHECK に戻して承認待ちにします。",
-      "Die Task List trennt wiederkehrende Tasks, einmalige Tasks und Todo Task Drafts. Ein verknüpfter One-Time-Draft hält sein Ursprungstodo in ready, bis Sie ihn aktivieren oder planen; nach erfolgreicher Ausführung sollte das Ursprungstodo zu FINAL-USER-CHECK für die Abnahme zurückkehren.",
+      "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts so you can see which tasks are already on a schedule and which drafts still need a decision. Linked drafts keep their source Todo in ready until you enable them, give them a schedule, or run them as a one-time execution; after completion they should send the source Todo back to FINAL-USER-CHECK for acceptance.",
+      "Task List では、繰り返しタスク、一度きりタスク、Todo Task Drafts を分けて表示するため、すでにスケジュールに乗っているものと、まだ判断待ちの下書きを見分けられます。リンクされた draft は、有効化・スケジュール設定・one-time 実行のいずれかを行うまで元の Todo を ready に保ち、完了後は承認待ちとして FINAL-USER-CHECK に戻します。",
+      "Die Task List trennt wiederkehrende Tasks, einmalige Tasks und Todo Task Drafts, damit Sie sofort sehen, was bereits geplant ist und bei welchen Drafts noch eine Entscheidung fehlt. Verknüpfte Drafts halten ihr Ursprungstodo in ready, bis Sie sie aktivieren, planen oder als einmalige Ausführung starten; nach Abschluss sollen sie das Ursprungstodo zur Abnahme wieder nach FINAL-USER-CHECK zurückführen.",
     ),
   helpListItemActions: () =>
     t(
-      "Click a task's action buttons to run it now, open it in the editor, duplicate it, enable or disable it, or delete it. You can also move a task to another open workspace.",
-      "タスクのアクションボタンから、即時実行・エディターで開く・複製・有効化/無効化・削除ができます。別のワークスペースへの移動も可能です。",
-      "Über die Aktionsschaltflächen eines Tasks können Sie ihn sofort ausführen, im Editor öffnen, duplizieren, aktivieren oder deaktivieren oder löschen. Sie können einen Task auch in einen anderen geöffneten Workspace verschieben.",
+      "Use each task's action buttons to run it now, open it in the editor to change the prompt or schedule, duplicate it for a variation, enable or disable recurring execution, delete it, or move it to another open workspace. For linked Todo work, the Task List is where drafts become active scheduled executions.",
+      "各 task のアクションボタンから、今すぐ実行、エディターで開いてプロンプトやスケジュールを変更、複製して別案を作成、繰り返し実行の有効化/無効化、削除、別の開いているワークスペースへの移動ができます。Todo にリンクされた作業では、Task List が draft を実行中のスケジュール task に切り替える場所になります。",
+      "Über die Aktionsschaltflächen jedes Tasks können Sie ihn sofort ausführen, im Editor öffnen und Prompt oder Zeitplan ändern, für eine Variante duplizieren, wiederkehrende Ausführung aktivieren oder deaktivieren, löschen oder in einen anderen geöffneten Workspace verschieben. Für verknüpfte Todo-Arbeit ist die Task List der Ort, an dem Drafts zu aktiven geplanten Ausführungen werden.",
     ),
   helpListItemStartup: () =>
     t(

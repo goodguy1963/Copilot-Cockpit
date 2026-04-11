@@ -13,6 +13,9 @@ type PostMessageFn = (message: OutgoingWebviewMessage) => void;
 type LaunchHelpChatFn = (prompt: string) => Promise<void>;
 type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefined>;
 
+const cockpitExtensionId = "local-dev.copilot-cockpit";
+const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
+
 /** Handles settings/help messages that are routed out of the main webview controller. */
 
 export interface SettingsHandlerContext {
@@ -130,7 +133,7 @@ export async function handleSettingsWebviewMessage(
     case "openExtensionSettings": {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        "@ext:local-dev.copilot-cockpit",
+        cockpitExtensionSettingsQuery,
       );
       return true;
     }

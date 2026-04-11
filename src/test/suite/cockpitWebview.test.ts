@@ -1,4 +1,4 @@
-import * as fs from "fs";
+﻿import * as fs from "fs";
 import * as path from "path";
 import * as vm from "vm";
 import * as assert from "assert";
@@ -425,6 +425,25 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     ], "shared label color preservation");
   });
 
+  test("todo label catalog delete control only renders from the active edit surface", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      "var fullCatalog = getLabelCatalog();",
+      "var activeEditEntry = null;",
+      "for (var catalogIndex = 0; catalogIndex < fullCatalog.length; catalogIndex++) {",
+      'strings.boardLabelCatalogDeleteConfirm || \'Delete label "{name}"?\'',
+      "data-label-catalog-delete=\"' + escapeAttr(activeEditEntry.name) + '\"",
+      "data-label-catalog-confirm-delete=\"' + escapeAttr(activeEditEntry.name) + '\"",
+      'activeEditMarkup + catalog.map(function (entry) {',
+    ], "active label delete surface");
+
+    expectSourceToExcludeSnippets(scriptSource, [
+      "var canDelete = entry.source !== \"task\";",
+      "var pendingDelete = canDelete && isPendingCatalogDelete(\"label\", entry.name);",
+    ], "row-level label delete controls");
+  });
+
   test("todo flag picker localizes protected flags and hides destructive controls", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
@@ -774,7 +793,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       scriptSource,
       [
       'var EDITOR_CREATE_SYMBOL = "+";',
-      'var EDITOR_EDIT_SYMBOL = "⚙";',
+      'var EDITOR_EDIT_SYMBOL = "âš™";',
       'labelNode.classList.toggle("is-dirty", options.dirty === true);',
       'function isTaskEditorDirty()',
       'function isTodoEditorDirty()',
@@ -1710,7 +1729,7 @@ test("todo comments style human form input separately and todo saves reset to cr
       const classes = new Set<string>();
       return {
         disabled: false,
-        innerHTML: "<span>○</span>",
+        innerHTML: "<span>â—‹</span>",
         parentNode: {
           insertBefore: (node: unknown) => {
             insertedButtons.push(node);
@@ -1821,7 +1840,7 @@ test("todo comments style human form input separately and todo saves reset to cr
     });
     assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
     assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
-    assert.strictEqual(readyToggle.innerHTML, "<span>○</span>");
+    assert.strictEqual(readyToggle.innerHTML, "<span>â—‹</span>");
     assert.strictEqual(readyCancelButton.removed, true);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
@@ -3838,6 +3857,7 @@ suite("Board Render State Tests", () => {
     assert.strictEqual(finishRenderCalled, true, "pending render should flush on drag finish");
   });
 });
+
 
 
 

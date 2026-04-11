@@ -79,6 +79,37 @@ flowchart LR
     C --> F[Repo-local skills and prompts]
 ```
 
+## Optional Agent Workflow
+
+When you manually sync the bundled starter agents into `.github/agents`, Copilot Cockpit can add an optional orchestration layer on top of the normal task, job, and research workflow. The goal is not to replace repo-local systems or create a bloated generalist loop. The goal is to let a top-level orchestrator stay focused on direction, routing, and closeout while bounded specialists handle the detailed execution work.
+
+This is efficient because the `CEO` or orchestrator does the initial thinking once, then delegates with stronger context than a typical raw user prompt: the request, relevant repo research, controlling files, constraints, and acceptance criteria. The specialist can then work inside a narrow responsibility boundary, validate that slice, and report back for final review instead of forcing the orchestrator to carry every intermediate implementation detail in one chat thread.
+
+```mermaid
+flowchart TD
+    A[User request or Todo Cockpit item] --> B[CEO or orchestrator]
+    B --> C[Initial review and repo research]
+    C --> D{Next best route}
+    D --> E[Planner when sequencing or validation needs design]
+    D --> F[Direct specialist for bounded work]
+    D --> G[Cockpit Todo Expert for durable approval or board state]
+    E --> H[Execution-ready handoff with files, constraints, and acceptance criteria]
+    F --> H
+    H --> I[Specialist runs bounded work and validates its slice]
+    I --> J[CEO reviews returned work and closeout quality]
+    J --> K[Todo Cockpit or user approval surface]
+    K --> L[Next action, schedule, or final closeout]
+```
+
+The optional layer stays practical because responsibilities are split deliberately:
+
+- `CEO` inspects the request, gathers the minimum repo context, chooses the route, and validates the returned result.
+- `Planner` is used when the work needs sequencing, tradeoff analysis, or a clearer validation plan.
+- Specialists such as `Remediation Implementer` or `Documentation Specialist` run bounded work and report back with validation.
+- `Cockpit Todo Expert` owns durable approval state and backlog hygiene in `Todo Cockpit`.
+
+Bundled-agent sync is manual by design. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](docs/agent-workflow.md).
+
 ## ✨ Feature Tour
 
 ### Todo Cockpit
@@ -111,11 +142,11 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### Settings
 
-`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an orchestration layer that lets the CEO or orchestrator hand bounded work to the specialist designed for that job instead of bloating one chat session with every intermediate step.
+`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an orchestration layer that lets the CEO or orchestrator stay focused on routing, planning, and validation while specialists handle bounded work. See [docs/agent-workflow.md](docs/agent-workflow.md) for the operating model.
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, delegate bounded work to the right repo-local or starter-pack specialist, and keep its own chat context cleaner because the specialist runs the internal loop and reports back after the assigned work.
+`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, do the initial repo framing, delegate bounded work to the right repo-local or starter-pack specialist, and then validate the returned result instead of carrying the full implementation loop in one long chat.
 
 ## Common Workflows
 
@@ -180,6 +211,8 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 
 The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents` when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
+If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](docs/agent-workflow.md).
+
 ## 🚦 Release Channels
 
 - `edge` is the rolling prerelease channel. Every push to `main` validates the build on GitHub, packages a VSIX, and updates the `edge` GitHub prerelease.
@@ -192,6 +225,7 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 
 - [Getting Started](docs/getting-started.md)
 - [Feature Tour](docs/feature-tour.md)
+- [Agent Workflow](docs/agent-workflow.md)
 - [Workflows](docs/workflows.md)
 - [Integrations](docs/integrations.md)
 - [Storage and Boundaries](docs/storage-and-boundaries.md)
@@ -202,7 +236,7 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
-- Bundled starter agents can be synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`.
+- Bundled starter agents can be synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](docs/agent-workflow.md).
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
 - Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.

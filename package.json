@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "Built on VS Code and GitHub Copilot: a native orchestration layer for AI workflows, MCP tools, scheduling, and human-in-the-loop execution",
-  "version": "1.1.155",
+  "version": "1.1.157",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",

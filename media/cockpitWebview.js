@@ -1,4 +1,4 @@
-import {
+﻿import {
   bindBoardColumnInteractions,
   getClosestEventTarget,
   handleBoardSectionCollapse,
@@ -246,7 +246,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var editingTaskId = null;
   var selectedTodoId = null;
   var EDITOR_CREATE_SYMBOL = "+";
-  var EDITOR_EDIT_SYMBOL = "⚙";
+  var EDITOR_EDIT_SYMBOL = "âš™";
   var boardRenderState = createBoardRenderState();
   var draggingTodoId = null;
   var isBoardDragging = false;
@@ -657,7 +657,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var editingFlagOriginalName = "";
   var editingLabelOriginalName = "";
 
-  // Collapsed sections — persisted in localStorage
+  // Collapsed sections â€” persisted in localStorage
   var collapsedSections = (function () {
     try { return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections") || "[]")); }
     catch (e) { return new Set(); }
@@ -2320,7 +2320,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';">' +
       '<button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + '</button>' +
       (removable
-        ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">×</button>'
+        ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">Ã—</button>'
         : "") +
       '</span>'
     );
@@ -2334,7 +2334,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;">' +
       '<span>' + escapeHtml(displayName) + '</span>' +
       (removable
-        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">×</button>'
+        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">Ã—</button>'
         : "") +
       '</span>'
     );
@@ -2355,28 +2355,43 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
 
   function syncLabelCatalog() {
     if (!todoLabelCatalog) return;
+    var fullCatalog = getLabelCatalog();
     var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
-    var catalog = getLabelCatalog().filter(function (entry) {
+    var catalog = fullCatalog.filter(function (entry) {
       return addedKeys.indexOf(normalizeTodoLabelKey(entry.name)) < 0;
     });
-    if (catalog.length === 0) {
+    var activeEditEntry = null;
+    if (editingLabelOriginalName) {
+      for (var catalogIndex = 0; catalogIndex < fullCatalog.length; catalogIndex++) {
+        if (normalizeTodoLabelKey(fullCatalog[catalogIndex].name) === normalizeTodoLabelKey(editingLabelOriginalName)) {
+          activeEditEntry = fullCatalog[catalogIndex];
+          break;
+        }
+      }
+    }
+    if (catalog.length === 0 && !activeEditEntry) {
       todoLabelCatalog.innerHTML = "";
       return;
     }
-    todoLabelCatalog.innerHTML = catalog.map(function (entry) {
+    var activeEditMarkup = "";
+    if (activeEditEntry && activeEditEntry.source !== "task") {
+      var deletePrompt = String(
+        strings.boardLabelCatalogDeleteConfirm || 'Delete label "{name}"?'
+      ).replace("{name}", activeEditEntry.name);
+      activeEditMarkup = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 45%,var(--vscode-panel-border));background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#7f1d1d) 20%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 92%,transparent) 100%);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 10%,transparent);">'
+        + '<span style="font-size:12px;line-height:1.45;font-weight:600;color:var(--vscode-foreground);">' + escapeHtml(deletePrompt) + '</span>'
+        + (isPendingCatalogDelete("label", activeEditEntry.name)
+          ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 78%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 62%,var(--vscode-button-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 78%,var(--vscode-panel-border));color:var(--vscode-button-foreground);box-shadow:0 6px 14px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 24%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
+          : '<button type="button" data-label-catalog-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 16%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 10%,var(--vscode-editorWidget-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 56%,var(--vscode-panel-border));color:var(--vscode-errorForeground,var(--vscode-foreground));box-shadow:0 4px 12px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 14%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardLabelCatalogDeleteTitle || "Delete label") + '</button>')
+        + '</div>';
+    }
+    todoLabelCatalog.innerHTML = activeEditMarkup + catalog.map(function (entry) {
       var bg = entry.color || "var(--vscode-badge-background)";
       var fg = getReadableTextColor(bg);
       var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
-      var canDelete = entry.source !== "task";
-      var pendingDelete = canDelete && isPendingCatalogDelete("label", entry.name);
       return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:1.5px solid ' + escapeAttr(borderColor) + ';font-size:12px;">'
         + '<button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button>'
-        + (pendingDelete
-          ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
-          : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
-          + (canDelete
-            ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">×</button>'
-            : ''))
+        + '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">✎</button>'
         + '</span>';
     }).join("");
   }
@@ -2434,7 +2449,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       ? getLabelDefinition(selectedTodoLabelName)
       : null;
     if (todoLabelColorInput) {
-      // Only update the color picker when a chip is selected — don't overwrite
+      // Only update the color picker when a chip is selected â€” don't overwrite
       // the user's current choice while they're typing a new label name.
       var isTypingNew = todoLabelsInput && todoLabelsInput.value.trim();
       if (selectedTodoLabelName) {
@@ -2444,7 +2459,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       } else if (!isTypingNew) {
         todoLabelColorInput.value = "#4f8cff";
       }
-      // Always enabled — user can pick a color before clicking Add
+      // Always enabled â€” user can pick a color before clicking Add
       todoLabelColorInput.disabled = false;
     }
       if (todoLabelColorSaveBtn) { todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName(); }
@@ -2776,11 +2791,11 @@ syncTodoLabelSuggestions();
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
             + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + '</button>'
             + (protectedFlag
-              ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">🔒</span>'
+              ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">ðŸ”’</span>'
               : pendingDelete
               ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
-              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">✎</button>'
-              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">×</button>')
+              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">âœŽ</button>'
+              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">Ã—</button>')
             + '</span>';
         }).join("");
       }
@@ -3242,8 +3257,8 @@ syncTodoLabelSuggestions();
       ? (strings.boardRestoreTodo || "Restore")
       : getTodoCompletionActionLabel(card);
     var icon = isTodoCompleted(card)
-      ? "✓"
-      : "○";
+      ? "âœ“"
+      : "â—‹";
     var actionAttr = isArchivedCard ? 'data-todo-restore' : 'data-todo-complete';
     var className = 'todo-complete-button';
     if (isTodoReadyForFinalize(card)) {
@@ -3584,14 +3599,14 @@ syncTodoLabelSuggestions();
         todoDetailStatus.textContent =
           (strings.boardStatusLabel || "Status") + ": " +
           getTodoStatusLabel(selectedTodo.status || "active") +
-          " • " +
+          " â€¢ " +
           getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
       } else {
         var workflowFlag = getTodoWorkflowFlag(selectedTodo);
         todoDetailStatus.textContent =
           (strings.boardStatusLabel || "Status") + ": " +
           getTodoStatusLabel(selectedTodo.status || "active") +
-          " • " +
+          " â€¢ " +
           (strings.boardWorkflowLabel || "Workflow") + ": " +
           getFlagDisplayName(workflowFlag || "new");
       }
@@ -3747,10 +3762,10 @@ syncTodoLabelSuggestions();
       var archivedCount = allCards.filter(function (card) { return card.archived; }).length;
       boardSummary.textContent =
         (strings.boardSections || "Sections") + ": " + sections.length +
-        " • " +
+        " â€¢ " +
         (strings.boardCards || "Cards") + ": " + activeCount +
-        " • Archived: " + String(archivedCount) +
-        " • " +
+        " â€¢ Archived: " + String(archivedCount) +
+        " â€¢ " +
         (strings.boardComments || "Comments") + ": " + allCards.reduce(function (count, card) {
           return count + (Array.isArray(card.comments) ? card.comments.length : 0);
         }, 0);
@@ -4180,6 +4195,7 @@ syncTodoLabelSuggestions();
             color: todoLabelColorInput.value,
             editingExisting: !!previousName,
           });
+          clearCatalogDeleteState("label");
           upsertLocalLabelDefinition(normalized, todoLabelColorInput.value, previousName);
           vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName: previousName, color: todoLabelColorInput.value } });
           var prevName = previousName;
@@ -4249,6 +4265,15 @@ syncTodoLabelSuggestions();
           var confirmName = confirmDeleteBtn.getAttribute("data-label-catalog-confirm-delete") || "";
           if (!confirmName) return;
           clearCatalogDeleteState("label");
+          if (normalizeTodoLabelKey(editingLabelOriginalName) === normalizeTodoLabelKey(confirmName)) {
+            editingLabelOriginalName = "";
+          }
+          if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(confirmName)) {
+            selectedTodoLabelName = "";
+          }
+          if (todoLabelsInput && normalizeTodoLabelKey(todoLabelsInput.value) === normalizeTodoLabelKey(confirmName)) {
+            todoLabelsInput.value = "";
+          }
           removeLabelFromCurrentTodo(confirmName);
           syncTodoLabelEditor();
           vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: confirmName } });
@@ -4579,7 +4604,7 @@ syncTodoLabelSuggestions();
     if (button) {
       var title = options.title || "";
       if (options.dirty) {
-        title = title + " • " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+        title = title + " â€¢ " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
       }
       button.title = title;
       button.setAttribute("aria-label", title || tabName);
@@ -5543,13 +5568,13 @@ syncTodoLabelSuggestions();
       ? (strings.labelScopeGlobal || "")
       : (strings.labelScopeWorkspace || "");
     var scopeText = scopeValue === "global"
-      ? ("🌐 " + escapeHtml(scopeLabel))
-      : "📁 " + escapeHtml(scopeLabel) + (workspaceName ? " • " + escapeHtml(workspaceName) : "");
+      ? ("ðŸŒ " + escapeHtml(scopeLabel))
+      : "ðŸ“ " + escapeHtml(scopeLabel) + (workspaceName ? " â€¢ " + escapeHtml(workspaceName) : "");
     if (scopeValue === "workspace") {
       var workspaceBadgeText = inCurrentWorkspace
         ? strings.labelThisWorkspaceShort || ""
         : strings.labelOtherWorkspaceShort || "";
-      scopeText += " • " + escapeHtml(workspaceBadgeText);
+      scopeText += " â€¢ " + escapeHtml(workspaceBadgeText);
     }
     return {
       inThisWorkspace: inCurrentWorkspace,
@@ -5618,7 +5643,7 @@ syncTodoLabelSuggestions();
       enabled: enabled,
       statusClass: enabled ? "enabled" : "disabled",
       statusText: enabled ? strings.labelEnabled : strings.labelDisabled,
-      toggleIcon: enabled ? "⏸️" : "▶️",
+      toggleIcon: enabled ? "â¸ï¸" : "â–¶ï¸",
       toggleTitle: enabled ? strings.actionDisable : strings.actionEnable,
     };
   }
@@ -5766,7 +5791,7 @@ syncTodoLabelSuggestions();
         action: "move",
         taskId: taskIdEscaped,
         title: strings.actionMoveToCurrentWorkspace || "",
-        icon: "📌",
+        icon: "ðŸ“Œ",
       });
       sortVisibleSectionsForRecurringTasks();
     }
@@ -5776,7 +5801,7 @@ syncTodoLabelSuggestions();
         action: "delete",
         taskId: taskIdEscaped,
         title: strings.actionDelete,
-        icon: "🗑️",
+        icon: "ðŸ—‘ï¸",
       });
     }
     return actionsHtml;
@@ -5902,7 +5927,7 @@ syncTodoLabelSuggestions();
 
   function getTaskPromptPreview(promptText) {
     return promptText.length > 100
-      ? `${promptText.substring(0, 100)}…`
+      ? `${promptText.substring(0, 100)}â€¦`
       : promptText;
   }
 
@@ -5986,7 +6011,7 @@ syncTodoLabelSuggestions();
       '<div class="task-meta-strip">' +
       renderTaskMetaPill(
         "task-meta-pill-cron",
-        "⏰ " + escapeHtml(cronSummary),
+        "â° " + escapeHtml(cronSummary),
       ) +
       nextRunMarkup +
       renderTaskScopeMarkup(scopeInfo) +
@@ -7280,7 +7305,7 @@ syncTodoLabelSuggestions();
         }
         var job = getJobById(task.jobId);
         return job && job.name
-          ? task.name + " · " + job.name
+          ? task.name + " Â· " + job.name
           : task.name;
       },
     );
@@ -7953,7 +7978,7 @@ syncTodoLabelSuggestions();
                 '<span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
               '</div>' +
                   '<div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '">' +
-                  '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' • ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
+                  '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' â€¢ ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
                   '<div style="display:flex;align-items:center;gap:8px;">' +
                   (job.archived
                     ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || 'Archived') + '</span>'
@@ -8143,7 +8168,7 @@ syncTodoLabelSuggestions();
             escapeHtml(taskName) +
             '</span>' +
             (index < selectedNodes.length - 1
-              ? '<span class="jobs-timeline-arrow">→</span>'
+              ? '<span class="jobs-timeline-arrow">â†’</span>'
               : '')
           );
         })
@@ -8586,6 +8611,7 @@ syncTodoLabelSuggestions();
   // Signal the host extension that the webview has finished loading
   vscode.postMessage({ type: "webviewReady" });
 })();
+
 
 
 

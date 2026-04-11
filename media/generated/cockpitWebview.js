@@ -3136,7 +3136,7 @@
     var editingTaskId = null;
     var selectedTodoId = null;
     var EDITOR_CREATE_SYMBOL = "+";
-    var EDITOR_EDIT_SYMBOL = "\u2699";
+    var EDITOR_EDIT_SYMBOL = "\xE2\u0161\u2122";
     var boardRenderState = createBoardRenderState();
     var draggingTodoId = null;
     var isBoardDragging = false;
@@ -4902,13 +4902,13 @@
       var color = getLabelColor(label);
       var textColor = getReadableTextColor(color);
       var borderColor = selected ? "var(--vscode-focusBorder)" : "var(--vscode-panel-border)";
-      return '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid " + escapeAttr(borderColor) + ';"><button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + "</button>" + (removable ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xD7</button>' : "") + "</span>";
+      return '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid " + escapeAttr(borderColor) + ';"><button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + "</button>" + (removable ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xC3\u2014</button>' : "") + "</span>";
     }
     function renderFlagChip(flagName, removable) {
       var color = getFlagColor(flagName);
       var textColor = getReadableTextColor(color);
       var displayName = getFlagDisplayName(flagName);
-      return '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid color-mix(in srgb," + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;"><span>' + escapeHtml(displayName) + "</span>" + (removable ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">\xD7</button>' : "") + "</span>";
+      return '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid color-mix(in srgb," + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;"><span>' + escapeHtml(displayName) + "</span>" + (removable ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">\xC3\u2014</button>' : "") + "</span>";
     }
     function setTodoEditorLabels(labels, preserveSelection) {
       currentTodoLabels = dedupeStringList(labels);
@@ -4921,21 +4921,36 @@
     }
     function syncLabelCatalog() {
       if (!todoLabelCatalog) return;
+      var fullCatalog = getLabelCatalog();
       var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
-      var catalog = getLabelCatalog().filter(function(entry) {
+      var catalog = fullCatalog.filter(function(entry) {
         return addedKeys.indexOf(normalizeTodoLabelKey(entry.name)) < 0;
       });
-      if (catalog.length === 0) {
+      var activeEditEntry = null;
+      if (editingLabelOriginalName) {
+        for (var catalogIndex = 0; catalogIndex < fullCatalog.length; catalogIndex++) {
+          if (normalizeTodoLabelKey(fullCatalog[catalogIndex].name) === normalizeTodoLabelKey(editingLabelOriginalName)) {
+            activeEditEntry = fullCatalog[catalogIndex];
+            break;
+          }
+        }
+      }
+      if (catalog.length === 0 && !activeEditEntry) {
         todoLabelCatalog.innerHTML = "";
         return;
       }
-      todoLabelCatalog.innerHTML = catalog.map(function(entry) {
+      var activeEditMarkup = "";
+      if (activeEditEntry && activeEditEntry.source !== "task") {
+        var deletePrompt = String(
+          strings.boardLabelCatalogDeleteConfirm || 'Delete label "{name}"?'
+        ).replace("{name}", activeEditEntry.name);
+        activeEditMarkup = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 45%,var(--vscode-panel-border));background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#7f1d1d) 20%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 92%,transparent) 100%);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 10%,transparent);"><span style="font-size:12px;line-height:1.45;font-weight:600;color:var(--vscode-foreground);">' + escapeHtml(deletePrompt) + "</span>" + (isPendingCatalogDelete("label", activeEditEntry.name) ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 78%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 62%,var(--vscode-button-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 78%,var(--vscode-panel-border));color:var(--vscode-button-foreground);box-shadow:0 6px 14px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 24%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-label-catalog-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 16%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 10%,var(--vscode-editorWidget-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 56%,var(--vscode-panel-border));color:var(--vscode-errorForeground,var(--vscode-foreground));box-shadow:0 4px 12px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 14%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardLabelCatalogDeleteTitle || "Delete label") + "</button>") + "</div>";
+      }
+      todoLabelCatalog.innerHTML = activeEditMarkup + catalog.map(function(entry) {
         var bg = entry.color || "var(--vscode-badge-background)";
         var fg = getReadableTextColor(bg);
         var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
-        var canDelete = entry.source !== "task";
-        var pendingDelete = canDelete && isPendingCatalogDelete("label", entry.name);
-        return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1.5px solid " + escapeAttr(borderColor) + ';font-size:12px;"><button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + "</button>" + (pendingDelete ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">\u270E</button>' + (canDelete ? '<button type="button" data-label-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">\xD7</button>' : "")) + "</span>";
+        return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1.5px solid " + escapeAttr(borderColor) + ';font-size:12px;"><button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button><button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">\u270E</button></span>';
       }).join("");
     }
     function syncTodoLabelSuggestions() {
@@ -5312,7 +5327,7 @@
             var pendingDelete = isPendingCatalogDelete("flag", entry.name);
             var protectedFlag = isProtectedFlagDefinition(entry);
             var displayName = getFlagDisplayName(entry.name);
-            return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:" + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + "</button>" + (protectedFlag ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">\u{1F512}</span>' : pendingDelete ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">\u270E</button><button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">\xD7</button>') + "</span>";
+            return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:" + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + "</button>" + (protectedFlag ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">\xF0\u0178\u201D\u2019</span>' : pendingDelete ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">\xE2\u0153\u017D</button><button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">\xC3\u2014</button>') + "</span>";
           }).join("");
         }
       }
@@ -5681,7 +5696,7 @@
     function renderTodoCompletionButton(card) {
       var isArchivedCard = !!(card && card.archived);
       var title = isArchivedCard ? strings.boardRestoreTodo || "Restore" : getTodoCompletionActionLabel(card);
-      var icon = isTodoCompleted(card) ? "\u2713" : "\u25CB";
+      var icon = isTodoCompleted(card) ? "\xE2\u0153\u201C" : "\xE2\u2014\u2039";
       var actionAttr = isArchivedCard ? "data-todo-restore" : "data-todo-complete";
       var className = "todo-complete-button";
       if (isTodoReadyForFinalize(card)) {
@@ -5989,10 +6004,10 @@
         if (!isEditingTodo) {
           todoDetailStatus.textContent = strings.boardStatusLabel ? strings.boardStatusLabel + ": " + (strings.boardStatusActive || "Active") : "Status: Active";
         } else if (selectedTodo.archived) {
-          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \u2022 " + getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \xE2\u20AC\xA2 " + getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
         } else {
           var workflowFlag = getTodoWorkflowFlag(selectedTodo);
-          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \u2022 " + (strings.boardWorkflowLabel || "Workflow") + ": " + getFlagDisplayName(workflowFlag || "new");
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \xE2\u20AC\xA2 " + (strings.boardWorkflowLabel || "Workflow") + ": " + getFlagDisplayName(workflowFlag || "new");
         }
       }
       if (todoPriorityInput) {
@@ -6124,7 +6139,7 @@
         var archivedCount = allCards.filter(function(card) {
           return card.archived;
         }).length;
-        boardSummary.textContent = (strings.boardSections || "Sections") + ": " + sections.length + " \u2022 " + (strings.boardCards || "Cards") + ": " + activeCount + " \u2022 Archived: " + String(archivedCount) + " \u2022 " + (strings.boardComments || "Comments") + ": " + allCards.reduce(function(count, card) {
+        boardSummary.textContent = (strings.boardSections || "Sections") + ": " + sections.length + " \xE2\u20AC\xA2 " + (strings.boardCards || "Cards") + ": " + activeCount + " \xE2\u20AC\xA2 Archived: " + String(archivedCount) + " \xE2\u20AC\xA2 " + (strings.boardComments || "Comments") + ": " + allCards.reduce(function(count, card) {
           return count + (Array.isArray(card.comments) ? card.comments.length : 0);
         }, 0);
       }
@@ -6559,6 +6574,7 @@
             color: todoLabelColorInput.value,
             editingExisting: !!previousName
           });
+          clearCatalogDeleteState("label");
           upsertLocalLabelDefinition(normalized, todoLabelColorInput.value, previousName);
           vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName, color: todoLabelColorInput.value } });
           var prevName = previousName;
@@ -6631,6 +6647,15 @@
             var confirmName = confirmDeleteBtn.getAttribute("data-label-catalog-confirm-delete") || "";
             if (!confirmName) return;
             clearCatalogDeleteState("label");
+            if (normalizeTodoLabelKey(editingLabelOriginalName) === normalizeTodoLabelKey(confirmName)) {
+              editingLabelOriginalName = "";
+            }
+            if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(confirmName)) {
+              selectedTodoLabelName = "";
+            }
+            if (todoLabelsInput && normalizeTodoLabelKey(todoLabelsInput.value) === normalizeTodoLabelKey(confirmName)) {
+              todoLabelsInput.value = "";
+            }
             removeLabelFromCurrentTodo(confirmName);
             syncTodoLabelEditor();
             vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: confirmName } });
@@ -6935,7 +6960,7 @@
       if (button) {
         var title = options.title || "";
         if (options.dirty) {
-          title = title + " \u2022 " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+          title = title + " \xE2\u20AC\xA2 " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
         }
         button.title = title;
         button.setAttribute("aria-label", title || tabName);
@@ -7760,10 +7785,10 @@
         return normalizeWorkspacePathValue(candidatePath) === normalizeWorkspacePathValue(workspacePath);
       });
       var scopeLabel = scopeValue === "global" ? strings.labelScopeGlobal || "" : strings.labelScopeWorkspace || "";
-      var scopeText = scopeValue === "global" ? "\u{1F310} " + escapeHtml(scopeLabel) : "\u{1F4C1} " + escapeHtml(scopeLabel) + (workspaceName ? " \u2022 " + escapeHtml(workspaceName) : "");
+      var scopeText = scopeValue === "global" ? "\xF0\u0178\u0152\x90 " + escapeHtml(scopeLabel) : "\xF0\u0178\u201C\x81 " + escapeHtml(scopeLabel) + (workspaceName ? " \xE2\u20AC\xA2 " + escapeHtml(workspaceName) : "");
       if (scopeValue === "workspace") {
         var workspaceBadgeText = inCurrentWorkspace ? strings.labelThisWorkspaceShort || "" : strings.labelOtherWorkspaceShort || "";
-        scopeText += " \u2022 " + escapeHtml(workspaceBadgeText);
+        scopeText += " \xE2\u20AC\xA2 " + escapeHtml(workspaceBadgeText);
       }
       return {
         inThisWorkspace: inCurrentWorkspace,
@@ -7803,7 +7828,7 @@
         enabled,
         statusClass: enabled ? "enabled" : "disabled",
         statusText: enabled ? strings.labelEnabled : strings.labelDisabled,
-        toggleIcon: enabled ? "\u23F8\uFE0F" : "\u25B6\uFE0F",
+        toggleIcon: enabled ? "\xE2\x8F\xB8\xEF\xB8\x8F" : "\xE2\u2013\xB6\xEF\xB8\x8F",
         toggleTitle: enabled ? strings.actionDisable : strings.actionEnable
       };
     }
@@ -7919,7 +7944,7 @@
           action: "move",
           taskId: taskIdEscaped,
           title: strings.actionMoveToCurrentWorkspace || "",
-          icon: "\u{1F4CC}"
+          icon: "\xF0\u0178\u201C\u0152"
         });
         sortVisibleSectionsForRecurringTasks();
       }
@@ -7929,7 +7954,7 @@
           action: "delete",
           taskId: taskIdEscaped,
           title: strings.actionDelete,
-          icon: "\u{1F5D1}\uFE0F"
+          icon: "\xF0\u0178\u2014\u2018\xEF\xB8\x8F"
         });
       }
       return actionsHtml;
@@ -8037,7 +8062,7 @@
       return taskItems;
     }
     function getTaskPromptPreview(promptText) {
-      return promptText.length > 100 ? `${promptText.substring(0, 100)}\u2026` : promptText;
+      return promptText.length > 100 ? `${promptText.substring(0, 100)}\xE2\u20AC\xA6` : promptText;
     }
     function getTaskCardClassName(enabled, scopeValue, inThisWorkspace) {
       var classNames = ["task-card"];
@@ -8087,7 +8112,7 @@
       );
       return '<div class="task-meta-strip">' + renderTaskMetaPill(
         "task-meta-pill-cron",
-        "\u23F0 " + escapeHtml(cronSummary)
+        "\xE2\x8F\xB0 " + escapeHtml(cronSummary)
       ) + nextRunMarkup + renderTaskScopeMarkup(scopeInfo) + "</div>";
     }
     function renderTaskScopeMarkup(scopeInfo) {
@@ -9124,7 +9149,7 @@
             return task.name;
           }
           var job = getJobById(task.jobId);
-          return job && job.name ? task.name + " \xB7 " + job.name : task.name;
+          return job && job.name ? task.name + " \xC2\xB7 " + job.name : task.name;
         }
       );
       if (jobsAttachBtn) {
@@ -9637,7 +9662,7 @@
             } else if (job && (job.paused || job.archived)) {
               statusClass = " is-inactive";
             }
-            return '<div class="jobs-list-item' + (job.id === selectedJobId ? " active" : "") + '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true"><div class="jobs-list-item-header"><strong>' + escapeHtml(job.name || "") + '</strong><span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span></div><div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '"><div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + " \u2022 " + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div><div style="display:flex;align-items:center;gap:8px;">' + (job.archived ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || "Archived") + "</span>" : "") + '<button type="button" class="btn-secondary" data-job-open-editor="' + escapeAttr(job.id || "") + '">' + escapeHtml(strings.jobsOpenEditor || "Open editor") + "</button></div></div></div>";
+            return '<div class="jobs-list-item' + (job.id === selectedJobId ? " active" : "") + '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true"><div class="jobs-list-item-header"><strong>' + escapeHtml(job.name || "") + '</strong><span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span></div><div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '"><div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + " \xE2\u20AC\xA2 " + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div><div style="display:flex;align-items:center;gap:8px;">' + (job.archived ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || "Archived") + "</span>" : "") + '<button type="button" class="btn-secondary" data-job-open-editor="' + escapeAttr(job.id || "") + '">' + escapeHtml(strings.jobsOpenEditor || "Open editor") + "</button></div></div></div>";
           }).join("");
         }
       }
@@ -9762,7 +9787,7 @@
             var task = getTaskById(node.taskId);
             taskName = task && task.name ? task.name : (strings.jobsStepPrefix || "Step") + " " + String(index + 1);
           }
-          return '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' + escapeHtml(taskName) + "</span>" + (index < selectedNodes.length - 1 ? '<span class="jobs-timeline-arrow">\u2192</span>' : "");
+          return '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' + escapeHtml(taskName) + "</span>" + (index < selectedNodes.length - 1 ? '<span class="jobs-timeline-arrow">\xE2\u2020\u2019</span>' : "");
         }).join("");
         jobsTimelineInline.innerHTML = selectedJob ? timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet") : escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
       }
