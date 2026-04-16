@@ -60,6 +60,8 @@ npm run install:vsix:both
 
 ## Demo
 
-The demo GIF lives at `images/DEMO.gif`. It is a quick overview, so use the README feature tour for the slower tab-by-tab explanation.
+![Copilot Cockpit demo overview](../images/DEMO.gif)
+
+The demo GIF is a quick overview. Use [Feature Tour](./feature-tour.md) for the slower tab-by-tab explanation.
 
 [Back to README](../README.md)

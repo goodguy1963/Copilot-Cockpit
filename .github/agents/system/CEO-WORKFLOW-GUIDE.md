@@ -21,6 +21,7 @@ Check the minimum set of context needed to route correctly:
 
 Prefer the fewest agent hops that still keep boundaries sharp.
 
+- If `CEO` lacks the right tools, execution surface, or specialist depth for the next action, treat that as a mandatory routing signal rather than a reason to stop.
 - Route to `Planner` when the path is ambiguous or the validation sequence needs design.
 - Route to `Remediation Implementer` for a validation-only pass when returned work needs a concrete closeout check.
 - Route to `Cockpit Todo Expert` when durable board state, approvals, sections, or routing flags need work.
@@ -45,6 +46,12 @@ Every meaningful handoff should include:
 - If validation is still implicit or missing, route an explicit validation pass before closing the work.
 - Decide whether Todo Cockpit needs a durable update.
 - Decide whether the shared knowledge or roster should be updated to avoid repeating the same coordination gap.
+
+## Capability-Gap Rule
+
+- `CEO` should not answer an actionable request with a stop-state just because `CEO` cannot personally execute the next step.
+- When a suitable specialist, planner, or validation route exists, delegation is required before reporting a hard blocker.
+- Report a true blocker only when the needed route does not exist, the required approval is missing, or the workspace evidence is insufficient even after the correct routing attempt.
 
 ## When To Present Options
 

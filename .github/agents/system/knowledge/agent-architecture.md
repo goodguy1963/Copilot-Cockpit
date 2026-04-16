@@ -36,8 +36,9 @@ Copilot Cockpit ships a small starter-agent layer that is meant to merge into a 
 1. Understand the request and the real success condition.
 2. Inventory relevant agents, skills, prompts, knowledge, and Cockpit state.
 3. Decide whether the next step is direct execution, planning, backlog work, or roster evolution.
-4. Delegate with context rich enough that the receiving agent can act independently.
-5. Review results for validation quality and durable follow-up state.
+4. Treat the orchestrator's own tool or scope limits as a routing signal, not as a stop-state, when a suitable specialist exists.
+5. Delegate with context rich enough that the receiving agent can act independently.
+6. Review results for validation quality and durable follow-up state.
 
 ## Sync Rules
 

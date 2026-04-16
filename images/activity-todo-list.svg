@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Todo list icon">
+  <rect x="10" y="8" width="44" height="48" rx="10" fill="#f7fafc" stroke="#1f2937" stroke-width="4"/>
+  <path d="M21 22l3 3 6-7" fill="none" stroke="#0f766e" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="M35 21h12" fill="none" stroke="#1f2937" stroke-linecap="round" stroke-width="4"/>
+  <path d="M21 34l3 3 6-7" fill="none" stroke="#0f766e" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <path d="M35 33h12" fill="none" stroke="#1f2937" stroke-linecap="round" stroke-width="4"/>
+  <rect x="20" y="43" width="10" height="10" rx="2" fill="#e2e8f0" stroke="#1f2937" stroke-width="3"/>
+  <path d="M35 48h12" fill="none" stroke="#1f2937" stroke-linecap="round" stroke-width="4"/>
+  <path d="M24 8v-3m16 3v-3" fill="none" stroke="#1f2937" stroke-linecap="round" stroke-width="4"/>
+</svg>

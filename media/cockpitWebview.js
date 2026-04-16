@@ -246,7 +246,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var editingTaskId = null;
   var selectedTodoId = null;
   var EDITOR_CREATE_SYMBOL = "+";
-  var EDITOR_EDIT_SYMBOL = "âš™";
+  var EDITOR_EDIT_SYMBOL = "\u2699";
   var boardRenderState = createBoardRenderState();
   var draggingTodoId = null;
   var isBoardDragging = false;
@@ -2320,7 +2320,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid ' + escapeAttr(borderColor) + ';">' +
       '<button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + '</button>' +
       (removable
-        ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">Ã—</button>'
+        ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\u00D7</button>'
         : "") +
       '</span>'
     );
@@ -2334,7 +2334,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ';color:' + escapeAttr(textColor) + ';border:1px solid color-mix(in srgb,' + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;">' +
       '<span>' + escapeHtml(displayName) + '</span>' +
       (removable
-        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">Ã—</button>'
+        ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">\u00D7</button>'
         : "") +
       '</span>'
     );
@@ -2791,11 +2791,11 @@ syncTodoLabelSuggestions();
           return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ';color:' + escapeAttr(fg) + ';border:' + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;">'
             + '<button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + '</button>'
             + (protectedFlag
-              ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">ðŸ”’</span>'
+                ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">\uD83D\uDD12</span>'
               : pendingDelete
               ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || 'Delete?') + '</button>'
-              : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">âœŽ</button>'
-              + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">Ã—</button>')
+                : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">\u270E</button>'
+                + '<button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">\u00D7</button>')
             + '</span>';
         }).join("");
       }
@@ -3257,8 +3257,8 @@ syncTodoLabelSuggestions();
       ? (strings.boardRestoreTodo || "Restore")
       : getTodoCompletionActionLabel(card);
     var icon = isTodoCompleted(card)
-      ? "âœ“"
-      : "â—‹";
+      ? "\u2713"
+      : "\u25CB";
     var actionAttr = isArchivedCard ? 'data-todo-restore' : 'data-todo-complete';
     var className = 'todo-complete-button';
     if (isTodoReadyForFinalize(card)) {
@@ -3599,14 +3599,14 @@ syncTodoLabelSuggestions();
         todoDetailStatus.textContent =
           (strings.boardStatusLabel || "Status") + ": " +
           getTodoStatusLabel(selectedTodo.status || "active") +
-          " â€¢ " +
+          " \u2022 " +
           getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
       } else {
         var workflowFlag = getTodoWorkflowFlag(selectedTodo);
         todoDetailStatus.textContent =
           (strings.boardStatusLabel || "Status") + ": " +
           getTodoStatusLabel(selectedTodo.status || "active") +
-          " â€¢ " +
+          " \u2022 " +
           (strings.boardWorkflowLabel || "Workflow") + ": " +
           getFlagDisplayName(workflowFlag || "new");
       }
@@ -3762,10 +3762,10 @@ syncTodoLabelSuggestions();
       var archivedCount = allCards.filter(function (card) { return card.archived; }).length;
       boardSummary.textContent =
         (strings.boardSections || "Sections") + ": " + sections.length +
-        " â€¢ " +
+        " \u2022 " +
         (strings.boardCards || "Cards") + ": " + activeCount +
-        " â€¢ Archived: " + String(archivedCount) +
-        " â€¢ " +
+        " \u2022 Archived: " + String(archivedCount) +
+        " \u2022 " +
         (strings.boardComments || "Comments") + ": " + allCards.reduce(function (count, card) {
           return count + (Array.isArray(card.comments) ? card.comments.length : 0);
         }, 0);
@@ -4604,7 +4604,7 @@ syncTodoLabelSuggestions();
     if (button) {
       var title = options.title || "";
       if (options.dirty) {
-        title = title + " â€¢ " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+        title = title + " \u2022 " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
       }
       button.title = title;
       button.setAttribute("aria-label", title || tabName);
@@ -4648,6 +4648,9 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState();
     closeTodoDeleteModal();
     selectedTodoId = todoId || null;
+    if (todoDetailId) {
+      todoDetailId.value = selectedTodoId || "";
+    }
     if (!selectedTodoId) {
       resetTodoDraft("open-create");
       currentTodoLabels = [];
@@ -4665,6 +4668,9 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState();
     closeTodoDeleteModal();
     selectedTodoId = null;
+    if (todoDetailId) {
+      todoDetailId.value = "";
+    }
     resetTodoDraft("reset-editor");
     currentTodoLabels = [];
     selectedTodoLabelName = "";
@@ -5568,13 +5574,13 @@ syncTodoLabelSuggestions();
       ? (strings.labelScopeGlobal || "")
       : (strings.labelScopeWorkspace || "");
     var scopeText = scopeValue === "global"
-      ? ("ðŸŒ " + escapeHtml(scopeLabel))
-      : "ðŸ“ " + escapeHtml(scopeLabel) + (workspaceName ? " â€¢ " + escapeHtml(workspaceName) : "");
+      ? ("\uD83C\uDF10 " + escapeHtml(scopeLabel))
+      : "\uD83D\uDCC1 " + escapeHtml(scopeLabel) + (workspaceName ? " \u2022 " + escapeHtml(workspaceName) : "");
     if (scopeValue === "workspace") {
       var workspaceBadgeText = inCurrentWorkspace
         ? strings.labelThisWorkspaceShort || ""
         : strings.labelOtherWorkspaceShort || "";
-      scopeText += " â€¢ " + escapeHtml(workspaceBadgeText);
+      scopeText += " \u2022 " + escapeHtml(workspaceBadgeText);
     }
     return {
       inThisWorkspace: inCurrentWorkspace,
@@ -5643,7 +5649,7 @@ syncTodoLabelSuggestions();
       enabled: enabled,
       statusClass: enabled ? "enabled" : "disabled",
       statusText: enabled ? strings.labelEnabled : strings.labelDisabled,
-      toggleIcon: enabled ? "â¸ï¸" : "â–¶ï¸",
+      toggleIcon: enabled ? "\u23F8\uFE0F" : "\u25B6\uFE0F",
       toggleTitle: enabled ? strings.actionDisable : strings.actionEnable,
     };
   }
@@ -5791,7 +5797,7 @@ syncTodoLabelSuggestions();
         action: "move",
         taskId: taskIdEscaped,
         title: strings.actionMoveToCurrentWorkspace || "",
-        icon: "ðŸ“Œ",
+        icon: "\uD83D\uDCCC",
       });
       sortVisibleSectionsForRecurringTasks();
     }
@@ -5801,7 +5807,7 @@ syncTodoLabelSuggestions();
         action: "delete",
         taskId: taskIdEscaped,
         title: strings.actionDelete,
-        icon: "ðŸ—‘ï¸",
+        icon: "\uD83D\uDDD1\uFE0F",
       });
     }
     return actionsHtml;
@@ -5927,7 +5933,7 @@ syncTodoLabelSuggestions();
 
   function getTaskPromptPreview(promptText) {
     return promptText.length > 100
-      ? `${promptText.substring(0, 100)}â€¦`
+      ? `${promptText.substring(0, 100)}\u2026`
       : promptText;
   }
 
@@ -6011,7 +6017,7 @@ syncTodoLabelSuggestions();
       '<div class="task-meta-strip">' +
       renderTaskMetaPill(
         "task-meta-pill-cron",
-        "â° " + escapeHtml(cronSummary),
+        "\u23F0 " + escapeHtml(cronSummary),
       ) +
       nextRunMarkup +
       renderTaskScopeMarkup(scopeInfo) +
@@ -7305,7 +7311,7 @@ syncTodoLabelSuggestions();
         }
         var job = getJobById(task.jobId);
         return job && job.name
-          ? task.name + " Â· " + job.name
+          ? task.name + " \u00B7 " + job.name
           : task.name;
       },
     );
@@ -7978,7 +7984,7 @@ syncTodoLabelSuggestions();
                 '<span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span>' +
               '</div>' +
                   '<div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '">' +
-                  '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' â€¢ ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
+                  '<div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + ' \u2022 ' + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div>' +
                   '<div style="display:flex;align-items:center;gap:8px;">' +
                   (job.archived
                     ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || 'Archived') + '</span>'
@@ -8168,7 +8174,7 @@ syncTodoLabelSuggestions();
             escapeHtml(taskName) +
             '</span>' +
             (index < selectedNodes.length - 1
-              ? '<span class="jobs-timeline-arrow">â†’</span>'
+              ? '<span class="jobs-timeline-arrow">\u2192</span>'
               : '')
           );
         })

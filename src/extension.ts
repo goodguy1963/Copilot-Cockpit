@@ -85,6 +85,11 @@ import {
   sendTelegramNotificationTest,
 } from "./telegramNotificationManager";
 import {
+  SCHEDULER_PRIVATE_JSON_FILE,
+  SCHEDULER_PUBLIC_JSON_FILE,
+  WORKSPACE_SQLITE_DB_FILE,
+} from "./sqliteStorage";
+import {
   ensureWorkspaceMcpSupportFiles,
   type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
@@ -339,7 +344,8 @@ function registerSchedulerCommands(
 ): vscode.Disposable[] {
   const commandDisposables: vscode.Disposable[] = [];
   commandDisposables.push(registerNewTaskCommand(), registerCreateTaskGuiCommand(context));
-  commandDisposables.push(registerListTasksCommand(context), registerEditTaskCommand(context));
+  commandDisposables.push(registerListTasksCommand(context), registerOpenCockpitCommand(context));
+  commandDisposables.push(registerEditTaskCommand(context));
   commandDisposables.push(registerRemoveTaskCommand(), registerToggleCommand());
   commandDisposables.push(registerActivateCommand(), registerDeactivateCommand());
   commandDisposables.push(registerImmediateRunCommand(), registerCopyCommand());
@@ -847,6 +853,14 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
     .finally(() => {
       cockpitBoardSqliteHydrationPromise = undefined;
     });
+}
+
+function getWorkspaceStorageWatchFileNames(): readonly string[] {
+  return [
+    SCHEDULER_PUBLIC_JSON_FILE,
+    SCHEDULER_PRIVATE_JSON_FILE,
+    WORKSPACE_SQLITE_DB_FILE,
+  ];
 }
 
 function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
@@ -1549,11 +1563,10 @@ export function activate(context: vscode.ExtensionContext): void {
   // --- HBG CUSTOM: Watch .vscode/scheduler*.json ---
   if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
     const folder = vscode.workspace.workspaceFolders[0];
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(folder, '.vscode/scheduler.json')
-    );
-    const privateWatcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(folder, '.vscode/scheduler.private.json')
+    const storageWatchers = getWorkspaceStorageWatchFileNames().map((fileName) =>
+      vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(folder, `.vscode/${fileName}`),
+      )
     );
 
     let reloadTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1573,11 +1586,11 @@ export function activate(context: vscode.ExtensionContext): void {
         currentCockpitBoard = undefined;
         currentCockpitBoardWorkspaceRoot = undefined;
         scheduler.reloadTasks();
-        const workspaceRoot = getPrimaryWorkspaceRootPath();
-        if (workspaceRoot) {
+        const primaryWorkspaceRoot = getPrimaryWorkspaceRootPath();
+        if (primaryWorkspaceRoot) {
           setCurrentCockpitBoard(
-            workspaceRoot,
-            loadCockpitBoardFromMirrors(workspaceRoot),
+            primaryWorkspaceRoot,
+            loadCockpitBoardFromMirrors(primaryWorkspaceRoot),
           );
         }
         scheduleCockpitBoardSqliteHydration(true);
@@ -1626,15 +1639,13 @@ export function activate(context: vscode.ExtensionContext): void {
       }, SCHEDULER_WATCHER_DEBOUNCE_MS);
     };
 
-    watcher.onDidChange((uri) => queueReload(uri));
-    watcher.onDidCreate((uri) => queueReload(uri));
-    watcher.onDidDelete((uri) => queueReload(uri));
+    for (const watcher of storageWatchers) {
+      watcher.onDidChange((uri) => queueReload(uri));
+      watcher.onDidCreate((uri) => queueReload(uri));
+      watcher.onDidDelete((uri) => queueReload(uri));
+    }
 
-    privateWatcher.onDidChange((uri) => queueReload(uri));
-    privateWatcher.onDidCreate((uri) => queueReload(uri));
-    privateWatcher.onDidDelete((uri) => queueReload(uri));
-
-    context.subscriptions.push(watcher, privateWatcher);
+    context.subscriptions.push(...storageWatchers);
 
     // Also perform an initial reload to catch any existing file
     scheduler.reloadTasks();
@@ -2126,6 +2137,7 @@ export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
+  getWorkspaceStorageWatchFileNames,
   resolveTaskExecutionChatSession,
   resolvePromptText, // prompt-resolution
   redactPathsForLog,
@@ -3002,6 +3014,20 @@ function registerListTasksCommand(context: vscode.ExtensionContext): vscode.Disp
         await showSchedulerWebview(context);
         refreshSchedulerUiState();
         SchedulerWebview.switchToList();
+      } catch (error) {
+        notifyCaughtError(error);
+      }
+    },
+  );
+}
+
+function registerOpenCockpitCommand(context: vscode.ExtensionContext): vscode.Disposable {
+  return registerSchedulerCommand(
+    "openCockpit",
+    async () => {
+      try {
+        await showSchedulerWebview(context);
+        refreshSchedulerUiState();
       } catch (error) {
         notifyCaughtError(error);
       }

@@ -26,8 +26,8 @@ export function createSchedulerWebviewPanel(
   );
 
   panel.iconPath = {
-    light: vscode.Uri.joinPath(params.extensionUri, "images", "icon.svg"),
-    dark: vscode.Uri.joinPath(params.extensionUri, "images", "icon.svg"),
+    light: vscode.Uri.joinPath(params.extensionUri, "images", "activity-todo-list.svg"),
+    dark: vscode.Uri.joinPath(params.extensionUri, "images", "activity-todo-list.svg"),
   };
 
   panel.webview.onDidReceiveMessage(params.onDidReceiveMessage);

@@ -459,7 +459,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
   </div>
 
   <div id="settings-tab" class="tab-content">
-    <div class="telegram-layout settings-layout">
+    <div class="settings-layout">
       <section class="telegram-card settings-card settings-card-language">
         <div class="settings-card-header">
           <div class="section-title">${escapeHtml(strings.settingsLanguageTitle)}</div>

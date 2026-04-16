@@ -3,6 +3,7 @@
   "command.createTask": "新しいスケジュールプロンプトを追加",
   "command.createTaskGui": "新しいスケジュールプロンプトを追加 (GUI)",
   "command.listTasks": "全スケジュールタスクを表示",
+  "command.openCockpit": "Copilot Cockpit を開く",
   "command.deleteTask": "タスクを除去",
   "command.toggleTask": "タスクのオン/オフを切り替え",
   "command.enableTask": "タスクをオンにする",

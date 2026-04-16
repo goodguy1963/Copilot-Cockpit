@@ -21,6 +21,7 @@ These starter agents follow the same operating rules across repositories.
 ## Orchestration Boundary
 
 - `CEO` is the orchestrator and decision layer.
+- Orchestrators must treat personal tool or scope limits as a routing signal and delegate when a suitable specialist exists.
 - `Documentation Specialist` owns doc accuracy and shared knowledge hygiene.
 - `Cockpit Todo Expert` owns Todo Cockpit persistence and approval-state mutations.
 - Implementation specialists other than `Cockpit Todo Expert` should not mutate Cockpit board state directly unless that is their explicit role.

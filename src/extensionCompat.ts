@@ -10,6 +10,7 @@ export const SCHEDULER_COMMAND_NAMES = [
   "createTask",
   "createTaskGui",
   "listTasks",
+  "openCockpit",
   "deleteTask",
   "toggleTask",
   "enableTask",

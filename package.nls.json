@@ -3,6 +3,7 @@
   "command.createTask": "New Scheduled Prompt",
   "command.createTaskGui": "New Scheduled Prompt (GUI)",
   "command.listTasks": "Show All Scheduled Tasks",
+  "command.openCockpit": "Open Copilot Cockpit",
   "command.deleteTask": "Remove Task",
   "command.toggleTask": "Toggle Task On/Off",
   "command.enableTask": "Activate Task",

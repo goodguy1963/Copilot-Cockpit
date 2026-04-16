@@ -793,7 +793,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       scriptSource,
       [
       'var EDITOR_CREATE_SYMBOL = "+";',
-      'var EDITOR_EDIT_SYMBOL = "âš™";',
+      'var EDITOR_EDIT_SYMBOL = "\\u2699";',
       'labelNode.classList.toggle("is-dirty", options.dirty === true);',
       'function isTaskEditorDirty()',
       'function isTodoEditorDirty()',
@@ -981,9 +981,22 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.ok(resetTodoEditorStart >= 0, "expected todo editor reset helper");
     assert.ok(resetTodoEditorEnd > resetTodoEditorStart, "expected todo editor reset helper boundary");
     const resetTodoEditorSource = scriptSource.slice(resetTodoEditorStart, resetTodoEditorEnd);
+    const openTodoEditorStart = scriptSource.indexOf('function openTodoEditor(todoId) {');
+    const openTodoEditorEnd = scriptSource.indexOf('function resetTodoEditor() {', openTodoEditorStart);
+    assert.ok(openTodoEditorStart >= 0, "expected todo editor open helper");
+    assert.ok(openTodoEditorEnd > openTodoEditorStart, "expected todo editor open helper boundary");
+    const openTodoEditorSource = scriptSource.slice(openTodoEditorStart, openTodoEditorEnd);
+    assert.ok(
+      openTodoEditorSource.includes('todoDetailId.value = selectedTodoId || "";'),
+      "expected todo editor open flow to sync the hidden editor todo id",
+    );
     assert.ok(
       resetTodoEditorSource.includes('selectedTodoId = null;'),
       "expected todo editor reset to clear the selected todo id",
+    );
+    assert.ok(
+      resetTodoEditorSource.includes('todoDetailId.value = "";'),
+      "expected todo editor reset to clear the hidden editor todo id",
     );
     assert.ok(
       resetTodoEditorSource.includes('syncEditorTabLabels();'),
@@ -1729,7 +1742,7 @@ test("todo comments style human form input separately and todo saves reset to cr
       const classes = new Set<string>();
       return {
         disabled: false,
-        innerHTML: "<span>â—‹</span>",
+        innerHTML: "<span>\u25CB</span>",
         parentNode: {
           insertBefore: (node: unknown) => {
             insertedButtons.push(node);
@@ -1840,7 +1853,7 @@ test("todo comments style human form input separately and todo saves reset to cr
     });
     assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
     assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
-    assert.strictEqual(readyToggle.innerHTML, "<span>â—‹</span>");
+    assert.strictEqual(readyToggle.innerHTML, "<span>\u25CB</span>");
     assert.strictEqual(readyCancelButton.removed, true);
 
     helpers.handleBoardTodoCompletion(readyToggle, {

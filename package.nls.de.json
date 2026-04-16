@@ -3,6 +3,7 @@
   "command.createTask": "Geplanten Prompt erstellen",
   "command.createTaskGui": "Geplanten Prompt erstellen (GUI)",
   "command.listTasks": "Geplante Aufgaben anzeigen",
+  "command.openCockpit": "Copilot Cockpit öffnen",
   "command.deleteTask": "Aufgabe löschen",
   "command.toggleTask": "Aufgabe umschalten (aktivieren/deaktivieren)",
   "command.enableTask": "Aufgabe aktivieren",

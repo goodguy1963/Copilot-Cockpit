@@ -52,6 +52,7 @@ const cockpitCommandNames = [
   "createTask",
   "createTaskGui",
   "listTasks",
+  "openCockpit",
   "deleteTask",
   "toggleTask",
   "enableTask",
@@ -361,6 +362,20 @@ suite("Extension Integration Tests", () => {
     createRefresh!((immediate) => calls.push(immediate === true))();
 
     assert.deepStrictEqual(calls, [true]);
+  });
+
+  test("workspace storage watcher list includes sqlite authority and json mirrors", async () => {
+    const testOnly = await getTestOnlyExports();
+    const getWatchFiles = testOnly.getWorkspaceStorageWatchFileNames as
+      | (() => readonly string[])
+      | undefined;
+
+    assert.ok(typeof getWatchFiles === "function");
+    assert.deepStrictEqual(getWatchFiles!(), [
+      "scheduler.json",
+      "scheduler.private.json",
+      "copilot-cockpit.db",
+    ]);
   });
 
   for (const [name, task, expectedChatSession] of [
