@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "Built on VS Code and GitHub Copilot: a native orchestration layer for AI workflows, MCP tools, scheduling, and human-in-the-loop execution",
-  "version": "1.1.163",
+  "version": "1.1.168",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -55,8 +55,8 @@
         "title": "%command.openCockpit%",
         "category": "%extension.title%",
         "icon": {
-          "light": "images/icon.png",
-          "dark": "images/icon.png"
+          "light": "images/activity-todo-list-command-light.svg",
+          "dark": "images/activity-todo-list-command-dark.svg"
         }
       },
       {
@@ -381,7 +381,7 @@
         {
           "id": "copilotCockpit",
           "title": "%extension.title%",
-          "icon": "images/icon.png"
+          "icon": "images/activity-todo-list.svg"
         }
       ]
     },
@@ -390,7 +390,7 @@
         {
           "id": "copilotCockpitTasks",
           "name": "%view.tasks%",
-          "icon": "images/icon.png"
+          "icon": "images/activity-todo-list.svg"
         }
       ]
     },

@@ -149,6 +149,8 @@ const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const LAST_BUNDLED_AGENTS_SYNC_MAP_KEY = "lastBundledAgentsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
+const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
+const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
 const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
 const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
   "You are handling a Todo that just entered needs-bot-review.",
@@ -572,6 +574,39 @@ export function notifyError(message: string, timeoutMs = 6000): void {
     fallbackMessage: messages.webviewUnknown() || "",
     logError,
   });
+}
+
+function buildCustomSubAgentSettingUri(
+  uriScheme = vscode.env.uriScheme,
+): vscode.Uri {
+  return vscode.Uri.parse(`${uriScheme}://settings/${CUSTOM_SUBAGENT_SETTING_KEY}`);
+}
+
+async function openCustomSubAgentSetting(): Promise<void> {
+  try {
+    const opened = await vscode.env.openExternal(buildCustomSubAgentSettingUri());
+    if (opened) {
+      return;
+    }
+  } catch {
+    // Fall back to the command-based settings search below.
+  }
+
+  await vscode.commands.executeCommand(
+    "workbench.action.openSettings",
+    CUSTOM_SUBAGENT_SETTING_KEY,
+  );
+}
+
+async function notifyCustomSubAgentSetupRequirement(): Promise<void> {
+  const choice = await vscode.window.showInformationMessage(
+    "Setup completed. Enable GitHub Copilot custom sub-agents to use this workspace setup.",
+    OPEN_COPILOT_SETTING_ACTION,
+  );
+
+  if (choice === OPEN_COPILOT_SETTING_ACTION) {
+    await openCustomSubAgentSetting();
+  }
 }
 
 // Global instances
@@ -1306,6 +1341,7 @@ async function setupWorkspaceMcpConfig(
     hasPromptedForMcpSetupThisSession = true;
     SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
     notifyInfo(messages.mcpSetupCompleted(result.configPath));
+    await notifyCustomSubAgentSetupRequirement();
     return true;
   } catch (error) {
     const errorMessage = // local-diverge-989
@@ -1439,6 +1475,7 @@ async function repairWorkspaceSupportFiles(
         syncResult.updatedPaths.length,
       ),
     );
+    await notifyCustomSubAgentSetupRequirement();
     return true;
   } catch (error) {
     const errorMessage = // local-diverge-1051
@@ -2313,6 +2350,7 @@ async function handleWebviewMoveTaskAction(taskId: string): Promise<void> {
 }
 
 export const __testOnly = {
+  buildCustomSubAgentSettingUri,
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,

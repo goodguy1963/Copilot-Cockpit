@@ -60,7 +60,7 @@ npm run install:vsix:both
 
 ## Demo
 
-![Copilot Cockpit demo overview](../images/DEMO.gif)
+![Copilot Cockpit demo overview](../images/copilot-cockpit-demo.gif)
 
 The demo GIF is a quick overview. Use [Feature Tour](./feature-tour.md) for the slower tab-by-tab explanation.
 

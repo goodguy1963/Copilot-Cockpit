@@ -350,6 +350,23 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(queue.hasPending(), false);
   });
 
+  test("custom sub-agent settings uri builder uses the active VS Code scheme", async () => {
+    const testOnly = await getTestOnlyExports();
+    const buildUri = testOnly.buildCustomSubAgentSettingUri as
+      | ((uriScheme?: string) => vscode.Uri)
+      | undefined;
+
+    assert.ok(typeof buildUri === "function");
+    assert.strictEqual(
+      buildUri!("vscode-insiders").toString(),
+      "vscode-insiders://settings/chat.customAgentInSubagent.enabled",
+    );
+    assert.strictEqual(
+      buildUri!("vscode").toString(),
+      "vscode://settings/chat.customAgentInSubagent.enabled",
+    );
+  });
+
   test("manual run refresh helper requests an immediate refresh", async () => {
     const testOnly = await getTestOnlyExports();
     const createRefresh = testOnly.createImmediateManualRunRefresh as

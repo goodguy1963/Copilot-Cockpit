@@ -23,13 +23,13 @@ The strongest demo is not claiming the repo can run itself. It is showing bounde
 
 ## 🎬 Demo
 
-![Copilot Cockpit demo](images/DEMO.gif)
+![Copilot Cockpit demo](images/copilot-cockpit-demo.gif)
 
 This GIF is a fast overview of the product surface. Use the feature tour below for the slower tab-by-tab explanation.
 
 For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
 
-If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
+If the embedded image does not render in your viewer, open [images/copilot-cockpit-demo.gif](images/copilot-cockpit-demo.gif) directly.
 
 ## Why It Exists
 

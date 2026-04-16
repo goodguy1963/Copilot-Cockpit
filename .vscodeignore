@@ -42,7 +42,11 @@ images/*
 images/**/*
 !images/icon.png
 !images/icon.svg
+!images/activity-todo-list.svg
+!images/activity-todo-list-command-light.svg
+!images/activity-todo-list-command-dark.svg
+!images/copilot-cockpit-demo.gif
 2026-04-02-cockpit-dispatcher-plugin-improvement-plan.md
 
-# Large demo asset (use static PNG in README)
+# Large demo assets kept excluded unless explicitly allowlisted above
 images/demo-animated.gif
