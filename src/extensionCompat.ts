@@ -64,6 +64,16 @@ function hasExplicitConfigValue<T>(
   );
 }
 
+function isUnknownConfigurationError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /not a registered configuration|unknown configuration/i.test(
+    error.message,
+  );
+}
+
 export function getCockpitConfiguration(
   scope?: vscode.ConfigurationScope,
 ): vscode.WorkspaceConfiguration {
@@ -124,7 +134,13 @@ export async function updateCompatibleConfigurationValue(
     scope,
   );
   if (hasExplicitConfigValue(legacyConfiguration, key)) {
-    await legacyConfiguration.update(key, value, target);
+    try {
+      await legacyConfiguration.update(key, value, target);
+    } catch (error) {
+      if (!isUnknownConfigurationError(error)) {
+        throw error;
+      }
+    }
   }
 }
 

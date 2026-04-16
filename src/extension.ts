@@ -144,6 +144,7 @@ type NotificationMode = "sound" | "silentToast" | "silentStatus";
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
 const BUNDLED_AGENT_SYNC_STATE_KEY = "bundledAgentSyncState";
 const CODEX_SKILL_SYNC_STATE_KEY = "codexSkillSyncState";
+const COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY = "cockpitWorkspaceActivationByRoot";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const LAST_BUNDLED_AGENTS_SYNC_MAP_KEY = "lastBundledAgentsSyncByWorkspace";
@@ -190,6 +191,13 @@ type WorkspaceSupportRepairPlan = {
 };
 
 type WorkspaceTimestampMap = Record<string, string>;
+type WorkspaceActivationMap = Record<string, boolean>;
+
+type OpenSchedulerUiOptions = {
+  onTestPrompt?: (prompt: string, agent?: string, model?: string) => void;
+  focusHelpTab?: boolean;
+  afterShow?: () => void | Promise<void>;
+};
 
 function getSchedulerSetting<T>(
   key: string,
@@ -376,10 +384,9 @@ function maybePromptReloadAfterUpdate(
 
 async function ensureSchedulerSkillOnStartup(
   context: vscode.ExtensionContext,
+  workspaceRoots = collectWorkspacePaths(),
 ): Promise<void> {
-  const workspaceRoots = getResolvedWorkspaceRoots(
-    (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
-  );
+  void context;
   if (workspaceRoots.length === 0) {
     return;
   }
@@ -702,8 +709,11 @@ function notifyPendingReadyTodoDrafts(
       if (choice !== action || !todo?.id || !extensionContext) {
         return;
       }
-      await showSchedulerWebview(extensionContext);
-      SchedulerWebview.focusReadyTodoDraft(todo.id);
+      await openSchedulerUi(extensionContext, {
+        afterShow: () => {
+          SchedulerWebview.focusReadyTodoDraft(todo.id);
+        },
+      });
     });
     return;
   }
@@ -716,8 +726,11 @@ function notifyPendingReadyTodoDrafts(
     if (choice !== action || !extensionContext) {
       return;
     }
-    await showSchedulerWebview(extensionContext);
-    SchedulerWebview.switchToTab("list");
+    await openSchedulerUi(extensionContext, {
+      afterShow: () => {
+        SchedulerWebview.switchToTab("list");
+      },
+    });
   });
 }
 
@@ -867,6 +880,89 @@ function getPrimaryWorkspaceFolderUri(): vscode.Uri | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri;
 }
 
+function collectCurrentWorkspaceRoots(): string[] {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  return workspaceRoot ? [workspaceRoot] : [];
+}
+
+function getCockpitWorkspaceActivationMap(
+  context: vscode.ExtensionContext,
+): WorkspaceActivationMap {
+  return context.workspaceState.get<WorkspaceActivationMap>(
+    COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY,
+    {},
+  );
+}
+
+function isCockpitWorkspaceActivated(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string | undefined,
+): boolean {
+  if (!workspaceRoot) {
+    return false;
+  }
+
+  return getCockpitWorkspaceActivationMap(context)[workspaceRoot] === true;
+}
+
+function isCurrentWorkspaceActivatedForCockpit(
+  context: vscode.ExtensionContext,
+): boolean {
+  return isCockpitWorkspaceActivated(context, getPrimaryWorkspaceRootPath());
+}
+
+async function setCockpitWorkspaceActivated(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+  activated: boolean,
+): Promise<void> {
+  const nextState = {
+    ...getCockpitWorkspaceActivationMap(context),
+  };
+
+  if (activated) {
+    nextState[workspaceRoot] = true;
+  } else {
+    delete nextState[workspaceRoot];
+  }
+
+  await context.workspaceState.update(
+    COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY,
+    nextState,
+  );
+}
+
+async function promptToActivateWorkspaceForCockpit(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+): Promise<boolean> {
+  const activateAction = "Activate for This Workspace";
+  const activateAndAutoOpenAction = "Activate and Auto-Open on Startup";
+  const choice = await vscode.window.showInformationMessage(
+    "Copilot Cockpit needs your approval before creating workspace support files.",
+    {
+      modal: true,
+      detail: [
+        "Activating Copilot Cockpit for this workspace may create or update files under .github and .vscode.",
+        "Choose whether to activate it once now or also auto-open it for this workspace on startup.",
+      ].join("\n\n"),
+    },
+    activateAction,
+    activateAndAutoOpenAction,
+    messages.actionCancel(),
+  );
+
+  if (choice !== activateAction && choice !== activateAndAutoOpenAction) {
+    return false;
+  }
+
+  await setCockpitWorkspaceActivated(context, workspaceRoot, true);
+  if (choice === activateAndAutoOpenAction) {
+    await setAutoShowOnStartupEnabled(true);
+  }
+  return true;
+}
+
 function isAutoShowOnStartupEnabled(): boolean {
   const folderUri = getPrimaryWorkspaceFolderUri();
   return getSchedulerSetting<boolean>("autoShowOnStartup", false, folderUri);
@@ -881,11 +977,96 @@ async function setAutoShowOnStartupEnabled(enabled: boolean): Promise<void> {
   await updateSchedulerSetting("autoShowOnStartup", enabled, target, folderUri);
 }
 
-async function openSchedulerUi(context: vscode.ExtensionContext): Promise<void> {
-  await showSchedulerWebview(context);
+async function initializeCurrentWorkspaceForCockpit(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return false;
+  }
+
+  await ensureSchedulerSkillOnStartup(context, [workspaceRoot]);
+
+  if (isWorkspaceSqliteModeEnabled(workspaceRoot)) {
+    await bootstrapWorkspaceSqliteStorage(
+      workspaceRoot,
+      getSchedulerSetting<boolean>(
+        "sqliteJsonMirror",
+        true,
+        vscode.Uri.file(workspaceRoot),
+      ) !== false,
+    );
+    await bootstrapGlobalSqliteStorage(context.globalStorageUri.fsPath);
+    scheduleCockpitBoardSqliteHydration(true);
+  }
+
+  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+  return true;
+}
+
+async function ensureWorkspaceActivatedForCockpit(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    return true;
+  }
+
+  if (!isCockpitWorkspaceActivated(context, workspaceRoot)) {
+    const approved = await promptToActivateWorkspaceForCockpit(
+      context,
+      workspaceRoot,
+    );
+    if (!approved) {
+      return false;
+    }
+  }
+
+  await initializeCurrentWorkspaceForCockpit(context);
+  return true;
+}
+
+async function ensureWorkspaceRootsActivatedForCockpitWrites(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<boolean> {
+  const uniqueWorkspaceRoots = Array.from(
+    new Set(workspaceRoots.filter((workspaceRoot): workspaceRoot is string => !!workspaceRoot)),
+  );
+  for (const workspaceRoot of uniqueWorkspaceRoots) {
+    if (isCockpitWorkspaceActivated(context, workspaceRoot)) {
+      continue;
+    }
+
+    const approved = await promptToActivateWorkspaceForCockpit(
+      context,
+      workspaceRoot,
+    );
+    if (!approved) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function openSchedulerUi(
+  context: vscode.ExtensionContext,
+  options: OpenSchedulerUiOptions = {},
+): Promise<void> {
+  const workspaceActivated = await ensureWorkspaceActivatedForCockpit(context);
+
+  await showSchedulerWebview(context, options.onTestPrompt);
   refreshSchedulerUiState(true);
-  SchedulerWebview.switchToTab("help");
-  void maybePromptToSetupWorkspaceMcp(context);
+  if (options.focusHelpTab) {
+    SchedulerWebview.switchToTab("help");
+  }
+  if (options.afterShow) {
+    await options.afterShow();
+  }
+  if (workspaceActivated) {
+    void maybePromptToSetupWorkspaceMcp(context, collectCurrentWorkspaceRoots());
+  }
 }
 
 function getPrimaryWorkspaceRootPath(): string | undefined {
@@ -1108,6 +1289,10 @@ async function setupWorkspaceMcpConfig(
     return false;
   }
 
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, [workspaceRoot])) {
+    return false;
+  }
+
   try {
     const result = upsertSchedulerMcpConfig(
       workspaceRoot,
@@ -1143,6 +1328,10 @@ async function setupWorkspaceCodexConfig(
     return false;
   }
 
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, [workspaceRoot])) {
+    return false;
+  }
+
   try {
     const result = upsertSchedulerCodexConfig(
       workspaceRoot,
@@ -1169,6 +1358,10 @@ async function setupWorkspaceCodexSkills(
   );
   if (workspaceRoots.length === 0) {
     notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, workspaceRoots)) {
     return false;
   }
 
@@ -1199,6 +1392,10 @@ async function repairWorkspaceSupportFiles(
   mcpRootsNeedingRepair: string[],
   refreshBundledSkills = true,
 ): Promise<boolean> {
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, workspaceRoots)) {
+    return false;
+  }
+
   try {
     for (const workspaceRoot of workspaceRoots) {
       ensureWorkspaceMcpSupportFiles(workspaceRoot, context.extensionUri.fsPath);
@@ -1261,12 +1458,12 @@ async function repairWorkspaceSupportFiles(
 
 async function maybePromptToSetupWorkspaceMcp(
   context: vscode.ExtensionContext,
+  workspaceRoots = collectWorkspacePaths(),
 ): Promise<void> {
   if (hasPromptedForMcpSetupThisSession) {
     return;
   }
 
-  const workspaceRoots = collectWorkspacePaths();
   if (workspaceRoots.length === 0) {
     return;
   }
@@ -1336,26 +1533,29 @@ async function maybePromptToSetupWorkspaceMcp(
   }
 }
 
-function shouldAutoShowSchedulerOnStartup(): boolean {
+function shouldAutoShowSchedulerOnStartup(
+  context: vscode.ExtensionContext,
+): boolean {
   const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
   if (workspaceFolders.length === 0) {
     return false;
   }
 
   return workspaceFolders.some((folder) =>
-    getSchedulerSetting<boolean>("autoShowOnStartup", false, folder.uri),
+    getSchedulerSetting<boolean>("autoShowOnStartup", false, folder.uri)
+    && isCockpitWorkspaceActivated(context, folder.uri.fsPath),
   );
 }
 
 function scheduleAutoShowSchedulerOnStartup(
   context: vscode.ExtensionContext,
 ): void {
-  if (!shouldAutoShowSchedulerOnStartup()) {
+  if (!shouldAutoShowSchedulerOnStartup(context)) {
     return;
   }
 
   setTimeout(() => {
-    void openSchedulerUi(context)
+    void openSchedulerUi(context, { focusHelpTab: true })
       .then(() => {
         SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
       })
@@ -1693,31 +1893,6 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
   );
 
-  void ensureSchedulerSkillOnStartup(context).catch((error) =>
-    logError(
-      "[CopilotScheduler] Scheduler skill bootstrap failed:",
-      redactPathsForLog(
-        toErrorMessage(error),
-      ),
-    ),
-  );
-  void bootstrapConfiguredSqliteStorage(context).catch((error) =>
-    logError(
-      "[CopilotScheduler] SQLite storage bootstrap failed:",
-      redactPathsForLog(
-        toErrorMessage(error),
-      ),
-    ),
-  );
-  void maybePromptToSetupWorkspaceMcp(context).catch((error) =>
-    logError(
-      "[CopilotScheduler] Workspace support repair prompt failed:",
-      redactPathsForLog(
-        toErrorMessage(error),
-      ),
-    ),
-  );
-
   runPromptMaintenanceCycle(context, true);
   promptRefreshTimer = setInterval(
     () => runPromptMaintenanceCycle(context, false),
@@ -1738,7 +1913,7 @@ export function activate(context: vscode.ExtensionContext): void {
       )
       .then((choice) => {
         if (choice === messages.actionOpenScheduler()) {
-          void openSchedulerUi(context).catch((error) =>
+          void openSchedulerUi(context, { focusHelpTab: true }).catch((error) =>
             logError(
               "[CopilotScheduler] Failed to open scheduler from activation notification:",
               redactPathsForLog(
@@ -1784,7 +1959,11 @@ export function activate(context: vscode.ExtensionContext): void {
     const sqliteJsonMirrorChanged = affectsCompatibleConfiguration(e, "sqliteJsonMirror");
     if (storageModeChanged || sqliteJsonMirrorChanged) {
       SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
-      if (storageModeChanged && extensionContext) {
+      if (
+        storageModeChanged
+        && extensionContext
+        && isCurrentWorkspaceActivatedForCockpit(extensionContext)
+      ) {
         void bootstrapConfiguredSqliteStorage(extensionContext).catch((error) =>
           logError(
             "[CopilotScheduler] SQLite storage bootstrap after settings change failed:",
@@ -2138,6 +2317,7 @@ export const __testOnly = {
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
   getWorkspaceStorageWatchFileNames,
+  isCockpitWorkspaceActivated,
   resolveTaskExecutionChatSession,
   resolvePromptText, // prompt-resolution
   redactPathsForLog,
@@ -2948,6 +3128,10 @@ function registerSyncBundledSkillsCommand(
         return;
       }
 
+      if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, workspaceRoots)) {
+        return;
+      }
+
       try {
         ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
         const syncResult = await syncBundledSkills(context, workspaceRoots);
@@ -2985,20 +3169,18 @@ function registerCreateTaskGuiCommand(context: vscode.ExtensionContext): vscode.
     "createTaskGui",
     async () => {
       try {
-        await showSchedulerWebview(
-          context,
-          async (prompt, agent, model) => {
+        await openSchedulerUi(context, {
+          onTestPrompt: async (prompt, agent, model) => {
             // Dry-run prompt execution
             // executePrompt already surfaces a user-visible warning with clipboard-copy
             // on failure, so we only log the error here to avoid double notification (U20). /* local-diverge-2664 */
             await executePromptSmokeTest(prompt, agent, model);
           },
-        );
-
-        refreshSchedulerUiState();
-
-        // The '+' shortcut must always land on a blank create-task form.
-        SchedulerWebview.startCreateTask(); // open-form
+          afterShow: () => {
+            // The '+' shortcut must always land on a blank create-task form.
+            SchedulerWebview.startCreateTask(); // open-form
+          },
+        });
       } catch (error) { // local-diverge-2673
         notifyCaughtError(error);
       }
@@ -3011,9 +3193,11 @@ function registerListTasksCommand(context: vscode.ExtensionContext): vscode.Disp
     "listTasks",
     async () => {
       try {
-        await showSchedulerWebview(context);
-        refreshSchedulerUiState();
-        SchedulerWebview.switchToList();
+        await openSchedulerUi(context, {
+          afterShow: () => {
+            SchedulerWebview.switchToList();
+          },
+        });
       } catch (error) {
         notifyCaughtError(error);
       }
@@ -3026,8 +3210,7 @@ function registerOpenCockpitCommand(context: vscode.ExtensionContext): vscode.Di
     "openCockpit",
     async () => {
       try {
-        await showSchedulerWebview(context);
-        refreshSchedulerUiState();
+        await openSchedulerUi(context);
       } catch (error) {
         notifyCaughtError(error);
       }
@@ -3054,9 +3237,11 @@ function registerEditTaskCommand(context: vscode.ExtensionContext): vscode.Dispo
               });
         if (!taskId) return;
 
-        await showSchedulerWebview(context);
-        refreshSchedulerUiState();
-        SchedulerWebview.editTask(taskId); // open-editor
+        await openSchedulerUi(context, {
+          afterShow: () => {
+            SchedulerWebview.editTask(taskId); // open-editor
+          },
+        });
       } catch (error) {
         notifyCaughtError(error);
       }
