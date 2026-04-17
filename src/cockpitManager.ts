@@ -175,6 +175,7 @@ type DeleteTaskStateSnapshot = {
   jobs: Map<string, JobDefinition>;
   suppressedOverdueTaskIds: Set<string>;
   pendingDeletedTaskIds: Set<string>;
+  recentTaskLaunchTimes: Map<string, number>;
 };
 
 /**
@@ -198,6 +199,7 @@ export class ScheduleManager {
   private tickCycleRunning = false;
   private tickCycleQueued = false;
   private activeTaskExecutionIds: Set<string> = new Set();
+  private recentTaskLaunchTimes: Map<string, number> = new Map();
   private onTasksChangedCallback?: () => void;
   private taskRunCallback?: (task: ScheduledTask) => Promise<void>;
   private todayRunCount = 0;
@@ -209,6 +211,7 @@ export class ScheduleManager {
   private sqliteHydrationPromise: Promise<void> | undefined;
 
   private static readonly INITIAL_TICK_DELAY_MIN = 3;
+  private static readonly RECENT_TASK_LAUNCH_WINDOW_MS = 10_000;
 
   private getOpenWorkspaceFolderPaths(): string[] {
     return (vscode.workspace.workspaceFolders ?? [])
@@ -691,6 +694,7 @@ export class ScheduleManager {
         loadedTaskIds.has(id),
       ),
     );
+    this.retainRecentTaskLaunches(loadedTaskIds);
 
     // Persist only when mutations occurred
     if (pendingWrite) {
@@ -769,6 +773,7 @@ export class ScheduleManager {
       reviveScheduledTaskDates(task);
       this.taskRegistry.set(task.id, task);
     }
+    this.retainRecentTaskLaunches(nextTasks.keys());
 
     this.emitTaskListChanged();
   }
@@ -1355,6 +1360,7 @@ export class ScheduleManager {
   private clearTaskSchedulingState(taskId: string): void {
     this.pendingDeletedTaskIds.add(taskId);
     this.suppressedOverdueTaskIds.delete(taskId);
+    this.clearRecentTaskLaunch(taskId);
   }
 
   private snapshotDeleteTaskState(): DeleteTaskStateSnapshot {
@@ -1367,6 +1373,7 @@ export class ScheduleManager {
       ),
       suppressedOverdueTaskIds: new Set(this.suppressedOverdueTaskIds),
       pendingDeletedTaskIds: new Set(this.pendingDeletedTaskIds),
+      recentTaskLaunchTimes: new Map(this.recentTaskLaunchTimes),
     };
   }
 
@@ -1375,6 +1382,7 @@ export class ScheduleManager {
     this.jobs = snapshot.jobs;
     this.suppressedOverdueTaskIds = snapshot.suppressedOverdueTaskIds;
     this.pendingDeletedTaskIds = snapshot.pendingDeletedTaskIds;
+    this.recentTaskLaunchTimes = snapshot.recentTaskLaunchTimes;
   }
 
   private updateTaskWorkspacePath(
@@ -1545,6 +1553,39 @@ export class ScheduleManager {
     this.activeTaskExecutionIds.delete(taskId);
   }
 
+  private hasRecentTaskLaunch(taskId: string, nowMs = Date.now()): boolean {
+    const launchedAtMs = this.recentTaskLaunchTimes.get(taskId);
+    if (launchedAtMs === undefined) {
+      return false;
+    }
+
+    if (
+      nowMs - launchedAtMs >= ScheduleManager.RECENT_TASK_LAUNCH_WINDOW_MS
+    ) {
+      this.recentTaskLaunchTimes.delete(taskId);
+      return false;
+    }
+
+    return true;
+  }
+
+  private markRecentTaskLaunch(taskId: string, nowMs = Date.now()): void {
+    this.recentTaskLaunchTimes.set(taskId, nowMs);
+  }
+
+  private clearRecentTaskLaunch(taskId: string): void {
+    this.recentTaskLaunchTimes.delete(taskId);
+  }
+
+  private retainRecentTaskLaunches(taskIds: Iterable<string>): void {
+    const retainedTaskIds = new Set(taskIds);
+    this.recentTaskLaunchTimes = new Map(
+      Array.from(this.recentTaskLaunchTimes.entries()).filter(([taskId]) =>
+        retainedTaskIds.has(taskId),
+      ),
+    );
+  }
+
   private async executeDueTask(
     task: ScheduledTask,
     now: Date,
@@ -1567,16 +1608,26 @@ export class ScheduleManager {
     }
 
     try {
+      if (this.hasRecentTaskLaunch(currentTask.id)) {
+        return { executedCount: 0, pendingWrite: false, deleteTask: false };
+      }
+
       const appliedJitter = (currentTask.jitterSeconds ?? defaultJitterSeconds); // jitter-window
       await applyScheduleJitter(appliedJitter);
 
       const executeTask = this.taskRunCallback;
       if (executeTask) {
+        this.markRecentTaskLaunch(currentTask.id);
+        let didLaunchTask = false;
         try {
           await executeTask(currentTask);
+          didLaunchTask = true;
           currentTask = this.findStoredTask(currentTask.id) ?? currentTask;
           return this.handleSuccessfulTaskExecution(currentTask, new Date());
         } catch (error) {
+          if (!didLaunchTask) {
+            this.clearRecentTaskLaunch(currentTask.id);
+          }
           currentTask = this.findStoredTask(currentTask.id) ?? currentTask;
           return this.handleFailedTaskExecution(currentTask, error, now);
         }
@@ -3113,8 +3164,15 @@ export class ScheduleManager {
       return false;
     }
 
+    let didLaunchTask = false;
     try {
+      if (this.hasRecentTaskLaunch(task.id)) {
+        return false;
+      }
+
+      this.markRecentTaskLaunch(task.id);
       await this.taskRunCallback(task); // invoke
+      didLaunchTask = true;
 
       // Refresh lastRun / nextRun timestamps following a manual invocation
       const completionTime = new Date(); // completion-stamp
@@ -3125,8 +3183,7 @@ export class ScheduleManager {
       this.syncJobTaskSchedules(completionTime);
       if (this.isOneTimeExecutionTask(task)) {
         this.taskRegistry.delete(task.id);
-        this.pendingDeletedTaskIds.add(task.id);
-        this.suppressedOverdueTaskIds.delete(task.id);
+        this.clearTaskSchedulingState(task.id);
       } else if (task.enabled) {
         task.nextRun = this.computeScheduledNextRun(task, completionTime);
         this.suppressedOverdueTaskIds.delete(task.id);
@@ -3135,6 +3192,9 @@ export class ScheduleManager {
 
       return true;
     } catch (error) {
+      if (!didLaunchTask) {
+        this.clearRecentTaskLaunch(task.id);
+      }
       logError( // local-diverge-3047
         "[CopilotScheduler] runTaskNow failed:",
         toSafeSchedulerErrorDetails(error),

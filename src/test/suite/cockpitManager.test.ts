@@ -1640,6 +1640,97 @@ suite("ScheduleManager Overdue Task Tests", () => {
     }
   });
 
+  test("sequential immediate runTaskNow calls only launch once", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-run-now-burst-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-run-now-burst-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    let executeCount = 0;
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Manual burst task",
+        cronExpression: "0 * * * *",
+        prompt: "run now",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      const firstRun = await manager.runTaskNow(task.id);
+      const secondRun = await manager.runTaskNow(task.id);
+
+      assert.strictEqual(executeCount, 1);
+      assert.strictEqual(firstRun, true);
+      assert.strictEqual(secondRun, false);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("executeDueTask skips an immediate relaunch when due state stays stale", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-execute-due-burst-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-execute-due-burst-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const now = new Date("2026-03-23T10:20:00.000Z");
+    let executeCount = 0;
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Burst due task",
+        cronExpression: "*/5 * * * *",
+        prompt: "run once",
+        enabled: true,
+        scope: "workspace",
+      });
+      const liveTask = manager.getTask(task.id);
+      assert.ok(liveTask);
+      liveTask!.nextRun = new Date(now);
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      const executeDueTask = (manager as unknown as {
+        executeDueTask: (
+          taskArg: typeof liveTask,
+          taskNow: Date,
+          nowMinute: Date,
+          maxDailyLimit: number,
+          defaultJitterSeconds: number,
+        ) => Promise<{ executedCount: number; pendingWrite: boolean; deleteTask: boolean }>;
+      }).executeDueTask.bind(manager);
+
+      const firstOutcome = await executeDueTask(liveTask, now, now, 0, 0);
+      const staleTask = manager.getTask(task.id);
+      assert.ok(staleTask);
+      staleTask!.nextRun = new Date(now);
+
+      const secondOutcome = await executeDueTask(staleTask, now, now, 0, 0);
+
+      assert.strictEqual(executeCount, 1);
+      assert.strictEqual(firstOutcome.executedCount, 1);
+      assert.strictEqual(secondOutcome.executedCount, 0);
+      assert.strictEqual(secondOutcome.pendingWrite, false);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
   test("scheduler tick does not re-execute a recurring due task after reload repopulates the registry", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-ws-tick-reload-revisit-"),
