@@ -32,7 +32,7 @@ jobs:
           cache: 'npm'
 
       - name: Cache VS Code test runtime
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.4
         with:
           path: .vscode-test
           key: vscode-test-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -67,7 +67,7 @@ jobs:
           fi
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: copilot-cockpit-vsix
           path: archive/vsix/latest/copilot-cockpit-*.vsix

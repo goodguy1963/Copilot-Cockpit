@@ -10,8 +10,9 @@ vsc-extension-quickstart.md
 **/*.ts
 out/**
 !out/
-!out/**/*.js
-!out/**/*.wasm
+!out/extension.js
+!out/server.js
+!out/sql-wasm.wasm
 out/**/*.ts
 out/**/*.d.ts
 out/**/*.d.ts.map
