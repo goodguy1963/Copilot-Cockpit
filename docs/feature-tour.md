@@ -135,6 +135,7 @@ Caption: Start with the operating model.
 
 - Start there if you are opening the extension for the first time.
 - Use it to understand the planning versus execution model before scheduling anything.
+- You can reopen the same guided flow from the top bar with `Intro Tutorial`, and use the top-bar `Plan Integration` button when you are ready to inspect repo-local agent surfaces.
 
 Best for: first-time users who want the operating model before the controls.
 

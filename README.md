@@ -15,21 +15,18 @@
         <img src="https://img.shields.io/github/v/release/goodguy1963/Copilot-Cockpit?filter=edge&include_prereleases&label=edge" alt="Latest edge prerelease">
     </a>
 </p>
+
+<p align="center">
+    Workflow status for the release pipeline · Stable = latest tagged production release · Edge = rolling prerelease built from <code>main</code>
+</p>
 <!-- markdownlint-enable MD033 MD041 -->
 
 Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
 
 The strongest demo is not claiming the repo can run itself. It is showing bounded recurring work that a person would actually keep: scouting opportunities, checking delivery risk, packaging knowledge, and then stopping for review.
 
-## 🎬 Demo
+![AI orchestration core loop](images/AI%20Orchestration%20Core%20Loop.png)
 
-![Copilot Cockpit demo](images/DEMO.gif)
-
-This GIF is a fast overview of the product surface. Use the feature tour below for the slower tab-by-tab explanation.
-
-For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
-
-If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
 ## Why It Exists
 
@@ -42,6 +39,16 @@ In practice, the LLM is the native execution chat surface, while Copilot Cockpit
 The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
 
 That matters most when the repo keeps producing more work than any one person can hold in memory: bugs, feature ideas, follow-up changes, security updates, web findings, pricing checks, customer tasks, or research that should turn into implementation later. Copilot Cockpit turns those discoveries into a visible queue so work can be found again and handled properly instead of getting lost between chat sessions.
+
+## 🎬 Demo
+
+![Copilot Cockpit demo](images/DEMO.gif)
+
+This GIF is a fast overview of the product surface. Use the feature tour below for the slower tab-by-tab explanation.
+
+For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
+
+If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
 ## 🧠 The Core Loop
 
@@ -87,21 +94,7 @@ This is efficient because the `CEO` or orchestrator does the initial thinking on
 
 Note: Custom subagents must be enabled in //settings/chat.customAgentInSubagent.enabled of github copilot plugin
 
-```mermaid
-flowchart TD
-    A[User request or Todo Cockpit item] --> B[CEO or orchestrator]
-    B --> C[Initial review and repo research]
-    C --> D{Next best route}
-    D --> E[Planner when sequencing or validation needs design]
-    D --> F[Direct specialist for bounded work]
-    D --> G[Cockpit Todo Expert for durable approval or board state]
-    E --> H[Execution-ready handoff with files, constraints, and acceptance criteria]
-    F --> H
-    H --> I[Specialist runs bounded work and validates its slice]
-    I --> J[CEO reviews returned work and closeout quality]
-    J --> K[Todo Cockpit or user approval surface]
-    K --> L[Next action, schedule, or final closeout]
-```
+![Copilot Cockpit team workflow](images/TEAM.png)
 
 The optional layer stays practical because responsibilities are split deliberately:
 
@@ -148,7 +141,7 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything, then use `Plan Integration` to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, do the initial repo framing, delegate bounded work to the right repo-local or starter-pack specialist, and then validate the returned result instead of carrying the full implementation loop in one long chat.
+`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything. You can also launch the same walkthrough from the top bar with `Intro Tutorial`, then use the top-bar `Plan Integration` button to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, do the initial repo framing, delegate bounded work to the right repo-local or starter-pack specialist, and then validate the returned result instead of carrying the full implementation loop in one long chat.
 
 ## Common Workflows
 
@@ -204,8 +197,8 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 
 ## ⚡ Quick Start
 
-1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette.
-2. Start in `How To Use` if you are new to the extension.
+1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette. Or use the todo-list icon in the top right.
+2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same guided walkthrough.
 3. Capture or refine work in `Todo Cockpit`.
 4. Move approved work into `ready` to prepare a task draft.
 5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
@@ -248,7 +241,21 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 
 ### 📦 From Release
 
-1. Download the latest VSIX from the [GitHub releases page](https://github.com/goodguy1963/Copilot-Cockpit/releases)
+Choose the channel you want:
+
+- `Stable` is the safer tagged release for normal use.
+- `Edge` is the rolling prerelease channel for the newest changes from `main`.
+
+<p>
+    <a href="https://github.com/goodguy1963/Copilot-Cockpit/releases/latest">
+        <img src="https://img.shields.io/badge/Download-Stable%20Release-2d7d46?style=for-the-badge" alt="Download stable release">
+    </a>
+    <a href="https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/edge">
+        <img src="https://img.shields.io/badge/Download-Edge%20Prerelease-b35c00?style=for-the-badge" alt="Download edge prerelease">
+    </a>
+</p>
+
+1. Download the VSIX from the [stable release page](https://github.com/goodguy1963/Copilot-Cockpit/releases/latest) or the [edge prerelease page](https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/edge)
 2. Run `Extensions: Install from VSIX...` in VS Code.
 3. Select the VSIX and reload VS Code.
 

@@ -986,9 +986,18 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.ok(openTodoEditorStart >= 0, "expected todo editor open helper");
     assert.ok(openTodoEditorEnd > openTodoEditorStart, "expected todo editor open helper boundary");
     const openTodoEditorSource = scriptSource.slice(openTodoEditorStart, openTodoEditorEnd);
+    const renderTodoDetailPanelStart = scriptSource.indexOf('function renderTodoDetailPanel(selectedTodo, sections) {');
+    const renderTodoDetailPanelEnd = scriptSource.indexOf('function renderTodoCommentThread(', renderTodoDetailPanelStart);
+    assert.ok(renderTodoDetailPanelStart >= 0, "expected todo detail renderer");
+    assert.ok(renderTodoDetailPanelEnd > renderTodoDetailPanelStart, "expected todo detail renderer boundary");
+    const renderTodoDetailPanelSource = scriptSource.slice(renderTodoDetailPanelStart, renderTodoDetailPanelEnd);
     assert.ok(
       openTodoEditorSource.includes('todoDetailId.value = selectedTodoId || "";'),
       "expected todo editor open flow to sync the hidden editor todo id",
+    );
+    assert.ok(
+      renderTodoDetailPanelSource.includes('&& activeTabName === "todo-edit"'),
+      "expected same-todo refresh preservation to require the todo editor tab to already be active",
     );
     assert.ok(
       resetTodoEditorSource.includes('selectedTodoId = null;'),

@@ -4,6 +4,22 @@ The bundled starter agents add an optional orchestration layer for repositories 
 
 The practical goal is simple: keep the top-level orchestrator clean, give specialists a better handoff, and return final validation through a visible approval surface instead of one bloated generalist chat loop.
 
+```mermaid
+flowchart TD
+    A[User request or Todo Cockpit item] --> B[CEO or orchestrator]
+    B --> C[Initial review and repo research]
+    C --> D{Next best route}
+    D --> E[Planner when sequencing or validation needs design]
+    D --> F[Direct specialist for bounded work]
+    D --> G[Cockpit Todo Expert for durable approval or board state]
+    E --> H[Execution-ready handoff with files, constraints, and acceptance criteria]
+    F --> H
+    H --> I[Specialist runs bounded work and validates its slice]
+    I --> J[CEO reviews returned work and closeout quality]
+    J --> K[Todo Cockpit or user approval surface]
+    K --> L[Next action, schedule, or final closeout]
+```
+
 ## What This Layer Is For
 
 Use the optional agent workflow when the work benefits from a clear split between orchestration and execution.

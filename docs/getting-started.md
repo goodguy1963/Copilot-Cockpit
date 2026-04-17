@@ -10,11 +10,11 @@ Copilot Cockpit works best when you think of it as a simple loop:
 ## Quick Start
 
 1. Open Copilot Cockpit from the activity bar or with `Copilot Cockpit: Create Scheduled Prompt (GUI)`.
-2. Start in `How To Use` if you are new to the extension.
+2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same walkthrough.
 3. Capture or refine work in `Todo Cockpit`.
 4. Move approved work into a task draft when the item is `ready`.
 5. Use `Tasks` for one execution unit, `Jobs` for ordered multi-step execution, and `Research` for benchmark-driven iteration.
-6. Open `Settings` to configure repo-local defaults and integrations.
+6. Open `Settings` to configure repo-local defaults and integrations, and use the top-bar `Plan Integration` button when you are ready to inspect or design the repo-local agent setup.
 
 ## Choose The Right Surface
 

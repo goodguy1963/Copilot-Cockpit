@@ -3519,7 +3519,10 @@ syncTodoLabelSuggestions();
     // Detect passive re-render of the same todo already being edited.
     // When true, preserve unsaved form state (labels, flag, inputs) so that
     // catalog saves or unrelated board updates don't wipe user edits.
-    var isRefreshingSameTodo = isEditingTodo && todoDetailId && todoDetailId.value === selectedTodo.id;
+    var isRefreshingSameTodo = isEditingTodo
+      && activeTabName === "todo-edit"
+      && todoDetailId
+      && todoDetailId.value === selectedTodo.id;
     var sectionOptions = getEditableTodoSections();
     if (isEditingTodo && selectedTodo && selectedTodo.sectionId) {
       var hasCurrentSection = sectionOptions.some(function (section) {
