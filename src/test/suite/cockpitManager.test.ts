@@ -1676,6 +1676,47 @@ suite("ScheduleManager Overdue Task Tests", () => {
     }
   });
 
+  test("runTaskNow clears the burst guard after a failed launch so an immediate retry can run", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-run-now-failure-retry-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-run-now-failure-retry-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    let executeCount = 0;
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Manual failure retry task",
+        cronExpression: "0 * * * *",
+        prompt: "run now",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+        if (executeCount === 1) {
+          throw new Error("manual failure");
+        }
+      });
+
+      const firstRun = await manager.runTaskNow(task.id);
+      const secondRun = await manager.runTaskNow(task.id);
+
+      assert.strictEqual(firstRun, false);
+      assert.strictEqual(secondRun, true);
+      assert.strictEqual(executeCount, 2);
+      assert.ok(manager.getTask(task.id)?.lastRun instanceof Date);
+      assert.strictEqual(manager.getTask(task.id)?.lastError, undefined);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
   test("executeDueTask skips an immediate relaunch when due state stays stale", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-ws-execute-due-burst-"),
@@ -1725,6 +1766,65 @@ suite("ScheduleManager Overdue Task Tests", () => {
       assert.strictEqual(firstOutcome.executedCount, 1);
       assert.strictEqual(secondOutcome.executedCount, 0);
       assert.strictEqual(secondOutcome.pendingWrite, false);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("executeDueTask clears the burst guard after a failed launch so an immediate retry can run", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-execute-due-failure-retry-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-execute-due-failure-retry-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const now = new Date("2026-03-23T10:20:00.000Z");
+    let executeCount = 0;
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Due failure retry task",
+        cronExpression: "*/5 * * * *",
+        prompt: "run once",
+        enabled: true,
+        scope: "workspace",
+      });
+      const liveTask = manager.getTask(task.id);
+      assert.ok(liveTask);
+      liveTask!.nextRun = new Date(now);
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+        if (executeCount === 1) {
+          throw new Error("due failure");
+        }
+      });
+
+      const executeDueTask = (manager as unknown as {
+        executeDueTask: (
+          taskArg: typeof liveTask,
+          taskNow: Date,
+          nowMinute: Date,
+          maxDailyLimit: number,
+          defaultJitterSeconds: number,
+        ) => Promise<{ executedCount: number; pendingWrite: boolean; deleteTask: boolean }>;
+      }).executeDueTask.bind(manager);
+
+      const firstOutcome = await executeDueTask(liveTask, now, now, 0, 0);
+      const retryTask = manager.getTask(task.id);
+      assert.ok(retryTask);
+      retryTask!.nextRun = new Date(now);
+
+      const secondOutcome = await executeDueTask(retryTask, now, now, 0, 0);
+
+      assert.strictEqual(executeCount, 2);
+      assert.strictEqual(firstOutcome.executedCount, 0);
+      assert.strictEqual(firstOutcome.pendingWrite, true);
+      assert.strictEqual(secondOutcome.executedCount, 1);
+      assert.strictEqual(manager.getTask(task.id)?.lastError, undefined);
     } finally {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);
