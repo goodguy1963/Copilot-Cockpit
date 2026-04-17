@@ -2,17 +2,23 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { CopilotExecutor } from "../../copilotExecutor";
 
-const mutableWorkspace = vscode.workspace as {
+type MutableWorkspaceShim = {
   getConfiguration: typeof vscode.workspace.getConfiguration;
 };
 
-const mutableCommands = vscode.commands as {
+type MutableCommandsShim = {
   executeCommand: typeof vscode.commands.executeCommand;
 };
 
-const mutableWindow = vscode.window as {
+type MutableWindowShim = {
   showWarningMessage: typeof vscode.window.showWarningMessage;
 };
+
+const mutableWorkspace = vscode.workspace as unknown as MutableWorkspaceShim;
+
+const mutableCommands = vscode.commands as unknown as MutableCommandsShim;
+
+const mutableWindow = vscode.window as unknown as MutableWindowShim;
 
 suite("CopilotExecutor Test Suite", () => {
   test("hourly new-chat cap blocks a second fresh chat but allows continue-mode", async () => {

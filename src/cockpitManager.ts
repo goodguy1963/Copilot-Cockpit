@@ -1552,36 +1552,41 @@ export class ScheduleManager {
     maxDailyLimit: number,
     defaultJitterSeconds: number,
   ): Promise<TaskExecutionOutcome> {
-    if (!this.isTaskDueAt(task, nowMinute)) {
+    let currentTask = this.findStoredTask(task.id) ?? task;
+
+    if (!this.isTaskDueAt(currentTask, nowMinute)) {
       return { executedCount: 0, pendingWrite: false, deleteTask: false };
     }
 
     if (this.hasHitDailyLimit(maxDailyLimit)) {
-      return this.buildDailyLimitSkipOutcome(task, maxDailyLimit, now);
+      return this.buildDailyLimitSkipOutcome(currentTask, maxDailyLimit, now);
     }
 
-    if (!this.tryBeginTaskExecution(task.id)) {
+    if (!this.tryBeginTaskExecution(currentTask.id)) {
       return { executedCount: 0, pendingWrite: false, deleteTask: false };
     }
 
     try {
-      const appliedJitter = (task.jitterSeconds ?? defaultJitterSeconds); // jitter-window
+      const appliedJitter = (currentTask.jitterSeconds ?? defaultJitterSeconds); // jitter-window
       await applyScheduleJitter(appliedJitter);
 
       const executeTask = this.taskRunCallback;
       if (executeTask) {
         try {
-          await executeTask(task);
-          return this.handleSuccessfulTaskExecution(task, new Date());
+          await executeTask(currentTask);
+          currentTask = this.findStoredTask(currentTask.id) ?? currentTask;
+          return this.handleSuccessfulTaskExecution(currentTask, new Date());
         } catch (error) {
-          return this.handleFailedTaskExecution(task, error, now);
+          currentTask = this.findStoredTask(currentTask.id) ?? currentTask;
+          return this.handleFailedTaskExecution(currentTask, error, now);
         }
       }
 
-      task.nextRun = this.floorToMinute(new Date(now.getTime() + 60 * 1000));
+      currentTask = this.findStoredTask(currentTask.id) ?? currentTask;
+      currentTask.nextRun = this.floorToMinute(new Date(now.getTime() + 60 * 1000));
       return this.buildTaskExecutionRetryOutcome();
     } finally {
-      this.finishTaskExecution(task.id);
+      this.finishTaskExecution(currentTask.id);
     }
   }
 
@@ -3009,8 +3014,16 @@ export class ScheduleManager {
     let pendingWrite = false;
     let completedRuns = 0;
     const tasksToDelete: string[] = [];
+    const scheduledTaskIds = Array.from(this.taskRegistry.keys());
 
-    for (const task of this.taskRegistry.values()) {
+    // Snapshot task ids so watcher-triggered reloads cannot repopulate the live map
+    // and revisit the same due task again inside a single scheduler cycle.
+    for (const taskId of scheduledTaskIds) {
+      const task = this.taskRegistry.get(taskId);
+      if (!task) {
+        continue;
+      }
+
       if (this.shouldSkipScheduledTask(task)) {
         continue;
       }

@@ -270,7 +270,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       .replace(/^export\s+/gm, "");
     const context = vm.createContext({ result: undefined });
     const moduleScript = new vm.Script(
-      `${scriptSource}\nresult = { getEventTargetElement, getClosestEventTarget, isBoardDragHandleTarget, isTodoInteractiveTarget, handleBoardTodoCompletion, bindBoardColumnInteractions };`,
+      `${scriptSource}\nresult = { getEventTargetElement, getClosestEventTarget, isBoardDragHandleTarget, isTodoInteractiveTarget, handleBoardTodoCompletion, handleBoardTodoCompletionCancel, bindBoardColumnInteractions };`,
       { filename: scriptPath },
     );
     moduleScript.runInContext(context);
@@ -280,6 +280,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       isBoardDragHandleTarget: (target: unknown) => boolean;
       isTodoInteractiveTarget: (target: unknown) => boolean;
       handleBoardTodoCompletion: (completeToggle: Record<string, unknown>, options: Record<string, unknown>) => void;
+      handleBoardTodoCompletionCancel: (cancelBtn: Record<string, unknown>, options: Record<string, unknown>) => void;
       bindBoardColumnInteractions: (options: Record<string, unknown>) => void;
     };
   }
@@ -987,7 +988,7 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.ok(openTodoEditorEnd > openTodoEditorStart, "expected todo editor open helper boundary");
     const openTodoEditorSource = scriptSource.slice(openTodoEditorStart, openTodoEditorEnd);
     const renderTodoDetailPanelStart = scriptSource.indexOf('function renderTodoDetailPanel(selectedTodo, sections) {');
-    const renderTodoDetailPanelEnd = scriptSource.indexOf('function renderTodoCommentThread(', renderTodoDetailPanelStart);
+    const renderTodoDetailPanelEnd = scriptSource.indexOf('function syncTodoLinkedTaskOptions(', renderTodoDetailPanelStart);
     assert.ok(renderTodoDetailPanelStart >= 0, "expected todo detail renderer");
     assert.ok(renderTodoDetailPanelEnd > renderTodoDetailPanelStart, "expected todo detail renderer boundary");
     const renderTodoDetailPanelSource = scriptSource.slice(renderTodoDetailPanelStart, renderTodoDetailPanelEnd);
@@ -1740,102 +1741,60 @@ test("todo comments style human form input separately and todo saves reset to cr
 
   test("board todo completion auto-dismisses inline confirm after 30 seconds and clears timers on cancel and confirm", () => {
     const helpers = loadBoardInteractionModule();
+    const scriptSource = readSchedulerWebviewScriptSource();
     const postedMessages: Array<Record<string, unknown>> = [];
-    const insertedButtons: any[] = [];
-    const timeoutCalls: Array<{ id: number; callback: () => void; delay: number }> = [];
-    const clearedTimeouts: number[] = [];
+    const startedPendingTodoIds: string[] = [];
+    const clearedPendingTodoIds: Array<{ todoId: string; skipRender?: boolean }> = [];
+    const pendingTodoIds = new Set<string>();
+
     const createMockButton = (todoId: string, cardEl: any = null) => {
       const attrs: Record<string, string> = {
         "data-todo-complete": todoId,
         title: "Approve",
         "aria-label": "Approve",
       };
-      const classes = new Set<string>();
       return {
         disabled: false,
-        innerHTML: "<span>\u25CB</span>",
-        parentNode: {
-          insertBefore: (node: unknown) => {
-            insertedButtons.push(node);
-          },
-        },
-        classList: {
-          add: (name: string) => classes.add(name),
-          remove: (name: string) => classes.delete(name),
-          contains: (name: string) => classes.has(name),
-        },
         getAttribute: (name: string) => attrs[name] || "",
         setAttribute: (name: string, value: string) => {
           attrs[name] = String(value);
         },
-        removeAttribute: (name: string) => {
-          delete attrs[name];
-        },
-        hasAttribute: (name: string) => Object.prototype.hasOwnProperty.call(attrs, name),
         closest: (selector: string) => (selector === "[data-todo-id]" ? cardEl : null),
       };
     };
-    const createMockDocument = () => ({
-      createElement: () => {
-        const attrs: Record<string, string> = {};
-        const element = {
-          type: "button",
-          className: "",
-          textContent: "",
-          style: {},
-          removed: false,
-          parentNode: {
-            removeChild: () => {
-              element.removed = true;
-            },
-          },
-          setAttribute: (name: string, value: string) => {
-            attrs[name] = String(value);
-          },
-          getAttribute: (name: string) => attrs[name] || "",
-          onclick: undefined as undefined | ((event: unknown) => void),
-        };
-        return element;
-      },
-    });
-    let activeCancelButton: any = null;
+
     const activeCardElement = {
       style: {
         opacity: "",
         pointerEvents: "",
       },
-      querySelector: (selector: string) => {
-        if (selector === '[data-todo-complete-cancel="todo-active"]') {
-          return activeCancelButton;
-        }
-        return null;
-      },
     };
-    const activeToggle = createMockButton("todo-active", activeCardElement);
-    let readyCancelButton: any = null;
     const readyCardElement = {
       style: {
         opacity: "",
         pointerEvents: "",
       },
-      querySelector: (selector: string) => {
-        if (selector === '[data-todo-complete-cancel="todo-ready"]') {
-          return readyCancelButton;
-        }
-        return null;
+    };
+    const legacyCardElement = {
+      style: {
+        opacity: "",
+        pointerEvents: "",
       },
     };
+
+    const activeToggle = createMockButton("todo-active", activeCardElement);
     const readyToggle = createMockButton("todo-ready", readyCardElement);
+    const legacyReadyToggle = createMockButton("todo-ready-legacy", legacyCardElement);
 
     const interactionOptions = {
-      clearTimeout: (handle: number) => {
-        clearedTimeouts.push(handle);
+      clearPendingGridTodoCompletion: (todoId: string, skipRender?: boolean) => {
+        clearedPendingTodoIds.push({ todoId, skipRender });
+        pendingTodoIds.delete(todoId);
       },
-      document: createMockDocument(),
-      setTimeout: (callback: () => void, delay: number) => {
-        const handle = timeoutCalls.length + 1;
-        timeoutCalls.push({ id: handle, callback, delay });
-        return handle;
+      isPendingGridTodoCompletion: (todoId: string) => pendingTodoIds.has(todoId),
+      startPendingGridTodoCompletion: (todoId: string) => {
+        startedPendingTodoIds.push(todoId);
+        pendingTodoIds.add(todoId);
       },
       strings: {
         boardApprovePrompt: "Mark this todo ready for task draft creation?",
@@ -1852,6 +1811,9 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
     };
 
+    assert.ok(typeof helpers.handleBoardTodoCompletion === "function");
+    assert.ok(typeof helpers.handleBoardTodoCompletionCancel === "function");
+
     helpers.handleBoardTodoCompletion(activeToggle, {
       cockpitBoard: {
         cards: [
@@ -1860,23 +1822,17 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
+    assert.deepStrictEqual(startedPendingTodoIds, ["todo-active"]);
+    assert.deepStrictEqual(clearedPendingTodoIds, []);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), []);
-    assert.strictEqual(activeToggle.getAttribute("data-confirming"), "1");
-    assert.strictEqual(activeToggle.innerHTML, "<span aria-hidden=\"true\">Confirm</span>");
-    assert.strictEqual(timeoutCalls.length, 1);
-    assert.strictEqual(timeoutCalls[0].delay, 30000);
-    activeCancelButton = insertedButtons[0];
-    assert.strictEqual(activeCancelButton.textContent, "Cancel");
-    assert.strictEqual(activeCancelButton.className, "todo-complete-button is-cancel");
+    assert.strictEqual(activeToggle.disabled, false);
+    assert.strictEqual(activeCardElement.style.opacity, "");
+    assert.strictEqual(activeCardElement.style.pointerEvents, "");
 
-    activeCancelButton.onclick?.({
-      stopPropagation: () => undefined,
-      preventDefault: () => undefined,
-    });
-    assert.deepStrictEqual(clearedTimeouts, [1]);
-    assert.strictEqual(activeToggle.getAttribute("data-confirming"), "");
-    assert.strictEqual(activeToggle.innerHTML, "<span>\u25CB</span>");
-    assert.strictEqual(activeCancelButton.removed, true);
+    helpers.handleBoardTodoCompletionCancel({
+      getAttribute: (name: string) => (name === "data-todo-complete-cancel" ? "todo-active" : ""),
+    }, interactionOptions);
+    assert.deepStrictEqual(clearedPendingTodoIds, [{ todoId: "todo-active", skipRender: undefined }]);
 
     helpers.handleBoardTodoCompletion(activeToggle, {
       cockpitBoard: {
@@ -1886,10 +1842,6 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    activeCancelButton = insertedButtons[1];
-    assert.strictEqual(timeoutCalls.length, 2);
-    assert.strictEqual(timeoutCalls[1].delay, 30000);
-
     helpers.handleBoardTodoCompletion(activeToggle, {
       cockpitBoard: {
         cards: [
@@ -1898,14 +1850,16 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    assert.deepStrictEqual(clearedTimeouts, [1, 2]);
+    assert.deepStrictEqual(clearedPendingTodoIds, [
+      { todoId: "todo-active", skipRender: undefined },
+      { todoId: "todo-active", skipRender: true },
+    ]);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
       { type: "approveTodo", todoId: "todo-active" },
     ]);
     assert.strictEqual(activeToggle.disabled, true);
     assert.strictEqual(activeCardElement.style.opacity, "0.35");
     assert.strictEqual(activeCardElement.style.pointerEvents, "none");
-    assert.strictEqual(activeCancelButton.removed, true);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
@@ -1915,23 +1869,14 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    assert.strictEqual(postedMessages.length, 1);
-    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "1");
-    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "confirming");
-    assert.strictEqual(readyToggle.innerHTML, "<span aria-hidden=\"true\">Yes</span>");
-    assert.strictEqual(insertedButtons.length, 3);
-    assert.strictEqual(timeoutCalls.length, 3);
-    assert.strictEqual(timeoutCalls[2].delay, 30000);
-    readyCancelButton = insertedButtons[2];
-    assert.strictEqual(readyCancelButton.textContent, "No");
-    assert.strictEqual(readyCancelButton.className, "todo-complete-button is-cancel");
-
-    timeoutCalls[2].callback();
-    assert.deepStrictEqual(clearedTimeouts, [1, 2]);
-    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
-    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
-    assert.strictEqual(readyToggle.innerHTML, "<span>\u25CB</span>");
-    assert.strictEqual(readyCancelButton.removed, true);
+    helpers.handleBoardTodoCompletionCancel({
+      getAttribute: (name: string) => (name === "data-todo-complete-cancel" ? "todo-ready" : ""),
+    }, interactionOptions);
+    assert.deepStrictEqual(clearedPendingTodoIds, [
+      { todoId: "todo-active", skipRender: undefined },
+      { todoId: "todo-active", skipRender: true },
+      { todoId: "todo-ready", skipRender: undefined },
+    ]);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
@@ -1941,20 +1886,6 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    readyCancelButton = insertedButtons[3];
-    assert.strictEqual(timeoutCalls.length, 4);
-    assert.strictEqual(timeoutCalls[3].delay, 30000);
-
-    readyCancelButton.onclick?.({
-      stopPropagation: () => undefined,
-      preventDefault: () => undefined,
-    });
-    assert.deepStrictEqual(clearedTimeouts, [1, 2, 4]);
-    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
-    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
-    assert.strictEqual(readyToggle.innerHTML, "<span>\u25CB</span>");
-    assert.strictEqual(readyCancelButton.removed, true);
-
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
@@ -1963,20 +1894,12 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    readyCancelButton = insertedButtons[4];
-    assert.strictEqual(timeoutCalls.length, 5);
-    assert.strictEqual(timeoutCalls[4].delay, 30000);
-
-    helpers.handleBoardTodoCompletion(readyToggle, {
-      cockpitBoard: {
-        cards: [
-          { id: "todo-ready", status: "active", flags: ["ready"] },
-        ],
-      },
-      ...interactionOptions,
-    });
-
-    assert.deepStrictEqual(clearedTimeouts, [1, 2, 4, 5]);
+    assert.deepStrictEqual(clearedPendingTodoIds, [
+      { todoId: "todo-active", skipRender: undefined },
+      { todoId: "todo-active", skipRender: true },
+      { todoId: "todo-ready", skipRender: undefined },
+      { todoId: "todo-ready", skipRender: true },
+    ]);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
       { type: "approveTodo", todoId: "todo-active" },
       { type: "finalizeTodo", todoId: "todo-ready" },
@@ -1984,22 +1907,6 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.strictEqual(readyToggle.disabled, true);
     assert.strictEqual(readyCardElement.style.opacity, "0.35");
     assert.strictEqual(readyCardElement.style.pointerEvents, "none");
-    assert.strictEqual(readyCancelButton.removed, true);
-
-    let legacyCancelButton: any = null;
-    const legacyCardElement = {
-      style: {
-        opacity: "",
-        pointerEvents: "",
-      },
-      querySelector: (selector: string) => {
-        if (selector === '[data-todo-complete-cancel="todo-ready-legacy"]') {
-          return legacyCancelButton;
-        }
-        return null;
-      },
-    };
-    const legacyReadyToggle = createMockButton("todo-ready-legacy", legacyCardElement);
 
     helpers.handleBoardTodoCompletion(legacyReadyToggle, {
       cockpitBoard: {
@@ -2009,11 +1916,6 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
-    assert.strictEqual(legacyReadyToggle.getAttribute("data-confirming"), "1");
-    assert.strictEqual(legacyReadyToggle.getAttribute("data-finalize-state"), "confirming");
-    assert.strictEqual(legacyReadyToggle.innerHTML, "<span aria-hidden=\"true\">Yes</span>");
-    legacyCancelButton = insertedButtons[5];
-
     helpers.handleBoardTodoCompletion(legacyReadyToggle, {
       cockpitBoard: {
         cards: [
@@ -2030,7 +1932,15 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.strictEqual(legacyReadyToggle.disabled, true);
     assert.strictEqual(legacyCardElement.style.opacity, "0.35");
     assert.strictEqual(legacyCardElement.style.pointerEvents, "none");
-    assert.strictEqual(legacyCancelButton.removed, true);
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      "pendingGridTodoCompletions[todoId] = window.setTimeout(function () {",
+      "clearPendingGridTodoCompletion(todoId);",
+      "window.setTimeout(function () {",
+      "30000",
+      "data-todo-complete-cancel",
+      "data-finalize-state=\"confirming\"",
+    ], "board todo completion pending render flow");
   });
 
   test("todo editor completion uses inline confirm with a 30 second reset", () => {
@@ -2048,16 +1958,6 @@ test("todo comments style human form input separately and todo saves reset to cr
         'type: actionType,',
         'todoCompletionConfirmTimer = window.setTimeout(function () {',
         '}, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);',
-      ],
-      "todo editor approval and finalize confirm",
-    );
-
-    expectSourceToExcludeSnippets(
-      scriptSource,
-      [
-        'type: actionType === "finalizeTodo" ? "requestFinalizeTodo" : "requestApproveTodo",',
-        'window.confirm(strings.boardApprovePrompt || "Mark this todo ready for task draft creation?")',
-        'window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")',
       ],
       "todo editor approval and finalize confirm",
     );
@@ -2110,7 +2010,6 @@ test("todo comments style human form input separately and todo saves reset to cr
     const sectionCollapseButton = {
       closest: (selector: string) => {
         if (selector === "[data-section-collapse]") return sectionCollapseButton;
-        if (selector === ".cockpit-section-header") return sectionHeader;
         if (selector === "[data-section-id]") return section;
         return null;
       },

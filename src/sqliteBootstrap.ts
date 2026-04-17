@@ -44,6 +44,14 @@ type SqlJsModule = {
   Database: new (data?: Uint8Array) => SqlJsDatabase;
 };
 
+type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync">;
+
+let sqliteAtomicWriteFs: SqliteAtomicWriteFs = fs;
+
+export function setSqliteAtomicWriteFsForTests(nextFs?: Partial<SqliteAtomicWriteFs> | null): void {
+  sqliteAtomicWriteFs = nextFs ? { ...fs, ...nextFs } : fs;
+}
+
 export type SqliteBootstrapResult = {
   databasePath: string;
   created: boolean;
@@ -207,28 +215,28 @@ function createSqliteSwapPath(databasePath: string, suffix: string): string {
 }
 
 function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
-  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const tempPath = createSqliteSwapPath(databasePath, "tmp");
   const backupPath = createSqliteSwapPath(databasePath, "bak");
   let movedExistingDatabase = false;
 
-  fs.writeFileSync(tempPath, Buffer.from(db.export()));
+  sqliteAtomicWriteFs.writeFileSync(tempPath, Buffer.from(db.export()));
 
   try {
-    if (fs.existsSync(databasePath)) {
-      fs.renameSync(databasePath, backupPath);
+    if (sqliteAtomicWriteFs.existsSync(databasePath)) {
+      sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
       movedExistingDatabase = true;
     }
 
-    fs.renameSync(tempPath, databasePath);
+    sqliteAtomicWriteFs.renameSync(tempPath, databasePath);
 
-    if (movedExistingDatabase && fs.existsSync(backupPath)) {
-      fs.rmSync(backupPath, { force: true });
+    if (movedExistingDatabase && sqliteAtomicWriteFs.existsSync(backupPath)) {
+      sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
     }
   } catch (error) {
-    if (movedExistingDatabase && !fs.existsSync(databasePath) && fs.existsSync(backupPath)) {
+    if (movedExistingDatabase && !sqliteAtomicWriteFs.existsSync(databasePath) && sqliteAtomicWriteFs.existsSync(backupPath)) {
       try {
-        fs.renameSync(backupPath, databasePath);
+        sqliteAtomicWriteFs.renameSync(backupPath, databasePath);
       } catch {
         // Best-effort restore; surface the original persistence error below.
       }
@@ -236,12 +244,12 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
 
     throw error;
   } finally {
-    if (fs.existsSync(tempPath)) {
-      fs.rmSync(tempPath, { force: true });
+    if (sqliteAtomicWriteFs.existsSync(tempPath)) {
+      sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
     }
 
-    if (fs.existsSync(backupPath)) {
-      fs.rmSync(backupPath, { force: true });
+    if (sqliteAtomicWriteFs.existsSync(backupPath)) {
+      sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   bootstrapWorkspaceSqliteStorage,
   exportWorkspaceSqliteToJsonMirrors,
   readWorkspaceCockpitBoardFromSqlite,
+  setSqliteAtomicWriteFsForTests,
   syncGlobalTasksToSqlite,
   syncWorkspaceCockpitBoardToSqlite,
   syncWorkspaceResearchStateToSqlite,
@@ -20,11 +21,6 @@ import {
   getGlobalStorageDatabasePath,
   getWorkspaceStoragePaths,
 } from "../../sqliteStorage";
-
-const mutableFs = fs as {
-  writeFileSync: typeof fs.writeFileSync;
-  renameSync: typeof fs.renameSync;
-};
 
 type SqlJsDatabase = {
   exec: (sql: string) => Array<{ values?: unknown[][] }>;
@@ -314,14 +310,16 @@ suite("SQLite Bootstrap Tests", () => {
     const writeTargets: string[] = [];
     const renameTargets: Array<{ from: string; to: string }> = [];
 
-    mutableFs.writeFileSync = ((...args: Parameters<typeof fs.writeFileSync>) => {
-      writeTargets.push(String(args[0]));
-      return originalWriteFileSync(...args);
-    }) as typeof fs.writeFileSync;
-    mutableFs.renameSync = ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-      renameTargets.push({ from: String(oldPath), to: String(newPath) });
-      return originalRenameSync(oldPath, newPath);
-    }) as typeof fs.renameSync;
+    setSqliteAtomicWriteFsForTests({
+      writeFileSync: ((...args: Parameters<typeof fs.writeFileSync>) => {
+        writeTargets.push(String(args[0]));
+        return originalWriteFileSync(...args);
+      }) as typeof fs.writeFileSync,
+      renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+        renameTargets.push({ from: String(oldPath), to: String(newPath) });
+        return originalRenameSync(oldPath, newPath);
+      }) as typeof fs.renameSync,
+    });
 
     try {
       await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
@@ -342,8 +340,7 @@ suite("SQLite Bootstrap Tests", () => {
         renameTargets.some(({ from, to }) => from.startsWith(`${paths.databasePath}.`) && from.endsWith(".tmp") && to === paths.databasePath),
       );
     } finally {
-      mutableFs.writeFileSync = originalWriteFileSync;
-      mutableFs.renameSync = originalRenameSync;
+      setSqliteAtomicWriteFsForTests();
       cleanup(workspaceRoot);
     }
   });
@@ -354,7 +351,7 @@ suite("SQLite Bootstrap Tests", () => {
 
     try {
       await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
-        tasks: [{ id: "task-1", name: "Task 1", cron: "0 * * * *", prompt: "run", enabled: true, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
         deletedTaskIds: ["task-deleted"],
         jobs: [{ id: "job-1", name: "Job 1", cronExpression: "0 * * * *", nodes: [], createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
         deletedJobIds: ["job-deleted"],

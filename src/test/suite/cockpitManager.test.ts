@@ -1640,6 +1640,63 @@ suite("ScheduleManager Overdue Task Tests", () => {
     }
   });
 
+  test("scheduler tick does not re-execute a recurring due task after reload repopulates the registry", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-tick-reload-revisit-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-tick-reload-revisit-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    let executeCount = 0;
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: "tick-reload-revisit",
+                name: "Tick reload revisit",
+                cron: "*/5 * * * *",
+                prompt: "run once per tick",
+                enabled: true,
+                createdAt: "2026-03-23T10:00:00.000Z",
+                updatedAt: "2026-03-23T10:00:00.000Z",
+                nextRun: "2026-03-23T10:05:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+        if (executeCount === 1) {
+          manager.reloadTasks();
+        }
+      });
+
+      await (manager as unknown as { evaluateAndRunDueTasks: () => Promise<void> }).evaluateAndRunDueTasks();
+
+      assert.strictEqual(executeCount, 1);
+      assert.ok(manager.getTask("tick-reload-revisit")?.lastRun instanceof Date);
+      assert.ok(
+        (manager.getTask("tick-reload-revisit")?.nextRun?.getTime() ?? 0)
+          > new Date("2026-03-23T10:05:00.000Z").getTime(),
+      );
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
   test("scheduler tick does not execute disabled tasks", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-ws-disabled-due-"),
