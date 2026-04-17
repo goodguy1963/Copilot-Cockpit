@@ -758,6 +758,7 @@ function archiveTodoInBoardByOutcome(
   todo.archived = true;
   todo.archivedAt = timestamp;
   todo.archiveOutcome = outcome;
+  todo.taskId = undefined;
   todo.sectionId = getArchiveSectionId(outcome);
   todo.updatedAt = timestamp;
   setWorkflowFlag(todo, undefined);
@@ -1210,6 +1211,7 @@ export function updateTodoInBoard(
     const archiveOutcome = requestedArchiveOutcome ?? todo.archiveOutcome ?? "rejected";
     todo.archived = true;
     todo.archiveOutcome = archiveOutcome;
+    todo.taskId = undefined;
     todo.status = archiveOutcome === "completed-successfully" ? "completed" : "rejected";
     todo.archivedAt = todo.archivedAt ?? timestamp;
     todo.completedAt = archiveOutcome === "completed-successfully"
@@ -1469,6 +1471,15 @@ export function ensureTaskTodosInBoard(
   }
 
   for (const card of nextBoard.cards) {
+    if (card.archived || isArchiveSectionId(card.sectionId)) {
+      if (card.taskId) {
+        card.taskId = undefined;
+        card.updatedAt = nowIso();
+        changed = true;
+      }
+      continue;
+    }
+
     if (card.taskId) {
       const linkedTask = tasksById.get(card.taskId);
       if (linkedTask && !isOneTimeTask(linkedTask)) {

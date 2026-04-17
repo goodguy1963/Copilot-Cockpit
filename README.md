@@ -16,14 +16,9 @@
     </a>
 </p>
 
-<p align="center">
-    Workflow status for the release pipeline · Stable = latest tagged production release · Edge = rolling prerelease built from <code>main</code>
-</p>
 <!-- markdownlint-enable MD033 MD041 -->
 
 Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
-
-The strongest demo is not claiming the repo can run itself. It is showing bounded recurring work that a person would actually keep: scouting opportunities, checking delivery risk, packaging knowledge, and then stopping for review.
 
 ![AI orchestration core loop](images/AI%20Orchestration%20Core%20Loop.png)
 

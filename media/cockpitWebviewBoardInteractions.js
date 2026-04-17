@@ -36,6 +36,7 @@ export function isTodoInteractiveTarget(target) {
       "[data-todo-purge]",
       "[data-todo-restore]",
       "[data-todo-complete]",
+      "[data-todo-complete-cancel]",
       "[data-section-collapse]",
       "[data-section-rename]",
       "[data-section-delete]",
@@ -148,91 +149,37 @@ export function handleBoardTodoCompletion(completeToggle, options) {
       }
     });
   }
-  var isReadyTodo = workflowFlag === "final-user-check";
-  function clearCompletionConfirmState() {
-    completeToggle.removeAttribute("data-confirming");
-    completeToggle.classList.remove("is-confirming");
-    completeToggle.setAttribute("data-finalize-state", "idle");
-    if (completeToggle.hasAttribute("data-original-title")) {
-      completeToggle.setAttribute(
-        "title",
-        completeToggle.getAttribute("data-original-title") || "",
-      );
-      completeToggle.setAttribute(
-        "aria-label",
-        completeToggle.getAttribute("data-original-title") || "",
-      );
-      completeToggle.removeAttribute("data-original-title");
-    }
-    if (completeToggle.hasAttribute("data-original-html")) {
-      completeToggle.innerHTML = completeToggle.getAttribute("data-original-html") || "";
-      completeToggle.removeAttribute("data-original-html");
-    }
-    var cancelBtn = cardEl && cardEl.querySelector
-      ? cardEl.querySelector('[data-todo-finalize-cancel="' + todoId + '"]')
-      : null;
-    if (cancelBtn && cancelBtn.parentNode) {
-      cancelBtn.parentNode.removeChild(cancelBtn);
-    }
-  }
+  var isReadyTodo = workflowFlag === "ready" || workflowFlag === "final-user-check";
+  var completionActionType = isReadyTodo ? "finalizeTodo" : "approveTodo";
 
   if (!todoId) {
     return;
   }
 
-  if (!isReadyTodo) {
-    completeToggle.disabled = true;
-    if (cardEl) {
-      cardEl.style.opacity = "0.35";
-      cardEl.style.pointerEvents = "none";
-    }
-    options.vscode.postMessage({ type: "approveTodo", todoId: todoId });
-    return;
-  }
-
-  if (!completeToggle.getAttribute("data-confirming")) {
-    completeToggle.setAttribute("data-confirming", "1");
-    completeToggle.classList.add("is-confirming");
-    completeToggle.setAttribute("data-finalize-state", "confirming");
-    completeToggle.setAttribute(
-      "data-original-title",
-      completeToggle.getAttribute("title") || "",
-    );
-    completeToggle.setAttribute("data-original-html", completeToggle.innerHTML || "");
-    completeToggle.setAttribute(
-      "title",
-      options.strings.boardFinalizePrompt || "Archive this todo as completed successfully?",
-    );
-    completeToggle.setAttribute(
-      "aria-label",
-      options.strings.boardFinalizeTodoYes || "Yes",
-    );
-    completeToggle.innerHTML = '<span aria-hidden="true">' + (options.strings.boardFinalizeTodoYes || "Yes") + '</span>';
-    var cancelBtn = options.document.createElement("button");
-    cancelBtn.type = "button";
-    cancelBtn.className = "todo-complete-button is-cancel";
-    cancelBtn.setAttribute("data-todo-finalize-cancel", todoId);
-    cancelBtn.setAttribute("data-no-drag", "1");
-    cancelBtn.setAttribute("title", options.strings.boardFinalizeTodoNo || "No");
-    cancelBtn.setAttribute("aria-label", options.strings.boardFinalizeTodoNo || "No");
-    cancelBtn.textContent = options.strings.boardFinalizeTodoNo || "No";
-    cancelBtn.onclick = function (event) {
-      stopBoardEvent(event);
-      clearCompletionConfirmState();
-    };
-    if (completeToggle.parentNode) {
-      completeToggle.parentNode.insertBefore(cancelBtn, completeToggle.nextSibling);
+  if (!options.isPendingGridTodoCompletion || !options.isPendingGridTodoCompletion(todoId)) {
+    if (typeof options.startPendingGridTodoCompletion === "function") {
+      options.startPendingGridTodoCompletion(todoId);
     }
     return;
   }
 
-  clearCompletionConfirmState();
+  if (typeof options.clearPendingGridTodoCompletion === "function") {
+    options.clearPendingGridTodoCompletion(todoId, true);
+  }
   completeToggle.disabled = true;
   if (cardEl) {
     cardEl.style.opacity = "0.35";
     cardEl.style.pointerEvents = "none";
   }
-  options.vscode.postMessage({ type: "finalizeTodo", todoId: todoId });
+  options.vscode.postMessage({ type: completionActionType, todoId: todoId });
+}
+
+export function handleBoardTodoCompletionCancel(cancelBtn, options) {
+  var todoId = cancelBtn.getAttribute("data-todo-complete-cancel") || "";
+  if (!todoId || !options || typeof options.clearPendingGridTodoCompletion !== "function") {
+    return;
+  }
+  options.clearPendingGridTodoCompletion(todoId);
 }
 
 function stopBoardEvent(event) {
@@ -730,6 +677,13 @@ function installBoardClickDelegation(boardColumns) {
     if (restoreBtn) {
       stopBoardEvent(event);
       options.handleTodoRestore(restoreBtn);
+      return;
+    }
+
+    var completeCancelBtn = target.closest("[data-todo-complete-cancel]");
+    if (completeCancelBtn) {
+      stopBoardEvent(event);
+      options.handleTodoCompletionCancel(completeCancelBtn);
       return;
     }
 

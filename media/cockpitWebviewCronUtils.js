@@ -42,6 +42,23 @@ function formatFriendlyTime(hour, minute) {
   return padFriendlyNumber(hour) + ":" + padFriendlyNumber(minute);
 }
 
+function isFriendlyCronWholeNumber(value) {
+  return /^\d+$/.test(String(value));
+}
+
+function parseFriendlyCronNumber(value, min, max) {
+  if (!isFriendlyCronWholeNumber(value)) {
+    return null;
+  }
+
+  var parsed = parseInt(String(value), 10);
+  if (parsed < min || parsed > max) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function getFriendlyFieldsForSelection(selection) {
   switch (selection) {
     case "every-n":
@@ -129,6 +146,104 @@ export function buildFriendlyCronExpression(selection, rawValues) {
   }
 }
 
+export function parseFriendlyCronExpression(expression) {
+  var normalizedExpression = String(expression || "").trim();
+  if (!normalizedExpression) {
+    return null;
+  }
+
+  var cronParts = normalizedExpression.split(/\s+/);
+  if (cronParts.length !== 5) {
+    return null;
+  }
+
+  var minute = cronParts[0];
+  var hour = cronParts[1];
+  var dayOfMonth = cronParts[2];
+  var month = cronParts[3];
+  var dayOfWeek = cronParts[4];
+  var intervalMatch = /^\*\/(\d+)$/.exec(minute);
+  var parsedMinute = parseFriendlyCronNumber(minute, 0, 59);
+  var parsedHour = parseFriendlyCronNumber(hour, 0, 23);
+  var parsedDayOfMonth = parseFriendlyCronNumber(dayOfMonth, 1, 31);
+  var parsedDayOfWeek = normalizeDayOfWeekValue(dayOfWeek);
+
+  if (
+    intervalMatch &&
+    hour === "*" &&
+    dayOfMonth === "*" &&
+    month === "*" &&
+    dayOfWeek === "*"
+  ) {
+    var parsedInterval = parseFriendlyCronNumber(intervalMatch[1], 1, 59);
+    return parsedInterval === null
+      ? null
+      : {
+        frequency: "every-n",
+        interval: parsedInterval,
+      };
+  }
+
+  if (
+    parsedMinute !== null &&
+    hour === "*" &&
+    dayOfMonth === "*" &&
+    month === "*" &&
+    dayOfWeek === "*"
+  ) {
+    return {
+      frequency: "hourly",
+      minute: parsedMinute,
+    };
+  }
+
+  if (
+    parsedMinute !== null &&
+    parsedHour !== null &&
+    dayOfMonth === "*" &&
+    month === "*" &&
+    dayOfWeek === "*"
+  ) {
+    return {
+      frequency: "daily",
+      hour: parsedHour,
+      minute: parsedMinute,
+    };
+  }
+
+  if (
+    parsedMinute !== null &&
+    parsedHour !== null &&
+    dayOfMonth === "*" &&
+    month === "*" &&
+    parsedDayOfWeek !== null
+  ) {
+    return {
+      frequency: "weekly",
+      dow: parsedDayOfWeek,
+      hour: parsedHour,
+      minute: parsedMinute,
+    };
+  }
+
+  if (
+    parsedMinute !== null &&
+    parsedHour !== null &&
+    parsedDayOfMonth !== null &&
+    month === "*" &&
+    dayOfWeek === "*"
+  ) {
+    return {
+      frequency: "monthly",
+      dom: parsedDayOfMonth,
+      hour: parsedHour,
+      minute: parsedMinute,
+    };
+  }
+
+  return null;
+}
+
 export function summarizeCronExpression(expression, strings) {
   var labels = strings || {};
   var fallback = labels.labelFriendlyFallback || "";
@@ -147,9 +262,6 @@ export function summarizeCronExpression(expression, strings) {
   var dayOfMonth = cronParts[2];
   var month = cronParts[3];
   var dayOfWeek = cronParts[4];
-  var isWholeNumber = function (value) {
-    return /^\d+$/.test(String(value));
-  };
   var normalizedDayOfWeek = String(dayOfWeek || "").toLowerCase();
   var isWeekdays =
     normalizedDayOfWeek === "1-5" || normalizedDayOfWeek === "mon-fri";
@@ -169,7 +281,7 @@ export function summarizeCronExpression(expression, strings) {
   }
 
   if (
-    isWholeNumber(minute) &&
+    isFriendlyCronWholeNumber(minute) &&
     hour === "*" &&
     dayOfMonth === "*" &&
     month === "*" &&
@@ -182,8 +294,8 @@ export function summarizeCronExpression(expression, strings) {
   }
 
   if (
-    isWholeNumber(minute) &&
-    isWholeNumber(hour) &&
+    isFriendlyCronWholeNumber(minute) &&
+    isFriendlyCronWholeNumber(hour) &&
     dayOfMonth === "*" &&
     month === "*" &&
     dayOfWeek === "*"
@@ -196,8 +308,8 @@ export function summarizeCronExpression(expression, strings) {
   }
 
   if (
-    isWholeNumber(minute) &&
-    isWholeNumber(hour) &&
+    isFriendlyCronWholeNumber(minute) &&
+    isFriendlyCronWholeNumber(hour) &&
     dayOfMonth === "*" &&
     month === "*" &&
     isWeekdays
@@ -211,8 +323,8 @@ export function summarizeCronExpression(expression, strings) {
 
   var numericDayOfWeek = normalizeDayOfWeekValue(dayOfWeek);
   if (
-    isWholeNumber(minute) &&
-    isWholeNumber(hour) &&
+    isFriendlyCronWholeNumber(minute) &&
+    isFriendlyCronWholeNumber(hour) &&
     dayOfMonth === "*" &&
     month === "*" &&
     numericDayOfWeek !== null
@@ -237,9 +349,9 @@ export function summarizeCronExpression(expression, strings) {
   }
 
   if (
-    isWholeNumber(minute) &&
-    isWholeNumber(hour) &&
-    isWholeNumber(dayOfMonth) &&
+    isFriendlyCronWholeNumber(minute) &&
+    isFriendlyCronWholeNumber(hour) &&
+    isFriendlyCronWholeNumber(dayOfMonth) &&
     month === "*" &&
     dayOfWeek === "*"
   ) {

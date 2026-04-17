@@ -106,6 +106,7 @@ type WorkspaceFolderLike = {
 const SQLITE_MIGRATION_JOURNAL_VERSION = 1;
 
 let sqlJsModulePromise: Promise<SqlJsModule> | undefined;
+const sqliteAccessQueues = new Map<string, Promise<void>>();
 
 function getSqlJsWasmPath(): string {
   return path.join(__dirname, "sql-wasm.wasm");
@@ -118,6 +119,30 @@ async function getSqlJsModule(): Promise<SqlJsModule> {
     }) as Promise<SqlJsModule>;
   }
   return sqlJsModulePromise;
+}
+
+async function withSerializedSqliteAccess<T>(
+  databasePath: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = sqliteAccessQueues.get(databasePath) ?? Promise.resolve();
+  let releaseQueue: (() => void) | undefined;
+  const current = new Promise<void>((resolve) => {
+    releaseQueue = resolve;
+  });
+  const next = previous.catch(() => undefined).then(() => current);
+
+  sqliteAccessQueues.set(databasePath, next);
+  await previous.catch(() => undefined);
+
+  try {
+    return await operation();
+  } finally {
+    releaseQueue?.();
+    if (sqliteAccessQueues.get(databasePath) === next) {
+      sqliteAccessQueues.delete(databasePath);
+    }
+  }
 }
 
 async function openSqliteDatabase(
@@ -176,9 +201,49 @@ function stampMetadata(
   }
 }
 
+function createSqliteSwapPath(databasePath: string, suffix: string): string {
+  const unique = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.${unique}.${suffix}`);
+}
+
 function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
-  fs.writeFileSync(databasePath, Buffer.from(db.export()));
+  const tempPath = createSqliteSwapPath(databasePath, "tmp");
+  const backupPath = createSqliteSwapPath(databasePath, "bak");
+  let movedExistingDatabase = false;
+
+  fs.writeFileSync(tempPath, Buffer.from(db.export()));
+
+  try {
+    if (fs.existsSync(databasePath)) {
+      fs.renameSync(databasePath, backupPath);
+      movedExistingDatabase = true;
+    }
+
+    fs.renameSync(tempPath, databasePath);
+
+    if (movedExistingDatabase && fs.existsSync(backupPath)) {
+      fs.rmSync(backupPath, { force: true });
+    }
+  } catch (error) {
+    if (movedExistingDatabase && !fs.existsSync(databasePath) && fs.existsSync(backupPath)) {
+      try {
+        fs.renameSync(backupPath, databasePath);
+      } catch {
+        // Best-effort restore; surface the original persistence error below.
+      }
+    }
+
+    throw error;
+  } finally {
+    if (fs.existsSync(tempPath)) {
+      fs.rmSync(tempPath, { force: true });
+    }
+
+    if (fs.existsSync(backupPath)) {
+      fs.rmSync(backupPath, { force: true });
+    }
+  }
 }
 
 function getSourceInfo(filePath: string): MigrationSourceInfo {
@@ -589,44 +654,46 @@ export async function bootstrapWorkspaceSqliteStorage(
   mirroredJsonEnabled: boolean,
 ): Promise<SqliteBootstrapResult> {
   const paths = getWorkspaceStoragePaths(workspaceRoot);
-  const { db, created } = await openSqliteDatabase(paths.databasePath);
-  const now = new Date().toISOString();
-  let importCounts: Record<string, number> = {};
+  return withSerializedSqliteAccess(paths.databasePath, async () => {
+    const { db, created } = await openSqliteDatabase(paths.databasePath);
+    const now = new Date().toISOString();
+    let importCounts: Record<string, number> = {};
 
-  try {
-    applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
-    const imported = insertWorkspaceJsonSnapshot(db, workspaceRoot, now);
-    importCounts = imported.importCounts;
-    stampMetadata(db, {
-      workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
-      storage_scope: "workspace",
-      storage_mode: SQLITE_STORAGE_MODE,
-      workspace_root: workspaceRoot,
-      sqlite_json_mirror: String(mirroredJsonEnabled),
-      bootstrapped_at: now,
-      last_bootstrapped_at: now,
-      last_imported_at: now,
-      last_workspace_import_counts: JSON.stringify(importCounts),
-    });
-    persistSqliteDatabase(paths.databasePath, db);
-    writeWorkspaceMigrationJournal({
-      ...imported.journal,
-      mirroredJsonEnabled,
+    try {
+      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      const imported = insertWorkspaceJsonSnapshot(db, workspaceRoot, now);
+      importCounts = imported.importCounts;
+      stampMetadata(db, {
+        workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        storage_scope: "workspace",
+        storage_mode: SQLITE_STORAGE_MODE,
+        workspace_root: workspaceRoot,
+        sqlite_json_mirror: String(mirroredJsonEnabled),
+        bootstrapped_at: now,
+        last_bootstrapped_at: now,
+        last_imported_at: now,
+        last_workspace_import_counts: JSON.stringify(importCounts),
+      });
+      persistSqliteDatabase(paths.databasePath, db);
+      writeWorkspaceMigrationJournal({
+        ...imported.journal,
+        mirroredJsonEnabled,
+        created,
+      });
+    } finally {
+      db.close();
+    }
+
+    return {
+      databasePath: paths.databasePath,
       created,
-    });
-  } finally {
-    db.close();
-  }
-
-  return {
-    databasePath: paths.databasePath,
-    created,
-    schemaVersion: WORKSPACE_SQLITE_SCHEMA_VERSION,
-    mirroredJsonEnabled,
-    scope: "workspace",
-    importCounts,
-    journalPath: paths.migrationJournalPath,
-  };
+      schemaVersion: WORKSPACE_SQLITE_SCHEMA_VERSION,
+      mirroredJsonEnabled,
+      scope: "workspace",
+      importCounts,
+      journalPath: paths.migrationJournalPath,
+    };
+  });
 }
 
 export async function bootstrapGlobalSqliteStorage(
@@ -634,36 +701,38 @@ export async function bootstrapGlobalSqliteStorage(
 ): Promise<SqliteBootstrapResult> {
   const globalPaths = getGlobalStoragePaths(globalStorageRoot);
   const databasePath = globalPaths.databasePath;
-  const { db, created } = await openSqliteDatabase(databasePath);
-  const now = new Date().toISOString();
-  let importCounts: Record<string, number> = {};
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db, created } = await openSqliteDatabase(databasePath);
+    const now = new Date().toISOString();
+    let importCounts: Record<string, number> = {};
 
-  try {
-    applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
-    importCounts = insertGlobalJsonSnapshot(db, globalStorageRoot, now);
-    stampMetadata(db, {
-      global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
-      storage_scope: "global",
-      storage_mode: SQLITE_STORAGE_MODE,
-      global_storage_root: globalStorageRoot,
-      bootstrapped_at: now,
-      last_bootstrapped_at: now,
-      last_imported_at: now,
-      last_global_import_counts: JSON.stringify(importCounts),
-    });
-    persistSqliteDatabase(databasePath, db);
-  } finally {
-    db.close();
-  }
+    try {
+      applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
+      importCounts = insertGlobalJsonSnapshot(db, globalStorageRoot, now);
+      stampMetadata(db, {
+        global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
+        storage_scope: "global",
+        storage_mode: SQLITE_STORAGE_MODE,
+        global_storage_root: globalStorageRoot,
+        bootstrapped_at: now,
+        last_bootstrapped_at: now,
+        last_imported_at: now,
+        last_global_import_counts: JSON.stringify(importCounts),
+      });
+      persistSqliteDatabase(databasePath, db);
+    } finally {
+      db.close();
+    }
 
-  return {
-    databasePath,
-    created,
-    schemaVersion: GLOBAL_SQLITE_SCHEMA_VERSION,
-    mirroredJsonEnabled: false,
-    scope: "global",
-    importCounts,
-  };
+    return {
+      databasePath,
+      created,
+      schemaVersion: GLOBAL_SQLITE_SCHEMA_VERSION,
+      mirroredJsonEnabled: false,
+      scope: "global",
+      importCounts,
+    };
+  });
 }
 
 export async function bootstrapConfiguredSqliteStorage(
@@ -1092,15 +1161,17 @@ export async function readWorkspaceTasksFromSqlite(
     return [];
   }
 
-  const { db } = await openSqliteDatabase(databasePath);
-  try {
-    return readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM workspace_tasks ORDER BY created_at ASC, id ASC",
-    );
-  } finally {
-    db.close();
-  }
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    try {
+      return readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM workspace_tasks ORDER BY created_at ASC, id ASC",
+      );
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function readWorkspaceSchedulerStateFromSqlite(
@@ -1118,37 +1189,39 @@ export async function readWorkspaceSchedulerStateFromSqlite(
     };
   }
 
-  const { db } = await openSqliteDatabase(databasePath);
-  try {
-    return {
-      tasks: readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM workspace_tasks ORDER BY created_at ASC, id ASC",
-      ),
-      deletedTaskIds: readStoredStringRows(
-        db,
-        "SELECT id FROM workspace_task_tombstones ORDER BY deleted_at ASC, id ASC",
-      ),
-      jobs: readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM workspace_jobs ORDER BY created_at ASC, id ASC",
-      ),
-      deletedJobIds: readStoredStringRows(
-        db,
-        "SELECT id FROM workspace_job_tombstones ORDER BY deleted_at ASC, id ASC",
-      ),
-      jobFolders: readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM workspace_job_folders ORDER BY created_at ASC, id ASC",
-      ),
-      deletedJobFolderIds: readStoredStringRows(
-        db,
-        "SELECT id FROM workspace_job_folder_tombstones ORDER BY deleted_at ASC, id ASC",
-      ),
-    };
-  } finally {
-    db.close();
-  }
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    try {
+      return {
+        tasks: readStoredPayloadRows<unknown>(
+          db,
+          "SELECT payload_json FROM workspace_tasks ORDER BY created_at ASC, id ASC",
+        ),
+        deletedTaskIds: readStoredStringRows(
+          db,
+          "SELECT id FROM workspace_task_tombstones ORDER BY deleted_at ASC, id ASC",
+        ),
+        jobs: readStoredPayloadRows<unknown>(
+          db,
+          "SELECT payload_json FROM workspace_jobs ORDER BY created_at ASC, id ASC",
+        ),
+        deletedJobIds: readStoredStringRows(
+          db,
+          "SELECT id FROM workspace_job_tombstones ORDER BY deleted_at ASC, id ASC",
+        ),
+        jobFolders: readStoredPayloadRows<unknown>(
+          db,
+          "SELECT payload_json FROM workspace_job_folders ORDER BY created_at ASC, id ASC",
+        ),
+        deletedJobFolderIds: readStoredStringRows(
+          db,
+          "SELECT id FROM workspace_job_folder_tombstones ORDER BY deleted_at ASC, id ASC",
+        ),
+      };
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function readGlobalTasksFromSqlite(
@@ -1159,15 +1232,17 @@ export async function readGlobalTasksFromSqlite(
     return [];
   }
 
-  const { db } = await openSqliteDatabase(databasePath);
-  try {
-    return readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM global_tasks ORDER BY created_at ASC, id ASC",
-    );
-  } finally {
-    db.close();
-  }
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    try {
+      return readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM global_tasks ORDER BY created_at ASC, id ASC",
+      );
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function readWorkspaceResearchStateFromSqlite(
@@ -1181,21 +1256,23 @@ export async function readWorkspaceResearchStateFromSqlite(
     };
   }
 
-  const { db } = await openSqliteDatabase(databasePath);
-  try {
-    return {
-      profiles: readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM research_profiles ORDER BY created_at ASC, id ASC",
-      ),
-      runs: readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM research_runs ORDER BY started_at DESC, id DESC",
-      ),
-    };
-  } finally {
-    db.close();
-  }
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    try {
+      return {
+        profiles: readStoredPayloadRows<unknown>(
+          db,
+          "SELECT payload_json FROM research_profiles ORDER BY created_at ASC, id ASC",
+        ),
+        runs: readStoredPayloadRows<unknown>(
+          db,
+          "SELECT payload_json FROM research_runs ORDER BY started_at DESC, id DESC",
+        ),
+      };
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function readWorkspaceCockpitBoardFromSqlite(
@@ -1206,64 +1283,66 @@ export async function readWorkspaceCockpitBoardFromSqlite(
     return undefined;
   }
 
-  const { db } = await openSqliteDatabase(databasePath);
-  try {
-    const sections = readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM cockpit_sections ORDER BY created_at ASC, id ASC",
-    );
-    const cards = readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM cockpit_cards ORDER BY section_id ASC, created_at ASC, id ASC",
-    );
-    const labelCatalog = readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM cockpit_label_catalog ORDER BY key ASC",
-    );
-    const deletedLabelCatalogKeys = readStoredStringRows(
-      db,
-      "SELECT key FROM cockpit_label_catalog_tombstones ORDER BY deleted_at ASC, key ASC",
-    );
-    const flagCatalog = readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM cockpit_flag_catalog ORDER BY key ASC",
-    );
-    const deletedFlagCatalogKeys = readStoredStringRows(
-      db,
-      "SELECT key FROM cockpit_flag_catalog_tombstones ORDER BY deleted_at ASC, key ASC",
-    );
-    const deletedCardIds = readStoredStringRows(
-      db,
-      "SELECT id FROM cockpit_card_tombstones ORDER BY deleted_at ASC, id ASC",
-    );
-    const filters = readStoredPayloadRows<unknown>(
-      db,
-      "SELECT payload_json FROM cockpit_filters WHERE id = 1",
-    )[0];
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    try {
+      const sections = readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM cockpit_sections ORDER BY created_at ASC, id ASC",
+      );
+      const cards = readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM cockpit_cards ORDER BY section_id ASC, created_at ASC, id ASC",
+      );
+      const labelCatalog = readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM cockpit_label_catalog ORDER BY key ASC",
+      );
+      const deletedLabelCatalogKeys = readStoredStringRows(
+        db,
+        "SELECT key FROM cockpit_label_catalog_tombstones ORDER BY deleted_at ASC, key ASC",
+      );
+      const flagCatalog = readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM cockpit_flag_catalog ORDER BY key ASC",
+      );
+      const deletedFlagCatalogKeys = readStoredStringRows(
+        db,
+        "SELECT key FROM cockpit_flag_catalog_tombstones ORDER BY deleted_at ASC, key ASC",
+      );
+      const deletedCardIds = readStoredStringRows(
+        db,
+        "SELECT id FROM cockpit_card_tombstones ORDER BY deleted_at ASC, id ASC",
+      );
+      const filters = readStoredPayloadRows<unknown>(
+        db,
+        "SELECT payload_json FROM cockpit_filters WHERE id = 1",
+      )[0];
 
-    if (
-      sections.length === 0 &&
-      cards.length === 0 &&
-      labelCatalog.length === 0 &&
-      flagCatalog.length === 0 &&
-      !filters
-    ) {
-      return undefined;
+      if (
+        sections.length === 0 &&
+        cards.length === 0 &&
+        labelCatalog.length === 0 &&
+        flagCatalog.length === 0 &&
+        !filters
+      ) {
+        return undefined;
+      }
+
+      return normalizeCockpitBoard({
+        sections,
+        cards,
+        labelCatalog,
+        deletedLabelCatalogKeys,
+        flagCatalog,
+        deletedFlagCatalogKeys,
+        deletedCardIds,
+        filters,
+      });
+    } finally {
+      db.close();
     }
-
-    return normalizeCockpitBoard({
-      sections,
-      cards,
-      labelCatalog,
-      deletedLabelCatalogKeys,
-      flagCatalog,
-      deletedFlagCatalogKeys,
-      deletedCardIds,
-      filters,
-    });
-  } finally {
-    db.close();
-  }
+  });
 }
 
 export async function syncWorkspaceSchedulerStateToSqlite(
@@ -1271,25 +1350,27 @@ export async function syncWorkspaceSchedulerStateToSqlite(
   config: Partial<SchedulerWorkspaceConfig>,
 ): Promise<Record<string, number>> {
   const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
-  const { db } = await openSqliteDatabase(databasePath);
-  const syncedAt = new Date().toISOString();
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    const syncedAt = new Date().toISOString();
 
-  try {
-    applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
-    const counts = replaceWorkspaceSchedulerState(db, config, syncedAt);
-    stampMetadata(db, {
-      workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
-      storage_scope: "workspace",
-      storage_mode: SQLITE_STORAGE_MODE,
-      workspace_root: workspaceRoot,
-      last_scheduler_sync_at: syncedAt,
-      last_scheduler_sync_counts: JSON.stringify(counts),
-    });
-    persistSqliteDatabase(databasePath, db);
-    return counts;
-  } finally {
-    db.close();
-  }
+    try {
+      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      const counts = replaceWorkspaceSchedulerState(db, config, syncedAt);
+      stampMetadata(db, {
+        workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        storage_scope: "workspace",
+        storage_mode: SQLITE_STORAGE_MODE,
+        workspace_root: workspaceRoot,
+        last_scheduler_sync_at: syncedAt,
+        last_scheduler_sync_counts: JSON.stringify(counts),
+      });
+      persistSqliteDatabase(databasePath, db);
+      return counts;
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function syncGlobalTasksToSqlite(
@@ -1297,25 +1378,27 @@ export async function syncGlobalTasksToSqlite(
   tasks: readonly unknown[],
 ): Promise<Record<string, number>> {
   const { databasePath } = getGlobalStoragePaths(globalStorageRoot);
-  const { db } = await openSqliteDatabase(databasePath);
-  const syncedAt = new Date().toISOString();
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    const syncedAt = new Date().toISOString();
 
-  try {
-    applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
-    const counts = replaceGlobalTasksState(db, tasks, syncedAt);
-    stampMetadata(db, {
-      global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
-      storage_scope: "global",
-      storage_mode: SQLITE_STORAGE_MODE,
-      global_storage_root: globalStorageRoot,
-      last_global_task_sync_at: syncedAt,
-      last_global_task_sync_counts: JSON.stringify(counts),
-    });
-    persistSqliteDatabase(databasePath, db);
-    return counts;
-  } finally {
-    db.close();
-  }
+    try {
+      applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
+      const counts = replaceGlobalTasksState(db, tasks, syncedAt);
+      stampMetadata(db, {
+        global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
+        storage_scope: "global",
+        storage_mode: SQLITE_STORAGE_MODE,
+        global_storage_root: globalStorageRoot,
+        last_global_task_sync_at: syncedAt,
+        last_global_task_sync_counts: JSON.stringify(counts),
+      });
+      persistSqliteDatabase(databasePath, db);
+      return counts;
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function syncWorkspaceResearchStateToSqlite(
@@ -1323,25 +1406,27 @@ export async function syncWorkspaceResearchStateToSqlite(
   config: Partial<ResearchWorkspaceConfig>,
 ): Promise<Record<string, number>> {
   const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
-  const { db } = await openSqliteDatabase(databasePath);
-  const syncedAt = new Date().toISOString();
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    const syncedAt = new Date().toISOString();
 
-  try {
-    applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
-    const counts = replaceWorkspaceResearchState(db, config, syncedAt);
-    stampMetadata(db, {
-      workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
-      storage_scope: "workspace",
-      storage_mode: SQLITE_STORAGE_MODE,
-      workspace_root: workspaceRoot,
-      last_research_sync_at: syncedAt,
-      last_research_sync_counts: JSON.stringify(counts),
-    });
-    persistSqliteDatabase(databasePath, db);
-    return counts;
-  } finally {
-    db.close();
-  }
+    try {
+      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      const counts = replaceWorkspaceResearchState(db, config, syncedAt);
+      stampMetadata(db, {
+        workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        storage_scope: "workspace",
+        storage_mode: SQLITE_STORAGE_MODE,
+        workspace_root: workspaceRoot,
+        last_research_sync_at: syncedAt,
+        last_research_sync_counts: JSON.stringify(counts),
+      });
+      persistSqliteDatabase(databasePath, db);
+      return counts;
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function syncWorkspaceCockpitBoardToSqlite(
@@ -1349,25 +1434,27 @@ export async function syncWorkspaceCockpitBoardToSqlite(
   board: SchedulerWorkspaceConfig["cockpitBoard"],
 ): Promise<Record<string, number>> {
   const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
-  const { db } = await openSqliteDatabase(databasePath);
-  const syncedAt = new Date().toISOString();
+  return withSerializedSqliteAccess(databasePath, async () => {
+    const { db } = await openSqliteDatabase(databasePath);
+    const syncedAt = new Date().toISOString();
 
-  try {
-    applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
-    const counts = replaceWorkspaceCockpitState(db, board, syncedAt);
-    stampMetadata(db, {
-      workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
-      storage_scope: "workspace",
-      storage_mode: SQLITE_STORAGE_MODE,
-      workspace_root: workspaceRoot,
-      last_cockpit_sync_at: syncedAt,
-      last_cockpit_sync_counts: JSON.stringify(counts),
-    });
-    persistSqliteDatabase(databasePath, db);
-    return counts;
-  } finally {
-    db.close();
-  }
+    try {
+      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      const counts = replaceWorkspaceCockpitState(db, board, syncedAt);
+      stampMetadata(db, {
+        workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        storage_scope: "workspace",
+        storage_mode: SQLITE_STORAGE_MODE,
+        workspace_root: workspaceRoot,
+        last_cockpit_sync_at: syncedAt,
+        last_cockpit_sync_counts: JSON.stringify(counts),
+      });
+      persistSqliteDatabase(databasePath, db);
+      return counts;
+    } finally {
+      db.close();
+    }
+  });
 }
 
 export async function exportWorkspaceSqliteToJsonMirrors(

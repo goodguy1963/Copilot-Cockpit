@@ -577,6 +577,7 @@ export function buildSchedulerWebviewStrings(
     boardDeleteTodoCancel: localize("Cancel", "キャンセル", "Abbrechen"),
     boardFinalizeTodoYes: localize("Yes", "はい", "Ja"),
     boardFinalizeTodoNo: localize("No", "いいえ", "Nein"),
+    boardApprovePrompt: localize("Mark this todo ready for task draft creation?", "この Todo を task draft 作成準備済みにしますか？", "Dieses Todo für die Erstellung eines Task-Entwurfs als bereit markieren?"),
     boardFinalizePrompt: localize("Archive this todo as completed successfully?", "この Todo を正常完了としてアーカイブしますか？", "Dieses Todo als erfolgreich abgeschlossen archivieren?"),
     boardDescriptionLabel: localize("Description", "説明", "Beschreibung"),
     boardConfirmAction: localize("Confirm", "確認", "Bestätigen"),

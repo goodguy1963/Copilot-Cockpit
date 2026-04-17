@@ -190,6 +190,59 @@ suite("Cockpit Board Manager Tests", () => {
     assert.strictEqual(result.board.cards[0]?.id, "todo-1");
   });
 
+  test("finalizing a linked ready todo stays archived after task reconciliation refresh", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-linked-finalize",
+      title: "Ship linked change",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "high",
+      status: "active",
+      labels: [],
+      flags: ["ready"],
+      comments: [],
+      taskId: "task-draft",
+      taskSnapshot: {
+        name: "Task draft",
+        description: "Execute the linked work",
+        cronExpression: "0 9 * * 1-5",
+        enabled: false,
+        oneTime: true,
+        labels: [],
+        promptHash: "1:1",
+      },
+      approvedAt: "2026-03-28T10:05:00.000Z",
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:05:00.000Z",
+    });
+
+    const finalized = finalizeTodoInBoard(board, "todo-linked-finalize");
+    const refreshed = ensureTaskTodosInBoard(finalized.board, [{
+      id: "task-draft",
+      name: "Task draft",
+      description: "Execute the linked work",
+      cronExpression: "0 9 * * 1-5",
+      prompt: "Do the linked work",
+      enabled: false,
+      oneTime: true,
+      scope: "workspace",
+      promptSource: "inline",
+      createdAt: new Date("2026-03-28T10:00:00.000Z"),
+      updatedAt: new Date("2026-03-28T10:06:00.000Z"),
+    }]);
+    const archived = refreshed.board.cards.find((card) => card.id === "todo-linked-finalize");
+
+    assert.ok(archived);
+    assert.strictEqual(archived?.sectionId, DEFAULT_ARCHIVE_COMPLETED_SECTION_ID);
+    assert.strictEqual(archived?.status, "completed");
+    assert.strictEqual(archived?.archived, true);
+    assert.strictEqual(archived?.archiveOutcome, "completed-successfully");
+    assert.strictEqual(archived?.taskId, undefined);
+    assert.deepStrictEqual(archived?.flags, []);
+  });
+
   test("deleting a todo archives it into the rejected archive section", () => {
     const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
     board.cards.push({

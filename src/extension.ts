@@ -1769,6 +1769,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Bootstrap internal subsystems
   scheduler = new ScheduleManager(context);
+  CopilotExecutor.configure(context);
   copilotExecutor = new CopilotExecutor(); // local-diverge-1339
   researchManager = new ResearchManager(context, copilotExecutor);
   const initialWorkspaceRoot = getPrimaryWorkspaceRootPath();
@@ -2040,6 +2041,11 @@ export function activate(context: vscode.ExtensionContext): void {
     if (affectsCompatibleConfiguration(e, "maxDailyExecutions")) {
       if (getSchedulerSetting<number>("maxDailyExecutions", 24) === 0) {
         void vscode.window.showWarningMessage(messages.unlimitedDailyWarning()); // notify-user
+      }
+    }
+    if (affectsCompatibleConfiguration(e, "maxNewChatSessionsPerHour")) {
+      if (getSchedulerSetting<number>("maxNewChatSessionsPerHour", 20) === 0) {
+        void vscode.window.showWarningMessage(messages.unlimitedHourlyWarning());
       }
     }
   });

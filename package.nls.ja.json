@@ -51,6 +51,7 @@
   "config.defaultScope.workspace": "ワークスペース — このワークスペースでのみ使用",
   "config.jitterSeconds": "タスク開始前に追加する最大ランダム遅延（秒単位、0で無効）。タスク個別に上書きできます。",
   "config.maxDailyExecutions": "全タスク合計の1日あたり実行上限（0=制限なし、範囲: 1〜100）。⚠️ 制限なしだとAPIレート制限に抵触するおそれがあります。",
+  "config.maxNewChatSessionsPerHour": "新しく作成するチャットセッション数の1時間あたり上限（0=制限なし、範囲: 1〜100）。継続モードの実行は数えません。",
   "config.minimumIntervalWarning": "cron 式の実行間隔が30分未満のときに警告を出す",
   "config.globalPromptsPath": "グローバルプロンプトテンプレートのパスを上書き。空欄なら VS Code 既定の User/prompts を使用（Win: %APPDATA%/Code/User/prompts, Mac: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts or ~/.config/Code/User/prompts）",
   "config.globalAgentsPath": "グローバルエージェント定義（*.agent.md）のパスを上書き。空欄なら VS Code 既定の User/prompts を使用（Win: %APPDATA%/Code/User/prompts, Mac: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts or ~/.config/Code/User/prompts）",

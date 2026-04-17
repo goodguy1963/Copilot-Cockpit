@@ -52,6 +52,30 @@ type PreparedExecution = {
   mustStartFresh: boolean;
 };
 
+type HourlySessionBucket = {
+  hourStartIso: string;
+  count: number;
+};
+
+class PromptExecutionRateLimitError extends Error {
+  constructor() {
+    super("Prompt execution rate limit reached: no more than 5 prompt executions can begin within one minute.");
+    this.name = "PromptExecutionRateLimitError";
+  }
+}
+
+class HourlyChatSessionCapError extends Error {
+  constructor() {
+    super(messages.hourlySessionCapReached());
+    this.name = "HourlyChatSessionCapError";
+  }
+}
+
+const HOURLY_CHAT_SESSION_BUCKET_KEY = "copilotExecutor.hourlyNewChatSessionBucket";
+const PROMPT_EXECUTION_START_WINDOW_KEY = "copilotExecutor.promptExecutionStarts";
+const PROMPT_EXECUTION_LIMIT = 5;
+const PROMPT_EXECUTION_WINDOW_MS = 60 * 1000;
+
 function sanitizeErrorText(error: unknown): string {
   const plainText = error instanceof Error ? error.message : String(error ?? "");
   return sanitizeAbsolutePathDetails(plainText) || plainText;
@@ -325,6 +349,13 @@ async function offerPromptCopy(query: string): Promise<void> {
 }
 
 export class CopilotExecutor {
+  private static extensionContext: vscode.ExtensionContext | undefined;
+  private static recentPromptExecutionStarts: number[] = [];
+
+  static configure(context?: vscode.ExtensionContext): void {
+    CopilotExecutor.extensionContext = context;
+  }
+
   private prepareExecution(prompt: string, options?: ExecuteOptions): PreparedExecution {
     const expandedPrompt = this.expandPromptDirectives(prompt);
     const { mode, query } = getExecutionMode(expandedPrompt, options);
@@ -396,23 +427,32 @@ export class CopilotExecutor {
     await this.delay(DELAY_AFTER_FOCUS_MS);
     const submitted = await this.executeFirstAvailableCommand(CHAT_SUBMIT_COMMANDS);
     if (!submitted) {
-      logDebug("[CopilotScheduler] Chat open succeeded, but submit command was unavailable.");
+      throw new Error("Unable to submit prompt: chat submit command unavailable");
     }
   }
 
   private async ensureFreshChat(modelId: string): Promise<string> {
+    this.ensureHourlyChatSessionCapacity();
+
     const created = await this.tryCreateNewChatSession();
-    if (created || !modelId) {
-      return modelId;
+    if (!created) {
+      if (!modelId) {
+        return modelId;
+      }
+
+      logDebug(
+        `[CopilotScheduler] Unable to create a fresh chat session for model '${modelId}'. Continuing without guaranteed model selection.`,
+      );
+      return "";
     }
 
-    logDebug(
-      `[CopilotScheduler] Unable to create a fresh chat session for model '${modelId}'. Continuing without guaranteed model selection.`,
-    );
-    return "";
+    await this.recordHourlyChatSession();
+    return modelId;
   }
 
   async executePrompt(prompt: string, options?: ExecuteOptions): Promise<void> { // entry-point
+    await this.recordPromptExecutionStart();
+
     const execution = this.prepareExecution(prompt, options);
     const { preferredMode, query } = execution;
     let selectedModel = execution.requestedModel;
@@ -445,9 +485,110 @@ export class CopilotExecutor {
 
       await this.submitOpenedChat();
     } catch (error) {
+      if (
+        error instanceof HourlyChatSessionCapError
+        || error instanceof PromptExecutionRateLimitError
+      ) {
+        throw error;
+      }
+
       await offerPromptCopy(query);
       throw error;
     }
+  }
+
+  private readPromptExecutionStarts(now = Date.now()): number[] {
+    const stored = CopilotExecutor.extensionContext?.globalState.get<number[]>(
+      PROMPT_EXECUTION_START_WINDOW_KEY,
+    );
+    const source = Array.isArray(stored)
+      ? stored
+      : CopilotExecutor.recentPromptExecutionStarts;
+
+    return source.filter((timestamp) =>
+      Number.isFinite(timestamp)
+      && timestamp <= now
+      && now - timestamp < PROMPT_EXECUTION_WINDOW_MS,
+    );
+  }
+
+  private async recordPromptExecutionStart(now = Date.now()): Promise<void> {
+    const recentStarts = this.readPromptExecutionStarts(now);
+    if (recentStarts.length >= PROMPT_EXECUTION_LIMIT) {
+      const message = "Prompt execution rate limit reached: no more than 5 prompt executions can begin within one minute.";
+      void vscode.window.showWarningMessage(message);
+      throw new PromptExecutionRateLimitError();
+    }
+
+    const nextStarts = [...recentStarts, now];
+    CopilotExecutor.recentPromptExecutionStarts = nextStarts;
+    await CopilotExecutor.extensionContext?.globalState.update(
+      PROMPT_EXECUTION_START_WINDOW_KEY,
+      nextStarts,
+    );
+  }
+
+  private getHourlyChatSessionCap(): number {
+    return getCompatibleConfigurationValue<number>("maxNewChatSessionsPerHour", 20);
+  }
+
+  private getHourlyBucketHourStart(now: Date): string {
+    return new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours(),
+      0,
+      0,
+      0,
+    ).toISOString();
+  }
+
+  private readHourlyChatSessionBucket(now: Date): HourlySessionBucket {
+    const defaultBucket: HourlySessionBucket = {
+      hourStartIso: this.getHourlyBucketHourStart(now),
+      count: 0,
+    };
+    const stored = CopilotExecutor.extensionContext?.globalState.get<HourlySessionBucket>(
+      HOURLY_CHAT_SESSION_BUCKET_KEY,
+    );
+
+    if (!stored || stored.hourStartIso !== defaultBucket.hourStartIso) {
+      return defaultBucket;
+    }
+
+    return stored;
+  }
+
+  private ensureHourlyChatSessionCapacity(now = new Date()): void {
+    const limit = this.getHourlyChatSessionCap();
+    if (limit === 0) {
+      return;
+    }
+
+    const bucket = this.readHourlyChatSessionBucket(now);
+    if (bucket.count >= limit) {
+      void vscode.window.showWarningMessage(messages.hourlySessionCapReached());
+      throw new HourlyChatSessionCapError();
+    }
+  }
+
+  private async recordHourlyChatSession(now = new Date()): Promise<void> {
+    const limit = this.getHourlyChatSessionCap();
+    if (limit === 0) {
+      return;
+    }
+
+    const bucket = this.readHourlyChatSessionBucket(now);
+
+    const nextBucket: HourlySessionBucket = {
+      ...bucket,
+      count: bucket.count + 1,
+    };
+    await CopilotExecutor.extensionContext?.globalState.update(
+      HOURLY_CHAT_SESSION_BUCKET_KEY,
+      nextBucket,
+    );
   }
 
   private async tryCreateNewChatSession(): Promise<boolean> {

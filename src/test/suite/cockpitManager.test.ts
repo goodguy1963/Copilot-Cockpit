@@ -162,6 +162,40 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     }
   });
 
+  test("duplicates a local template task when the stored fallback prompt is empty", async () => {
+    const storageRoot = createTempDir("copilot-scheduler-template-task-duplicate-");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Template task",
+        cronExpression: "0 * * * *",
+        prompt: "stored fallback prompt",
+        enabled: false,
+        scope: "global",
+        promptSource: "local",
+        promptPath: ".github/prompts/template.md",
+      });
+
+      const cleared = await manager.updateTask(task.id, {
+        prompt: "",
+        promptSource: "local",
+        promptPath: ".github/prompts/template.md",
+      });
+      const duplicate = await manager.duplicateTask(task.id);
+
+      assert.strictEqual(cleared?.prompt, "");
+      assert.ok(duplicate);
+      assert.notStrictEqual(duplicate?.id, task.id);
+      assert.strictEqual(duplicate?.name, `Template task ${messages.taskCopySuffix()}`);
+      assert.strictEqual(duplicate?.prompt, "");
+      assert.strictEqual(duplicate?.promptSource, "local");
+      assert.strictEqual(duplicate?.promptPath, ".github/prompts/template.md");
+    } finally {
+      removeTestPath(storageRoot);
+    }
+  });
+
   test("persists manualSession separately from recurring and clears it for one-time tasks", async () => {
     const workspaceRoot = createTempDir("copilot-scheduler-manual-session-workspace-");
     const storageRoot = createTempDir("copilot-scheduler-manual-session-storage-");
@@ -387,6 +421,56 @@ suite("ScheduleManager Jobs Tests", () => {
         manager.getAllTasks().some((task) => task.id === step?.id),
         false,
       );
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("deleteTask restores task and job state when persist fails", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-delete-rollback-ws-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-delete-rollback-storage-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const manager = new ScheduleManager(createMockContext(storageRoot));
+
+    try {
+      const job = await manager.createJob({
+        name: "Rollback flow",
+        cronExpression: "0 10 * * *",
+      });
+      const step = await manager.createTaskInJob(job.id, {
+        name: "Rollback step",
+        cronExpression: "0 10 * * *",
+        prompt: "Keep task state intact on failed delete.",
+        enabled: true,
+        scope: "workspace",
+      });
+
+      assert.ok(step);
+
+      const originalTask = structuredClone(manager.getTask(step?.id || ""));
+      const originalJob = structuredClone(manager.getJob(job.id));
+      const persistFailure = new Error("persist failed");
+
+      (
+        manager as unknown as {
+          persistTasks: () => Promise<void>;
+        }
+      ).persistTasks = async () => {
+        throw persistFailure;
+      };
+
+      await assert.rejects(
+        () => manager.deleteTask(step?.id || ""),
+        (error: unknown) => error === persistFailure,
+      );
+
+      assert.deepStrictEqual(manager.getTask(step?.id || ""), originalTask);
+      assert.deepStrictEqual(manager.getJob(job.id), originalJob);
     } finally {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);
@@ -1437,6 +1521,119 @@ suite("ScheduleManager Overdue Task Tests", () => {
 
       assert.strictEqual(manager.getTask(taskId), undefined);
       assert.deepStrictEqual(manager.getAllTasks().map((task) => task.id), []);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("executeDueTask skips a task that is already in flight", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-execute-due-in-flight-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-execute-due-in-flight-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const now = new Date("2026-03-23T10:20:00.000Z");
+    let executeCount = 0;
+    let releaseExecution: (() => void) | undefined;
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const waitForRelease = new Promise<void>((resolve) => {
+      releaseExecution = resolve;
+    });
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "In-flight due task",
+        cronExpression: "*/5 * * * *",
+        prompt: "run once",
+        enabled: true,
+        scope: "workspace",
+      });
+      const liveTask = manager.getTask(task.id);
+      assert.ok(liveTask);
+      liveTask!.nextRun = new Date("2026-03-23T10:20:00.000Z");
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+        markStarted?.();
+        await waitForRelease;
+      });
+
+      const executeDueTask = (manager as unknown as {
+        executeDueTask: (
+          taskArg: typeof liveTask,
+          taskNow: Date,
+          nowMinute: Date,
+          maxDailyLimit: number,
+          defaultJitterSeconds: number,
+        ) => Promise<{ executedCount: number; pendingWrite: boolean; deleteTask: boolean }>;
+      }).executeDueTask.bind(manager);
+
+      const firstOutcomePromise = executeDueTask(liveTask, now, now, 0, 0);
+      await started;
+      const secondOutcome = await executeDueTask(liveTask, now, now, 0, 0);
+      releaseExecution?.();
+      const firstOutcome = await firstOutcomePromise;
+
+      assert.strictEqual(executeCount, 1);
+      assert.strictEqual(firstOutcome.executedCount, 1);
+      assert.strictEqual(secondOutcome.executedCount, 0);
+      assert.strictEqual(secondOutcome.pendingWrite, false);
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("runTaskNow skips a task that is already executing", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-run-now-in-flight-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-run-now-in-flight-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    let executeCount = 0;
+    let releaseExecution: (() => void) | undefined;
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const waitForRelease = new Promise<void>((resolve) => {
+      releaseExecution = resolve;
+    });
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Manual in-flight task",
+        cronExpression: "0 * * * *",
+        prompt: "run now",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+        markStarted?.();
+        await waitForRelease;
+      });
+
+      const firstRunPromise = manager.runTaskNow(task.id);
+      await started;
+      const secondRun = await manager.runTaskNow(task.id);
+      releaseExecution?.();
+      const firstRun = await firstRunPromise;
+
+      assert.strictEqual(executeCount, 1);
+      assert.strictEqual(firstRun, true);
+      assert.strictEqual(secondRun, false);
     } finally {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);

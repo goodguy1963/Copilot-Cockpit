@@ -29,6 +29,21 @@ AGENTS.md
 !.github/prompts/**
 !.github/skills/
 !.github/skills/**
+.artifacts/**
+compile.log
+compile*.log
+patch.diff
+plan.md
+test.js
+test.txt
+test_output.log
+test_output.txt
+test_output*.log
+test_output*.txt
+ts_errors.log
+ts_errors.txt
+ts_errors*.log
+ts_errors*.txt
 
 # Dev-only artifacts
 output_sessions/**

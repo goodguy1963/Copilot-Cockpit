@@ -357,6 +357,17 @@ const generalMessageEntries = {
   unlimitedDailyWarning: [
     "⚠️ Daily execution limit is set to unlimited (0). Excessive automated usage may result in API rate-limiting or account restrictions by the provider. Use at your own risk.",
     "⚠️ 1日の実行回数上限が無制限（0）に設定されています。過度な自動利用はAPIプロバイダーによるレート制限やアカウント制限の原因となる可能性があります。自己責任でご利用ください。",
+    "⚠️ Das tägliche Ausführungslimit ist auf unbegrenzt (0) gesetzt. Übermäßige automatisierte Nutzung kann zu Ratenbegrenzungen oder Kontobeschränkungen durch den Anbieter führen. Nutzung auf eigenes Risiko.",
+  ],
+  unlimitedHourlyWarning: [
+    "⚠️ Hourly new chat session limit is set to unlimited (0). Excessive fresh-session automation may result in rate-limiting or account restrictions by the provider. Use at your own risk.",
+    "⚠️ 1時間あたりの新規チャットセッション上限が無制限（0）に設定されています。新規セッションの過度な自動化は、プロバイダーによるレート制限やアカウント制限の原因となる可能性があります。自己責任でご利用ください。",
+    "⚠️ Das stündliche Limit für neue Chat-Sitzungen ist auf unbegrenzt (0) gesetzt. Übermäßige Automatisierung frischer Sitzungen kann zu Ratenbegrenzungen oder Kontobeschränkungen durch den Anbieter führen. Nutzung auf eigenes Risiko.",
+  ],
+  hourlySessionCapReached: [
+    "Hourly new chat session limit reached. No more fresh chat sessions will be created this hour. You can increase this limit in settings.",
+    "1時間あたりの新規チャットセッション上限に達しました。この時間帯はこれ以上新しいチャットセッションを作成しません。設定で上限を変更できます。",
+    "Das stündliche Limit für neue Chat-Sitzungen wurde erreicht. In dieser Stunde werden keine weiteren neuen Chat-Sitzungen erstellt. Sie können das Limit in den Einstellungen erhöhen.",
   ],
   moveOnlyWorkspaceTasks: [
     "Only workspace-scoped tasks can be moved",
@@ -1313,7 +1324,11 @@ export const messages = {
     disclaimerAccept: schedulerUiMessageEntries.disclaimerAccept,
     disclaimerDecline: schedulerUiMessageEntries.disclaimerDecline,
   }),
-  ...buildStaticMessageMap({ unlimitedDailyWarning: generalMessageEntries.unlimitedDailyWarning }),
+  ...buildStaticMessageMap({
+    unlimitedDailyWarning: generalMessageEntries.unlimitedDailyWarning,
+    unlimitedHourlyWarning: generalMessageEntries.unlimitedHourlyWarning,
+    hourlySessionCapReached: generalMessageEntries.hourlySessionCapReached,
+  }),
 };
 
 export function getCronPresets(): CronPreset[] {

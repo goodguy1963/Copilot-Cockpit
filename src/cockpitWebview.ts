@@ -45,6 +45,7 @@ import {
   createUpdateCockpitBoardMessage,
   handleTodoCockpitWebviewMessage,
 } from "./cockpitWebviewCockpitBridge";
+import { handleTodoDialogWebviewMessage } from "./cockpitWebviewTodoDialogs";
 import {
   createShowErrorMessage,
   createUpdateExecutionDefaultsMessage,
@@ -653,6 +654,14 @@ export class SchedulerWebview {
   }
 
   private static async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
+    if (await handleTodoDialogWebviewMessage(message, {
+      currentCockpitBoard: this.currentCockpitBoard,
+      onTaskActionCallback: this.onTaskActionCallback,
+      strings: buildSchedulerWebviewStrings(getCurrentLanguage()),
+    })) {
+      return;
+    }
+
     // Delegate to extracted tab handlers (order matches original precedence)
     if (handleTodoCockpitWebviewMessage(message, this.onTaskActionCallback)) {
       return;

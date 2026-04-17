@@ -1678,8 +1678,10 @@ type TodoBoardMessage =
   | { type: "updateTodo"; todoId: string; data: UpdateCockpitTodoInput }
   | { type: "deleteTodo"; todoId: string }
   | { type: "purgeTodo"; todoId: string }
+  | { type: "requestApproveTodo"; todoId: string }
   | { type: "approveTodo"; todoId: string }
   | { type: "rejectTodo"; todoId: string }
+  | { type: "requestFinalizeTodo"; todoId: string }
   | { type: "finalizeTodo"; todoId: string }
   | { type: "archiveTodo"; todoId: string; archived?: boolean }
   | { type: "moveTodo"; todoId: string; sectionId?: string; targetIndex: number }

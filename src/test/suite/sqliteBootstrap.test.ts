@@ -21,6 +21,11 @@ import {
   getWorkspaceStoragePaths,
 } from "../../sqliteStorage";
 
+const mutableFs = fs as {
+  writeFileSync: typeof fs.writeFileSync;
+  renameSync: typeof fs.renameSync;
+};
+
 type SqlJsDatabase = {
   exec: (sql: string) => Array<{ values?: unknown[][] }>;
   close: () => void;
@@ -297,6 +302,48 @@ suite("SQLite Bootstrap Tests", () => {
       assert.strictEqual(board?.flagCatalog?.[0]?.name, "new");
       assert.deepStrictEqual(board?.deletedCardIds ?? [], ["card-deleted"]);
     } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("sync writes sqlite databases through a temp-file rename instead of overwriting in place", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-atomic-write-");
+    const paths = getWorkspaceStoragePaths(workspaceRoot);
+    const originalWriteFileSync = fs.writeFileSync;
+    const originalRenameSync = fs.renameSync;
+    const writeTargets: string[] = [];
+    const renameTargets: Array<{ from: string; to: string }> = [];
+
+    mutableFs.writeFileSync = ((...args: Parameters<typeof fs.writeFileSync>) => {
+      writeTargets.push(String(args[0]));
+      return originalWriteFileSync(...args);
+    }) as typeof fs.writeFileSync;
+    mutableFs.renameSync = ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+      renameTargets.push({ from: String(oldPath), to: String(newPath) });
+      return originalRenameSync(oldPath, newPath);
+    }) as typeof fs.renameSync;
+
+    try {
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      assert.ok(fs.existsSync(paths.databasePath));
+      assert.strictEqual(writeTargets.includes(paths.databasePath), false);
+      assert.ok(
+        writeTargets.some((target) => target.startsWith(`${paths.databasePath}.`) && target.endsWith(".tmp")),
+      );
+      assert.ok(
+        renameTargets.some(({ from, to }) => from.startsWith(`${paths.databasePath}.`) && from.endsWith(".tmp") && to === paths.databasePath),
+      );
+    } finally {
+      mutableFs.writeFileSync = originalWriteFileSync;
+      mutableFs.renameSync = originalRenameSync;
       cleanup(workspaceRoot);
     }
   });

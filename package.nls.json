@@ -51,6 +51,7 @@
   "config.defaultScope.workspace": "Workspace — visible in this workspace only",
   "config.jitterSeconds": "Max random delay (seconds) added before a task starts (0 disables jitter). Individual tasks may override.",
   "config.maxDailyExecutions": "Daily execution cap across all tasks (0 = no limit, range 1–100). ⚠️ Removing the cap may trigger API rate limits.",
+  "config.maxNewChatSessionsPerHour": "Hourly cap on newly created chat sessions across all runs (0 = no limit, range 1–100). Continue-mode runs do not count.",
   "config.minimumIntervalWarning": "Warn when a cron expression resolves to an interval under 30 minutes",
   "config.globalPromptsPath": "Override path for global prompt templates. Leave blank to use the VS Code default: User/prompts (Win: %APPDATA%/Code/User/prompts, Mac: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts or ~/.config/Code/User/prompts)",
   "config.globalAgentsPath": "Override path for global agent definitions (*.agent.md). Leave blank to use the VS Code default: User/prompts (Win: %APPDATA%/Code/User/prompts, Mac: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts or ~/.config/Code/User/prompts)",

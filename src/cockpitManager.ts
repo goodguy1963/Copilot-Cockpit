@@ -170,6 +170,13 @@ type JobPauseResolution = {
   previousTaskId?: string;
 };
 
+type DeleteTaskStateSnapshot = {
+  taskRegistry: Map<string, ScheduledTask>;
+  jobs: Map<string, JobDefinition>;
+  suppressedOverdueTaskIds: Set<string>;
+  pendingDeletedTaskIds: Set<string>;
+};
+
 /**
  * Central manager for task lifecycle: create, read, update, delete, cron evaluation, and storage
  */
@@ -190,6 +197,7 @@ export class ScheduleManager {
   private schedulerTimer?: ReturnType<typeof setTimeout>;
   private tickCycleRunning = false;
   private tickCycleQueued = false;
+  private activeTaskExecutionIds: Set<string> = new Set();
   private onTasksChangedCallback?: () => void;
   private taskRunCallback?: (task: ScheduledTask) => Promise<void>;
   private todayRunCount = 0;
@@ -1349,6 +1357,26 @@ export class ScheduleManager {
     this.suppressedOverdueTaskIds.delete(taskId);
   }
 
+  private snapshotDeleteTaskState(): DeleteTaskStateSnapshot {
+    return {
+      taskRegistry: new Map(
+        [...this.taskRegistry.entries()].map(([taskId, task]) => [taskId, structuredClone(task)]),
+      ),
+      jobs: new Map(
+        [...this.jobs.entries()].map(([jobId, job]) => [jobId, structuredClone(job)]),
+      ),
+      suppressedOverdueTaskIds: new Set(this.suppressedOverdueTaskIds),
+      pendingDeletedTaskIds: new Set(this.pendingDeletedTaskIds),
+    };
+  }
+
+  private restoreDeleteTaskState(snapshot: DeleteTaskStateSnapshot): void {
+    this.taskRegistry = snapshot.taskRegistry;
+    this.jobs = snapshot.jobs;
+    this.suppressedOverdueTaskIds = snapshot.suppressedOverdueTaskIds;
+    this.pendingDeletedTaskIds = snapshot.pendingDeletedTaskIds;
+  }
+
   private updateTaskWorkspacePath(
     task: ScheduledTask,
     workspacePath: string,
@@ -1504,6 +1532,19 @@ export class ScheduleManager {
     return this.suppressedOverdueTaskIds.has(task.id);
   }
 
+  private tryBeginTaskExecution(taskId: string): boolean {
+    if (this.activeTaskExecutionIds.has(taskId)) {
+      return false;
+    }
+
+    this.activeTaskExecutionIds.add(taskId);
+    return true;
+  }
+
+  private finishTaskExecution(taskId: string): void {
+    this.activeTaskExecutionIds.delete(taskId);
+  }
+
   private async executeDueTask(
     task: ScheduledTask,
     now: Date,
@@ -1519,21 +1560,29 @@ export class ScheduleManager {
       return this.buildDailyLimitSkipOutcome(task, maxDailyLimit, now);
     }
 
-    const appliedJitter = (task.jitterSeconds ?? defaultJitterSeconds); // jitter-window
-    await applyScheduleJitter(appliedJitter);
-
-    const executeTask = this.taskRunCallback;
-    if (executeTask) {
-      try {
-        await executeTask(task);
-        return this.handleSuccessfulTaskExecution(task, new Date());
-      } catch (error) {
-        return this.handleFailedTaskExecution(task, error, now);
-      }
+    if (!this.tryBeginTaskExecution(task.id)) {
+      return { executedCount: 0, pendingWrite: false, deleteTask: false };
     }
 
-    task.nextRun = this.floorToMinute(new Date(now.getTime() + 60 * 1000));
-    return this.buildTaskExecutionRetryOutcome();
+    try {
+      const appliedJitter = (task.jitterSeconds ?? defaultJitterSeconds); // jitter-window
+      await applyScheduleJitter(appliedJitter);
+
+      const executeTask = this.taskRunCallback;
+      if (executeTask) {
+        try {
+          await executeTask(task);
+          return this.handleSuccessfulTaskExecution(task, new Date());
+        } catch (error) {
+          return this.handleFailedTaskExecution(task, error, now);
+        }
+      }
+
+      task.nextRun = this.floorToMinute(new Date(now.getTime() + 60 * 1000));
+      return this.buildTaskExecutionRetryOutcome();
+    } finally {
+      this.finishTaskExecution(task.id);
+    }
   }
 
   private applyScheduledTaskDeletions(taskIds: readonly string[]): void {
@@ -1892,8 +1941,11 @@ export class ScheduleManager {
   async createTask(input: CreateTaskInput): Promise<ScheduledTask> { // public-api
     const trimmedName = input.name?.trim();
     const trimmedPrompt = input.prompt?.trim();
+    const promptSource = input.promptSource ?? "inline";
     if (!trimmedName) throw new Error(messages.taskNameRequired());
-    if (!trimmedPrompt) throw new Error(messages.promptRequired());
+    if (promptSource === "inline" && !trimmedPrompt) {
+      throw new Error(messages.promptRequired());
+    }
     this.assertValidCron(input.cronExpression);
 
     const now = new Date();
@@ -2838,8 +2890,15 @@ export class ScheduleManager {
   }
 
   async deleteTask(id: string): Promise<boolean> { // public-api
-    this.unlinkTaskFromOwningJob(id);
-    return this.deleteTaskAndPersist(id);
+    const snapshot = this.snapshotDeleteTaskState();
+
+    try {
+      this.unlinkTaskFromOwningJob(id);
+      return await this.deleteTaskAndPersist(id);
+    } catch (error) {
+      this.restoreDeleteTaskState(snapshot);
+      throw error;
+    }
   }
 
   async toggleTask(id: string): Promise<ScheduledTask | undefined> { // public-api
@@ -3037,6 +3096,10 @@ export class ScheduleManager {
       return false;
     }
 
+    if (!this.tryBeginTaskExecution(task.id)) {
+      return false;
+    }
+
     try {
       await this.taskRunCallback(task); // invoke
 
@@ -3067,6 +3130,8 @@ export class ScheduleManager {
       task.lastErrorAt = new Date();
       await this.persistTasks();
       return false;
+    } finally {
+      this.finishTaskExecution(task.id);
     }
   }
 

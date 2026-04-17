@@ -4,12 +4,14 @@
   handleBoardSectionCollapse,
   handleBoardSectionDelete,
   handleBoardSectionRename,
+  handleBoardTodoCompletionCancel,
   handleBoardTodoCompletion,
 } from "./cockpitWebviewBoardInteractions.js";
 import { createWebviewDebugTools } from "./cockpitWebviewDebug.js";
 import { renderTodoBoardMarkup } from "./cockpitWebviewBoardRendering.js";
 import {
   buildFriendlyCronExpression,
+  parseFriendlyCronExpression,
   summarizeCronExpression,
   syncFriendlyFieldVisibility,
 } from "./cockpitWebviewCronUtils.js";
@@ -245,6 +247,10 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var caseInsensitivePaths = initialState.caseInsensitivePaths;
   var editingTaskId = null;
   var selectedTodoId = null;
+  var TODO_COMPLETION_CONFIRM_TIMEOUT_MS = 30000;
+  var todoCompletionConfirmState = null;
+  var todoCompletionConfirmTimer = null;
+  var pendingGridTodoCompletions = {};
   var EDITOR_CREATE_SYMBOL = "+";
   var EDITOR_EDIT_SYMBOL = "\u2699";
   var boardRenderState = createBoardRenderState();
@@ -413,7 +419,6 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     friendlyHour,
     friendlyDow,
     friendlyDom,
-    friendlyGenerate,
     openGuruBtn,
     cronPreviewText,
     newTaskBtn,
@@ -513,7 +518,6 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     jobsFriendlyHour,
     jobsFriendlyDow,
     jobsFriendlyDom,
-    jobsFriendlyGenerate,
     jobsFolderSelect,
     jobsStatusPill,
     jobsTimelineInline,
@@ -2600,10 +2604,16 @@ syncTodoLabelSuggestions();
       handleTodoCompletion: function (completeToggle) {
         handleBoardTodoCompletion(completeToggle, {
           cockpitBoard: cockpitBoard,
-          document: document,
+          clearPendingGridTodoCompletion: clearPendingGridTodoCompletion,
+          isPendingGridTodoCompletion: hasPendingGridTodoCompletion,
+          startPendingGridTodoCompletion: startPendingGridTodoCompletion,
           strings: strings,
-          setTimeout: setTimeout,
           vscode: vscode,
+        });
+      },
+      handleTodoCompletionCancel: function (cancelBtn) {
+        handleBoardTodoCompletionCancel(cancelBtn, {
+          clearPendingGridTodoCompletion: clearPendingGridTodoCompletion,
         });
       },
       handleTodoReject: function (rejectBtn) {
@@ -3226,7 +3236,12 @@ syncTodoLabelSuggestions();
   }
 
   function isTodoReadyForFinalize(card) {
-    return !!(card && !card.archived && getTodoWorkflowFlag(card) === "final-user-check");
+    var workflowFlag = getTodoWorkflowFlag(card);
+    return !!(
+      card
+      && !card.archived
+      && (workflowFlag === "ready" || workflowFlag === "final-user-check")
+    );
   }
 
   function getTodoCompletionActionType(card) {
@@ -3247,12 +3262,119 @@ syncTodoLabelSuggestions();
     return strings.boardFinalizeTodoNo || "No";
   }
 
+  function clearTodoCompletionConfirmTimer() {
+    if (todoCompletionConfirmTimer) {
+      window.clearTimeout(todoCompletionConfirmTimer);
+      todoCompletionConfirmTimer = null;
+    }
+  }
+
+  function hasPendingGridTodoCompletion(todoId) {
+    return !!(todoId && Object.prototype.hasOwnProperty.call(pendingGridTodoCompletions, todoId));
+  }
+
+  function clearPendingGridTodoCompletion(todoId, skipRender) {
+    if (!hasPendingGridTodoCompletion(todoId)) {
+      return;
+    }
+    window.clearTimeout(pendingGridTodoCompletions[todoId]);
+    delete pendingGridTodoCompletions[todoId];
+    if (!skipRender) {
+      requestCockpitBoardRender();
+    }
+  }
+
+  function startPendingGridTodoCompletion(todoId) {
+    if (!todoId) {
+      return;
+    }
+    clearPendingGridTodoCompletion(todoId, true);
+    pendingGridTodoCompletions[todoId] = window.setTimeout(function () {
+      clearPendingGridTodoCompletion(todoId);
+    }, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);
+    requestCockpitBoardRender();
+  }
+
+  function reconcilePendingGridTodoCompletions(cards) {
+    var activeCardsById = {};
+    if (Array.isArray(cards)) {
+      cards.forEach(function (card) {
+        if (card && card.id && !card.archived) {
+          activeCardsById[card.id] = true;
+        }
+      });
+    }
+    Object.keys(pendingGridTodoCompletions).forEach(function (todoId) {
+      if (!activeCardsById[todoId]) {
+        clearPendingGridTodoCompletion(todoId, true);
+      }
+    });
+  }
+
+  function isTodoCompletionConfirmPending(card) {
+    return !!(card
+      && todoCompletionConfirmState
+      && todoCompletionConfirmState.todoId === card.id
+      && todoCompletionConfirmState.actionType === getTodoCompletionActionType(card));
+  }
+
+  function getTodoCompletionConfirmStepLabel(card) {
+    return (strings.boardConfirmAction || "Confirm") + " " + getTodoCompletionActionLabel(card);
+  }
+
+  function syncTodoCompletionButtonState() {
+    if (!todoCompleteBtn) {
+      return;
+    }
+    var selectedTodo = selectedTodoId ? findTodoById(selectedTodoId) : null;
+    var isEditingTodo = !!selectedTodo;
+    var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    var hasPendingConfirm = isTodoCompletionConfirmPending(selectedTodo);
+    if (todoCompletionConfirmState && !hasPendingConfirm) {
+      clearTodoCompletionConfirmTimer();
+      todoCompletionConfirmState = null;
+    }
+    var buttonLabel = isEditingTodo
+      ? getTodoCompletionActionLabel(selectedTodo)
+      : (strings.boardApproveTodo || "Approve");
+    if (hasPendingConfirm) {
+      buttonLabel = getTodoCompletionConfirmStepLabel(selectedTodo);
+    }
+    todoCompleteBtn.textContent = buttonLabel;
+    todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+    todoCompleteBtn.setAttribute("aria-label", buttonLabel);
+    todoCompleteBtn.setAttribute("title", buttonLabel);
+    todoCompleteBtn.setAttribute("data-confirm-state", hasPendingConfirm ? "pending" : "idle");
+  }
+
+  function resetTodoCompletionInlineConfirm() {
+    clearTodoCompletionConfirmTimer();
+    todoCompletionConfirmState = null;
+    syncTodoCompletionButtonState();
+  }
+
+  function startTodoCompletionInlineConfirm(card) {
+    if (!card || card.archived) {
+      return;
+    }
+    todoCompletionConfirmState = {
+      todoId: card.id,
+      actionType: getTodoCompletionActionType(card),
+    };
+    clearTodoCompletionConfirmTimer();
+    todoCompletionConfirmTimer = window.setTimeout(function () {
+      resetTodoCompletionInlineConfirm();
+    }, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);
+    syncTodoCompletionButtonState();
+  }
+
   function isTodoCompleted(card) {
     return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
   }
 
   function renderTodoCompletionButton(card) {
     var isArchivedCard = !!(card && card.archived);
+    var hasPendingConfirm = !isArchivedCard && hasPendingGridTodoCompletion(card && card.id);
     var title = isArchivedCard
       ? (strings.boardRestoreTodo || "Restore")
       : getTodoCompletionActionLabel(card);
@@ -3266,6 +3388,22 @@ syncTodoLabelSuggestions();
     }
     if (isTodoCompleted(card)) {
       className += ' is-completed';
+    }
+    if (hasPendingConfirm) {
+      var confirmLabel = isTodoReadyForFinalize(card)
+        ? (strings.boardFinalizeTodoYes || "Yes")
+        : (strings.boardConfirmAction || "Confirm");
+      var confirmPrompt = isTodoReadyForFinalize(card)
+        ? (strings.boardFinalizePrompt || "Archive this todo as completed successfully?")
+        : (strings.boardApprovePrompt || "Mark this todo ready for task draft creation?");
+      var cancelLabel = isTodoReadyForFinalize(card)
+        ? (strings.boardFinalizeTodoNo || "No")
+        : (strings.boardCancelAction || "Cancel");
+      return '<button type="button" class="' + className + ' is-confirming" data-todo-complete="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(confirmPrompt) + '" aria-label="' + escapeAttr(confirmLabel) + '"' + (isTodoReadyForFinalize(card) ? ' data-finalize-state="confirming"' : '') + ' ' +
+        'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-input-background);color:var(--vscode-foreground);cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;">' +
+        '<span aria-hidden="true">' + escapeHtml(confirmLabel) + '</span></button>' +
+        '<button type="button" class="todo-complete-button is-cancel" data-todo-complete-cancel="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(cancelLabel) + '" aria-label="' + escapeAttr(cancelLabel) + '" ' +
+        'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-button-secondaryBackground, var(--vscode-input-background));color:var(--vscode-button-secondaryForeground, var(--vscode-foreground));cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;margin-left:6px;">' + escapeHtml(cancelLabel) + '</button>';
     }
     return '<button type="button" class="' + className + '" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '"' + (isTodoReadyForFinalize(card) ? ' data-finalize-state="idle" data-confirm-label="' + escapeAttr(getTodoFinalizeConfirmLabel()) + '" data-cancel-label="' + escapeAttr(getTodoFinalizeCancelLabel()) + '"' : '') + ' ' +
       'style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? 'color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background))' : 'var(--vscode-input-background)') + ';color:' + (isTodoCompleted(card) ? 'var(--vscode-button-foreground)' : 'var(--vscode-foreground)') + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;">' +
@@ -3658,12 +3796,11 @@ syncTodoLabelSuggestions();
     if (todoCreateTaskBtn) {
       todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo || getTodoWorkflowFlag(selectedTodo) !== "ready";
     }
-    if (todoCompleteBtn) {
-      todoCompleteBtn.textContent = isEditingTodo
-        ? getTodoCompletionActionLabel(selectedTodo)
-        : (strings.boardApproveTodo || "Approve");
-      todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+    if (todoCompletionConfirmState && !isTodoCompletionConfirmPending(selectedTodo)) {
+      clearTodoCompletionConfirmTimer();
+      todoCompletionConfirmState = null;
     }
+    syncTodoCompletionButtonState();
     if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
     if (todoUploadFilesBtn) todoUploadFilesBtn.disabled = !!isArchivedTodo;
     if (todoCommentInput) {
@@ -4074,18 +4211,17 @@ syncTodoLabelSuggestions();
     if (todoCompleteBtn) {
       todoCompleteBtn.onclick = function () {
         if (!selectedTodoId) return;
-        var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards)
-          ? cockpitBoard.cards.find(function (card) { return card && card.id === selectedTodoId; })
-          : null;
-        var actionType = getTodoCompletionActionType(selectedTodo);
-        if (actionType === "finalizeTodo") {
-          var finalizeConfirmed = typeof window.confirm === "function"
-            ? window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")
-            : true;
-          if (!finalizeConfirmed) {
-            return;
-          }
+        var selectedTodo = findTodoById(selectedTodoId);
+        if (!selectedTodo || selectedTodo.archived) {
+          resetTodoCompletionInlineConfirm();
+          return;
         }
+        var actionType = getTodoCompletionActionType(selectedTodo);
+        if (!isTodoCompletionConfirmPending(selectedTodo)) {
+          startTodoCompletionInlineConfirm(selectedTodo);
+          return;
+        }
+        resetTodoCompletionInlineConfirm();
         vscode.postMessage({
           type: actionType,
           todoId: selectedTodoId,
@@ -4650,6 +4786,7 @@ syncTodoLabelSuggestions();
   function openTodoEditor(todoId) {
     clearCatalogDeleteState();
     closeTodoDeleteModal();
+    resetTodoCompletionInlineConfirm();
     selectedTodoId = todoId || null;
     if (todoDetailId) {
       todoDetailId.value = selectedTodoId || "";
@@ -4670,6 +4807,7 @@ syncTodoLabelSuggestions();
   function resetTodoEditor() {
     clearCatalogDeleteState();
     closeTodoDeleteModal();
+    resetTodoCompletionInlineConfirm();
     selectedTodoId = null;
     if (todoDetailId) {
       todoDetailId.value = "";
@@ -5046,12 +5184,11 @@ syncTodoLabelSuggestions();
   });
 
   bindSelectValueChange(friendlyFrequency, function () {
-    updateFriendlyVisibility();
+    refreshFriendlyCronFromBuilder();
   });
 
   bindSelectValueChange(jobsFriendlyFrequency, function () {
-    updateJobsFriendlyVisibility();
-    syncEditorTabLabels();
+    refreshJobsFriendlyCronFromBuilder();
   });
 
   bindInputFeedbackClear(
@@ -5104,27 +5241,28 @@ syncTodoLabelSuggestions();
   // Certain environments skip native select events; a delegated listener keeps state consistent.
   bindDocumentValueDelegates(document, "change", {
     "friendly-frequency": function () {
-      updateFriendlyVisibility();
+      refreshFriendlyCronFromBuilder();
     },
     "jobs-friendly-frequency": function () {
-      updateJobsFriendlyVisibility();
+      refreshJobsFriendlyCronFromBuilder();
     },
   });
   bindDocumentValueDelegates(document, "input", {
     "friendly-frequency": function () {
-      updateFriendlyVisibility();
+      refreshFriendlyCronFromBuilder();
     },
     "jobs-friendly-frequency": function () {
-      updateJobsFriendlyVisibility();
+      refreshJobsFriendlyCronFromBuilder();
     },
   });
 
-  bindClickAction(friendlyGenerate, function () {
-    generateCronFromFriendly();
+  bindFriendlyCronBuilderAutoUpdate({
+    controls: [friendlyInterval, friendlyMinute, friendlyHour, friendlyDow, friendlyDom],
+    onRefresh: refreshFriendlyCronFromBuilder,
   });
-  bindClickAction(jobsFriendlyGenerate, function () {
-    generateJobsCronFromFriendly();
-    syncEditorTabLabels();
+  bindFriendlyCronBuilderAutoUpdate({
+    controls: [jobsFriendlyInterval, jobsFriendlyMinute, jobsFriendlyHour, jobsFriendlyDow, jobsFriendlyDom],
+    onRefresh: refreshJobsFriendlyCronFromBuilder,
   });
 
   bindOpenCronGuruButton(openGuruBtn, function () {
@@ -6711,6 +6849,78 @@ syncTodoLabelSuggestions();
     );
   }
 
+  function clearFriendlyBuilderControls(options) {
+    if (!options) {
+      return;
+    }
+    if (options.frequency) options.frequency.value = "";
+    if (options.interval) options.interval.value = "";
+    if (options.minute) options.minute.value = "";
+    if (options.hour) options.hour.value = "";
+    if (options.dow) options.dow.value = "";
+    if (options.dom) options.dom.value = "";
+    if (typeof options.updateVisibility === "function") {
+      options.updateVisibility();
+    }
+  }
+
+  function syncFriendlyBuilderFromCronExpression(options) {
+    if (!options) {
+      return false;
+    }
+
+    var parsed = parseFriendlyCronExpression(options.expression);
+    if (!parsed) {
+      clearFriendlyBuilderControls(options);
+      return false;
+    }
+
+    if (options.frequency) options.frequency.value = parsed.frequency || "";
+    if (options.interval) {
+      options.interval.value = parsed.interval == null ? "" : String(parsed.interval);
+    }
+    if (options.minute) {
+      options.minute.value = parsed.minute == null ? "" : String(parsed.minute);
+    }
+    if (options.hour) {
+      options.hour.value = parsed.hour == null ? "" : String(parsed.hour);
+    }
+    if (options.dow) {
+      options.dow.value = parsed.dow == null ? "" : String(parsed.dow);
+    }
+    if (options.dom) {
+      options.dom.value = parsed.dom == null ? "" : String(parsed.dom);
+    }
+    if (typeof options.updateVisibility === "function") {
+      options.updateVisibility();
+    }
+    return true;
+  }
+
+  function bindFriendlyCronBuilderAutoUpdate(options) {
+    if (!options || typeof options.onRefresh !== "function" || !options.controls) {
+      return;
+    }
+    options.controls.forEach(function (control) {
+      if (!control || typeof control.addEventListener !== "function") {
+        return;
+      }
+      control.addEventListener("change", options.onRefresh);
+      control.addEventListener("input", options.onRefresh);
+    });
+  }
+
+  function refreshFriendlyCronFromBuilder() {
+    updateFriendlyVisibility();
+    generateCronFromFriendly();
+  }
+
+  function refreshJobsFriendlyCronFromBuilder() {
+    updateJobsFriendlyVisibility();
+    generateJobsCronFromFriendly();
+    syncEditorTabLabels();
+  }
+
   function generateCronFromFriendly() {
     if (!friendlyFrequency || !cronExpression) return;
     applyFriendlyCronResult({
@@ -6957,13 +7167,22 @@ syncTodoLabelSuggestions();
 
   function resetTaskFormFieldValues() {
     applyPromptSource("inline");
-    if (friendlyFrequency) friendlyFrequency.value = "";
     if (jitterSecondsInput) {
       jitterSecondsInput.value = String(defaultJitterSeconds);
     }
     if (taskLabelsInput) {
       taskLabelsInput.value = "";
     }
+    syncFriendlyBuilderFromCronExpression({
+      expression: cronExpression ? cronExpression.value : "",
+      frequency: friendlyFrequency,
+      interval: friendlyInterval,
+      minute: friendlyMinute,
+      hour: friendlyHour,
+      dow: friendlyDow,
+      dom: friendlyDom,
+      updateVisibility: updateFriendlyVisibility,
+    });
   }
 
   function resetTaskFormBaseState() {
@@ -6993,6 +7212,16 @@ syncTodoLabelSuggestions();
     if (cronPreset) {
       cronPreset.value = "";
     }
+    syncFriendlyBuilderFromCronExpression({
+      expression: task.cronExpression || "",
+      frequency: friendlyFrequency,
+      interval: friendlyInterval,
+      minute: friendlyMinute,
+      hour: friendlyHour,
+      dow: friendlyDow,
+      dom: friendlyDom,
+      updateVisibility: updateFriendlyVisibility,
+    });
     updateCronPreview();
 
     pendingAgentValue = restoreTaskSelectValue(agentSelect, task.agent || "");
@@ -8130,6 +8359,16 @@ syncTodoLabelSuggestions();
     if (jobsNameInput) jobsNameInput.value = selectedJob ? (selectedJob.name || "") : "";
     if (jobsCronInput) jobsCronInput.value = selectedJob ? (selectedJob.cronExpression || "") : "0 9 * * 1-5";
     if (jobsCronPreset) jobsCronPreset.value = "";
+    syncFriendlyBuilderFromCronExpression({
+      expression: jobsCronInput ? jobsCronInput.value : "",
+      frequency: jobsFriendlyFrequency,
+      interval: jobsFriendlyInterval,
+      minute: jobsFriendlyMinute,
+      hour: jobsFriendlyHour,
+      dow: jobsFriendlyDow,
+      dom: jobsFriendlyDom,
+      updateVisibility: updateJobsFriendlyVisibility,
+    });
     syncJobsFolderSelect(selectedJob ? (selectedJob.folderId || "") : (selectedJobFolderId || ""));
     if (jobsStatusPill) {
       jobsStatusPill.textContent = selectedJob
@@ -8361,6 +8600,7 @@ syncTodoLabelSuggestions();
               });
             }
           }
+          reconcilePendingGridTodoCompletions(cockpitBoard.cards);
           emitWebviewDebug("updateCockpitBoard", {
             sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
             cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,

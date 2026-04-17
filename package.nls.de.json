@@ -51,6 +51,7 @@
   "config.defaultScope.workspace": "Workspace (nur aktueller Workspace)",
   "config.jitterSeconds": "Standardwert für maximale Zufallsverzögerung in Sekunden vor der Ausführung einer Aufgabe (0 = aus). Kann pro Aufgabe überschrieben werden.",
   "config.maxDailyExecutions": "Maximale Anzahl geplanter Ausführungen pro Tag über alle Aufgaben hinweg (0 = unbegrenzt, 1–100). ⚠️ Unbegrenzt kann zu API-Ratenbegrenzungen führen.",
+  "config.maxNewChatSessionsPerHour": "Stündliches Limit für neu erstellte Chat-Sitzungen über alle Läufe hinweg (0 = unbegrenzt, 1–100). Läufe im Fortsetzen-Modus zählen nicht.",
   "config.minimumIntervalWarning": "Warnung anzeigen, wenn ein Cron-Intervall kürzer als 30 Minuten ist",
   "config.globalPromptsPath": "Benutzerdefinierter Pfad für globale Prompt-Vorlagen. Standard: VS Codes Ordner User/prompts (Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts oder ~/.config/Code/User/prompts)",
   "config.globalAgentsPath": "Benutzerdefinierter Pfad für globale Agent-Dateien (*.agent.md). Standard: VS Codes Ordner User/prompts (Windows: %APPDATA%/Code/User/prompts, macOS: ~/Library/Application Support/Code/User/prompts, Linux: $XDG_CONFIG_HOME/Code/User/prompts oder ~/.config/Code/User/prompts)",

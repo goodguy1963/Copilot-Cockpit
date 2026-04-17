@@ -228,7 +228,6 @@ export function buildFriendlyCronBuilderMarkup(
   const hourId = `${fieldPrefix}-hour`;
   const dayOfWeekId = `${fieldPrefix}-dow`;
   const dayOfMonthId = `${fieldPrefix}-dom`;
-  const generateButtonId = `${fieldPrefix}-generate`;
 
   const frequencyOptions: Array<{ value: string; labelKey: string }> = [
     { value: "", labelKey: "labelFriendlySelect" },
@@ -285,9 +284,7 @@ export function buildFriendlyCronBuilderMarkup(
                       </select></div><div class="form-group friendly-field" data-field="dom">
                       <label for="${escapeHtmlAttr(dayOfMonthId)}">${escapeHtml(getWebviewString(strings, "labelDayOfMonth"))}</label>
                       <input type="number" id="${escapeHtmlAttr(dayOfMonthId)}" min="1" max="31" value="1">
-                    </div></div><div class="friendly-actions">
-                    <button type="button" class="btn-secondary" id="${escapeHtmlAttr(generateButtonId)}">${escapeHtml(getWebviewString(strings, "labelFriendlyGenerate"))}</button>
-                  </div>
+                    </div></div>
                 </div>`;
 }
 

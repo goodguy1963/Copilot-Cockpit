@@ -1738,10 +1738,12 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.deepStrictEqual(calls, ["collapse"]);
   });
 
-  test("board todo completion approves active cards and uses yes no finalize controls for ready cards", () => {
+  test("board todo completion auto-dismisses inline confirm after 30 seconds and clears timers on cancel and confirm", () => {
     const helpers = loadBoardInteractionModule();
     const postedMessages: Array<Record<string, unknown>> = [];
     const insertedButtons: any[] = [];
+    const timeoutCalls: Array<{ id: number; callback: () => void; delay: number }> = [];
+    const clearedTimeouts: number[] = [];
     const createMockButton = (todoId: string, cardEl: any = null) => {
       const attrs: Record<string, string> = {
         "data-todo-complete": todoId,
@@ -1796,7 +1798,20 @@ test("todo comments style human form input separately and todo saves reset to cr
         return element;
       },
     });
-    const activeToggle = createMockButton("todo-active");
+    let activeCancelButton: any = null;
+    const activeCardElement = {
+      style: {
+        opacity: "",
+        pointerEvents: "",
+      },
+      querySelector: (selector: string) => {
+        if (selector === '[data-todo-complete-cancel="todo-active"]') {
+          return activeCancelButton;
+        }
+        return null;
+      },
+    };
+    const activeToggle = createMockButton("todo-active", activeCardElement);
     let readyCancelButton: any = null;
     const readyCardElement = {
       style: {
@@ -1804,7 +1819,7 @@ test("todo comments style human form input separately and todo saves reset to cr
         pointerEvents: "",
       },
       querySelector: (selector: string) => {
-        if (selector === '[data-todo-finalize-cancel="todo-ready"]') {
+        if (selector === '[data-todo-complete-cancel="todo-ready"]') {
           return readyCancelButton;
         }
         return null;
@@ -1813,9 +1828,19 @@ test("todo comments style human form input separately and todo saves reset to cr
     const readyToggle = createMockButton("todo-ready", readyCardElement);
 
     const interactionOptions = {
+      clearTimeout: (handle: number) => {
+        clearedTimeouts.push(handle);
+      },
       document: createMockDocument(),
-      setTimeout: () => 1,
+      setTimeout: (callback: () => void, delay: number) => {
+        const handle = timeoutCalls.length + 1;
+        timeoutCalls.push({ id: handle, callback, delay });
+        return handle;
+      },
       strings: {
+        boardApprovePrompt: "Mark this todo ready for task draft creation?",
+        boardConfirmAction: "Confirm",
+        boardCancelAction: "Cancel",
         boardFinalizeTodoYes: "Yes",
         boardFinalizeTodoNo: "No",
         boardFinalizePrompt: "Archive this todo as completed successfully?",
@@ -1835,14 +1860,57 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
       ...interactionOptions,
     });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), []);
+    assert.strictEqual(activeToggle.getAttribute("data-confirming"), "1");
+    assert.strictEqual(activeToggle.innerHTML, "<span aria-hidden=\"true\">Confirm</span>");
+    assert.strictEqual(timeoutCalls.length, 1);
+    assert.strictEqual(timeoutCalls[0].delay, 30000);
+    activeCancelButton = insertedButtons[0];
+    assert.strictEqual(activeCancelButton.textContent, "Cancel");
+    assert.strictEqual(activeCancelButton.className, "todo-complete-button is-cancel");
+
+    activeCancelButton.onclick?.({
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+    assert.deepStrictEqual(clearedTimeouts, [1]);
+    assert.strictEqual(activeToggle.getAttribute("data-confirming"), "");
+    assert.strictEqual(activeToggle.innerHTML, "<span>\u25CB</span>");
+    assert.strictEqual(activeCancelButton.removed, true);
+
+    helpers.handleBoardTodoCompletion(activeToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-active", status: "active" },
+        ],
+      },
+      ...interactionOptions,
+    });
+    activeCancelButton = insertedButtons[1];
+    assert.strictEqual(timeoutCalls.length, 2);
+    assert.strictEqual(timeoutCalls[1].delay, 30000);
+
+    helpers.handleBoardTodoCompletion(activeToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-active", status: "active" },
+        ],
+      },
+      ...interactionOptions,
+    });
+    assert.deepStrictEqual(clearedTimeouts, [1, 2]);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
       { type: "approveTodo", todoId: "todo-active" },
     ]);
+    assert.strictEqual(activeToggle.disabled, true);
+    assert.strictEqual(activeCardElement.style.opacity, "0.35");
+    assert.strictEqual(activeCardElement.style.pointerEvents, "none");
+    assert.strictEqual(activeCancelButton.removed, true);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
+          { id: "todo-ready", status: "active", flags: ["ready"] },
         ],
       },
       ...interactionOptions,
@@ -1851,15 +1919,15 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.strictEqual(readyToggle.getAttribute("data-confirming"), "1");
     assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "confirming");
     assert.strictEqual(readyToggle.innerHTML, "<span aria-hidden=\"true\">Yes</span>");
-    assert.strictEqual(insertedButtons.length, 1);
-    readyCancelButton = insertedButtons[0];
+    assert.strictEqual(insertedButtons.length, 3);
+    assert.strictEqual(timeoutCalls.length, 3);
+    assert.strictEqual(timeoutCalls[2].delay, 30000);
+    readyCancelButton = insertedButtons[2];
     assert.strictEqual(readyCancelButton.textContent, "No");
     assert.strictEqual(readyCancelButton.className, "todo-complete-button is-cancel");
 
-    readyCancelButton.onclick?.({
-      stopPropagation: () => undefined,
-      preventDefault: () => undefined,
-    });
+    timeoutCalls[2].callback();
+    assert.deepStrictEqual(clearedTimeouts, [1, 2]);
     assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
     assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
     assert.strictEqual(readyToggle.innerHTML, "<span>\u25CB</span>");
@@ -1868,22 +1936,47 @@ test("todo comments style human form input separately and todo saves reset to cr
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
+          { id: "todo-ready", status: "active", flags: ["ready"] },
         ],
       },
       ...interactionOptions,
     });
-    readyCancelButton = insertedButtons[1];
+    readyCancelButton = insertedButtons[3];
+    assert.strictEqual(timeoutCalls.length, 4);
+    assert.strictEqual(timeoutCalls[3].delay, 30000);
+
+    readyCancelButton.onclick?.({
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+    assert.deepStrictEqual(clearedTimeouts, [1, 2, 4]);
+    assert.strictEqual(readyToggle.getAttribute("data-confirming"), "");
+    assert.strictEqual(readyToggle.getAttribute("data-finalize-state"), "idle");
+    assert.strictEqual(readyToggle.innerHTML, "<span>\u25CB</span>");
+    assert.strictEqual(readyCancelButton.removed, true);
 
     helpers.handleBoardTodoCompletion(readyToggle, {
       cockpitBoard: {
         cards: [
-          { id: "todo-ready", status: "active", flags: ["FINAL-USER-CHECK"] },
+          { id: "todo-ready", status: "active", flags: ["ready"] },
+        ],
+      },
+      ...interactionOptions,
+    });
+    readyCancelButton = insertedButtons[4];
+    assert.strictEqual(timeoutCalls.length, 5);
+    assert.strictEqual(timeoutCalls[4].delay, 30000);
+
+    helpers.handleBoardTodoCompletion(readyToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready", status: "active", flags: ["ready"] },
         ],
       },
       ...interactionOptions,
     });
 
+    assert.deepStrictEqual(clearedTimeouts, [1, 2, 4, 5]);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
       { type: "approveTodo", todoId: "todo-active" },
       { type: "finalizeTodo", todoId: "todo-ready" },
@@ -1891,20 +1984,82 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.strictEqual(readyToggle.disabled, true);
     assert.strictEqual(readyCardElement.style.opacity, "0.35");
     assert.strictEqual(readyCardElement.style.pointerEvents, "none");
+    assert.strictEqual(readyCancelButton.removed, true);
+
+    let legacyCancelButton: any = null;
+    const legacyCardElement = {
+      style: {
+        opacity: "",
+        pointerEvents: "",
+      },
+      querySelector: (selector: string) => {
+        if (selector === '[data-todo-complete-cancel="todo-ready-legacy"]') {
+          return legacyCancelButton;
+        }
+        return null;
+      },
+    };
+    const legacyReadyToggle = createMockButton("todo-ready-legacy", legacyCardElement);
+
+    helpers.handleBoardTodoCompletion(legacyReadyToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready-legacy", status: "active", flags: ["FINAL-USER-CHECK"] },
+        ],
+      },
+      ...interactionOptions,
+    });
+    assert.strictEqual(legacyReadyToggle.getAttribute("data-confirming"), "1");
+    assert.strictEqual(legacyReadyToggle.getAttribute("data-finalize-state"), "confirming");
+    assert.strictEqual(legacyReadyToggle.innerHTML, "<span aria-hidden=\"true\">Yes</span>");
+    legacyCancelButton = insertedButtons[5];
+
+    helpers.handleBoardTodoCompletion(legacyReadyToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready-legacy", status: "active", flags: ["FINAL-USER-CHECK"] },
+        ],
+      },
+      ...interactionOptions,
+    });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
+      { type: "approveTodo", todoId: "todo-active" },
+      { type: "finalizeTodo", todoId: "todo-ready" },
+      { type: "finalizeTodo", todoId: "todo-ready-legacy" },
+    ]);
+    assert.strictEqual(legacyReadyToggle.disabled, true);
+    assert.strictEqual(legacyCardElement.style.opacity, "0.35");
+    assert.strictEqual(legacyCardElement.style.pointerEvents, "none");
+    assert.strictEqual(legacyCancelButton.removed, true);
   });
 
-  test("todo editor completion requires a confirm step before finalizing ready cards", () => {
+  test("todo editor completion uses inline confirm with a 30 second reset", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(
       scriptSource,
       [
-      'var actionType = getTodoCompletionActionType(selectedTodo);',
-      'if (actionType === "finalizeTodo") {',
-      'window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")',
-      'type: actionType,',
+        'var TODO_COMPLETION_CONFIRM_TIMEOUT_MS = 30000;',
+        'workflowFlag === "ready" || workflowFlag === "final-user-check"',
+        'return isTodoReadyForFinalize(card) ? "finalizeTodo" : "approveTodo";',
+        'return (strings.boardConfirmAction || "Confirm") + " " + getTodoCompletionActionLabel(card);',
+        'if (!isTodoCompletionConfirmPending(selectedTodo)) {',
+        'startTodoCompletionInlineConfirm(selectedTodo);',
+        'type: actionType,',
+        'todoCompletionConfirmTimer = window.setTimeout(function () {',
+        '}, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);',
       ],
-      "todo editor finalize confirm",
+      "todo editor approval and finalize confirm",
+    );
+
+    expectSourceToExcludeSnippets(
+      scriptSource,
+      [
+        'type: actionType === "finalizeTodo" ? "requestFinalizeTodo" : "requestApproveTodo",',
+        'window.confirm(strings.boardApprovePrompt || "Mark this todo ready for task draft creation?")',
+        'window.confirm(strings.boardFinalizePrompt || "Archive this todo as completed successfully?")',
+      ],
+      "todo editor approval and finalize confirm",
     );
   });
 
@@ -3259,6 +3414,104 @@ suite("SchedulerWebview Jobs Request Tests", () => {
     }
   });
 
+  test("requestApproveTodo confirms in the host before dispatching approveTodo", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentCockpitBoard?: { cards?: Array<{ id: string }> };
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalBoard = wv.currentCockpitBoard;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+    const prompts: Array<{ message: string; options: unknown; items: string[] }> = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentCockpitBoard = { cards: [{ id: "todo-active" }] };
+      (vscode.window as any).showWarningMessage = async (
+        message: string,
+        options: unknown,
+        ...items: string[]
+      ) => {
+        prompts.push({ message, options, items });
+        return "Approve";
+      };
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestApproveTodo",
+        todoId: "todo-active",
+      });
+
+      assert.strictEqual(prompts.length, 1);
+      assert.deepStrictEqual(prompts[0], {
+        message: "Mark this todo ready for task draft creation?",
+        options: { modal: true },
+        items: ["Approve", "Cancel"],
+      });
+      assert.deepStrictEqual(actions, [{
+        action: "approveTodo",
+        taskId: "__todo__",
+        todoId: "todo-active",
+      }]);
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentCockpitBoard = originalBoard;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
+  test("requestFinalizeTodo cancels cleanly when the host dialog is dismissed", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentCockpitBoard?: { cards?: Array<{ id: string }> };
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalBoard = wv.currentCockpitBoard;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+    const prompts: Array<{ message: string; options: unknown; items: string[] }> = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentCockpitBoard = { cards: [{ id: "todo-ready" }] };
+      (vscode.window as any).showWarningMessage = async (
+        message: string,
+        options: unknown,
+        ...items: string[]
+      ) => {
+        prompts.push({ message, options, items });
+        return "Cancel";
+      };
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestFinalizeTodo",
+        todoId: "todo-ready",
+      });
+
+      assert.strictEqual(prompts.length, 1);
+      assert.deepStrictEqual(prompts[0], {
+        message: "Archive this todo as completed successfully?",
+        options: { modal: true },
+        items: ["Final Accept", "Cancel"],
+      });
+      assert.deepStrictEqual(actions, []);
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentCockpitBoard = originalBoard;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
   test("requestDeleteJobTask can detach from workflow without deleting the task", async () => {
     const wv = SchedulerWebview as unknown as {
       handleMessage?: (message: unknown) => Promise<void>;
@@ -3454,6 +3707,76 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       wv.onTaskActionCallback = originalAction;
       wv.currentJobs = originalJobs;
       (vscode.window as any).showInputBox = originalShowInputBox;
+      (vscode.window as any).showWarningMessage = originalShowWarningMessage;
+    }
+  });
+
+  test("requestApproveTodo and requestFinalizeTodo prompt before dispatching", async () => {
+    const wv = SchedulerWebview as unknown as {
+      handleMessage?: (message: unknown) => Promise<void>;
+      onTaskActionCallback?: ((action: unknown) => void) | undefined;
+      currentCockpitBoard?: { cards?: Array<{ id: string }> };
+    };
+
+    const originalAction = wv.onTaskActionCallback;
+    const originalBoard = wv.currentCockpitBoard;
+    const originalShowWarningMessage = (vscode.window as any).showWarningMessage;
+    const actions: unknown[] = [];
+    const prompts: Array<{ message: string; options: unknown; items: string[] }> = [];
+
+    try {
+      wv.onTaskActionCallback = (action: unknown) => {
+        actions.push(action);
+      };
+      wv.currentCockpitBoard = {
+        cards: [{ id: "todo-active" }, { id: "todo-ready" }],
+      };
+      (vscode.window as any).showWarningMessage = async (
+        message: string,
+        options: unknown,
+        ...items: string[]
+      ) => {
+        prompts.push({ message, options, items });
+        return items[0];
+      };
+
+      assert.ok(typeof wv.handleMessage === "function");
+      await wv.handleMessage!({
+        type: "requestApproveTodo",
+        todoId: "todo-active",
+      });
+      await wv.handleMessage!({
+        type: "requestFinalizeTodo",
+        todoId: "todo-ready",
+      });
+
+      assert.deepStrictEqual(prompts, [
+        {
+          message: "Mark this todo ready for task draft creation?",
+          options: { modal: true },
+          items: ["Approve", "Cancel"],
+        },
+        {
+          message: "Archive this todo as completed successfully?",
+          options: { modal: true },
+          items: ["Final Accept", "Cancel"],
+        },
+      ]);
+      assert.deepStrictEqual(actions, [
+        {
+          action: "approveTodo",
+          taskId: "__todo__",
+          todoId: "todo-active",
+        },
+        {
+          action: "finalizeTodo",
+          taskId: "__todo__",
+          todoId: "todo-ready",
+        },
+      ]);
+    } finally {
+      wv.onTaskActionCallback = originalAction;
+      wv.currentCockpitBoard = originalBoard;
       (vscode.window as any).showWarningMessage = originalShowWarningMessage;
     }
   });
