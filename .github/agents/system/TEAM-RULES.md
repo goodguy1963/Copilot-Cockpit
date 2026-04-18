@@ -65,6 +65,7 @@ Every meaningful handoff should include:
 ## Delivery Standard
 
 - Prefer small, reviewable changes over wide speculative rewrites.
+- Put ad hoc command captures, test logs, diffs, and other scratch outputs in `output_sessions/`, not the repository root.
 - Record reusable patterns in `.github/agents/system/knowledge/`.
 - Update adjacent agent docs and `.github/agents/system/` docs when a roster or workflow change would otherwise leave the starter pack inconsistent.
 

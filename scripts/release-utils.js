@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
+const OUTPUT_SESSIONS_DIRECTORY_NAME = "output_sessions";
+
 const TEMP_ARTIFACTS = [
   ".tmp-install-vsix-insiders.log",
   ".tmp-npm-test-rerun.log",
@@ -8,9 +10,13 @@ const TEMP_ARTIFACTS = [
   ".tmp-package-vsix.log",
   ".tmp-playwright",
   ".tmp-pretest.log",
+  "full_test_output.txt",
+  "log_temp.txt",
   "npm-test-output.log",
   "npm-test-output.txt",
   "npm-test.log",
+  "show_temp.txt",
+  "test_output.txt",
   "test-output.txt",
 ];
 
@@ -27,6 +33,14 @@ function ensureDirectory(dirPath) {
   return dirPath;
 }
 
+function getOutputSessionsDirectory(workspaceRoot) {
+  return ensureDirectory(path.join(workspaceRoot, OUTPUT_SESSIONS_DIRECTORY_NAME));
+}
+
+function getOutputSessionArtifactPath(workspaceRoot, fileName) {
+  return path.join(getOutputSessionsDirectory(workspaceRoot), fileName);
+}
+
 function removePath(targetPath) {
   if (!fs.existsSync(targetPath)) {
     return;
@@ -35,8 +49,13 @@ function removePath(targetPath) {
 }
 
 function cleanupTempArtifacts(workspaceRoot) {
+  const outputSessionsDirectory = path.join(
+    workspaceRoot,
+    OUTPUT_SESSIONS_DIRECTORY_NAME,
+  );
   TEMP_ARTIFACTS.forEach((name) => {
     removePath(path.join(workspaceRoot, name));
+    removePath(path.join(outputSessionsDirectory, name));
   });
 }
 
@@ -206,6 +225,8 @@ module.exports = {
   getDefaultVsixPath,
   getInstallExecutables,
   getLatestVsixDirectory,
+  getOutputSessionArtifactPath,
+  getOutputSessionsDirectory,
   incrementPatchVersion,
   normalizeReleaseTag,
   parseVersion,
