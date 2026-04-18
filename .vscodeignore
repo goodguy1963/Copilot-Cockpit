@@ -63,6 +63,7 @@ images/**/*
 !images/activity-todo-list-command-dark.svg
 !images/copilot-cockpit-demo.gif
 !images/DEMO.gif
+!images/2026-03-30+01-06-46 (1).gif
 2026-04-02-cockpit-dispatcher-plugin-improvement-plan.md
 
 # Large demo assets kept excluded unless explicitly allowlisted above

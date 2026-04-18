@@ -20,9 +20,6 @@
 
 Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
 
-![AI orchestration core loop](images/AI%20Orchestration%20Core%20Loop.png)
-
-
 ## Why It Exists
 
 Most AI automation demos jump straight to execution. That looks impressive until the model burns tokens, edits files too early, or drifts away from the real goal.
@@ -37,13 +34,11 @@ That matters most when the repo keeps producing more work than any one person ca
 
 ## 🎬 Demo
 
-![Copilot Cockpit demo](images/DEMO.gif)
+[![Watch the Copilot Cockpit intro video](images/2026-03-30+01-06-46%20%281%29.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
 
-This GIF is a fast overview of the product surface. Use the feature tour below for the slower tab-by-tab explanation.
+Use the feature tour below for the slower tab-by-tab explanation.
 
 For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
-
-If the embedded image does not render in your viewer, open [images/DEMO.gif](images/DEMO.gif) directly.
 
 ## 🧠 The Core Loop
 

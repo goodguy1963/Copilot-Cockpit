@@ -22,11 +22,11 @@ This page is ready for one screenshot per major surface.
 - `S6` Settings overview.
 - `S7` How To Use onboarding tab.
 
-Current overview visual for `S1`:
+Current overview reference for `S1`:
 
-![Current Copilot Cockpit overview](../images/demo-static.png)
+[![Watch the Copilot Cockpit intro video](../images/2026-03-30+01-06-46%20%281%29.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
 
-This static overview is the current broad product visual for the docs. The tab-specific captures for `S2` through `S7` are still separate and should be added to the sections below.
+This intro video is the current broad product overview for the docs. The tab-specific captures for `S2` through `S7` are still separate and should be added to the sections below.
 
 ## Todo Cockpit
 
