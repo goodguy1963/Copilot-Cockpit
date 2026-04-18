@@ -18,19 +18,21 @@
 
 <!-- markdownlint-enable MD033 MD041 -->
 
-Copilot Cockpit helps you plan AI work, approve it, and then run it with visible checkpoints instead of handing your repo to a blind autonomous loop.
+Copilot Cockpit is one workflow system for AI work in VS Code: planning and triage, execution and scheduling, and optional tool/control-plane integration.
 
 ## Why It Exists
 
-Most AI automation demos jump straight to execution. That looks impressive until the model burns tokens, edits files too early, or drifts away from the real goal.
+Most AI tooling still reads like feature accumulation: a todo board here, a scheduler there, a tool bridge somewhere else. Copilot Cockpit is meant to feel like one coherent stack.
 
-Copilot Cockpit separates planning, approval, execution, and review so autonomy is earned step by step instead of assumed from the start.
+It connects three tightly linked layers:
 
-In practice, the LLM is the native execution chat surface, while Copilot Cockpit is the orchestration and review layer around it. It gives a human or AI decision-maker a place to capture work, review it, research it, discuss it, and hand it off safely.
+1. Planning and triage in `Todo Cockpit`
+2. Execution and scheduling through `Tasks` and `Jobs`
+3. Tool and control-plane integration through `Research`, `MCP`, and optional agent surfaces
 
-The point is not to reject automation. The point is to make automation accountable and keep humans in charge until the workflow has proven it deserves more autonomy.
+The workflow is explicit on purpose. A `Todo` is the planning artifact. A `Task` is one executable unit. A `Job` is an orchestrated or scheduled run built from steps. `Research` is an exploratory context-building artifact when the system still needs evidence before execution.
 
-That matters most when the repo keeps producing more work than any one person can hold in memory: bugs, feature ideas, follow-up changes, security updates, web findings, pricing checks, customer tasks, or research that should turn into implementation later. Copilot Cockpit turns those discoveries into a visible queue so work can be found again and handled properly instead of getting lost between chat sessions.
+That structure keeps the LLM as the native execution chat surface while Copilot Cockpit provides the approval, scheduling, and control layer around it. The goal is not less automation. The goal is accountable automation that can move from intake to execution without losing review, context, or ownership.
 
 ## 🎬 Demo
 
@@ -42,15 +44,15 @@ For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.
 
 ## 🧠 The Core Loop
 
-Think of Copilot Cockpit as a local control system for structured AI work:
+The recommended default path is simple:
 
-1. Capture and discuss work in `Todo Cockpit`.
-2. Research and refine it until the user is happy with the direction.
-3. Move approved work into `ready`.
-4. Turn that work into a `Task`, `Job`, or `Research` run.
-5. Review outcomes before granting more autonomy.
+1. Start with a `Todo` in `Todo Cockpit` for intake, planning, and triage.
+2. Use `Research` only when context is missing or the direction still needs evidence.
+3. Promote approved work into a `Task` for one executable unit or a `Job` for an orchestrated run.
+4. Review the result before granting more autonomy or scheduling the next cycle.
+5. Add `MCP`, repo-local skills, or agent/control-plane features only when the core loop is already working.
 
-This keeps the relationship collaborative: you work with the LLM, not under a black-box agent that guesses what should happen next.
+This keeps the relationship collaborative: the workflow starts with planning, earns execution, and only then extends into higher-autonomy integrations.
 
 ## Built On VS Code And GitHub Copilot
 
@@ -95,29 +97,37 @@ The optional layer stays practical because responsibilities are split deliberate
 
 Bundled-agent sync is manual by design. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](docs/agent-workflow.md).
 
-## ✨ Feature Tour
+## ✨ Workflow Layers
+
+### Stable workflow primitives
+
+These are the default path and the main product surface.
 
 ### Todo Cockpit
 
-`Todo Cockpit` is the planning and approval hub. Use it to capture work, add comments, apply labels and flags, and hand approved work into execution.
+`Todo Cockpit` is the planning and triage layer. A `Todo` stays a planning artifact: capture work, add comments, apply labels and workflow flags, and decide what should happen next.
 
 ### Tasks
 
-`Tasks` are the simplest execution unit: one prompt, one scheduled action, one concrete piece of work. Use them for one-time runs or recurring execution.
+`Tasks` are the simplest execution layer artifact: one executable unit, one prompt, one scheduled action, one concrete piece of work. Use them for one-time runs or recurring execution.
 
 That includes recurring tasks such as security research, market checks, feature scouting, maintenance prompts, prompt refinement, repo upkeep, or any other repeated work that should run on a schedule and return to review.
 
 ### Jobs
 
-`Jobs` are ordered multi-step workflows built from multiple steps with reusable actions and pause checkpoints. Use them when the work should not run as one uninterrupted chain.
+`Jobs` are the orchestration layer inside execution: ordered multi-step workflows with reusable actions and pause checkpoints. Use them when work should not run as one uninterrupted chain.
 
 Think of `Jobs` as deeper agentic workflows inside VS Code: research, decision support, implementation steps, maintenance steps, MCP calls, or external-tool sequences that should be inspected at explicit checkpoints instead of left to one opaque run.
 
 ### Research
 
-`Research` profiles are bounded benchmark-driven iteration loops. Use them when you need repeated attempts at improvement against a metric instead of one direct execution.
+`Research` is the exploratory context-building layer. Use it when the system is missing context, needs outside evidence, or should iterate against a benchmark before you decide on execution.
 
-Research is especially useful when the work should pull in fresher outside knowledge first, through web search, Perplexity, scrapers, or other tooling, and then return that material for user review before implementation begins.
+Research is especially useful when work should pull in fresher outside knowledge first, through web search, Perplexity, scrapers, or other tooling, and then return that material for user review before implementation begins.
+
+### Experimental and advanced playground capabilities
+
+These capabilities stay discoverable, but they are not required for the default path.
 
 ### Model And Agent Choice
 
@@ -127,11 +137,11 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### Settings
 
-`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an orchestration layer that lets the CEO or orchestrator stay focused on routing, planning, and validation while specialists handle bounded work. See [docs/agent-workflow.md](docs/agent-workflow.md) for the operating model.
+`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an extra control-plane layer that lets the orchestrator stay focused on routing, planning, and validation while specialists handle bounded work. See [docs/agent-workflow.md](docs/agent-workflow.md) for the operating model.
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want a guided explanation of the operating model before you schedule anything. You can also launch the same walkthrough from the top bar with `Intro Tutorial`, then use the top-bar `Plan Integration` button to inspect existing repo-local agent surfaces before you approve any manual bundled-agent sync. That optional agent layer is useful when you want the orchestrator to receive the task, do the initial repo framing, delegate bounded work to the right repo-local or starter-pack specialist, and then validate the returned result instead of carrying the full implementation loop in one long chat.
+`How To Use` is the built-in onboarding tab. Start there if you want the recommended path explained in order: `Todo` first, `Research` when context is missing, `Task` or `Job` for execution, then optional control-plane integration after the core loop is working.
 
 ## Common Workflows
 
@@ -189,10 +199,10 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 
 1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette. Or use the todo-list icon in the top right.
 2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same guided walkthrough.
-3. Capture or refine work in `Todo Cockpit`.
-4. Move approved work into `ready` to prepare a task draft.
-5. Use `Tasks` for one execution unit, `Jobs` for multi-step flows, and `Research` for benchmark-driven iteration.
-6. Open `Settings` to configure repo-local defaults, MCP, Copilot skills, and Codex support files.
+3. Capture or refine work in `Todo Cockpit` until the planning artifact is clear.
+4. Use `Research` if the work still needs exploratory context or outside evidence.
+5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
+6. Open `Settings` to configure repo-local defaults. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
 The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents` when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
@@ -218,6 +228,8 @@ Detailed documentation lives under [docs/index.md](docs/index.md).
 - [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
 
 ## Advanced Capabilities
+
+These extend the core workflow. They are optional and should not be mandatory for onboarding.
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.

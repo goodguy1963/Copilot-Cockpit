@@ -599,27 +599,27 @@ export const messages = {
 
   helpIntroTitle: () =>
     t(
-      "🚀 Schedule Copilot prompts to run automatically",
-      "🚀 Copilot プロンプトを自動実行するスケジューラ",
-      "🚀 Copilot-Prompts automatisch planen und ausführen",
+      "🚀 One workflow stack for planning, execution, and control",
+      "🚀 計画・実行・制御をつなぐワークフロースタック",
+      "🚀 Ein Workflow-Stack fur Planung, Ausfuhrung und Kontrolle",
     ),
   helpIntroBody: () =>
     t(
-      "Write a prompt, set a cron schedule, and this extension sends it to Copilot on time — every time. Schedules are stored per repo in .vscode so teams can share them via git. Chain tasks into Jobs for multi-step workflows, add pause checkpoints for human review, or run bounded Research loops that stop themselves automatically.",
-      "プロンプトを書いてcronスケジュールを設定すれば、この拡張機能が毎回定刻にCopilotへ送信します。スケジュールはリポジトリごとに.vscodeへ保存されるため、gitで共有できます。Jobsでタスクを連結したり、レビュー用の一時停止チェックポイントを追加したり、自動終了するResearchループを実行できます。",
-      "Schreiben Sie einen Prompt, legen Sie einen Cron-Zeitplan fest, und diese Erweiterung sendet ihn jedes Mal pünktlich an Copilot. Zeitpläne werden pro Repository in .vscode gespeichert, damit Teams sie über Git teilen können. Sie können Aufgaben zu Jobs für mehrstufige Abläufe verketten, Pause Checkpoints für menschliche Freigaben einfügen oder begrenzte Research-Schleifen ausführen, die sich selbst beenden.",
+      "Copilot Cockpit connects three layers: planning and triage in Todo Cockpit, execution and scheduling through Tasks and Jobs, and optional control-plane integration through Research, MCP, and agent surfaces. Start with a Todo, use Research when context is missing, then promote approved work into a Task or Job.",
+      "Copilot Cockpit は 3 つの層をつなぎます。Todo Cockpit での計画とトリアージ、Tasks と Jobs による実行とスケジューリング、そして Research・MCP・agent surface による任意の制御プレーン連携です。まず Todo から始め、文脈が不足しているときは Research を使い、承認後に Task または Job へ進めます。",
+      "Copilot Cockpit verbindet drei Ebenen: Planung und Triage im Todo Cockpit, Ausfuhrung und Terminierung uber Tasks und Jobs sowie optionale Control-Plane-Integration uber Research, MCP und Agent-Oberflachen. Starten Sie mit einem Todo, nutzen Sie Research bei fehlendem Kontext und uberfuhren Sie freigegebene Arbeit dann in einen Task oder Job.",
     ),
   helpTodoTitle: () =>
     t(
-      "1. 🧭 Todo (Cockpit) - Communication Hub",
-      "1. 🧭 Todo (Cockpit) - エージェントとの連携ハブ",
-      "1. 🧭 Todo (Cockpit) - Kommunikations-Hub"
+      "1. 🧭 Todo - Planning and triage",
+      "1. 🧭 Todo - 計画とトリアージ",
+      "1. 🧭 Todo - Planung und Triage"
     ),
   helpTodoBody: () =>
     t(
-      "The Todo board is the planning hub. Labels are reusable categories: a card can carry several labels, and the same shared labels can later be reused by linked tasks or Jobs for filtering. Flags are different: use one active workflow flag such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK to show the card's current state. Comments are the working thread for handoffs, review notes, approvals, and follow-up decisions, so add a new comment instead of rewriting the description whenever the conversation moves forward.",
-      "Todoボードは計画ハブです。ラベルは再利用できる分類で、1つのカードに複数付けられ、後でリンクされた task や Job の絞り込みにも使えます。フラグは別物で、new、needs-bot-review、needs-user-review、ready、ON-SCHEDULE-LIST、FINAL-USER-CHECK などのワークフローフラグを基本的に1つだけ付けて現在の状態を示します。コメントは引き継ぎ、レビュー記録、承認、次の判断を残すための作業スレッドなので、状況が進んだら説明文を書き換えるより新しいコメントを追加してください。",
-      "Das Todo-Board ist der Planungsknoten. Labels sind wiederverwendbare Kategorien: Eine Karte kann mehrere Labels tragen, und dieselben gemeinsamen Labels lassen sich später auch bei verknüpften Tasks oder Jobs zum Filtern verwenden. Flags sind etwas anderes: Verwenden Sie genau ein aktives Workflow-Flag wie new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST oder FINAL-USER-CHECK, um den aktuellen Zustand der Karte zu zeigen. Kommentare bilden den Arbeits-Thread für Handoffs, Review-Notizen, Freigaben und Folgeentscheidungen. Fügen Sie also bei Fortschritt lieber einen neuen Kommentar hinzu, statt die Beschreibung ständig umzuschreiben."
+      "Todo Cockpit is the planning artifact layer. A Todo stays distinct from execution: use it for intake, triage, comments, approvals, and handoff decisions. Labels are reusable categories, while workflow flags such as new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST, or FINAL-USER-CHECK show the current state. Add new comments as the work evolves instead of rewriting the description.",
+      "Todo Cockpit は計画成果物の層です。Todo は実行成果物とは分けて扱い、受付、トリアージ、コメント、承認、引き継ぎ判断に使います。ラベルは再利用できる分類で、new、needs-bot-review、needs-user-review、ready、ON-SCHEDULE-LIST、FINAL-USER-CHECK などのワークフローフラグは現在の状態を示します。作業が進んだら説明文を書き換えるより、新しいコメントを追加してください。",
+      "Todo Cockpit ist die Ebene der Planungsartefakte. Ein Todo bleibt von der Ausfuhrung getrennt: Verwenden Sie es fur Intake, Triage, Kommentare, Freigaben und Ubergabeentscheidungen. Labels sind wiederverwendbare Kategorien, wahrend Workflow-Flags wie new, needs-bot-review, needs-user-review, ready, ON-SCHEDULE-LIST oder FINAL-USER-CHECK den aktuellen Zustand zeigen. Fugen Sie neue Kommentare hinzu, wenn sich die Arbeit weiterentwickelt, statt die Beschreibung umzuschreiben."
     ),
   helpSwitchTabSettingsBtn: () => t("Switch to Settings", "設定を表示", "Zu Einstellungen wechseln"),
   helpSwitchTabTodoBtn: () => t("Switch to Todo Board", "Todoボードを表示", "Zum Todo-Board wechseln"),
@@ -627,12 +627,12 @@ export const messages = {
   helpSwitchTabListBtn: () => t("Switch to Task List", "タスクリストを表示", "Zur Task-Liste wechseln"),
   helpSwitchTabJobsBtn: () => t("Switch to Jobs", "Jobsを表示", "Zu Jobs wechseln"),
   helpSwitchTabResearchBtn: () => t("Switch to Research", "Researchを表示", "Zu Research wechseln"),
-  helpCreateTitle: () => t("2. ✍️ Create a Task", "2. ✍️ タスクを作成", "2. ✍️ Einen Task erstellen"),
+  helpCreateTitle: () => t("2. ✍️ Task - One executable unit", "2. ✍️ Task - 1 つの実行単位", "2. ✍️ Task - Eine ausfuhrbare Einheit"),
   helpCreateItemName: () =>
     t(
-      "Open the Create Task tab. Enter a name, write your prompt, choose whether the task is recurring or one-time, set a cron schedule directly or with the friendly schedule builder, and choose a scope.",
-      "Create Task タブを開き、名前とプロンプトを入力し、その task を繰り返し実行にするか one-time にするかを決め、cron スケジュールを直接またはフレンドリービルダーで設定し、最後にスコープを選びます。",
-      "Öffnen Sie den Tab Create Task. Geben Sie einen Namen ein, schreiben Sie Ihren Prompt, entscheiden Sie, ob der Task wiederkehrend oder einmalig sein soll, legen Sie den Cron-Zeitplan direkt oder mit dem Friendly Schedule Builder fest und wählen Sie einen Scope.",
+      "Open the Create Task tab when a Todo is ready to become one executable unit. Enter a name, write the prompt, choose recurring or one-time execution, set the schedule, and pick the scope.",
+      "Create Task タブは、Todo を 1 つの実行単位に進めるときに使います。名前とプロンプトを入力し、繰り返し実行か one-time 実行かを選び、スケジュールとスコープを設定します。",
+      "Öffnen Sie den Tab Create Task, wenn ein Todo zu einer ausfuhrbaren Einheit werden soll. Geben Sie einen Namen ein, schreiben Sie den Prompt, waehlen Sie wiederkehrende oder einmalige Ausfuehrung, legen Sie den Zeitplan fest und bestimmen Sie den Scope.",
     ),
   helpCreateItemTemplates: () =>
     t(
@@ -654,16 +654,16 @@ export const messages = {
     ),
   helpCreateItemRunFirst: () =>
     t(
-      "Check Run First to fire the first run 3 minutes after saving. Leave One-Time off for a normal recurring schedule, or turn One-Time on for Todo Task Drafts and other single-use executions that should stay in the task list until they run once. After a successful linked one-time run, the source Todo should move from ON-SCHEDULE-LIST to FINAL-USER-CHECK.",
-      "Run First にチェックすると、保存から3分後に初回実行します。通常の繰り返しスケジュールなら One-Time はオフのままにし、Todo Task Drafts や一度だけ実行したいものでは One-Time をオンにして、実行されるまで task list に残します。リンクされた one-time 実行が成功すると、元の Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進む想定です。",
-      "Aktivieren Sie Run First, damit der erste Lauf 3 Minuten nach dem Speichern startet. Lassen Sie One-Time für einen normalen wiederkehrenden Zeitplan aus, oder aktivieren Sie One-Time für Todo Task Drafts und andere Einmal-Ausführungen, die in der Task List bleiben sollen, bis sie einmal gelaufen sind. Nach einem erfolgreichen verknüpften One-Time-Lauf sollte das Ursprungstodo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
+      "Check Run First to fire the first run 3 minutes after saving. Leave One-Time off for a recurring schedule, or turn it on when a Todo should promote into a single-use task draft. After a successful linked one-time run, the source Todo should move from ON-SCHEDULE-LIST to FINAL-USER-CHECK.",
+      "Run First にチェックすると、保存から 3 分後に初回実行します。通常の繰り返しスケジュールなら One-Time はオフのままにし、Todo を単発の task draft に進めたいときだけオンにします。リンクされた one-time 実行が成功すると、元の Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進みます。",
+      "Aktivieren Sie Run First, damit der erste Lauf 3 Minuten nach dem Speichern startet. Lassen Sie One-Time fuer einen wiederkehrenden Zeitplan aus oder aktivieren Sie es nur, wenn ein Todo in einen einmaligen Task-Entwurf ueberfuehrt werden soll. Nach einem erfolgreichen verknuepften One-Time-Lauf sollte das Ursprungstodo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
     ),
-  helpListTitle: () => t("3. 📋 Manage Your Tasks", "3. 📋 タスクを管理", "3. 📋 Ihre Tasks verwalten"),
+  helpListTitle: () => t("3. 📋 Promote and manage Tasks", "3. 📋 Task へ進めて管理", "3. 📋 Tasks ueberfuehren und verwalten"),
   helpListItemSections: () =>
     t(
-      "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts so you can see which tasks are already on a schedule and which drafts still need a decision. Linked drafts keep their source Todo in ready until you enable them, give them a schedule, or run them as a one-time execution; after completion they should send the source Todo back to FINAL-USER-CHECK for acceptance.",
-      "Task List では、繰り返しタスク、一度きりタスク、Todo Task Drafts を分けて表示するため、すでにスケジュールに乗っているものと、まだ判断待ちの下書きを見分けられます。リンクされた draft は、有効化・スケジュール設定・one-time 実行のいずれかを行うまで元の Todo を ready に保ち、完了後は承認待ちとして FINAL-USER-CHECK に戻します。",
-      "Die Task List trennt wiederkehrende Tasks, einmalige Tasks und Todo Task Drafts, damit Sie sofort sehen, was bereits geplant ist und bei welchen Drafts noch eine Entscheidung fehlt. Verknüpfte Drafts halten ihr Ursprungstodo in ready, bis Sie sie aktivieren, planen oder als einmalige Ausführung starten; nach Abschluss sollen sie das Ursprungstodo zur Abnahme wieder nach FINAL-USER-CHECK zurückführen.",
+      "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts so you can see which execution artifacts are already scheduled and which drafts still need a decision. Linked drafts keep their source Todo in ready until you enable them, schedule them, or run them once; after completion they should send the source Todo back to FINAL-USER-CHECK for acceptance.",
+      "Task List では、繰り返し task、一度きり task、Todo Task Drafts を分けて表示するため、どの実行成果物がすでにスケジュール済みで、どの draft がまだ判断待ちかを見分けられます。リンクされた draft は、有効化・スケジュール設定・単発実行のいずれかを行うまで元の Todo を ready に保ち、完了後は FINAL-USER-CHECK に戻します。",
+      "Die Task List trennt wiederkehrende Tasks, einmalige Tasks und Todo Task Drafts, damit Sie sehen, welche Ausfuehrungsartefakte bereits geplant sind und bei welchen Entwuerfen noch eine Entscheidung fehlt. Verknuepfte Entwuerfe halten ihr Ursprungstodo in ready, bis Sie sie aktivieren, planen oder einmal ausfuehren; nach Abschluss sollen sie das Ursprungstodo zur Abnahme wieder nach FINAL-USER-CHECK zurueckfuehren.",
     ),
   helpListItemActions: () =>
     t(
@@ -677,12 +677,12 @@ export const messages = {
       "ツールバーからリストの更新や、このリポジトリを開いたときにSchedulerを自動表示するかの切り替えができます。",
       "Über die Toolbar können Sie die Liste aktualisieren oder umschalten, ob der Scheduler automatisch geöffnet wird, wenn dieses Repository in VS Code geöffnet wird.",
     ),
-  helpJobsTitle: () => t("4. 🔗 Chain Tasks with Jobs", "4. 🔗 Jobsでタスクを連結", "4. 🔗 Tasks mit Jobs verketten"),
+  helpJobsTitle: () => t("4. 🔗 Jobs - Orchestrated runs", "4. 🔗 Jobs - オーケストレーション実行", "4. 🔗 Jobs - Orchestrierte Laeufe"),
   helpJobsItemBoard: () =>
     t(
-      "Open the Jobs tab to build multi-step workflows. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
-      "Jobs タブでマルチステップのワークフローを作成します。タスクをステップとして追加し、ドラッグで並べ替え、フォルダーで整理できます。",
-      "Öffnen Sie den Jobs-Tab, um mehrstufige Abläufe zu bauen. Fügen Sie Tasks als Schritte hinzu, ordnen Sie sie per Drag-and-Drop neu an und organisieren Sie Abläufe in Ordnern.",
+      "Open the Jobs tab to build orchestrated or scheduled runs from multiple steps. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
+      "Jobs タブでは、複数ステップからなるオーケストレーション実行やスケジュール実行を作成します。task をステップとして追加し、ドラッグで並べ替え、フォルダーで整理できます。",
+      "Öffnen Sie den Jobs-Tab, um orchestrierte oder geplante Laeufe aus mehreren Schritten zu bauen. Fuegen Sie Tasks als Schritte hinzu, ordnen Sie sie per Drag-and-Drop neu an und organisieren Sie Workflows in Ordnern.",
     ),
   helpJobsItemPause: () =>
     t(
@@ -714,12 +714,12 @@ export const messages = {
       "JobからステップをDeleteするとTask Listからも削除されます。実行前に確認が表示されます。",
       "Wenn Sie einen Schritt aus einem Job löschen, wird dieser Task auch aus der Task List entfernt. Vorher erscheint eine Bestätigung.",
     ),
-  helpResearchTitle: () => t("5. 🔬 Run Bounded Research", "5. 🔬 制限付きResearchを実行", "5. 🔬 Begrenzte Research-Läufe ausführen"),
+  helpResearchTitle: () => t("5. 🔬 Research - Exploratory context", "5. 🔬 Research - 探索的な文脈づくり", "5. 🔬 Research - Explorativer Kontext"),
   helpResearchItemProfiles: () =>
     t(
-      "Go to the Research tab and create a profile. Set your instructions, the file paths the agent may edit, a benchmark command, a metric pattern, and your agent/model choice.",
-      "Researchタブでプロファイルを作成します。指示文・編集可能なファイルパス・ベンチマークコマンド・指標パターン・エージェント/モデルを設定します。",
-      "Gehen Sie zum Research-Tab und erstellen Sie ein Profil. Legen Sie die Anweisungen, die editierbaren Dateipfade, einen Benchmark-Befehl, ein Metric-Muster und agent/model fest.",
+      "Go to the Research tab when a Todo still needs exploratory context. Create a profile with instructions, editable paths, a benchmark command, a metric pattern, and your agent/model choice.",
+      "Research タブは、Todo にまだ探索的な文脈が必要なときに使います。指示文、編集可能なパス、ベンチマークコマンド、指標パターン、agent/model を設定してプロファイルを作成します。",
+      "Gehen Sie zum Research-Tab, wenn ein Todo noch explorativen Kontext braucht. Erstellen Sie ein Profil mit Anweisungen, editierbaren Pfaden, einem Benchmark-Befehl, einem Metrikmuster und Ihrer Agent-/Modellwahl.",
     ),
   helpResearchItemBounds: () =>
     t(

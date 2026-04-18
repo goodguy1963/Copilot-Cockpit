@@ -1,27 +1,33 @@
 # Getting Started
 
-Copilot Cockpit works best when you think of it as a simple loop:
+Copilot Cockpit works best when you treat it as one workflow stack with three layers:
 
-1. Plan the work.
-2. Approve the handoff.
-3. Run the right execution unit.
-4. Review the result before granting more autonomy.
+1. Planning and triage in `Todo Cockpit`
+2. Execution and scheduling through `Tasks` and `Jobs`
+3. Optional tool/control-plane integration through `Research`, `MCP`, and repo-local agent surfaces
+
+The recommended path is: start with a `Todo`, use `Research` when context is missing, then promote approved work into a `Task` or `Job`.
 
 ## Quick Start
 
 1. Open Copilot Cockpit from the activity bar or with `Copilot Cockpit: Create Scheduled Prompt (GUI)`.
 2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same walkthrough.
-3. Capture or refine work in `Todo Cockpit`.
-4. Move approved work into a task draft when the item is `ready`.
-5. Use `Tasks` for one execution unit, `Jobs` for ordered multi-step execution, and `Research` for benchmark-driven iteration.
-6. Open `Settings` to configure repo-local defaults and integrations, and use the top-bar `Plan Integration` button when you are ready to inspect or design the repo-local agent setup.
+3. Capture or refine work in `Todo Cockpit`. A `Todo` is the planning artifact and intake surface.
+4. Use `Research` if the work still needs exploratory context, outside evidence, or benchmarked iteration.
+5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated or scheduled run.
+6. Open `Settings` to configure repo-local defaults and integrations. Use the top-bar `Plan Integration` button only when you want optional control-plane extensions such as MCP, skills, or starter agents.
 
-## Choose The Right Surface
+## Stable Primitives
 
-- Use `Todo Cockpit` when the work still needs planning, comments, or approval.
-- Use `Tasks` when one prompt and one schedule are enough.
-- Use `Jobs` when the work needs ordered stages or pause checkpoints.
-- Use `Research` when the goal is measured improvement against a benchmark.
+- Use `Todo Cockpit` when the work still needs planning, comments, approval, or triage.
+- Use `Tasks` when one prompt and one schedule are enough for one executable unit.
+- Use `Jobs` when the work needs ordered stages, orchestration, or pause checkpoints.
+- Use `Research` when the work needs exploratory context or measured improvement before execution.
+
+## Optional Extensions
+
+- Add `MCP`, repo-local skills, or starter agents after the default path is working.
+- Treat those capabilities as control-plane extensions, not as mandatory setup for first use.
 
 If you want the tab-by-tab walkthrough, continue to [Feature Tour](./feature-tour.md).
 
@@ -31,7 +37,7 @@ Skip toy prompts. Start with one recurring loop that would still be worth keepin
 
 - For a small project, use an opportunity scout, a delivery-risk watch, and a knowledge packager, then stop at a review checkpoint.
 - For a company team, use the same pattern for product signals, security and release readiness, support queues, or operations follow-up.
-- If you also want to show the Research surface, add one benchmarked profile that scores onboarding or prompt quality against a simple command.
+- If you also want to show the Research surface, add one benchmarked profile that scores onboarding or prompt quality against a simple command before you promote anything into execution.
 
 That keeps the demo honest: the proof is useful output plus explicit review, not a claim that the system should run unchecked.
 
