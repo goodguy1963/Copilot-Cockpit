@@ -311,9 +311,12 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var helpWarpCleanupTimeout = transientState.helpWarpCleanupTimeout;
   var isCreatingJob = transientState.isCreatingJob;
   var todoEditorListenersBound = transientState.todoEditorListenersBound;
+  var pendingTodoLabelEditorState = { name: "", color: "" };
+  var pendingTodoFlagEditorState = { name: "", color: "" };
 
   function resetTodoDraft(reason) {
     currentTodoDraft = debugTools.resetTodoDraft(reason);
+    clearPendingTodoEditorColors();
   }
 
   function syncTodoDraftFromInputs(reason) {
@@ -1966,6 +1969,32 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     return "";
   }
 
+  function clearPendingTodoEditorColor(state) {
+    state.name = "";
+    state.color = "";
+  }
+
+  function clearPendingTodoEditorColors() {
+    clearPendingTodoEditorColor(pendingTodoLabelEditorState);
+    clearPendingTodoEditorColor(pendingTodoFlagEditorState);
+  }
+
+  function rememberPendingTodoEditorColor(state, name, color) {
+    state.name = normalizeTodoLabel(name);
+    state.color = isValidTodoEditorHexColor(color)
+      ? String(color)
+      : "";
+  }
+
+  function getPendingTodoEditorColor(state, name) {
+    if (normalizeTodoLabelKey(state.name) !== normalizeTodoLabelKey(name)) {
+      return "";
+    }
+    return isValidTodoEditorHexColor(state.color)
+      ? state.color
+      : "";
+  }
+
   function dedupeStringList(values) {
     var seen = {};
     return (Array.isArray(values) ? values : [])
@@ -2199,12 +2228,24 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       : "var(--vscode-badge-background)";
   }
 
+  function isValidTodoEditorHexColor(color) {
+    return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || ""));
+  }
+
   function getValidLabelColorValue(color, fallbackColor) {
     var value = String(color || "");
-    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+    if (isValidTodoEditorHexColor(value)) {
       return value;
     }
     return fallbackColor || "#4f8cff";
+  }
+
+  function getValidFlagColorValue(color, fallbackColor) {
+    var value = String(color || "");
+    if (isValidTodoEditorHexColor(value)) {
+      return value;
+    }
+    return fallbackColor || "#f59e0b";
   }
 
   function upsertLocalLabelDefinition(name, color, previousName) {
@@ -2449,21 +2490,32 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         : '<div class="note">No labels yet.</div>';
     }
 
-    var selectedDefinition = selectedTodoLabelName
-      ? getLabelDefinition(selectedTodoLabelName)
+    var activeLabelName = getActiveTodoLabelEditorName();
+    var selectedDefinition = activeLabelName
+      ? getLabelDefinition(activeLabelName)
       : null;
     if (todoLabelColorInput) {
-      // Only update the color picker when a chip is selected â€” don't overwrite
-      // the user's current choice while they're typing a new label name.
+      var draftLabelColor = !selectedTodoId && currentTodoDraft
+        ? getValidLabelColorValue(currentTodoDraft.labelColor, "")
+        : "";
+      var pendingLabelColor = getPendingTodoEditorColor(
+        pendingTodoLabelEditorState,
+        activeLabelName,
+      );
+      var nextLabelColor = pendingLabelColor
+        || draftLabelColor
+        || getValidLabelColorValue(selectedDefinition && selectedDefinition.color, "");
       var isTypingNew = todoLabelsInput && todoLabelsInput.value.trim();
-      if (selectedTodoLabelName) {
-        todoLabelColorInput.value = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(
-          selectedDefinition && selectedDefinition.color ? selectedDefinition.color : ""
-        ) ? selectedDefinition.color : "#4f8cff";
-      } else if (!isTypingNew) {
+      if (nextLabelColor) {
+        todoLabelColorInput.value = getValidLabelColorValue(nextLabelColor, "#4f8cff");
+      } else if (activeLabelName || !isTypingNew) {
         todoLabelColorInput.value = "#4f8cff";
       }
-      // Always enabled â€” user can pick a color before clicking Add
+      rememberPendingTodoEditorColor(
+        pendingTodoLabelEditorState,
+        activeLabelName,
+        todoLabelColorInput.value,
+      );
       todoLabelColorInput.disabled = false;
     }
       if (todoLabelColorSaveBtn) { todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName(); }
@@ -2778,6 +2830,10 @@ syncTodoLabelSuggestions();
   function syncFlagEditor() {
     var todoflagCurrentEl = document.getElementById("todo-flag-current");
     var todoFlagPickerEl = document.getElementById("todo-flag-picker");
+    var activeFlagName = getActiveTodoFlagEditorName();
+    var activeFlagDefinition = activeFlagName
+      ? getFlagDefinition(activeFlagName)
+      : null;
     if (todoflagCurrentEl) {
       if (currentTodoFlag) {
         todoflagCurrentEl.innerHTML = renderFlagChip(currentTodoFlag, true);
@@ -2809,6 +2865,25 @@ syncTodoLabelSuggestions();
             + '</span>';
         }).join("");
       }
+    }
+    if (todoFlagColorInput) {
+      var draftFlagColor = !selectedTodoId && currentTodoDraft
+        ? getValidFlagColorValue(currentTodoDraft.flagColor, "")
+        : "";
+      var pendingFlagColor = getPendingTodoEditorColor(
+        pendingTodoFlagEditorState,
+        activeFlagName,
+      );
+      var nextFlagColor = pendingFlagColor
+        || draftFlagColor
+        || getValidFlagColorValue(activeFlagDefinition && activeFlagDefinition.color, "");
+      todoFlagColorInput.value = getValidFlagColorValue(nextFlagColor, "#f59e0b");
+      rememberPendingTodoEditorColor(
+        pendingTodoFlagEditorState,
+        activeFlagName,
+        todoFlagColorInput.value,
+      );
+      todoFlagColorInput.disabled = false;
     }
     syncEditorTabLabels();
   }
@@ -4256,11 +4331,15 @@ syncTodoLabelSuggestions();
             selectedTodoLabelName = "";
           }
           if (todoLabelColorInput) todoLabelColorInput.disabled = false;
-          syncTodoLabelEditor();
-          } else {
-            selectedTodoLabelName = "";
-            syncTodoLabelEditor();
-          }
+        } else {
+          selectedTodoLabelName = "";
+        }
+        rememberPendingTodoEditorColor(
+          pendingTodoLabelEditorState,
+          getActiveTodoLabelEditorName(),
+          todoLabelColorInput ? todoLabelColorInput.value : "",
+        );
+        syncTodoLabelEditor();
           if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName();
           syncTodoEditorTransientDraft();
           syncTodoLabelSuggestions();
@@ -4284,9 +4363,19 @@ syncTodoLabelSuggestions();
     }
     if (todoLabelColorInput) {
       todoLabelColorInput.oninput = function () {
+        rememberPendingTodoEditorColor(
+          pendingTodoLabelEditorState,
+          getActiveTodoLabelEditorName(),
+          todoLabelColorInput.value,
+        );
         syncTodoEditorTransientDraft();
       };
       todoLabelColorInput.onchange = function () {
+        rememberPendingTodoEditorColor(
+          pendingTodoLabelEditorState,
+          getActiveTodoLabelEditorName(),
+          todoLabelColorInput.value,
+        );
         syncTodoEditorTransientDraft();
       };
     }
@@ -4515,6 +4604,11 @@ syncTodoLabelSuggestions();
     if (todoFlagNameInput) {
       todoFlagNameInput.oninput = function () {
         if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+        rememberPendingTodoEditorColor(
+          pendingTodoFlagEditorState,
+          getActiveTodoFlagEditorName(),
+          todoFlagColorInput ? todoFlagColorInput.value : "",
+        );
         syncTodoEditorTransientDraft();
       };
       todoFlagNameInput.onkeydown = function (event) {
@@ -4527,10 +4621,20 @@ syncTodoLabelSuggestions();
     if (todoFlagColorInput) {
       todoFlagColorInput.oninput = function () {
         if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+        rememberPendingTodoEditorColor(
+          pendingTodoFlagEditorState,
+          getActiveTodoFlagEditorName(),
+          todoFlagColorInput.value,
+        );
         syncTodoEditorTransientDraft();
       };
       todoFlagColorInput.onchange = function () {
         if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+        rememberPendingTodoEditorColor(
+          pendingTodoFlagEditorState,
+          getActiveTodoFlagEditorName(),
+          todoFlagColorInput.value,
+        );
         syncTodoEditorTransientDraft();
       };
     }
@@ -4787,6 +4891,7 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState();
     closeTodoDeleteModal();
     resetTodoCompletionInlineConfirm();
+    clearPendingTodoEditorColors();
     selectedTodoId = todoId || null;
     if (todoDetailId) {
       todoDetailId.value = selectedTodoId || "";
@@ -4808,6 +4913,7 @@ syncTodoLabelSuggestions();
     clearCatalogDeleteState();
     closeTodoDeleteModal();
     resetTodoCompletionInlineConfirm();
+    clearPendingTodoEditorColors();
     selectedTodoId = null;
     if (todoDetailId) {
       todoDetailId.value = "";

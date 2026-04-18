@@ -24,7 +24,7 @@ This page is ready for one screenshot per major surface.
 
 Current overview reference for `S1`:
 
-[![Watch the Copilot Cockpit intro video](../images/2026-03-30+01-06-46%20%281%29.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
 
 This intro video is the current broad product overview for the docs. The tab-specific captures for `S2` through `S7` are still separate and should be added to the sections below.
 

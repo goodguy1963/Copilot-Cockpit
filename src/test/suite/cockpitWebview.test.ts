@@ -426,6 +426,28 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     ], "shared label color preservation");
   });
 
+  test("todo label and flag editor sync prefer pending picker colors over saved defaults", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'var pendingTodoLabelEditorState = { name: "", color: "" };',
+      'var pendingTodoFlagEditorState = { name: "", color: "" };',
+      'function clearPendingTodoEditorColors() {',
+      'function rememberPendingTodoEditorColor(state, name, color) {',
+      'function getPendingTodoEditorColor(state, name) {',
+      'function getValidFlagColorValue(color, fallbackColor) {',
+      'var draftLabelColor = !selectedTodoId && currentTodoDraft',
+      'var pendingLabelColor = getPendingTodoEditorColor(',
+      'todoLabelColorInput.value = getValidLabelColorValue(nextLabelColor, "#4f8cff");',
+      'var draftFlagColor = !selectedTodoId && currentTodoDraft',
+      'var pendingFlagColor = getPendingTodoEditorColor(',
+      'todoFlagColorInput.value = getValidFlagColorValue(nextFlagColor, "#f59e0b");',
+      'rememberPendingTodoEditorColor(',
+      'pendingTodoLabelEditorState,',
+      'pendingTodoFlagEditorState,',
+    ], "pending todo editor color preservation");
+  });
+
   test("todo label catalog delete control only renders from the active edit surface", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
