@@ -131,6 +131,54 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     }
   });
 
+  test("uses one-time delay seconds when creating, updating, and re-enabling one-time tasks", async () => {
+    const storageRoot = createTempDir("copilot-scheduler-one-time-delay-");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const createStart = Date.now();
+      const task = await manager.createTask({
+        name: "One-time delayed task",
+        cronExpression: "* * * * *",
+        prompt: "prompt",
+        enabled: true,
+        scope: "global",
+        oneTime: true,
+        oneTimeDelaySeconds: 75,
+      });
+      const createEnd = Date.now();
+
+      assert.strictEqual(task.oneTimeDelaySeconds, 75);
+      assert.ok(task.nextRun instanceof Date);
+      assert.ok((task.nextRun?.getTime() ?? 0) >= createStart + 75_000);
+      assert.ok((task.nextRun?.getTime() ?? 0) <= createEnd + 76_000);
+
+      const updateStart = Date.now();
+      const updated = await manager.updateTask(task.id, {
+        oneTime: true,
+        oneTimeDelaySeconds: 12,
+      });
+      const updateEnd = Date.now();
+
+      assert.strictEqual(updated?.oneTimeDelaySeconds, 12);
+      assert.ok(updated?.nextRun instanceof Date);
+      assert.ok((updated?.nextRun?.getTime() ?? 0) >= updateStart + 12_000);
+      assert.ok((updated?.nextRun?.getTime() ?? 0) <= updateEnd + 13_000);
+
+      await manager.setTaskEnabled(task.id, false);
+      const reenableStart = Date.now();
+      const reenabled = await manager.setTaskEnabled(task.id, true);
+      const reenableEnd = Date.now();
+
+      assert.strictEqual(reenabled?.oneTimeDelaySeconds, 12);
+      assert.ok(reenabled?.nextRun instanceof Date);
+      assert.ok((reenabled?.nextRun?.getTime() ?? 0) >= reenableStart + 12_000);
+      assert.ok((reenabled?.nextRun?.getTime() ?? 0) <= reenableEnd + 13_000);
+    } finally {
+      removeTestPath(storageRoot);
+    }
+  });
+
   test("allows updating a local template task without resubmitting inline prompt text", async () => {
     const storageRoot = createTempDir("copilot-scheduler-template-task-update-");
 

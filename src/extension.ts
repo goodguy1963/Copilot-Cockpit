@@ -3052,6 +3052,11 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "refreshStorageStatus": {
+        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+        break;
+      }
+
       case "syncBundledSkills": {
         await vscode.commands.executeCommand(
           getCockpitCommandId("syncBundledSkills"),
@@ -3080,6 +3085,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         await SchedulerWebview.reloadCachesAndSync(true);
+        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
 
         if (
           syncResult.createdPaths.length === 0
@@ -3382,6 +3388,7 @@ function registerSyncBundledSkillsCommand(
         ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
         const syncResult = await syncBundledSkills(context, workspaceRoots);
         await SchedulerWebview.reloadCachesAndSync(true);
+        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
 
         if (
           syncResult.createdPaths.length === 0 &&

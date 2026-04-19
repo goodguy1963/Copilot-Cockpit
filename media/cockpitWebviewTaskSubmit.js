@@ -11,6 +11,16 @@ function getTrimmedValue(value) {
   return String(value || "").trim();
 }
 
+function normalizeOneTimeDelaySeconds(value) {
+  var numericValue = typeof value === "number" ? value : Number(value);
+  if (!isFinite(numericValue)) {
+    return 0;
+  }
+
+  var wholeSeconds = Math.floor(numericValue);
+  return wholeSeconds > 0 ? wholeSeconds : 0;
+}
+
 export function validateTaskSubmission(options) {
   var taskData = options.taskData;
   var promptSourceValue = options.promptSourceValue;
@@ -47,7 +57,15 @@ export function validateTaskSubmission(options) {
   }
 
   var cronValue = getTrimmedValue(taskData.cronExpression);
-  if (!cronValue) {
+  if (taskData.oneTime) {
+    if (normalizeOneTimeDelaySeconds(taskData.oneTimeDelaySeconds) < 1) {
+      showFormError(
+        formErr,
+        strings.oneTimeDelayRequired || strings.invalidCronExpression || "",
+      );
+      return false;
+    }
+  } else if (!cronValue) {
     showFormError(
       formErr,
       strings.cronExpressionRequired || strings.invalidCronExpression || "",
@@ -86,7 +104,7 @@ export function buildTaskSubmissionData(options) {
   return {
     name: editorState.name || "",
     prompt: editorState.prompt || "",
-    cronExpression: editorState.cronExpression || "",
+    cronExpression: editorState.cronExpression || (editorState.oneTime ? "* * * * *" : ""),
     labels: parsedLabels,
     agent: editorState.agent || "",
     model: editorState.model || "",
@@ -95,6 +113,9 @@ export function buildTaskSubmissionData(options) {
     promptPath: editorState.promptPath || "",
     runFirstInOneMinute: !!options.runFirstInOneMinute,
     oneTime: !!editorState.oneTime,
+    oneTimeDelaySeconds: editorState.oneTime
+      ? normalizeOneTimeDelaySeconds(editorState.oneTimeDelaySeconds)
+      : 0,
     manualSession: !!editorState.manualSession,
     jitterSeconds: Number(editorState.jitterSeconds || 0),
     enabled: options.editingTaskId ? options.editingTaskEnabled : true,

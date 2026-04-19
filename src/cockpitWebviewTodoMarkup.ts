@@ -3,6 +3,8 @@ import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
 
 const TODO_EDITOR_DESCRIPTION_LAYOUT_STYLES = `<style>#todo-edit-tab .todo-editor-grid{align-items:stretch;}#todo-edit-tab .todo-editor-card-primary{grid-template-rows:auto minmax(0,1fr) auto;align-content:stretch;min-height:0;}#todo-edit-tab .todo-editor-description-group{display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0;}#todo-edit-tab .todo-editor-description-input{min-height:max(180px,100%);height:100%;box-sizing:border-box;resize:vertical;}</style>`;
 
+const TODO_EDITOR_COMMENT_THREAD_STYLES = `<style>#todo-edit-tab .todo-comments-context-note{max-width:62ch;line-height:1.38;}#todo-edit-tab .todo-comments-layout{grid-template-columns:minmax(0,1.22fr) minmax(230px,0.78fr);gap:10px;}#todo-edit-tab .todo-comment-composer-shell,#todo-edit-tab .todo-comment-thread-shell{gap:7px;padding:9px;border-radius:10px;}#todo-edit-tab .todo-comment-composer-title,#todo-edit-tab .todo-comment-thread-title{font-size:12px;line-height:1.25;}#todo-edit-tab .todo-comment-composer-note,#todo-edit-tab .todo-comment-thread-note,#todo-edit-tab .todo-comment-draft-status{font-size:11px;line-height:1.34;}#todo-edit-tab .todo-comment-input-label-row{gap:6px;margin-bottom:4px;}#todo-edit-tab .todo-comment-input-label-row label{font-size:11px;}#todo-edit-tab .todo-comment-textarea{min-height:112px;font-size:12px;line-height:1.4;}#todo-edit-tab .todo-editor-comments{max-height:min(58vh,520px);padding-right:2px;gap:6px;scroll-padding-top:8px;}#todo-edit-tab .todo-comment-card{gap:5px;padding:8px 9px;border-radius:10px;border-left-width:3px;}#todo-edit-tab .todo-comment-card.is-bot-mcp{background:color-mix(in srgb,var(--vscode-debugIcon-startForeground,#4caf50) 18%,var(--vscode-sideBar-background));border-left-color:color-mix(in srgb,var(--vscode-debugIcon-startForeground,#4caf50) 82%,white);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--vscode-debugIcon-startForeground,#4caf50) 16%,transparent);}#todo-edit-tab .todo-comment-card.is-bot-manual{background:color-mix(in srgb,var(--vscode-editorWarning-foreground,#f5c451) 18%,var(--vscode-sideBar-background));border-left-color:color-mix(in srgb,var(--vscode-editorWarning-foreground,#f5c451) 84%,white);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--vscode-editorWarning-foreground,#f5c451) 18%,transparent);}#todo-edit-tab .todo-comment-card.is-system-event{gap:4px;padding:6px 8px;background:color-mix(in srgb,var(--vscode-descriptionForeground) 8%,var(--vscode-sideBar-background));border-left-color:color-mix(in srgb,var(--vscode-descriptionForeground) 52%,transparent);}#todo-edit-tab .todo-comment-heading,#todo-edit-tab .todo-comment-meta{gap:4px 6px;}#todo-edit-tab .todo-comment-sequence{font-size:11px;letter-spacing:0.02em;}#todo-edit-tab .todo-comment-source-chip{min-height:20px;padding:0 8px;font-size:10px;}#todo-edit-tab .todo-comment-author{margin:0;font-size:11px;line-height:1.3;color:var(--vscode-descriptionForeground);}#todo-edit-tab .todo-comment-body{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;white-space:pre-wrap;line-height:1.42;color:var(--vscode-foreground);font-size:12px;}#todo-edit-tab .todo-comment-card.is-user-form .todo-comment-author{color:var(--vscode-descriptionForeground);}#todo-edit-tab .todo-comment-card.is-user-form .todo-comment-body{color:var(--vscode-foreground);font-weight:500;}#todo-edit-tab .todo-comment-card.is-bot-mcp .todo-comment-body,#todo-edit-tab .todo-comment-card.is-bot-manual .todo-comment-body{font-weight:600;}#todo-edit-tab .todo-comment-card.is-system-event .todo-comment-author,#todo-edit-tab .todo-comment-card.is-system-event .todo-comment-body,#todo-edit-tab .todo-comment-card.is-system-event .todo-comment-expand-hint{color:var(--vscode-descriptionForeground);}#todo-edit-tab .todo-comment-card.is-system-event .todo-comment-body{-webkit-line-clamp:2;line-height:1.3;font-size:11px;}#todo-edit-tab .todo-comment-expand-hint{margin-top:0;font-size:10px;}@media (max-width:980px){#todo-edit-tab .todo-comments-layout{grid-template-columns:1fr;}}</style>`;
+
 function renderSectionTitleWithHelp(
   label: string,
   helpText: string,
@@ -20,7 +22,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
 }): string {
   const { strings } = options;
 
-  return `<div id="todo-edit-tab" class="tab-content">
+  return `${TODO_EDITOR_DESCRIPTION_LAYOUT_STYLES}${TODO_EDITOR_COMMENT_THREAD_STYLES}<div id="todo-edit-tab" class="tab-content">
     <div class="todo-editor-shell">
       <div class="todo-editor-header">
         <div>
@@ -124,7 +126,7 @@ export function buildSchedulerTodoEditorMarkup(options: {
                 <div class="todo-comment-thread-title">${escapeHtml(strings.boardCommentThreadTitle || "Thread preview")}</div>
                 <div id="todo-comment-thread-note" class="note todo-comment-thread-note">${escapeHtml(strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.")}</div>
               </div>
-              <div id="todo-comment-list" class="todo-editor-comments" style="min-height:min(52vh,320px);"></div>
+              <div id="todo-comment-list" class="todo-editor-comments" style="min-height:min(58vh,360px);"></div>
             </div>
 
             <div class="todo-comment-composer-shell">

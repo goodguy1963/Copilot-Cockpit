@@ -104,6 +104,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var strings = bootstrapData.strings;
   var currentLogLevel = bootstrapData.currentLogLevel;
   var currentLogDirectory = bootstrapData.currentLogDirectory;
+  var storageStatusRefreshNoteTimer = null;
 
   function refreshTaskCountdowns() {
     if (!taskList || !taskList.isConnected) {
@@ -388,8 +389,14 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     restoreHistoryBtn,
     autoShowStartupNote,
     friendlyBuilder,
+    recurringScheduleGroup,
+    oneTimeDelayGroup,
     cronPreset,
     cronExpression,
+    oneTimeDelayHours,
+    oneTimeDelayMinutes,
+    oneTimeDelaySeconds,
+    oneTimeDelayPreviewText,
     agentSelect,
     modelSelect,
     chatSessionGroup,
@@ -408,6 +415,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     syncBundledAgentsBtn,
     openCopilotSettingsBtn,
     openExtensionSettingsBtn,
+    refreshStorageStatusBtn,
+    settingsStatusRefreshNote,
     importStorageFromJsonBtn,
     exportStorageToJsonBtn,
     helpLanguageSelect,
@@ -429,6 +438,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     taskFilterBar,
     taskLabelFilter,
     taskLabelsInput,
+    runFirstGroup,
     jobsFolderList,
     jobsCurrentFolderBanner,
     jobsList,
@@ -1409,6 +1419,22 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
   }
 
+  function showStorageStatusRefreshNote() {
+    if (!settingsStatusRefreshNote) {
+      return;
+    }
+    settingsStatusRefreshNote.textContent = strings.settingsStatusUpdated || "✓ Updated";
+    settingsStatusRefreshNote.style.opacity = "1";
+    if (storageStatusRefreshNoteTimer) {
+      window.clearTimeout(storageStatusRefreshNoteTimer);
+    }
+    storageStatusRefreshNoteTimer = window.setTimeout(function () {
+      settingsStatusRefreshNote.style.opacity = "0";
+      settingsStatusRefreshNote.textContent = "";
+      storageStatusRefreshNoteTimer = null;
+    }, 2000);
+  }
+
   function renderLoggingControls() {
     if (settingsLogLevelSelect) {
       settingsLogLevelSelect.value = currentLogLevel || "info";
@@ -1550,8 +1576,29 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   function syncRecurringChatSessionUi() {
     var oneTimeEl = document.getElementById("one-time");
     var manualSessionEl = document.getElementById("manual-session");
+    var runFirstEl = document.getElementById("run-first");
     var isOneTime = !!(oneTimeEl && oneTimeEl.checked);
     var isManualSession = !!(manualSessionEl && manualSessionEl.checked);
+
+    if (isOneTime && manualSessionEl && manualSessionEl.checked) {
+      manualSessionEl.checked = false;
+      isManualSession = false;
+    }
+
+    if (isManualSession && oneTimeEl && oneTimeEl.checked) {
+      oneTimeEl.checked = false;
+      isOneTime = false;
+    }
+
+    if (recurringScheduleGroup) {
+      recurringScheduleGroup.style.display = isOneTime ? "none" : "";
+    }
+    if (oneTimeDelayGroup) {
+      oneTimeDelayGroup.style.display = isOneTime ? "block" : "none";
+    }
+    if (runFirstGroup) {
+      runFirstGroup.style.display = isOneTime ? "none" : "block";
+    }
 
     if (chatSessionGroup) {
       chatSessionGroup.style.display = isOneTime ? "none" : "block";
@@ -1565,13 +1612,94 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       chatSessionSelect.value = defaultChatSession;
     }
 
-    if (isOneTime && manualSessionEl && manualSessionEl.checked) {
-      manualSessionEl.checked = false;
+    if (isOneTime && runFirstEl && runFirstEl.checked) {
+      runFirstEl.checked = false;
     }
 
-    if (isManualSession && oneTimeEl && oneTimeEl.checked) {
-      oneTimeEl.checked = false;
+    updateOneTimeDelayPreview();
+  }
+
+  function normalizeOneTimeDelayPart(value, maxValue) {
+    var numericValue = typeof value === "number" ? value : Number(value);
+    if (!isFinite(numericValue) || numericValue < 0) {
+      return 0;
     }
+
+    var wholeNumber = Math.floor(numericValue);
+    if (typeof maxValue === "number") {
+      return Math.min(wholeNumber, maxValue);
+    }
+    return wholeNumber;
+  }
+
+  function getOneTimeDelaySecondsFromInputs() {
+    return normalizeOneTimeDelayPart(oneTimeDelayHours ? oneTimeDelayHours.value : 0) * 3600
+      + normalizeOneTimeDelayPart(oneTimeDelayMinutes ? oneTimeDelayMinutes.value : 0, 59) * 60
+      + normalizeOneTimeDelayPart(oneTimeDelaySeconds ? oneTimeDelaySeconds.value : 0, 59);
+  }
+
+  function formatHumanDuration(totalSeconds) {
+    var normalizedSeconds = normalizeOneTimeDelayPart(totalSeconds);
+    var hours = Math.floor(normalizedSeconds / 3600);
+    var minutes = Math.floor((normalizedSeconds % 3600) / 60);
+    var seconds = normalizedSeconds % 60;
+    if (hours > 0) {
+      return minutes > 0
+        ? hours + " " + (hours === 1 ? "hour" : "hours") + " " + minutes + " " + (minutes === 1 ? "minute" : "minutes")
+        : hours + " " + (hours === 1 ? "hour" : "hours");
+    }
+    if (minutes > 0) {
+      return seconds > 0
+        ? minutes + " " + (minutes === 1 ? "minute" : "minutes") + " " + seconds + " " + (seconds === 1 ? "second" : "seconds")
+        : minutes + " " + (minutes === 1 ? "minute" : "minutes");
+    }
+    return normalizedSeconds + " " + (normalizedSeconds === 1 ? "second" : "seconds");
+  }
+
+  function setOneTimeDelayInputs(totalSeconds) {
+    var normalized = normalizeOneTimeDelayPart(totalSeconds);
+    if (oneTimeDelayHours) {
+      oneTimeDelayHours.value = String(Math.floor(normalized / 3600));
+    }
+    if (oneTimeDelayMinutes) {
+      oneTimeDelayMinutes.value = String(Math.floor((normalized % 3600) / 60));
+    }
+    if (oneTimeDelaySeconds) {
+      oneTimeDelaySeconds.value = String(normalized % 60);
+    }
+  }
+
+  function deriveTaskOneTimeDelaySeconds(task) {
+    var storedDelay = normalizeOneTimeDelayPart(task && task.oneTimeDelaySeconds);
+    if (storedDelay > 0) {
+      return storedDelay;
+    }
+    if (!(task && task.oneTime === true && task.nextRun)) {
+      return 0;
+    }
+
+    var nextRunDate = new Date(task.nextRun);
+    var remainingSeconds = Math.ceil((nextRunDate.getTime() - Date.now()) / 1000);
+    return remainingSeconds > 0 ? remainingSeconds : 0;
+  }
+
+  function updateOneTimeDelayPreview() {
+    if (!oneTimeDelayPreviewText) {
+      return;
+    }
+
+    var totalSeconds = getOneTimeDelaySecondsFromInputs();
+    if (totalSeconds < 1) {
+      oneTimeDelayPreviewText.textContent =
+        strings.oneTimeDelayPreviewUnset || "Set a delay to schedule this one-time run.";
+      return;
+    }
+
+    var nextRunDate = new Date(Date.now() + totalSeconds * 1000);
+    oneTimeDelayPreviewText.textContent =
+      formatHumanDuration(totalSeconds) +
+      " " + (strings.oneTimeDelayFromNow || "from now") +
+      " • " + nextRunDate.toLocaleString(locale);
   }
 
   function formatHistoryLabel(entry) {
@@ -3051,14 +3179,23 @@ syncTodoLabelSuggestions();
         strings.boardCommentEditHint || "Add a focused update without rewriting the full description."
       );
     }
-    return comments.map(function (comment, commentIndex) {
-      var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+    return comments.slice().reverse().map(function (comment, reverseIndex) {
+      var source = comment && comment.source ? String(comment.source) : "human-form";
+      var commentIndex = comments.length - reverseIndex - 1;
+      var sourceLabel = getTodoCommentSourceLabel(source);
       var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
       var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
       var toneClass = getTodoCommentToneClass(comment);
-      var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"
+      var userFormClass = source === "human-form" && String(comment.author || "").toLowerCase() === "user"
         ? " is-user-form"
         : "";
+      var rawBody = String(comment.body || "");
+      var previewBody = source === "system-event"
+        ? rawBody.replace(/\s+/g, " ").trim()
+        : rawBody;
+      if (source === "system-event" && previewBody.length > 140) {
+        previewBody = previewBody.slice(0, 137) + "...";
+      }
       return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
         '<div class="todo-comment-header">' +
         '<div class="todo-comment-heading">' +
@@ -3071,7 +3208,7 @@ syncTodoLabelSuggestions();
         '</div>' +
         '</div>' +
         '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
-        '<div class="todo-comment-body">' + escapeHtml(comment.body || "") + '</div>' +
+        '<div class="todo-comment-body">' + escapeHtml(previewBody) + '</div>' +
         '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + '</div>' +
         '</article>';
     }).join("");
@@ -4699,6 +4836,7 @@ syncTodoLabelSuggestions();
       name: taskNameEl ? String(taskNameEl.value || "") : "",
       prompt: promptTextEl ? String(promptTextEl.value || "") : "",
       cronExpression: cronExpression ? String(cronExpression.value || "") : "",
+      oneTimeDelaySeconds: getOneTimeDelaySecondsFromInputs(),
       labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
       agent: agentValue,
       model: modelValue,
@@ -4720,6 +4858,7 @@ syncTodoLabelSuggestions();
       name: String(task.name || ""),
       prompt: typeof task.prompt === "string" ? task.prompt : "",
       cronExpression: String(task.cronExpression || ""),
+      oneTimeDelaySeconds: deriveTaskOneTimeDelaySeconds(task),
       labels: normalizeTaskLabelsValue(toLabelString(task.labels)),
       agent: String(task.agent || ""),
       model: String(task.model || ""),
@@ -5208,6 +5347,7 @@ syncTodoLabelSuggestions();
     if (!isPersistedTabName(tabName)) {
       tabName = "help";
     }
+    var shouldRefreshStorageStatus = tabName === "settings" && activeTabName !== "settings";
     if (activeTabName) {
       captureTabScrollPosition(activeTabName);
     }
@@ -5226,6 +5366,9 @@ syncTodoLabelSuggestions();
     restoreTabScrollPosition(tabName);
     updateBoardAutoCollapseFromScroll(true);
     scheduleBoardStickyMetrics();
+    if (shouldRefreshStorageStatus) {
+      vscode.postMessage({ type: "refreshStorageStatus" });
+    }
     maybePlayInitialHelpWarp(tabName);
   }
 
@@ -5259,6 +5402,12 @@ syncTodoLabelSuggestions();
   var manualSessionToggle = document.getElementById("manual-session");
   bindGenericChange(manualSessionToggle, function () {
     syncRecurringChatSessionUi();
+  });
+  [oneTimeDelayHours, oneTimeDelayMinutes, oneTimeDelaySeconds].forEach(function (control) {
+    bindGenericChange(control, function () {
+      updateOneTimeDelayPreview();
+      syncEditorTabLabels();
+    });
   });
 
   bindTaskFilterBar(taskFilterBar, {
@@ -5373,6 +5522,32 @@ syncTodoLabelSuggestions();
     "jobs-friendly-frequency": function () {
       refreshJobsFriendlyCronFromBuilder();
     },
+    "one-time-delay-hours": function () {
+      updateOneTimeDelayPreview();
+    },
+    "one-time-delay-minutes": function () {
+      updateOneTimeDelayPreview();
+    },
+    "one-time-delay-seconds": function () {
+      updateOneTimeDelayPreview();
+    },
+  });
+
+  document.addEventListener("click", function (event) {
+    var target = event && event.target && event.target.nodeType === 3
+      ? event.target.parentElement
+      : event.target;
+    if (!target || typeof target.closest !== "function") {
+      return;
+    }
+    var presetButton = target.closest(".one-time-delay-preset");
+    if (!presetButton) {
+      return;
+    }
+    event.preventDefault();
+    setOneTimeDelayInputs(presetButton.getAttribute("data-seconds"));
+    updateOneTimeDelayPreview();
+    syncEditorTabLabels();
   });
 
   bindFriendlyCronBuilderAutoUpdate({
@@ -5715,6 +5890,7 @@ syncTodoLabelSuggestions();
     syncBundledAgents: syncBundledAgentsBtn,
     openCopilotSettings: openCopilotSettingsBtn,
     openExtensionSettings: openExtensionSettingsBtn,
+    refreshStorageStatus: refreshStorageStatusBtn,
     importStorageFromJson: importStorageFromJsonBtn,
     exportStorageToJson: exportStorageToJsonBtn,
   });
@@ -7108,7 +7284,7 @@ syncTodoLabelSuggestions();
   }
 
   function refreshTaskEditorDerivedState() {
-    [syncRecurringChatSessionUi, updateFriendlyVisibility, updateCronPreview].forEach(function (refreshFn) {
+    [syncRecurringChatSessionUi, updateFriendlyVisibility, updateCronPreview, updateOneTimeDelayPreview].forEach(function (refreshFn) {
       refreshFn();
     });
   }
@@ -7290,6 +7466,7 @@ syncTodoLabelSuggestions();
     if (jitterSecondsInput) {
       jitterSecondsInput.value = String(defaultJitterSeconds);
     }
+    setOneTimeDelayInputs(0);
     if (taskLabelsInput) {
       taskLabelsInput.value = "";
     }
@@ -7358,6 +7535,7 @@ syncTodoLabelSuggestions();
     if (jitterSecondsInput) {
       jitterSecondsInput.value = String(task.jitterSeconds ?? defaultJitterSeconds);
     }
+    setOneTimeDelayInputs(deriveTaskOneTimeDelaySeconds(task));
 
     var runFirstEl = document.getElementById("run-first");
     if (runFirstEl) runFirstEl.checked = false;
@@ -8199,6 +8377,9 @@ syncTodoLabelSuggestions();
       "#model-select",
       "#template-select",
       "#jitter-seconds",
+      "#one-time-delay-hours",
+      "#one-time-delay-minutes",
+      "#one-time-delay-seconds",
       "#chat-session",
       "#run-first",
       "#one-time",
@@ -8793,6 +8974,7 @@ syncTodoLabelSuggestions();
         case "updateStorageSettings":
           storageSettings = normalizeStorageSettings(message.storageSettings, storageSettings);
           renderStorageSettingsControls();
+          showStorageStatusRefreshNote();
           break;
         case "updateApprovalMode":
           if (approvalModeSelect && message.approvalMode) {

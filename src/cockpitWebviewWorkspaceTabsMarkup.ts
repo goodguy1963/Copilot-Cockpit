@@ -533,6 +533,13 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <button type="button" class="btn-secondary settings-action-button is-open" id="open-extension-settings-btn">${escapeHtml(strings.actionOpenCockpitSettings)}</button>
           </div>
         </div>
+        <div class="settings-metrics-header" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:12px;">
+          <div class="section-title">📊 ${escapeHtml(strings.settingsStatusMetricsTitle)}</div>
+          <div style="display:inline-flex;align-items:center;gap:8px;">
+            <button type="button" class="btn-secondary btn-icon" id="refresh-storage-status-btn" title="${escapeHtmlAttr(strings.settingsRefreshStatus)}">${escapeHtml(strings.actionRefresh)}</button>
+            <span class="note" id="settings-status-refresh-note" aria-live="polite" style="opacity:0;transition:opacity 0.2s ease;"></span>
+          </div>
+        </div>
         <div class="settings-metrics-grid">
           <div class="settings-metric"><strong>🧪 ${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
           <div class="settings-metric"><strong>🔌 ${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>

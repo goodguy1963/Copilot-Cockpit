@@ -54,6 +54,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
     .join("");
   const cronPreviewMarkup = `<div class="cron-preview"><strong>${escapeHtml(strings.labelFriendlyPreview)}:</strong><span id="cron-preview-text">${escapeHtml(strings.labelFriendlyFallback)}</span><button type="button" class="btn-secondary btn-icon" id="open-guru-btn">${escapeHtml(strings.labelOpenInGuru)}</button></div>`;
   const scheduleSelectorMarkup = `<div class="form-group" style="margin:0;"><label>${escapeHtml(strings.labelSchedule)}</label><div class="preset-select"><select id="cron-preset"><option value="">${escapeHtml(strings.labelCustom)}</option>${cronPresetOptions}</select></div><input type="text" id="cron-expression" placeholder="${escapeHtmlAttr(strings.placeholderCron)}" required>${cronPreviewMarkup}</div>`;
+  const oneTimeDelayMarkup = `<div class="form-group" id="one-time-delay-group" style="display:none; margin:0;"><label>${escapeHtml(strings.labelOneTimeDelay)}</label><div class="one-time-delay-builder"><p class="note" id="one-time-delay-note">${escapeHtml(strings.oneTimeDelayNote)}</p><div class="note"><strong>${escapeHtml(strings.oneTimeDelayQuickPresets)}</strong></div><div class="one-time-delay-presets" role="group" aria-label="${escapeHtmlAttr(strings.oneTimeDelayQuickPresets)}"><button type="button" class="one-time-delay-preset" data-seconds="300">5 min</button><button type="button" class="one-time-delay-preset" data-seconds="900">15 min</button><button type="button" class="one-time-delay-preset" data-seconds="1800">30 min</button><button type="button" class="one-time-delay-preset" data-seconds="3600">1 hour</button><button type="button" class="one-time-delay-preset" data-seconds="7200">2 hours</button></div><div class="inline-group"><div class="form-group" style="margin:0; flex:0 0 88px;"><label for="one-time-delay-hours">${escapeHtml(strings.labelDelayHours)}</label><input type="number" id="one-time-delay-hours" min="0" step="1" value="0" style="max-width:88px; text-align:center;"></div><div class="form-group" style="margin:0; flex:0 0 88px;"><label for="one-time-delay-minutes">${escapeHtml(strings.labelDelayMinutes)}</label><input type="number" id="one-time-delay-minutes" min="0" max="59" step="1" value="0" style="max-width:88px; text-align:center;"></div><div class="form-group" style="margin:0; flex:0 0 88px;"><label for="one-time-delay-seconds">${escapeHtml(strings.labelDelaySeconds)}</label><input type="number" id="one-time-delay-seconds" min="0" max="59" step="1" value="0" style="max-width:88px; text-align:center;"></div></div><div class="one-time-delay-preview" role="status" aria-live="polite"><strong>${escapeHtml(strings.labelNextRun)}:</strong><span id="one-time-delay-preview-text">${escapeHtml(strings.oneTimeDelayPreviewUnset)}</span></div></div></div>`;
   const jitterFieldMarkup = `<div class="form-group" style="margin:0;"><label for="jitter-seconds">${escapeHtml(strings.labelJitterSeconds)}</label><input type="number" id="jitter-seconds" min="0" max="1800" value="${escapeHtmlAttr(String(defaultJitterSeconds))}"><p class="note">${escapeHtml(strings.webviewJitterNote)}</p></div>`;
 
   return `<form id="task-form" novalidate>
@@ -96,9 +97,13 @@ export function buildSchedulerTaskEditorMarkup(options: {
           <section class="task-editor-card">
             <div class="section-title">${escapeHtml(strings.taskEditorScheduleTitle)}</div>
 
-            ${scheduleSelectorMarkup}
+            <div id="recurring-schedule-group">
+              ${scheduleSelectorMarkup}
 
-            ${buildFriendlyCronBuilderMarkup(strings, "friendly")}
+              ${buildFriendlyCronBuilderMarkup(strings, "friendly")}
+            </div>
+
+            ${oneTimeDelayMarkup}
 
             <div class="section-title">${escapeHtml(strings.taskEditorRuntimeTitle)}</div>
             <div class="inline-group">
@@ -123,7 +128,7 @@ export function buildSchedulerTaskEditorMarkup(options: {
 
               ${jitterFieldMarkup}
 
-              <div class="form-group" style="margin:0;">
+              <div class="form-group" id="run-first-group" style="margin:0;">
                 <label class="checkbox-group">
                   <input type="checkbox" id="run-first">
                   <span>${escapeHtml(strings.labelRunFirstInOneMinute)}</span>

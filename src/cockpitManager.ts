@@ -77,8 +77,10 @@ import {
   applyTaskUpdatesToTask,
   applyTaskPromptUpdates,
   createDuplicateTaskInput,
+  normalizeOneTimeDelaySeconds,
   repairStoredTaskPromptSource,
   resolveCreatedTaskNextRun,
+  resolveOneTimeDelayNextRun,
   setTaskEnabledState,
 } from "./cockpitManagerTaskOps";
 import {
@@ -373,6 +375,17 @@ export class ScheduleManager {
 
     const { cronChanged, previouslyEnabled, referenceTime, runFirstInOneMinute } =
       options;
+    if (task.oneTime === true) {
+      const delayedRun = resolveOneTimeDelayNextRun(
+        task.oneTimeDelaySeconds,
+        referenceTime,
+      );
+      if (delayedRun) {
+        task.nextRun = delayedRun;
+        return;
+      }
+    }
+
     if (runFirstInOneMinute) {
       task.nextRun = this.floorToMinute(
         new Date(
@@ -461,6 +474,13 @@ export class ScheduleManager {
       task.nextRun instanceof Date && Number.isFinite(task.nextRun.getTime());
     if (nextRunIsValid) {
       return false;
+    }
+
+    if (task.oneTime === true) {
+      return this.replaceTaskNextRun(
+        task,
+        resolveOneTimeDelayNextRun(task.oneTimeDelaySeconds, new Date()),
+      );
     }
 
     return this.replaceTaskNextRun(
@@ -817,6 +837,7 @@ export class ScheduleManager {
           lastError: t.lastError,
           lastErrorAt: t.lastErrorAt ? new Date(t.lastErrorAt) : undefined,
           oneTime: t.oneTime === true,
+          oneTimeDelaySeconds: normalizeOneTimeDelaySeconds(t.oneTimeDelaySeconds),
           manualSession:
             t.oneTime === true
               ? undefined
@@ -1086,6 +1107,7 @@ export class ScheduleManager {
             : undefined,
           jitterSeconds: t.jitterSeconds,
           oneTime: t.oneTime,
+          oneTimeDelaySeconds: t.oneTimeDelaySeconds,
           labels: t.labels,
           jobId: t.jobId,
           jobNodeId: t.jobNodeId,
@@ -1320,6 +1342,9 @@ export class ScheduleManager {
       enabled,
       id,
       oneTime,
+      oneTimeDelaySeconds: oneTime
+        ? normalizeOneTimeDelaySeconds(input.oneTimeDelaySeconds)
+        : undefined,
       jitterSeconds,
       model: input.model, // llm-model
       name: input.name, // display-label
@@ -1333,13 +1358,11 @@ export class ScheduleManager {
     };
     return createdTask;
   }
-
   private unlinkTaskFromOwningJob(taskId: string): void {
     const jobContext = this.findJobNodeByTaskId(taskId);
     if (!jobContext) {
       return;
     }
-
     const removedNodeId = jobContext.node.id;
     jobContext.job.nodes = jobContext.job.nodes.filter(
       ({ id }) => id !== removedNodeId,
@@ -2037,6 +2060,8 @@ export class ScheduleManager {
         : defaultJitter;
     const nextRun = resolveCreatedTaskNextRun({
       enabled: isActive,
+      oneTime,
+      oneTimeDelaySeconds: input.oneTimeDelaySeconds,
       runFirstInOneMinute: input.runFirstInOneMinute,
       now,
       firstRunDelayMinutes: ScheduleManager.INITIAL_TICK_DELAY_MIN,

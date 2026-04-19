@@ -653,6 +653,35 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     ], "manual-session runtime");
   });
 
+  test("task editor switches one-time scheduling to a relative delay editor", () => {
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(templateSource, [
+      'id="recurring-schedule-group"',
+      'id="one-time-delay-group"',
+      'id="one-time-delay-hours"',
+      'id="one-time-delay-minutes"',
+      'id="one-time-delay-seconds"',
+      'strings.labelOneTimeDelay',
+      'strings.labelDelayHours',
+      'strings.labelDelayMinutes',
+      'strings.labelDelaySeconds',
+      'one-time-delay-preset',
+    ], "one-time delay template");
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'recurringScheduleGroup.style.display = isOneTime ? "none" : "";',
+      'oneTimeDelayGroup.style.display = isOneTime ? "block" : "none";',
+      'function getOneTimeDelaySecondsFromInputs() {',
+      'oneTimeDelaySeconds: getOneTimeDelaySecondsFromInputs(),',
+      'oneTimeDelaySeconds: editorState.oneTime',
+      'function updateOneTimeDelayPreview() {',
+      'formatHumanDuration(totalSeconds)',
+      'data-seconds',
+    ], "one-time delay runtime");
+  });
+
   test("task list recovers restored label filters that would otherwise hide all tasks and ready todo drafts", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
@@ -911,13 +940,14 @@ test("todo comments style human form input separately and todo saves reset to cr
       '.todo-comments-layout{',
       'grid-template-columns: 1fr;',
       'class="todo-editor-card todo-comments-spotlight"',
-      'style="min-height:min(52vh,320px);"',
+      'style="min-height:min(58vh,360px);"',
       'id="todo-comment-count-badge"',
       'id="todo-comment-mode-pill"',
       'id="todo-comment-composer-title"',
       'id="todo-comment-thread-note"',
-      '.todo-comment-card.is-user-form .todo-comment-author,',
-      '.todo-comment-card.is-user-form .todo-comment-body{',
+      '#todo-edit-tab .todo-comment-card.is-user-form .todo-comment-body{color:var(--vscode-foreground);font-weight:500;}',
+      '#todo-edit-tab .todo-comment-card.is-system-event .todo-comment-body{-webkit-line-clamp:2;line-height:1.3;font-size:11px;}',
+      '#todo-edit-tab .todo-comment-card.is-bot-mcp .todo-comment-body,#todo-edit-tab .todo-comment-card.is-bot-manual .todo-comment-body{font-weight:600;}',
     ], "user comment styling");
 
     const composerMarkupIndex = templateSource.indexOf('class="todo-comment-composer-shell"');
@@ -961,7 +991,10 @@ test("todo comments style human form input separately and todo saves reset to cr
       'selectedTodoId = editorTodoId;',
       'vscode.postMessage({ type: "updateTodo", todoId: activeTodoId, data: payload });',
       'payload.comment = commentBody;',
-      'var userFormClass = comment.source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
+      'return comments.slice().reverse().map(function (comment, reverseIndex) {',
+      'var commentIndex = comments.length - reverseIndex - 1;',
+      'var previewBody = source === "system-event"',
+      'var userFormClass = source === "human-form" && String(comment.author || "").toLowerCase() === "user"',
       'var toneClass = getTodoCommentToneClass(comment);',
       `'<article class="todo-comment-card' + toneClass + userFormClass + '"`,
       'todoDetailTitle.setAttribute("title", todoDetailHelpText);',

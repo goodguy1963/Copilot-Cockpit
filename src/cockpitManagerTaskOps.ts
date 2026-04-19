@@ -9,6 +9,31 @@ type NextRunResolver = (
 
 type MinuteTruncator = (date: Date) => Date;
 
+const MINIMUM_ONE_TIME_DELAY_SECONDS = 1;
+
+export function normalizeOneTimeDelaySeconds(value: unknown): number | undefined {
+  const numericValue =
+    typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return undefined;
+  }
+
+  const wholeSeconds = Math.floor(numericValue);
+  return wholeSeconds >= MINIMUM_ONE_TIME_DELAY_SECONDS ? wholeSeconds : undefined;
+}
+
+export function resolveOneTimeDelayNextRun(
+  oneTimeDelaySeconds: unknown,
+  referenceTime: Date,
+): Date | undefined {
+  const delaySeconds = normalizeOneTimeDelaySeconds(oneTimeDelaySeconds);
+  if (delaySeconds === undefined) {
+    return undefined;
+  }
+
+  return new Date(referenceTime.getTime() + delaySeconds * 1000);
+}
+
 const supportedPromptSources: readonly PromptSource[] = [
   "local",
   "global",
@@ -111,6 +136,8 @@ export function applyTaskPromptUpdates(
 
 export function resolveCreatedTaskNextRun(params: {
   enabled: boolean;
+  oneTime?: boolean;
+  oneTimeDelaySeconds?: number;
   runFirstInOneMinute?: boolean;
   now: Date;
   firstRunDelayMinutes: number;
@@ -124,12 +151,21 @@ export function resolveCreatedTaskNextRun(params: {
     firstRunDelayMinutes,
     getNextRun,
     now,
+    oneTime,
+    oneTimeDelaySeconds,
     runFirstInOneMinute,
     floorToMinute,
   } = params;
 
   if (!enabled) {
     return undefined;
+  }
+
+  if (oneTime === true) {
+    const delayedRun = resolveOneTimeDelayNextRun(oneTimeDelaySeconds, now);
+    if (delayedRun) {
+      return delayedRun;
+    }
   }
 
   if (runFirstInOneMinute) {
@@ -149,7 +185,23 @@ export function setTaskEnabledState(
   getNextRun: NextRunResolver,
 ): void {
   task.enabled = enabled;
-  task.nextRun = enabled ? getNextRun(task.cronExpression, referenceTime) : undefined;
+  if (!enabled) {
+    task.nextRun = undefined;
+    return;
+  }
+
+  if (task.oneTime === true) {
+    const delayedRun = resolveOneTimeDelayNextRun(
+      task.oneTimeDelaySeconds,
+      referenceTime,
+    );
+    if (delayedRun) {
+      task.nextRun = delayedRun;
+      return;
+    }
+  }
+
+  task.nextRun = getNextRun(task.cronExpression, referenceTime);
 }
 
 export function createDuplicateTaskInput(
@@ -168,6 +220,7 @@ export function createDuplicateTaskInput(
     agent: original.agent, model: original.model,
     scope: original.scope,
     oneTime: original.oneTime,
+    oneTimeDelaySeconds: original.oneTime === true ? original.oneTimeDelaySeconds : undefined,
     manualSession: recurringTask ? original.manualSession : undefined,
     chatSession: recurringTask ? original.chatSession : undefined,
     labels: original.labels ? [...original.labels] : undefined,
@@ -228,6 +281,11 @@ export function applyTaskUpdatesToTask(params: {
   if (updates.promptPath !== undefined) task.promptPath = updates.promptPath;
   if (updates.jitterSeconds !== undefined) task.jitterSeconds = clampJitterSeconds(updates.jitterSeconds);
   if (updates.oneTime !== undefined) task.oneTime = updates.oneTime;
+  if (updates.oneTime !== undefined || updates.oneTimeDelaySeconds !== undefined) {
+    task.oneTimeDelaySeconds = task.oneTime === true
+      ? normalizeOneTimeDelaySeconds(updates.oneTimeDelaySeconds)
+      : undefined;
+  }
 
   const oneTimeExecution = task.oneTime === true;
   if (updates.manualSession !== undefined || updates.oneTime !== undefined) {

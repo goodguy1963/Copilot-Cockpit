@@ -1153,6 +1153,9 @@ interface TaskExecutionSettings extends TaskCopilotSelection {
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
 
+  /** Relative delay in seconds used when scheduling a one-time task from now. */
+  oneTimeDelaySeconds?: number;
+
   /** Whether the task is grouped under manual sessions. */
   manualSession?: boolean;
 
@@ -1220,6 +1223,9 @@ interface CreateTaskExecutionInput extends TaskCopilotSelection {
 
   /** Whether task should execute once and then be removed. */
   oneTime?: boolean;
+
+  /** Relative delay in seconds used when scheduling a one-time task from now. */
+  oneTimeDelaySeconds?: number;
 
   /** Whether the task is grouped under manual sessions. */
   manualSession?: boolean;
@@ -1442,6 +1448,7 @@ type TaskActionName =
   | "setupMcp"
   | "setupCodex"
   | "setupCodexSkills"
+  | "refreshStorageStatus"
   | "syncBundledSkills"
   | "stageBundledAgents"
   | "syncBundledAgents"
@@ -1656,6 +1663,7 @@ type SchedulerControlMessage =
   | { type: "setupMcp" }
   | { type: "setupCodex" }
   | { type: "setupCodexSkills" }
+  | { type: "refreshStorageStatus" }
   | { type: "syncBundledSkills" }
   | { type: "stageBundledAgents" }
   | { type: "syncBundledAgents" }
