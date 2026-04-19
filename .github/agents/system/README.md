@@ -18,6 +18,8 @@ Shared operating docs in `.github/agents/system/`:
 - `system/AGENT-SYSTEM-MAINTENANCE.md`: how to evolve the roster and shared docs without drift.
 - `system/knowledge/`: reusable reference notes for architecture, planning, Todo Cockpit, sessions, and knowledge-base hygiene.
 
+Repo-local durable knowledge can also live in `.github/repo-knowledge/` when the repository needs memory that should not ship as shared starter-pack guidance.
+
 These files are bundled with Copilot Cockpit and sync into `.github/agents` only when the user triggers a manual sync from Settings.
 
 Manual sync rules:
@@ -30,6 +32,7 @@ Source-of-truth rules:
 
 - The `.agent.md` files in `.github/agents/` are the starter pack's behavioral source of truth.
 - The shared docs in `.github/agents/system/` explain how the starter pack should be operated and maintained.
+- `.github/repo-knowledge/` is the repo-local durable memory surface for workspace-specific facts and recurring lessons.
 - Repo-local customizations win after sync; the bundled pack is a starting point, not a forced overlay.
 
 Recommended pattern:
@@ -45,5 +48,6 @@ Recommended maintenance pattern:
 
 1. Update the affected `.agent.md` files.
 2. Update `.github/agents/system/TEAM-RULES.md`, `.github/agents/system/README.md`, or `.github/agents/system/knowledge/` when the change affects shared behavior.
-3. If the roster changed, update `ceo.agent.md` routing plus any affected discovery, tool, packaging, or regression-test surfaces.
-4. Keep reusable process guidance in the shared docs instead of duplicating it across every agent.
+3. Update `.github/repo-knowledge/` when the durable lesson is repo-specific rather than starter-pack-general.
+4. If the roster changed, update `ceo.agent.md` routing plus any affected discovery, tool, packaging, or regression-test surfaces.
+5. Keep reusable process guidance in the shared docs instead of duplicating it across every agent.

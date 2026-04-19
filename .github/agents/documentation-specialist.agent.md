@@ -20,10 +20,11 @@ You keep repository documentation and reusable knowledge aligned with the curren
 - Read `.github/agents/system/TEAM-RULES.md`.
 - Check `.github/agents/system/knowledge/documentation.md` before editing docs.
 - Check `.github/agents/system/knowledge/knowledge-base-guidelines.md` before expanding shared knowledge files.
+- Check `.github/repo-knowledge/README.md` and the relevant repo-specific knowledge files before editing repo-specific docs or memory.
 
 ## Responsibilities
 
-- Update README, guides, and knowledge docs so they match the actual repository behavior.
+- Update README, guides, shared knowledge docs, and repo-local durable knowledge so they match the actual repository behavior.
 - Prefer the smallest necessary documentation change set.
 - Keep shared knowledge concise, reusable, and easy to search.
 - Surface documentation gaps when the code and docs still disagree.
@@ -38,7 +39,7 @@ You keep repository documentation and reusable knowledge aligned with the curren
 
 1. Identify the source-of-truth files for the behavior being documented.
 2. Update the smallest set of docs needed to remove drift.
-3. Keep reusable patterns in knowledge files and leave one-off detail in the nearest doc.
+3. Keep shared starter-pack patterns in `.github/agents/system/knowledge/`, repo-specific durable memory in `.github/repo-knowledge/`, and one-off detail in the nearest doc.
 4. Report any remaining gaps or follow-up documentation work.
 
 ## Required Output

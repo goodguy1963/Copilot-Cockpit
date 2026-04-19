@@ -944,6 +944,16 @@ function findTask(config: SchedulerConfig, id: string): SchedulerTask | undefine
     return config.tasks.find((task) => task.id === id);
 }
 
+function toCockpitSeedTask(task: SchedulerTask): Record<string, unknown> {
+    return {
+        ...task,
+        cronExpression: task.cron,
+        labels: Array.isArray((task as any).labels)
+            ? (task as any).labels.filter((entry: unknown): entry is string => typeof entry === "string")
+            : [],
+    };
+}
+
 function normalizeTaskForWrite(existing: SchedulerTask | undefined, updates: Record<string, unknown>): SchedulerTask {
     const timestamp = nowIso();
     const id = ensureString(updates.id ?? existing?.id, "id");
@@ -2773,7 +2783,10 @@ export async function handleSchedulerToolCall(
                     const tasks = selectedTaskIds
                         ? freshConfig.tasks.filter((task) => selectedTaskIds.has(task.id))
                         : freshConfig.tasks;
-                    const result = ensureTaskTodosInBoard(getCockpitBoard(freshConfig), tasks as any);
+                    const result = ensureTaskTodosInBoard(
+                        getCockpitBoard(freshConfig),
+                        tasks.map((task) => toCockpitSeedTask(task)) as any,
+                    );
                     return createCockpitBoardMutationResult(
                         result.board,
                         "Seeded Cockpit todos could not be verified after write.",

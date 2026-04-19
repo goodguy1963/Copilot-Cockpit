@@ -20,6 +20,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       required: [
         ".github/agents/system/CEO-WORKFLOW-GUIDE.md",
         ".github/agents/system/knowledge/session-management.md",
+        ".github/repo-knowledge/README.md",
         "Remediation Implementer",
         "Validate Run",
         "Documentation Specialist",
@@ -31,15 +32,30 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/planner.agent.md",
       required: [
+        ".github/repo-knowledge/README.md",
         "execution-ready plans",
+        "## Tooling Strategy",
+        "VS Code search tools",
+        "browser tools",
+        "Evidence map",
         "## Planning Workflow",
         "## Handoff Packet",
+      ],
+    },
+    {
+      relativePath: ".github/agents/system/knowledge/planning.md",
+      required: [
+        "## Research And Evidence Rules",
+        "local codebase evidence first",
+        "compact evidence map",
+        "first validation step",
       ],
     },
     {
       relativePath: ".github/agents/custom-agent-foundry.agent.md",
       required: [
         ".github/agents/system/knowledge/knowledge-base-guidelines.md",
+        ".github/repo-knowledge/README.md",
         "## Design Workflow",
         "## Required Contract For New Agents",
         "## Roster Change Checklist",
@@ -49,6 +65,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/remediation-implementer.agent.md",
       required: [
+        ".github/repo-knowledge/README.md",
         "## Mandatory First Step",
         "## Escalation Boundary",
         "## Working Rules",
@@ -57,6 +74,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/documentation-specialist.agent.md",
       required: [
+        ".github/repo-knowledge/README.md",
         "## Mandatory First Step",
         "## Accuracy Boundaries",
         "## Operating Workflow",
@@ -75,12 +93,14 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       required: [
         "system/AGENT-SYSTEM-MAINTENANCE.md",
         "system/knowledge/",
+        ".github/repo-knowledge/",
         "Source-of-truth rules",
       ],
     },
     {
       relativePath: ".github/agents/system/TEAM-RULES.md",
       required: [
+        ".github/repo-knowledge/",
         "## Handoff Standard",
         "## Knowledge Base Discipline",
         "## Session Discipline",
@@ -89,6 +109,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
     {
       relativePath: ".github/agents/system/AGENT-SYSTEM-MAINTENANCE.md",
       required: [
+        ".github/repo-knowledge/",
         "## Source Of Truth",
         "## Roster Change Surfaces",
         "## Safe Update Workflow",
@@ -143,6 +164,14 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         "## Checkpoint Trigger",
         "## What A Good Checkpoint Includes",
         "## Compression Rules",
+      ],
+    },
+    {
+      relativePath: ".github/repo-knowledge/README.md",
+      required: [
+        ".github/agents/system/knowledge/",
+        "output_sessions/knowledge-candidates/",
+        "repo-specific durable memory",
       ],
     },
   ];

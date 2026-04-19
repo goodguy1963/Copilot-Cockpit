@@ -7,6 +7,7 @@ Use this guide when changing the starter pack itself, not when simply using the 
 - The `.agent.md` files in `.github/agents/` are the behavioral source of truth for the starter roster.
 - `.github/agents/system/TEAM-RULES.md` defines cross-agent operating rules.
 - The files in `.github/agents/system/knowledge/` hold shared process and architecture guidance.
+- `.github/repo-knowledge/` holds repo-local durable memory that should not be treated as bundled starter-pack guidance.
 - `.github/agents/system/README.md` explains how the pack is meant to be used and maintained.
 
 ## When To Update Shared Docs
@@ -35,9 +36,10 @@ When adding, removing, or renaming a starter agent, also review:
 1. Update the affected `.agent.md` file or files.
 2. Update `ceo.agent.md` when routing, handoffs, or delegation prompts change.
 3. Update `.github/agents/system/TEAM-RULES.md` if the rule applies across agents.
-4. Update the relevant `.github/agents/system/knowledge/` doc instead of copying the same guidance into every agent.
-5. Update `.github/agents/system/README.md` or this guide if the roster, layout, purpose, or maintenance flow changed.
-6. Add or update a regression test when the change is important enough to keep from silently drifting.
+4. Update `.github/repo-knowledge/` when the durable lesson is repo-specific rather than starter-pack-general.
+5. Update the relevant `.github/agents/system/knowledge/` doc instead of copying the same guidance into every agent.
+6. Update `.github/agents/system/README.md` or this guide if the roster, layout, purpose, or maintenance flow changed.
+7. Add or update a regression test when the change is important enough to keep from silently drifting.
 
 ## Starter Pack Design Guardrails
 
@@ -55,5 +57,6 @@ When adding, removing, or renaming a starter agent, also review:
 ## Knowledge Hygiene
 
 - Shared knowledge should stay concise and pattern-oriented.
+- Repo-specific durable knowledge should stay outside `.github/agents/` when the repository ships bundled starter-pack files from that tree.
 - Archive or remove stale process notes instead of letting them accumulate into noise.
 - If a lesson is only useful for one agent, prefer that agent file over a shared knowledge doc.

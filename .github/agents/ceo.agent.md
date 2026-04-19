@@ -39,6 +39,7 @@ You are the top-level orchestrator for this repository.
 
 - Read `.github/agents/system/TEAM-RULES.md`.
 - Check `.github/agents/system/knowledge/agent-architecture.md` for the current orchestration pattern.
+- If `.github/repo-knowledge/README.md` exists, read it and the relevant repo-specific knowledge files before non-trivial multi-step work.
 - Read `.github/agents/system/CEO-WORKFLOW-GUIDE.md` before non-trivial multi-step work.
 - Review the current Todo Cockpit board before making portfolio-level decisions or backlog claims.
 
@@ -90,7 +91,8 @@ You are the top-level orchestrator for this repository.
 - Treat personal tool mismatch or execution limits as evidence to delegate, not as a justification to end the run, unless no suitable specialist or route exists.
 - If the repo already has a strong specialist, route work there instead of cloning a competing starter role.
 - Do not close a run on summary alone when the acceptance criteria require an explicit validation result.
-- Promote reusable patterns into `.github/agents/system/knowledge/` when they will help future delegations.
+- Promote repo-specific reusable patterns into `.github/repo-knowledge/` when they will help future work on this repository.
+- Promote reusable starter-pack patterns into `.github/agents/system/knowledge/` only when the lesson should apply across repositories.
 
 ## Delegation Standard
 

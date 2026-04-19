@@ -5,6 +5,7 @@ These starter agents follow the same operating rules across repositories.
 ## Required First Step
 
 - Check `.github/agents/system/knowledge/` before starting non-trivial work.
+- If `.github/repo-knowledge/README.md` exists, check it and the relevant repo-specific knowledge files before planning or editing.
 - Reuse documented patterns before inventing a new workflow.
 - Read only the sections that actually control the current task, not every knowledge file.
 
@@ -47,6 +48,8 @@ Every meaningful handoff should include:
 
 ## Knowledge Base Discipline
 
+- Keep shared starter-pack guidance in `.github/agents/system/knowledge/`.
+- Keep repo-specific durable memory in `.github/repo-knowledge/` when the repository defines it.
 - Keep knowledge concise, searchable, and pattern-oriented.
 - Record reusable decisions, anti-patterns, and recurring fixes, not routine implementation noise.
 - Prefer examples over long prose.
@@ -66,7 +69,7 @@ Every meaningful handoff should include:
 
 - Prefer small, reviewable changes over wide speculative rewrites.
 - Put ad hoc command captures, test logs, diffs, and other scratch outputs in `output_sessions/`, not the repository root.
-- Record reusable patterns in `.github/agents/system/knowledge/`.
+- Record reusable shared patterns in `.github/agents/system/knowledge/` and repo-specific durable memory in `.github/repo-knowledge/` when available.
 - Update adjacent agent docs and `.github/agents/system/` docs when a roster or workflow change would otherwise leave the starter pack inconsistent.
 
 ## Todo Cockpit

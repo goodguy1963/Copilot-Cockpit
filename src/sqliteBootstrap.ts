@@ -1322,10 +1322,23 @@ export async function readWorkspaceCockpitBoardFromSqlite(
         db,
         "SELECT id FROM cockpit_card_tombstones ORDER BY deleted_at ASC, id ASC",
       );
-      const filters = readStoredPayloadRows<unknown>(
-        db,
-        "SELECT payload_json FROM cockpit_filters WHERE id = 1",
-      )[0];
+      const filtersResult = db.exec(
+        "SELECT payload_json, updated_at FROM cockpit_filters WHERE id = 1",
+      ) as Array<{ values?: unknown[][] }>;
+      const filtersRow = filtersResult[0]?.values?.[0];
+      const filtersPayloadJson = typeof filtersRow?.[0] === "string" ? filtersRow[0] : undefined;
+      const boardUpdatedAt = typeof filtersRow?.[1] === "string" && filtersRow[1].trim()
+        ? filtersRow[1]
+        : undefined;
+      let filters: unknown;
+
+      if (filtersPayloadJson) {
+        try {
+          filters = JSON.parse(filtersPayloadJson) as unknown;
+        } catch {
+          // Skip malformed payloads and keep bootstrapped storage readable.
+        }
+      }
 
       if (
         sections.length === 0 &&
@@ -1346,6 +1359,7 @@ export async function readWorkspaceCockpitBoardFromSqlite(
         deletedFlagCatalogKeys,
         deletedCardIds,
         filters,
+        updatedAt: boardUpdatedAt,
       });
     } finally {
       db.close();

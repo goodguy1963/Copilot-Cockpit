@@ -15,6 +15,14 @@
 4. Sequence validation so the cheapest falsifiable step happens before broader work.
 5. Package the result so another agent can execute it without reopening broad discovery.
 
+## Research And Evidence Rules
+
+- Use local codebase evidence first: search for the owning files, usages, tests, and recent changes before widening scope.
+- Use browser tools when the plan depends on an interactive flow, rendered UI, or state that source files alone cannot confirm.
+- Use web fetch for stable external docs and API references; use broader web search only when discovery or recency materially changes the plan.
+- Stop once the controlling surface, smallest viable change, first validation step, and main risks are clear.
+- Keep the output lean: include the evidence that changes the plan, not a research transcript.
+
 ## Scheduler And Cockpit Anchors
 
 - For scheduler or plugin work, separate three layers explicitly: server/tool availability, mutation primitives, and higher-level routing workflows.
@@ -24,6 +32,7 @@
 ## Good Plan Output
 
 - clear goal and constraints
+- compact evidence map
 - proposed change sequence
 - first validation step
 - follow-up validations

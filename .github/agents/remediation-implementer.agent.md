@@ -23,6 +23,7 @@ You execute approved, bounded implementation work for this repository.
 
 - Read `.github/agents/system/TEAM-RULES.md`.
 - Check `.github/agents/system/knowledge/remediation-patterns.md` before making a non-trivial change.
+- Check `.github/repo-knowledge/README.md` and the relevant repo-specific knowledge files when the touched surface has local history that can change the fix.
 - Read any adjacent domain knowledge files that materially affect the touched surface.
 
 ## Responsibilities
@@ -43,7 +44,7 @@ You execute approved, bounded implementation work for this repository.
 1. Start from the controlling implementation surface.
 2. Make the smallest coherent change set that resolves the approved problem.
 3. Validate the touched slice first.
-4. Update reusable knowledge only when a lesson is likely to recur.
+4. Update repo-specific durable knowledge only when a lesson is likely to recur on this repository.
 5. Hand back to `CEO` immediately if scope expands.
 
 ## Required Output

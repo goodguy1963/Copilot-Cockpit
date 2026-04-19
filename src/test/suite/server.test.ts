@@ -100,6 +100,30 @@ function createTempWorkspace(): string {
   return workspaceRoot;
 }
 
+function createWorkspaceBackedServerContext(workspaceRoot: string) {
+  return {
+    workspaceRoot,
+    historyRoot: path.join(workspaceRoot, ".vscode", "scheduler-history"),
+    readConfig: () => readSchedulerServerConfigForWorkspace(workspaceRoot),
+    writeConfig: (config: any) => writeSchedulerServerConfigForWorkspace(workspaceRoot, config),
+    listHistory: () => [],
+    readHistorySnapshot: () => undefined,
+    createHistorySnapshot: () => undefined,
+    readCurrentConfigs: () => ({
+      publicConfig: {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+      },
+      privateConfig: {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+      },
+    }),
+  };
+}
+
 suite("Scheduler MCP Server Tests", () => {
   test("compiled server module loads in plain node without vscode at module load", () => {
     const serverModulePath = path.resolve(__dirname, "../../server.js");
@@ -1140,6 +1164,204 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(payload.task.oneTime, true);
     assert.strictEqual(payload.task.chatSession, undefined);
     assert.strictEqual(server.getConfig().tasks[0].chatSession, undefined);
+  });
+
+  test("server tool flow links a one-time task to a todo and clears the stale link on closeout before finalize", async () => {
+    const workspaceRoot = createTempWorkspace();
+    const serverContext = createWorkspaceBackedServerContext(workspaceRoot);
+
+    try {
+      await writeSchedulerServerConfigForWorkspace(workspaceRoot, {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      const boardResponse = await handleSchedulerToolCall(
+        "cockpit_get_board",
+        {},
+        serverContext as any,
+      );
+      const boardPayload = parseJsonText(boardResponse);
+
+      const createTodoResponse = await handleSchedulerToolCall(
+        "cockpit_create_todo",
+        {
+          title: "Ship the migration note",
+          sectionId: boardPayload.board.sections[0].id,
+          comment: "Ready for approval.",
+        },
+        serverContext as any,
+      );
+      const createdTodo = parseJsonText(createTodoResponse).todo;
+
+      const approveTodoResponse = await handleSchedulerToolCall(
+        "cockpit_approve_todo",
+        { todoId: createdTodo.id },
+        serverContext as any,
+      );
+      const approvedTodo = parseJsonText(approveTodoResponse).todo;
+
+      const addTaskResponse = await handleSchedulerToolCall(
+        "scheduler_add_task",
+        {
+          id: "task-migration-note",
+          name: "Send migration note",
+          cron: "0 9 * * 1",
+          prompt: "Send the approved migration note.",
+          oneTime: true,
+          chatSession: "continue",
+        },
+        serverContext as any,
+      );
+      const createdTask = parseJsonText(addTaskResponse).task;
+
+      const linkTodoResponse = await handleSchedulerToolCall(
+        "cockpit_update_todo",
+        {
+          todoId: createdTodo.id,
+          taskId: createdTask.id,
+          labels: ["release", "scheduled-task"],
+        },
+        serverContext as any,
+      );
+      const linkedTodo = parseJsonText(linkTodoResponse).todo;
+
+      const updateTaskResponse = await handleSchedulerToolCall(
+        "scheduler_update_task",
+        {
+          id: createdTask.id,
+          prompt: "Send the approved migration note with release timing.",
+          model: "gpt-5.4",
+        },
+        serverContext as any,
+      );
+      const updatedTask = parseJsonText(updateTaskResponse).task;
+
+      const removeTaskResponse = await handleSchedulerToolCall(
+        "scheduler_remove_task",
+        { id: createdTask.id },
+        serverContext as any,
+      );
+      const removedTask = parseJsonText(removeTaskResponse);
+
+      const closeoutResponse = await handleSchedulerToolCall(
+        "cockpit_closeout_todo",
+        {
+          todoId: createdTodo.id,
+          flags: ["needs-user-review"],
+          labels: ["release", "scheduled-task"],
+          clearTaskIdIfMissing: true,
+          summary: "One-time execution finished and is ready for review.",
+        },
+        serverContext as any,
+      );
+      const closedOutTodo = parseJsonText(closeoutResponse);
+
+      const finalizeTodoResponse = await handleSchedulerToolCall(
+        "cockpit_finalize_todo",
+        { todoId: createdTodo.id },
+        serverContext as any,
+      );
+      const finalizedTodo = parseJsonText(finalizeTodoResponse).todo;
+      const persistedConfig = await readSchedulerServerConfigForWorkspace(workspaceRoot);
+
+      assert.strictEqual(approvedTodo.flags.includes("ready"), true);
+      assert.strictEqual(createdTask.oneTime, true);
+      assert.strictEqual(createdTask.chatSession, undefined);
+      assert.strictEqual(linkedTodo.taskId, createdTask.id);
+      assert.strictEqual(updatedTask.prompt, "Send the approved migration note with release timing.");
+      assert.strictEqual(updatedTask.model, "gpt-5.4");
+      assert.strictEqual(removedTask.id, createdTask.id);
+      assert.strictEqual(closedOutTodo.checkedTaskId, createdTask.id);
+      assert.strictEqual(closedOutTodo.linkedTaskExists, false);
+      assert.strictEqual(closedOutTodo.staleTaskIdCleared, true);
+      assert.strictEqual(closedOutTodo.todo.taskId, undefined);
+      assert.deepStrictEqual(closedOutTodo.todo.flags, ["needs-user-review"]);
+      assert.strictEqual(finalizedTodo.archived, true);
+      assert.strictEqual(finalizedTodo.archiveOutcome, "completed-successfully");
+      assert.strictEqual(finalizedTodo.taskId, undefined);
+      assert.strictEqual(persistedConfig.tasks.length, 0);
+      assert.strictEqual(persistedConfig.cockpitBoard.cards[0].archiveOutcome, "completed-successfully");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("temp workspace server flow seeds and updates a recurring task todo through persisted server state", async () => {
+    const workspaceRoot = createTempWorkspace();
+    const serverContext = createWorkspaceBackedServerContext(workspaceRoot);
+
+    try {
+      await writeSchedulerServerConfigForWorkspace(workspaceRoot, {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      const addTaskResponse = await handleSchedulerToolCall(
+        "scheduler_add_task",
+        {
+          id: "task-recurring-report",
+          name: "Recurring report",
+          cron: "15 8 * * 1",
+          prompt: "Draft the recurring report.",
+          enabled: true,
+          model: "gpt-5.4",
+        },
+        serverContext as any,
+      );
+      const createdTask = parseJsonText(addTaskResponse).task;
+
+      const firstSeedResponse = await handleSchedulerToolCall(
+        "cockpit_seed_todos_from_tasks",
+        { taskIds: [createdTask.id] },
+        serverContext as any,
+      );
+      const firstSeedPayload = parseJsonText(firstSeedResponse);
+      const createdTodoId = firstSeedPayload.createdTodoIds[0];
+      const firstSeededTodo = firstSeedPayload.board.cards.find((card: any) => card.id === createdTodoId);
+
+      const updateTaskResponse = await handleSchedulerToolCall(
+        "scheduler_update_task",
+        {
+          id: createdTask.id,
+          cron: "45 9 * * 2",
+          prompt: "Draft the recurring report with the updated brief.",
+        },
+        serverContext as any,
+      );
+      const updatedTask = parseJsonText(updateTaskResponse).task;
+
+      const secondSeedResponse = await handleSchedulerToolCall(
+        "cockpit_seed_todos_from_tasks",
+        { taskIds: [createdTask.id] },
+        serverContext as any,
+      );
+      const secondSeedPayload = parseJsonText(secondSeedResponse);
+      const secondSeededTodo = secondSeedPayload.board.cards.find((card: any) => card.id === createdTodoId);
+      const persistedConfig = await readSchedulerServerConfigForWorkspace(workspaceRoot);
+      const persistedTodo = persistedConfig.cockpitBoard.cards.find((card: any) => card.id === createdTodoId);
+
+      assert.strictEqual(firstSeedPayload.createdTodoIds.length, 1);
+      assert.strictEqual(firstSeededTodo.taskId, createdTask.id);
+      assert.strictEqual(firstSeededTodo.sectionTitle, "Recurring Tasks");
+      assert.strictEqual(firstSeededTodo.taskSnapshot.cronExpression, "15 8 * * 1");
+      assert.strictEqual(updatedTask.cron, "45 9 * * 2");
+      assert.deepStrictEqual(secondSeedPayload.createdTodoIds, []);
+      assert.strictEqual(secondSeededTodo.taskId, createdTask.id);
+      assert.strictEqual(secondSeededTodo.taskSnapshot.cronExpression, "45 9 * * 2");
+      assert.strictEqual(secondSeededTodo.commentCount, firstSeededTodo.commentCount + 1);
+      assert.match(
+        secondSeededTodo.latestComment.body,
+        /schedule changed from "15 8 \* \* 1" to "45 9 \* \* 2"; prompt updated/i,
+      );
+      assert.strictEqual(persistedTodo.taskSnapshot.cronExpression, "45 9 * * 2");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
   });
 
   test("run_task marks an enabled task due now", async () => {
