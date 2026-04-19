@@ -6,7 +6,7 @@ Use this guide for non-trivial orchestration work where `CEO` needs to coordinat
 
 - Identify the user-visible outcome.
 - Separate the actual request from suggested implementation details.
-- Note whether the work is primarily planning, implementation, review, backlog management, or agent-system maintenance.
+- Note whether the work is primarily session tracking, Todo Cockpit work, Task List work, planning, implementation, review, backlog management, or agent-system maintenance.
 
 ## Phase 2: Inventory The Existing System
 
@@ -14,6 +14,7 @@ Check the minimum set of context needed to route correctly:
 
 - existing repo-local agents and skills
 - relevant knowledge docs
+- which todo layer the request actually touches: session checklist, Todo Cockpit, or Task List
 - Todo Cockpit state when durable work or approvals are involved
 - any active constraints, approvals, or rollout concerns
 
@@ -21,10 +22,11 @@ Check the minimum set of context needed to route correctly:
 
 Prefer the fewest agent hops that still keep boundaries sharp.
 
+- Use the built-in `todo` tool only for the live session checklist that keeps the run moving.
 - If `CEO` lacks the right tools, execution surface, or specialist depth for the next action, treat that as a mandatory routing signal rather than a reason to stop.
 - Route to `Planner` when the path is ambiguous or the validation sequence needs design.
 - Route to `Remediation Implementer` for a validation-only pass when returned work needs a concrete closeout check.
-- Route to `Cockpit Todo Expert` when durable board state, approvals, sections, or routing flags need work.
+- Route to `Cockpit Todo Expert` when Todo Cockpit cards, approvals, linked task drafts, or Task List entries need work.
 - Route to `Custom Agent Foundry` when the repo lacks a needed specialist or the shared operating docs are too weak.
 - Route directly to an existing specialist when the next move is already clear.
 
@@ -44,7 +46,7 @@ Every meaningful handoff should include:
 - Check whether the returned work actually answered the user request.
 - Verify that validation happened at the right scope.
 - If validation is still implicit or missing, route an explicit validation pass before closing the work.
-- Decide whether Todo Cockpit needs a durable update.
+- Decide whether Todo Cockpit or the Task List needs a durable update.
 - Decide whether the shared knowledge or roster should be updated to avoid repeating the same coordination gap.
 
 ## Capability-Gap Rule

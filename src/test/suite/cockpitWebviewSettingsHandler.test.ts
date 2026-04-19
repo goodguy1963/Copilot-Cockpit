@@ -257,7 +257,7 @@ suite("Scheduler webview settings handler behavior", () => {
 
       assert.strictEqual(handled, true);
       assert.deepStrictEqual(executeCalls, [
-        ["workbench.action.openSettings", "@feature:chat @ext:github.copilot-chat @ext:github.copilot mcp agent model"],
+        ["workbench.action.openSettings", "@ext:github.copilot"],
       ]);
     } finally {
       (vscode.commands as typeof vscode.commands & {

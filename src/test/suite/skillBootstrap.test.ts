@@ -11,6 +11,8 @@ import {
   COCKPIT_TODO_SKILL_RELATIVE_PATH,
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
+  PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+  resolveBundledAgentsSource,
   SCHEDULER_SKILL_RELATIVE_PATH,
   stageBundledAgentsForWorkspaceRoots,
   STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
@@ -527,6 +529,58 @@ suite("Skill Bootstrap Tests", () => {
       assert.deepStrictEqual(
         manifest.files.map((entry) => entry.sourceRelativePath),
         bundledFiles,
+      );
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("prefers the packaged bundled agents source when it exists", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-packaged-agents-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-packaged-agents-"),
+    );
+
+    try {
+      const liveRelativePath = path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md");
+      const packagedRelativePath = path.join(
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "ceo.agent.md",
+      );
+
+      fs.mkdirSync(path.dirname(path.join(extensionRoot, liveRelativePath)), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, liveRelativePath), "live-tree\n", "utf8");
+      fs.mkdirSync(path.dirname(path.join(extensionRoot, packagedRelativePath)), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, packagedRelativePath), "packaged-tree\n", "utf8");
+
+      const resolved = resolveBundledAgentsSource(extensionRoot);
+      assert.strictEqual(resolved.relativePath, PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH);
+
+      const syncResult = await syncBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      assert.strictEqual(syncResult.createdPaths.length, 1);
+      assert.strictEqual(
+        fs.readFileSync(path.join(workspaceRoot, liveRelativePath), "utf8"),
+        "packaged-tree\n",
+      );
+
+      await stageBundledAgentsForWorkspaceRoots(extensionRoot, [workspaceRoot]);
+
+      const manifestPath = path.join(
+        workspaceRoot,
+        STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
+      );
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+        sourceAgentsRelativePath: string;
+      };
+      assert.strictEqual(
+        manifest.sourceAgentsRelativePath,
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
       );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);

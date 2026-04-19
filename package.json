@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "One VS Code system for AI planning and triage, execution and scheduling, and optional control-plane integration",
-  "version": "2.0.13",
+  "version": "2.0.18",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -513,8 +513,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run clean:out && npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify && npm run copy:sql-wasm",
+    "vscode:prepublish": "npm run clean:out && npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify && npm run copy:sql-wasm && npm run prepare:bundled-agents",
     "copy:sql-wasm": "node ./scripts/copy-sql-wasm.js",
+    "prepare:bundled-agents": "node ./scripts/prepare-bundled-agents.js",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --external:vscode --platform=node --format=cjs",
     "esbuild-webview": "esbuild ./media/cockpitWebview.entry.js --bundle --outfile=media/generated/cockpitWebview.js --format=iife --platform=browser",

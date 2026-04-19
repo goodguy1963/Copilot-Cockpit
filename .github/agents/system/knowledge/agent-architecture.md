@@ -9,7 +9,7 @@ Copilot Cockpit ships a small starter-agent layer that is meant to merge into a 
 - `Remediation Implementer`: bounded implementation specialist.
 - `Documentation Specialist`: docs and knowledge alignment specialist.
 - `Custom Agent Foundry`: creates missing specialists.
-- `Cockpit Todo Expert`: owns Todo Cockpit durability and approvals.
+- `Cockpit Todo Expert`: owns Todo Cockpit durability, linked Task List alignment, and approvals.
 
 ## Broadly Reusable Starter Specialists
 
@@ -21,7 +21,9 @@ Copilot Cockpit ships a small starter-agent layer that is meant to merge into a 
 - `CEO`: chooses direction, routes work, and keeps the user-facing narrative coherent.
 - Specialists: execute within a narrow domain and report back with validation.
 - Shared docs: hold reusable process, architecture, and workflow rules that should not be duplicated into every agent file.
+- Built-in session `todo`: optional live checklist for the current run only.
 - Todo Cockpit: durable approval and backlog surface.
+- Task List: durable scheduled execution surface for tasks and task drafts.
 - Session-local trackers: optional short-lived execution tracking only.
 
 ## Merge Rules
@@ -50,7 +52,9 @@ Copilot Cockpit ships a small starter-agent layer that is meant to merge into a 
 ## Todo Cockpit Role
 
 - Durable approvals, state transitions, and user/AI communication live in Todo Cockpit.
+- Task List entries hold scheduled execution artifacts, not the planning conversation.
 - Short-lived execution status can live elsewhere, but final approval state belongs on the board.
+- `Cockpit Todo Expert` is the default gateway for Todo Cockpit and linked Task List todo alignment.
 
 ## When To Create A New Specialist
 

@@ -15,6 +15,8 @@ type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefine
 
 const cockpitExtensionId = "local-dev.copilot-cockpit";
 const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
+const copilotExtensionId = "github.copilot";
+const copilotExtensionSettingsQuery = `@ext:${copilotExtensionId}`;
 
 /** Handles settings/help messages that are routed out of the main webview controller. */
 
@@ -155,7 +157,7 @@ export async function handleSettingsWebviewMessage(
     case "openCopilotSettings": {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        "@feature:chat @ext:github.copilot-chat @ext:github.copilot mcp agent model",
+        copilotExtensionSettingsQuery,
       );
       return true;
     }

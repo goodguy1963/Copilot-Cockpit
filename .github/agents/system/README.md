@@ -9,7 +9,7 @@ Agent files in `.github/agents/`:
 - `remediation-implementer.agent.md`: bounded implementation specialist for approved code changes.
 - `documentation-specialist.agent.md`: keeps docs and reusable knowledge aligned with the codebase.
 - `custom-agent-foundry.agent.md`: creates new repo-local agents or skills when a gap exists.
-- `cockpit-todo-expert.agent.md`: owns Todo Cockpit state, approvals, and backlog hygiene.
+- `cockpit-todo-expert.agent.md`: owns Todo Cockpit state, linked Task List todo alignment, approvals, and backlog hygiene.
 
 Shared operating docs in `.github/agents/system/`:
 
@@ -41,7 +41,7 @@ Recommended pattern:
 2. Use `Planner` for architecture and sequencing.
 3. Use `Remediation Implementer` for approved bounded code changes.
 4. Use `Documentation Specialist` when docs or knowledge need alignment.
-5. Use `Cockpit Todo Expert` for persistent board updates and approval routing.
+5. Use `Cockpit Todo Expert` for persistent board updates, Task List todo coordination, and approval routing.
 6. Use `Custom Agent Foundry` to create any missing specialists in the repo.
 
 Recommended maintenance pattern:

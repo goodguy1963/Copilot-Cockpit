@@ -3,6 +3,8 @@
 ## Core Role
 
 - Todo Cockpit is the durable approval and communication surface.
+- The built-in session `todo` tracker is a live checklist, not a durable artifact.
+- The Task List holds scheduled execution artifacts, not the approval conversation.
 - Do not let transient execution trackers replace the board as the system of record.
 - Preserve the board as the user-facing memory of why work exists, where it sits, and what still needs approval.
 
@@ -27,4 +29,5 @@
 ## Boundaries
 
 - Do not use direct file edits as the normal way to change board state when MCP tools exist.
-- Do not treat scheduler links or transient session todo lists as the durable backlog.
+- Do not treat scheduler links, Task List entries, or transient session todo lists as the durable backlog.
+- When a linked task entry changes, update the Task List artifact and only update the card when approval context, review state, or planning intent changed.

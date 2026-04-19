@@ -15,7 +15,7 @@ These starter agents follow the same operating rules across repositories.
 - `Planner` turns ambiguous requests into execution-ready plans and validation sequences.
 - `Remediation Implementer` handles approved bounded code changes and validates the touched slice.
 - `Documentation Specialist` keeps docs, guides, and shared knowledge aligned with the live system.
-- `Cockpit Todo Expert` owns Todo Cockpit persistence, approvals, routing state, and backlog hygiene.
+- `Cockpit Todo Expert` owns Todo Cockpit persistence, linked Task List todo coordination, approvals, routing state, and backlog hygiene.
 - `Custom Agent Foundry` evolves the roster, skills, and shared operating guidance.
 - Existing repo-local agents outrank starter defaults when the repo has already specialized them.
 
@@ -24,7 +24,7 @@ These starter agents follow the same operating rules across repositories.
 - `CEO` is the orchestrator and decision layer.
 - Orchestrators must treat personal tool or scope limits as a routing signal and delegate when a suitable specialist exists.
 - `Documentation Specialist` owns doc accuracy and shared knowledge hygiene.
-- `Cockpit Todo Expert` owns Todo Cockpit persistence and approval-state mutations.
+- `Cockpit Todo Expert` owns Todo Cockpit persistence, approval-state mutations, and linked Task List todo coordination.
 - Implementation specialists other than `Cockpit Todo Expert` should not mutate Cockpit board state directly unless that is their explicit role.
 
 ## Planning And Validation Standard
@@ -72,8 +72,11 @@ Every meaningful handoff should include:
 - Record reusable shared patterns in `.github/agents/system/knowledge/` and repo-specific durable memory in `.github/repo-knowledge/` when available.
 - Update adjacent agent docs and `.github/agents/system/` docs when a roster or workflow change would otherwise leave the starter pack inconsistent.
 
-## Todo Cockpit
+## Todo Layers
 
+- Use the built-in `todo` tool only for transient session execution status.
 - Use Todo Cockpit as the long-lived approval and communication surface.
-- Use transient session todo tracking only for live execution status, not as the durable backlog.
+- Use the Task List for scheduled execution artifacts and task drafts.
+- Route Todo Cockpit and Task List todo mutations through `Cockpit Todo Expert`.
+- Do not treat checking off a session todo as updating Todo Cockpit or the Task List.
 - Use labels for categorization and one canonical active workflow flag for routing.

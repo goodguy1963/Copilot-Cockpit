@@ -523,8 +523,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="settings-action-group settings-action-group-primary">
             <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
             <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-sync" id="stage-bundled-agents-btn">${escapeHtml(strings.actionStageBundledAgents)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn">${escapeHtml(strings.actionSyncBundledAgents)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-sync" id="stage-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionStageBundledAgentsTitle)}">${escapeHtml(strings.actionStageBundledAgents)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionSyncBundledAgentsTitle)}">${escapeHtml(strings.actionSyncBundledAgents)}</button>
             <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
             <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
           </div>

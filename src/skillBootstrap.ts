@@ -16,6 +16,16 @@ export const BUNDLED_AGENTS_RELATIVE_PATH = path.join(
   "agents",
 );
 
+export const PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH = path.join(
+  "out",
+  "bundled-agents",
+);
+
+export const PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH = path.join(
+  PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH,
+  BUNDLED_AGENTS_RELATIVE_PATH,
+);
+
 export const BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH = path.join(
   ".vscode",
   "copilot-cockpit-support",
@@ -92,6 +102,11 @@ export interface StagedBundledAgentsResult {
   stagedRoots: string[];
   stagedPaths: string[];
   manifestPaths: string[];
+}
+
+interface BundledAgentsSource {
+  absolutePath: string;
+  relativePath: string;
 }
 
 const BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY = "copilotCockpitCustomize";
@@ -401,10 +416,103 @@ async function collectBundledRelativeFilePaths(
   return relativePaths.sort((left, right) => left.localeCompare(right));
 }
 
-function buildStagedBundledAgentsManifest(
+async function collectRelativeFilePaths(rootPath: string): Promise<string[]> {
+  try {
+    const stat = await fs.promises.stat(rootPath);
+    if (!stat.isDirectory()) {
+      return [];
+    }
+  } catch {
+    return [];
+  }
+
+  const relativePaths: string[] = [];
+  const pendingDirectories = [rootPath];
+
+  while (pendingDirectories.length > 0) {
+    const currentDirectory = pendingDirectories.pop();
+    if (!currentDirectory) {
+      continue;
+    }
+
+    const entries = await fs.promises.readdir(currentDirectory, {
+      withFileTypes: true,
+    });
+
+    for (const entry of entries) {
+      const absoluteEntryPath = path.join(currentDirectory, entry.name);
+      if (entry.isDirectory()) {
+        pendingDirectories.push(absoluteEntryPath);
+        continue;
+      }
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      relativePaths.push(path.relative(rootPath, absoluteEntryPath));
+    }
+  }
+
+  return relativePaths.sort((left, right) => left.localeCompare(right));
+}
+
+export function resolveBundledAgentsSource(extensionRoot: string): BundledAgentsSource {
+  const packagedAbsolutePath = path.join(
+    extensionRoot,
+    PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+  );
+  if (fs.existsSync(packagedAbsolutePath)) {
+    return {
+      absolutePath: packagedAbsolutePath,
+      relativePath: PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+    };
+  }
+
+  return {
+    absolutePath: path.join(extensionRoot, BUNDLED_AGENTS_RELATIVE_PATH),
+    relativePath: BUNDLED_AGENTS_RELATIVE_PATH,
+  };
+}
+
+interface BundledAgentSourceEntry {
+  liveRelativePath: string;
+  sourceAbsolutePath: string;
+  sourceRelativePath: string;
+  stagedRelativePath: string;
+}
+
+async function collectBundledAgentSourceEntries(
   extensionRoot: string,
+): Promise<{ bundledAgentsSource: BundledAgentsSource; entries: BundledAgentSourceEntry[] }> {
+  const bundledAgentsSource = resolveBundledAgentsSource(extensionRoot);
+  const sourceRelativePaths = await collectRelativeFilePaths(
+    bundledAgentsSource.absolutePath,
+  );
+
+  return {
+    bundledAgentsSource,
+    entries: sourceRelativePaths.map((sourceRelativePath) => ({
+      liveRelativePath: path.join(BUNDLED_AGENTS_RELATIVE_PATH, sourceRelativePath),
+      sourceAbsolutePath: path.join(
+        bundledAgentsSource.absolutePath,
+        sourceRelativePath,
+      ),
+      sourceRelativePath: path.join(
+        bundledAgentsSource.relativePath,
+        sourceRelativePath,
+      ),
+      stagedRelativePath: path.join(
+        STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        sourceRelativePath,
+      ),
+    })),
+  };
+}
+
+function buildStagedBundledAgentsManifest(
+  bundledAgentsSource: BundledAgentsSource,
   workspaceRoot: string,
-  bundledRelativePaths: string[],
+  bundledRelativePaths: BundledAgentSourceEntry[],
 ): StagedBundledAgentsManifest {
   const stagedRootAbsolutePath = path.join(
     workspaceRoot,
@@ -422,8 +530,8 @@ function buildStagedBundledAgentsManifest(
   return {
     manifestVersion: 1,
     workspaceRoot,
-    sourceAgentsAbsolutePath: path.join(extensionRoot, BUNDLED_AGENTS_RELATIVE_PATH),
-    sourceAgentsRelativePath: BUNDLED_AGENTS_RELATIVE_PATH,
+    sourceAgentsAbsolutePath: bundledAgentsSource.absolutePath,
+    sourceAgentsRelativePath: bundledAgentsSource.relativePath,
     liveAgentsAbsolutePath: path.join(workspaceRoot, BUNDLED_AGENTS_RELATIVE_PATH),
     liveAgentsRelativePath: BUNDLED_AGENTS_RELATIVE_PATH,
     stagedRootAbsolutePath,
@@ -432,13 +540,10 @@ function buildStagedBundledAgentsManifest(
     stagedAgentsRelativePath: STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
     manifestAbsolutePath,
     manifestRelativePath: STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
-    files: bundledRelativePaths.map((sourceRelativePath) => ({
-      sourceRelativePath,
-      stagedRelativePath: path.join(
-        STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
-        path.relative(BUNDLED_AGENTS_RELATIVE_PATH, sourceRelativePath),
-      ),
-      liveRelativePath: sourceRelativePath,
+    files: bundledRelativePaths.map((entry) => ({
+      sourceRelativePath: entry.sourceRelativePath,
+      stagedRelativePath: entry.stagedRelativePath,
+      liveRelativePath: entry.liveRelativePath,
     })),
   };
 }
@@ -483,11 +588,10 @@ export async function stageBundledAgentsForWorkspaceRoots(
     return result;
   }
 
-  const bundledRelativePaths = await collectBundledRelativeFilePaths(
+  const { bundledAgentsSource, entries } = await collectBundledAgentSourceEntries(
     extensionRoot,
-    BUNDLED_AGENTS_RELATIVE_PATH,
   );
-  if (bundledRelativePaths.length === 0) {
+  if (entries.length === 0) {
     return result;
   }
 
@@ -502,25 +606,21 @@ export async function stageBundledAgentsForWorkspaceRoots(
     );
     await fs.promises.rm(stagedRootPath, { recursive: true, force: true });
 
-    for (const relativePath of bundledRelativePaths) {
+    for (const entry of entries) {
       const bundledContent = await fs.promises.readFile(
-        path.join(extensionRoot, relativePath),
+        entry.sourceAbsolutePath,
         "utf8",
       );
-      const stagedPath = path.join(
-        workspaceRoot,
-        STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
-        path.relative(BUNDLED_AGENTS_RELATIVE_PATH, relativePath),
-      );
+      const stagedPath = path.join(workspaceRoot, entry.stagedRelativePath);
       await fs.promises.mkdir(path.dirname(stagedPath), { recursive: true });
       await fs.promises.writeFile(stagedPath, bundledContent, "utf8");
       result.stagedPaths.push(stagedPath);
     }
 
     const manifest = buildStagedBundledAgentsManifest(
-      extensionRoot,
+      bundledAgentsSource,
       workspaceRoot,
-      bundledRelativePaths,
+      entries,
     );
     const manifestPath = path.join(
       workspaceRoot,
@@ -558,11 +658,8 @@ export async function syncBundledAgentsForWorkspaceRoots(
     return result;
   }
 
-  const bundledRelativePaths = await collectBundledRelativeFilePaths(
-    extensionRoot,
-    BUNDLED_AGENTS_RELATIVE_PATH,
-  );
-  if (bundledRelativePaths.length === 0) {
+  const { entries } = await collectBundledAgentSourceEntries(extensionRoot);
+  if (entries.length === 0) {
     return result;
   }
 
@@ -576,19 +673,19 @@ export async function syncBundledAgentsForWorkspaceRoots(
     const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
     const nextWorkspaceState: Record<string, string> = {};
 
-    for (const relativePath of bundledRelativePaths) {
-      let bundledContent = bundledContentByRelativePath.get(relativePath);
+    for (const entry of entries) {
+      let bundledContent = bundledContentByRelativePath.get(entry.sourceRelativePath);
       if (bundledContent === undefined) {
         bundledContent = await fs.promises.readFile(
-          path.join(extensionRoot, relativePath),
+          entry.sourceAbsolutePath,
           "utf8",
         );
-        bundledContentByRelativePath.set(relativePath, bundledContent);
+        bundledContentByRelativePath.set(entry.sourceRelativePath, bundledContent);
       }
 
       const bundledHash = createContentHash(bundledContent);
-      const targetPath = path.join(workspaceRoot, relativePath);
-      const previousManagedHash = previousWorkspaceState[relativePath];
+      const targetPath = path.join(workspaceRoot, entry.liveRelativePath);
+      const previousManagedHash = previousWorkspaceState[entry.liveRelativePath];
 
       let currentContent: string | undefined;
       try {
@@ -606,27 +703,27 @@ export async function syncBundledAgentsForWorkspaceRoots(
         await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
         await fs.promises.writeFile(targetPath, bundledContent, "utf8");
         result.createdPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
         continue;
       }
 
       const currentHash = createContentHash(currentContent);
       if (currentHash === bundledHash) {
         result.unchangedPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
         continue;
       }
 
       if (previousManagedHash && currentHash === previousManagedHash) {
         await fs.promises.writeFile(targetPath, bundledContent, "utf8");
         result.updatedPaths.push(targetPath);
-        nextWorkspaceState[relativePath] = bundledHash;
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
         continue;
       }
 
       result.skippedPaths.push(targetPath);
       if (previousManagedHash) {
-        nextWorkspaceState[relativePath] = previousManagedHash;
+        nextWorkspaceState[entry.liveRelativePath] = previousManagedHash;
       }
     }
 

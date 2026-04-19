@@ -13,6 +13,7 @@ out/**
 !out/extension.js
 !out/server.js
 !out/sql-wasm.wasm
+!out/bundled-agents/**
 out/**/*.ts
 out/**/*.d.ts
 out/**/*.d.ts.map
@@ -24,12 +25,12 @@ FULL_SPECIFICATION.md
 AGENTS.md
 .github/**
 !.github/
-!.github/agents/
-!.github/agents/**
 !.github/prompts/
 !.github/prompts/**
 !.github/skills/
 !.github/skills/**
+!out/bundled-agents/.github/
+!out/bundled-agents/.github/**
 .artifacts/**
 compile.log
 compile*.log

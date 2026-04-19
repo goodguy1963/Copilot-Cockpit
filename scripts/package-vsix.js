@@ -12,6 +12,12 @@ const {
   normalizeReleaseTag,
   readJson,
 } = require("./release-utils");
+const {
+  PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+  assertBundledAgentsPayloadSafe,
+  collectRelativeFiles: collectBundledAgentFiles,
+  prepareBundledAgents,
+} = require("./prepare-bundled-agents");
 
 function fail(message) {
   console.error(message);
@@ -103,6 +109,35 @@ function assertPackagedBundledSkills(vsixPath, rootPath) {
   }
 }
 
+function assertPackagedBundledAgents(vsixPath, rootPath) {
+  const bundledAgentsRoot = path.join(rootPath, PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH);
+  assertBundledAgentsPayloadSafe(bundledAgentsRoot);
+
+  const expectedEntries = collectBundledAgentFiles(bundledAgentsRoot).map(
+    (relativePath) => `extension/${toPosixPath(path.join(PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH, relativePath))}`,
+  );
+  const archiveEntries = new Set(listZipEntries(vsixPath));
+  const missingEntries = expectedEntries.filter((entry) => !archiveEntries.has(entry));
+  if (missingEntries.length > 0) {
+    fail(
+      [
+        "VSIX is missing sanitized bundled agent files:",
+        ...missingEntries.map((entry) => `- ${entry}`),
+      ].join("\n"),
+    );
+  }
+
+  const leakedLiveEntries = [...archiveEntries].filter((entry) => entry.startsWith("extension/.github/agents/"));
+  if (leakedLiveEntries.length > 0) {
+    fail(
+      [
+        "VSIX still contains the live .github/agents tree:",
+        ...leakedLiveEntries.map((entry) => `- ${entry}`),
+      ].join("\n"),
+    );
+  }
+}
+
 const workspaceRoot = process.cwd();
 const packageJsonPath = path.join(workspaceRoot, "package.json");
 
@@ -111,6 +146,7 @@ if (!fs.existsSync(packageJsonPath)) {
 }
 
 cleanupTempArtifacts(workspaceRoot);
+prepareBundledAgents(workspaceRoot);
 const currentPkg = readJson(packageJsonPath);
 const releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME;
 const normalizedReleaseTag = normalizeReleaseTag(releaseTag);
@@ -157,6 +193,7 @@ if (typeof result.status === "number" && result.status !== 0) {
 }
 
 assertPackagedBundledSkills(tempVsixPath, workspaceRoot);
+assertPackagedBundledAgents(tempVsixPath, workspaceRoot);
 
 fs.copyFileSync(tempVsixPath, vsixPath);
 fs.rmSync(tempVsixDirectory, { recursive: true, force: true });
