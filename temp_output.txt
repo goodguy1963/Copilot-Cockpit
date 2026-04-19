@@ -1,0 +1,20 @@
+﻿VSIX still contains the live .github/agents tree:
+- extension/.github/agents/remediation-implementer.agent.md
+- extension/.github/agents/planner.agent.md
+- extension/.github/agents/documentation-specialist.agent.md
+- extension/.github/agents/custom-agent-foundry.agent.md
+- extension/.github/agents/cockpit-todo-expert.agent.md
+- extension/.github/agents/ceo.agent.md
+- extension/.github/agents/todos/README.md
+- extension/.github/agents/system/TEAM-RULES.md
+- extension/.github/agents/system/README.md
+- extension/.github/agents/system/CEO-WORKFLOW-GUIDE.md
+- extension/.github/agents/system/AGENT-SYSTEM-MAINTENANCE.md
+- extension/.github/agents/system/knowledge/todo-cockpit.md
+- extension/.github/agents/system/knowledge/session-memory.md
+- extension/.github/agents/system/knowledge/session-management.md
+- extension/.github/agents/system/knowledge/remediation-patterns.md
+- extension/.github/agents/system/knowledge/planning.md
+- extension/.github/agents/system/knowledge/knowledge-base-guidelines.md
+- extension/.github/agents/system/knowledge/documentation.md
+- extension/.github/agents/system/knowledge/agent-architecture.md

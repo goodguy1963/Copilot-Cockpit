@@ -24,11 +24,12 @@ node_modules/**
 FULL_SPECIFICATION.md
 AGENTS.md
 .github/**
-!.github/
 !.github/prompts/
 !.github/prompts/**
 !.github/skills/
 !.github/skills/**
+.github/agents/
+.github/agents/**
 !out/bundled-agents/.github/
 !out/bundled-agents/.github/**
 .artifacts/**

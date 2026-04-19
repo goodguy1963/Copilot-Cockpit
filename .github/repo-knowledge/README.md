@@ -4,7 +4,7 @@ Use this directory for durable, repo-specific memory that should help future wor
 
 ## Purpose
 
-- Keep stable repo facts, recurring failure modes, and local operating decisions easy to find.
+- Keep stable repo facts, recurring failure modes, repo-specific durable memory, and local operating decisions easy to find.
 - Separate source-scheduler-specific memory from `.github/agents/system/knowledge/`, which is reserved for shared starter-pack behavior.
 - Give agents one canonical repo-specific retrieval surface before planning or editing.
 
