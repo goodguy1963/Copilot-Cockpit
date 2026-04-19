@@ -174,7 +174,9 @@ suite("Release Pipeline Contract Tests", () => {
     assert.ok(
       workflow.includes("branches:") && workflow.includes("- main"),
     );
-    assert.ok(workflow.includes("uses: actions/cache@v4"));
+    assert.ok(!workflow.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"));
+    assert.ok(workflow.includes("uses: actions/cache@v5"));
+    assert.ok(workflow.includes("uses: actions/upload-artifact@v6"));
     assert.ok(workflow.includes("path: .vscode-test"));
     assert.ok(workflow.includes("run: npm run pretest"));
     assert.ok(workflow.includes("Ensure Xvfb is available"));
