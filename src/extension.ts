@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as vscode from "vscode";
 import * as path from "path";
 import { ScheduleManager } from "./cockpitManager"; // local-diverge-3
@@ -12,6 +13,7 @@ import { SchedulerWebview } from "./cockpitWebview";
 import { messages } from "./i18n";
 import { logDebug } from "./logger";
 import { logError } from "./logger";
+import { logInfo } from "./logger";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 import {
   COCKPIT_NEEDS_USER_REVIEW_FLAG,
@@ -163,9 +165,15 @@ const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
   "{{mcp_skill_guidance}}",
   "",
   "Research what is needed to review this item using available tools and web search.",
-  "Identify missing context, risks, and any unclear assumptions.",
-  "When the research is complete, add a summary comment to this Todo using the cockpit MCP tools and update the flag to needs-user-review so the user can discuss the findings in the Todo list.",
-  "If the request is clear and no research is needed, provide two concrete implementation options or one blocking clarification when the ambiguity is material.",
+  "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
+  "Review Summary:",
+  "- 1-2 bullets on the request and current repo state",
+  "Risks / Gaps:",
+  "- bullets for missing context, risks, or unclear assumptions",
+  "Recommendation:",
+  "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
+  "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
+  "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
 ].join("\n");
 const DEFAULT_READY_PROMPT_TEMPLATE = [
   "You are handling a Todo that is now ready for implementation.",
@@ -175,7 +183,8 @@ const DEFAULT_READY_PROMPT_TEMPLATE = [
   "{{mcp_skill_guidance}}",
   "",
   "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.",
-  "If there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.",
+  "If there is no recent user comment, proceed with the bot's recommendation.",
+  "Add one compact Todo comment covering implementation changes, validation, and any remaining follow-up before or as you update the Todo to the correct workflow state.",
   "Check the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.",
   "If the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
 ].join("\n");
@@ -197,6 +206,18 @@ type WorkspaceSupportRepairPlan = {
 
 type WorkspaceTimestampMap = Record<string, string>;
 type WorkspaceActivationMap = Record<string, boolean>;
+
+type StartupSqliteHydrationDeps = {
+  workspaceRoot?: string;
+  isSqliteModeEnabled: (workspaceRoot: string) => boolean;
+  waitForTaskHydration: () => Promise<void>;
+  getBoardHydrationPromise: () => Promise<void> | undefined;
+  timeoutMs?: number;
+  createTimeout?: (callback: () => void, timeoutMs: number) => NodeJS.Timeout;
+  clearTimeoutHandle?: (handle: NodeJS.Timeout) => void;
+};
+
+const SQLITE_STARTUP_HYDRATION_TIMEOUT_MS = 10_000;
 
 type OpenSchedulerUiOptions = {
   onTestPrompt?: (prompt: string, agent?: string, model?: string) => void;
@@ -981,6 +1002,66 @@ async function syncCockpitBoardToSqliteIfNeeded(
   await syncWorkspaceCockpitBoardToSqlite(workspaceRoot, board);
 }
 
+async function waitForSqliteStartupHydration(
+  deps: StartupSqliteHydrationDeps,
+): Promise<void> {
+  if (!deps.workspaceRoot || !deps.isSqliteModeEnabled(deps.workspaceRoot)) {
+    return;
+  }
+
+  const timeoutMs = deps.timeoutMs ?? SQLITE_STARTUP_HYDRATION_TIMEOUT_MS;
+  const createTimeout = deps.createTimeout ?? setTimeout;
+  const clearTimeoutHandle = deps.clearTimeoutHandle ?? clearTimeout;
+
+  let timedOut = false;
+
+  const hydrationPromise = (async () => {
+    try {
+      await deps.waitForTaskHydration();
+    } catch (error) {
+      logError(
+        "[CopilotScheduler] SQLite startup task hydration failed; continuing with mirror state:",
+        redactPathsForLog(
+          toErrorMessage(error),
+        ),
+      );
+    }
+
+    try {
+      const boardHydrationPromise = deps.getBoardHydrationPromise();
+      if (boardHydrationPromise) {
+        await boardHydrationPromise;
+      }
+    } catch (error) {
+      logError(
+        "[CopilotScheduler] SQLite startup board hydration failed; continuing with mirror state:",
+        redactPathsForLog(
+          toErrorMessage(error),
+        ),
+      );
+    }
+  })();
+
+  const timeoutPromise = new Promise<void>((resolve) => {
+    const timeoutHandle = createTimeout(() => {
+      timedOut = true;
+      logInfo(
+        `[CopilotScheduler] Warning: SQLite startup hydration timed out after ${timeoutMs}ms; continuing with available state.`,
+      );
+      resolve();
+    }, timeoutMs);
+
+    void hydrationPromise.finally(() => {
+      if (!timedOut) {
+        clearTimeoutHandle(timeoutHandle);
+        resolve();
+      }
+    });
+  });
+
+  await timeoutPromise;
+}
+
 function scheduleCockpitBoardSqliteHydration(immediate = false): void {
   const workspaceRoot = getPrimaryWorkspaceRootPath();
   if (!workspaceRoot || !isWorkspaceSqliteModeEnabled(workspaceRoot)) {
@@ -990,14 +1071,24 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
     return;
   }
 
-  cockpitBoardSqliteHydrationPromise = readWorkspaceCockpitBoardFromSqlite(workspaceRoot)
+  const sqliteDatabasePath = path.join(
+    workspaceRoot,
+    ".vscode",
+    WORKSPACE_SQLITE_DB_FILE,
+  );
+  const sqliteAuthorityExists = fs.existsSync(sqliteDatabasePath);
+
+  cockpitBoardSqliteHydrationPromise = scheduler.waitForSqliteWorkspaceHydration()
+    .then(() => readWorkspaceCockpitBoardFromSqlite(workspaceRoot))
     .then((sqliteBoard) => {
-      if (!sqliteBoard) {
+      if (!sqliteBoard && !sqliteAuthorityExists) {
         return;
       }
 
       const hydratedBoard = ensureTaskTodosInBoard(
-        normalizeCockpitBoard(sqliteBoard),
+        sqliteBoard
+          ? normalizeCockpitBoard(sqliteBoard)
+          : createDefaultCockpitBoard(),
         scheduler?.getAllTasks?.() ?? [],
       ).board;
       setCurrentCockpitBoard(workspaceRoot, hydratedBoard);
@@ -1014,6 +1105,15 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
     .finally(() => {
       cockpitBoardSqliteHydrationPromise = undefined;
     });
+}
+
+async function waitForAuthoritativeStartupState(): Promise<void> {
+  await waitForSqliteStartupHydration({
+    workspaceRoot: getPrimaryWorkspaceRootPath(),
+    isSqliteModeEnabled: (workspaceRoot) => isWorkspaceSqliteModeEnabled(workspaceRoot),
+    waitForTaskHydration: () => scheduler.waitForSqliteWorkspaceHydration(),
+    getBoardHydrationPromise: () => cockpitBoardSqliteHydrationPromise,
+  });
 }
 
 function getWorkspaceStorageWatchFileNames(): readonly string[] {
@@ -1852,6 +1952,8 @@ async function runStartupSequence(
   context: vscode.ExtensionContext,
   onExecute: (task: ScheduledTask) => Promise<void>,
 ): Promise<void> {
+  await waitForAuthoritativeStartupState();
+
   if (getSchedulerSetting<boolean>("enabled", true) !== false) {
     await processOverdueTasksOnStartup();
   }
@@ -2531,6 +2633,11 @@ export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
+  getDefaultReviewTemplateValues: () => ({
+    needsBotReviewCommentTemplate: DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
+    needsBotReviewPromptTemplate: DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE,
+    readyPromptTemplate: DEFAULT_READY_PROMPT_TEMPLATE,
+  }),
   getWorkspaceStorageWatchFileNames,
   isCockpitWorkspaceActivated,
   resolveTaskExecutionChatSession,
@@ -2538,6 +2645,7 @@ export const __testOnly = {
   redactPathsForLog,
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
+  waitForSqliteStartupHydration,
 };
 
 function createImmediateManualRunRefresh(

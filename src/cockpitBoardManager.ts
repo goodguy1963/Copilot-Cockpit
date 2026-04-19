@@ -308,6 +308,20 @@ function dropCardLabel(card: CockpitTodoCard, label: string): void {
   card.labels = normalizeStringList(card.labels).filter((entry) => normalizeLabelKey(entry) !== key);
 }
 
+function normalizeTodoCommentBodyInput(value: unknown): string {
+  const trimmed = String(value ?? "").trim();
+  const normalizedLineEndings = trimmed.replace(/\r\n?/g, "\n");
+
+  if (normalizedLineEndings.includes("\n")) {
+    return normalizedLineEndings;
+  }
+
+  return normalizedLineEndings
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n");
+}
+
 function appendTodoCommentRecord(
   todo: CockpitTodoCard,
   input: AddCockpitTodoCommentInput,
@@ -316,7 +330,7 @@ function appendTodoCommentRecord(
   todo.comments.push({
     id: createId("comment"),
     author: input.author === "user" ? "user" : "system",
-    body: String(input.body || "").trim(),
+    body: normalizeTodoCommentBodyInput(input.body),
     labels: normalizeStringList(input.labels),
     source: input.source ?? (input.author === "user" ? "human-form" : "system-event"),
     sequence: todo.comments.length + 1,

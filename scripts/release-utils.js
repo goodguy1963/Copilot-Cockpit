@@ -45,7 +45,15 @@ function removePath(targetPath) {
   if (!fs.existsSync(targetPath)) {
     return;
   }
-  fs.rmSync(targetPath, { recursive: true, force: true });
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } catch (error) {
+    if (error.code === "EBUSY") {
+      console.warn(`Warning: cannot remove locked file ${path.basename(targetPath)}, skipping`);
+      return;
+    }
+    throw error;
+  }
 }
 
 function cleanupTempArtifacts(workspaceRoot) {

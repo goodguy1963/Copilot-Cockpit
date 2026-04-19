@@ -249,9 +249,11 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var editingTaskId = null;
   var selectedTodoId = null;
   var TODO_COMPLETION_CONFIRM_TIMEOUT_MS = 30000;
+  var READY_TODO_CREATE_PENDING_TIMEOUT_MS = 10000;
   var todoCompletionConfirmState = null;
   var todoCompletionConfirmTimer = null;
   var pendingGridTodoCompletions = {};
+  var pendingReadyTodoDraftCreates = {};
   var EDITOR_CREATE_SYMBOL = "+";
   var EDITOR_EDIT_SYMBOL = "\u2699";
   var boardRenderState = createBoardRenderState();
@@ -1816,14 +1818,130 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }) || null;
   }
 
+  function isOneTimeTask(task) {
+    return !!(
+      task && (task.oneTime === true || String(task.id || "").indexOf("exec-") === 0)
+    );
+  }
+
+  function normalizeTodoDraftMatchText(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
   function isTodoTaskDraft(task) {
     return !!(
       task &&
+      isOneTimeTask(task) &&
       Array.isArray(task.labels) &&
       task.labels.some(function (label) {
         return normalizeTodoLabelKey(label) === "from-todo-cockpit";
       })
     );
+  }
+
+  function findTodoDraftTaskForTodo(todo) {
+    if (!todo || !Array.isArray(tasks)) {
+      return null;
+    }
+
+    var todoId = normalizeTodoDraftMatchText(todo.id);
+    var todoTitle = normalizeTodoDraftMatchText(todo.title);
+    var todoDescription = normalizeTodoDraftMatchText(todo.description);
+    var todoLabels = Array.isArray(todo.labels)
+      ? todo.labels.map(function (label) {
+        return normalizeTodoDraftMatchText(label);
+      }).filter(function (label) {
+        return label.length > 0;
+      })
+      : [];
+
+    return tasks.find(function (task) {
+      if (!isTodoTaskDraft(task)) {
+        return false;
+      }
+
+      var taskPrompt = normalizeTodoDraftMatchText(task.prompt);
+      if (todoId && taskPrompt.indexOf("todo id: " + todoId) >= 0) {
+        return true;
+      }
+
+      var taskName = normalizeTodoDraftMatchText(task.name);
+      if (!todoTitle || taskName !== todoTitle) {
+        return false;
+      }
+
+      var taskDescription = normalizeTodoDraftMatchText(task.description);
+      if (todoDescription && taskDescription !== todoDescription) {
+        return false;
+      }
+
+      return todoLabels.every(function (label) {
+        return Array.isArray(task.labels) && task.labels.some(function (entry) {
+          return normalizeTodoDraftMatchText(entry) === label;
+        });
+      });
+    }) || null;
+  }
+
+  function hasPendingReadyTodoDraftCreate(todoId) {
+    return !!(
+      todoId
+      && Object.prototype.hasOwnProperty.call(pendingReadyTodoDraftCreates, todoId)
+    );
+  }
+
+  function clearPendingReadyTodoDraftCreate(todoId, skipRender) {
+    if (!hasPendingReadyTodoDraftCreate(todoId)) {
+      return;
+    }
+    window.clearTimeout(pendingReadyTodoDraftCreates[todoId]);
+    delete pendingReadyTodoDraftCreates[todoId];
+    if (!skipRender) {
+      renderTaskList(tasks);
+    }
+  }
+
+  function startPendingReadyTodoDraftCreate(todoId) {
+    if (!todoId) {
+      return;
+    }
+    clearPendingReadyTodoDraftCreate(todoId, true);
+    pendingReadyTodoDraftCreates[todoId] = window.setTimeout(function () {
+      clearPendingReadyTodoDraftCreate(todoId);
+    }, READY_TODO_CREATE_PENDING_TIMEOUT_MS);
+    renderTaskList(tasks);
+  }
+
+  function reconcilePendingReadyTodoDraftCreates() {
+    var cardsById = {};
+    getAllTodoCards().forEach(function (todo) {
+      if (todo && todo.id) {
+        cardsById[todo.id] = todo;
+      }
+    });
+
+    Object.keys(pendingReadyTodoDraftCreates).forEach(function (todoId) {
+      var todo = cardsById[todoId];
+      if (!todo) {
+        clearPendingReadyTodoDraftCreate(todoId, true);
+        return;
+      }
+      if (todo.archived || isRecurringTodoSectionId(todo.sectionId)) {
+        clearPendingReadyTodoDraftCreate(todoId, true);
+        return;
+      }
+      if (getTodoWorkflowFlag(todo) !== "ready") {
+        clearPendingReadyTodoDraftCreate(todoId, true);
+        return;
+      }
+      if (todo.taskId && isTodoTaskDraft(getTaskById(todo.taskId))) {
+        clearPendingReadyTodoDraftCreate(todoId, true);
+        return;
+      }
+      if (findTodoDraftTaskForTodo(todo)) {
+        clearPendingReadyTodoDraftCreate(todoId, true);
+      }
+    });
   }
 
   function getReadyTodoDraftCandidates() {
@@ -1838,8 +1956,14 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       if (getTodoWorkflowFlag(todo) !== "ready") {
         return false;
       }
+      if (hasPendingReadyTodoDraftCreate(todo.id || "")) {
+        return false;
+      }
       var linkedTask = todo.taskId ? getTaskById(todo.taskId) : null;
       if (linkedTask && isTodoTaskDraft(linkedTask)) {
+        return false;
+      }
+      if (findTodoDraftTaskForTodo(todo)) {
         return false;
       }
       if (effectiveLabelFilter) {
@@ -3455,7 +3579,11 @@ syncTodoLabelSuggestions();
     return !!(
       card
       && !card.archived
-      && (workflowFlag === "ready" || workflowFlag === "final-user-check")
+      && (
+        workflowFlag === "ready"
+        || workflowFlag === "final-user-check"
+        || String(card.status || "").toLowerCase() === "ready"
+      )
     );
   }
 
@@ -6634,7 +6762,8 @@ syncTodoLabelSuggestions();
       if (taskList && taskList.contains(readyTodoCreateTarget)) {
         e.preventDefault();
         var readyTodoId = readyTodoCreateTarget.getAttribute("data-ready-todo-create");
-        if (readyTodoId) {
+        if (readyTodoId && !hasPendingReadyTodoDraftCreate(readyTodoId)) {
+          startPendingReadyTodoDraftCreate(readyTodoId);
           vscode.postMessage({ type: "createTaskFromTodo", todoId: readyTodoId });
         }
         return;
@@ -6846,7 +6975,7 @@ syncTodoLabelSuggestions();
 
     var manualSessionTasks = taskItems.filter(function (task) {
       if (!task) return false;
-      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      var isOneTime = isOneTimeTask(task);
       return !isOneTime && !isJobTask(task) && task.manualSession === true;
     });
     var jobTasks = taskItems.filter(function (task) {
@@ -6854,18 +6983,18 @@ syncTodoLabelSuggestions();
     });
     var recurringTasks = taskItems.filter(function (task) {
       if (!task) return false;
-      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      var isOneTime = isOneTimeTask(task);
       return !isOneTime && !isJobTask(task) && task.manualSession !== true;
     });
     var todoDraftTasks = taskItems.filter(function (task) {
       if (!task) return false;
-      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      var isOneTime = isOneTimeTask(task);
       return isOneTime && !isJobTask(task) && isTodoTaskDraft(task) && task.enabled === false;
     });
     var readyTodoDraftCandidates = getReadyTodoDraftCandidates();
     var oneTimeTasks = taskItems.filter(function (task) {
       if (!task) return false;
-      var isOneTime = task.oneTime === true || (task.id && task.id.indexOf("exec-") === 0);
+      var isOneTime = isOneTimeTask(task);
       return isOneTime && !isJobTask(task) && (!isTodoTaskDraft(task) || task.enabled !== false);
     });
 
@@ -8860,6 +8989,7 @@ syncTodoLabelSuggestions();
       switch (messageType) {
         case "updateTasks":
           tasks = Array.isArray(message.tasks) ? message.tasks : [];
+          reconcilePendingReadyTodoDraftCreates();
           emitWebviewDebug("updateTasks", {
             taskCount: tasks.length,
             selectedTodoId: selectedTodoId || "",
@@ -8902,6 +9032,7 @@ syncTodoLabelSuggestions();
             }
           }
           reconcilePendingGridTodoCompletions(cockpitBoard.cards);
+          reconcilePendingReadyTodoDraftCreates();
           emitWebviewDebug("updateCockpitBoard", {
             sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
             cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,

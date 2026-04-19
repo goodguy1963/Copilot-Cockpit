@@ -149,7 +149,8 @@ export function handleBoardTodoCompletion(completeToggle, options) {
       }
     });
   }
-  var isReadyTodo = workflowFlag === "ready" || workflowFlag === "final-user-check";
+  var legacyReadyStatus = String((todoCard && todoCard.status) || "").trim().toLowerCase() === "ready";
+  var isReadyTodo = workflowFlag === "ready" || workflowFlag === "final-user-check" || legacyReadyStatus;
   var completionActionType = isReadyTodo ? "finalizeTodo" : "approveTodo";
 
   if (!todoId) {

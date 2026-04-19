@@ -39,6 +39,8 @@ Skip toy prompts. Start with one recurring loop that would still be worth keepin
 - For a company team, use the same pattern for product signals, security and release readiness, support queues, or operations follow-up.
 - If you also want to show the Research surface, add one benchmarked profile that scores onboarding or prompt quality against a simple command before you promote anything into execution.
 
+`Onboarding Example Coverage Research` is the simplest version of that pattern: log the onboarding gap in Todo Cockpit, use Research to gather examples or benchmark the docs, then turn the approved next step into Tasks for a direct doc pass or Jobs for a staged follow-up. Use it when you want a real onboarding loop that still stops at a review checkpoint before autonomy expands.
+
 That keeps the demo honest: the proof is useful output plus explicit review, not a claim that the system should run unchecked.
 
 ## Installation From Release

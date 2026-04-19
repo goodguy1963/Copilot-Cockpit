@@ -42,6 +42,20 @@ type PromptFixtureContext = {
   document?: vscode.TextDocument;
 };
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+};
+
+type StartupSqliteHydrationDepsForTest = {
+  workspaceRoot?: string;
+  isSqliteModeEnabled: (workspaceRoot: string) => boolean;
+  waitForTaskHydration: () => Promise<void>;
+  getBoardHydrationPromise: () => Promise<void> | undefined;
+  timeoutMs?: number;
+};
+
 type RepairStateEntry = {
   workspaceRoot: string;
   status: RepairPlanState;
@@ -74,6 +88,41 @@ const requiredConfigDefaults = [
   ["copilotCockpit.legacyFallbackOnError", true],
 ] as const;
 
+const expectedNeedsBotReviewCommentTemplate = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
+
+const expectedNeedsBotReviewPromptTemplate = [
+  "You are handling a Todo that just entered needs-bot-review.",
+  "",
+  "{{todo_context}}",
+  "",
+  "{{mcp_skill_guidance}}",
+  "",
+  "Research what is needed to review this item using available tools and web search.",
+  "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
+  "Review Summary:",
+  "- 1-2 bullets on the request and current repo state",
+  "Risks / Gaps:",
+  "- bullets for missing context, risks, or unclear assumptions",
+  "Recommendation:",
+  "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
+  "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
+  "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
+].join("\n");
+
+const expectedReadyPromptTemplate = [
+  "You are handling a Todo that is now ready for implementation.",
+  "",
+  "{{todo_context}}",
+  "",
+  "{{mcp_skill_guidance}}",
+  "",
+  "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.",
+  "If there is no recent user comment, proceed with the bot's recommendation.",
+  "Add one compact Todo comment covering implementation changes, validation, and any remaining follow-up before or as you update the Todo to the correct workflow state.",
+  "Check the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.",
+  "If the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
+].join("\n");
+
 const requiredConfigKeys = [
   "copilotCockpit.autoShowOnStartup",
   "copilotCockpit.defaultAgent",
@@ -103,6 +152,16 @@ const promptResolutionCases: PromptResolutionCase[] = [
 ];
 
 let cachedTestOnlyExports: TestOnlyExports | undefined;
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}
 
 function getExtensionEntry() {
   return vscode.extensions.getExtension(cockpitExtensionId);
@@ -291,6 +350,56 @@ suite("Extension Integration Tests", () => {
     for (const [propertyKey, expectedValue] of requiredConfigDefaults) {
       assertDefaultPropertyValue(properties, propertyKey, expectedValue);
     }
+
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.needsBotReviewCommentTemplate",
+      expectedNeedsBotReviewCommentTemplate,
+    );
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.needsBotReviewPromptTemplate",
+      expectedNeedsBotReviewPromptTemplate,
+    );
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.readyPromptTemplate",
+      expectedReadyPromptTemplate,
+    );
+  });
+
+  test("runtime review defaults stay aligned with contributed package defaults", async () => {
+    const testOnly = await getTestOnlyExports();
+    const properties = getContributedProperties();
+    const runtimeDefaults = testOnly.getDefaultReviewTemplateValues();
+
+    assert.strictEqual(
+      runtimeDefaults.needsBotReviewCommentTemplate,
+      expectedNeedsBotReviewCommentTemplate,
+    );
+    assert.strictEqual(
+      runtimeDefaults.needsBotReviewPromptTemplate,
+      expectedNeedsBotReviewPromptTemplate,
+    );
+    assert.strictEqual(
+      runtimeDefaults.readyPromptTemplate,
+      expectedReadyPromptTemplate,
+    );
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.needsBotReviewCommentTemplate",
+      runtimeDefaults.needsBotReviewCommentTemplate,
+    );
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.needsBotReviewPromptTemplate",
+      runtimeDefaults.needsBotReviewPromptTemplate,
+    );
+    assertDefaultPropertyValue(
+      properties,
+      "copilotCockpit.readyPromptTemplate",
+      runtimeDefaults.readyPromptTemplate,
+    );
   });
 
   test("cockpit and scheduler command aliases are registered", async () => {
@@ -348,6 +457,239 @@ suite("Extension Integration Tests", () => {
 
     assert.strictEqual(refreshEvents.length, 2);
     assert.strictEqual(queue.hasPending(), false);
+  });
+
+  test("startup sqlite hydration waits for task hydration before board hydration", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    const taskHydration = createDeferred<void>();
+    const boardHydration = createDeferred<void>();
+  const boardHydrationStarted = createDeferred<void>();
+    const events: string[] = [];
+
+    const waitPromise = waitForStartupHydration!({
+      workspaceRoot: "F:/sqlite-workspace",
+      isSqliteModeEnabled: (workspaceRoot) => {
+        events.push(`mode:${workspaceRoot}`);
+        return true;
+      },
+      waitForTaskHydration: async () => {
+        events.push("task:start");
+        await taskHydration.promise;
+        events.push("task:done");
+      },
+      getBoardHydrationPromise: () => {
+        events.push("board:get");
+        boardHydrationStarted.resolve();
+        return boardHydration.promise.then(() => {
+          events.push("board:done");
+        });
+      },
+    });
+
+    await Promise.resolve();
+    assert.deepStrictEqual(events, ["mode:F:/sqlite-workspace", "task:start"]);
+
+    taskHydration.resolve();
+    await boardHydrationStarted.promise;
+    assert.deepStrictEqual(events, [
+      "mode:F:/sqlite-workspace",
+      "task:start",
+      "task:done",
+      "board:get",
+    ]);
+
+    boardHydration.resolve();
+    await waitPromise;
+
+    assert.deepStrictEqual(events, [
+      "mode:F:/sqlite-workspace",
+      "task:start",
+      "task:done",
+      "board:get",
+      "board:done",
+    ]);
+  });
+
+  test("startup sqlite hydration is a no-op outside sqlite mode", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    let taskWaitCalls = 0;
+    let boardWaitCalls = 0;
+
+    await waitForStartupHydration!({
+      workspaceRoot: "F:/json-workspace",
+      isSqliteModeEnabled: () => false,
+      waitForTaskHydration: async () => {
+        taskWaitCalls += 1;
+      },
+      getBoardHydrationPromise: () => {
+        boardWaitCalls += 1;
+        return Promise.resolve();
+      },
+    });
+
+    assert.strictEqual(taskWaitCalls, 0);
+    assert.strictEqual(boardWaitCalls, 0);
+  });
+
+  test("startup sqlite hydration is a no-op without a workspace root", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    let sqliteModeChecks = 0;
+    let taskWaitCalls = 0;
+    let boardWaitCalls = 0;
+
+    await waitForStartupHydration!({
+      workspaceRoot: undefined,
+      isSqliteModeEnabled: () => {
+        sqliteModeChecks += 1;
+        return true;
+      },
+      waitForTaskHydration: async () => {
+        taskWaitCalls += 1;
+      },
+      getBoardHydrationPromise: () => {
+        boardWaitCalls += 1;
+        return Promise.resolve();
+      },
+    });
+
+    assert.strictEqual(sqliteModeChecks, 0);
+    assert.strictEqual(taskWaitCalls, 0);
+    assert.strictEqual(boardWaitCalls, 0);
+  });
+
+  test("startup sqlite hydration tolerates an undefined board hydration promise", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    let taskWaitCalls = 0;
+    let boardWaitCalls = 0;
+
+    await assert.doesNotReject(async () =>
+      waitForStartupHydration!({
+        workspaceRoot: "F:/sqlite-workspace",
+        isSqliteModeEnabled: () => true,
+        waitForTaskHydration: async () => {
+          taskWaitCalls += 1;
+        },
+        getBoardHydrationPromise: () => {
+          boardWaitCalls += 1;
+          return undefined;
+        },
+      }));
+
+    assert.strictEqual(taskWaitCalls, 1);
+    assert.strictEqual(boardWaitCalls, 1);
+  });
+
+  test("startup sqlite hydration continues to board hydration when task hydration rejects", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    const events: string[] = [];
+
+    await assert.doesNotReject(async () =>
+      waitForStartupHydration!({
+        workspaceRoot: "F:/sqlite-workspace",
+        isSqliteModeEnabled: () => true,
+        waitForTaskHydration: async () => {
+          events.push("task:start");
+          throw new Error("task hydration failed");
+        },
+        getBoardHydrationPromise: () => {
+          events.push("board:get");
+          return Promise.resolve().then(() => {
+            events.push("board:done");
+          });
+        },
+      }));
+
+    assert.deepStrictEqual(events, ["task:start", "board:get", "board:done"]);
+  });
+
+  test("startup sqlite hydration continues when both task and board hydration reject", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    const events: string[] = [];
+
+    await assert.doesNotReject(async () =>
+      waitForStartupHydration!({
+        workspaceRoot: "F:/sqlite-workspace",
+        isSqliteModeEnabled: () => true,
+        waitForTaskHydration: async () => {
+          events.push("task:start");
+          throw new Error("task hydration failed");
+        },
+        getBoardHydrationPromise: () => {
+          events.push("board:get");
+          return Promise.reject(new Error("board hydration failed"));
+        },
+      }));
+
+    assert.deepStrictEqual(events, ["task:start", "board:get"]);
+  });
+
+  test("startup sqlite hydration times out and continues when task hydration hangs", async () => {
+    const testOnly = await getTestOnlyExports();
+    const waitForStartupHydration = testOnly.waitForSqliteStartupHydration as
+      | ((deps: StartupSqliteHydrationDepsForTest) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof waitForStartupHydration === "function");
+
+    let taskWaitCalls = 0;
+    let boardWaitCalls = 0;
+    const startedAt = Date.now();
+
+    await assert.doesNotReject(async () =>
+      waitForStartupHydration!({
+        workspaceRoot: "F:/sqlite-workspace",
+        isSqliteModeEnabled: () => true,
+        waitForTaskHydration: async () => {
+          taskWaitCalls += 1;
+          await new Promise<void>(() => undefined);
+        },
+        getBoardHydrationPromise: () => {
+          boardWaitCalls += 1;
+          return Promise.resolve();
+        },
+        timeoutMs: 25,
+      }));
+
+    const elapsedMs = Date.now() - startedAt;
+    assert.strictEqual(taskWaitCalls, 1);
+    assert.strictEqual(boardWaitCalls, 0);
+    assert.ok(elapsedMs < 500, `Expected timeout-bound completion, got ${elapsedMs}ms`);
   });
 
   test("custom sub-agent settings uri builder uses the active VS Code scheme", async () => {

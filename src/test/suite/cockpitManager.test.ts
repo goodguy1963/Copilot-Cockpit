@@ -8,7 +8,10 @@ import { ensureTaskTodosInBoard } from "../../cockpitBoardManager";
 import { ScheduleManager } from "../../cockpitManager";
 import { messages } from "../../i18n";
 import { getScheduleHistoryRoot } from "../../cockpitHistory";
-import { readWorkspaceSchedulerStateFromSqlite } from "../../sqliteBootstrap";
+import {
+  readWorkspaceSchedulerStateFromSqlite,
+  syncWorkspaceSchedulerStateToSqlite,
+} from "../../sqliteBootstrap";
 import {
   getPrivateSchedulerConfigPath,
   REDACTED_DISCORD_WEBHOOK_URL,
@@ -1023,6 +1026,77 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
 
       assert.strictEqual(manager.getTask(created.id)?.name, "SQLite workspace task");
       assert.strictEqual(manager.getTask(created.id)?.prompt, "sqlite prompt");
+    } finally {
+      restoreMode();
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("sqlite hydration clears stale overdue mirror tasks when sqlite authority is empty", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-empty-overdue-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-empty-overdue-storage-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+    const now = new Date("2026-03-23T10:20:00.000Z");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const created = await manager.createTask({
+        name: "SQLite startup stale overdue task",
+        cronExpression: "*/5 * * * *",
+        prompt: "authoritative sqlite task",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+      });
+
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      fs.writeFileSync(
+        schedulerJsonPath,
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: created.id,
+                name: created.name,
+                cron: created.cronExpression,
+                prompt: "stale mirror task",
+                enabled: true,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
+                nextRun: "2026-03-23T10:15:00.000Z",
+              },
+            ],
+            jobs: [],
+            jobFolders: [],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      manager.reloadTasks();
+
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(now).map((task) => task.id),
+        [created.id],
+      );
+
+      await manager.waitForSqliteWorkspaceHydration();
+
+      assert.deepStrictEqual(manager.getOverdueTasks(now).map((task) => task.id), []);
+      assert.strictEqual(manager.getTask(created.id), undefined);
     } finally {
       restoreMode();
       restoreWs();

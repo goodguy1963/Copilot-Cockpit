@@ -181,7 +181,9 @@ Start with one recurring loop that produces useful work instead of toy output.
 - `Delivery Risk and Security Watch (Daily)` looks for shipping, trust, and operational blind spots.
 - `Knowledge and Shipping Packager (Daily)` stages reusable docs, memory candidates, and release material for later curation.
 - `Project Intelligence and Delivery Prep` runs those steps in sequence and stops at a review checkpoint before anything turns into real execution.
-- `Onboarding Example Coverage Research` benchmarks whether the docs still explain Cockpit, Tasks, Jobs, and Research with explicit review checkpoints.
+- `Onboarding Example Coverage Research` starts with a Todo Cockpit intake item, uses Research to gather or benchmark onboarding evidence, and then promotes approved follow-up into Tasks or Jobs.
+
+Use that onboarding example when you want one concrete loop to demonstrate the product: start in Todo Cockpit, gather context with Research, promote approved work into Tasks or Jobs, and stop at a review checkpoint before autonomy expands.
 
 This is a good fit for a solo product, an internal tool, a small SaaS, or an actively maintained extension like this repo.
 

@@ -33,6 +33,7 @@ import {
 import {
   getConfiguredSchedulerStorageMode,
   SQLITE_STORAGE_MODE,
+  WORKSPACE_SQLITE_DB_FILE,
 } from "./sqliteStorage";
 import { selectTaskStore } from "./taskStoreSelection";
 import { normalizeForCompare } from "./promptResolver";
@@ -767,13 +768,24 @@ export class ScheduleManager {
       });
   }
 
+  public waitForSqliteWorkspaceHydration(): Promise<void> {
+    return this.sqliteHydrationPromise ?? Promise.resolve();
+  }
+
   private async hydrateWorkspaceTasksFromSqlite(workspaceRoot: string): Promise<void> {
+    const sqliteDatabasePath = path.join(
+      workspaceRoot,
+      ".vscode",
+      WORKSPACE_SQLITE_DB_FILE,
+    );
+    const sqliteAuthorityExists = fs.existsSync(sqliteDatabasePath);
     const sqliteState = this.normalizeWorkspaceSchedulerState(
       await readWorkspaceSchedulerStateFromSqlite(workspaceRoot),
       workspaceRoot,
     );
 
     if (
+      !sqliteAuthorityExists &&
       sqliteState.tasks.length === 0 &&
       sqliteState.jobs.length === 0 &&
       sqliteState.jobFolders.length === 0

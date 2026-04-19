@@ -94,6 +94,8 @@ Caption: Improve against a benchmark, not by guesswork.
 
 Research can also act as a collaborative discovery phase before implementation: gather web knowledge, review the findings with the user, refine the direction, and only then turn the result into scheduled execution.
 
+For onboarding, `Onboarding Example Coverage Research` shows the full loop in one pass: capture the gap in Todo Cockpit, use Research to benchmark the docs, promote approved fixes into Tasks or Jobs, and pause at a review checkpoint before broader autonomy.
+
 Best for: prompt or workflow improvement that should be measured, not guessed.
 
 ## Model And Agent Choice

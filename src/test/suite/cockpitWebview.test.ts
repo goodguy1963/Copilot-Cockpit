@@ -653,6 +653,24 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     ], "manual-session runtime");
   });
 
+  test("task list suppresses matched todo draft tasks and hides pending create actions during refresh", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'var READY_TODO_CREATE_PENDING_TIMEOUT_MS = 10000;',
+      'var pendingReadyTodoDraftCreates = {};',
+      'function normalizeTodoDraftMatchText(value) {',
+      'function findTodoDraftTaskForTodo(todo) {',
+      'taskPrompt.indexOf("todo id: " + todoId) >= 0',
+      'if (findTodoDraftTaskForTodo(todo)) {',
+      'function startPendingReadyTodoDraftCreate(todoId) {',
+      'pendingReadyTodoDraftCreates[todoId] = window.setTimeout(function () {',
+      'if (hasPendingReadyTodoDraftCreate(todo.id || "")) {',
+      'startPendingReadyTodoDraftCreate(readyTodoId);',
+      'reconcilePendingReadyTodoDraftCreates();',
+    ], "todo draft suppression runtime");
+  });
+
   test("task editor switches one-time scheduling to a relative delay editor", () => {
     const templateSource = readSchedulerWebviewTemplateSource();
     const scriptSource = readSchedulerWebviewScriptSource();
@@ -1837,10 +1855,17 @@ test("todo comments style human form input separately and todo saves reset to cr
         pointerEvents: "",
       },
     };
+    const legacyReadyStatusCardElement = {
+      style: {
+        opacity: "",
+        pointerEvents: "",
+      },
+    };
 
     const activeToggle = createMockButton("todo-active", activeCardElement);
     const readyToggle = createMockButton("todo-ready", readyCardElement);
     const legacyReadyToggle = createMockButton("todo-ready-legacy", legacyCardElement);
+    const legacyReadyStatusToggle = createMockButton("todo-ready-status-legacy", legacyReadyStatusCardElement);
 
     const interactionOptions = {
       clearPendingGridTodoCompletion: (todoId: string, skipRender?: boolean) => {
@@ -1989,6 +2014,32 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.strictEqual(legacyCardElement.style.opacity, "0.35");
     assert.strictEqual(legacyCardElement.style.pointerEvents, "none");
 
+    helpers.handleBoardTodoCompletion(legacyReadyStatusToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready-status-legacy", status: "ready" },
+        ],
+      },
+      ...interactionOptions,
+    });
+    helpers.handleBoardTodoCompletion(legacyReadyStatusToggle, {
+      cockpitBoard: {
+        cards: [
+          { id: "todo-ready-status-legacy", status: "ready" },
+        ],
+      },
+      ...interactionOptions,
+    });
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [
+      { type: "approveTodo", todoId: "todo-active" },
+      { type: "finalizeTodo", todoId: "todo-ready" },
+      { type: "finalizeTodo", todoId: "todo-ready-legacy" },
+      { type: "finalizeTodo", todoId: "todo-ready-status-legacy" },
+    ]);
+    assert.strictEqual(legacyReadyStatusToggle.disabled, true);
+    assert.strictEqual(legacyReadyStatusCardElement.style.opacity, "0.35");
+    assert.strictEqual(legacyReadyStatusCardElement.style.pointerEvents, "none");
+
     expectSourceToIncludeSnippets(scriptSource, [
       "pendingGridTodoCompletions[todoId] = window.setTimeout(function () {",
       "clearPendingGridTodoCompletion(todoId);",
@@ -2006,7 +2057,9 @@ test("todo comments style human form input separately and todo saves reset to cr
       scriptSource,
       [
         'var TODO_COMPLETION_CONFIRM_TIMEOUT_MS = 30000;',
-        'workflowFlag === "ready" || workflowFlag === "final-user-check"',
+        'workflowFlag === "ready"',
+        'workflowFlag === "final-user-check"',
+        'String(card.status || "").toLowerCase() === "ready"',
         'return isTodoReadyForFinalize(card) ? "finalizeTodo" : "approveTodo";',
         'return (strings.boardConfirmAction || "Confirm") + " " + getTodoCompletionActionLabel(card);',
         'if (!isTodoCompletionConfirmPending(selectedTodo)) {',

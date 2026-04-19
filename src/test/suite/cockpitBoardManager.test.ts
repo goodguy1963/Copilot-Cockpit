@@ -12,6 +12,7 @@ import {
 } from "../../cockpitBoard";
 import {
   addCockpitSection,
+  addTodoCommentInBoard,
   approveTodoInBoard,
   createCockpitTodo,
   createTodoInBoard,
@@ -52,6 +53,37 @@ suite("Cockpit Board Manager Tests", () => {
       `Todo created on ${result.todo.createdAt}.`,
     );
     assert.strictEqual(result.todo.comments[0]?.createdAt, result.todo.createdAt);
+  });
+
+  test("addTodoCommentInBoard normalizes escaped newline sequences before persisting", () => {
+    const board = createDefaultCockpitBoard("2026-03-28T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-escaped-comment",
+      title: "Review formatting",
+      sectionId: "unsorted",
+      order: 0,
+      priority: "medium",
+      status: "active",
+      labels: [],
+      flags: [],
+      comments: [],
+      archived: false,
+      createdAt: "2026-03-28T10:00:00.000Z",
+      updatedAt: "2026-03-28T10:00:00.000Z",
+    });
+
+    const result = addTodoCommentInBoard(board, "todo-escaped-comment", {
+      body: "Research summary\\n\\nCurrent repo state\\r\\n- comment body stored verbatim",
+      author: "system",
+      source: "bot-mcp",
+      labels: ["needs-bot-review"],
+    });
+
+    assert.ok(result.todo);
+    assert.strictEqual(
+      result.todo?.comments[0]?.body,
+      "Research summary\n\nCurrent repo state\n- comment body stored verbatim",
+    );
   });
 
   test("migrates legacy archive buckets into archive sections", () => {

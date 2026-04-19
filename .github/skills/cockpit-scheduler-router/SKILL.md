@@ -5,7 +5,7 @@ copilotCockpitSkillType: operational
 copilotCockpitToolNamespaces: [cockpit, scheduler]
 copilotCockpitWorkflowIntents: [needs-bot-review, ready]
 copilotCockpitApprovalSensitive: true
-copilotCockpitPromptSummary: "Route through canonical workflow flags, preserve approval checkpoints, and verify linked scheduler state before changing live scheduled cards."
+copilotCockpitPromptSummary: "Route through canonical workflow flags, preserve approval checkpoints, verify linked scheduler state before changing live scheduled cards, and for needs-bot-review return plain text with short titled sections, bullets, and a compact recommendation."
 copilotCockpitReadyWorkflowFlags: [ready, ON-SCHEDULE-LIST]
 copilotCockpitCloseoutWorkflowFlags: [needs-user-review, FINAL-USER-CHECK]
 ---
@@ -57,6 +57,11 @@ This router skill is MCP-dependent. It must not attempt live routing or schedule
 - `ready` → create or reuse the linked scheduler task only when the latest actionable user comment is specific enough.
 - `ON-SCHEDULE-LIST` → manage the linked scheduler job lifecycle for live scheduled cards.
 - `needs-user-review` or `new` → keep the card active and route it for follow-up instead of scheduling immediately.
+
+For `needs-bot-review` comments intended for direct Todo writeback:
+
+- Return plain text with real line breaks, short titled sections, compact bullets, and a final `Recommendation:` block.
+- Do not emit JSON payloads or literal escaped newline sequences such as `\n`.
 
 ## Example Set Requests
 
@@ -125,7 +130,8 @@ The current live dispatcher source contains two different `needs-bot-review` beh
 - If `scheduler_remove_task` or `scheduler_get_task` shows that the linked task is already gone, clear the Cockpit card's `taskId` instead of leaving a stale link behind.
 - Use flags for routing and review-state handoff. Keep the built-in `ON-SCHEDULE-LIST` flag when the card still represents a live scheduled item.
 - When implementation is complete but the user still needs to review the result, prefer an existing review-state flag such as `needs-user-review`, and move the card only if the requested review section actually exists.
-- Add one compact Cockpit comment that covers changes, validation, and remaining follow-up instead of scattering multiple status comments.
+- For ready-path execution closeout, always write back exactly one compact Todo comment covering implementation changes, validation, and remaining follow-up before or together with the workflow-state update.
+- Do not scatter multiple status comments for the same ready execution closeout.
 
 ## Suggested Update Format
 
@@ -156,3 +162,7 @@ Avoid output such as `Add flags: on-schedule-list, scheduled-task` because it mi
 ## Output Expectations
 
 Return only the compact execution summary requested by the dispatcher flow. Avoid board dumps and avoid re-deriving routing state from the full board payload when `cockpit_list_routing_cards` already gives the candidate set.
+
+When the flow asks for a direct Todo review comment, keep the output readable as pasted text: short titled sections, concise bullets, and one compact closing recommendation.
+
+When the flow is a ready execution closeout, include the single compact Todo comment needed for direct writeback so the Todo does not move state without a comment trail.
