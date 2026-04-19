@@ -1067,6 +1067,54 @@ export const messages = {
       "同梱エージェントを同期する前に、ワークスペースフォルダーを開いてください。",
       "Öffnen Sie einen Workspace-Ordner, bevor Sie gebündelte Agenten synchronisieren.",
     ),
+  bundledAgentsStageWorkspaceRequired: () =>
+    t(
+      "Open a workspace folder before staging bundled agents for comparison.",
+      "比較用に同梱エージェントを展開する前に、ワークスペースフォルダーを開いてください。",
+      "Öffnen Sie einen Workspace-Ordner, bevor Sie gebündelte Agenten zum Vergleich bereitstellen.",
+    ),
+  bundledAgentsStageConfirmTitle: (workspaceCount: number) =>
+    t(
+      workspaceCount === 1
+        ? "Stage bundled starter agents for comparison in this workspace?"
+        : "Stage bundled starter agents for comparison in these workspaces?",
+      workspaceCount === 1
+        ? "このワークスペースで比較用に同梱スターターエージェントを展開しますか？"
+        : "これらのワークスペースで比較用に同梱スターターエージェントを展開しますか？",
+      workspaceCount === 1
+        ? "Gebündelte Starter-Agenten in diesem Workspace zum Vergleich bereitstellen?"
+        : "Gebündelte Starter-Agenten in diesen Workspaces zum Vergleich bereitstellen?",
+    ),
+  bundledAgentsStageConfirmAction: () =>
+    t(
+      "Stage Bundled Agents",
+      "同梱エージェントを比較用に展開",
+      "Gebündelte Agenten bereitstellen",
+    ),
+  bundledAgentsStageConfirmExistingSurfaces: (surfaceSummary: string) =>
+    t(
+      `Existing agent-system surfaces were detected and will remain the source of truth while the bundled starter pack is staged separately for comparison: ${surfaceSummary}`,
+      `既存のエージェント関連構成を検出しました。これらを正本のまま維持しつつ、同梱スターターパックは比較用に別の場所へ展開します: ${surfaceSummary}`,
+      `Vorhandene Agent-System-Bestandteile wurden erkannt und bleiben die Quelle der Wahrheit, wahrend das gebündelte Starter-Paket separat zum Vergleich bereitgestellt wird: ${surfaceSummary}`,
+    ),
+  bundledAgentsStageConfirmNoExistingSurfaces: () =>
+    t(
+      "No existing agent-system surfaces were detected in the selected workspace folders. The bundled starter pack will be staged as reference material only.",
+      "選択したワークスペースでは既存のエージェント関連構成は検出されませんでした。同梱スターターパックは参照用としてのみ展開されます。",
+      "In den ausgewählten Workspaces wurden keine bestehenden Agent-System-Bestandteile erkannt. Das gebündelte Starter-Paket wird nur als Referenzmaterial bereitgestellt.",
+    ),
+  bundledAgentsStageConfirmLocation: () =>
+    t(
+      "A fresh staged mirror will be written under .vscode/copilot-cockpit-support/bundled-agents/.github/agents plus manifest.json, replacing any previous staged snapshot.",
+      "新しいステージ済みミラーは .vscode/copilot-cockpit-support/bundled-agents/.github/agents と manifest.json に書き込み、以前のステージ済みスナップショットは置き換えます。",
+      "Ein frischer bereitgestellter Spiegel wird unter .vscode/copilot-cockpit-support/bundled-agents/.github/agents plus manifest.json geschrieben und ersetzt jede frühere bereitgestellte Momentaufnahme.",
+    ),
+  bundledAgentsStageConfirmLiveTreeUntouched: () =>
+    t(
+      "The live workspace .github/agents tree will not be modified.",
+      "live ワークスペースの .github/agents ツリーは変更されません。",
+      "Der livee Workspace-Baum .github/agents wird nicht verändert.",
+    ),
   bundledAgentsSyncConfirmTitle: (workspaceCount: number) =>
     t(
       workspaceCount === 1
@@ -1136,6 +1184,12 @@ export const messages = {
       `Bundled agent sync finished. Created ${created}, updated ${updated}, skipped ${skipped} customized files.`,
       `同梱エージェントの同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
       `Die Synchronisierung der gebündelten Agenten ist abgeschlossen. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
+    ),
+  bundledAgentsStageCompleted: (staged: number, manifests: number) =>
+    t(
+      `Staged ${staged} bundled agent files and wrote ${manifests} manifest file(s) under .vscode/copilot-cockpit-support/bundled-agents. Live .github/agents was not modified.`,
+      `同梱エージェント ${staged} 件を .vscode/copilot-cockpit-support/bundled-agents に展開し、manifest を ${manifests} 件書き込みました。live の .github/agents は変更していません。`,
+      `${staged} gebündelte Agent-Dateien wurden unter .vscode/copilot-cockpit-support/bundled-agents bereitgestellt und ${manifests} Manifestdatei(en) geschrieben. Live .github/agents wurde nicht verändert.`,
     ),
   mcpSetupWorkspaceRequired: () =>
     t(

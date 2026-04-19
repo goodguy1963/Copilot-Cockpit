@@ -3,7 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
-import type { StorageSettingsView, WebviewToExtensionMessage } from "./types";
+import type { ApprovalMode, StorageSettingsView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { updateCompatibleConfigurationValue } from "./extensionCompat";
@@ -66,6 +66,21 @@ export async function handleSettingsWebviewMessage(
         type: "updateLogLevel",
         logLevel: message.logLevel,
       });
+      return true;
+    }
+    case "setApprovalMode": {
+      const approvalMode = typeof message.approvalMode === "string"
+        ? message.approvalMode
+        : "default";
+      const validModes: ApprovalMode[] = ["default", "auto-approve", "autopilot", "yolo"];
+      const safeMode = validModes.includes(approvalMode as ApprovalMode)
+        ? approvalMode as ApprovalMode
+        : "default";
+      await updateCompatibleConfigurationValue(
+        "approvalMode",
+        safeMode,
+        vscode.ConfigurationTarget.Global,
+      );
       return true;
     }
     case "setStorageSettings": {

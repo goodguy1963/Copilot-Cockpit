@@ -18,6 +18,12 @@ export type CockpitDeterministicStateMode =
  */
 export type ChatSessionBehavior = "new" | "continue";
 
+export type ApprovalMode =
+  | "default"
+  | "auto-approve"
+  | "autopilot"
+  | "yolo";
+
 export type JobNodeType = "task" | "pause";
 
 /**
@@ -1437,6 +1443,7 @@ type TaskActionName =
   | "setupCodex"
   | "setupCodexSkills"
   | "syncBundledSkills"
+  | "stageBundledAgents"
   | "syncBundledAgents"
   | "importStorageFromJson"
   | "exportStorageToJson"
@@ -1650,6 +1657,7 @@ type SchedulerControlMessage =
   | { type: "setupCodex" }
   | { type: "setupCodexSkills" }
   | { type: "syncBundledSkills" }
+  | { type: "stageBundledAgents" }
   | { type: "syncBundledAgents" }
   | { type: "importStorageFromJson" }
   | { type: "exportStorageToJson" };
@@ -1671,7 +1679,8 @@ type NotificationAndSettingsMessage =
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
-  | { type: "setStorageSettings"; data: StorageSettingsView };
+  | { type: "setStorageSettings"; data: StorageSettingsView }
+  | { type: "setApprovalMode"; approvalMode: ApprovalMode };
 
 type TodoBoardMessage =
   | { type: "createTodo"; data: CreateCockpitTodoInput }

@@ -12,6 +12,9 @@ import {
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
   SCHEDULER_SKILL_RELATIVE_PATH,
+  stageBundledAgentsForWorkspaceRoots,
+  STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
+  STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
   syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
@@ -440,6 +443,91 @@ suite("Skill Bootstrap Tests", () => {
         );
         assert.ok(result.nextState[workspaceRoot]?.[relativePath]);
       }
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("stages bundled agents only under the plugin-owned support path", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-agents-stage-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-agents-stage-"),
+    );
+
+    try {
+      const bundledFiles = [
+        path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md"),
+        path.join(BUNDLED_AGENTS_RELATIVE_PATH, "team", "planner.agent.md"),
+      ];
+
+      for (const relativePath of bundledFiles) {
+        const absolutePath = path.join(extensionRoot, relativePath);
+        fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+        fs.writeFileSync(absolutePath, `content:${relativePath}\n`, "utf8");
+      }
+
+      const liveAgentPath = path.join(
+        workspaceRoot,
+        BUNDLED_AGENTS_RELATIVE_PATH,
+        "ceo.agent.md",
+      );
+      fs.mkdirSync(path.dirname(liveAgentPath), { recursive: true });
+      fs.writeFileSync(liveAgentPath, "workspace-live-agent\n", "utf8");
+
+      const staleStagePath = path.join(
+        workspaceRoot,
+        STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "stale.md",
+      );
+      fs.mkdirSync(path.dirname(staleStagePath), { recursive: true });
+      fs.writeFileSync(staleStagePath, "stale\n", "utf8");
+
+      const result = await stageBundledAgentsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      assert.strictEqual(result.stagedRoots.length, 1);
+      assert.strictEqual(result.stagedPaths.length, bundledFiles.length);
+      assert.strictEqual(
+        fs.readFileSync(liveAgentPath, "utf8"),
+        "workspace-live-agent\n",
+      );
+      assert.strictEqual(fs.existsSync(staleStagePath), false);
+
+      for (const relativePath of bundledFiles) {
+        const stagedPath = path.join(
+          workspaceRoot,
+          STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+          path.relative(BUNDLED_AGENTS_RELATIVE_PATH, relativePath),
+        );
+        assert.strictEqual(
+          fs.readFileSync(stagedPath, "utf8"),
+          `content:${relativePath}\n`,
+        );
+      }
+
+      const manifestPath = path.join(
+        workspaceRoot,
+        STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
+      );
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
+        liveAgentsRelativePath: string;
+        stagedAgentsRelativePath: string;
+        files: Array<{ sourceRelativePath: string }>;
+      };
+
+      assert.strictEqual(manifest.liveAgentsRelativePath, BUNDLED_AGENTS_RELATIVE_PATH);
+      assert.strictEqual(
+        manifest.stagedAgentsRelativePath,
+        STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+      );
+      assert.deepStrictEqual(
+        manifest.files.map((entry) => entry.sourceRelativePath),
+        bundledFiles,
+      );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
     }

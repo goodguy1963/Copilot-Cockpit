@@ -37,6 +37,7 @@ const schedulerLockOptions = {
 const schedulerFs = {
     writeFileSync: fs.writeFileSync.bind(fs),
     renameSync: fs.renameSync.bind(fs),
+    copyFileSync: fs.copyFileSync.bind(fs),
     existsSync: fs.existsSync.bind(fs),
     unlinkSync: fs.unlinkSync.bind(fs),
     mkdirSync: fs.mkdirSync.bind(fs),
@@ -61,6 +62,7 @@ export function setSchedulerFileOpsForTests(
 ): void {
     schedulerFs.writeFileSync = overrides?.writeFileSync ?? fs.writeFileSync.bind(fs);
     schedulerFs.renameSync = overrides?.renameSync ?? fs.renameSync.bind(fs);
+    schedulerFs.copyFileSync = overrides?.copyFileSync ?? fs.copyFileSync.bind(fs);
     schedulerFs.existsSync = overrides?.existsSync ?? fs.existsSync.bind(fs);
     schedulerFs.unlinkSync = overrides?.unlinkSync ?? fs.unlinkSync.bind(fs);
     schedulerFs.mkdirSync = overrides?.mkdirSync ?? fs.mkdirSync.bind(fs);
@@ -673,7 +675,25 @@ function writeFileAtomic(filePath: string, content: string): void {
 
     try {
         schedulerFs.writeFileSync(tempPath, content, "utf8");
-        schedulerFs.renameSync(tempPath, filePath);
+        try {
+            schedulerFs.renameSync(tempPath, filePath);
+            return;
+        } catch (error) {
+            let commitError: unknown = error;
+
+            if (process.platform === "win32"
+                && isWindowsAtomicRenameFallbackError(error)) {
+                try {
+                    schedulerFs.copyFileSync(tempPath, filePath);
+                    schedulerFs.unlinkSync(tempPath);
+                    return;
+                } catch (fallbackError) {
+                    commitError = fallbackError;
+                }
+            }
+
+            throw commitError;
+        }
     } catch (error) {
         try {
             if (schedulerFs.existsSync(tempPath)) {
@@ -684,6 +704,14 @@ function writeFileAtomic(filePath: string, content: string): void {
         }
         throw error;
     }
+}
+
+function isWindowsAtomicRenameFallbackError(error: unknown): boolean {
+    const code = typeof error === "object" && error !== null && "code" in error
+        ? String((error as NodeJS.ErrnoException).code ?? "")
+        : "";
+
+    return code === "EPERM" || code === "EACCES" || code === "EBUSY";
 }
 
 function mergeCockpitFilters(

@@ -30,6 +30,7 @@ const TYPE_COMMAND = "type";
 const DELAY_AFTER_FOCUS_MS = 150;
 const DELAY_AFTER_TYPE_MS = 50;
 const NEW_SESSION_PAUSE_MS = 200;
+const APPROVAL_BOOTSTRAP_SETTLE_MS = 200;
 
 const BUILT_IN_SLASH_AGENTS = ["agent", "ask", "edit"] as const;
 const BUILT_IN_SLASH_AGENT_SET = new Set<string>(BUILT_IN_SLASH_AGENTS);
@@ -51,6 +52,8 @@ type PreparedExecution = {
   preferredMode?: string;
   mustStartFresh: boolean;
 };
+
+type ApprovalBootstrapMode = "off" | "yolo";
 
 type HourlySessionBucket = {
   hourStartIso: string;
@@ -351,9 +354,14 @@ async function offerPromptCopy(query: string): Promise<void> {
 export class CopilotExecutor {
   private static extensionContext: vscode.ExtensionContext | undefined;
   private static recentPromptExecutionStarts: number[] = [];
+  private static approvalBootstrapMode: ApprovalBootstrapMode = "off";
 
   static configure(context?: vscode.ExtensionContext): void {
     CopilotExecutor.extensionContext = context;
+  }
+
+  static setApprovalBootstrapMode(mode: ApprovalBootstrapMode): void {
+    CopilotExecutor.approvalBootstrapMode = mode;
   }
 
   private prepareExecution(prompt: string, options?: ExecuteOptions): PreparedExecution {
@@ -431,6 +439,28 @@ export class CopilotExecutor {
     }
   }
 
+  private async bootstrapFreshChatApprovalMode(): Promise<void> {
+    if (CopilotExecutor.approvalBootstrapMode !== "yolo") {
+      return;
+    }
+
+    const focused = await this.executeFirstAvailableCommand(CHAT_FOCUS_COMMANDS);
+    if (!focused) {
+      throw new Error("Unable to focus/open Copilot Chat panel for approval bootstrap");
+    }
+
+    await this.delay(DELAY_AFTER_FOCUS_MS);
+    await vscode.commands.executeCommand(TYPE_COMMAND, { text: "/yolo" });
+    await this.delay(DELAY_AFTER_TYPE_MS);
+
+    const submitted = await this.executeFirstAvailableCommand(CHAT_SUBMIT_COMMANDS);
+    if (!submitted) {
+      throw new Error("Unable to submit approval bootstrap: chat submit command unavailable");
+    }
+
+    await this.delay(APPROVAL_BOOTSTRAP_SETTLE_MS);
+  }
+
   private async ensureFreshChat(modelId: string): Promise<string> {
     this.ensureHourlyChatSessionCapacity();
 
@@ -460,6 +490,7 @@ export class CopilotExecutor {
     try {
       if (execution.mustStartFresh) {
         selectedModel = await this.ensureFreshChat(selectedModel);
+        await this.bootstrapFreshChatApprovalMode();
       }
 
       if (selectedModel) {

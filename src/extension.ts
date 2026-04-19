@@ -53,7 +53,9 @@ import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgno
 import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
+  type StagedBundledAgentsResult,
   previewBundledSkillSyncForWorkspaceRoots,
+  stageBundledAgentsForWorkspaceRoots,
   syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
@@ -126,6 +128,7 @@ import {
 } from "./extensionUiFlows";
 import type {
   AddCockpitTodoCommentInput,
+  ApprovalMode,
   CockpitBoard,
   CreateCockpitTodoInput,
   ScheduledTask,
@@ -299,6 +302,17 @@ function logExtensionErrorWithSanitizedDetails(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? "");
+}
+
+function normalizeApprovalMode(value: string): ApprovalMode {
+  switch (value) {
+    case "auto-approve":
+    case "autopilot":
+    case "yolo":
+      return value;
+    default:
+      return "default";
+  }
 }
 
 function runPromptMaintenanceCycle(
@@ -491,6 +505,105 @@ async function syncBundledAgents(
     );
   }
   return syncResult;
+}
+
+async function stageBundledAgents(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<StagedBundledAgentsResult | undefined> {
+  const inspections = inspectBundledAgentSyncWorkspaces(workspaceRoots);
+  const signalSummary = summarizeBundledAgentSystemSignals(inspections);
+  const confirmationAction = messages.bundledAgentsStageConfirmAction();
+  const detail = [
+    signalSummary.length > 0
+      ? messages.bundledAgentsStageConfirmExistingSurfaces(signalSummary)
+      : messages.bundledAgentsStageConfirmNoExistingSurfaces(),
+    messages.bundledAgentsStageConfirmLocation(),
+    messages.bundledAgentsStageConfirmLiveTreeUntouched(),
+  ].join("\n\n");
+
+  const confirmation = await vscode.window.showInformationMessage(
+    messages.bundledAgentsStageConfirmTitle(workspaceRoots.length),
+    {
+      modal: true,
+      detail,
+    },
+    confirmationAction,
+    messages.actionCancel(),
+  );
+
+  if (confirmation !== confirmationAction) {
+    return undefined;
+  }
+
+  return stageBundledAgentsForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+  );
+}
+
+function formatPromptPathForWorkspace(
+  workspaceRoot: string,
+  targetPath: string,
+): string {
+  const relativePath = path.relative(workspaceRoot, targetPath);
+  if (!relativePath || relativePath.startsWith("..")) {
+    return targetPath;
+  }
+
+  return relativePath.replace(/\\/g, "/");
+}
+
+function buildBundledAgentMergePrompt(
+  workspaceRoots: string[],
+  stageResult: StagedBundledAgentsResult,
+): string {
+  const workspaceSections = workspaceRoots.map((workspaceRoot, index) => {
+    const stagedRoot = stageResult.stagedRoots[index]
+      ?? path.join(workspaceRoot, ".vscode", "copilot-cockpit-support", "bundled-agents");
+    const manifestPath = stageResult.manifestPaths[index]
+      ?? path.join(stagedRoot, "manifest.json");
+
+    return [
+      `Workspace root: ${workspaceRoot}`,
+      "Live repo-local surfaces to inspect first: .github/agents/, .github/skills/, .github/prompts/, .agents/, AGENTS.md, and nearby *.agent.md or *.instructions.md files.",
+      `Staged bundled mirror: ${formatPromptPathForWorkspace(workspaceRoot, stagedRoot)}`,
+      `Staged manifest: ${formatPromptPathForWorkspace(workspaceRoot, manifestPath)}`,
+    ].join("\n");
+  });
+
+  return [
+    "Please use the copilot-scheduler-agent-merge skill for this task.",
+    "Treat the live repo-local agent system as user-owned and as the source of truth.",
+    "Compare the live repo-local agent surfaces against the staged bundled starter-agent mirror and summarize merge candidates instead of replacing whole trees.",
+    "Do not modify the live .github/agents tree during this comparison, and keep the staged mirror reference-only unless I explicitly ask to regenerate it.",
+    "",
+    "Compare these surfaces:",
+    workspaceSections.join("\n\n"),
+    "",
+    "Focus on role ideas worth adopting, routing or escalation rules worth copying, reusable skills or knowledge files worth adding, and overlapping files where only selected sections should be merged.",
+    "After the comparison, ask me which merge candidates I want to adopt before editing.",
+  ].join("\n");
+}
+
+async function launchBundledAgentMergePrompt(
+  workspaceRoots: string[],
+  stageResult: StagedBundledAgentsResult,
+): Promise<void> {
+  try {
+    await copilotExecutor.executePrompt(
+      buildBundledAgentMergePrompt(workspaceRoots, stageResult),
+      {
+        chatSession: "new",
+      },
+    );
+  } catch (error) {
+    // executePrompt already warns and offers clipboard fallback when needed.
+    logExtensionErrorWithSanitizedDetails(
+      "[CopilotScheduler] Failed to launch bundled agent merge chat:",
+      error,
+    );
+  }
 }
 
 async function syncCodexSkills(
@@ -1753,6 +1866,56 @@ async function runStartupSequence(
 }
 
 /**
+ * Sync the VS Code chat approval settings to match the configured approval mode.
+ */
+async function syncApprovalMode(): Promise<void> {
+  const mode = normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default"));
+  const chatToolsConfig = vscode.workspace.getConfiguration("chat.tools");
+  const chatConfig = vscode.workspace.getConfiguration("chat");
+
+  const updateNativeApprovalSettings = async (
+    autoApprove: boolean,
+    autopilotEnabled: boolean,
+  ): Promise<void> => {
+    await chatToolsConfig.update("autoApprove", autoApprove, vscode.ConfigurationTarget.Global);
+    await chatConfig.update("autopilot.enabled", autopilotEnabled, vscode.ConfigurationTarget.Global);
+  };
+
+  switch (mode) {
+    case "auto-approve":
+      CopilotExecutor.setApprovalBootstrapMode("off");
+      try {
+        await updateNativeApprovalSettings(true, false);
+      } catch (error) {
+        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
+        CopilotExecutor.setApprovalBootstrapMode("yolo");
+      }
+      return;
+    case "autopilot":
+      CopilotExecutor.setApprovalBootstrapMode("off");
+      try {
+        await updateNativeApprovalSettings(true, true);
+      } catch (error) {
+        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
+        CopilotExecutor.setApprovalBootstrapMode("yolo");
+      }
+      return;
+    case "yolo":
+      CopilotExecutor.setApprovalBootstrapMode("yolo");
+      break;
+    default:
+      CopilotExecutor.setApprovalBootstrapMode("off");
+      break;
+  }
+
+  try {
+    await updateNativeApprovalSettings(false, false);
+  } catch (error) {
+    logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
+  }
+}
+
+/**
  * Lifecycle: activate
  */
 export function activate(context: vscode.ExtensionContext): void {
@@ -1797,6 +1960,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   });
   scheduleCockpitBoardSqliteHydration(true);
+  void syncApprovalMode();
 
   // --- HBG CUSTOM: Watch .vscode/scheduler*.json ---
   if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
@@ -1910,6 +2074,9 @@ export function activate(context: vscode.ExtensionContext): void {
     taskTreeView.refresh();
     refreshSchedulerUiState();
   });
+  scheduler.setPostExecutionNotifier(() => {
+    refreshSchedulerUiState(true);
+  });
   researchManager.setOnChangedCallback(() => {
     refreshSchedulerUiState();
   });
@@ -1971,6 +2138,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     if (affectsCompatibleConfiguration(e, "autoShowOnStartup")) {
       SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
+    }
+    if (affectsCompatibleConfiguration(e, "approvalMode")) {
+      void syncApprovalMode();
+      SchedulerWebview.updateApprovalMode(normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default")));
     }
     if (
       affectsCompatibleConfiguration(e, "defaultAgent") ||
@@ -2930,6 +3101,37 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         }
 
         notifyInfo(summary);
+        break;
+      }
+
+      case "stageBundledAgents": {
+        if (!extensionContext) {
+          notifyError(messages.bundledAgentsStageWorkspaceRequired());
+          break;
+        }
+
+        const workspaceRoots = getResolvedWorkspaceRoots(
+          (vscode.workspace.workspaceFolders ?? []).map((folder) =>
+            folder.uri.fsPath
+          ),
+        );
+        if (workspaceRoots.length === 0) {
+          notifyError(messages.bundledAgentsStageWorkspaceRequired());
+          break;
+        }
+
+        const stageResult = await stageBundledAgents(extensionContext, workspaceRoots);
+        if (!stageResult) {
+          break;
+        }
+
+        notifyInfo(
+          messages.bundledAgentsStageCompleted(
+            stageResult.stagedPaths.length,
+            stageResult.manifestPaths.length,
+          ),
+        );
+        await launchBundledAgentMergePrompt(workspaceRoots, stageResult);
         break;
       }
 

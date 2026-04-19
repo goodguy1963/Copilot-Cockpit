@@ -53,6 +53,7 @@ export function createSchedulerWebviewRenderContext(options: {
   nonce: string;
   uiLanguage: string;
   configuredLanguage: string;
+  configuredApprovalMode: string;
   allPresets: ReturnType<typeof getCronPresets>;
   strings: ReturnType<typeof buildSchedulerWebviewStrings>;
   initialData: ReturnType<typeof buildSchedulerWebviewInitialData>;
@@ -66,6 +67,10 @@ export function createSchedulerWebviewRenderContext(options: {
   const nonce = getWebviewNonce();
   const uiLanguage = getCurrentLanguage();
   const configuredLanguage = getConfiguredLanguage();
+  const configuredApprovalMode = getCompatibleConfigurationValue<string>(
+    "approvalMode",
+    "default",
+  );
   const allPresets = getCronPresets();
   const defaultScope = getCompatibleConfigurationValue<TaskScope>(
     "defaultScope",
@@ -130,7 +135,7 @@ export function createSchedulerWebviewRenderContext(options: {
     options.extensionUri,
     "media",
     "generated",
-    "cockpitWebview.js",
+    "cockpitWebview.loader.js",
   );
   let scriptCacheToken = "static";
   try {
@@ -147,6 +152,7 @@ export function createSchedulerWebviewRenderContext(options: {
     nonce,
     uiLanguage,
     configuredLanguage,
+    configuredApprovalMode,
     allPresets,
     strings,
     initialData,

@@ -5,6 +5,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../cockpitWebview";
+import * as cockpitWebviewPanelLifecycle from "../../cockpitWebviewPanelLifecycle";
 import { getResourceScopedSettingsTarget } from "../../cockpitWebviewSettingsHandler";
 import { overrideWorkspaceFolders } from "./helpers/vscodeTestHarness";
 
@@ -3766,6 +3767,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       await wv.handleMessage!({ type: "setupCodexSkills" });
       await wv.handleMessage!({ type: "syncBundledSkills" });
       await wv.handleMessage!({ type: "syncBundledAgents" });
+      await wv.handleMessage!({ type: "stageBundledAgents" });
       await wv.handleMessage!({ type: "importStorageFromJson" });
       await wv.handleMessage!({ type: "exportStorageToJson" });
       await wv.handleMessage!({
@@ -3809,6 +3811,10 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         },
         {
           action: "syncBundledAgents",
+          taskId: "__settings__",
+        },
+        {
+          action: "stageBundledAgents",
           taskId: "__settings__",
         },
         {
@@ -3885,6 +3891,93 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         { type: "updateSkills", skills: [{ path: "SKILL.md" }] },
       ]);
     });
+  });
+
+  test("fresh show uses refreshed agent and model catalogs before initial panel render", async () => {
+    const wv = SchedulerWebview as unknown as RefreshableSchedulerWebviewInternals & {
+      show?: typeof SchedulerWebview.show;
+    };
+    const panelLifecycle = cockpitWebviewPanelLifecycle as typeof cockpitWebviewPanelLifecycle & {
+      createFreshSchedulerPanel: typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+    };
+
+    const originalState = {
+      activePanel: wv.activePanel,
+      agentListCache: wv.agentListCache,
+      modelListCache: wv.modelListCache,
+      templateCache: wv.templateCache,
+      cachedSkillReferences: wv.cachedSkillReferences,
+      refreshAgentsAndModelsCache: wv.refreshAgentsAndModelsCache,
+      refreshPromptTemplatesCache: wv.refreshPromptTemplatesCache,
+      refreshSkillReferencesCache: wv.refreshSkillReferencesCache,
+      pendingMessages: wv.pendingMessages,
+      pendingMessageFlushTimer: wv.pendingMessageFlushTimer,
+      webviewReady: wv.webviewReady,
+    };
+    const originalCreateFreshSchedulerPanel = panelLifecycle.createFreshSchedulerPanel;
+
+    const refreshedAgents = [{ id: "@repo-agent", name: "Repo Agent" }];
+    const refreshedModels = [{ id: "gpt-repo", name: "Repo Model" }];
+    let renderedAgents: unknown[] | undefined;
+    let renderedModels: unknown[] | undefined;
+
+    try {
+      wv.activePanel = undefined;
+      wv.agentListCache = [];
+      wv.modelListCache = [];
+      wv.templateCache = [];
+      wv.cachedSkillReferences = [];
+      wv.pendingMessages = [];
+      wv.webviewReady = false;
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+        wv.pendingMessageFlushTimer = undefined;
+      }
+
+      wv.refreshAgentsAndModelsCache = async () => {
+        wv.agentListCache = refreshedAgents;
+        wv.modelListCache = refreshedModels;
+      };
+      wv.refreshPromptTemplatesCache = async () => {};
+      wv.refreshSkillReferencesCache = async () => {};
+
+      panelLifecycle.createFreshSchedulerPanel = ((options) => {
+        renderedAgents = options.agentListCache;
+        renderedModels = options.modelListCache;
+        return {
+          webview: {
+            postMessage: async () => true,
+          },
+          dispose: () => options.onDidDispose(),
+        } as unknown as vscode.WebviewPanel;
+      }) as typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+
+      await SchedulerWebview.show(
+        vscode.Uri.file(resolveWorkspacePath("../../../README.md")),
+        [],
+        [],
+        [],
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        [],
+        undefined,
+        [],
+        () => {},
+      );
+
+      assert.deepStrictEqual(renderedAgents, refreshedAgents);
+      assert.deepStrictEqual(renderedModels, refreshedModels);
+    } finally {
+      panelLifecycle.createFreshSchedulerPanel = originalCreateFreshSchedulerPanel;
+      Object.assign(wv, originalState);
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+        wv.pendingMessageFlushTimer = undefined;
+      }
+    }
   });
 
   test("model and agent catalog updates also refresh settings and secondary selectors", () => {

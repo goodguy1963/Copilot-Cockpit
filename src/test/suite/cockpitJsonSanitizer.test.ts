@@ -692,6 +692,111 @@ suite("Scheduler Json Sanitizer Tests", () => {
     }
   });
 
+  test("falls back to copy-based replace for the private config when Windows rename gets EPERM", function () {
+    if (process.platform !== "win32") {
+      this.skip();
+      return;
+    }
+
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+      });
+
+      const privateConfigPath = path.join(workspaceRoot, ".vscode", "scheduler.private.json");
+      const board = createDefaultCockpitBoard("2026-04-02T10:05:00.000Z");
+      board.cards.push(createCardRecord("card-win", "Windows fallback", "2026-04-02T10:05:00.000Z"));
+
+      setSchedulerFileOpsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          if (String(newPath).endsWith("scheduler.private.json")) {
+            const renameError = new Error(
+              `EPERM: operation not permitted, rename '${String(oldPath)}' -> '${String(newPath)}'`,
+            ) as NodeJS.ErrnoException;
+            renameError.code = "EPERM";
+            throw renameError;
+          }
+
+          return fs.renameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+      });
+
+      const result = writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+        cockpitBoard: board,
+      });
+
+      assert.strictEqual(result.publicChanged, false);
+      assert.strictEqual(result.privateChanged, true);
+
+      const persistedPrivateConfig = JSON.parse(fs.readFileSync(privateConfigPath, "utf8"));
+      assert.strictEqual(persistedPrivateConfig.cockpitBoard.cards[0].id, "card-win");
+      assert.deepStrictEqual(
+        fs.readdirSync(path.join(workspaceRoot, ".vscode")).filter((entry) => entry.includes(".tmp")),
+        [],
+      );
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("falls back to copy-based replace when first writing a missing private config on Windows", function () {
+    if (process.platform !== "win32") {
+      this.skip();
+      return;
+    }
+
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+      });
+
+      const privateConfigPath = path.join(workspaceRoot, ".vscode", "scheduler.private.json");
+      fs.unlinkSync(privateConfigPath);
+      assert.strictEqual(fs.existsSync(privateConfigPath), false);
+
+      const board = createDefaultCockpitBoard("2026-04-02T10:05:00.000Z");
+      board.cards.push(createCardRecord("card-first-private", "First private write fallback", "2026-04-02T10:05:00.000Z"));
+
+      setSchedulerFileOpsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          if (String(newPath).endsWith("scheduler.private.json")) {
+            const renameError = new Error(
+              `EPERM: operation not permitted, rename '${String(oldPath)}' -> '${String(newPath)}'`,
+            ) as NodeJS.ErrnoException;
+            renameError.code = "EPERM";
+            throw renameError;
+          }
+
+          return fs.renameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+      });
+
+      const result = writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+        cockpitBoard: board,
+      });
+
+      assert.strictEqual(result.publicChanged, false);
+      assert.strictEqual(result.privateChanged, true);
+
+      const persistedPrivateConfig = JSON.parse(fs.readFileSync(privateConfigPath, "utf8"));
+      assert.strictEqual(persistedPrivateConfig.cockpitBoard.cards[0].id, "card-first-private");
+      assert.deepStrictEqual(
+        fs.readdirSync(path.join(workspaceRoot, ".vscode")).filter((entry) => entry.includes(".tmp")),
+        [],
+      );
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("recovers a pending transaction after a mid-commit failure", () => {
     const workspaceRoot = createWorkspaceRoot();
 

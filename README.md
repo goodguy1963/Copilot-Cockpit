@@ -80,7 +80,7 @@ flowchart LR
 
 ## Optional Agent Workflow
 
-When you manually sync the bundled starter agents into `.github/agents`, Copilot Cockpit can add an optional orchestration layer on top of the normal task, job, and research workflow. The goal is not to replace repo-local systems or create a bloated generalist loop. The goal is to let a top-level orchestrator stay focused on direction, routing, and closeout while bounded specialists handle the detailed execution work.
+When you manually use `Stage Bundled Agents` for a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, or `Sync Bundled Agents` for live `.github/agents` installation, Copilot Cockpit can add an optional orchestration layer on top of the normal task, job, and research workflow. The goal is not to replace repo-local systems or create a bloated generalist loop. The goal is to let a top-level orchestrator stay focused on direction, routing, and closeout while bounded specialists handle the detailed execution work.
 
 This is efficient because the `CEO` or orchestrator does the initial thinking once, then delegates to a subagent session (with stronger context than a typical raw user prompt: the request, relevant repo research, controlling files, constraints, and acceptance criteria. The specialist can then work inside a narrow responsibility boundary, validate that slice, and report back for final review instead of forcing the orchestrator to carry every intermediate implementation detail in one chat thread.
 
@@ -95,7 +95,7 @@ The optional layer stays practical because responsibilities are split deliberate
 - Specialists such as `Remediation Implementer` or `Documentation Specialist` run bounded work and report back with validation.
 - `Cockpit Todo Expert` owns durable approval state and backlog hygiene in `Todo Cockpit`.
 
-Bundled-agent sync is manual by design. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](docs/agent-workflow.md).
+Bundled-agent staging and sync are manual by design. `Stage Bundled Agents` refreshes a comparison copy under `.vscode/copilot-cockpit-support/bundled-agents` without touching the live repo-local system. `Sync Bundled Agents` is the explicit live install path into `.github/agents`. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](docs/agent-workflow.md).
 
 ## ✨ Workflow Layers
 
@@ -204,7 +204,7 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
 6. Open `Settings` to configure repo-local defaults. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
-The `Settings` tab also lets you manually sync bundled starter agents into `.github/agents` when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Only approve a sync when you want it, back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+The `Settings` tab also lets you choose between `Stage Bundled Agents` for a staged comparison/reference copy under `.vscode/copilot-cockpit-support/bundled-agents` and `Sync Bundled Agents` for live `.github/agents` installation when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
 If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](docs/agent-workflow.md).
 
@@ -233,7 +233,7 @@ These extend the core workflow. They are optional and should not be mandatory fo
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
-- Bundled starter agents can be synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](docs/agent-workflow.md).
+- Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](docs/agent-workflow.md).
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
 - Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.

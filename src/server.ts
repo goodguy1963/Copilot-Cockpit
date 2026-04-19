@@ -116,10 +116,46 @@ type SchedulerServerContext = {
     readCurrentConfigs: () => { publicConfig: SchedulerConfig; privateConfig: SchedulerConfig };
 };
 
+type CockpitPersistenceMetadata = {
+    storageMode: "json" | "sqlite";
+    writeTarget: "json-files" | "sqlite-authority";
+    jsonMirrorWrite: boolean;
+    verifiedByReread: boolean;
+};
+
+type CockpitMutationExecutionResult =
+    | { error: string }
+    | {
+        board: any;
+        verificationError: string;
+        buildResponse: (
+            rereadConfig: SchedulerConfig,
+            rereadBoard: any,
+            persistence: CockpitPersistenceMetadata,
+        ) => Record<string, unknown> | undefined;
+    };
+
 type CockpitDeterministicStateMode = "off" | "shadow" | "dual-write" | "canonical-primary";
 
 const DEFAULT_COCKPIT_STATE_MODE: CockpitDeterministicStateMode = "canonical-primary";
 const SETTINGS_CACHE_TTL_MS = 1000;
+const COCKPIT_SERIALIZED_MUTATION_TOOL_NAMES = new Set([
+    "cockpit_create_todo",
+    "cockpit_add_todo_comment",
+    "cockpit_approve_todo",
+    "cockpit_finalize_todo",
+    "cockpit_reject_todo",
+    "cockpit_update_todo",
+    "cockpit_closeout_todo",
+    "cockpit_delete_todo",
+    "cockpit_move_todo",
+    "cockpit_set_filters",
+    "cockpit_seed_todos_from_tasks",
+    "cockpit_save_label_definition",
+    "cockpit_delete_label_definition",
+    "cockpit_save_flag_definition",
+    "cockpit_delete_flag_definition",
+]);
 
 let cachedWorkspaceSettings:
     | {
@@ -128,6 +164,7 @@ let cachedWorkspaceSettings:
         values: Record<string, unknown>;
     }
     | undefined;
+const cockpitMutationQueues = new Map<string, Promise<void>>();
 
 function normalizeCockpitDeterministicStateMode(
     value: unknown,
@@ -751,6 +788,134 @@ export async function writeSchedulerServerConfigForWorkspace(
     }
 
     writeSchedulerConfig(workspaceRoot, normalizedConfig);
+}
+
+function buildCockpitPersistenceMetadata(
+    workspaceRoot: string,
+    verifiedByReread: boolean,
+): CockpitPersistenceMetadata {
+    const storageMode = isWorkspaceSqliteStorageModeEnabled(workspaceRoot)
+        ? "sqlite"
+        : "json";
+    return {
+        storageMode,
+        writeTarget: storageMode === "sqlite" ? "sqlite-authority" : "json-files",
+        jsonMirrorWrite: storageMode === "sqlite",
+        verifiedByReread,
+    };
+}
+
+async function withSerializedCockpitMutation<T>(
+    context: SchedulerServerContext,
+    operation: () => Promise<T>,
+): Promise<T> {
+    const workspaceRoot = path.resolve(context.workspaceRoot || WORKSPACE_ROOT);
+    const previous = cockpitMutationQueues.get(workspaceRoot) ?? Promise.resolve();
+    let releaseCurrent!: () => void;
+    const current = new Promise<void>((resolve) => {
+        releaseCurrent = resolve;
+    });
+    const queueTail = previous.catch(() => undefined).then(() => current);
+    cockpitMutationQueues.set(workspaceRoot, queueTail);
+
+    await previous.catch(() => undefined);
+
+    try {
+        return await operation();
+    } finally {
+        releaseCurrent();
+        if (cockpitMutationQueues.get(workspaceRoot) === queueTail) {
+            cockpitMutationQueues.delete(workspaceRoot);
+        }
+    }
+}
+
+function createCockpitBoardMutationResult(
+    board: any,
+    verificationError: string,
+    buildResponse: (
+        rereadConfig: SchedulerConfig,
+        rereadBoard: any,
+        persistence: CockpitPersistenceMetadata,
+    ) => Record<string, unknown> | undefined,
+): CockpitMutationExecutionResult {
+    const expectedBoardUpdatedAt = typeof board?.updatedAt === "string"
+        ? board.updatedAt
+        : undefined;
+
+    return {
+        board,
+        verificationError,
+        buildResponse: (rereadConfig, rereadBoard, persistence) => {
+            if (
+                expectedBoardUpdatedAt
+                && typeof rereadBoard?.updatedAt === "string"
+                && rereadBoard.updatedAt !== expectedBoardUpdatedAt
+            ) {
+                return undefined;
+            }
+            return buildResponse(rereadConfig, rereadBoard, persistence);
+        },
+    };
+}
+
+function createCockpitTodoMutationResult(
+    board: any,
+    todoId: string,
+    expectedTodoUpdatedAt: string | undefined,
+    message: string,
+    extra: Record<string, unknown> = {},
+): CockpitMutationExecutionResult {
+    return createCockpitBoardMutationResult(
+        board,
+        `Cockpit todo '${todoId}' could not be verified after write.`,
+        (_rereadConfig, rereadBoard, persistence) => {
+            const todo = getCockpitTodo(rereadBoard, todoId);
+            if (!todo) {
+                return undefined;
+            }
+            if (
+                expectedTodoUpdatedAt
+                && typeof todo.updatedAt === "string"
+                && todo.updatedAt !== expectedTodoUpdatedAt
+            ) {
+                return undefined;
+            }
+            return {
+                message,
+                todo: summarizeCockpitTodo(rereadBoard, todo),
+                ...extra,
+                persistence,
+            };
+        },
+    );
+}
+
+async function runSerializedCockpitBoardMutation(
+    context: SchedulerServerContext,
+    operation: (config: SchedulerConfig) => CockpitMutationExecutionResult | Promise<CockpitMutationExecutionResult>,
+) {
+    return withSerializedCockpitMutation(context, async () => {
+        const config = ensureConfig(await context.readConfig());
+        const result = await operation(config);
+        if ("error" in result) {
+            return errorResponse(result.error);
+        }
+
+        config.cockpitBoard = result.board;
+        await context.writeConfig(config);
+
+        const rereadConfig = ensureConfig(await context.readConfig());
+        const rereadBoard = getCockpitBoard(rereadConfig);
+        const persistence = buildCockpitPersistenceMetadata(context.workspaceRoot, true);
+        const payload = result.buildResponse(rereadConfig, rereadBoard, persistence);
+
+        if (!payload) {
+            return errorResponse(result.verificationError);
+        }
+
+        return textResponse(payload);
+    });
 }
 
 function textResponse(payload: unknown) {
@@ -1634,7 +1799,9 @@ export async function handleSchedulerToolCall(
         }
 
         const args = validation.data;
-        const config = ensureConfig(await context.readConfig());
+        const config = COCKPIT_SERIALIZED_MUTATION_TOOL_NAMES.has(toolName)
+            ? undefined
+            : ensureConfig(await context.readConfig());
 
         switch (toolName) {
             case "scheduler_list_tasks":
@@ -2373,248 +2540,318 @@ export async function handleSchedulerToolCall(
             }
 
             case "cockpit_create_todo": {
-                const board = getCockpitBoard(config);
-                const result = createTodoInBoard(board, {
-                    id: typeof args.todoId === "string" ? args.todoId : undefined,
-                    title: ensureString(args.title, "title"),
-                    description: typeof args.description === "string" ? args.description : undefined,
-                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
-                    dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
-                    priority: normalizeTodoPriority(args.priority),
-                    labels: normalizeStringList(args.labels),
-                    flags: normalizeStringList(args.flags),
-                    comment: typeof args.comment === "string" ? args.comment : undefined,
-                    author: args.author === "user" ? "user" : "system",
-                    commentSource: typeof args.commentSource === "string" ? args.commentSource : undefined,
-                    status: typeof args.status === "string" ? args.status : undefined,
-                    taskId: typeof args.taskId === "string" ? args.taskId : undefined,
-                    sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
-                });
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${result.todo.id}' created.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const board = getCockpitBoard(freshConfig);
+                    const result = createTodoInBoard(board, {
+                        id: typeof args.todoId === "string" ? args.todoId : undefined,
+                        title: ensureString(args.title, "title"),
+                        description: typeof args.description === "string" ? args.description : undefined,
+                        sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                        dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
+                        priority: normalizeTodoPriority(args.priority),
+                        labels: normalizeStringList(args.labels),
+                        flags: normalizeStringList(args.flags),
+                        comment: typeof args.comment === "string" ? args.comment : undefined,
+                        author: args.author === "user" ? "user" : "system",
+                        commentSource: typeof args.commentSource === "string" ? args.commentSource : undefined,
+                        status: typeof args.status === "string" ? args.status : undefined,
+                        taskId: typeof args.taskId === "string" ? args.taskId : undefined,
+                        sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
+                    });
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        result.todo.id,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${result.todo.id}' created.`,
+                    );
                 });
             }
 
             case "cockpit_add_todo_comment": {
-                const board = getCockpitBoard(config);
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = addTodoCommentInBoard(board, todoId, {
-                    body: ensureString(args.body, "body"),
-                    author: args.author === "user" ? "user" : "system",
-                    source: typeof args.source === "string" ? args.source : undefined,
-                    labels: normalizeStringList(args.labels),
-                });
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Comment added to Cockpit todo '${todoId}'.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const board = getCockpitBoard(freshConfig);
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = addTodoCommentInBoard(board, todoId, {
+                        body: ensureString(args.body, "body"),
+                        author: args.author === "user" ? "user" : "system",
+                        source: typeof args.source === "string" ? args.source : undefined,
+                        labels: normalizeStringList(args.labels),
+                    });
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Comment added to Cockpit todo '${todoId}'.`,
+                    );
                 });
             }
 
             case "cockpit_approve_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = approveTodoInBoard(getCockpitBoard(config), todoId);
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' approved.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = approveTodoInBoard(getCockpitBoard(freshConfig), todoId);
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' approved.`,
+                    );
                 });
             }
 
             case "cockpit_finalize_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = finalizeTodoInBoard(getCockpitBoard(config), todoId);
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' finalized as completed.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = finalizeTodoInBoard(getCockpitBoard(freshConfig), todoId);
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' finalized as completed.`,
+                    );
                 });
             }
 
             case "cockpit_reject_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = rejectTodoInBoard(getCockpitBoard(config), todoId);
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' rejected.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = rejectTodoInBoard(getCockpitBoard(freshConfig), todoId);
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' rejected.`,
+                    );
                 });
             }
 
             case "cockpit_update_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = updateTodoInBoard(getCockpitBoard(config), todoId, {
-                    title: typeof args.title === "string" ? args.title : undefined,
-                    description: typeof args.description === "string" ? args.description : undefined,
-                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
-                    dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
-                    priority: normalizeTodoPriority(args.priority),
-                    status: typeof args.status === "string" ? args.status : undefined,
-                    labels: normalizeStringList(args.labels),
-                    flags: normalizeStringList(args.flags),
-                    order: Number.isFinite(Number(args.order)) ? Number(args.order) : undefined,
-                    taskId: typeof args.taskId === "string" ? args.taskId : undefined,
-                    sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
-                    archived: typeof args.archived === "boolean" ? args.archived : undefined,
-                    archiveOutcome: typeof args.archiveOutcome === "string" ? args.archiveOutcome : undefined,
-                });
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' updated.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = updateTodoInBoard(getCockpitBoard(freshConfig), todoId, {
+                        title: typeof args.title === "string" ? args.title : undefined,
+                        description: typeof args.description === "string" ? args.description : undefined,
+                        sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                        dueAt: typeof args.dueAt === "string" ? args.dueAt : undefined,
+                        priority: normalizeTodoPriority(args.priority),
+                        status: typeof args.status === "string" ? args.status : undefined,
+                        labels: normalizeStringList(args.labels),
+                        flags: normalizeStringList(args.flags),
+                        order: Number.isFinite(Number(args.order)) ? Number(args.order) : undefined,
+                        taskId: typeof args.taskId === "string" ? args.taskId : undefined,
+                        sessionId: typeof args.sessionId === "string" ? args.sessionId : undefined,
+                        archived: typeof args.archived === "boolean" ? args.archived : undefined,
+                        archiveOutcome: typeof args.archiveOutcome === "string" ? args.archiveOutcome : undefined,
+                    });
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' updated.`,
+                    );
                 });
             }
 
             case "cockpit_closeout_todo": {
-                const result = closeoutCockpitTodo(config, args);
-                if (result.error) {
-                    return errorResponse(result.error);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${result.todoId}' closeout applied.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
-                    requestedSectionId: result.requestedSectionId,
-                    requestedSectionFound: result.requestedSectionFound,
-                    sectionValidationError: result.sectionValidationError,
-                    checkedTaskId: result.checkedTaskId,
-                    linkedTaskExists: result.linkedTaskExists,
-                    staleTaskIdCleared: result.staleTaskIdCleared,
-                    commentAdded: result.commentAdded,
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const result = closeoutCockpitTodo(freshConfig, args);
+                    if (result.error) {
+                        return { error: result.error };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        result.todoId,
+                        typeof result.todo?.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${result.todoId}' closeout applied.`,
+                        {
+                            requestedSectionId: result.requestedSectionId,
+                            requestedSectionFound: result.requestedSectionFound,
+                            sectionValidationError: result.sectionValidationError,
+                            checkedTaskId: result.checkedTaskId,
+                            linkedTaskExists: result.linkedTaskExists,
+                            staleTaskIdCleared: result.staleTaskIdCleared,
+                            commentAdded: result.commentAdded,
+                        },
+                    );
                 });
             }
 
             case "cockpit_delete_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = deleteTodoInBoard(getCockpitBoard(config), todoId);
-                if (!result.deleted) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' deleted.`,
-                    todoId,
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = deleteTodoInBoard(getCockpitBoard(freshConfig), todoId);
+                    if (!result.deleted) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    const deletedTodo = getCockpitTodo(result.board, todoId);
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof deletedTodo?.updatedAt === "string" ? deletedTodo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' deleted.`,
+                        { todoId },
+                    );
                 });
             }
 
             case "cockpit_move_todo": {
-                const todoId = ensureString(args.todoId, "todoId");
-                const result = moveTodoInBoard(
-                    getCockpitBoard(config),
-                    todoId,
-                    typeof args.sectionId === "string" ? args.sectionId : undefined,
-                    Number.isFinite(Number(args.targetIndex)) ? Number(args.targetIndex) : 0,
-                );
-                if (!result.todo) {
-                    return errorResponse(`Cockpit todo '${todoId}' not found.`);
-                }
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Cockpit todo '${todoId}' moved.`,
-                    todo: summarizeCockpitTodo(result.board, result.todo),
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const todoId = ensureString(args.todoId, "todoId");
+                    const result = moveTodoInBoard(
+                        getCockpitBoard(freshConfig),
+                        todoId,
+                        typeof args.sectionId === "string" ? args.sectionId : undefined,
+                        Number.isFinite(Number(args.targetIndex)) ? Number(args.targetIndex) : 0,
+                    );
+                    if (!result.todo) {
+                        return { error: `Cockpit todo '${todoId}' not found.` };
+                    }
+                    return createCockpitTodoMutationResult(
+                        result.board,
+                        todoId,
+                        typeof result.todo.updatedAt === "string" ? result.todo.updatedAt : undefined,
+                        `Cockpit todo '${todoId}' moved.`,
+                    );
                 });
             }
 
             case "cockpit_set_filters": {
-                const board = setCockpitBoardFiltersInBoard(getCockpitBoard(config), {
-                    searchText: typeof args.searchText === "string" ? args.searchText : undefined,
-                    labels: normalizeStringList(args.labels),
-                    priorities: Array.isArray(args.priorities)
-                        ? args.priorities.map((entry: unknown) => normalizeTodoPriority(entry)).filter((entry: string) => entry !== "none")
-                        : undefined,
-                    statuses: Array.isArray(args.statuses)
-                        ? args.statuses.filter((entry: unknown): entry is string => typeof entry === "string")
-                        : undefined,
-                    archiveOutcomes: Array.isArray(args.archiveOutcomes)
-                        ? args.archiveOutcomes.filter((entry: unknown): entry is string => typeof entry === "string")
-                        : undefined,
-                    flags: normalizeStringList(args.flags),
-                    sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
-                    sortBy: typeof args.sortBy === "string" ? args.sortBy : undefined,
-                    sortDirection: typeof args.sortDirection === "string" ? args.sortDirection : undefined,
-                    viewMode: typeof args.viewMode === "string" ? args.viewMode : undefined,
-                    showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
-                    showRecurringTasks: typeof args.showRecurringTasks === "boolean" ? args.showRecurringTasks : undefined,
-                    hideCardDetails: typeof args.hideCardDetails === "boolean" ? args.hideCardDetails : undefined,
-                });
-                config.cockpitBoard = board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: "Cockpit Todo filters updated.",
-                    filters: board.filters,
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const board = setCockpitBoardFiltersInBoard(getCockpitBoard(freshConfig), {
+                        searchText: typeof args.searchText === "string" ? args.searchText : undefined,
+                        labels: normalizeStringList(args.labels),
+                        priorities: Array.isArray(args.priorities)
+                            ? args.priorities.map((entry: unknown) => normalizeTodoPriority(entry)).filter((entry: string) => entry !== "none")
+                            : undefined,
+                        statuses: Array.isArray(args.statuses)
+                            ? args.statuses.filter((entry: unknown): entry is string => typeof entry === "string")
+                            : undefined,
+                        archiveOutcomes: Array.isArray(args.archiveOutcomes)
+                            ? args.archiveOutcomes.filter((entry: unknown): entry is string => typeof entry === "string")
+                            : undefined,
+                        flags: normalizeStringList(args.flags),
+                        sectionId: typeof args.sectionId === "string" ? args.sectionId : undefined,
+                        sortBy: typeof args.sortBy === "string" ? args.sortBy : undefined,
+                        sortDirection: typeof args.sortDirection === "string" ? args.sortDirection : undefined,
+                        viewMode: typeof args.viewMode === "string" ? args.viewMode : undefined,
+                        showArchived: typeof args.showArchived === "boolean" ? args.showArchived : undefined,
+                        showRecurringTasks: typeof args.showRecurringTasks === "boolean" ? args.showRecurringTasks : undefined,
+                        hideCardDetails: typeof args.hideCardDetails === "boolean" ? args.hideCardDetails : undefined,
+                    });
+                    return createCockpitBoardMutationResult(
+                        board,
+                        "Cockpit Todo filters could not be verified after write.",
+                        (_rereadConfig, rereadBoard, persistence) => ({
+                            message: "Cockpit Todo filters updated.",
+                            filters: rereadBoard.filters,
+                            persistence,
+                        }),
+                    );
                 });
             }
 
             case "cockpit_seed_todos_from_tasks": {
-                const selectedTaskIds = Array.isArray(args.taskIds)
-                    ? new Set(args.taskIds.filter((entry: unknown): entry is string => typeof entry === "string" && entry.trim()).map((entry: string) => entry.trim()))
-                    : undefined;
-                const tasks = selectedTaskIds
-                    ? config.tasks.filter((task) => selectedTaskIds.has(task.id))
-                    : config.tasks;
-                const result = ensureTaskTodosInBoard(getCockpitBoard(config), tasks as any);
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({
-                    message: `Seeded ${result.createdTodoIds.length} task-linked todo cards.`,
-                    createdTodoIds: result.createdTodoIds,
-                    board: {
-                        ...result.board,
-                        cards: result.board.cards.map((card: any) => summarizeCockpitTodo(result.board, card)),
-                    },
+                return runSerializedCockpitBoardMutation(context, async (freshConfig) => {
+                    const selectedTaskIds = Array.isArray(args.taskIds)
+                        ? new Set(args.taskIds.filter((entry: unknown): entry is string => typeof entry === "string" && entry.trim()).map((entry: string) => entry.trim()))
+                        : undefined;
+                    const tasks = selectedTaskIds
+                        ? freshConfig.tasks.filter((task) => selectedTaskIds.has(task.id))
+                        : freshConfig.tasks;
+                    const result = ensureTaskTodosInBoard(getCockpitBoard(freshConfig), tasks as any);
+                    return createCockpitBoardMutationResult(
+                        result.board,
+                        "Seeded Cockpit todos could not be verified after write.",
+                        (_rereadConfig, rereadBoard, persistence) => {
+                            if (result.createdTodoIds.some((todoId: string) => !getCockpitTodo(rereadBoard, todoId))) {
+                                return undefined;
+                            }
+                            return {
+                                message: `Seeded ${result.createdTodoIds.length} task-linked todo cards.`,
+                                createdTodoIds: result.createdTodoIds,
+                                board: {
+                                    ...rereadBoard,
+                                    cards: rereadBoard.cards.map((card: any) => summarizeCockpitTodo(rereadBoard, card)),
+                                },
+                                persistence,
+                            };
+                        },
+                    );
                 });
             }
 
             case "cockpit_save_label_definition": {
-                const name = ensureString(args.name, "name");
-                const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
-                const result = saveCockpitTodoLabelDefinition(context.workspaceRoot, { name, color });
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({ message: `Label definition '${name}' saved.` });
+                return runSerializedCockpitBoardMutation(context, async (_freshConfig) => {
+                    const name = ensureString(args.name, "name");
+                    const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
+                    const result = saveCockpitTodoLabelDefinition(context.workspaceRoot, { name, color });
+                    return createCockpitBoardMutationResult(
+                        result.board,
+                        `Label definition '${name}' could not be verified after write.`,
+                        (_rereadConfig, rereadBoard, persistence) => {
+                            const key = result.label?.key;
+                            if (key && !(rereadBoard.labelCatalog ?? []).some((entry: any) => entry?.key === key)) {
+                                return undefined;
+                            }
+                            return {
+                                message: `Label definition '${name}' saved.`,
+                                persistence,
+                            };
+                        },
+                    );
+                });
             }
 
             case "cockpit_delete_label_definition": {
-                const name = ensureString(args.name, "name");
-                const board = deleteCockpitTodoLabelDefinition(context.workspaceRoot, name);
-                config.cockpitBoard = board;
-                await context.writeConfig(config);
-                return textResponse({ message: `Label definition '${name}' removed.` });
+                return runSerializedCockpitBoardMutation(context, async (_freshConfig) => {
+                    const name = ensureString(args.name, "name");
+                    const board = deleteCockpitTodoLabelDefinition(context.workspaceRoot, name);
+                    return createCockpitBoardMutationResult(
+                        board,
+                        `Label definition '${name}' could not be verified after write.`,
+                        (_rereadConfig, rereadBoard, persistence) => ({
+                            message: `Label definition '${name}' removed.`,
+                            persistence,
+                        }),
+                    );
+                });
             }
 
             case "cockpit_save_flag_definition": {
-                const name = ensureString(args.name, "name");
-                const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
-                const result = saveCockpitFlagDefinition(context.workspaceRoot, { name, color });
-                config.cockpitBoard = result.board;
-                await context.writeConfig(config);
-                return textResponse({ message: `Flag definition '${name}' saved.` });
+                return runSerializedCockpitBoardMutation(context, async (_freshConfig) => {
+                    const name = ensureString(args.name, "name");
+                    const color = typeof args.color === "string" ? args.color.trim() || undefined : undefined;
+                    const result = saveCockpitFlagDefinition(context.workspaceRoot, { name, color });
+                    return createCockpitBoardMutationResult(
+                        result.board,
+                        `Flag definition '${name}' could not be verified after write.`,
+                        (_rereadConfig, rereadBoard, persistence) => {
+                            const key = result.label?.key;
+                            if (key && !(rereadBoard.flagCatalog ?? []).some((entry: any) => entry?.key === key)) {
+                                return undefined;
+                            }
+                            return {
+                                message: `Flag definition '${name}' saved.`,
+                                persistence,
+                            };
+                        },
+                    );
+                });
             }
 
             case "cockpit_delete_flag_definition": {
@@ -2622,10 +2859,17 @@ export async function handleSchedulerToolCall(
                 if (isProtectedCockpitFlagKey(name)) {
                     return textResponse({ message: `Flag definition '${name}' is built-in and cannot be removed.` });
                 }
-                const board = deleteCockpitFlagDefinition(context.workspaceRoot, name);
-                config.cockpitBoard = board;
-                await context.writeConfig(config);
-                return textResponse({ message: `Flag definition '${name}' removed.` });
+                return runSerializedCockpitBoardMutation(context, async (_freshConfig) => {
+                    const board = deleteCockpitFlagDefinition(context.workspaceRoot, name);
+                    return createCockpitBoardMutationResult(
+                        board,
+                        `Flag definition '${name}' could not be verified after write.`,
+                        (_rereadConfig, rereadBoard, persistence) => ({
+                            message: `Flag definition '${name}' removed.`,
+                            persistence,
+                        }),
+                    );
+                });
             }
 
             case "research_list_profiles": {

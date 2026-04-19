@@ -65,6 +65,11 @@
   "config.deterministicCockpitStateMode.dualWrite": "Kanonisches Routing aktiv lassen und zusätzliche Reconciliation-Logs für die Migrationsbeobachtung schreiben",
   "config.deterministicCockpitStateMode.canonicalPrimary": "Kanonisches Workflow-Flag-Routing als Primärverhalten verwenden",
   "config.legacyFallbackOnError": "Wenn deterministisches Routing fehlschlägt, zur Wiederherstellung erneut mit Legacy-Signalmatching routen.",
+  "config.approvalMode": "Standard-Genehmigungsmodus für neue Copilot-Chat-Sitzungen. Steuert, ob Tools eine Genehmigung benötigen, automatisch ausgeführt werden, Autopilot nutzen oder auf Legacy-YOLO zurückfallen.",
+  "config.approvalMode.default": "Tools benötigen vor der Ausführung eine Genehmigung (VS Code Standard)",
+  "config.approvalMode.autoApprove": "Tools werden ohne Nachfrage ausgeführt (Genehmigung umgehen)",
+  "config.approvalMode.autopilot": "Volle Autonomie — Tools und Änderungen ohne Genehmigung (Autopilot)",
+  "config.approvalMode.yolo": "Startet neue Chats zuerst im Legacy-YOLO-Modus, bevor der eigentliche Prompt läuft",
   "config.reportIssue": "🐛 Einen Fehler gefunden? [Auf GitHub melden](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
   "view.tasks": "Geplante Aufgaben"
 }

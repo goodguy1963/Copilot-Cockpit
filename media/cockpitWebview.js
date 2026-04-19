@@ -404,6 +404,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     setupCodexBtn,
     setupCodexSkillsBtn,
     syncBundledSkillsBtn,
+    stageBundledAgentsBtn,
     syncBundledAgentsBtn,
     openCopilotSettingsBtn,
     openExtensionSettingsBtn,
@@ -587,6 +588,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     defaultModelSelect,
     executionDefaultsSaveBtn,
     executionDefaultsNote,
+    approvalModeSelect,
+    approvalModeNote: approvalModeNoteEl,
     needsBotReviewCommentTemplateInput,
     needsBotReviewPromptTemplateInput,
     needsBotReviewAgentSelect,
@@ -5331,6 +5334,16 @@ syncTodoLabelSuggestions();
       data: collectStorageSettingsFormData(),
     });
   });
+  bindSelectChange(approvalModeSelect, function (control) {
+    vscode.postMessage({
+      type: "setApprovalMode",
+      approvalMode: control.value,
+    });
+    if (approvalModeNoteEl) {
+      approvalModeNoteEl.style.display = "";
+      setTimeout(function () { approvalModeNoteEl.style.display = "none"; }, 3000);
+    }
+  });
   bindSelectChange(settingsLogLevelSelect, function (control) {
     currentLogLevel = control.value || "info";
     debugTools.setLogLevel(currentLogLevel);
@@ -5698,6 +5711,7 @@ syncTodoLabelSuggestions();
     setupCodex: setupCodexBtn,
     setupCodexSkills: setupCodexSkillsBtn,
     syncBundledSkills: syncBundledSkillsBtn,
+    stageBundledAgents: stageBundledAgentsBtn,
     syncBundledAgents: syncBundledAgentsBtn,
     openCopilotSettings: openCopilotSettingsBtn,
     openExtensionSettings: openExtensionSettingsBtn,
@@ -8779,6 +8793,11 @@ syncTodoLabelSuggestions();
         case "updateStorageSettings":
           storageSettings = normalizeStorageSettings(message.storageSettings, storageSettings);
           renderStorageSettingsControls();
+          break;
+        case "updateApprovalMode":
+          if (approvalModeSelect && message.approvalMode) {
+            approvalModeSelect.value = message.approvalMode;
+          }
           break;
         case "updateExecutionDefaults":
           executionDefaults = message.executionDefaults || {

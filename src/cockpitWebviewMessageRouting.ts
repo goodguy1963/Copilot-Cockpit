@@ -77,6 +77,7 @@ export async function handleSchedulerWebviewCoreMessage(
     case "setupCodex":
     case "setupCodexSkills":
     case "syncBundledSkills":
+    case "stageBundledAgents":
     case "syncBundledAgents":
     case "importStorageFromJson":
     case "exportStorageToJson":

@@ -34,6 +34,7 @@
 - `Add MCP To Codex` creates or updates the repo-local Codex entry in `.codex/config.toml`.
 - `Sync Bundled Skills` updates the Copilot skill files under `.github/skills`.
 - `Sync Bundled Agents` copies the bundled starter agents into `.github/agents` on demand. Missing files are created, previously managed files update when unchanged locally, and customized workspace copies are skipped.
+- `Stage Bundled Agents` writes the bundled starter agents under `.vscode/copilot-cockpit-support/bundled-agents`, leaves the live `.github/agents` tree untouched, and opens a fresh Copilot chat prompt that asks the `copilot-scheduler-agent-merge` skill to compare the staged mirror against the live repo-local system.
 - `Add Skills To Codex` syncs the same bundled skills into `.agents/skills` and refreshes the managed guidance block in `AGENTS.md`.
 - The combined harness is: native VS Code chat for execution, MCP for structured tool access, and repo-local skills for behavior shaping.
 - Bundled skills carry frontmatter metadata that distinguishes operational skills from support/onboarding skills.

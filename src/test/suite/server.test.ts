@@ -41,7 +41,14 @@ function assertErrorResponse(response: ToolCallResponse): asserts response is To
   assert.strictEqual((response as { isError?: boolean }).isError, true);
 }
 
-function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[]; cockpitBoard?: any; telegramNotification?: any }) {
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createServerContext(
+  initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[]; cockpitBoard?: any; telegramNotification?: any },
+  options?: { asyncWriteDelayMs?: number; persistWrites?: boolean; workspaceRoot?: string },
+) {
   let currentConfig = JSON.parse(
     JSON.stringify(initialConfig || { tasks: [], jobs: [], jobFolders: [] }),
   );
@@ -51,11 +58,16 @@ function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobF
 
   return {
     context: {
-      workspaceRoot: "/tmp/workspace",
-      historyRoot: "/tmp/workspace/.vscode/scheduler-history",
+      workspaceRoot: options?.workspaceRoot || "/tmp/workspace",
+      historyRoot: `${options?.workspaceRoot || "/tmp/workspace"}/.vscode/scheduler-history`,
       readConfig: () => JSON.parse(JSON.stringify(currentConfig)),
-      writeConfig: (config: { tasks: any[]; jobs?: any[]; jobFolders?: any[] }) => {
-        currentConfig = JSON.parse(JSON.stringify(config));
+      writeConfig: async (config: { tasks: any[]; jobs?: any[]; jobFolders?: any[] }) => {
+        if (options?.asyncWriteDelayMs) {
+          await delay(options.asyncWriteDelayMs);
+        }
+        if (options?.persistWrites !== false) {
+          currentConfig = JSON.parse(JSON.stringify(config));
+        }
       },
       listHistory: () => historyEntries.slice(),
       readHistorySnapshot: (snapshotId: string) => snapshots.get(snapshotId),
@@ -463,9 +475,68 @@ suite("Scheduler MCP Server Tests", () => {
 
     assert.strictEqual(created.todo.title, "Review launch blockers");
     assert.strictEqual(created.todo.commentCount, 2);
+    assert.deepStrictEqual(created.persistence, {
+      storageMode: "sqlite",
+      writeTarget: "sqlite-authority",
+      jsonMirrorWrite: true,
+      verifiedByReread: true,
+    });
     assert.strictEqual(commented.todo.commentCount, 3);
+    assert.deepStrictEqual(commented.persistence, {
+      storageMode: "sqlite",
+      writeTarget: "sqlite-authority",
+      jsonMirrorWrite: true,
+      verifiedByReread: true,
+    });
     assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 1);
     assert.strictEqual(server.getConfig().cockpitBoard.cards[0].comments.length, 3);
+  });
+
+  test("cockpit create todo serializes concurrent writes per workspace", async () => {
+    const server = createServerContext(
+      { tasks: [], jobs: [], jobFolders: [] },
+      { asyncWriteDelayMs: 20 },
+    );
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      handleSchedulerToolCall(
+        "cockpit_create_todo",
+        { title: "First concurrent todo" },
+        server.context as any,
+      ),
+      handleSchedulerToolCall(
+        "cockpit_create_todo",
+        { title: "Second concurrent todo" },
+        server.context as any,
+      ),
+    ]);
+
+    const firstPayload = parseJsonText(firstResponse);
+    const secondPayload = parseJsonText(secondResponse);
+    const finalCards = server.getConfig().cockpitBoard.cards.slice().sort((left: any, right: any) => left.title.localeCompare(right.title));
+
+    assert.notStrictEqual(firstPayload.todo.id, secondPayload.todo.id);
+    assert.deepStrictEqual(
+      finalCards.map((card: any) => card.title),
+      ["First concurrent todo", "Second concurrent todo"],
+    );
+  });
+
+  test("cockpit create todo errors when the write is not durable on reread", async () => {
+    const server = createServerContext(
+      { tasks: [], jobs: [], jobFolders: [] },
+      { persistWrites: false },
+    );
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_create_todo",
+      { title: "Ghost todo" },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.match(readText(response), /could not be verified after write/i);
+    assert.strictEqual(server.getConfig().cockpitBoard, undefined);
   });
 
   test("routing cards tool matches canonical workflow flags only", async () => {
@@ -627,6 +698,12 @@ suite("Scheduler MCP Server Tests", () => {
 
     assert.strictEqual(updated.todo.priority, "urgent");
     assert.strictEqual(updated.todo.dueAt, "2026-03-30T09:00:00.000Z");
+    assert.deepStrictEqual(updated.persistence, {
+      storageMode: "sqlite",
+      writeTarget: "sqlite-authority",
+      jsonMirrorWrite: true,
+      verifiedByReread: true,
+    });
     assert.strictEqual(moved.todo.sectionId, featuresId);
     assert.strictEqual(filters.filters.sortBy, "dueAt");
     assert.strictEqual(filters.filters.sortDirection, "desc");

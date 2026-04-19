@@ -157,6 +157,84 @@ suite("Scheduler webview settings handler behavior", () => {
     }
   });
 
+  test("setApprovalMode normalizes invalid values and writes the global setting", async () => {
+    const originalUpdate = extensionCompat.updateCompatibleConfigurationValue;
+    const updateCalls: Array<{ key: string; value: unknown; target: vscode.ConfigurationTarget }> = [];
+
+    try {
+      (extensionCompat as typeof extensionCompat & {
+        updateCompatibleConfigurationValue: typeof extensionCompat.updateCompatibleConfigurationValue;
+      }).updateCompatibleConfigurationValue = (async (
+        key: string,
+        value: unknown,
+        target: vscode.ConfigurationTarget,
+      ) => {
+        updateCalls.push({ key, value, target });
+      }) as typeof extensionCompat.updateCompatibleConfigurationValue;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "setApprovalMode", approvalMode: "not-valid" } as any,
+        {
+          postMessage: () => {},
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(updateCalls, [
+        {
+          key: "approvalMode",
+          value: "default",
+          target: vscode.ConfigurationTarget.Global,
+        },
+      ]);
+    } finally {
+      (extensionCompat as typeof extensionCompat & {
+        updateCompatibleConfigurationValue: typeof extensionCompat.updateCompatibleConfigurationValue;
+      }).updateCompatibleConfigurationValue = originalUpdate;
+    }
+  });
+
+  test("setApprovalMode accepts yolo and writes the global setting", async () => {
+    const originalUpdate = extensionCompat.updateCompatibleConfigurationValue;
+    const updateCalls: Array<{ key: string; value: unknown; target: vscode.ConfigurationTarget }> = [];
+
+    try {
+      (extensionCompat as typeof extensionCompat & {
+        updateCompatibleConfigurationValue: typeof extensionCompat.updateCompatibleConfigurationValue;
+      }).updateCompatibleConfigurationValue = (async (
+        key: string,
+        value: unknown,
+        target: vscode.ConfigurationTarget,
+      ) => {
+        updateCalls.push({ key, value, target });
+      }) as typeof extensionCompat.updateCompatibleConfigurationValue;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "setApprovalMode", approvalMode: "yolo" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(updateCalls, [
+        {
+          key: "approvalMode",
+          value: "yolo",
+          target: vscode.ConfigurationTarget.Global,
+        },
+      ]);
+    } finally {
+      (extensionCompat as typeof extensionCompat & {
+        updateCompatibleConfigurationValue: typeof extensionCompat.updateCompatibleConfigurationValue;
+      }).updateCompatibleConfigurationValue = originalUpdate;
+    }
+  });
+
   test("opens Copilot settings from the settings webview action", async () => {
     const originalExecute = vscode.commands.executeCommand;
     const executeCalls: unknown[][] = [];

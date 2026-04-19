@@ -65,6 +65,11 @@
   "config.deterministicCockpitStateMode.dualWrite": "canonical routing を有効のままにし、移行監視用の追加照合ログを出します",
   "config.deterministicCockpitStateMode.canonicalPrimary": "workflow flag ベースの canonical routing を主動作として使います",
   "config.legacyFallbackOnError": "決定論的ルーティングで例外が出た場合、復旧のために旧来のシグナルマッチングで再試行します。",
+  "config.approvalMode": "新しい Copilot チャットセッションのデフォルト承認モード。ツールに承認が必要か、自動で実行するか、Autopilot を使うか、レガシー YOLO へフォールバックするかを制御します。",
+  "config.approvalMode.default": "ツール実行前に明示的な承認が必要（VS Code デフォルト）",
+  "config.approvalMode.autoApprove": "ツールは承認なしで実行（承認をバイパス）",
+  "config.approvalMode.autopilot": "フル自律 — ツールと編集は承認なしで実行（Autopilot）",
+  "config.approvalMode.yolo": "実際のプロンプトを送る前に、新しいチャットをレガシー YOLO モードで起動します",
   "config.reportIssue": "🐛 問題を発見しましたか？ [GitHub で Issue を作成](https://github.com/nicobrinkkemper/copilot-cockpit/issues)",
   "view.tasks": "Cockpit タスク"
 }

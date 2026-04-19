@@ -65,6 +65,11 @@
   "config.deterministicCockpitStateMode.dualWrite": "Keep canonical routing active and emit extra reconciliation logs for migration monitoring",
   "config.deterministicCockpitStateMode.canonicalPrimary": "Use canonical workflow-flag routing as the primary behavior",
   "config.legacyFallbackOnError": "If deterministic routing throws, retry Cockpit routing with legacy signal matching for recovery.",
+  "config.approvalMode": "Default approval mode for new Copilot chat sessions. Controls whether tools require approval, run automatically, use Autopilot, or fall back to legacy YOLO mode.",
+  "config.approvalMode.default": "Tools require explicit approval before running (VS Code default)",
+  "config.approvalMode.autoApprove": "Tools run without asking for approval (Bypass Approvals)",
+  "config.approvalMode.autopilot": "Full autonomy — tools and edits proceed without approval (Autopilot)",
+  "config.approvalMode.yolo": "Bootstrap fresh chats into legacy YOLO mode before running the real prompt",
   "config.reportIssue": "🐛 Found a problem? [Open an issue on GitHub](https://github.com/nicobrinkkemper/copilot-cockpit/issues)",
   "view.tasks": "Cockpit Tasks"
 }

@@ -325,17 +325,6 @@ export class SchedulerWebview {
       onTestPrompt,
     });
 
-    seedSchedulerWebviewCatalogFallbacks({
-      agentListCache: this.agentListCache,
-      modelListCache: this.modelListCache,
-      setCachedAgents: (agents) => {
-        this.agentListCache = agents;
-      },
-      setCachedModels: (models) => {
-        this.modelListCache = models;
-      },
-    });
-
     const refreshInBackground = (): void => {
       runSchedulerWebviewBackgroundRefresh({
         refreshAgentsAndModelsCache: () => this.refreshAgentsAndModelsCache(true),
@@ -348,6 +337,25 @@ export class SchedulerWebview {
         postMessage: (message) => this.postMessage(message as OutgoingWebviewMessage),
         logError,
         sanitizeError: (details) => this.redactPathsForDisplay(details),
+      });
+    };
+
+    const ensureCatalogsForFreshPanel = async (): Promise<void> => {
+      if (this.agentListCache.length > 0 && this.modelListCache.length > 0) {
+        return;
+      }
+
+      await this.refreshAgentsAndModelsCache(true);
+
+      seedSchedulerWebviewCatalogFallbacks({
+        agentListCache: this.agentListCache,
+        modelListCache: this.modelListCache,
+        setCachedAgents: (agents) => {
+          this.agentListCache = agents;
+        },
+        setCachedModels: (models) => {
+          this.modelListCache = models;
+        },
       });
     };
 
@@ -394,6 +402,8 @@ export class SchedulerWebview {
         postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
       });
     } else {
+      await ensureCatalogsForFreshPanel();
+
       // A fresh (or re-created) webview panel begins in the not-ready state.
       this.clearReadyFlag(); // local-diverge-490
 
@@ -481,6 +491,13 @@ export class SchedulerWebview {
     dispatchStorageSettingsUpdate(this.runtimeState, storageSettings, (message) =>
       this.postMessage(message),
     );
+  }
+
+  static updateApprovalMode(approvalMode: string): void {
+    this.postMessage({
+      type: "updateApprovalMode",
+      approvalMode,
+    });
   }
 
   static updateResearchState(
@@ -784,6 +801,7 @@ export class SchedulerWebview {
       nonce,
       uiLanguage,
       configuredLanguage,
+      configuredApprovalMode,
       allPresets,
       strings,
       initialData,
@@ -1191,6 +1209,7 @@ ${buildSchedulerWebviewExtendedStyles()}
     strings,
     allPresets,
     configuredLanguage,
+    configuredApprovalMode,
     helpIntroTitleText,
   })}
 `;

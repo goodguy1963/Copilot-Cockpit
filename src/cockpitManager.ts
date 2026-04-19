@@ -201,6 +201,7 @@ export class ScheduleManager {
   private activeTaskExecutionIds: Set<string> = new Set();
   private recentTaskLaunchTimes: Map<string, number> = new Map();
   private onTasksChangedCallback?: () => void;
+  private postExecutionNotifier?: () => void;
   private taskRunCallback?: (task: ScheduledTask) => Promise<void>;
   private todayRunCount = 0;
   private todayCountDate = "";
@@ -211,6 +212,7 @@ export class ScheduleManager {
   private sqliteHydrationPromise: Promise<void> | undefined;
 
   private static readonly INITIAL_TICK_DELAY_MIN = 3;
+  private static readonly CONCURRENT_TASK_STAGGER_MS = 2_000;
   private static readonly RECENT_TASK_LAUNCH_WINDOW_MS = 10_000;
 
   private getOpenWorkspaceFolderPaths(): string[] {
@@ -556,6 +558,10 @@ export class ScheduleManager {
    * Register a listener invoked on task mutations
    */
   setOnTasksChangedCallback(callback: () => void): void { this.onTasksChangedCallback = callback; }
+
+  setPostExecutionNotifier(callback: () => void): void {
+    this.postExecutionNotifier = callback;
+  }
 
   setOnExecuteCallback(callback: (task: ScheduledTask) => Promise<void>): void {
     this.taskRunCallback = callback;
@@ -1163,32 +1169,34 @@ export class ScheduleManager {
     }
     /* -------------------------------------------------------- */
 
-    this.storageRevision = await persistScheduleManagerTaskStore({
-      tasksArray: tasksArray,
-      bumpRevision: shouldBump,
-      currentRevision: this.storageRevision,
-      storageMetaFilePath: this.storageMetaFilePath,
-      globalState: this.extensionCtx.globalState,
-      keys: {
-        revision: TASK_STORAGE.revisionKey,
-        savedAt: TASK_STORAGE.savedAtKey,
-      },
-      writeTasksToDisk: (nextTasks) => this.writeTasksToDisk(nextTasks),
-      saveTasksToGlobalState: (nextTasks) => this.saveTasksToGlobalState(nextTasks),
-      syncGlobalTasksToSqlite:
-        this.extensionCtx.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()
-          ? async () => {
-              await syncGlobalTasksToSqlite(
-                this.extensionCtx.globalStorageUri.fsPath,
-                tasksArray,
-              );
-            }
-          : undefined,
-      logDebug: logDebug,
-      toSafeSchedulerErrorDetails: toSafeSchedulerErrorDetails,
-    });
-
-    this.emitTaskListChanged();
+    try {
+      this.storageRevision = await persistScheduleManagerTaskStore({
+        tasksArray: tasksArray,
+        bumpRevision: shouldBump,
+        currentRevision: this.storageRevision,
+        storageMetaFilePath: this.storageMetaFilePath,
+        globalState: this.extensionCtx.globalState,
+        keys: {
+          revision: TASK_STORAGE.revisionKey,
+          savedAt: TASK_STORAGE.savedAtKey,
+        },
+        writeTasksToDisk: (nextTasks) => this.writeTasksToDisk(nextTasks),
+        saveTasksToGlobalState: (nextTasks) => this.saveTasksToGlobalState(nextTasks),
+        syncGlobalTasksToSqlite:
+          this.extensionCtx.globalStorageUri?.fsPath && this.isWorkspaceSqliteModeEnabled()
+            ? async () => {
+                await syncGlobalTasksToSqlite(
+                  this.extensionCtx.globalStorageUri.fsPath,
+                  tasksArray,
+                );
+              }
+            : undefined,
+        logDebug: logDebug,
+        toSafeSchedulerErrorDetails: toSafeSchedulerErrorDetails,
+      });
+    } finally {
+      this.emitTaskListChanged();
+    }
   }
 
   /**
@@ -3066,6 +3074,8 @@ export class ScheduleManager {
     let completedRuns = 0;
     const tasksToDelete: string[] = [];
     const scheduledTaskIds = Array.from(this.taskRegistry.keys());
+    const dueTaskEntries: Array<{ task: ScheduledTask; staggerMs: number }> = [];
+    let staggerMs = 0;
 
     // Snapshot task ids so watcher-triggered reloads cannot repopulate the live map
     // and revisit the same due task again inside a single scheduler cycle.
@@ -3079,18 +3089,47 @@ export class ScheduleManager {
         continue;
       }
 
-      const outcome = await this.executeDueTask(
-        task,
-        now,
-        nowMinute,
-        maxDailyLimit,
-        defaultJitterSeconds,
-      );
-      completedRuns += outcome.executedCount;
-      pendingWrite = outcome.pendingWrite || pendingWrite;
-      if (outcome.deleteTask) {
-        tasksToDelete.push(task.id);
+      if (!this.isTaskDueAt(task, nowMinute)) {
+        continue;
       }
+
+      dueTaskEntries.push({ task, staggerMs });
+      staggerMs += ScheduleManager.CONCURRENT_TASK_STAGGER_MS;
+    }
+
+    const settledOutcomes = await Promise.allSettled(
+      dueTaskEntries.map(({ task, staggerMs: launchDelayMs }) =>
+        (launchDelayMs > 0
+          ? new Promise<void>((resolve) => setTimeout(resolve, launchDelayMs))
+          : Promise.resolve()
+        ).then(() =>
+          this.executeDueTask(
+            task,
+            now,
+            nowMinute,
+            maxDailyLimit,
+            defaultJitterSeconds,
+          ).then((outcome) => ({ taskId: task.id, outcome })),
+        ),
+      ),
+    );
+
+    for (const result of settledOutcomes) {
+      if (result.status === "fulfilled") {
+        const { taskId, outcome } = result.value;
+        completedRuns += outcome.executedCount;
+        pendingWrite = outcome.pendingWrite || pendingWrite;
+        if (outcome.deleteTask) {
+          tasksToDelete.push(taskId);
+        }
+        continue;
+      }
+
+      logError(
+        "[CopilotCockpit] Unexpected error in concurrent task execution:",
+        toSafeSchedulerErrorDetails(result.reason),
+      );
+      pendingWrite = true;
     }
 
     this.applyScheduledTaskDeletions(tasksToDelete);
@@ -3098,6 +3137,9 @@ export class ScheduleManager {
 
     if (pendingWrite) {
       await this.persistTasks();
+      if (completedRuns > 0) {
+        this.postExecutionNotifier?.();
+      }
     }
   }
 
@@ -3189,6 +3231,7 @@ export class ScheduleManager {
         this.suppressedOverdueTaskIds.delete(task.id);
       }
       await this.persistTasks();
+      this.postExecutionNotifier?.();
 
       return true;
     } catch (error) {
