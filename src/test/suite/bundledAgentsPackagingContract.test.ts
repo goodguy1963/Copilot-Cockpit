@@ -24,6 +24,58 @@ suite("Bundled Agents Packaging Contract Tests", () => {
     assert.ok(vscodeIgnore.includes("!out/bundled-agents/**"));
   });
 
+  test("keeps only runtime images and excludes non-runtime docs from the VSIX contract", () => {
+    const vscodeIgnore = readWorkspaceFile(".vscodeignore");
+
+    for (const expectedEntry of [
+      "docs/**",
+      "scripts/**",
+      "hort --format=-h -ad -s",
+      "hort --oneline --decorate",
+      "PROVENANCE.md",
+      "release-notes.md",
+      "TODO_COCKPIT_FEATURES.md",
+      "!images/icon.png",
+      "!images/activity-todo-list.svg",
+      "!images/activity-todo-list-command-light.svg",
+      "!images/activity-todo-list-command-dark.svg",
+    ]) {
+      assert.ok(vscodeIgnore.includes(expectedEntry), `Expected .vscodeignore to include ${expectedEntry}.`);
+    }
+
+    for (const forbiddenEntry of [
+      "!images/copilot-cockpit-demo.gif",
+      "!images/DEMO.gif",
+      "!images/DEMO v2.gif",
+    ]) {
+      assert.strictEqual(
+        vscodeIgnore.includes(forbiddenEntry),
+        false,
+        `Expected .vscodeignore to exclude ${forbiddenEntry}.`,
+      );
+    }
+  });
+
+  test("README externalizes non-runtime docs and demo media references", () => {
+    const readme = readWorkspaceFile("README.md");
+
+    assert.ok(readme.includes('<img src="images/icon.png" alt="Copilot Cockpit icon" width="128">'));
+    assert.ok(
+      readme.includes(
+        "(https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)",
+      ),
+    );
+    assert.ok(
+      readme.includes(
+        "(https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/TEAM.png)",
+      ),
+    );
+    assert.strictEqual(/\]\(docs\//.test(readme), false);
+    assert.strictEqual(readme.includes("images/copilot-cockpit-demo.gif"), false);
+    assert.strictEqual(readme.includes("(images/DEMO%20v2.gif)"), false);
+    assert.strictEqual(readme.includes("(images/TEAM.png)"), false);
+  });
+
   test("prepareBundledAgents strips repo-local knowledge references from markdown payloads", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-bundled-agents-package-"),

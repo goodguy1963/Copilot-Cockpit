@@ -37,13 +37,22 @@ compile.log
 compile*.log
 patch.diff
 diff_output.txt
+hort --format=-h -ad -s
+hort --oneline --decorate
+line_dump.txt
+log.txt
 plan.md
+PROVENANCE.md
+release-notes.md
 test.js
 test.txt
+temp_output.txt
 test_output.log
 test_output.txt
 test_output*.log
 test_output*.txt
+test_results.txt
+TODO_COCKPIT_FEATURES.md
 ts_errors.log
 ts_errors.txt
 ts_errors*.log
@@ -56,6 +65,8 @@ research/**
 .copilot-cockpit-logs/**
 analysis_tools/**
 archive/**
+docs/**
+scripts/**
 scripts/diagnostics/**
 images/*
 images/**/*
@@ -64,9 +75,6 @@ images/**/*
 !images/activity-todo-list.svg
 !images/activity-todo-list-command-light.svg
 !images/activity-todo-list-command-dark.svg
-!images/copilot-cockpit-demo.gif
-!images/DEMO.gif
-!images/DEMO v2.gif
 2026-04-02-cockpit-dispatcher-plugin-improvement-plan.md
 
 # Large demo assets kept excluded unless explicitly allowlisted above

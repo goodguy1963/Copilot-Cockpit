@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
-    <img src="images/copilot-cockpit-demo.gif" alt="Copilot Cockpit icon" width="128">
+    <img src="images/icon.png" alt="Copilot Cockpit icon" width="128">
 </p>
 <h1 align="center">Copilot Cockpit</h1>
 
@@ -36,11 +36,11 @@ That structure keeps the LLM as the native execution chat surface while Copilot 
 
 ## 🎬 Demo
 
-[![Watch the Copilot Cockpit intro video](images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
 
 Use the feature tour below for the slower tab-by-tab explanation.
 
-For the step-by-step walkthrough, open [docs/feature-tour.md](docs/feature-tour.md).
+For the step-by-step walkthrough, open [docs/feature-tour.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/feature-tour.md).
 
 ## 🧠 The Core Loop
 
@@ -86,7 +86,7 @@ This is efficient because the `CEO` or orchestrator does the initial thinking on
 
 Note: Custom subagents must be enabled in //settings/chat.customAgentInSubagent.enabled of github copilot plugin
 
-![Copilot Cockpit team workflow](images/TEAM.png)
+![Copilot Cockpit team workflow](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/TEAM.png)
 
 The optional layer stays practical because responsibilities are split deliberately:
 
@@ -95,7 +95,7 @@ The optional layer stays practical because responsibilities are split deliberate
 - Specialists such as `Remediation Implementer` or `Documentation Specialist` run bounded work and report back with validation.
 - `Cockpit Todo Expert` owns durable approval state and backlog hygiene in `Todo Cockpit`.
 
-Bundled-agent staging and sync are manual by design. `Stage Bundled Agents` refreshes a comparison copy under `.vscode/copilot-cockpit-support/bundled-agents` without touching the live repo-local system. `Sync Bundled Agents` is the explicit live install path into `.github/agents`. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](docs/agent-workflow.md).
+Bundled-agent staging and sync are manual by design. `Stage Bundled Agents` refreshes a comparison copy under `.vscode/copilot-cockpit-support/bundled-agents` without touching the live repo-local system. `Sync Bundled Agents` is the explicit live install path into `.github/agents`. Repo-local agent systems are user-owned, so Copilot Cockpit only offers the starter pack as an optional baseline and does not overwrite customized workspace copies during sync. For the deeper operating model, see [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 
 ## ✨ Workflow Layers
 
@@ -137,7 +137,7 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### Settings
 
-`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an extra control-plane layer that lets the orchestrator stay focused on routing, planning, and validation while specialists handle bounded work. See [docs/agent-workflow.md](docs/agent-workflow.md) for the operating model.
+`Settings` configure workspace defaults, integrations, storage mode, and execution preferences so the cockpit matches the repo you are operating in. They are also where you can optionally incorporate repo-local agents or the bundled starter pack when you want an extra control-plane layer that lets the orchestrator stay focused on routing, planning, and validation while specialists handle bounded work. See [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md) for the operating model.
 
 ### How To Use
 
@@ -206,7 +206,7 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 
 The `Settings` tab also lets you choose between `Stage Bundled Agents` for a staged comparison/reference copy under `.vscode/copilot-cockpit-support/bundled-agents` and `Sync Bundled Agents` for live `.github/agents` installation when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
-If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](docs/agent-workflow.md).
+If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 
 ## 🚦 Release Channels
 
@@ -216,16 +216,16 @@ If you want the rationale and workflow diagram for that pattern, see [docs/agent
 
 ## 📚 Documentation
 
-Detailed documentation lives under [docs/index.md](docs/index.md).
+Detailed documentation lives under [docs/index.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/index.md).
 
-- [Getting Started](docs/getting-started.md)
-- [Feature Tour](docs/feature-tour.md)
-- [Agent Workflow](docs/agent-workflow.md)
-- [Workflows](docs/workflows.md)
-- [Integrations](docs/integrations.md)
-- [Storage and Boundaries](docs/storage-and-boundaries.md)
-- [Architecture and Principles](docs/architecture-and-principles.md)
-- [Todo Cockpit Feature Notes](TODO_COCKPIT_FEATURES.md)
+- [Getting Started](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/getting-started.md)
+- [Feature Tour](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/feature-tour.md)
+- [Agent Workflow](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md)
+- [Workflows](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/workflows.md)
+- [Integrations](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/integrations.md)
+- [Storage and Boundaries](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/storage-and-boundaries.md)
+- [Architecture and Principles](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/architecture-and-principles.md)
+- [Todo Cockpit Feature Notes](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/TODO_COCKPIT_FEATURES.md)
 
 ## Advanced Capabilities
 
@@ -233,7 +233,7 @@ These extend the core workflow. They are optional and should not be mandatory fo
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
-- Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](docs/agent-workflow.md).
+- Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
 - Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
