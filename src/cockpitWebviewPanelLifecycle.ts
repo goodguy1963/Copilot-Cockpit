@@ -19,8 +19,49 @@ import { messages } from "./i18n";
 import { logError } from "./logger";
 import { createSchedulerWebviewPanel } from "./cockpitWebviewPanelSupport";
 import { replayExistingSchedulerWebviewPanel } from "./cockpitWebviewRenderSupport";
+import { parseIncomingWebviewMessage } from "./validation/incomingWebviewMessage";
 
 type RenderSchedulerHtml = (webview: vscode.Webview, tasks: ScheduledTask[], agents: AgentInfo[], models: ModelInfo[], promptTemplates: PromptTemplate[]) => string;
+
+export async function handleIncomingSchedulerWebviewMessage(options: {
+  rawMessage: unknown;
+  handleMessage: (message: WebviewToExtensionMessage) => Promise<void>;
+  redactPathsForDisplay: (message: string) => string;
+  showError: (message: string) => void;
+}): Promise<void> {
+  const parsedMessage = parseIncomingWebviewMessage(options.rawMessage);
+
+  if (!parsedMessage.success) {
+    const detailsForLog = options.redactPathsForDisplay(parsedMessage.error);
+    logError("[CopilotScheduler] Invalid webview message payload received:", {
+      type: parsedMessage.attemptedType,
+      error: detailsForLog,
+    });
+    options.showError(
+      messages.webviewMessageHandlingFailed(
+        parsedMessage.attemptedType ?? messages.webviewUnknown(),
+      ),
+    );
+    return;
+  }
+
+  try {
+    await options.handleMessage(parsedMessage.message);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error ?? "");
+    const detailsForLog =
+      options.redactPathsForDisplay(errorMessage);
+    const detailsForUser =
+      options.redactPathsForDisplay(errorMessage);
+    logError("[CopilotScheduler] Webview message handling failed:", {
+      type: parsedMessage.message.type, error: detailsForLog });
+    options.showError(
+      messages.webviewMessageHandlingFailed(
+        detailsForUser || messages.webviewUnknown(),
+      ),
+    );
+  }
+}
 
 export function replaySchedulerPanel(options: {
   panel: vscode.WebviewPanel;
@@ -110,24 +151,13 @@ export function createFreshSchedulerPanel(options: {
         options.modelListCache,
         options.templateCache,
       ),
-    onDidReceiveMessage: async (message: WebviewToExtensionMessage) => {
-      try {
-        await options.handleMessage(message);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error ?? "");
-        const detailsForLog =
-          options.redactPathsForDisplay(errorMessage);
-        const detailsForUser =
-          options.redactPathsForDisplay(errorMessage);
-        logError("[CopilotScheduler] Webview message handling failed:", {
-          type: (message as { type?: unknown } | undefined)?.type, error: detailsForLog });
-        options.showError(
-          messages.webviewMessageHandlingFailed(
-            detailsForUser || messages.webviewUnknown(),
-          ),
-        );
-      }
-    },
+    onDidReceiveMessage: async (message: unknown) =>
+      handleIncomingSchedulerWebviewMessage({
+        rawMessage: message,
+        handleMessage: options.handleMessage,
+        redactPathsForDisplay: options.redactPathsForDisplay,
+        showError: options.showError,
+      }),
     onDidDispose: options.onDidDispose,
   });
 }

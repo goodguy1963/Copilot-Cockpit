@@ -14,6 +14,7 @@ import {
   getConfiguredSchedulerStorageMode,
   SQLITE_STORAGE_MODE,
 } from "./sqliteStorage";
+import { parseStoredResearchConfig } from "./validation/storedResearchConfig";
 import type {
   CreateResearchProfileInput,
   ResearchAttempt,
@@ -921,33 +922,24 @@ export class ResearchManager {
   }
 
   private normalizeResearchState(
-    config: {
-      profiles?: unknown[];
-      runs?: unknown[];
-    },
+    config: unknown,
   ): { profiles: ResearchProfile[]; runs: ResearchRun[] } {
-    const profiles = Array.isArray(config.profiles)
-      ? config.profiles
-        .filter((profile): profile is ResearchProfile => !!profile && typeof (profile as ResearchProfile).id === "string")
-      : [];
-    const runs = Array.isArray(config.runs)
-      ? config.runs
-        .filter((run): run is ResearchRun => !!run && typeof (run as ResearchRun).id === "string")
-        .map((run): ResearchRun => {
-          if (run.status === "running" || run.status === "stopping") {
-            return {
-              ...run,
-              status: "stopped",
-              finishedAt: run.finishedAt || new Date().toISOString(),
-              stopReason: run.stopReason || "VS Code restarted during the run.",
-            };
-          }
-          return run;
-        })
-        .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
-      : [];
+    const parsed = parseStoredResearchConfig(config);
+    const runs = parsed.runs
+      .map((run): ResearchRun => {
+        if (run.status === "running" || run.status === "stopping") {
+          return {
+            ...run,
+            status: "stopped",
+            finishedAt: run.finishedAt || new Date().toISOString(),
+            stopReason: run.stopReason || "VS Code restarted during the run.",
+          };
+        }
+        return run;
+      })
+      .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 
-    return { profiles, runs };
+    return { profiles: parsed.profiles, runs };
   }
 
   private async saveState(): Promise<void> {
@@ -962,9 +954,10 @@ export class ResearchManager {
       profiles: this.getAllProfiles(),
       runs: this.runs.slice(0, 30),
     };
-    fs.writeFileSync(configPath, JSON.stringify(payload, null, 2), "utf8");
+    const normalizedPayload = parseStoredResearchConfig(payload);
+    fs.writeFileSync(configPath, JSON.stringify(normalizedPayload, null, 2), "utf8");
     if (this.isWorkspaceSqliteModeEnabled()) {
-      await syncWorkspaceResearchStateToSqlite(workspaceRoot, payload);
+      await syncWorkspaceResearchStateToSqlite(workspaceRoot, normalizedPayload);
     }
 
     for (const run of this.runs.slice(0, 10)) {

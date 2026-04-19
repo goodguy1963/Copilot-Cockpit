@@ -5,7 +5,7 @@ type CreateSchedulerWebviewPanelParams = {
   extensionUri: vscode.Uri;
   title: string;
   renderHtml: (webview: vscode.Webview) => string;
-  onDidReceiveMessage: (message: WebviewToExtensionMessage) => void | Promise<void>;
+  onDidReceiveMessage: (message: unknown) => void | Promise<void>;
   onDidDispose: () => void;
 };
 

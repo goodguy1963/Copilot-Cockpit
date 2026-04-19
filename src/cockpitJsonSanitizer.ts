@@ -5,6 +5,10 @@ import { createScheduleHistorySnapshot } from "./cockpitHistory";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
 import { getWorkspaceSchedulerMirrorPaths } from "./sqliteStorage";
 import type { CockpitBoardFilters, SchedulerWorkspaceConfig } from "./types";
+import {
+    filterStoredSchedulerTaskEntries,
+    safeParseStoredSchedulerConfigInput,
+} from "./validation/storedSchedulerConfig";
 
 const DISCORD_WEBHOOK_URL_PATTERN =
     /https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9._-]+/gi;
@@ -182,6 +186,60 @@ function normalizeIdList(value: unknown): string[] {
         .filter((entry): entry is string => typeof entry === "string")
         .map((entry) => entry.trim())
         .filter((entry, index, values) => entry.length > 0 && values.indexOf(entry) === index);
+}
+
+function getStoredSchedulerRecord(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return undefined;
+    }
+
+    return value as Record<string, unknown>;
+}
+
+function normalizeStoredCockpitBoard(value: unknown): SchedulerWorkspaceConfig["cockpitBoard"] {
+    const board = getStoredSchedulerRecord(value);
+    if (!board) {
+        return undefined;
+    }
+
+    try {
+        return normalizeCockpitBoard(board);
+    } catch {
+        return undefined;
+    }
+}
+
+function normalizeStoredTelegramNotification(
+    value: unknown,
+): SchedulerWorkspaceConfig["telegramNotification"] {
+    const telegramNotification = getStoredSchedulerRecord(value);
+    if (!telegramNotification || typeof telegramNotification.enabled !== "boolean") {
+        return undefined;
+    }
+
+    const updatedAt = typeof telegramNotification.updatedAt === "string"
+        && telegramNotification.updatedAt.trim().length > 0
+        ? telegramNotification.updatedAt
+        : "1970-01-01T00:00:00.000Z";
+
+    const normalized: NonNullable<SchedulerWorkspaceConfig["telegramNotification"]> = {
+        enabled: telegramNotification.enabled,
+        updatedAt,
+    };
+
+    if (typeof telegramNotification.botToken === "string") {
+        normalized.botToken = telegramNotification.botToken;
+    }
+
+    if (typeof telegramNotification.chatId === "string") {
+        normalized.chatId = telegramNotification.chatId;
+    }
+
+    if (typeof telegramNotification.messagePrefix === "string") {
+        normalized.messagePrefix = telegramNotification.messagePrefix;
+    }
+
+    return normalized;
 }
 
 function stableSerialize(value: unknown): string {
@@ -884,44 +942,48 @@ export function getResolvedWorkspaceRoots(startPaths: string[]): string[] {
 }
 
 function parseStoredSchedulerConfig(value: unknown, privateValue?: unknown): SchedulerWorkspaceConfig {
-    const parsed = value;
-    const privateParsed = privateValue;
-    if (Array.isArray(parsed)) {
+    const parsed = safeParseStoredSchedulerConfigInput(value);
+    const privateParsed = safeParseStoredSchedulerConfigInput(privateValue);
+    const resolvedConfig = parsed ?? privateParsed;
+    const cockpitBoard = normalizeStoredCockpitBoard(
+        privateParsed?.cockpitBoard ?? parsed?.cockpitBoard,
+    );
+    const telegramNotification = normalizeStoredTelegramNotification(
+        privateParsed?.telegramNotification ?? parsed?.telegramNotification,
+    );
+
+    if (!resolvedConfig) {
+        return { tasks: [] };
+    }
+
+    if (resolvedConfig.kind === "array") {
         return {
-            tasks: parsed,
-            cockpitBoard: privateParsed && typeof privateParsed === "object" && (privateParsed as SchedulerWorkspaceConfig).cockpitBoard
-                ? normalizeCockpitBoard((privateParsed as SchedulerWorkspaceConfig).cockpitBoard)
-                : undefined,
-            telegramNotification: privateParsed && typeof privateParsed === "object"
-                ? (privateParsed as SchedulerWorkspaceConfig).telegramNotification
-                : undefined,
+            tasks: resolvedConfig.tasks,
+            cockpitBoard,
+            telegramNotification,
         };
     }
 
-    if (parsed && typeof parsed === "object" && Array.isArray((parsed as SchedulerWorkspaceConfig).tasks)) {
-        const publicConfig = parsed as SchedulerWorkspaceConfig;
-        const privateConfig = privateParsed && typeof privateParsed === "object"
-            ? privateParsed as SchedulerWorkspaceConfig
-            : undefined;
-        return {
-            ...publicConfig,
-            deletedTaskIds: normalizeIdList(publicConfig.deletedTaskIds),
-            jobs: Array.isArray(publicConfig.jobs) ? publicConfig.jobs : [],
-            deletedJobIds: normalizeIdList(publicConfig.deletedJobIds),
-            jobFolders: Array.isArray(publicConfig.jobFolders) ? publicConfig.jobFolders : [],
-            deletedJobFolderIds: normalizeIdList(publicConfig.deletedJobFolderIds),
-            cockpitBoard: privateConfig?.cockpitBoard
-                ? normalizeCockpitBoard(privateConfig.cockpitBoard)
-                : undefined,
-            telegramNotification: publicConfig.telegramNotification && typeof publicConfig.telegramNotification === "object"
-                ? privateConfig?.telegramNotification && typeof privateConfig.telegramNotification === "object"
-                    ? privateConfig.telegramNotification
-                    : publicConfig.telegramNotification
-                : undefined,
-        };
-    }
+    return {
+        ...resolvedConfig.rootObject,
+        tasks: resolvedConfig.tasks,
+        deletedTaskIds: resolvedConfig.deletedTaskIds,
+        jobs: resolvedConfig.jobs as SchedulerWorkspaceConfig["jobs"],
+        deletedJobIds: resolvedConfig.deletedJobIds,
+        jobFolders: resolvedConfig.jobFolders as SchedulerWorkspaceConfig["jobFolders"],
+        deletedJobFolderIds: resolvedConfig.deletedJobFolderIds,
+        cockpitBoard,
+        telegramNotification,
+    };
+}
 
-    return { tasks: [] };
+function tryReadStoredSchedulerConfig(filePath: string) {
+    try {
+        const data = JSON.parse(schedulerFs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""));
+        return safeParseStoredSchedulerConfigInput(data);
+    } catch {
+        return undefined;
+    }
 }
 
 function readSchedulerTransaction(workspaceRoot: string): SchedulerTransactionRecord | undefined {
@@ -1059,22 +1121,22 @@ export function getActiveSchedulerReadPath(workspaceRoot: string): string {
     const privateExists = schedulerFs.existsSync(privateConfigPath);
 
     if (configExists && privateExists) {
-        let configValid = false;
-        let privateValid = false;
-        try {
-            const data = JSON.parse(schedulerFs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
-            configValid = (!!data && Array.isArray(data.tasks)) || Array.isArray(data);
-        } catch { /* empty */ }
-        try {
-            const data = JSON.parse(schedulerFs.readFileSync(privateConfigPath, "utf8").replace(/^\uFEFF/, ""));
-            privateValid = (!!data && Array.isArray(data.tasks)) || Array.isArray(data);
-        } catch { /* empty */ }
+        const configValid = tryReadStoredSchedulerConfig(configPath);
+        const privateValid = tryReadStoredSchedulerConfig(privateConfigPath);
 
         const configStat = schedulerFs.statSync(configPath);
         const privateStat = schedulerFs.statSync(privateConfigPath);
 
         if (configValid && privateValid) {
-            readPath = privateStat.mtimeMs > configStat.mtimeMs ? privateConfigPath : configPath;
+            if (configValid.carriesSchedulerState && privateValid.carriesSchedulerState) {
+                readPath = privateStat.mtimeMs > configStat.mtimeMs ? privateConfigPath : configPath;
+            } else if (configValid.carriesSchedulerState) {
+                readPath = configPath;
+            } else if (privateValid.carriesSchedulerState) {
+                readPath = privateConfigPath;
+            } else {
+                readPath = privateStat.mtimeMs > configStat.mtimeMs ? privateConfigPath : configPath;
+            }
         } else if (configValid && !privateValid) {
             readPath = configPath;
         } else if (!configValid && privateValid) {
@@ -1102,9 +1164,16 @@ export function readSchedulerConfig(workspaceRoot: string): SchedulerWorkspaceCo
         let content = schedulerFs.readFileSync(readPath, "utf-8");
         content = content.replace(/^\uFEFF/, "");
         const parsed = JSON.parse(content);
-        const privateParsed = schedulerFs.existsSync(privateConfigPath)
-            ? JSON.parse(schedulerFs.readFileSync(privateConfigPath, "utf8").replace(/^\uFEFF/, ""))
-            : undefined;
+        let privateParsed = readPath === privateConfigPath ? parsed : undefined;
+        if (typeof privateParsed === "undefined" && schedulerFs.existsSync(privateConfigPath)) {
+            try {
+                privateParsed = JSON.parse(
+                    schedulerFs.readFileSync(privateConfigPath, "utf8").replace(/^\uFEFF/, ""),
+                );
+            } catch {
+                privateParsed = undefined;
+            }
+        }
         return parseStoredSchedulerConfig(parsed, privateParsed);
     } catch (e) {
         console.error(`[SchedulerStore] Failed to read config from ${readPath}: ${e}`);
@@ -1135,7 +1204,7 @@ export function writeSchedulerConfig(
         }
 
         const normalizedConfig: SchedulerWorkspaceConfig = {
-            tasks: config.tasks,
+            tasks: filterStoredSchedulerTaskEntries(config.tasks),
             deletedTaskIds: normalizeIdList(config.deletedTaskIds),
             jobs: Array.isArray(config.jobs) ? config.jobs : [],
             deletedJobIds: normalizeIdList(config.deletedJobIds),
@@ -1159,7 +1228,7 @@ export function writeSchedulerConfig(
             );
 
         const persistedConfig: SchedulerWorkspaceConfig = {
-            tasks: mergedConfig.tasks,
+            tasks: filterStoredSchedulerTaskEntries(mergedConfig.tasks),
             deletedTaskIds: normalizeIdList(mergedConfig.deletedTaskIds),
             jobs: Array.isArray(mergedConfig.jobs) ? mergedConfig.jobs : [],
             deletedJobIds: normalizeIdList(mergedConfig.deletedJobIds),

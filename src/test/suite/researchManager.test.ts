@@ -111,6 +111,115 @@ function cleanupTempDirectories(...roots: string[]): void {
 }
 
 suite("ResearchManager behavior", () => {
+  test("loadState keeps valid research entries and stops active runs from disk", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-load-"));
+    const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-load-storage-"));
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+    fs.writeFileSync(
+      path.join(workspaceRoot, ".vscode", "research.json"),
+      JSON.stringify(
+        {
+          version: 7,
+          profiles: [
+            {
+              id: "profile-valid",
+              name: "Alpha",
+              instructions: "Keep the valid profile.",
+              editablePaths: ["README.md"],
+              benchmarkCommand: benchmarkCommand(1.5),
+              metricPattern: "score:\\s*([0-9.]+)",
+              metricDirection: "maximize",
+              maxIterations: 2,
+              maxMinutes: 10,
+              maxConsecutiveFailures: 2,
+              benchmarkTimeoutSeconds: 60,
+              editWaitSeconds: 10,
+              createdAt: "2026-04-19T10:00:00.000Z",
+              updatedAt: "2026-04-19T10:00:00.000Z",
+            },
+            {
+              id: "profile-normalized",
+              name: 42,
+              instructions: "Still salvageable.",
+              editablePaths: ["src/example.ts", 99],
+              benchmarkCommand: benchmarkCommand(2),
+              metricPattern: "score:\\s*([0-9.]+)",
+              metricDirection: "maximize",
+              maxIterations: "3",
+              maxMinutes: "15",
+              maxConsecutiveFailures: 2,
+              benchmarkTimeoutSeconds: 60,
+              editWaitSeconds: 10,
+            },
+            { name: "Missing id" },
+            "bad-profile",
+          ],
+          runs: [
+            {
+              id: "run-active",
+              profileId: "profile-valid",
+              profileName: "Alpha",
+              status: "running",
+              startedAt: "2026-04-19T12:00:00.000Z",
+              completedIterations: 1,
+              attempts: [
+                {
+                  id: "attempt-1",
+                  iteration: 0,
+                  startedAt: "2026-04-19T12:00:00.000Z",
+                  outcome: "baseline",
+                },
+              ],
+            },
+            {
+              id: "run-normalized",
+              profileId: "profile-normalized",
+              profileName: "Normalized",
+              status: "completed",
+              startedAt: 12345,
+              completedIterations: "2",
+              attempts: ["bad-attempt"],
+            },
+            { profileId: "profile-valid", status: "failed" },
+            "bad-run",
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    const restoreWorkspace = patchWorkspaceFoldersForTest(workspaceRoot);
+
+    try {
+      const manager = new ResearchManager(
+        createExtensionContext(storageRoot),
+        createNoopExecutor(),
+      );
+
+      const profiles = manager.getAllProfiles();
+      const runs = manager.getRecentRuns(10);
+      const activeRun = runs.find((entry) => entry.id === "run-active");
+      const normalizedProfile = profiles.find((entry) => entry.id === "profile-normalized");
+      const normalizedRun = runs.find((entry) => entry.id === "run-normalized");
+
+      assert.strictEqual(profiles.length, 2);
+      assert.ok(profiles.every((entry) => typeof entry.name === "string"));
+      assert.strictEqual(normalizedProfile?.name, "Untitled Research Profile");
+
+      assert.strictEqual(runs.length, 2);
+      assert.ok(activeRun);
+      assert.strictEqual(activeRun?.status, "stopped");
+      assert.ok(activeRun?.finishedAt);
+      assert.strictEqual(activeRun?.stopReason, "VS Code restarted during the run.");
+      assert.strictEqual(typeof normalizedRun?.startedAt, "string");
+      assert.strictEqual(normalizedRun?.attempts.length, 0);
+    } finally {
+      restoreWorkspace();
+      cleanupTempDirectories(workspaceRoot, storageRoot);
+    }
+  });
+
   test("createProfile writes a repo-local research.json file", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-"));
     const storageRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-research-storage-"));

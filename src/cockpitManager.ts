@@ -3217,11 +3217,6 @@ export class ScheduleManager {
       }
       const config = readSchedulerConfig(workspaceRoot);
 
-      if (!config.tasks || !Array.isArray(config.tasks)) {
-        console.log(`[Scheduler] Invalid JSON format`);
-        return { tasks: [], jobs: [], jobFolders: [] };
-      }
-
       return this.normalizeWorkspaceSchedulerState(config, workspaceRoot);
     } catch (e) {
       console.error('Failed to load tasks from scheduler.json:', e);

@@ -1,0 +1,21 @@
+[33mce905e2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv2.0.4[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix approve prompt and release 2.0.4
+ package-lock.json            | 4 [32m++[m[31m--[m
+ package.json                 | 2 [32m+[m[31m-[m
+ src/cockpitWebviewStrings.ts | 2 [32m+[m[31m-[m
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+[33m8f45760[m fix
+ Plan Awesome Copilot.md | 46 [32m++++++++++++++++++++++++++++[m[31m------------------[m
+ 1 file changed, 28 insertions(+), 18 deletions(-)
+[33mb046e56[m chore: update version to 2.0.3 and modify descriptions in package files
+ .vscodeignore                      |     1 [32m+[m
+ plan.md => Plan Awesome Copilot.md |     0
+ README.md                          |    62 [32m+[m[31m-[m
+ docs/getting-started.md            |    36 [32m+[m[31m-[m
+ docs/workflows.md                  |    31 [32m+[m[31m-[m
+ media/generated/cockpitWebview.js  | 10470 [32m+[m[31m----------------------------------[m
+ package-lock.json                  |     4 [32m+[m[31m-[m
+ package.json                       |     4 [32m+[m[31m-[m
+ src/cockpitWebviewDocument.ts      |     2 [32m+[m[31m-[m
+ src/cockpitWebviewStrings.ts       |    36 [32m+[m[31m-[m
+ src/i18n.ts                        |    62 [32m+[m[31m-[m
+ 11 files changed, 152 insertions(+), 10556 deletions(-)

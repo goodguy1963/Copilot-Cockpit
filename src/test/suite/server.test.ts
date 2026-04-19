@@ -21,11 +21,24 @@ import {
   syncWorkspaceSchedulerStateToSqlite,
 } from "../../sqliteBootstrap";
 
+type ToolCallResponse = Awaited<ReturnType<typeof handleSchedulerToolCall>>;
+
 function parseJsonText(result: any): any {
   assert.ok(result);
   assert.ok(Array.isArray(result.content));
   assert.strictEqual(result.content[0]?.type, "text");
   return JSON.parse(result.content[0].text);
+}
+
+function readText(result: any): string {
+  assert.ok(result);
+  assert.ok(Array.isArray(result.content));
+  assert.strictEqual(result.content[0]?.type, "text");
+  return result.content[0].text;
+}
+
+function assertErrorResponse(response: ToolCallResponse): asserts response is ToolCallResponse & { isError: true } {
+  assert.strictEqual((response as { isError?: boolean }).isError, true);
 }
 
 function createServerContext(initialConfig?: { tasks?: any[]; jobs?: any[]; jobFolders?: any[]; cockpitBoard?: any; telegramNotification?: any }) {
@@ -294,6 +307,119 @@ suite("Scheduler MCP Server Tests", () => {
       .sort();
 
     assert.deepStrictEqual(dispatchCases, definedTools);
+  });
+
+  test("rejects non-object argument containers for no-arg tools", async () => {
+    const server = createServerContext();
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_list_tasks",
+      [],
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Invalid arguments for 'scheduler_list_tasks': Arguments must be an object. Received array.",
+    );
+  });
+
+  test("rejects invalid boolean field types at the MCP boundary", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-1",
+          name: "Task 1",
+          cron: "0 0 * * *",
+          prompt: "Run task 1.",
+          enabled: true,
+        },
+      ],
+      jobs: [],
+      jobFolders: [],
+    });
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_toggle_task",
+      {
+        id: "task-1",
+        enabled: "yes",
+      },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Invalid arguments for 'scheduler_toggle_task': Field 'enabled' must be a boolean. Received string.",
+    );
+  });
+
+  test("rejects invalid array field types at the MCP boundary", async () => {
+    const server = createServerContext();
+
+    const response = await handleSchedulerToolCall(
+      "cockpit_set_filters",
+      {
+        labels: "launch",
+      },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Invalid arguments for 'cockpit_set_filters': Field 'labels' must be an array. Received string.",
+    );
+  });
+
+  test("rejects invalid object field types at the MCP boundary", async () => {
+    const server = createServerContext();
+
+    const response = await handleSchedulerToolCall(
+      "research_create_profile",
+      {
+        researchData: "not-an-object",
+      },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Invalid arguments for 'research_create_profile': Field 'researchData' must be an object. Received string.",
+    );
+  });
+
+  test("valid arguments still pass through the MCP validation boundary", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-1",
+          name: "Task 1",
+          cron: "0 0 * * *",
+          prompt: "Run task 1.",
+          enabled: true,
+        },
+      ],
+      jobs: [],
+      jobFolders: [],
+    });
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_toggle_task",
+      {
+        id: "task-1",
+        enabled: false,
+      },
+      server.context as any,
+    );
+    const payload = parseJsonText(response);
+
+    assert.strictEqual(payload.task.id, "task-1");
+    assert.strictEqual(payload.task.enabled, false);
+    assert.strictEqual(server.getConfig().tasks[0].enabled, false);
   });
 
   test("cockpit tools create and comment on internal todos", async () => {
@@ -821,6 +947,60 @@ suite("Scheduler MCP Server Tests", () => {
     assert.strictEqual(created.profile.name, "Market loop");
     assert.strictEqual(listed.profileCount, 1);
     assert.strictEqual(listed.profiles[0].name, "Market loop");
+  });
+
+  test("research_list_profiles tolerates malformed sibling entries", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-research-read-"));
+    const researchPath = path.join(workspaceRoot, ".vscode", "research.json");
+    fs.mkdirSync(path.dirname(researchPath), { recursive: true });
+    fs.writeFileSync(
+      researchPath,
+      JSON.stringify(
+        {
+          version: 3,
+          profiles: [
+            {
+              id: "profile-valid",
+              name: "Readable profile",
+              instructions: "Preserve the valid record.",
+              editablePaths: ["README.md"],
+              benchmarkCommand: "npm test",
+              metricPattern: "score: (\\d+)",
+              metricDirection: "maximize",
+              maxIterations: 2,
+              maxMinutes: 10,
+              maxConsecutiveFailures: 2,
+              benchmarkTimeoutSeconds: 60,
+              editWaitSeconds: 10,
+            },
+            { name: "Missing id" },
+            "bad-profile",
+          ],
+          runs: ["bad-run"],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const server = createServerContext();
+    (server.context as any).workspaceRoot = workspaceRoot;
+
+    try {
+      const response = await handleSchedulerToolCall(
+        "research_list_profiles",
+        {},
+        server.context as any,
+      );
+      const payload = parseJsonText(response);
+
+      assert.strictEqual(payload.profileCount, 1);
+      assert.strictEqual(payload.profiles[0].id, "profile-valid");
+      assert.strictEqual(payload.profiles[0].name, "Readable profile");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
   });
 
   test("update_task preserves existing metadata while updating selected fields", async () => {

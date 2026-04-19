@@ -1,0 +1,50 @@
+ce905e2 2026-04-18 Fix approve prompt and release 2.0.4
+8f45760 2026-04-18 fix
+b046e56 2026-04-18 chore: update version to 2.0.3 and modify descriptions in package files
+a1e691c 2026-04-18 feat: enhance webview security and improve editor color handling
+b24a874 2026-04-18 Release 2.0.1
+e1aa210 2026-04-18 chore: remove unnecessary files and update team rules and copilot instructions
+0300599 2026-04-18 chore: update version to 2.0.0 and update  demo GIF with intro video link
+32cc093 2026-04-17 Release v2.0.0
+88ad13c 2026-04-17 Refactor code structure for improved readability and maintainability
+a683a06 2026-04-17 bump version to 1.1.188, add recent task launch tracking, and improve task execution tests
+007b846 2026-04-17 chore: update version to 1.1.187 and modify prepublish script to include clean step
+d2a1040 2026-04-17 Refactor code structure for improved readability and maintainability
+0cd6442 2026-04-17 Add tests for todo completion, task duplication, and execution limits
+b63fecc 2026-04-17 chore: add .artifacts to .gitignore
+55320b4 2026-04-17 bump version to 1.1.170, update tests for todo detail panel, and add new images
+7aa78e4 2026-04-16 chore: update version to 1.1.169 and replace demo GIF references
+21e3f2a 2026-04-16 chore: update version to 1.1.168 and modify icon paths
+7dff91b 2026-04-16 chore: bump version to 1.1.163 and update icons
+7d7ff20 2026-04-16 Fixes.
+74e49cc 2026-04-11 Refactor code structure for improved readability and maintainability
+ee1dc82 2026-04-11 .
+694eecc 2026-04-11 .
+20c7d24 2026-04-11 .
+088a434 2026-04-11 Readme update and fix
+3abd640 2026-04-11 Refactor cockpit webview settings and improve localization
+d79d784 2026-04-11 refactor: update help text and improve layout in cockpit webview
+ab7c89f 2026-04-11 feat: Enhance onboarding and settings documentation for agent management and synchronization
+65eb37d 2026-04-11 feat: Remove deprecated agent documentation and update version to 1.1.155
+612a049 2026-04-11 feat: Add comprehensive agent system maintenance and workflow documentation
+99a90be 2026-04-11 feat: add comprehensive agent documentation and knowledge guidelines for improved orchestration and maintenance
+dd19bc7 2026-04-11 feat: update agent documentation and enhance planning workflows; bump version to 1.1.154
+621c7f7 2026-04-11 chore: bump version to 1.1.151 and update package-lock.json
+e75934c 2026-04-11 Fix release metadata bash step
+08a452e 2026-04-11 Track router prompt and update release workflow contract test
+f4c3579 2026-04-11 Add bundled starter agent sync and fix Linux release tests
+12b7715 2026-04-11 feat: Add release status badges and document release channels in README
+83cee76 2026-04-11 Automate GitHub prerelease builds
+ae694ef 2026-04-11 feat: Enhance Copilot integration and improve UI with help tooltips
+fbff704 2026-04-11 feat: update skills documentation and add example set completeness guidelines; bump version to 1.1.147
+6022bbc 2026-04-10 bump version to 1.1.143 and update package-lock.json
+5a4e952 2026-04-10 chore: stop tracking local workspace artifacts
+d1fd022 2026-04-10 release: v1.1.142
+4649321 2026-04-10 feat: add cockpit-scheduler-router and cockpit-todo-agent skills
+bac24e2 2026-04-08 Merge pull request #12 from goodguy1963/dependabot/npm_and_yarn/npm_and_yarn-84176cb2e3
+2c9e0f1 2026-04-08 fix: update license information and clarify provenance details
+6376170 2026-04-08 chore(deps): bump the npm_and_yarn group across 1 directory with 2 updates
+96ef6f3 2026-04-07 fix: use vscode runtime for mcp launcher
+f6d7512 2026-04-07 fix: restore dark webview controls and mcp node lookup
+e24d6a2 2026-04-07 fix: harden mac mcp node discovery
+b38a908 2026-04-07 fix: prefer interactive user shell for MCP on macOS

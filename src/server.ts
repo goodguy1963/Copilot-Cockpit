@@ -7,6 +7,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import * as fs from "fs";
 import * as path from "path";
+import { z } from "zod";
 import {
     createDefaultCockpitBoard,
     describeCockpitSectionSemanticIssue,
@@ -46,6 +47,11 @@ import {
     listScheduleHistoryEntries,
     readScheduleHistorySnapshot,
 } from "./cockpitHistory.js";
+import {
+    parseStoredResearchConfig,
+    parseStoredResearchConfigText,
+    stringifyStoredResearchConfig,
+} from "./validation/storedResearchConfig.js";
 import {
     exportWorkspaceSqliteToJsonMirrors,
     readWorkspaceCockpitBoardFromSqlite,
@@ -250,6 +256,138 @@ function asObject(value: unknown): Record<string, unknown> {
     return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function formatValidationPath(pathSegments: Array<string | number>): string {
+    let pathText = "";
+    for (const segment of pathSegments) {
+        if (typeof segment === "number") {
+            pathText += `[${segment}]`;
+            continue;
+        }
+
+        pathText = pathText ? `${pathText}.${segment}` : segment;
+    }
+    return pathText;
+}
+
+function describeExpectedType(expected: unknown): string {
+    switch (expected) {
+        case "array":
+            return "an array";
+        case "object":
+            return "an object";
+        case "string":
+            return "a string";
+        case "boolean":
+            return "a boolean";
+        case "number":
+            return "a number";
+        default:
+            return "the expected type";
+    }
+}
+
+function describeReceivedType(input: unknown): string {
+    if (Array.isArray(input)) {
+        return "array";
+    }
+    if (input === null) {
+        return "null";
+    }
+    return typeof input;
+}
+
+function getValueAtValidationPath(
+    input: unknown,
+    validationPath: Array<string | number>,
+): { exists: boolean; value: unknown } {
+    let current = input;
+
+    for (const segment of validationPath) {
+        if (Array.isArray(current)) {
+            if (typeof segment !== "number" || !Number.isInteger(segment) || !(segment in current)) {
+                return { exists: false, value: undefined };
+            }
+
+            current = current[segment];
+            continue;
+        }
+
+        if (!current || typeof current !== "object") {
+            return { exists: false, value: undefined };
+        }
+
+        const key = typeof segment === "number" ? String(segment) : segment;
+        const record = current as Record<string, unknown>;
+        if (!Object.prototype.hasOwnProperty.call(record, key)) {
+            return { exists: false, value: undefined };
+        }
+
+        current = record[key];
+    }
+
+    return { exists: true, value: current };
+}
+
+function formatZodIssue(issue: z.ZodIssue, candidateArguments: unknown): string {
+    const fieldPath = formatValidationPath(issue.path as Array<string | number>);
+    const label = fieldPath ? `Field '${fieldPath}'` : "Arguments";
+
+    if (issue.code === "invalid_type") {
+        const candidateValue = getValueAtValidationPath(
+            candidateArguments,
+            issue.path as Array<string | number>,
+        );
+        if (!candidateValue.exists && fieldPath) {
+            return `${label} is required.`;
+        }
+
+        return `${label} must be ${describeExpectedType(issue.expected)}. Received ${describeReceivedType(candidateValue.value)}.`;
+    }
+
+    return `${label}: ${issue.message}`;
+}
+
+function buildZodSchemaFromInputSchema(inputSchema: any): z.ZodTypeAny {
+    switch (inputSchema?.type) {
+        case "string":
+            return z.string();
+        case "boolean":
+            return z.boolean();
+        case "number":
+            return z.number();
+        case "array": {
+            const itemSchema = inputSchema?.items
+                ? buildZodSchemaFromInputSchema(inputSchema.items)
+                : z.unknown();
+            return z.array(itemSchema);
+        }
+        case "object": {
+            const properties = isPlainObject(inputSchema?.properties)
+                ? inputSchema.properties
+                : {};
+            const requiredFields = new Set(
+                Array.isArray(inputSchema?.required)
+                    ? inputSchema.required.filter((entry) => typeof entry === "string")
+                    : [],
+            );
+            const shape: Record<string, z.ZodTypeAny> = {};
+
+            for (const [key, propertySchema] of Object.entries(properties)) {
+                const validator = buildZodSchemaFromInputSchema(propertySchema);
+                shape[key] = requiredFields.has(key) ? validator : validator.optional();
+            }
+
+            return z.object(shape).passthrough();
+        }
+        default:
+            return z.unknown();
+    }
+}
+
 function parseStoredConfig(filePath: string): SchedulerConfig | undefined {
     if (!fs.existsSync(filePath)) {
         return undefined;
@@ -270,31 +408,17 @@ function getResearchConfigPath(workspaceRoot: string): string {
 function readResearchConfig(workspaceRoot: string): ResearchConfig {
     const filePath = getResearchConfigPath(workspaceRoot);
     if (!fs.existsSync(filePath)) {
-        return { version: 1, profiles: [], runs: [] };
+        return parseStoredResearchConfig({});
     }
 
-    try {
-        const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
-        const parsed = JSON.parse(raw) as Partial<ResearchConfig>;
-        return {
-            version: typeof parsed.version === "number" ? parsed.version : 1,
-            profiles: Array.isArray(parsed.profiles) ? parsed.profiles : [],
-            runs: Array.isArray(parsed.runs) ? parsed.runs : [],
-        };
-    } catch {
-        return { version: 1, profiles: [], runs: [] };
-    }
+    const raw = fs.readFileSync(filePath, "utf8");
+    return parseStoredResearchConfigText(raw);
 }
 
 function writeResearchConfig(workspaceRoot: string, config: ResearchConfig): void {
     const filePath = getResearchConfigPath(workspaceRoot);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const normalized: ResearchConfig = {
-        version: typeof config.version === "number" ? config.version : 1,
-        profiles: Array.isArray(config.profiles) ? config.profiles : [],
-        runs: Array.isArray(config.runs) ? config.runs : [],
-    };
-    fs.writeFileSync(filePath, JSON.stringify(normalized, null, 2), "utf8");
+    fs.writeFileSync(filePath, stringifyStoredResearchConfig(config), "utf8");
 }
 
 function getSchedulerJob(config: SchedulerConfig, jobId: string): any | undefined {
@@ -1443,15 +1567,75 @@ export const MCP_TOOL_DEFINITIONS = [
     },
 ];
 
+const mcpToolDefinitionsByName = new Map(
+    MCP_TOOL_DEFINITIONS.map((tool) => [tool.name, tool]),
+);
+
+const mcpToolArgumentSchemaCache = new Map<string, z.ZodTypeAny>();
+
+function getToolArgumentSchema(toolName: string): z.ZodTypeAny | undefined {
+    if (mcpToolArgumentSchemaCache.has(toolName)) {
+        return mcpToolArgumentSchemaCache.get(toolName);
+    }
+
+    const definition = mcpToolDefinitionsByName.get(toolName);
+    if (!definition) {
+        return undefined;
+    }
+
+    const schema = buildZodSchemaFromInputSchema(definition.inputSchema);
+    mcpToolArgumentSchemaCache.set(toolName, schema);
+    return schema;
+}
+
+function validateToolArguments(
+    toolName: string,
+    rawArguments: unknown,
+): { success: true; data: Record<string, unknown> } | { success: false; error: string } {
+    const schema = getToolArgumentSchema(toolName);
+    if (!schema) {
+        return {
+            success: true,
+            data: rawArguments === undefined ? {} : asObject(rawArguments),
+        };
+    }
+
+    const candidateArguments = rawArguments === undefined ? {} : rawArguments;
+    if (!isPlainObject(candidateArguments)) {
+        return {
+            success: false,
+            error: `Invalid arguments for '${toolName}': Arguments must be an object. Received ${describeReceivedType(candidateArguments)}.`,
+        };
+    }
+
+    const result = schema.safeParse(candidateArguments);
+    if (!result.success) {
+        return {
+            success: false,
+            error: `Invalid arguments for '${toolName}': ${result.error.issues.map((issue) => formatZodIssue(issue, candidateArguments)).join("; ")}`,
+        };
+    }
+
+    return {
+        success: true,
+        data: result.data,
+    };
+}
+
 export async function handleSchedulerToolCall(
     toolName: string,
     rawArguments: unknown,
     context: SchedulerServerContext = createDefaultContext(),
 ) {
-    const args = asObject(rawArguments);
-    const config = ensureConfig(await context.readConfig());
-
     try {
+        const validation = validateToolArguments(toolName, rawArguments);
+        if (!validation.success) {
+            return errorResponse(validation.error);
+        }
+
+        const args = validation.data;
+        const config = ensureConfig(await context.readConfig());
+
         switch (toolName) {
             case "scheduler_list_tasks":
                 return textResponse({

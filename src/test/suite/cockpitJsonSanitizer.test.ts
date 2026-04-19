@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import {
+  getActiveSchedulerReadPath,
   getPrivateSchedulerConfigPath,
   readSchedulerConfig,
   setSchedulerFileOpsForTests,
@@ -161,6 +162,120 @@ suite("Scheduler Json Sanitizer Tests", () => {
       assert.strictEqual(
         wasSchedulerConfigWrittenRecently(result.privatePath),
         true,
+      );
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("supports legacy array-root scheduler config files", () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const vscodeDir = path.join(workspaceRoot, ".vscode");
+      fs.mkdirSync(vscodeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(vscodeDir, "scheduler.json"),
+        JSON.stringify([
+          createTaskRecord("task-a", "2026-04-02T10:00:00.000Z"),
+          null,
+          { id: "   ", name: "blank id" },
+        ]),
+        "utf8",
+      );
+
+      const config = readSchedulerConfig(workspaceRoot);
+      assert.strictEqual(config.tasks.length, 1);
+      assert.strictEqual(config.tasks[0]?.id, "task-a");
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("filters malformed task entries without blanking the rest of the config", () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const vscodeDir = path.join(workspaceRoot, ".vscode");
+      fs.mkdirSync(vscodeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(vscodeDir, "scheduler.json"),
+        JSON.stringify({
+          tasks: [
+            createTaskRecord("task-a", "2026-04-02T10:00:00.000Z"),
+            null,
+            "bad-task-entry",
+            { name: "missing id" },
+            { id: "   ", name: "blank id" },
+          ],
+          deletedTaskIds: ["task-z", "", null, "  task-y  ", "task-z"],
+          jobs: ["keep-this-job-entry", { name: "job without id stays tolerant" }],
+          deletedJobIds: ["job-z", "", null],
+          jobFolders: ["keep-this-folder-entry", { name: "folder without id stays tolerant" }],
+          deletedJobFolderIds: ["folder-z", "", null],
+          extraRootField: { keep: true },
+        }),
+        "utf8",
+      );
+
+      const config = readSchedulerConfig(workspaceRoot) as Record<string, unknown> & {
+        tasks: Array<{ id?: string }>;
+        deletedTaskIds?: string[];
+        jobs?: unknown[];
+        deletedJobIds?: string[];
+        jobFolders?: unknown[];
+        deletedJobFolderIds?: string[];
+      };
+
+      assert.strictEqual(config.tasks.length, 1);
+      assert.strictEqual(config.tasks[0]?.id, "task-a");
+      assert.deepStrictEqual(config.deletedTaskIds, ["task-z", "task-y"]);
+      assert.strictEqual(config.jobs?.length, 2);
+      assert.deepStrictEqual(config.deletedJobIds, ["job-z"]);
+      assert.strictEqual(config.jobFolders?.length, 2);
+      assert.deepStrictEqual(config.deletedJobFolderIds, ["folder-z"]);
+      assert.deepStrictEqual(config.extraRootField, { keep: true });
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("loads readable private-only state when the public scheduler config is malformed", () => {
+    const workspaceRoot = createWorkspaceRoot();
+
+    try {
+      const vscodeDir = path.join(workspaceRoot, ".vscode");
+      const publicConfigPath = path.join(vscodeDir, "scheduler.json");
+      const privateConfigPath = getPrivateSchedulerConfigPath(publicConfigPath);
+      const privateBoard = createDefaultCockpitBoard("2026-04-02T10:00:00.000Z");
+      privateBoard.cards.push(
+        createCardRecord("card-private", "Private board survives malformed public JSON", "2026-04-02T10:00:00.000Z"),
+      );
+
+      fs.mkdirSync(vscodeDir, { recursive: true });
+      fs.writeFileSync(publicConfigPath, "{ malformed json", "utf8");
+      fs.writeFileSync(
+        privateConfigPath,
+        JSON.stringify({
+          cockpitBoard: privateBoard,
+          telegramNotification: {
+            enabled: true,
+            botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
+            chatId: "123456789",
+            updatedAt: "2026-04-02T10:00:00.000Z",
+          },
+        }),
+        "utf8",
+      );
+
+      assert.strictEqual(getActiveSchedulerReadPath(workspaceRoot), privateConfigPath);
+
+      const config = readSchedulerConfig(workspaceRoot);
+      assert.deepStrictEqual(config.tasks, []);
+      assert.strictEqual(config.cockpitBoard?.cards[0]?.id, "card-private");
+      assert.strictEqual(
+        config.telegramNotification?.botToken,
+        "123456:abcdefghijklmnopqrstuvwxyzABCDE",
       );
     } finally {
       cleanup(workspaceRoot);

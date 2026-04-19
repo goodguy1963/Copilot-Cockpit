@@ -19,6 +19,14 @@
 - Nested repositories do not inherit scheduler state from a parent workspace.
 - MCP launcher support files are created under `.vscode/copilot-cockpit-support` for stable repo-local startup.
 
+## Runtime Boundaries
+
+- Repo-local scheduler and research JSON are runtime boundaries, not just TypeScript assumptions.
+- Stored workspace state is parsed tolerantly so malformed sibling records can be dropped while valid tasks, profiles, and runs still load.
+- Webview -> Extension messages and MCP tool arguments are validated at the boundary before dispatch.
+- Those interactive boundaries stay intentionally shallow: validate the discriminant and routing payload shape first, then leave deeper business rules to the owning handlers and managers.
+- Plain-Node helpers are preferred for boundary code that is shared with the embedded server or MCP path.
+
 ## Storage Mode Notes
 
 - JSON mode and SQLite mode expose the same higher-level workflows.

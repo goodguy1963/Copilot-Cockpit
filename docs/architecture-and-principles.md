@@ -8,6 +8,7 @@ Copilot Cockpit is a local orchestration layer for AI work inside VS Code. It tr
 - Workflow structure matters more than raw autonomy.
 - Planning and execution should remain inspectable and editable.
 - Repo-local state is preferred over external coordination systems.
+- Repo-local JSON, Webview, and MCP edges are treated as runtime boundaries rather than trusted by TypeScript alone.
 - Small iterative runs are preferred over opaque long-running behavior.
 
 ## Core Surfaces
@@ -23,6 +24,12 @@ Copilot Cockpit is a local orchestration layer for AI work inside VS Code. It tr
 Copilot Cockpit is built upon [vscode-copilot-scheduler by aktsmm](https://github.com/aktsmm/vscode-copilot-scheduler). The current workflow style is also influenced by the AK TM style of agent-oriented task management and disciplined handoff.
 
 It is also intentionally built on top of the Visual Studio Code and GitHub Copilot ecosystem rather than outside it. The extension relies on the editor runtime, the native chat surface, repo-local customization patterns, and MCP-oriented tooling so that model improvements and chat-surface improvements from the platform can flow into the cockpit over time.
+
+Boundary handling follows the same split:
+
+- Stored workspace state uses tolerant parsing so valid sibling records survive malformed ones.
+- Interactive boundaries keep validation shallow: enough to confirm message or tool shape before dispatch, while deeper rules stay with the owning handlers and managers.
+- Shared boundary helpers stay in plain-Node modules when they need to run in both the extension host and the embedded server/MCP path.
 
 The architectural split is deliberate:
 
