@@ -206,7 +206,19 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
 6. Open `Settings` to configure repo-local defaults. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
-The `Settings` tab also lets you choose between `Stage Bundled Agents` for a staged comparison/reference copy under `.vscode/copilot-cockpit-support/bundled-agents` and `Sync Bundled Agents` for live `.github/agents` installation when you want that optional specialist layer. This is useful when the orchestrator should hand work to the right specialist instead of stuffing planning, execution, and review into one long chat. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+If you want the optional integration layers, the practical order is:
+
+1. Get the core `Todo` -> `Research` -> `Task` or `Job` loop working first.
+2. Use `Set Up MCP` to create or repair `.vscode/mcp.json` and activate the repo-local scheduler MCP server for this workspace.
+3. Add any separate third-party MCP servers you want, such as Tavily or Perplexity, to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
+4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work.
+5. Add the optional agent layer only if you want a specialist or orchestrator setup on top of the core workflow.
+
+`Sync Bundled Skills` is optional, but it is a good next step once the core loop is working because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
+
+For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+
+If you want the live bundled-agent workflow, enable custom subagents in GitHub Copilot settings with `chat.customAgentInSubagent.enabled` before relying on that layer.
 
 If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 
@@ -315,8 +327,10 @@ Codex support is currently limited. It can help create and coordinate todos and 
 ## 📝 Notes
 
 - The extension bundles an embedded MCP server at `out/server.js`.
-- `Set Up MCP` repairs only the local scheduler entry and preserves unrelated MCP servers.
+- `Set Up MCP` creates or repairs the local scheduler entry in `.vscode/mcp.json`, activates the repo-local scheduler MCP server for the workspace, and preserves unrelated MCP servers.
+- Third-party MCP servers such as Tavily or Perplexity are separate additions to the same workspace MCP config and may require their own API keys or setup.
 - `Sync Bundled Skills` targets Copilot-style repo-local skills under `.github/skills`.
+- `Stage Bundled Agents` writes a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, while `Sync Bundled Agents` is the live install path into `.github/agents`.
 - `Add Skills To Codex` targets Codex-style repo-local skills under `.agents/skills` and refreshes the managed `AGENTS.md` block.
 - The workflow is inspired by the AK TM style of agent-oriented task management and disciplined handoff.
 

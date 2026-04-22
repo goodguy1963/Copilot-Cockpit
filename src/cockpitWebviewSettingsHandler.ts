@@ -3,6 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
+import { resolveProviderSettings } from "./providerSettings";
 import type { ApprovalMode, StorageSettingsView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
@@ -90,6 +91,12 @@ export async function handleSettingsWebviewMessage(
       const target = getResourceScopedSettingsTarget();
       const requested = message.data as Partial<StorageSettingsView> | undefined;
       const mode = requested?.mode === "json" ? "json" : "sqlite";
+      const { searchProvider, researchProvider } = resolveProviderSettings({
+        searchProvider: requested?.searchProvider,
+        researchProvider: requested?.researchProvider,
+        hasExplicitResearchProvider: !!requested
+          && Object.prototype.hasOwnProperty.call(requested, "researchProvider"),
+      });
       const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
       const disabledSystemFlagKeys = Array.isArray(requested?.disabledSystemFlagKeys)
         ? requested!.disabledSystemFlagKeys
@@ -97,6 +104,18 @@ export async function handleSettingsWebviewMessage(
       await updateCompatibleConfigurationValue(
         "storageMode",
         mode,
+        target,
+        scope,
+      );
+      await updateCompatibleConfigurationValue(
+        "searchProvider",
+        searchProvider,
+        target,
+        scope,
+      );
+      await updateCompatibleConfigurationValue(
+        "researchProvider",
+        researchProvider,
         target,
         scope,
       );
@@ -122,6 +141,8 @@ export async function handleSettingsWebviewMessage(
       const current = ctx.getCurrentStorageSettings?.();
       const nextSettings: StorageSettingsView = {
         mode,
+        searchProvider,
+        researchProvider,
         sqliteJsonMirror,
         disabledSystemFlagKeys: normalizedDisabledSystemFlagKeys,
         appVersion: current?.appVersion ?? "",

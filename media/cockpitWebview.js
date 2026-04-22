@@ -611,6 +611,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     reviewDefaultsSaveBtn,
     reviewDefaultsNote,
     settingsStorageModeSelect,
+    settingsSearchProviderSelect,
+    settingsResearchProviderSelect,
     settingsStorageMirrorInput,
     settingsFlagReadyInput,
     settingsFlagNeedsBotReviewInput,
@@ -1260,6 +1262,19 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         settingsStorageModeSelect && settingsStorageModeSelect.value === "sqlite"
           ? "sqlite"
           : "json",
+      searchProvider:
+        settingsSearchProviderSelect
+          && settingsSearchProviderSelect.value === "tavily"
+          ? settingsSearchProviderSelect.value
+          : "built-in",
+      researchProvider:
+        settingsResearchProviderSelect && (
+          settingsResearchProviderSelect.value === "perplexity"
+          || settingsResearchProviderSelect.value === "tavily"
+          || settingsResearchProviderSelect.value === "google-grounded"
+        )
+          ? settingsResearchProviderSelect.value
+          : "none",
       sqliteJsonMirror: !settingsStorageMirrorInput || settingsStorageMirrorInput.checked !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,
     };
@@ -1378,6 +1393,20 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     });
     if (settingsStorageModeSelect) {
       settingsStorageModeSelect.value = storageSettings.mode === "json" ? "json" : "sqlite";
+    }
+    if (settingsSearchProviderSelect) {
+      settingsSearchProviderSelect.value =
+        storageSettings.searchProvider === "tavily"
+          ? storageSettings.searchProvider
+          : "built-in";
+    }
+    if (settingsResearchProviderSelect) {
+      settingsResearchProviderSelect.value =
+        storageSettings.researchProvider === "perplexity"
+          || storageSettings.researchProvider === "tavily"
+          || storageSettings.researchProvider === "google-grounded"
+          ? storageSettings.researchProvider
+          : "none";
     }
     if (settingsStorageMirrorInput) {
       settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;

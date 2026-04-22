@@ -67,11 +67,34 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
           return !!entry && values.indexOf(entry) === index;
         })
       : ((previousValue && previousValue.disabledSystemFlagKeys) || []).slice();
+    var hasExplicitResearchProvider = !!value
+      && Object.prototype.hasOwnProperty.call(value, "researchProvider");
+    var normalizedSearchProvider = value && value.searchProvider === "tavily"
+      ? "tavily"
+      : ((previousValue && previousValue.searchProvider) || "built-in");
+    var normalizedResearchProvider;
+    if (hasExplicitResearchProvider) {
+      normalizedResearchProvider = value && (
+        value.researchProvider === "perplexity"
+        || value.researchProvider === "tavily"
+        || value.researchProvider === "google-grounded"
+      )
+        ? value.researchProvider
+        : "none";
+    } else if (value && value.searchProvider === "perplexity") {
+      normalizedResearchProvider = "perplexity";
+    } else if (value && value.searchProvider === "tavily") {
+      normalizedResearchProvider = "tavily";
+    } else {
+      normalizedResearchProvider = ((previousValue && previousValue.researchProvider) || "none");
+    }
     return {
       mode:
         value && value.mode === "json"
           ? "json"
           : "sqlite",
+      searchProvider: normalizedSearchProvider,
+      researchProvider: normalizedResearchProvider,
       sqliteJsonMirror:
         !value || value.sqliteJsonMirror !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,

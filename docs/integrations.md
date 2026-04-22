@@ -30,11 +30,15 @@
 ## MCP and Skills
 
 - The extension bundles an embedded MCP server at `out/server.js`.
-- `Set Up MCP` creates or repairs the local `scheduler` entry in `.vscode/mcp.json` without overwriting unrelated servers.
+- Practical setup order for optional integration layers: get the core loop working first, use `Set Up MCP`, add any separate third-party MCP servers to the same `.vscode/mcp.json`, use `Sync Bundled Skills`, then choose `Stage Bundled Agents` or `Sync Bundled Agents` if you want the optional agent layer.
+- `Set Up MCP` creates or repairs the local `scheduler` entry in `.vscode/mcp.json`, activates the repo-local scheduler MCP server for this workspace, and does not overwrite unrelated servers.
 - `Add MCP To Codex` creates or updates the repo-local Codex entry in `.codex/config.toml`.
+- Third-party MCP servers such as Tavily or Perplexity are separate additions to that same workspace MCP config and may need their own API keys or provider-specific setup.
 - `Sync Bundled Skills` updates the Copilot skill files under `.github/skills`.
-- `Sync Bundled Agents` copies the bundled starter agents into `.github/agents` on demand. Missing files are created, previously managed files update when unchanged locally, and customized workspace copies are skipped.
 - `Stage Bundled Agents` writes the bundled starter agents under `.vscode/copilot-cockpit-support/bundled-agents`, leaves the live `.github/agents` tree untouched, and opens a fresh Copilot chat prompt that asks the `copilot-scheduler-agent-merge` skill to compare the staged mirror against the live repo-local system.
+- `Sync Bundled Agents` copies the bundled starter agents into live `.github/agents` files on demand. Missing files are created, previously managed files update when unchanged locally, and customized workspace copies are skipped.
+- Use `Stage Bundled Agents` when you want a compare-first preview that does not change the live repo-local agent system. Use `Sync Bundled Agents` when you want the bundled starter pack installed for live use in the workspace.
+- Live bundled-agent use in GitHub Copilot also requires the Copilot setting `chat.customAgentInSubagent.enabled`.
 - `Add Skills To Codex` syncs the same bundled skills into `.agents/skills` and refreshes the managed guidance block in `AGENTS.md`.
 - The combined harness is: native VS Code chat for execution, MCP for structured tool access, and repo-local skills for behavior shaping.
 - Bundled skills carry frontmatter metadata that distinguishes operational skills from support/onboarding skills.

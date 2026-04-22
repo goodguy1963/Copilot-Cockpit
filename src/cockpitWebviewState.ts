@@ -88,6 +88,8 @@ export function createDefaultReviewDefaults(): ReviewDefaultsView {
 export function createDefaultStorageSettings(): StorageSettingsView {
   return {
     mode: "sqlite",
+    searchProvider: "built-in",
+    researchProvider: "none",
     sqliteJsonMirror: true,
     disabledSystemFlagKeys: [],
     appVersion: "",

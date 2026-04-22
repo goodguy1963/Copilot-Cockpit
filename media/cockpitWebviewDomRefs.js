@@ -231,6 +231,8 @@ export function createSchedulerWebviewDomRefs(document) {
     reviewDefaultsSaveBtn: document.getElementById("review-defaults-save-btn"),
     reviewDefaultsNote: document.getElementById("review-defaults-note"),
     settingsStorageModeSelect: document.getElementById("settings-storage-mode-select"),
+    settingsSearchProviderSelect: document.getElementById("settings-search-provider-select"),
+    settingsResearchProviderSelect: document.getElementById("settings-research-provider-select"),
     settingsStorageMirrorInput: document.getElementById("settings-storage-mirror-input"),
     settingsFlagReadyInput: document.getElementById("settings-flag-ready-input"),
     settingsFlagNeedsBotReviewInput: document.getElementById("settings-flag-needs-bot-review-input"),

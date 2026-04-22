@@ -609,6 +609,28 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <option value="sqlite">${escapeHtml(strings.settingsStorageModeSqlite)}</option></select></div>
 
         <div class="form-group">
+          <label for="settings-search-provider-select">${escapeHtml(strings.settingsSearchProviderLabel)}</label>
+          <select id="settings-search-provider-select">
+            <option value="built-in">${escapeHtml(strings.settingsSearchProviderBuiltIn)}</option>
+            <option value="tavily">${escapeHtml(strings.settingsSearchProviderTavily)}</option>
+          </select>
+          <p class="note">${escapeHtml(strings.settingsSearchProviderBody)}</p>
+          <p class="note">${escapeHtml(strings.settingsSearchProviderHint)}</p>
+        </div>
+
+        <div class="form-group">
+          <label for="settings-research-provider-select">${escapeHtml(strings.settingsResearchProviderLabel)}</label>
+          <select id="settings-research-provider-select">
+            <option value="none">${escapeHtml(strings.settingsResearchProviderNone)}</option>
+            <option value="perplexity">${escapeHtml(strings.settingsResearchProviderPerplexity)}</option>
+            <option value="tavily">${escapeHtml(strings.settingsResearchProviderTavily)}</option>
+            <option value="google-grounded">${escapeHtml(strings.settingsResearchProviderGoogleGrounded)}</option>
+          </select>
+          <p class="note">${escapeHtml(strings.settingsResearchProviderBody)}</p>
+          <p class="note">${escapeHtml(strings.settingsResearchProviderHint)}</p>
+        </div>
+
+        <div class="form-group">
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="settings-storage-mirror-input">
             <span>${escapeHtml(strings.settingsStorageMirrorLabel)}</span>

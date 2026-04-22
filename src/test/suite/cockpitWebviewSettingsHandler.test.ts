@@ -73,6 +73,8 @@ suite("Scheduler webview settings handler behavior", () => {
           type: "setStorageSettings",
           data: {
             mode: "sqlite",
+            searchProvider: "tavily",
+            researchProvider: "google-grounded",
             sqliteJsonMirror: false,
             disabledSystemFlagKeys: ["go", "final-user-check"],
             appVersion: "99.0.78",
@@ -97,6 +99,16 @@ suite("Scheduler webview settings handler behavior", () => {
           target: vscode.ConfigurationTarget.WorkspaceFolder,
         },
         {
+          key: "searchProvider",
+          value: "tavily",
+          target: vscode.ConfigurationTarget.WorkspaceFolder,
+        },
+        {
+          key: "researchProvider",
+          value: "google-grounded",
+          target: vscode.ConfigurationTarget.WorkspaceFolder,
+        },
+        {
           key: "sqliteJsonMirror",
           value: false,
           target: vscode.ConfigurationTarget.WorkspaceFolder,
@@ -107,6 +119,8 @@ suite("Scheduler webview settings handler behavior", () => {
           type: "updateStorageSettings",
           storageSettings: {
             mode: "sqlite",
+            searchProvider: "tavily",
+            researchProvider: "google-grounded",
             sqliteJsonMirror: false,
             disabledSystemFlagKeys: ["ready", "final-user-check"],
             appVersion: "",

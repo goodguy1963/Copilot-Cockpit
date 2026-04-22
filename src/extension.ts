@@ -115,6 +115,10 @@ import {
   syncRecurringPromptBackupsIfNeeded as syncRecurringPromptBackupsIfNeededWithDeps,
 } from "./extensionPromptMaintenance";
 import {
+  normalizeSearchProvider,
+  resolveProviderSettings,
+} from "./providerSettings";
+import {
   backupGithubFolderSnapshot,
 } from "./cockpitWebviewSupport";
 import {
@@ -136,7 +140,9 @@ import type {
   ScheduledTask,
   CreateTaskInput,
   CreateResearchProfileInput,
+  ResearchProvider,
   StorageSettingsView,
+  SearchProvider,
   TaskAction,
   ExecutionDefaultsView,
   ReviewDefaultsView,
@@ -157,24 +163,54 @@ const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
 const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
 const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
 const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
-const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = [
-  "You are handling a Todo that just entered needs-bot-review.",
-  "",
-  "{{todo_context}}",
-  "",
-  "{{mcp_skill_guidance}}",
-  "",
-  "Research what is needed to review this item using available tools and web search.",
-  "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
-  "Review Summary:",
-  "- 1-2 bullets on the request and current repo state",
-  "Risks / Gaps:",
-  "- bullets for missing context, risks, or unclear assumptions",
-  "Recommendation:",
-  "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
-  "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
-  "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
-].join("\n");
+
+function getSearchProviderPromptLabel(searchProvider: SearchProvider): string {
+  switch (searchProvider) {
+    case "tavily":
+      return "Tavily";
+    default:
+      return "VS Code built-in web search";
+  }
+}
+
+function getResearchProviderPromptLabel(researchProvider: ResearchProvider): string {
+  switch (researchProvider) {
+    case "google-grounded":
+      return "Google grounded research";
+    case "perplexity":
+      return "Perplexity";
+    case "tavily":
+      return "Tavily research";
+    default:
+      return "no dedicated external research provider";
+  }
+}
+
+function buildDefaultNeedsBotReviewPromptTemplate(
+  searchProvider: SearchProvider,
+  researchProvider: ResearchProvider,
+): string {
+  return [
+    "You are handling a Todo that just entered needs-bot-review.",
+    "",
+    "{{todo_context}}",
+    "",
+    "{{mcp_skill_guidance}}",
+    "",
+    `Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use ${getSearchProviderPromptLabel(searchProvider)} for lightweight external search. Use ${getResearchProviderPromptLabel(researchProvider)} for deeper research when needed.`,
+    "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
+    "Review Summary:",
+    "- 1-2 bullets on the request and current repo state",
+    "Risks / Gaps:",
+    "- bullets for missing context, risks, or unclear assumptions",
+    "Recommendation:",
+    "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
+    "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
+    "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
+  ].join("\n");
+}
+
+const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = buildDefaultNeedsBotReviewPromptTemplate("built-in", "none");
 const DEFAULT_READY_PROMPT_TEMPLATE = [
   "You are handling a Todo that is now ready for implementation.",
   "",
@@ -250,6 +286,29 @@ function getWorkspaceSettingWithFallback<T>(
   }
 
   return defaultValue;
+}
+
+function hasExplicitWorkspaceSetting(
+  key: string,
+  scope?: vscode.ConfigurationScope,
+): boolean {
+  const configuration = vscode.workspace.getConfiguration("copilotCockpit", scope);
+  const inspected = configuration.inspect(key);
+
+  return inspected?.workspaceFolderValue !== undefined
+    || inspected?.workspaceValue !== undefined
+    || inspected?.globalValue !== undefined;
+}
+
+function getCurrentProviderSettings(scope?: vscode.ConfigurationScope): {
+  searchProvider: SearchProvider;
+  researchProvider: ResearchProvider;
+} {
+  return resolveProviderSettings({
+    searchProvider: getSchedulerSetting<string>("searchProvider", "built-in", scope),
+    researchProvider: getSchedulerSetting<string>("researchProvider", "none", scope),
+    hasExplicitResearchProvider: hasExplicitWorkspaceSetting("researchProvider", scope),
+  });
 }
 
 async function updateSchedulerSetting(
@@ -1337,6 +1396,11 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
 
 function getCurrentReviewDefaults(): ReviewDefaultsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
+  const providerSettings = getCurrentProviderSettings(folderUri);
+  const defaultNeedsBotReviewPromptTemplate = buildDefaultNeedsBotReviewPromptTemplate(
+    providerSettings.searchProvider,
+    providerSettings.researchProvider,
+  );
   return {
     needsBotReviewCommentTemplate: getWorkspaceSettingWithFallback<string>(
       ["needsBotReviewCommentTemplate", "spotReviewTemplate"],
@@ -1345,7 +1409,7 @@ function getCurrentReviewDefaults(): ReviewDefaultsView {
     ).trim(),
     needsBotReviewPromptTemplate: getWorkspaceSettingWithFallback<string>(
       ["needsBotReviewPromptTemplate", "botReviewPromptTemplate"],
-      DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE,
+      defaultNeedsBotReviewPromptTemplate,
       folderUri,
     ),
     needsBotReviewAgent: getWorkspaceSettingWithFallback<string>(
@@ -1377,10 +1441,13 @@ function getCurrentStorageSettings(): StorageSettingsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
   const workspaceRoot = folderUri?.fsPath;
   const board = getCurrentCockpitBoard();
+  const providerSettings = getCurrentProviderSettings(folderUri);
   return {
     mode: getSchedulerSetting<string>("storageMode", "sqlite", folderUri) === "sqlite"
       ? "sqlite"
       : "json",
+    searchProvider: providerSettings.searchProvider,
+    researchProvider: providerSettings.researchProvider,
     sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
     disabledSystemFlagKeys: Array.isArray(board.disabledSystemFlagKeys)
       ? board.disabledSystemFlagKeys.slice()
@@ -2262,13 +2329,17 @@ export function activate(context: vscode.ExtensionContext): void {
       affectsCompatibleConfiguration(e, "needsBotReviewAgent") ||
       affectsCompatibleConfiguration(e, "needsBotReviewModel") ||
       affectsCompatibleConfiguration(e, "needsBotReviewChatSession") ||
+      affectsCompatibleConfiguration(e, "searchProvider") ||
+      affectsCompatibleConfiguration(e, "researchProvider") ||
       affectsCompatibleConfiguration(e, "readyPromptTemplate")
     ) {
       SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
     }
     const storageModeChanged = affectsCompatibleConfiguration(e, "storageMode");
     const sqliteJsonMirrorChanged = affectsCompatibleConfiguration(e, "sqliteJsonMirror");
-    if (storageModeChanged || sqliteJsonMirrorChanged) {
+    const searchProviderChanged = affectsCompatibleConfiguration(e, "searchProvider");
+    const researchProviderChanged = affectsCompatibleConfiguration(e, "researchProvider");
+    if (storageModeChanged || sqliteJsonMirrorChanged || searchProviderChanged || researchProviderChanged) {
       SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
       if (
         storageModeChanged
@@ -2630,6 +2701,7 @@ async function handleWebviewMoveTaskAction(taskId: string): Promise<void> {
 
 export const __testOnly = {
   buildCustomSubAgentSettingUri,
+  buildDefaultNeedsBotReviewPromptTemplate,
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
@@ -2638,8 +2710,13 @@ export const __testOnly = {
     needsBotReviewPromptTemplate: DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE,
     readyPromptTemplate: DEFAULT_READY_PROMPT_TEMPLATE,
   }),
+  getCurrentProviderSettings,
+  getResearchProviderPromptLabel,
+  getSearchProviderPromptLabel,
   getWorkspaceStorageWatchFileNames,
   isCockpitWorkspaceActivated,
+  normalizeSearchProvider,
+  resolveProviderSettings,
   resolveTaskExecutionChatSession,
   resolvePromptText, // prompt-resolution
   redactPathsForLog,

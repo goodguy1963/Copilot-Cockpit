@@ -386,6 +386,44 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     );
   });
 
+  test("settings tab exposes split search and research provider selectors", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const templateSource = readSchedulerWebviewTemplateSource();
+
+    expectSourceToIncludeSnippets(
+      templateSource,
+      [
+        'id="settings-search-provider-select"',
+        'option value="built-in"',
+        'option value="tavily"',
+        'id="settings-research-provider-select"',
+        'option value="none"',
+        'option value="perplexity"',
+        'option value="tavily"',
+        'option value="google-grounded"',
+      ],
+      "split provider selector markup",
+    );
+    expectSourceToExcludeSnippets(
+      templateSource,
+      [
+        'settingsSearchProviderPerplexity',
+        'option value="perplexity">${escapeHtml(strings.settingsSearchProviderPerplexity)}</option>',
+      ],
+      "legacy search provider markup",
+    );
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
+        'settingsResearchProviderSelect: document.getElementById("settings-research-provider-select")',
+        'researchProvider:',
+        'settingsResearchProviderSelect.value === "google-grounded"',
+        'storageSettings.researchProvider === "google-grounded"',
+      ],
+      "split provider selector script plumbing",
+    );
+  });
+
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 

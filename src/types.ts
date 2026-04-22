@@ -24,6 +24,16 @@ export type ApprovalMode =
   | "autopilot"
   | "yolo";
 
+export type SearchProvider =
+  | "built-in"
+  | "tavily";
+
+export type ResearchProvider =
+  | "none"
+  | "perplexity"
+  | "tavily"
+  | "google-grounded";
+
 export type JobNodeType = "task" | "pause";
 
 /**
@@ -816,6 +826,12 @@ export interface ReviewDefaultsView {
 export interface StorageSettingsView {
   /** Authoritative workspace persistence backend */
   mode: "json" | "sqlite";
+
+  /** Preferred lightweight external search provider */
+  searchProvider: SearchProvider;
+
+  /** Preferred deeper research provider */
+  researchProvider: ResearchProvider;
 
   /** Whether JSON compatibility mirrors stay enabled in sqlite mode */
   sqliteJsonMirror: boolean;

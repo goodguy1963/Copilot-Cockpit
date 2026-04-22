@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "One VS Code system for AI planning and triage, execution and scheduling, and optional control-plane integration",
-  "version": "2.0.31",
+  "version": "2.0.32",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -248,7 +248,7 @@
         },
         "copilotCockpit.needsBotReviewPromptTemplate": {
           "type": "string",
-          "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch what is needed to review this item using available tools and web search.\nReturn a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:\nReview Summary:\n- 1-2 bullets on the request and current repo state\nRisks / Gaps:\n- bullets for missing context, risks, or unclear assumptions\nRecommendation:\n- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead\nUse real line breaks. Do not emit JSON or escaped newline sequences such as \\n.\nWhen the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
+          "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.\nReturn a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:\nReview Summary:\n- 1-2 bullets on the request and current repo state\nRisks / Gaps:\n- bullets for missing context, risks, or unclear assumptions\nRecommendation:\n- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead\nUse real line breaks. Do not emit JSON or escaped newline sequences such as \\n.\nWhen the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
           "scope": "resource",
           "description": "%config.needsBotReviewPromptTemplate%"
         },
@@ -352,6 +352,38 @@
           "default": true,
           "scope": "resource",
           "description": "%config.sqliteJsonMirror%"
+        },
+        "copilotCockpit.searchProvider": {
+          "type": "string",
+          "default": "built-in",
+          "scope": "resource",
+          "enum": [
+            "built-in",
+            "tavily"
+          ],
+          "enumDescriptions": [
+            "%config.searchProvider.builtIn%",
+            "%config.searchProvider.tavily%"
+          ],
+          "description": "%config.searchProvider%"
+        },
+        "copilotCockpit.researchProvider": {
+          "type": "string",
+          "default": "none",
+          "scope": "resource",
+          "enum": [
+            "none",
+            "perplexity",
+            "tavily",
+            "google-grounded"
+          ],
+          "enumDescriptions": [
+            "%config.researchProvider.none%",
+            "%config.researchProvider.perplexity%",
+            "%config.researchProvider.tavily%",
+            "%config.researchProvider.googleGrounded%"
+          ],
+          "description": "%config.researchProvider%"
         },
         "copilotCockpit.deterministicCockpitStateMode": {
           "type": "string",

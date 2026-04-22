@@ -84,6 +84,8 @@ const cockpitCommandNames = [
 
 const requiredConfigDefaults = [
   ["copilotCockpit.storageMode", "sqlite"],
+  ["copilotCockpit.searchProvider", "built-in"],
+  ["copilotCockpit.researchProvider", "none"],
   ["copilotCockpit.deterministicCockpitStateMode", "canonical-primary"],
   ["copilotCockpit.legacyFallbackOnError", true],
 ] as const;
@@ -97,7 +99,7 @@ const expectedNeedsBotReviewPromptTemplate = [
   "",
   "{{mcp_skill_guidance}}",
   "",
-  "Research what is needed to review this item using available tools and web search.",
+  "Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
   "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
   "Review Summary:",
   "- 1-2 bullets on the request and current repo state",
@@ -399,6 +401,38 @@ suite("Extension Integration Tests", () => {
       properties,
       "copilotCockpit.readyPromptTemplate",
       runtimeDefaults.readyPromptTemplate,
+    );
+  });
+
+  test("provider-aware review prompt helpers stay aligned with the default wording", async () => {
+    const testOnly = await getTestOnlyExports();
+
+    assert.strictEqual(
+      testOnly.buildDefaultNeedsBotReviewPromptTemplate("tavily", "google-grounded"),
+      expectedNeedsBotReviewPromptTemplate.replace(
+        "Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
+        "Use Tavily for lightweight external search. Use Google grounded research for deeper research when needed.",
+      ),
+    );
+    assert.strictEqual(testOnly.normalizeSearchProvider("legacy-value"), "built-in");
+    assert.strictEqual(testOnly.getResearchProviderPromptLabel("none"), "no dedicated external research provider");
+    assert.deepStrictEqual(
+      testOnly.resolveProviderSettings({ searchProvider: "perplexity" }),
+      {
+        searchProvider: "built-in",
+        researchProvider: "perplexity",
+      },
+    );
+    assert.deepStrictEqual(
+      testOnly.resolveProviderSettings({
+        searchProvider: "tavily",
+        researchProvider: "none",
+        hasExplicitResearchProvider: true,
+      }),
+      {
+        searchProvider: "tavily",
+        researchProvider: "none",
+      },
     );
   });
 
