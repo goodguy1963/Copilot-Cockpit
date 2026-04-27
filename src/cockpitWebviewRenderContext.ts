@@ -14,6 +14,7 @@ import type {
   ChatSessionBehavior,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ModelInfo,
@@ -39,6 +40,7 @@ export function createSchedulerWebviewRenderContext(options: {
   currentJobs: JobDefinition[];
   currentJobFolders: JobFolder[];
   currentCockpitBoard: CockpitBoard;
+  currentGitHubIntegration: GitHubIntegrationView;
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
@@ -99,6 +101,7 @@ export function createSchedulerWebviewRenderContext(options: {
     currentJobs: options.currentJobs,
     currentJobFolders: options.currentJobFolders,
     currentCockpitBoard: options.currentCockpitBoard,
+    currentGitHubIntegration: options.currentGitHubIntegration,
     currentTelegramNotification: options.currentTelegramNotification,
     currentExecutionDefaults: options.currentExecutionDefaults,
     currentReviewDefaults: options.currentReviewDefaults,
@@ -175,6 +178,7 @@ export function createSchedulerWebviewCurrentRenderContext(options: {
   currentJobs: JobDefinition[];
   currentJobFolders: JobFolder[];
   currentCockpitBoard: CockpitBoard;
+  currentGitHubIntegration: GitHubIntegrationView;
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;

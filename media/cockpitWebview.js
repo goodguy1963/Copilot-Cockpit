@@ -224,6 +224,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var jobs = initialCollections.jobs;
   var jobFolders = initialCollections.jobFolders;
   var cockpitBoard = initialCollections.cockpitBoard;
+  var githubIntegration = initialCollections.githubIntegration;
   var telegramNotification = initialCollections.telegramNotification;
   var executionDefaults = initialCollections.executionDefaults;
   var reviewDefaults = initialCollections.reviewDefaults;
@@ -287,6 +288,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     isBoardDragging = boardRenderState.isBoardDragging;
   }
   var HELP_WARP_SEEN_KEY = "copilot-scheduler-help-warp-seen-v1";
+  var GITHUB_INBOX_COLLAPSED_KEY = "copilot-scheduler-github-inbox-collapsed-v1";
   var transientState = createSchedulerWebviewTransientState(
     createEmptyTodoDraft,
     localStorage,
@@ -316,6 +318,12 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var todoEditorListenersBound = transientState.todoEditorListenersBound;
   var pendingTodoLabelEditorState = { name: "", color: "" };
   var pendingTodoFlagEditorState = { name: "", color: "" };
+  var githubBoardInboxCollapsed = false;
+  try {
+    githubBoardInboxCollapsed = localStorage.getItem(GITHUB_INBOX_COLLAPSED_KEY) === "true";
+  } catch (error) {
+    githubBoardInboxCollapsed = false;
+  }
 
   function resetTodoDraft(reason) {
     currentTodoDraft = debugTools.resetTodoDraft(reason);
@@ -464,6 +472,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     tabBar,
     boardFilterSticky,
     boardSummary,
+    githubBoardInboxRoot,
     boardColumns,
     todoToggleFiltersBtn,
     todoSearchInput,
@@ -584,6 +593,20 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     researchActiveLastOutcome,
     researchActiveMeta,
     researchAttemptList,
+    githubIntegrationEnabledInput,
+    githubIntegrationOwnerInput,
+    githubIntegrationRepoInput,
+    githubIntegrationApiBaseUrlInput,
+    githubIntegrationAutomationPromptTemplateInput,
+    githubIntegrationSaveBtn,
+    githubIntegrationRefreshBtn,
+    githubIntegrationFeedback,
+    githubIntegrationStatusValue,
+    githubIntegrationRepositoryStatus,
+    githubIntegrationConnectionStatus,
+    githubIntegrationLastSyncAt,
+    githubIntegrationUpdatedAt,
+    githubIntegrationStatusNote,
     telegramEnabledInput,
     telegramBotTokenInput,
     telegramChatIdInput,
@@ -614,6 +637,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsSearchProviderSelect,
     settingsResearchProviderSelect,
     settingsStorageMirrorInput,
+    settingsAutoIgnorePrivateFilesInput,
     settingsFlagReadyInput,
     settingsFlagNeedsBotReviewInput,
     settingsFlagNeedsUserReviewInput,
@@ -1139,6 +1163,510 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
   }
 
+  function clearGitHubIntegrationFeedback() {
+    if (!githubIntegrationFeedback) return;
+    githubIntegrationFeedback.textContent = "";
+    githubIntegrationFeedback.style.display = "none";
+    githubIntegrationFeedback.classList.remove("error");
+  }
+
+  function showGitHubIntegrationFeedback(message, isError) {
+    if (!githubIntegrationFeedback) return;
+    githubIntegrationFeedback.textContent = String(message || "");
+    githubIntegrationFeedback.style.display = message ? "block" : "none";
+    githubIntegrationFeedback.classList.toggle("error", !!isError);
+  }
+
+  function getGitHubSyncStatusLabel(status) {
+    switch (status) {
+      case "ready":
+        return strings.githubIntegrationStatusReady || "Ready";
+      case "syncing":
+        return strings.githubIntegrationStatusSyncing || "Syncing";
+      case "stale":
+        return strings.githubIntegrationStatusStale || "Stale";
+      case "partial":
+        return strings.githubIntegrationStatusPartial || "Needs setup";
+      case "rate-limited":
+        return strings.githubIntegrationStatusRateLimited || "Rate-limited";
+      case "error":
+        return strings.githubIntegrationStatusError || "Error";
+      default:
+        return strings.githubIntegrationStatusDisabled || "Disabled";
+    }
+  }
+
+  function getGitHubSyncStatusIndicator(status) {
+    switch (status) {
+      case "ready":
+        return {
+          color: "var(--vscode-testing-iconPassed, #4caf50)",
+          icon: "●",
+        };
+      case "syncing":
+        return {
+          color: "var(--vscode-focusBorder, #3794ff)",
+          icon: "●",
+        };
+      case "stale":
+      case "partial":
+      case "rate-limited":
+        return {
+          color: "var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #cca700))",
+          icon: "●",
+        };
+      case "error":
+        return {
+          color: "var(--vscode-errorForeground, var(--vscode-testing-iconFailed, #f14c4c))",
+          icon: "●",
+        };
+      default:
+        return {
+          color: "var(--vscode-descriptionForeground)",
+          icon: "○",
+        };
+    }
+  }
+
+  function renderGitHubSyncStatusIndicator(status) {
+    var label = getGitHubSyncStatusLabel(status);
+    var indicator = getGitHubSyncStatusIndicator(status);
+    return '<span style="display:inline-flex;align-items:center;gap:6px;">'
+      + '<span aria-hidden="true" style="min-width:1em;text-align:center;color:'
+      + indicator.color
+      + ';">'
+      + escapeHtml(indicator.icon)
+      + '</span>'
+      + '<span>'
+      + escapeHtml(label)
+      + '</span>'
+      + '</span>';
+  }
+
+  function collectGitHubIntegrationFormData() {
+    return {
+      enabled: !!(githubIntegrationEnabledInput && githubIntegrationEnabledInput.checked),
+      owner: githubIntegrationOwnerInput ? String(githubIntegrationOwnerInput.value || "") : "",
+      repo: githubIntegrationRepoInput ? String(githubIntegrationRepoInput.value || "") : "",
+      apiBaseUrl: githubIntegrationApiBaseUrlInput
+        ? String(githubIntegrationApiBaseUrlInput.value || "")
+        : "",
+      automationPromptTemplate: githubIntegrationAutomationPromptTemplateInput
+        ? String(githubIntegrationAutomationPromptTemplateInput.value || "")
+        : "",
+    };
+  }
+
+  function createEmptyGitHubIntegrationState() {
+    return {
+      enabled: false,
+      hasConnection: false,
+      syncStatus: "disabled",
+      inbox: {
+        issues: { items: [], itemCount: 0 },
+        pullRequests: { items: [], itemCount: 0 },
+        securityAlerts: { items: [], itemCount: 0 },
+      },
+      inboxCounts: {
+        issues: 0,
+        pullRequests: 0,
+        securityAlerts: 0,
+        total: 0,
+      },
+    };
+  }
+
+  function getGitHubInboxSnapshot() {
+    var fallback = createEmptyGitHubIntegrationState().inbox;
+    var snapshot = githubIntegration && githubIntegration.inbox ? githubIntegration.inbox : fallback;
+    return {
+      issues: snapshot.issues || fallback.issues,
+      pullRequests: snapshot.pullRequests || fallback.pullRequests,
+      securityAlerts: snapshot.securityAlerts || fallback.securityAlerts,
+    };
+  }
+
+  function getGitHubInboxCounts() {
+    var snapshot = getGitHubInboxSnapshot();
+    var counts = githubIntegration && githubIntegration.inboxCounts ? githubIntegration.inboxCounts : {};
+    var issues = Number(counts.issues || snapshot.issues.itemCount || (snapshot.issues.items || []).length || 0);
+    var pullRequests = Number(counts.pullRequests || snapshot.pullRequests.itemCount || (snapshot.pullRequests.items || []).length || 0);
+    var securityAlerts = Number(counts.securityAlerts || snapshot.securityAlerts.itemCount || (snapshot.securityAlerts.items || []).length || 0);
+    return {
+      issues: issues,
+      pullRequests: pullRequests,
+      securityAlerts: securityAlerts,
+      total: Number(counts.total || (issues + pullRequests + securityAlerts) || 0),
+    };
+  }
+
+  function hasGitHubRefreshConfiguration() {
+    return !!(githubIntegration
+      && githubIntegration.enabled
+      && githubIntegration.hasConnection
+      && String(githubIntegration.owner || "").trim()
+      && String(githubIntegration.repo || "").trim());
+  }
+
+  function persistGitHubInboxCollapseState() {
+    try {
+      localStorage.setItem(GITHUB_INBOX_COLLAPSED_KEY, githubBoardInboxCollapsed ? "true" : "false");
+    } catch (error) {
+      // Ignore localStorage failures.
+    }
+  }
+
+  function getGitHubInboxItem(itemId) {
+    var snapshot = getGitHubInboxSnapshot();
+    var lanes = [snapshot.issues, snapshot.pullRequests, snapshot.securityAlerts];
+    for (var laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+      var lane = lanes[laneIndex];
+      var items = Array.isArray(lane && lane.items) ? lane.items : [];
+      for (var itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+        if (items[itemIndex] && items[itemIndex].id === itemId) {
+          return items[itemIndex];
+        }
+      }
+    }
+    return null;
+  }
+
+  function getGitHubInboxSubtypeLabel(subtype) {
+    switch (subtype) {
+      case "code-scanning":
+        return strings.githubInboxCodeScanning || "Code Scanning";
+      case "dependabot":
+        return strings.githubInboxDependabot || "Dependabot";
+      default:
+        return "";
+    }
+  }
+
+  function getGitHubInboxLaneLabel(laneKey) {
+    switch (laneKey) {
+      case "issues":
+        return strings.githubInboxIssues || "Issues";
+      case "pullRequests":
+        return strings.githubInboxPullRequests || "Pull Requests";
+      default:
+        return strings.githubInboxSecurityAlerts || "Security Alerts";
+    }
+  }
+
+  function buildGitHubInboxMeta(item) {
+    var parts = [];
+    if (typeof item.number === "number" && isFinite(item.number)) {
+      parts.push("#" + String(item.number));
+    }
+    if (item.subtype) {
+      parts.push(getGitHubInboxSubtypeLabel(item.subtype));
+    }
+    if (item.state) {
+      parts.push(String(item.state));
+    }
+    if (item.severity) {
+      parts.push(String(item.severity));
+    }
+    if (item.headRef || item.baseRef) {
+      parts.push(String(item.headRef || "?") + " -> " + String(item.baseRef || "?"));
+    }
+    if (item.updatedAt) {
+      parts.push(formatSettingsTimestamp(item.updatedAt));
+    }
+    return parts;
+  }
+
+  function getGitHubTodoLabels(item) {
+    var labels = ["github"];
+    if (item.kind === "issue") {
+      labels.push("github-issue");
+    } else if (item.kind === "pullRequest") {
+      labels.push("github-pr");
+    } else {
+      labels.push("github-security");
+      if (item.subtype === "code-scanning") {
+        labels.push("code-scanning");
+      }
+      if (item.subtype === "dependabot") {
+        labels.push("dependabot");
+      }
+    }
+    return labels;
+  }
+
+  function getGitHubTodoTitle(item) {
+    var prefix = item.kind === "pullRequest"
+      ? "PR"
+      : (item.kind === "issue"
+        ? "Issue"
+        : (item.subtype === "dependabot" ? "Dependabot Alert" : "Security Alert"));
+    return prefix + (typeof item.number === "number" && isFinite(item.number)
+      ? " #" + String(item.number)
+      : "") + ": " + String(item.title || "GitHub item");
+  }
+
+  function buildGitHubTodoDescription(item) {
+    var parts = [];
+    if (item.summary) {
+      parts.push(String(item.summary));
+    }
+    var meta = [];
+    if (item.state) {
+      meta.push("State: " + String(item.state));
+    }
+    if (item.severity) {
+      meta.push("Severity: " + String(item.severity));
+    }
+    if (item.headRef || item.baseRef) {
+      meta.push("Branches: " + String(item.headRef || "?") + " -> " + String(item.baseRef || "?"));
+    }
+    if (meta.length > 0) {
+      parts.push(meta.join(" | "));
+    }
+    parts.push("GitHub source: " + String(item.url || ""));
+    return parts.join("\n\n");
+  }
+
+  function buildGitHubTodoSource(item) {
+    if (!item) {
+      return undefined;
+    }
+    var source = {
+      itemId: String(item.id || ""),
+      kind: String(item.kind || ""),
+      title: String(item.title || getGitHubTodoTitle(item)),
+      url: String(item.url || ""),
+      owner: githubIntegration && githubIntegration.owner ? String(githubIntegration.owner) : undefined,
+      repo: githubIntegration && githubIntegration.repo ? String(githubIntegration.repo) : undefined,
+      state: item.state ? String(item.state) : undefined,
+      severity: item.severity ? String(item.severity) : undefined,
+      baseRef: item.baseRef ? String(item.baseRef) : undefined,
+      headRef: item.headRef ? String(item.headRef) : undefined,
+      updatedAt: item.updatedAt ? String(item.updatedAt) : undefined,
+    };
+    if (item.subtype) {
+      source.subtype = String(item.subtype);
+    }
+    if (typeof item.number === "number" && isFinite(item.number)) {
+      source.number = item.number;
+    }
+    return source;
+  }
+
+  function createTodoFromGitHubInboxItem(itemId, needsReview) {
+    var item = getGitHubInboxItem(itemId);
+    if (!item) {
+      return;
+    }
+    vscode.postMessage({
+      type: "createTodo",
+      data: {
+        title: getGitHubTodoTitle(item),
+        description: buildGitHubTodoDescription(item),
+        labels: getGitHubTodoLabels(item),
+        priority: item.kind === "securityAlert" ? "high" : "none",
+        flags: needsReview ? ["needs-bot-review"] : undefined,
+        githubSource: buildGitHubTodoSource(item),
+      },
+    });
+  }
+
+  function renderGitHubInboxItem(item) {
+    var meta = buildGitHubInboxMeta(item);
+    var titleMarkup = '<a href="' + escapeAttr(String(item.url || "")) + '" target="_blank" rel="noopener" style="color:var(--vscode-textLink-foreground);text-decoration:none;">'
+      + escapeHtml(String(item.title || "GitHub item"))
+      + '</a>';
+    return '<div style="border:1px solid var(--vscode-panel-border);border-radius:8px;padding:10px;background:var(--vscode-editor-background);display:flex;flex-direction:column;gap:6px;">'
+      + '<div style="font-weight:600;line-height:1.35;">' + titleMarkup + '</div>'
+      + (meta.length > 0
+        ? '<div class="note" style="margin:0;">' + escapeHtml(meta.join(' • ')) + '</div>'
+        : '')
+      + (item.summary
+        ? '<div class="note" style="margin:0;">' + escapeHtml(String(item.summary)) + '</div>'
+        : '')
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">'
+      + '<button type="button" class="btn-secondary" data-github-create-todo="' + escapeAttr(String(item.id || "")) + '">' + escapeHtml(strings.githubInboxCreateTodo || "Create Todo") + '</button>'
+      + '<button type="button" class="btn-secondary" data-github-create-review-todo="' + escapeAttr(String(item.id || "")) + '">' + escapeHtml(strings.githubInboxCreateTodoReview || "Create Todo + Review") + '</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function renderGitHubInboxLane(laneKey, lane) {
+    var items = Array.isArray(lane && lane.items) ? lane.items : [];
+    var laneCount = Number(lane && lane.itemCount || items.length || 0);
+    return '<section style="border:1px solid var(--vscode-panel-border);border-radius:10px;padding:12px;background:var(--vscode-editor-background);display:flex;flex-direction:column;gap:10px;min-width:0;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+      + '<div class="section-title" style="margin:0;">' + escapeHtml(getGitHubInboxLaneLabel(laneKey)) + '</div>'
+      + '<div class="note" style="margin:0;">' + escapeHtml(String(laneCount)) + '</div>'
+      + '</div>'
+      + (lane && lane.error
+        ? '<div class="note" style="margin:0;color:var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #cca700));">' + escapeHtml(String(lane.error)) + '</div>'
+        : '')
+      + (items.length > 0
+        ? items.map(function (item) { return renderGitHubInboxItem(item); }).join("")
+        : '<div class="note" style="margin:0;">' + escapeHtml(strings.githubInboxLaneEmpty || "No items in this lane.") + '</div>')
+      + '</section>';
+  }
+
+  function renderGitHubBoardInbox() {
+    if (!githubBoardInboxRoot) {
+      return;
+    }
+
+    if (!githubIntegration || !githubIntegration.enabled) {
+      githubBoardInboxRoot.innerHTML = "";
+      githubBoardInboxRoot.style.display = "none";
+      return;
+    }
+
+    githubBoardInboxRoot.style.display = "block";
+    var counts = getGitHubInboxCounts();
+    var snapshot = getGitHubInboxSnapshot();
+    var canRefresh = hasGitHubRefreshConfiguration();
+    var toggleLabel = githubBoardInboxCollapsed
+      ? (strings.githubInboxExpand || "Expand")
+      : (strings.githubInboxCollapse || "Collapse");
+
+    githubBoardInboxRoot.innerHTML = '<section class="telegram-card settings-card settings-card-github" style="margin-bottom:12px;">'
+      + '<div class="settings-card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">'
+      + '<div>'
+      + '<div class="section-title">GitHub ' + escapeHtml(strings.githubInboxTitle || "Inbox") + '</div>'
+      + '<p class="note" style="margin:6px 0 0 0;">' + escapeHtml(String(githubIntegration.statusMessage || strings.githubIntegrationWorkspaceNote || "")) + '</p>'
+      + '</div>'
+      + '<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;">'
+      + '<button type="button" class="btn-secondary" id="github-board-refresh-btn"' + (canRefresh && githubIntegration.syncStatus !== "syncing" ? "" : " disabled") + '>' + escapeHtml(strings.githubIntegrationRefresh || "Refresh GitHub Inbox") + '</button>'
+      + '<button type="button" class="btn-secondary" id="github-board-toggle-btn">' + escapeHtml(toggleLabel) + '</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="telegram-status-grid" style="margin-top:12px;">'
+      + '<div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubIntegrationStatus || "Status") + '</div><div class="telegram-status-value">' + renderGitHubSyncStatusIndicator(githubIntegration.syncStatus) + '</div></div>'
+      + '<div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxIssues || "Issues") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.issues)) + '</div></div>'
+      + '<div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxPullRequests || "Pull Requests") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.pullRequests)) + '</div></div>'
+      + '<div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxSecurityAlerts || "Security Alerts") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.securityAlerts)) + '</div></div>'
+      + '<div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubIntegrationLastSyncAt || "Last sync") + '</div><div class="telegram-status-value">' + escapeHtml(formatSettingsTimestamp(githubIntegration.lastSyncAt)) + '</div></div>'
+      + '</div>'
+      + (!githubBoardInboxCollapsed
+        ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px;">'
+          + renderGitHubInboxLane("issues", snapshot.issues)
+          + renderGitHubInboxLane("pullRequests", snapshot.pullRequests)
+          + renderGitHubInboxLane("securityAlerts", snapshot.securityAlerts)
+          + '</div>'
+        : '')
+      + ((counts.total === 0 && !snapshot.issues.error && !snapshot.pullRequests.error && !snapshot.securityAlerts.error)
+        ? '<div class="note" style="margin-top:12px;">' + escapeHtml(strings.githubInboxEmpty || "No cached GitHub items yet.") + '</div>'
+        : '')
+      + '</section>';
+
+    var refreshBtn = document.getElementById("github-board-refresh-btn");
+    if (refreshBtn) {
+      refreshBtn.onclick = function () {
+        requestGitHubIntegrationRefresh();
+      };
+    }
+
+    var toggleBtn = document.getElementById("github-board-toggle-btn");
+    if (toggleBtn) {
+      toggleBtn.onclick = function () {
+        githubBoardInboxCollapsed = !githubBoardInboxCollapsed;
+        persistGitHubInboxCollapseState();
+        renderGitHubBoardInbox();
+      };
+    }
+
+    Array.prototype.forEach.call(
+      githubBoardInboxRoot.querySelectorAll("[data-github-create-todo]"),
+      function (button) {
+        button.onclick = function () {
+          createTodoFromGitHubInboxItem(button.getAttribute("data-github-create-todo"), false);
+        };
+      },
+    );
+    Array.prototype.forEach.call(
+      githubBoardInboxRoot.querySelectorAll("[data-github-create-review-todo]"),
+      function (button) {
+        button.onclick = function () {
+          createTodoFromGitHubInboxItem(button.getAttribute("data-github-create-review-todo"), true);
+        };
+      },
+    );
+  }
+
+  function requestGitHubIntegrationRefresh() {
+    githubIntegration = Object.assign({}, createEmptyGitHubIntegrationState(), githubIntegration || {}, {
+      syncStatus: "syncing",
+      statusMessage: strings.githubIntegrationRefreshing || "Refreshing GitHub inbox...",
+    });
+    showGitHubIntegrationFeedback(strings.githubIntegrationRefreshing || "Refreshing GitHub inbox...", false);
+    renderGitHubIntegrationTab();
+    renderCockpitBoard();
+    vscode.postMessage({ type: "refreshGitHubIntegration" });
+  }
+
+  function renderGitHubIntegrationTab() {
+    if (githubIntegrationEnabledInput) {
+      githubIntegrationEnabledInput.checked = !!githubIntegration.enabled;
+    }
+    if (githubIntegrationOwnerInput) {
+      githubIntegrationOwnerInput.value = githubIntegration.owner || "";
+    }
+    if (githubIntegrationRepoInput) {
+      githubIntegrationRepoInput.value = githubIntegration.repo || "";
+    }
+    if (githubIntegrationApiBaseUrlInput) {
+      githubIntegrationApiBaseUrlInput.value = githubIntegration.apiBaseUrl || "";
+    }
+    if (githubIntegrationAutomationPromptTemplateInput) {
+      githubIntegrationAutomationPromptTemplateInput.value = githubIntegration.automationPromptTemplate || "";
+    }
+    if (githubIntegrationStatusValue) {
+      githubIntegrationStatusValue.innerHTML = renderGitHubSyncStatusIndicator(githubIntegration.syncStatus);
+      githubIntegrationStatusValue.title = getGitHubSyncStatusLabel(githubIntegration.syncStatus);
+    }
+    if (githubIntegrationRepositoryStatus) {
+      var owner = String(githubIntegration.owner || "").trim();
+      var repo = String(githubIntegration.repo || "").trim();
+      githubIntegrationRepositoryStatus.textContent = owner && repo
+        ? owner + "/" + repo
+        : "-";
+    }
+    if (githubIntegrationConnectionStatus) {
+      githubIntegrationConnectionStatus.textContent = githubIntegration.authStatusText
+        || (githubIntegration.hasConnection
+          ? (strings.githubIntegrationConnected || "Connected in VS Code")
+          : (strings.githubIntegrationNotConnected || "Not connected in VS Code"));
+    }
+    if (githubIntegrationLastSyncAt) {
+      githubIntegrationLastSyncAt.textContent = formatSettingsTimestamp(githubIntegration.lastSyncAt);
+    }
+    if (githubIntegrationUpdatedAt) {
+      githubIntegrationUpdatedAt.textContent = formatSettingsTimestamp(githubIntegration.updatedAt);
+    }
+    if (githubIntegrationStatusNote) {
+      githubIntegrationStatusNote.textContent = githubIntegration.statusMessage
+        || strings.githubIntegrationWorkspaceNote
+        || "Settings are repo-local. GitHub refresh uses your current VS Code GitHub connection and cached inbox data.";
+    }
+    if (githubIntegrationRefreshBtn) {
+      githubIntegrationRefreshBtn.disabled = !hasGitHubRefreshConfiguration()
+        || githubIntegration.syncStatus === "syncing";
+    }
+    if (githubIntegration.syncStatus !== "syncing") {
+      clearGitHubIntegrationFeedback();
+    }
+  }
+
+  function submitGitHubIntegrationForm() {
+    clearGitHubIntegrationFeedback();
+    vscode.postMessage({
+      type: "saveGitHubIntegration",
+      data: collectGitHubIntegrationFormData(),
+    });
+    showGitHubIntegrationFeedback(
+      strings.githubIntegrationStatusSaved || "Saving GitHub settings...",
+      false,
+    );
+  }
+
   function collectTelegramFormData() {
     return {
       enabled: !!(telegramEnabledInput && telegramEnabledInput.checked),
@@ -1276,6 +1804,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
           ? settingsResearchProviderSelect.value
           : "none",
       sqliteJsonMirror: !settingsStorageMirrorInput || settingsStorageMirrorInput.checked !== false,
+      autoIgnorePrivateFiles:
+        !settingsAutoIgnorePrivateFilesInput
+        || settingsAutoIgnorePrivateFilesInput.checked !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,
     };
   }
@@ -1410,6 +1941,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
     if (settingsStorageMirrorInput) {
       settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
+    }
+    if (settingsAutoIgnorePrivateFilesInput) {
+      settingsAutoIgnorePrivateFilesInput.checked = storageSettings.autoIgnorePrivateFiles !== false;
     }
     if (settingsFlagReadyInput) {
       settingsFlagReadyInput.checked = !disabledSystemFlagKeySet.ready;
@@ -4230,6 +4764,7 @@ syncTodoLabelSuggestions();
 
   function renderCockpitBoard() {
     ensureTodoEditorListenersBound();
+    renderGitHubBoardInbox();
 
     var filters = getTodoFilters();
     var sections = getTodoSections(filters);
@@ -5604,6 +6139,24 @@ syncTodoLabelSuggestions();
 
   bindSelectValueChange(jobsFriendlyFrequency, function () {
     refreshJobsFriendlyCronFromBuilder();
+  });
+
+  bindInputFeedbackClear(
+    [
+      githubIntegrationEnabledInput,
+      githubIntegrationOwnerInput,
+      githubIntegrationRepoInput,
+      githubIntegrationApiBaseUrlInput,
+      githubIntegrationAutomationPromptTemplateInput,
+    ],
+    clearGitHubIntegrationFeedback,
+  );
+
+  bindClickAction(githubIntegrationSaveBtn, function () {
+    submitGitHubIntegrationForm();
+  });
+  bindClickAction(githubIntegrationRefreshBtn, function () {
+    requestGitHubIntegrationRefresh();
   });
 
   bindInputFeedbackClear(
@@ -9114,6 +9667,11 @@ syncTodoLabelSuggestions();
             ensureValidResearchSelection();
           }
           renderResearchTab();
+          break;
+        case "updateGitHubIntegration":
+          githubIntegration = message.githubIntegration || createEmptyGitHubIntegrationState();
+          renderGitHubIntegrationTab();
+          renderCockpitBoard();
           break;
         case "updateTelegramNotification":
           telegramNotification = message.telegramNotification || {

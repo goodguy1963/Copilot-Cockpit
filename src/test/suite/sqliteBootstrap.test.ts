@@ -9,6 +9,7 @@ import {
   exportWorkspaceSqliteToJsonMirrors,
   readWorkspaceCockpitBoardFromSqlite,
   setSqliteAtomicWriteFsForTests,
+  setSqliteLockOptionsForTests,
   syncGlobalTasksToSqlite,
   syncWorkspaceCockpitBoardToSqlite,
   syncWorkspaceResearchStateToSqlite,
@@ -37,6 +38,10 @@ async function openDatabase(databasePath: string): Promise<SqlJsDatabase> {
 function firstScalar(db: SqlJsDatabase, sql: string): unknown {
   const result = db.exec(sql);
   return result[0]?.values?.[0]?.[0];
+}
+
+function getSqliteLockPath(databasePath: string): string {
+  return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.lock`);
 }
 
 suite("SQLite Bootstrap Tests", () => {
@@ -302,6 +307,39 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
+  test("contextualizes invalid cockpit card payloads before sqlite insert", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-cockpit-invalid-payload-");
+    const originalStringify = JSON.stringify;
+
+    JSON.stringify = ((value: unknown, replacer?: unknown, space?: string | number) => {
+      if (
+        value
+        && typeof value === "object"
+        && "id" in value
+        && (value as { id?: unknown }).id === "card-bad"
+      ) {
+        return undefined;
+      }
+      return originalStringify(value, replacer as Parameters<typeof JSON.stringify>[1], space);
+    }) as typeof JSON.stringify;
+
+    try {
+      await assert.rejects(
+        syncWorkspaceCockpitBoardToSqlite(workspaceRoot, {
+          version: 4,
+          sections: [{ id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+          cards: [{ id: "card-bad", title: "Bad card", sectionId: "unsorted", order: 0, priority: "medium", status: "active", labels: [], flags: [], comments: [], archived: false, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+          filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false },
+          updatedAt: "2026-04-04T00:00:00.000Z",
+        } as any),
+        /Invalid sqlite payload for cockpit card in cockpit_cards \(id: card-bad\): JSON serialization returned undefined\./,
+      );
+    } finally {
+      JSON.stringify = originalStringify;
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("sync writes sqlite databases through a temp-file rename instead of overwriting in place", async () => {
     const workspaceRoot = createTempRoot("copilot-sqlite-atomic-write-");
     const paths = getWorkspaceStoragePaths(workspaceRoot);
@@ -341,6 +379,67 @@ suite("SQLite Bootstrap Tests", () => {
       );
     } finally {
       setSqliteAtomicWriteFsForTests();
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("fails after a bounded wait when another sqlite writer holds the database lock", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-lock-timeout-");
+
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const lockPath = getSqliteLockPath(databasePath);
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify({ pid: 123 }), "utf8");
+      setSqliteLockOptionsForTests({ staleMs: 60_000, maxWaitMs: 25, retryMs: 5 });
+
+      await assert.rejects(
+        syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+          tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+          deletedTaskIds: [],
+          jobs: [],
+          deletedJobIds: [],
+          jobFolders: [],
+          deletedJobFolderIds: [],
+        } as any),
+        /SQLite database is locked by another writer/,
+      );
+    } finally {
+      setSqliteLockOptionsForTests();
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("clears a stale sqlite database lock before writing", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-stale-lock-");
+
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const lockPath = getSqliteLockPath(databasePath);
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify({ pid: 123 }), "utf8");
+      const staleAt = new Date(Date.now() - 10_000);
+      fs.utimesSync(lockPath, staleAt, staleAt);
+      setSqliteLockOptionsForTests({ staleMs: 50, maxWaitMs: 200, retryMs: 5 });
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      const db = await openDatabase(databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks"), 1);
+      } finally {
+        db.close();
+      }
+      assert.strictEqual(fs.existsSync(lockPath), false);
+    } finally {
+      setSqliteLockOptionsForTests();
       cleanup(workspaceRoot);
     }
   });

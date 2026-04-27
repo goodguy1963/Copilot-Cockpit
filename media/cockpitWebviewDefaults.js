@@ -25,6 +25,22 @@ export function resolveInitialSchedulerCollections(initialData) {
       },
       updatedAt: "",
     },
+    githubIntegration: initialData.githubIntegration || {
+      enabled: false,
+      hasConnection: false,
+      syncStatus: "disabled",
+      inbox: {
+        issues: { items: [], itemCount: 0 },
+        pullRequests: { items: [], itemCount: 0 },
+        securityAlerts: { items: [], itemCount: 0 },
+      },
+      inboxCounts: {
+        issues: 0,
+        pullRequests: 0,
+        securityAlerts: 0,
+        total: 0,
+      },
+    },
     telegramNotification: initialData.telegramNotification || {
       enabled: false,
       hasBotToken: false,
@@ -69,6 +85,8 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
       : ((previousValue && previousValue.disabledSystemFlagKeys) || []).slice();
     var hasExplicitResearchProvider = !!value
       && Object.prototype.hasOwnProperty.call(value, "researchProvider");
+    var hasExplicitAutoIgnorePrivateFiles = !!value
+      && Object.prototype.hasOwnProperty.call(value, "autoIgnorePrivateFiles");
     var normalizedSearchProvider = value && value.searchProvider === "tavily"
       ? "tavily"
       : ((previousValue && previousValue.searchProvider) || "built-in");
@@ -97,6 +115,9 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
       researchProvider: normalizedResearchProvider,
       sqliteJsonMirror:
         !value || value.sqliteJsonMirror !== false,
+      autoIgnorePrivateFiles: hasExplicitAutoIgnorePrivateFiles
+        ? value.autoIgnorePrivateFiles !== false
+        : (previousValue && previousValue.autoIgnorePrivateFiles) !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,
       appVersion:
         value && typeof value.appVersion === "string"

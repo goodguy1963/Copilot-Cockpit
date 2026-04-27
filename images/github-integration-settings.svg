@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title>Illustrative GitHub Integration settings mockup</title>
+  <desc>Illustrative SVG mockup of the Copilot Cockpit Settings tab showing the GitHub Integration card with repo-local fields, save and refresh actions, and cached sync status.</desc>
+  <defs>
+    <linearGradient id="window-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22262b"/>
+      <stop offset="100%" stop-color="#171a1f"/>
+    </linearGradient>
+    <linearGradient id="card-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2f36"/>
+      <stop offset="100%" stop-color="#23272d"/>
+    </linearGradient>
+    <linearGradient id="field-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1f2329"/>
+      <stop offset="100%" stop-color="#1a1d22"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <style>
+    .ui { font-family: "Segoe UI", Arial, sans-serif; }
+    .title { fill: #f3f3f3; font-size: 28px; font-weight: 600; }
+    .subtitle { fill: #b8bcc4; font-size: 14px; }
+    .nav { fill: #d0d3d8; font-size: 18px; }
+    .nav-muted { fill: #8a8f98; font-size: 18px; }
+    .card-title { fill: #ffffff; font-size: 25px; font-weight: 600; }
+    .card-copy { fill: #b7bbc2; font-size: 15px; }
+    .label { fill: #cfd2d8; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .value { fill: #f2f4f7; font-size: 18px; }
+    .hint { fill: #9aa0aa; font-size: 13px; }
+    .button-text { fill: #ffffff; font-size: 15px; font-weight: 600; }
+    .status-label { fill: #9aa0aa; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .status-value { fill: #f3f4f6; font-size: 16px; font-weight: 600; }
+    .tiny { fill: #8f96a0; font-size: 12px; }
+  </style>
+
+  <rect width="1600" height="980" fill="#0f1115"/>
+  <g class="ui">
+    <rect x="40" y="40" width="1520" height="900" rx="28" fill="url(#window-bg)" stroke="#343942" filter="url(#shadow)"/>
+    <rect x="40" y="40" width="1520" height="48" rx="28" fill="#2b3038"/>
+    <rect x="40" y="88" width="1520" height="852" fill="#1d1f23"/>
+    <rect x="40" y="88" width="248" height="852" fill="#252526"/>
+
+    <circle cx="74" cy="64" r="6" fill="#ea4c46"/>
+    <circle cx="94" cy="64" r="6" fill="#f0b94b"/>
+    <circle cx="114" cy="64" r="6" fill="#5cc95c"/>
+    <text x="140" y="69" fill="#cfd2d7" font-size="17" font-weight="600">source-scheduler</text>
+    <text x="1400" y="69" fill="#8f96a0" font-size="14">Settings tab</text>
+
+    <text x="72" y="132" class="tiny">Copilot Cockpit</text>
+    <rect x="58" y="170" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="199" class="nav-muted">Todo Cockpit</text>
+    <rect x="58" y="228" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="257" class="nav-muted">Tasks</text>
+    <rect x="58" y="286" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="315" class="nav-muted">Jobs</text>
+    <rect x="58" y="344" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="373" class="nav-muted">Research</text>
+    <rect x="58" y="402" width="212" height="46" rx="12" fill="#0e639c" stroke="#1177bb"/>
+    <rect x="58" y="402" width="5" height="46" rx="3" fill="#67b7ff"/>
+    <text x="84" y="431" class="nav">Settings</text>
+    <rect x="58" y="460" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="489" class="nav-muted">How To Use</text>
+
+    <text x="332" y="138" class="tiny">Workspace controls</text>
+    <text x="332" y="176" class="title">Settings</text>
+    <text x="332" y="202" class="subtitle">Repo-local defaults, integrations, and cached sync state stay visible in one place.</text>
+
+    <rect x="332" y="232" width="570" height="74" rx="18" fill="#20242a" stroke="#343942" opacity="0.68"/>
+    <text x="360" y="267" fill="#8f96a0" font-size="16" font-weight="600">Execution Defaults</text>
+    <text x="360" y="289" class="tiny">Default agent, model, and task launch behavior.</text>
+    <rect x="922" y="232" width="602" height="74" rx="18" fill="#20242a" stroke="#343942" opacity="0.68"/>
+    <text x="950" y="267" fill="#8f96a0" font-size="16" font-weight="600">Storage and Sync</text>
+    <text x="950" y="289" class="tiny">Repo-local state, private files, and cache visibility.</text>
+
+    <rect x="332" y="328" width="1192" height="608" rx="22" fill="url(#card-bg)" stroke="#3a4048"/>
+    <text x="392" y="382" class="card-title">GitHub Integration</text>
+    <text x="392" y="410" class="card-copy">Configure repo-local repository settings, cached inbox sync, and a reusable automation prompt.</text>
+    <text x="392" y="430" class="card-copy">The saved token never returns to the webview after it is stored privately.</text>
+
+    <rect x="392" y="450" width="1072" height="40" rx="12" fill="#173f34" stroke="#256050"/>
+    <text x="414" y="476" fill="#d6f4e6" font-size="15" font-weight="600">Settings are repo-local. The token stays in .vscode/scheduler.private.json.</text>
+
+    <rect x="392" y="508" width="1072" height="48" rx="14" fill="#1c2026" stroke="#343942"/>
+    <text x="414" y="538" fill="#f0f3f7" font-size="17" font-weight="600">Enable GitHub integration</text>
+    <rect x="1352" y="518" width="72" height="28" rx="14" fill="#0e639c"/>
+    <circle cx="1408" cy="532" r="11" fill="#ffffff"/>
+    <text x="1278" y="537" fill="#8f96a0" font-size="13">Enabled</text>
+
+    <text x="392" y="588" class="label">Owner</text>
+    <rect x="392" y="598" width="298" height="46" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="414" y="627" class="value">octocat</text>
+
+    <text x="714" y="588" class="label">Repository</text>
+    <rect x="714" y="598" width="298" height="46" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="736" y="627" class="value">hello-world</text>
+
+    <text x="392" y="666" class="label">API base URL</text>
+    <rect x="392" y="676" width="620" height="46" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="414" y="705" class="value">https://api.github.com</text>
+
+    <text x="392" y="744" class="label">Token / PAT</text>
+    <rect x="392" y="754" width="620" height="46" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="414" y="783" class="value">Token stored privately</text>
+    <text x="392" y="819" class="hint">Leave blank on later edits to keep the currently saved token.</text>
+
+    <text x="392" y="848" class="label">Automation prompt template</text>
+    <rect x="392" y="858" width="620" height="78" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="414" y="886" fill="#f2f4f7" font-size="17">Summarize {{github_item}} for the scheduler context.</text>
+    <text x="414" y="910" fill="#d9dde3" font-size="15">Call out risk, branches, and the next review step before execution.</text>
+
+    <rect x="1056" y="598" width="188" height="40" rx="12" fill="#0e639c"/>
+    <text x="1082" y="623" class="button-text">Save GitHub Settings</text>
+    <rect x="1260" y="598" width="204" height="40" rx="12" fill="#3a3d41"/>
+    <text x="1291" y="623" class="button-text">Refresh GitHub Inbox</text>
+
+    <text x="1056" y="674" class="label">Status summary</text>
+    <rect x="1056" y="686" width="408" height="250" rx="18" fill="#1c2026" stroke="#343942"/>
+
+    <rect x="1078" y="710" width="78" height="22" rx="11" fill="#1f5a46"/>
+    <text x="1101" y="725" fill="#d6f4e6" font-size="13" font-weight="700">Ready</text>
+    <text x="1174" y="726" class="hint">Cached inbox is ready for manual refresh and import.</text>
+
+    <text x="1078" y="766" class="status-label">Repository</text>
+    <text x="1078" y="790" class="status-value">octocat/hello-world</text>
+    <line x1="1078" y1="804" x2="1442" y2="804" stroke="#343942"/>
+
+    <text x="1078" y="834" class="status-label">Token</text>
+    <text x="1078" y="858" class="status-value">Token stored privately</text>
+    <line x1="1078" y1="872" x2="1442" y2="872" stroke="#343942"/>
+
+    <text x="1078" y="902" class="status-label">Last sync</text>
+    <text x="1078" y="926" class="status-value">2026-04-27 09:42</text>
+    <text x="1288" y="902" class="status-label">Last updated</text>
+    <text x="1288" y="926" class="status-value">2026-04-27 09:42</text>
+  </g>
+</svg>

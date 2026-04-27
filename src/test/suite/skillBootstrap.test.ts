@@ -376,6 +376,56 @@ suite("Skill Bootstrap Tests", () => {
         "utf8",
       );
 
+      const prefabRelativePath = path.join(
+        BUNDLED_SKILLS_RELATIVE_PATH,
+        "prefab-ui",
+        "SKILL.md",
+      );
+      const prefabSkillPath = path.join(extensionRoot, prefabRelativePath);
+      fs.mkdirSync(path.dirname(prefabSkillPath), { recursive: true });
+      fs.writeFileSync(
+        prefabSkillPath,
+        "---\nname: prefab-ui\ncopilotCockpitSkillType: operational\ncopilotCockpitPromptSummary: use the live Prefab surface for UI JSON, wire-format rendering, and API-backed view work\n---\n\nprefab skill\n",
+        "utf8",
+      );
+
+      const legacyPrefabSkillPath = path.join(
+        extensionRoot,
+        BUNDLED_SKILLS_RELATIVE_PATH,
+        "prefab-mcp",
+        "SKILL.md",
+      );
+      fs.mkdirSync(path.dirname(legacyPrefabSkillPath), { recursive: true });
+      fs.writeFileSync(
+        legacyPrefabSkillPath,
+        "legacy prefab skill\n",
+        "utf8",
+      );
+
+      const prefabAgentPath = path.join(
+        extensionRoot,
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "prefab-ui.agent.md",
+      );
+      fs.mkdirSync(path.dirname(prefabAgentPath), { recursive: true });
+      fs.writeFileSync(
+        prefabAgentPath,
+        "---\nname: Prefab UI Specialist\ndescription: routes Prefab UI and renderer requests through the existing prefab-ui skill and the live Prefab surface\n---\n\nPrefab UI agent\n",
+        "utf8",
+      );
+
+      const legacyPrefabAgentPath = path.join(
+        extensionRoot,
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "prefab.agent.md",
+      );
+      fs.mkdirSync(path.dirname(legacyPrefabAgentPath), { recursive: true });
+      fs.writeFileSync(
+        legacyPrefabAgentPath,
+        "legacy prefab agent\n",
+        "utf8",
+      );
+
       const result = await syncBundledCodexSkillsForWorkspaceRoots(
         extensionRoot,
         [workspaceRoot],
@@ -387,10 +437,17 @@ suite("Skill Bootstrap Tests", () => {
         "cockpit-scheduler-agent",
         "SKILL.md",
       );
+      const legacyCodexSkillPath = path.join(
+        workspaceRoot,
+        CODEX_SKILLS_RELATIVE_PATH,
+        "prefab-mcp",
+        "SKILL.md",
+      );
       const agentsPath = path.join(workspaceRoot, CODEX_AGENTS_RELATIVE_PATH);
 
       assert.ok(result.createdPaths.includes(codexSkillPath));
       assert.ok(result.createdPaths.includes(agentsPath));
+      assert.strictEqual(fs.existsSync(legacyCodexSkillPath), false);
       assert.strictEqual(
         fs.readFileSync(codexSkillPath, "utf8"),
         "---\nname: cockpit-scheduler-agent\ncopilotCockpitSkillType: operational\ncopilotCockpitPromptSummary: orchestrate scheduled work and MCP-backed workflow routing\n---\n\ncodex skill\n",
@@ -399,8 +456,11 @@ suite("Skill Bootstrap Tests", () => {
       const agentsContent = fs.readFileSync(agentsPath, "utf8");
       assert.ok(agentsContent.includes(".agents/skills"));
       assert.ok(agentsContent.includes(".codex/config.toml"));
-      assert.ok(agentsContent.includes("Operational skills: cockpit-scheduler-agent (orchestrate scheduled work and MCP-backed workflow routing)."));
+      assert.ok(agentsContent.includes("Operational skills: cockpit-scheduler-agent (orchestrate scheduled work and MCP-backed workflow routing), prefab-ui (use the live Prefab surface for UI JSON, wire-format rendering, and API-backed view work)."));
       assert.ok(agentsContent.includes("Support skills: copilot-scheduler-intro (onboard new contributors before they change scheduler state)."));
+      assert.ok(agentsContent.includes("Repo-local custom agents: `Prefab UI Specialist` in `.github/agents/prefab-ui.agent.md` routes Prefab UI and renderer requests through the existing prefab-ui skill and the live Prefab surface."));
+      assert.strictEqual(agentsContent.includes("Prefab Specialist"), false);
+      assert.strictEqual(agentsContent.includes("prefab.agent.md"), false);
       assert.ok(agentsContent.includes("cannot start a new session"));
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
@@ -428,6 +488,14 @@ suite("Skill Bootstrap Tests", () => {
         fs.writeFileSync(absolutePath, `content:${relativePath}\n`, "utf8");
       }
 
+      const legacyPrefabAgentPath = path.join(
+        extensionRoot,
+        BUNDLED_AGENTS_RELATIVE_PATH,
+        "prefab.agent.md",
+      );
+      fs.mkdirSync(path.dirname(legacyPrefabAgentPath), { recursive: true });
+      fs.writeFileSync(legacyPrefabAgentPath, "legacy prefab agent\n", "utf8");
+
       const result = await syncBundledAgentsForWorkspaceRoots(
         extensionRoot,
         [workspaceRoot],
@@ -445,6 +513,11 @@ suite("Skill Bootstrap Tests", () => {
         );
         assert.ok(result.nextState[workspaceRoot]?.[relativePath]);
       }
+
+      assert.strictEqual(
+        fs.existsSync(path.join(workspaceRoot, BUNDLED_AGENTS_RELATIVE_PATH, "prefab.agent.md")),
+        false,
+      );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
     }

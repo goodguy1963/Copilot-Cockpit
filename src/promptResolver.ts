@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as vscode from "vscode";
 
 const PROMPT_FILE_SUFFIX = ".md";
 const AGENT_FILE_SUFFIX = ".agent.md";
@@ -154,8 +153,25 @@ export function resolveGlobalPromptsRoot(customPath?: string): string | undefine
   return undefined;
 }
 
+function getActiveVsCodeAppName(): string | undefined {
+  try {
+    const runtimeRequire = typeof require === "function"
+      ? require
+      : undefined;
+    const vscodeModule = runtimeRequire?.("vscode") as {
+      env?: { appName?: string };
+    } | undefined;
+    const appName = vscodeModule?.env?.appName;
+    return typeof appName === "string" && appName.length > 0
+      ? appName
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function getPreferredProductDirs(): string[] {
-  const normalizedAppName = vscode.env.appName.toLowerCase();
+  const normalizedAppName = getActiveVsCodeAppName()?.toLowerCase() ?? "";
   const preferredProductNames = normalizedAppName.includes("insider")
     ? ["Code - Insiders", "Code"]
     : ["Code", "Code - Insiders"];

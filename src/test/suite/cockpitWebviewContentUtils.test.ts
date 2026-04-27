@@ -91,6 +91,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     const jobs = [{ id: "job-1", name: "Job 1" }] as any[];
     const jobFolders = [{ id: "folder-1", name: "Folder 1" }] as any[];
     const cockpitBoard = { sections: [] } as any;
+    const githubIntegration = { enabled: true, hasConnection: true, syncStatus: "ready" } as any;
     const telegramNotification = { enabled: true } as any;
     const executionDefaults = { agent: "agent" } as any;
     const reviewDefaults = {
@@ -118,6 +119,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
       currentJobs: jobs as any,
       currentJobFolders: jobFolders as any,
       currentCockpitBoard: cockpitBoard,
+      currentGitHubIntegration: githubIntegration,
       currentTelegramNotification: telegramNotification,
       currentExecutionDefaults: executionDefaults,
       currentReviewDefaults: reviewDefaults,
@@ -145,6 +147,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     assert.deepStrictEqual(payload.jobs, jobs);
     assert.deepStrictEqual(payload.jobFolders, jobFolders);
     assert.deepStrictEqual(payload.cockpitBoard, cockpitBoard);
+    assert.deepStrictEqual(payload.githubIntegration, githubIntegration);
     assert.deepStrictEqual(payload.telegramNotification, telegramNotification);
     assert.deepStrictEqual(payload.executionDefaults, executionDefaults);
     assert.deepStrictEqual(payload.reviewDefaults, reviewDefaults);

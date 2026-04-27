@@ -9,6 +9,7 @@ import type {
   ExecutionDefaultsView,
   LogLevel,
   ReviewDefaultsView,
+  SaveGitHubIntegrationInput,
   SaveTelegramNotificationInput,
   StorageSettingsView,
   UpdateCockpitBoardFiltersInput,
@@ -44,6 +45,7 @@ const renameJobFolderInputSchema = createObjectPayloadSchema<Partial<CreateJobFo
 const createJobPauseInputSchema = createObjectPayloadSchema<CreateJobPauseInput>("job pause data");
 const createResearchProfileInputSchema = createObjectPayloadSchema<CreateResearchProfileInput>("research profile data");
 const updateResearchProfileInputSchema = createObjectPayloadSchema<Partial<CreateResearchProfileInput>>("research profile data");
+const githubIntegrationInputSchema = createObjectPayloadSchema<SaveGitHubIntegrationInput>("github integration data");
 const telegramNotificationInputSchema = createObjectPayloadSchema<SaveTelegramNotificationInput>("telegram notification data");
 const executionDefaultsInputSchema = createObjectPayloadSchema<ExecutionDefaultsView>("execution defaults");
 const reviewDefaultsInputSchema = createObjectPayloadSchema<ReviewDefaultsView>("review defaults");
@@ -115,6 +117,8 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("startResearchRun"), researchId: nonEmptyStringSchema }).passthrough(),
   z.object({ type: z.literal("stopResearchRun") }).passthrough(),
 
+  z.object({ type: z.literal("saveGitHubIntegration"), data: githubIntegrationInputSchema }).passthrough(),
+  z.object({ type: z.literal("refreshGitHubIntegration") }).passthrough(),
   z.object({ type: z.literal("saveTelegramNotification"), data: telegramNotificationInputSchema }).passthrough(),
   z.object({ type: z.literal("testTelegramNotification"), data: telegramNotificationInputSchema }).passthrough(),
   z.object({ type: z.literal("saveExecutionDefaults"), data: executionDefaultsInputSchema }).passthrough(),

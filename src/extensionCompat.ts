@@ -24,6 +24,10 @@ export const SCHEDULER_COMMAND_NAMES = [
   "showVersion",
   "setupMcp",
   "syncBundledSkills",
+  "enableExternalAgentAccess",
+  "disableExternalAgentAccess",
+  "rotateExternalAgentKey",
+  "copyExternalAgentSetupInfo",
 ] as const;
 
 export type SchedulerCommandName = (typeof SCHEDULER_COMMAND_NAMES)[number];

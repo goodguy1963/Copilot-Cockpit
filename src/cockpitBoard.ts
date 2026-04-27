@@ -14,6 +14,9 @@ import type {
   CockpitTodoPriority,
   CockpitTodoStatus,
   CockpitWorkflowFlag,
+  GitHubInboxItemKind,
+  GitHubSecurityAlertSubtype,
+  GitHubTodoSource,
 } from "./types";
 import {
   getConfiguredCockpitDeterministicStateMode,
@@ -276,6 +279,70 @@ function normalizeTaskSnapshot(value: unknown): CockpitTaskSnapshot | undefined 
     model: normalizeOptionalString(record.model),
     labels: normalizeLabels(record.labels),
     promptHash,
+  };
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  return Math.floor(value);
+}
+
+function normalizeGitHubInboxItemKind(value: unknown): GitHubInboxItemKind | undefined {
+  switch (value) {
+    case "issue":
+    case "pullRequest":
+    case "securityAlert":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeGitHubSecurityAlertSubtype(
+  value: unknown,
+): GitHubSecurityAlertSubtype | undefined {
+  switch (value) {
+    case "code-scanning":
+    case "dependabot":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeGitHubTodoSource(value: unknown): GitHubTodoSource | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Partial<GitHubTodoSource>;
+  const itemId = normalizeOptionalString(record.itemId);
+  const kind = normalizeGitHubInboxItemKind(record.kind);
+  const title = normalizeOptionalString(record.title);
+  const url = normalizeOptionalString(record.url);
+  if (!itemId || !kind || !title || !url) {
+    return undefined;
+  }
+
+  return {
+    itemId,
+    kind,
+    subtype: kind === "securityAlert"
+      ? normalizeGitHubSecurityAlertSubtype(record.subtype)
+      : undefined,
+    number: normalizeOptionalNumber(record.number),
+    title,
+    url,
+    owner: normalizeOptionalString(record.owner),
+    repo: normalizeOptionalString(record.repo),
+    state: normalizeOptionalString(record.state),
+    severity: normalizeOptionalString(record.severity),
+    baseRef: normalizeOptionalString(record.baseRef),
+    headRef: normalizeOptionalString(record.headRef),
+    updatedAt: normalizeOptionalIsoString(record.updatedAt),
   };
 }
 
@@ -958,6 +1025,7 @@ function normalizeCard(card: unknown, index: number): CockpitTodoCard {
     labels: normalizeLabels(record.labels),
     flags: normalizeFlags(record.flags),
     comments,
+    githubSource: normalizeGitHubTodoSource(record.githubSource),
     taskSnapshot: normalizeTaskSnapshot(record.taskSnapshot),
     taskId: typeof record.taskId === "string" && record.taskId.trim() ? record.taskId.trim() : undefined,
     sessionId: typeof record.sessionId === "string" && record.sessionId.trim() ? record.sessionId.trim() : undefined,

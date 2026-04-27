@@ -3,6 +3,7 @@ import type {
   ChatSessionBehavior,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ModelInfo,
@@ -110,6 +111,7 @@ type BuildSchedulerWebviewInitialDataParams = {
   currentJobs: JobDefinition[];
   currentJobFolders: JobFolder[];
   currentCockpitBoard: CockpitBoard;
+  currentGitHubIntegration: GitHubIntegrationView;
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
@@ -141,6 +143,7 @@ export function buildSchedulerWebviewInitialData(
     jobs: params.currentJobs,
     jobFolders: params.currentJobFolders,
     cockpitBoard: params.currentCockpitBoard,
+    githubIntegration: params.currentGitHubIntegration,
     telegramNotification: params.currentTelegramNotification,
     executionDefaults: params.currentExecutionDefaults,
     reviewDefaults: params.currentReviewDefaults,

@@ -186,6 +186,9 @@ export interface SchedulerWorkspaceConfig {
   /** Local-only cockpit board state kept in scheduler.private.json */
   cockpitBoard?: CockpitBoard;
 
+  /** GitHub integration config */
+  githubIntegration?: GitHubIntegrationConfig;
+
   /** Telegram stop-notification config */
   telegramNotification?: TelegramNotificationConfig;
 }
@@ -367,6 +370,9 @@ export interface CockpitTodoCard {
 
   /** Communication trail between user and system */
   comments: CockpitTodoComment[];
+
+  /** Optional GitHub inbox metadata used for dedupe and prompt context */
+  githubSource?: GitHubTodoSource;
 
   /** Last synced scheduler task metadata for recurring-task history cards */
   taskSnapshot?: CockpitTaskSnapshot;
@@ -611,6 +617,9 @@ export interface CreateCockpitTodoInput {
   /** Optional initial workflow state */
   status?: CockpitTodoStatus;
 
+  /** Optional GitHub inbox metadata used for dedupe and prompt context */
+  githubSource?: GitHubTodoSource;
+
   /** Optional linked task identifier */
   taskId?: string;
 
@@ -642,6 +651,9 @@ export interface UpdateCockpitTodoInput {
 
   /** Optional flags update */
   flags?: string[];
+
+  /** Optional GitHub inbox metadata update; null clears the field */
+  githubSource?: GitHubTodoSource | null;
 
   /** Optional order override */
   order?: number;
@@ -723,6 +735,278 @@ export interface UpsertCockpitLabelDefinitionInput {
 
   /** Optional shared chip color */
   color?: string | null;
+}
+
+/**
+ * Supported GitHub integration sync states.
+ */
+export type GitHubSyncStatus =
+  | "disabled"
+  | "ready"
+  | "syncing"
+  | "stale"
+  | "partial"
+  | "rate-limited"
+  | "error";
+
+export type GitHubInboxLaneKind =
+  | "issues"
+  | "pullRequests"
+  | "securityAlerts";
+
+export type GitHubInboxItemKind =
+  | "issue"
+  | "pullRequest"
+  | "securityAlert";
+
+export type GitHubSecurityAlertSubtype =
+  | "code-scanning"
+  | "dependabot";
+
+export interface GitHubInboxItem {
+  /** Stable local identifier for the inbox row */
+  id: string;
+
+  /** UI grouping lane for the item */
+  lane: GitHubInboxLaneKind;
+
+  /** Base GitHub object kind */
+  kind: GitHubInboxItemKind;
+
+  /** Optional alert subtype for security rows */
+  subtype?: GitHubSecurityAlertSubtype;
+
+  /** GitHub number when the source object exposes one */
+  number?: number;
+
+  /** Short display title */
+  title: string;
+
+  /** Optional one-line summary */
+  summary?: string;
+
+  /** Canonical GitHub URL */
+  url: string;
+
+  /** Optional open/draft/etc state */
+  state?: string;
+
+  /** Optional severity label for alerts */
+  severity?: string;
+
+  /** Optional last-update timestamp */
+  updatedAt?: string;
+
+  /** Optional base branch for pull requests */
+  baseRef?: string;
+
+  /** Optional head branch for pull requests */
+  headRef?: string;
+}
+
+export interface GitHubTodoSource {
+  /** Stable GitHub inbox item identifier used for dedupe */
+  itemId: string;
+
+  /** Base GitHub object kind */
+  kind: GitHubInboxItemKind;
+
+  /** Optional alert subtype for security rows */
+  subtype?: GitHubSecurityAlertSubtype;
+
+  /** GitHub number when the source object exposes one */
+  number?: number;
+
+  /** Source title at import time */
+  title: string;
+
+  /** Canonical GitHub URL */
+  url: string;
+
+  /** Repository owner when known */
+  owner?: string;
+
+  /** Repository name when known */
+  repo?: string;
+
+  /** Optional open/draft/etc state */
+  state?: string;
+
+  /** Optional severity label for alerts */
+  severity?: string;
+
+  /** Optional base branch for pull requests */
+  baseRef?: string;
+
+  /** Optional head branch for pull requests */
+  headRef?: string;
+
+  /** Optional last-update timestamp */
+  updatedAt?: string;
+}
+
+export interface GitHubInboxLane {
+  /** Cached rows for the lane */
+  items: GitHubInboxItem[];
+
+  /** Count represented by the current cached rows */
+  itemCount: number;
+
+  /** Last successful lane refresh time */
+  syncedAt?: string;
+
+  /** Safe lane-specific error detail */
+  error?: string;
+
+  /** Whether the most recent lane failure was a rate limit */
+  rateLimited?: boolean;
+}
+
+export interface GitHubInboxSnapshot {
+  /** Open issues excluding pull requests */
+  issues: GitHubInboxLane;
+
+  /** Open pull requests */
+  pullRequests: GitHubInboxLane;
+
+  /** Open security alerts from supported lanes */
+  securityAlerts: GitHubInboxLane;
+}
+
+export interface GitHubInboxCounts {
+  /** Visible/cached issue count */
+  issues: number;
+
+  /** Visible/cached pull request count */
+  pullRequests: number;
+
+  /** Visible/cached security alert count */
+  securityAlerts: number;
+
+  /** Total visible/cached GitHub inbox count */
+  total: number;
+}
+
+/**
+ * Repo-local GitHub integration config.
+ * Stored in scheduler.private.json and sanitized in scheduler.json.
+ */
+export interface GitHubIntegrationConfig {
+  /** Whether the GitHub integration is enabled */
+  enabled: boolean;
+
+  /** Repository owner or org */
+  owner?: string;
+
+  /** Repository name */
+  repo?: string;
+
+  /** Optional GitHub Enterprise or API base URL */
+  apiBaseUrl?: string;
+
+  /** Personal access token; private file only */
+  token?: string;
+
+  /** Prompt template used by future GitHub automation flows */
+  automationPromptTemplate?: string;
+
+  /** Current sync/readiness status */
+  syncStatus: GitHubSyncStatus;
+
+  /** Optional safe status detail */
+  statusMessage?: string;
+
+  /** Most recent successful sync time, when available */
+  lastSyncAt?: string;
+
+  /** Safe cached GitHub inbox data */
+  inbox?: GitHubInboxSnapshot;
+
+  /** Most recent modification time */
+  updatedAt: string;
+}
+
+/**
+ * UI-safe GitHub integration state sent to the webview.
+ */
+export interface GitHubIntegrationView {
+  /** Whether the GitHub integration is enabled */
+  enabled: boolean;
+
+  /** Repository owner or org */
+  owner?: string;
+
+  /** Repository name */
+  repo?: string;
+
+  /** Optional GitHub Enterprise or API base URL */
+  apiBaseUrl?: string;
+
+  /** Prompt template used by future GitHub automation flows */
+  automationPromptTemplate?: string;
+
+  /** Whether a usable VS Code GitHub authentication connection is available */
+  hasConnection: boolean;
+
+  /** Optional authentication status detail shown to the user */
+  authStatusText?: string;
+
+  /** Legacy token indicator kept for compatibility during migration */
+  hasToken?: boolean;
+
+  /** Current sync/readiness status */
+  syncStatus: GitHubSyncStatus;
+
+  /** Optional safe status detail */
+  statusMessage?: string;
+
+  /** Most recent successful sync time, when available */
+  lastSyncAt?: string;
+
+  /** Safe cached GitHub inbox data */
+  inbox: GitHubInboxSnapshot;
+
+  /** Derived cached GitHub inbox counts */
+  inboxCounts: GitHubInboxCounts;
+
+  /** Most recent modification time */
+  updatedAt?: string;
+}
+
+/**
+ * Input payload from the Settings tab.
+ */
+export interface SaveGitHubIntegrationInput {
+  /** Whether the GitHub integration should be enabled */
+  enabled?: boolean;
+
+  /** Repository owner or org */
+  owner?: string;
+
+  /** Repository name */
+  repo?: string;
+
+  /** Optional GitHub Enterprise or API base URL */
+  apiBaseUrl?: string;
+
+  /** Legacy token field ignored on save for backward compatibility. */
+  token?: string;
+
+  /** Prompt template used by future GitHub automation flows */
+  automationPromptTemplate?: string;
+}
+
+export interface GitHubAuthStatus {
+  /** Whether a usable VS Code GitHub authentication connection is available */
+  hasConnection: boolean;
+
+  /** Optional authentication status detail shown to the user */
+  authStatusText?: string;
+}
+
+export interface GitHubAuthSession extends GitHubAuthStatus {
+  /** Runtime access token resolved from VS Code authentication */
+  accessToken?: string;
 }
 
 /**
@@ -835,6 +1119,9 @@ export interface StorageSettingsView {
 
   /** Whether JSON compatibility mirrors stay enabled in sqlite mode */
   sqliteJsonMirror: boolean;
+
+  /** Whether Cockpit should keep auto-adding private workspace paths to ignore files */
+  autoIgnorePrivateFiles: boolean;
 
   /** Built-in system flag keys that should stay hidden from the default palette */
   disabledSystemFlagKeys: string[];
@@ -1470,6 +1757,8 @@ type TaskActionName =
   | "syncBundledAgents"
   | "importStorageFromJson"
   | "exportStorageToJson"
+  | "refreshGitHubIntegration"
+  | "saveGitHubIntegration"
   | "saveTelegramNotification"
   | "testTelegramNotification"
   | "saveExecutionDefaults"
@@ -1546,6 +1835,9 @@ export interface TaskAction {
 
   /** Telegram notification create/update payload */
   telegramData?: Partial<SaveTelegramNotificationInput>;
+
+  /** GitHub integration create/update payload */
+  githubData?: Partial<SaveGitHubIntegrationInput>;
 
   /** Default execution settings payload */
   executionDefaults?: Partial<ExecutionDefaultsView>;
@@ -1699,6 +1991,8 @@ type ResearchMessage =
   | { type: "stopResearchRun" };
 
 type NotificationAndSettingsMessage =
+  | { type: "refreshGitHubIntegration" }
+  | { type: "saveGitHubIntegration"; data: SaveGitHubIntegrationInput }
   | { type: "saveTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }

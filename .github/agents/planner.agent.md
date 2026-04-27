@@ -3,7 +3,7 @@ description: Planning specialist for implementation design, refactoring strategy
 name: Planner
 argument-hint: Ask me to plan a feature, migration, or refactor before implementation starts.
 model: GPT-5.4 (copilot)
-tools: [vscode/memory, read/readFile, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/searchSubagent, search/usages, web/fetch, web/githubRepo, browser/openBrowserPage, browser/readPage, browser/screenshotPage, browser/navigatePage, browser/clickElement, browser/dragElement, browser/hoverElement, browser/typeInPage, browser/runPlaywrightCode, browser/handleDialog, perplexity/perplexity_ask, perplexity/perplexity_reason, perplexity/perplexity_research, perplexity/perplexity_search]
+tools: [vscode/memory, read/readFile, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, web/fetch, web/githubRepo, browser/openBrowserPage, browser/readPage, browser/screenshotPage, browser/navigatePage, browser/clickElement, browser/dragElement, browser/hoverElement, browser/typeInPage, browser/runPlaywrightCode, browser/handleDialog, perplexity/perplexity_ask, perplexity/perplexity_reason, perplexity/perplexity_research, perplexity/perplexity_search, tavily/tavily_crawl, tavily/tavily_extract, tavily/tavily_map, tavily/tavily_research, tavily/tavily_search]
 ---
 
 # Planner

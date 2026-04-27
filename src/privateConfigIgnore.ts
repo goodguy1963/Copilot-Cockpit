@@ -2,7 +2,13 @@ import * as fs from "fs";
 import * as path from "path";
 
 const ROOT_GITIGNORE_RELATIVE_PATH = ".gitignore";
+const SETTINGS_RELATIVE_PATH = path.join(".vscode", "settings.json");
 const VSCODE_GITIGNORE_RELATIVE_PATH = path.join(".vscode", ".gitignore");
+export const AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY = "autoIgnorePrivateFiles";
+const AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY =
+  `copilotCockpit.${AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY}`;
+const LEGACY_AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY =
+  `copilotScheduler.${AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY}`;
 const VSCODE_IGNORE_ENTRIES = [
   "scheduler.private.json",
   "copilot-cockpit.db",
@@ -16,6 +22,168 @@ const VSCODE_IGNORE_ENTRIES = [
 const VSCODE_IGNORE_COMMENT = "# Copilot Cockpit private config";
 const ROOT_IGNORE_ENTRIES = [".copilot-cockpit-logs/"] as const;
 const ROOT_IGNORE_COMMENT = "# Copilot Cockpit logs";
+
+function stripBom(content: string): string {
+  return content.replace(/^\uFEFF/, "");
+}
+
+function stripJsonComments(content: string): string {
+  let result = "";
+  let inString = false;
+  let isEscaped = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+    const nextCharacter = content[index + 1];
+
+    if (inLineComment) {
+      if (character === "\n" || character === "\r") {
+        inLineComment = false;
+        result += character;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (character === "*" && nextCharacter === "/") {
+        inBlockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (inString) {
+      result += character;
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (character === "\\") {
+        isEscaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      result += character;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "/") {
+      inLineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "*") {
+      inBlockComment = true;
+      index += 1;
+      continue;
+    }
+
+    result += character;
+  }
+
+  return result;
+}
+
+function stripTrailingJsonCommas(content: string): string {
+  let result = "";
+  let inString = false;
+  let isEscaped = false;
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+
+    if (inString) {
+      result += character;
+      if (isEscaped) {
+        isEscaped = false;
+      } else if (character === "\\") {
+        isEscaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+      result += character;
+      continue;
+    }
+
+    if (character === ",") {
+      let lookaheadIndex = index + 1;
+      while (
+        lookaheadIndex < content.length
+        && /\s/.test(content[lookaheadIndex])
+      ) {
+        lookaheadIndex += 1;
+      }
+
+      if (
+        content[lookaheadIndex] === "}"
+        || content[lookaheadIndex] === "]"
+      ) {
+        continue;
+      }
+    }
+
+    result += character;
+  }
+
+  return result;
+}
+
+function parseWorkspaceSettingsContent(content: string): Record<string, unknown> {
+  const sanitized = stripTrailingJsonCommas(
+    stripJsonComments(stripBom(content)),
+  );
+  const parsed = JSON.parse(sanitized);
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function readWorkspaceSettings(workspaceRoot: string): Record<string, unknown> {
+  if (!workspaceRoot) {
+    return {};
+  }
+
+  const settingsPath = path.join(workspaceRoot, SETTINGS_RELATIVE_PATH);
+  if (!fs.existsSync(settingsPath)) {
+    return {};
+  }
+
+  try {
+    return parseWorkspaceSettingsContent(fs.readFileSync(settingsPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+export function isAutoIgnorePrivateFilesEnabledForWorkspaceRoot(
+  workspaceRoot: string,
+): boolean {
+  const settings = readWorkspaceSettings(workspaceRoot);
+
+  if (typeof settings[AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY] === "boolean") {
+    return settings[AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY] as boolean;
+  }
+
+  if (typeof settings[LEGACY_AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY] === "boolean") {
+    return settings[LEGACY_AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY] as boolean;
+  }
+
+  return true;
+}
 
 function normalizeLines(content: string): string[] {
   return content.replace(/\r\n/g, "\n").split("\n");
@@ -57,37 +225,47 @@ function ensureIgnoreEntries(
   return true;
 }
 
-export function ensurePrivateConfigIgnoredForWorkspaceRoot(
+function ensurePrivateConfigIgnoredForWorkspaceRootInternal(
   workspaceRoot: string,
-): string | undefined {
-  if (!workspaceRoot) {
-    return undefined;
+  forceApply = false,
+): string[] {
+  if (
+    !workspaceRoot
+    || (!forceApply && !isAutoIgnorePrivateFilesEnabledForWorkspaceRoot(workspaceRoot))
+  ) {
+    return [];
   }
 
+  const updatedPaths: string[] = [];
   const vscodeIgnorePath = path.join(
     workspaceRoot,
     VSCODE_GITIGNORE_RELATIVE_PATH,
   );
   const rootIgnorePath = path.join(workspaceRoot, ROOT_GITIGNORE_RELATIVE_PATH);
 
-  const updatedVscodeIgnore = ensureIgnoreEntries(
+  if (ensureIgnoreEntries(
     vscodeIgnorePath,
     VSCODE_IGNORE_COMMENT,
     VSCODE_IGNORE_ENTRIES,
-  );
-  const updatedRootIgnore = ensureIgnoreEntries(
+  )) {
+    updatedPaths.push(vscodeIgnorePath);
+  }
+
+  if (ensureIgnoreEntries(
     rootIgnorePath,
     ROOT_IGNORE_COMMENT,
     ROOT_IGNORE_ENTRIES,
-  );
+  )) {
+    updatedPaths.push(rootIgnorePath);
+  }
 
-  if (updatedVscodeIgnore) {
-    return vscodeIgnorePath;
-  }
-  if (updatedRootIgnore) {
-    return rootIgnorePath;
-  }
-  return undefined;
+  return updatedPaths;
+}
+
+export function ensurePrivateConfigIgnoredForWorkspaceRoot(
+  workspaceRoot: string,
+): string | undefined {
+  return ensurePrivateConfigIgnoredForWorkspaceRootInternal(workspaceRoot)[0];
 }
 
 export function ensurePrivateConfigIgnoredForWorkspaceRoots(
@@ -96,27 +274,29 @@ export function ensurePrivateConfigIgnoredForWorkspaceRoots(
   const createdOrUpdated: string[] = [];
 
   for (const workspaceRoot of workspaceRoots) {
-    const vscodeIgnorePath = path.join(
-      workspaceRoot,
-      VSCODE_GITIGNORE_RELATIVE_PATH,
+    createdOrUpdated.push(
+      ...ensurePrivateConfigIgnoredForWorkspaceRootInternal(workspaceRoot),
     );
-    const rootIgnorePath = path.join(workspaceRoot, ROOT_GITIGNORE_RELATIVE_PATH);
-    const before = new Set(createdOrUpdated);
+  }
 
-    ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
+  return createdOrUpdated;
+}
 
-    if (fs.existsSync(vscodeIgnorePath) && !before.has(vscodeIgnorePath)) {
-      const content = fs.readFileSync(vscodeIgnorePath, "utf8");
-      if (VSCODE_IGNORE_ENTRIES.every((entry) => content.includes(entry))) {
-        createdOrUpdated.push(vscodeIgnorePath);
-      }
-    }
-    if (fs.existsSync(rootIgnorePath) && !before.has(rootIgnorePath)) {
-      const content = fs.readFileSync(rootIgnorePath, "utf8");
-      if (ROOT_IGNORE_ENTRIES.every((entry) => content.includes(entry))) {
-        createdOrUpdated.push(rootIgnorePath);
-      }
-    }
+export function applyPrivateConfigIgnoreForWorkspaceRoot(
+  workspaceRoot: string,
+): string | undefined {
+  return ensurePrivateConfigIgnoredForWorkspaceRootInternal(workspaceRoot, true)[0];
+}
+
+export function applyPrivateConfigIgnoreForWorkspaceRoots(
+  workspaceRoots: string[],
+): string[] {
+  const createdOrUpdated: string[] = [];
+
+  for (const workspaceRoot of workspaceRoots) {
+    createdOrUpdated.push(
+      ...ensurePrivateConfigIgnoredForWorkspaceRootInternal(workspaceRoot, true),
+    );
   }
 
   return createdOrUpdated;

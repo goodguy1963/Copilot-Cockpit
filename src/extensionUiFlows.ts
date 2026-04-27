@@ -12,6 +12,8 @@ type CronWarningScheduleManager = {
 
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
+let lastWarnedStaleRuntimeKey: string | undefined;
+
 export async function warnIfCronTooFrequent(options: {
   cronExpression?: string;
   cockpitManager: CronWarningScheduleManager;
@@ -65,6 +67,28 @@ export function maybePromptReloadAfterUpdate(
 
   void vscode.window
     .showInformationMessage(messages.reloadAfterUpdate(currentVersion), messages.reloadNow())
+    .then((choice) => {
+      if (choice === messages.reloadNow()) {
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }
+    });
+}
+
+export function warnStaleRuntimeSqliteSuppressed(
+  activeVersion: string,
+  installedVersion: string,
+): void {
+  const warningKey = `${activeVersion}->${installedVersion}`;
+  if (lastWarnedStaleRuntimeKey === warningKey) {
+    return;
+  }
+  lastWarnedStaleRuntimeKey = warningKey;
+
+  void vscode.window
+    .showWarningMessage(
+      messages.reloadRequiredForSqliteAfterUpdate(activeVersion, installedVersion),
+      messages.reloadNow(),
+    )
     .then((choice) => {
       if (choice === messages.reloadNow()) {
         void vscode.commands.executeCommand("workbench.action.reloadWindow");

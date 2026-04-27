@@ -3,6 +3,7 @@ import type {
   AgentInfo,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ModelInfo,
@@ -69,6 +70,7 @@ export function replaySchedulerPanel(options: {
   jobs: JobDefinition[];
   jobFolders: JobFolder[];
   cockpitBoard: CockpitBoard;
+  githubIntegration: GitHubIntegrationView;
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
@@ -85,6 +87,7 @@ export function replaySchedulerPanel(options: {
   updateJobs: (jobs: JobDefinition[]) => void;
   updateJobFolders: (jobFolders: JobFolder[]) => void;
   updateCockpitBoard: (board: CockpitBoard) => void;
+  updateGitHubIntegration: (integration: GitHubIntegrationView) => void;
   updateTelegramNotification: (notification: TelegramNotificationView) => void;
   updateExecutionDefaults: (defaults: ExecutionDefaultsView) => void;
   updateReviewDefaults: (defaults: ReviewDefaultsView) => void;
@@ -102,6 +105,7 @@ export function replaySchedulerPanel(options: {
     jobs: options.jobs,
     jobFolders: options.jobFolders,
     cockpitBoard: options.cockpitBoard,
+    githubIntegration: options.githubIntegration,
     telegramNotification: options.telegramNotification,
     executionDefaults: options.executionDefaults,
     reviewDefaults: options.reviewDefaults,
@@ -119,6 +123,7 @@ export function replaySchedulerPanel(options: {
     updateJobFolders: options.updateJobFolders,
     updateCockpitBoard: (board) =>
       options.updateCockpitBoard(board as CockpitBoard),
+    updateGitHubIntegration: options.updateGitHubIntegration,
     updateTelegramNotification: options.updateTelegramNotification,
     updateExecutionDefaults: options.updateExecutionDefaults,
     updateReviewDefaults: options.updateReviewDefaults,

@@ -109,9 +109,35 @@ interface BundledAgentsSource {
   relativePath: string;
 }
 
+interface ParsedBundledAgentMetadata {
+  description?: string;
+  name: string;
+  relativePath: string;
+}
+
 const BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY = "copilotCockpitCustomize";
 const CODEX_AGENTS_MANAGED_START = "<!-- copilot-cockpit-codex:start -->";
 const CODEX_AGENTS_MANAGED_END = "<!-- copilot-cockpit-codex:end -->";
+const STARTER_AGENT_FILE_NAMES = new Set([
+  "ceo.agent.md",
+  "planner.agent.md",
+  "remediation-implementer.agent.md",
+  "documentation-specialist.agent.md",
+  "custom-agent-foundry.agent.md",
+  "cockpit-todo-expert.agent.md",
+]);
+const LEGACY_BUNDLED_SKILL_RELATIVE_PATHS = new Set([
+  path.join(BUNDLED_SKILLS_RELATIVE_PATH, "prefab-mcp", "SKILL.md"),
+]);
+const LEGACY_CUSTOM_AGENT_FILE_NAMES = new Set(["prefab.agent.md"]);
+
+function isLegacyBundledSkillRelativePath(relativePath: string): boolean {
+  return LEGACY_BUNDLED_SKILL_RELATIVE_PATHS.has(path.normalize(relativePath));
+}
+
+function isLegacyCustomAgentRelativePath(relativePath: string): boolean {
+  return LEGACY_CUSTOM_AGENT_FILE_NAMES.has(path.normalize(relativePath));
+}
 
 function mapBundledSkillPathToCodex(relativePath: string): string {
   return path.join(
@@ -138,9 +164,80 @@ function formatManagedSkillLine(
   return `- ${label}: ${details}.`;
 }
 
+function parseSimpleFrontmatterValues(content: string): Map<string, string> {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!frontmatterMatch) {
+    return new Map<string, string>();
+  }
+
+  const values = new Map<string, string>();
+  for (const line of frontmatterMatch[1].split(/\r?\n/)) {
+    const match = /^([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$/.exec(line.trim());
+    if (match) {
+      values.set(match[1], match[2].trim().replace(/^['"]|['"]$/g, ""));
+    }
+  }
+
+  return values;
+}
+
+function listBundledCustomAgentMetadata(extensionRoot: string): ParsedBundledAgentMetadata[] {
+  const bundledAgentsSource = resolveBundledAgentsSource(extensionRoot);
+  const bundledAgentsRoot = bundledAgentsSource.absolutePath;
+
+  let entries: fs.Dirent[] = [];
+  try {
+    entries = fs.readdirSync(bundledAgentsRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.isFile())
+    .filter((entry) => entry.name.toLowerCase().endsWith(".agent.md"))
+    .filter((entry) => !STARTER_AGENT_FILE_NAMES.has(entry.name))
+    .filter((entry) => !LEGACY_CUSTOM_AGENT_FILE_NAMES.has(entry.name))
+    .map((entry) => {
+      const absolutePath = path.join(bundledAgentsRoot, entry.name);
+      const frontmatterValues = parseSimpleFrontmatterValues(
+        fs.readFileSync(absolutePath, "utf8"),
+      );
+      const name = frontmatterValues.get("name") || path.basename(entry.name, ".agent.md");
+      const description = frontmatterValues.get("description");
+      return {
+        description,
+        name,
+        relativePath: path.join(BUNDLED_AGENTS_RELATIVE_PATH, entry.name),
+      };
+    })
+    .filter((entry) => entry.name.length > 0)
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function formatManagedCustomAgentLine(
+  customAgents: ParsedBundledAgentMetadata[],
+): string | undefined {
+  if (customAgents.length === 0) {
+    return undefined;
+  }
+
+  const details = customAgents
+    .map((entry) => {
+      const description = entry.description?.trim();
+      const location = `\`${entry.relativePath.replace(/\\/g, "/")}\``;
+      return description
+        ? `\`${entry.name}\` in ${location} ${description}`
+        : `\`${entry.name}\` in ${location}`;
+    })
+    .join(", ");
+
+  return `- Repo-local custom agents: ${details}.`;
+}
+
 function buildManagedCodexAgentsBlock(extensionRoot: string): string {
   const bundledSkillsRoot = path.join(extensionRoot, BUNDLED_SKILLS_RELATIVE_PATH);
   const skillMetadata = listSkillMetadataInDirectory(bundledSkillsRoot);
+  const customAgents = listBundledCustomAgentMetadata(extensionRoot);
   const operationalLine = formatManagedSkillLine(
     "Operational skills",
     skillMetadata.filter((entry) => entry.type === "operational"),
@@ -149,6 +246,7 @@ function buildManagedCodexAgentsBlock(extensionRoot: string): string {
     "Support skills",
     skillMetadata.filter((entry) => entry.type === "support"),
   );
+  const customAgentLine = formatManagedCustomAgentLine(customAgents);
 
   return [
     CODEX_AGENTS_MANAGED_START,
@@ -158,6 +256,7 @@ function buildManagedCodexAgentsBlock(extensionRoot: string): string {
     "- Repo-local Codex MCP config for this project lives in `.codex/config.toml`.",
     operationalLine,
     supportLine,
+    customAgentLine,
     "- Codex cannot start a new session through the Copilot Cockpit task scheduler integration. Creating and running task drafts from Codex is still a manual step in this repo.",
     CODEX_AGENTS_MANAGED_END,
   ].filter((line): line is string => Boolean(line)).join("\n");
@@ -331,17 +430,14 @@ function createContentHash(content: string): string {
 }
 
 function isBundledSkillCustomizationProtected(content: string): boolean {
-  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
-  if (!frontmatterMatch) {
+  const frontmatterValues = parseSimpleFrontmatterValues(content);
+  if (frontmatterValues.size === 0) {
     return false;
   }
 
-  const frontmatter = frontmatterMatch[1];
-  const customizePattern = new RegExp(
-    `^${BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY}\\s*:\\s*true\\s*$`,
-    "mi",
+  return /^true$/i.test(
+    frontmatterValues.get(BUNDLED_SKILL_CUSTOMIZE_FRONTMATTER_KEY) || "false",
   );
-  return customizePattern.test(frontmatter);
 }
 
 function normalizeSyncState(
@@ -409,7 +505,12 @@ async function collectBundledRelativeFilePaths(
         continue;
       }
 
-      relativePaths.push(path.relative(extensionRoot, absoluteEntryPath));
+      const relativePath = path.relative(extensionRoot, absoluteEntryPath);
+      if (isLegacyBundledSkillRelativePath(relativePath)) {
+        continue;
+      }
+
+      relativePaths.push(relativePath);
     }
   }
 
@@ -485,9 +586,9 @@ async function collectBundledAgentSourceEntries(
   extensionRoot: string,
 ): Promise<{ bundledAgentsSource: BundledAgentsSource; entries: BundledAgentSourceEntry[] }> {
   const bundledAgentsSource = resolveBundledAgentsSource(extensionRoot);
-  const sourceRelativePaths = await collectRelativeFilePaths(
+  const sourceRelativePaths = (await collectRelativeFilePaths(
     bundledAgentsSource.absolutePath,
-  );
+  )).filter((sourceRelativePath) => !isLegacyCustomAgentRelativePath(sourceRelativePath));
 
   return {
     bundledAgentsSource,

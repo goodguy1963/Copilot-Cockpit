@@ -7,7 +7,14 @@ import { createCockpitTodo } from "../../cockpitBoardManager";
 import { readSchedulerConfig } from "../../cockpitJsonSanitizer";
 import { SchedulerWebview } from "../../cockpitWebview";
 import { handleTodoCockpitAction } from "../../todoCockpitActionHandler";
-import type { CockpitBoard, CreateTaskInput, ExecuteOptions, ScheduledTask } from "../../types";
+import type {
+  CockpitBoard,
+  CreateTaskInput,
+  ExecuteOptions,
+  GitHubIntegrationView,
+  GitHubTodoSource,
+  ScheduledTask,
+} from "../../types";
 
 suite("Todo Cockpit Action Handler", () => {
   function createWorkspaceRoot(): string {
@@ -57,6 +64,54 @@ suite("Todo Cockpit Action Handler", () => {
       notifyInfoWithAction: (_message: string, _actionLabel: string, _onAction: () => void | Promise<void>) => undefined,
       showError: (_message: string) => undefined,
       noWorkspaceOpenMessage: "No workspace",
+      getCurrentGitHubIntegration: () => undefined,
+      getCurrentGitBranchName: async (_workspaceRoot: string | undefined) => undefined,
+    };
+  }
+
+  function createGitHubIntegrationView(
+    overrides: Partial<GitHubIntegrationView> = {},
+  ): GitHubIntegrationView {
+    return {
+      enabled: true,
+      owner: "octo",
+      repo: "repo",
+      hasConnection: true,
+      syncStatus: "ready",
+      statusMessage: "GitHub ready",
+      automationPromptTemplate: "Review the GitHub item before acting.",
+      inbox: {
+        issues: { items: [], itemCount: 0 },
+        pullRequests: { items: [], itemCount: 0 },
+        securityAlerts: { items: [], itemCount: 0 },
+      },
+      inboxCounts: {
+        issues: 0,
+        pullRequests: 0,
+        securityAlerts: 0,
+        total: 0,
+      },
+      updatedAt: "2026-04-27T12:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  function createPullRequestGitHubSource(
+    overrides: Partial<GitHubTodoSource> = {},
+  ): GitHubTodoSource {
+    return {
+      itemId: "pull-request:42",
+      kind: "pullRequest",
+      number: 42,
+      title: "Review pull request #42",
+      url: "https://github.com/octo/repo/pull/42",
+      owner: "octo",
+      repo: "repo",
+      state: "open",
+      baseRef: "main",
+      headRef: "feature/pr-42",
+      updatedAt: "2026-04-27T12:00:00.000Z",
+      ...overrides,
     };
   }
 
@@ -308,6 +363,56 @@ suite("Todo Cockpit Action Handler", () => {
     }
   });
 
+  test("createTodo with githubSource pullRequest injects GitHub automation prompt and branch/security preflight into the launched prompt", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTodo",
+          taskId: "",
+          todoData: {
+            title: "Review PR",
+            description: "Inspect the imported pull request",
+            sectionId: "",
+            priority: "low",
+            flags: ["needs-bot-review"],
+            githubSource: createPullRequestGitHubSource(),
+          },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentGitHubIntegration: () => createGitHubIntegrationView({
+            automationPromptTemplate: "Check the PR description and release notes before drafting a plan.",
+          }),
+          getCurrentGitBranchName: async () => "main",
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(launches.length, 1);
+      assert.ok(launches[0]?.prompt.includes("GitHub context:"));
+      assert.ok(launches[0]?.prompt.includes("GitHub PR branch/security preflight:"));
+      assert.ok(launches[0]?.prompt.includes("Security review comes before implementation work."));
+      assert.ok(launches[0]?.prompt.includes("Required PR head branch: feature/pr-42"));
+      assert.ok(launches[0]?.prompt.includes("Current local branch: main"));
+      assert.ok(launches[0]?.prompt.includes("Branch status: mismatch."));
+      assert.ok(launches[0]?.prompt.includes("Stop before implementation"));
+      assert.ok(launches[0]?.prompt.includes("Saved GitHub automation prompt:"));
+      assert.ok(
+        launches[0]?.prompt.includes(
+          "Check the PR description and release notes before drafting a plan.",
+        ),
+      );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("createTodo uses workspace skill metadata when building MCP guidance", async () => {
     const workspaceRoot = createWorkspaceRoot();
     const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
@@ -476,6 +581,71 @@ suite("Todo Cockpit Action Handler", () => {
         0,
       );
       assert.strictEqual(launches.length, 0);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("duplicate GitHub import reuses and updates an existing Todo instead of creating a second one", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const launches: Array<{ prompt: string; options: ExecuteOptions }> = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Review pull request #42",
+        description: "Old GitHub summary",
+        sectionId: "",
+        priority: "medium",
+        labels: ["existing"],
+        githubSource: createPullRequestGitHubSource({
+          updatedAt: "2026-04-26T12:00:00.000Z",
+        }),
+      });
+
+      const boardBeforeAction = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTodo",
+          taskId: "",
+          todoData: {
+            title: "Review pull request #42 refreshed",
+            description: "New GitHub summary with more detail",
+            sectionId: "",
+            priority: "high",
+            labels: ["github"],
+            flags: ["needs-bot-review"],
+            githubSource: createPullRequestGitHubSource({
+              title: "Review pull request #42 refreshed",
+              state: "draft",
+              updatedAt: "2026-04-27T12:00:00.000Z",
+            }),
+          },
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeAction,
+          getCurrentGitBranchName: async () => "feature/pr-42",
+          getCurrentGitHubIntegration: () => createGitHubIntegrationView(),
+          executeBotReviewPrompt: async (prompt: string, options: ExecuteOptions) => {
+            launches.push({ prompt, options });
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(launches.length, 1);
+
+      const board = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      assert.strictEqual(board.cards.length, 1);
+      const updatedTodo = board.cards.find((card) => card.id === created.todo.id);
+      assert.ok(updatedTodo);
+      assert.strictEqual(updatedTodo?.title, "Review pull request #42 refreshed");
+      assert.strictEqual(updatedTodo?.priority, "high");
+      assert.deepStrictEqual(updatedTodo?.labels, ["existing", "github"]);
+      assert.deepStrictEqual(updatedTodo?.flags, ["needs-bot-review"]);
+      assert.strictEqual(updatedTodo?.description, "New GitHub summary with more detail");
+      assert.strictEqual(updatedTodo?.githubSource?.state, "draft");
+      assert.strictEqual(updatedTodo?.githubSource?.updatedAt, "2026-04-27T12:00:00.000Z");
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
@@ -688,6 +858,61 @@ suite("Todo Cockpit Action Handler", () => {
       assert.ok(createdTaskInputs[0]?.prompt.includes("ops"));
       assert.ok(createdTaskInputs[0]?.prompt.includes("MCP and skill usage guidance:"));
       assert.ok(createdTaskInputs[0]?.prompt.includes("Treat Todo Cockpit cards and scheduled tasks as separate artifacts"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("createTaskFromTodo with githubSource pullRequest includes the same preflight in the created task prompt", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const createdTaskInputs: CreateTaskInput[] = [];
+
+    try {
+      const created = createCockpitTodo(workspaceRoot, {
+        title: "Ready PR todo",
+        description: "Draft the follow-up task",
+        sectionId: "",
+        priority: "low",
+        labels: ["ops"],
+        flags: ["ready"],
+        githubSource: createPullRequestGitHubSource(),
+      });
+
+      const boardBeforeAction = readSchedulerConfig(workspaceRoot).cockpitBoard as CockpitBoard;
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "createTaskFromTodo",
+          taskId: "",
+          todoId: created.todo.id,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          getCurrentCockpitBoard: () => boardBeforeAction,
+          getCurrentGitHubIntegration: () => createGitHubIntegrationView({
+            automationPromptTemplate: "Use the GitHub context as the starting point for the task draft.",
+          }),
+          getCurrentGitBranchName: async () => "main",
+          createTask: async (input: CreateTaskInput) => {
+            createdTaskInputs.push(input);
+            return { id: "task-1", name: input.name };
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(createdTaskInputs.length, 1);
+      assert.ok(createdTaskInputs[0]?.prompt.includes("GitHub PR branch/security preflight:"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Security review comes before implementation work."));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Required PR head branch: feature/pr-42"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Current local branch: main"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Branch status: mismatch."));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Stop before implementation"));
+      assert.ok(createdTaskInputs[0]?.prompt.includes("Saved GitHub automation prompt:"));
+      assert.ok(
+        createdTaskInputs[0]?.prompt.includes(
+          "Use the GitHub context as the starting point for the task draft.",
+        ),
+      );
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

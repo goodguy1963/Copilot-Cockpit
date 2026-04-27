@@ -88,6 +88,7 @@ Each todo card can carry:
 - Comment history
 - Optional linked task ID
 - Optional task snapshot for scheduled-task history cards
+- Optional GitHub source metadata for imported GitHub issues, pull requests, or security alerts
 - Optional session ID
 - Archived state
 - Optional archive outcome
@@ -319,6 +320,19 @@ The board includes:
 
 This makes the board both a work surface and a lightweight dashboard.
 
+### 8.8 GitHub inbox and imports
+
+When the optional repo-local GitHub integration is configured, the board adds a cached GitHub inbox above the normal sections.
+
+Current behavior:
+
+- The inbox is collapsible.
+- It exposes three lanes: `Issues`, `Pull Requests`, and `Security Alerts`.
+- Security alerts currently aggregate the supported code scanning and Dependabot alert reads.
+- Refresh is manual and uses cached repo-local state rather than live push updates.
+- Each inbox row can `Create Todo` or `Create Todo + Review`.
+- Imported cards persist structured GitHub source metadata so later imports reuse and refresh the same Todo when the source item matches instead of creating duplicates.
+
 ## 9. Card Presentation Features
 
 Cards surface compact metadata in both board and list renderers.
@@ -453,6 +467,7 @@ A new card may include:
 - Priority
 - Labels
 - Flags
+- Optional GitHub source metadata
 - Initial comment
 - Initial comment author
 - Initial comment source
@@ -464,6 +479,7 @@ Creation behavior:
 
 - Blank titles normalize to `Untitled todo` in the lower-level board API.
 - Creating a card directly in `ready` stamps `approvedAt` immediately.
+- Creating a card from the GitHub inbox can reuse and update an existing GitHub-sourced card instead of creating a second one.
 - If the new card would be hidden by the current filters, the action handler can reveal it by clearing conflicting filters.
 - After create, the board UI refreshes and returns to the board tab.
 
@@ -570,6 +586,7 @@ Current `Create Task Draft` behavior:
 - Uses the todo description as the task description
 - Builds an inline prompt from the todo content
 - Includes recent coordination comments in the generated prompt
+- Preserves GitHub context for GitHub-sourced todos and carries it into the generated prompt
 - Uses the default cron expression `0 9 * * 1-5`
 - Creates the task disabled by default
 - Creates the task as one-time by default
@@ -582,6 +599,7 @@ Generated prompt structure currently includes:
 - A task goal line
 - An optional context block from the description
 - A recent coordination block from recent comments
+- GitHub context, the saved GitHub automation prompt, and PR branch/security preflight for GitHub-sourced todos
 - A final instruction to produce the approved execution artifact and keep unresolved questions explicit
 
 ## 15. Create Task Tab In The Downstream Workflow

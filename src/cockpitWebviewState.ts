@@ -2,6 +2,7 @@ import type {
   AgentInfo,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   PromptTemplate,
   ReviewDefaultsView,
   SkillReference,
@@ -67,6 +68,25 @@ export function createEmptyTelegramNotification(): TelegramNotificationView {
   };
 }
 
+export function createEmptyGitHubIntegration(): GitHubIntegrationView {
+  return {
+    enabled: false,
+    hasConnection: false,
+    syncStatus: "disabled",
+    inbox: {
+      issues: { items: [], itemCount: 0 },
+      pullRequests: { items: [], itemCount: 0 },
+      securityAlerts: { items: [], itemCount: 0 },
+    },
+    inboxCounts: {
+      issues: 0,
+      pullRequests: 0,
+      securityAlerts: 0,
+      total: 0,
+    },
+  };
+}
+
 export function createDefaultExecutionDefaults(): ExecutionDefaultsView {
   return {
     agent: "agent",
@@ -91,6 +111,7 @@ export function createDefaultStorageSettings(): StorageSettingsView {
     searchProvider: "built-in",
     researchProvider: "none",
     sqliteJsonMirror: true,
+    autoIgnorePrivateFiles: true,
     disabledSystemFlagKeys: [],
     appVersion: "",
     mcpSetupStatus: "workspace-required",

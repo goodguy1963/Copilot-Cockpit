@@ -113,6 +113,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
               </div></div></div></div></div></div>
     <div id="board-summary" class="note"></div>
     <div class="note" style="margin-bottom:12px;">${escapeHtml(strings.boardDropHint)}</div>
+    <div id="github-board-inbox-root"></div>
     <div class="board-toolbar">
       <button type="button" class="btn-secondary" id="board-add-section-btn">${escapeHtml(strings.boardAddSection)}</button>
       <div id="board-section-inline-form" style="display:none;align-items:center;gap:6px;">
@@ -638,6 +639,14 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
 
         <div class="form-group">
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="settings-auto-ignore-private-files-input">
+            <span>${escapeHtml(strings.settingsAutoIgnorePrivateFilesLabel)}</span>
+          </label>
+          <p class="note">${escapeHtml(strings.settingsAutoIgnorePrivateFilesBody)}</p>
+        </div>
+
+        <div class="form-group">
           <div style="font-weight:600;margin-bottom:6px;">🧩 ${escapeHtml(strings.settingsDefaultFlagsTitle)}</div>
           <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.settingsDefaultFlagsBody)}</p>
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
@@ -691,6 +700,70 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <div class="button-group">
           <button type="button" class="btn-secondary" id="settings-open-log-folder-btn">${escapeHtml(strings.settingsLoggingOpenFolder)}</button>
         </div>
+      </section>
+      <section class="telegram-card settings-card settings-card-github" style="grid-column:span 2;">
+        <div class="settings-card-header">
+          <div class="section-title">GitHub ${escapeHtml(strings.githubIntegrationTitle)}</div>
+          <p class="note">${escapeHtml(strings.githubIntegrationDescription)}</p>
+        </div>
+        <div id="github-integration-feedback" class="telegram-feedback"></div>
+
+        <div class="form-group" style="margin-top:8px;">
+          <label class="checkbox-group">
+            <input type="checkbox" id="github-integration-enabled">
+            <span>${escapeHtml(strings.githubIntegrationEnable)}</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="github-integration-owner">${escapeHtml(strings.githubIntegrationOwner)}</label>
+          <input type="text" id="github-integration-owner" placeholder="${escapeHtmlAttr(strings.githubIntegrationOwnerPlaceholder)}">
+        </div>
+
+        <div class="form-group">
+          <label for="github-integration-repo">${escapeHtml(strings.githubIntegrationRepo)}</label>
+          <input type="text" id="github-integration-repo" placeholder="${escapeHtmlAttr(strings.githubIntegrationRepoPlaceholder)}">
+        </div>
+
+        <div class="form-group">
+          <label for="github-integration-api-base-url">${escapeHtml(strings.githubIntegrationApiBaseUrl)}</label>
+          <input type="text" id="github-integration-api-base-url" placeholder="${escapeHtmlAttr(strings.githubIntegrationApiBaseUrlPlaceholder)}">
+          <p class="note">${escapeHtml(strings.githubIntegrationConnectionHelp)}</p>
+        </div>
+
+        <div class="form-group">
+          <label for="github-integration-automation-prompt-template">${escapeHtml(strings.githubIntegrationAutomationPromptTemplate)}</label>
+          <textarea id="github-integration-automation-prompt-template" placeholder="${escapeHtmlAttr(strings.githubIntegrationAutomationPromptTemplatePlaceholder)}"></textarea>
+          <p class="note">${escapeHtml(strings.githubIntegrationAutomationPromptTemplateHelp)}</p>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-primary" id="github-integration-save-btn">${escapeHtml(strings.githubIntegrationSave)}</button>
+          <button type="button" class="btn-secondary" id="github-integration-refresh-btn">${escapeHtml(strings.githubIntegrationRefresh)}</button>
+        </div>
+        <div class="telegram-status-grid" style="margin-top:12px;">
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.githubIntegrationStatus)}</div>
+            <div class="telegram-status-value" id="github-integration-status-value"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.githubIntegrationRepository)}</div>
+            <div class="telegram-status-value" id="github-integration-repository-status"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.githubIntegrationConnection)}</div>
+            <div class="telegram-status-value" id="github-integration-connection-status"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.githubIntegrationLastSyncAt)}</div>
+            <div class="telegram-status-value" id="github-integration-last-sync-at"></div>
+          </div>
+          <div class="telegram-status-item">
+            <div class="telegram-status-label">${escapeHtml(strings.githubIntegrationUpdatedAt)}</div>
+            <div class="telegram-status-value" id="github-integration-updated-at"></div>
+          </div>
+        </div>
+        <p class="note" id="github-integration-status-note">${escapeHtml(strings.githubIntegrationWorkspaceNote)}</p>
       </section>
       <section class="telegram-card settings-card settings-card-telegram" style="grid-column:span 2;">
         <div class="settings-card-header">

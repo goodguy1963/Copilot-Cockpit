@@ -26,6 +26,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         "Documentation Specialist",
         "Implement the approved bounded fix",
         "closeout is justified",
+        "live Prefab rendering",
         "## Delegation Standard",
       ],
     },
@@ -89,11 +90,25 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
       ],
     },
     {
+      relativePath: ".github/agents/prefab-ui.agent.md",
+      required: [
+        ".github/skills/prefab-ui/SKILL.md",
+        "prefab://docs",
+        "prefab/render_ui",
+        "Whether `prefab/render_ui` was attempted and why",
+        "Prefab UI",
+        "## Mandatory First Step",
+        "## Operating Workflow",
+      ],
+    },
+    {
       relativePath: ".github/agents/system/README.md",
       required: [
         "system/AGENT-SYSTEM-MAINTENANCE.md",
         "system/knowledge/",
         ".github/repo-knowledge/",
+        "Prefab UI Specialist",
+        "live Prefab rendering",
         "Source-of-truth rules",
       ],
     },

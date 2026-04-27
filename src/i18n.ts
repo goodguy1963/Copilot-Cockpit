@@ -1042,6 +1042,11 @@ export const messages = {
       `Copilot Cockpit has been updated to v${version}. Reload to activate the new version.`,
       `Copilot Cockpit が v${version} に更新されました。新しいバージョンを有効にするにはリロードしてください。`,
     ),
+  reloadRequiredForSqliteAfterUpdate: (activeVersion: string, installedVersion: string) =>
+    t(
+      `Copilot Cockpit v${installedVersion} is installed, but this window is still running v${activeVersion}. Reload this window; sqlite sync and hydration are paused until then.`,
+      `Copilot Cockpit v${installedVersion} はインストール済みですが、このウィンドウではまだ v${activeVersion} が実行中です。リロードするまで SQLite の同期と復元は停止されます。`,
+    ),
   // ==================== Date/Time ====================
   formatDateTime: (date: Date) => date.toLocaleString(getCurrentLocaleTag(), dateTimeFormatOptions),
 

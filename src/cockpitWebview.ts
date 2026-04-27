@@ -7,6 +7,7 @@ import type { // local-diverge-5
   ChatSessionBehavior,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ModelInfo,
@@ -123,6 +124,7 @@ import {
   dispatchCachedCatalogMessages,
   dispatchCockpitBoardUpdate,
   dispatchExecutionDefaultsUpdate,
+  dispatchGitHubIntegrationUpdate,
   dispatchJobFolderUpdate,
   dispatchJobUpdate,
   dispatchResearchStateUpdate,
@@ -158,6 +160,7 @@ export class SchedulerWebview {
       "updateJobs",
       "updateJobFolders",
       "updateCockpitBoard",
+      "updateGitHubIntegration",
       "updateTelegramNotification",
       "updateExecutionDefaults",
       "updateReviewDefaults",
@@ -233,6 +236,8 @@ export class SchedulerWebview {
   private static set currentJobFolders(value: JobFolder[]) { this.writeRuntimeState("jobFolders", value); }
   private static get currentCockpitBoard(): CockpitBoard { return this.readRuntimeState("cockpitBoard"); }
   private static set currentCockpitBoard(value: CockpitBoard) { this.writeRuntimeState("cockpitBoard", value); }
+  private static get currentGitHubIntegration(): GitHubIntegrationView { return this.readRuntimeState("githubIntegration"); }
+  private static set currentGitHubIntegration(value: GitHubIntegrationView) { this.writeRuntimeState("githubIntegration", value); }
   private static get currentTelegramNotification(): TelegramNotificationView { return this.readRuntimeState("telegramNotification"); }
   private static set currentTelegramNotification(value: TelegramNotificationView) { this.writeRuntimeState("telegramNotification", value); }
   private static get currentExecutionDefaults(): ExecutionDefaultsView { return this.readRuntimeState("executionDefaults"); }
@@ -302,7 +307,8 @@ export class SchedulerWebview {
 
   static async show( /* present-panel */
     extensionUri: vscode.Uri, tasks: ScheduledTask[], jobs: JobDefinition[], jobFolders: JobFolder[],
-    cockpitBoard: CockpitBoard, telegramNotification: TelegramNotificationView,
+    cockpitBoard: CockpitBoard, githubIntegration: GitHubIntegrationView,
+    telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView, reviewDefaults: ReviewDefaultsView,
     storageSettings: StorageSettingsView, researchProfiles: ResearchProfile[],
     activeResearchRun: ResearchRun | undefined, recentResearchRuns: ResearchRun[],
@@ -314,6 +320,7 @@ export class SchedulerWebview {
       jobs,
       jobFolders,
       cockpitBoard,
+      githubIntegration,
       telegramNotification,
       executionDefaults,
       reviewDefaults,
@@ -366,6 +373,7 @@ export class SchedulerWebview {
         jobs,
         jobFolders,
         cockpitBoard,
+        githubIntegration,
         telegramNotification,
         executionDefaults,
         reviewDefaults,
@@ -390,6 +398,8 @@ export class SchedulerWebview {
         updateJobFolders: (folders) => this.updateJobFolders(folders),
         updateCockpitBoard: (board) =>
           this.updateCockpitBoard(board as CockpitBoard),
+        updateGitHubIntegration: (integration) =>
+          this.updateGitHubIntegration(integration),
         updateTelegramNotification: (notification) =>
           this.updateTelegramNotification(notification),
         updateExecutionDefaults: (defaults) =>
@@ -456,6 +466,16 @@ export class SchedulerWebview {
   static updateCockpitBoard(cockpitBoard: CockpitBoard): void {
     dispatchCockpitBoardUpdate(this.runtimeState, cockpitBoard, (message) =>
       this.postMessage(message),
+    );
+  }
+
+  static updateGitHubIntegration(
+    githubIntegration: GitHubIntegrationView,
+  ): void {
+    dispatchGitHubIntegrationUpdate(
+      this.runtimeState,
+      githubIntegration,
+      (message) => this.postMessage(message),
     );
   }
 
@@ -786,6 +806,7 @@ export class SchedulerWebview {
       currentJobs: this.currentJobs,
       currentJobFolders: this.currentJobFolders,
       currentCockpitBoard: this.currentCockpitBoard,
+      currentGitHubIntegration: this.currentGitHubIntegration,
       currentTelegramNotification: this.currentTelegramNotification,
       currentExecutionDefaults: this.currentExecutionDefaults,
       currentReviewDefaults: this.currentReviewDefaults,

@@ -14,6 +14,9 @@ const FORBIDDEN_BUNDLED_AGENT_TEXT = [
   "repo-specific durable",
   "repo-local durable",
 ];
+const LEGACY_BUNDLED_AGENT_RELATIVE_PATHS = new Set([
+  "prefab.agent.md",
+]);
 
 function toPosixPath(value) {
   return String(value || "").split(path.sep).join("/");
@@ -40,7 +43,12 @@ function collectRelativeFiles(rootPath) {
         continue;
       }
 
-      files.push(path.relative(rootPath, entryPath));
+      const relativePath = path.relative(rootPath, entryPath);
+      if (LEGACY_BUNDLED_AGENT_RELATIVE_PATHS.has(relativePath)) {
+        continue;
+      }
+
+      files.push(relativePath);
     }
   }
 

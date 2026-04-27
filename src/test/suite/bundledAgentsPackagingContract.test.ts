@@ -102,6 +102,14 @@ suite("Bundled Agents Packaging Contract Tests", () => {
         "utf8",
       );
 
+      const legacyPrefabAgentPath = path.join(
+        workspaceRoot,
+        ".github",
+        "agents",
+        "prefab.agent.md",
+      );
+      fs.writeFileSync(legacyPrefabAgentPath, "legacy prefab agent\n", "utf8");
+
       const result = bundledAgentsPackager.prepareBundledAgents(workspaceRoot);
       assert.strictEqual(result.fileCount, 1);
 
@@ -112,6 +120,16 @@ suite("Bundled Agents Packaging Contract Tests", () => {
       );
       const packagedContent = fs.readFileSync(packagedPath, "utf8").toLowerCase();
       assert.ok(packagedContent.includes("shared starter-pack guidance"));
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            bundledAgentsPackager.PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+            "prefab.agent.md",
+          ),
+        ),
+        false,
+      );
       for (const forbiddenText of bundledAgentsPackager.FORBIDDEN_BUNDLED_AGENT_TEXT) {
         assert.strictEqual(packagedContent.includes(forbiddenText), false);
       }

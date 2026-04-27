@@ -4,7 +4,13 @@ import { normalizeCockpitBoard } from "./cockpitBoard";
 import { createScheduleHistorySnapshot } from "./cockpitHistory";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
 import { getWorkspaceSchedulerMirrorPaths } from "./sqliteStorage";
-import type { CockpitBoardFilters, SchedulerWorkspaceConfig } from "./types";
+import type {
+    CockpitBoardFilters,
+    GitHubInboxItem,
+    GitHubInboxLane,
+    GitHubInboxSnapshot,
+    SchedulerWorkspaceConfig,
+} from "./types";
 import {
     filterStoredSchedulerTaskEntries,
     safeParseStoredSchedulerConfigInput,
@@ -23,6 +29,32 @@ export const REDACTED_TELEGRAM_BOT_URL =
     "[REDACTED_TELEGRAM_BOT_URL]";
 export const REDACTED_TELEGRAM_BOT_TOKEN =
     "[REDACTED_TELEGRAM_BOT_TOKEN]";
+export const REDACTED_GITHUB_TOKEN =
+    "[REDACTED_GITHUB_TOKEN]";
+
+const GITHUB_SYNC_STATUSES = new Set([
+    "disabled",
+    "ready",
+    "syncing",
+    "stale",
+    "partial",
+    "rate-limited",
+    "error",
+]);
+const GITHUB_INBOX_ITEM_KINDS = new Set([
+    "issue",
+    "pullRequest",
+    "securityAlert",
+]);
+const GITHUB_INBOX_LANES = [
+    "issues",
+    "pullRequests",
+    "securityAlerts",
+] as const;
+const GITHUB_SECURITY_ALERT_SUBTYPES = new Set([
+    "code-scanning",
+    "dependabot",
+]);
 
 const RECENT_SCHEDULER_CONFIG_WRITE_WINDOW_MS = 1500;
 const recentSchedulerConfigWrites = new Map<string, number>();
@@ -242,6 +274,203 @@ function normalizeStoredTelegramNotification(
     }
 
     return normalized;
+}
+
+function normalizeStoredGitHubIntegration(
+    value: unknown,
+): SchedulerWorkspaceConfig["githubIntegration"] {
+    const githubIntegration = getStoredSchedulerRecord(value);
+    if (!githubIntegration || typeof githubIntegration.enabled !== "boolean") {
+        return undefined;
+    }
+
+    const updatedAt = typeof githubIntegration.updatedAt === "string"
+        && githubIntegration.updatedAt.trim().length > 0
+        ? githubIntegration.updatedAt
+        : "1970-01-01T00:00:00.000Z";
+    const syncStatus = typeof githubIntegration.syncStatus === "string"
+        && GITHUB_SYNC_STATUSES.has(githubIntegration.syncStatus)
+        ? githubIntegration.syncStatus as NonNullable<SchedulerWorkspaceConfig["githubIntegration"]>["syncStatus"]
+        : githubIntegration.enabled
+            ? "partial"
+            : "disabled";
+
+    const normalized: NonNullable<SchedulerWorkspaceConfig["githubIntegration"]> = {
+        enabled: githubIntegration.enabled,
+        syncStatus,
+        updatedAt,
+    };
+
+    if (typeof githubIntegration.owner === "string") {
+        normalized.owner = githubIntegration.owner;
+    }
+
+    if (typeof githubIntegration.repo === "string") {
+        normalized.repo = githubIntegration.repo;
+    }
+
+    if (typeof githubIntegration.apiBaseUrl === "string") {
+        normalized.apiBaseUrl = githubIntegration.apiBaseUrl;
+    }
+
+    if (typeof githubIntegration.token === "string") {
+        normalized.token = githubIntegration.token;
+    }
+
+    if (typeof githubIntegration.automationPromptTemplate === "string") {
+        normalized.automationPromptTemplate = githubIntegration.automationPromptTemplate;
+    }
+
+    if (typeof githubIntegration.statusMessage === "string") {
+        normalized.statusMessage = githubIntegration.statusMessage;
+    }
+
+    if (typeof githubIntegration.lastSyncAt === "string"
+        && githubIntegration.lastSyncAt.trim().length > 0) {
+        normalized.lastSyncAt = githubIntegration.lastSyncAt;
+    }
+
+    const inbox = normalizeStoredGitHubInbox(githubIntegration.inbox);
+    if (inbox) {
+        normalized.inbox = inbox;
+    }
+
+    return normalized;
+}
+
+function normalizeStoredGitHubInboxItem(
+    value: unknown,
+): GitHubInboxItem | undefined {
+    const item = getStoredSchedulerRecord(value);
+    if (!item || typeof item.id !== "string" || typeof item.title !== "string" || typeof item.url !== "string") {
+        return undefined;
+    }
+
+    if (typeof item.lane !== "string" || !GITHUB_INBOX_LANES.includes(item.lane as typeof GITHUB_INBOX_LANES[number])) {
+        return undefined;
+    }
+
+    if (typeof item.kind !== "string" || !GITHUB_INBOX_ITEM_KINDS.has(item.kind)) {
+        return undefined;
+    }
+
+    const lane = item.lane as GitHubInboxItem["lane"];
+    const kind = item.kind as GitHubInboxItem["kind"];
+
+    const normalized: GitHubInboxItem = {
+        id: item.id,
+        lane,
+        kind,
+        title: item.title,
+        url: item.url,
+    };
+
+    if (typeof item.subtype === "string" && GITHUB_SECURITY_ALERT_SUBTYPES.has(item.subtype)) {
+        normalized.subtype = item.subtype as NonNullable<GitHubInboxItem["subtype"]>;
+    }
+
+    if (typeof item.number === "number" && Number.isFinite(item.number)) {
+        normalized.number = item.number;
+    }
+
+    if (typeof item.summary === "string") {
+        normalized.summary = item.summary;
+    }
+
+    if (typeof item.state === "string") {
+        normalized.state = item.state;
+    }
+
+    if (typeof item.severity === "string") {
+        normalized.severity = item.severity;
+    }
+
+    if (typeof item.updatedAt === "string" && item.updatedAt.trim().length > 0) {
+        normalized.updatedAt = item.updatedAt;
+    }
+
+    if (typeof item.baseRef === "string") {
+        normalized.baseRef = item.baseRef;
+    }
+
+    if (typeof item.headRef === "string") {
+        normalized.headRef = item.headRef;
+    }
+
+    return normalized;
+}
+
+function normalizeStoredGitHubInboxLane(
+    value: unknown,
+): GitHubInboxLane | undefined {
+    const lane = getStoredSchedulerRecord(value);
+    if (!lane) {
+        return undefined;
+    }
+
+    const items = Array.isArray(lane.items)
+        ? lane.items
+            .map((entry) => normalizeStoredGitHubInboxItem(entry))
+            .filter((entry): entry is GitHubInboxItem => !!entry)
+        : [];
+
+    const normalized: GitHubInboxLane = {
+        items,
+        itemCount: typeof lane.itemCount === "number" && Number.isFinite(lane.itemCount)
+            ? Math.max(0, lane.itemCount)
+            : items.length,
+    };
+
+    if (typeof lane.syncedAt === "string" && lane.syncedAt.trim().length > 0) {
+        normalized.syncedAt = lane.syncedAt;
+    }
+
+    if (typeof lane.error === "string" && lane.error.trim().length > 0) {
+        normalized.error = lane.error;
+    }
+
+    if (lane.rateLimited === true) {
+        normalized.rateLimited = true;
+    }
+
+    return normalized;
+}
+
+function normalizeStoredGitHubInbox(
+    value: unknown,
+): GitHubInboxSnapshot | undefined {
+    const inbox = getStoredSchedulerRecord(value);
+    if (!inbox) {
+        return undefined;
+    }
+
+    const issues = normalizeStoredGitHubInboxLane(inbox.issues);
+    const pullRequests = normalizeStoredGitHubInboxLane(inbox.pullRequests);
+    const securityAlerts = normalizeStoredGitHubInboxLane(inbox.securityAlerts);
+    if (!issues && !pullRequests && !securityAlerts) {
+        return undefined;
+    }
+
+    return {
+        issues: issues ?? { items: [], itemCount: 0 },
+        pullRequests: pullRequests ?? { items: [], itemCount: 0 },
+        securityAlerts: securityAlerts ?? { items: [], itemCount: 0 },
+    };
+}
+
+function sanitizeGitHubIntegrationConfig(
+    value: SchedulerWorkspaceConfig["githubIntegration"],
+): SchedulerWorkspaceConfig["githubIntegration"] {
+    if (!value || typeof value !== "object") {
+        return undefined;
+    }
+
+    const sanitized = sanitizeSchedulerJsonValue({ ...value });
+    if (typeof sanitized.token === "string" && sanitized.token.trim().length > 0) {
+        sanitized.token = REDACTED_GITHUB_TOKEN;
+    }
+
+    return sanitized;
 }
 
 function stableSerialize(value: unknown): string {
@@ -888,6 +1117,12 @@ function mergeSchedulerConfig(
             currentConfig.cockpitBoard,
             nextConfig.cockpitBoard,
         ),
+        githubIntegration: resolveThreeWayValue(
+            base.githubIntegration,
+            currentConfig.githubIntegration,
+            nextConfig.githubIntegration,
+            (value) => getRecordTimestampMs(value),
+        ),
         telegramNotification: resolveThreeWayValue(
             base.telegramNotification,
             currentConfig.telegramNotification,
@@ -976,6 +1211,9 @@ function parseStoredSchedulerConfig(value: unknown, privateValue?: unknown): Sch
     const cockpitBoard = normalizeStoredCockpitBoard(
         privateParsed?.cockpitBoard ?? parsed?.cockpitBoard,
     );
+    const githubIntegration = normalizeStoredGitHubIntegration(
+        privateParsed?.githubIntegration ?? parsed?.githubIntegration,
+    );
     const telegramNotification = normalizeStoredTelegramNotification(
         privateParsed?.telegramNotification ?? parsed?.telegramNotification,
     );
@@ -988,6 +1226,7 @@ function parseStoredSchedulerConfig(value: unknown, privateValue?: unknown): Sch
         return {
             tasks: resolvedConfig.tasks,
             cockpitBoard,
+            githubIntegration,
             telegramNotification,
         };
     }
@@ -1001,6 +1240,7 @@ function parseStoredSchedulerConfig(value: unknown, privateValue?: unknown): Sch
         jobFolders: resolvedConfig.jobFolders as SchedulerWorkspaceConfig["jobFolders"],
         deletedJobFolderIds: resolvedConfig.deletedJobFolderIds,
         cockpitBoard,
+        githubIntegration,
         telegramNotification,
     };
 }
@@ -1241,6 +1481,10 @@ export function writeSchedulerConfig(
             cockpitBoard: config.cockpitBoard
                 ? normalizeCockpitBoard(config.cockpitBoard)
                 : undefined,
+            githubIntegration: config.githubIntegration
+                && typeof config.githubIntegration === "object"
+                ? { ...config.githubIntegration }
+                : undefined,
             telegramNotification: config.telegramNotification
                 && typeof config.telegramNotification === "object"
                 ? { ...config.telegramNotification }
@@ -1265,6 +1509,10 @@ export function writeSchedulerConfig(
             cockpitBoard: mergedConfig.cockpitBoard
                 ? normalizeCockpitBoard(mergedConfig.cockpitBoard)
                 : undefined,
+            githubIntegration: mergedConfig.githubIntegration
+                && typeof mergedConfig.githubIntegration === "object"
+                ? { ...mergedConfig.githubIntegration }
+                : undefined,
             telegramNotification: mergedConfig.telegramNotification
                 && typeof mergedConfig.telegramNotification === "object"
                 ? { ...mergedConfig.telegramNotification }
@@ -1278,6 +1526,9 @@ export function writeSchedulerConfig(
             deletedJobIds: sanitizeSchedulerJsonValue(persistedConfig.deletedJobIds),
             jobFolders: sanitizeSchedulerJsonValue(persistedConfig.jobFolders ?? []),
             deletedJobFolderIds: sanitizeSchedulerJsonValue(persistedConfig.deletedJobFolderIds),
+            githubIntegration: sanitizeGitHubIntegrationConfig(
+                persistedConfig.githubIntegration,
+            ),
             telegramNotification: sanitizeSchedulerJsonValue(
                 persistedConfig.telegramNotification,
             ),

@@ -69,6 +69,8 @@ Use this distinction when deciding whether a user wants a one-time task or a rec
 - Runs once and then deletes itself automatically after a successful execution.
 - Best for ad hoc actions, one-off cleanup, migration work, or a single AI-assisted response.
 - Does not keep a recurring chat-session mode at the task level.
+- Tool-level timing is delay-based: pass a positive `oneTimeDelaySeconds` value for when the run should happen.
+- If the user gives a natural-language target like "tomorrow at 9", convert that target into `oneTimeDelaySeconds` relative to now. Do not rely on cron or an absolute-date field for one-time timing.
 - Should be used when the user wants a single future execution rather than an ongoing schedule.
 - **Todo Cockpit relationship:** A one-time task is almost always spawned from an approved todo card. That card is the planning record — do NOT create a new Cockpit card for the task itself. Use `scheduler_update_task` when the task needs changes. Use `cockpit_finalize_todo` on the originating card when the task completes.
 
@@ -220,10 +222,10 @@ Example:
 - "Create a daily market research task that uses GPT-5.3-Codex and runs at 9:17."
 
 ### 1a. Create a one-time task
-Use `scheduler_add_task` with `oneTime: true` when the user wants a single future execution.
+Use `scheduler_add_task` with `oneTime: true` and a computed `oneTimeDelaySeconds` when the user wants a single future execution.
 
 Example:
-- "Create a one-time task to send the migration summary tomorrow morning and then auto-delete itself after the successful run."
+- "Create a one-time task to send the migration summary tomorrow morning and then auto-delete itself after the successful run." Calculate the delay from now and send that value in `oneTimeDelaySeconds`.
 
 ### 2. Update an existing task
 Use `scheduler_update_task` when the cron, prompt, model, or labels should change but the task should stay the same record.

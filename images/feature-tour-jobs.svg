@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title>Illustrative Jobs surface mockup</title>
+  <desc>Illustrative SVG mockup of the Jobs workflow studio showing ordered steps, a pause checkpoint that waits for approval, folders and job lists, and a compile to task handoff.</desc>
+  <defs>
+    <linearGradient id="window-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22262b"/>
+      <stop offset="100%" stop-color="#171a1f"/>
+    </linearGradient>
+    <linearGradient id="card-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2f36"/>
+      <stop offset="100%" stop-color="#23272d"/>
+    </linearGradient>
+    <linearGradient id="panel-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#20242a"/>
+      <stop offset="100%" stop-color="#1b1f24"/>
+    </linearGradient>
+    <linearGradient id="field-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b1f24"/>
+      <stop offset="100%" stop-color="#171b20"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <style>
+    .ui { font-family: "Segoe UI", Arial, sans-serif; }
+    .title { fill: #f3f3f3; font-size: 28px; font-weight: 600; }
+    .subtitle { fill: #b8bcc4; font-size: 14px; }
+    .nav { fill: #d0d3d8; font-size: 18px; }
+    .nav-muted { fill: #8a8f98; font-size: 18px; }
+    .tiny { fill: #8f96a0; font-size: 12px; }
+    .card-title { fill: #ffffff; font-size: 24px; font-weight: 600; }
+    .card-copy { fill: #b7bbc2; font-size: 14px; }
+    .section { fill: #f3f4f6; font-size: 19px; font-weight: 600; }
+    .label { fill: #9aa0aa; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .value { fill: #eef2f6; font-size: 16px; }
+    .item-title { fill: #f4f6f8; font-size: 16px; font-weight: 600; }
+    .meta { fill: #9aa0aa; font-size: 13px; }
+    .copy { fill: #c9ced6; font-size: 13px; }
+    .button-text { fill: #ffffff; font-size: 13px; font-weight: 600; }
+    .pill { font-size: 12px; font-weight: 700; }
+  </style>
+
+  <rect width="1600" height="980" fill="#0f1115"/>
+  <g class="ui">
+    <rect x="40" y="40" width="1520" height="900" rx="28" fill="url(#window-bg)" stroke="#343942" filter="url(#shadow)"/>
+    <rect x="40" y="40" width="1520" height="48" rx="28" fill="#2b3038"/>
+    <rect x="40" y="88" width="1520" height="852" fill="#1d1f23"/>
+    <rect x="40" y="88" width="248" height="852" fill="#252526"/>
+
+    <circle cx="74" cy="64" r="6" fill="#ea4c46"/>
+    <circle cx="94" cy="64" r="6" fill="#f0b94b"/>
+    <circle cx="114" cy="64" r="6" fill="#5cc95c"/>
+    <text x="140" y="69" fill="#cfd2d7" font-size="17" font-weight="600">source-scheduler</text>
+    <text x="1418" y="69" fill="#8f96a0" font-size="14">Workflow Studio</text>
+
+    <text x="72" y="132" class="tiny">Copilot Cockpit</text>
+    <rect x="58" y="170" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="199" class="nav-muted">Todo Cockpit</text>
+    <rect x="58" y="228" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="257" class="nav-muted">Tasks</text>
+    <rect x="58" y="286" width="212" height="46" rx="12" fill="#0e639c" stroke="#1177bb"/>
+    <rect x="58" y="286" width="5" height="46" rx="3" fill="#67b7ff"/>
+    <text x="84" y="315" class="nav">Jobs</text>
+    <rect x="58" y="344" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="373" class="nav-muted">Research</text>
+    <rect x="58" y="402" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="431" class="nav-muted">Settings</text>
+    <rect x="58" y="460" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="489" class="nav-muted">How To Use</text>
+
+    <text x="332" y="138" class="tiny">Ordered workflow with one schedule</text>
+    <text x="332" y="176" class="title">Jobs</text>
+    <text x="332" y="202" class="subtitle">The workflow studio keeps multi-step automation inspectable, with pause checkpoints that block downstream execution until you approve the previous result.</text>
+
+    <rect x="332" y="228" width="212" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="356" y="254" class="label">Cadence</text>
+    <text x="356" y="286" fill="#eef2f6" font-size="24" font-weight="700">Daily at 09:00</text>
+
+    <rect x="560" y="228" width="170" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="584" y="254" class="label">Status</text>
+    <text x="584" y="286" fill="#eef2f6" font-size="24" font-weight="700">Active</text>
+
+    <rect x="746" y="228" width="188" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="770" y="254" class="label">Task steps</text>
+    <text x="770" y="286" fill="#eef2f6" font-size="24" font-weight="700">3</text>
+
+    <rect x="950" y="228" width="220" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="974" y="254" class="label">Pause checkpoints</text>
+    <text x="974" y="286" fill="#eef2f6" font-size="24" font-weight="700">1</text>
+
+    <rect x="1186" y="228" width="338" height="72" rx="18" fill="#173f34" stroke="#256050"/>
+    <text x="1214" y="258" fill="#d6f4e6" font-size="14" font-weight="600">Compile To Task can collapse the full workflow into one bundled prompt after review.</text>
+    <text x="1214" y="282" fill="#b6decd" font-size="13">The original job moves to Bundled Jobs and becomes inactive.</text>
+
+    <rect x="332" y="328" width="278" height="582" rx="22" fill="url(#card-bg)" stroke="#3a4048"/>
+    <text x="362" y="374" class="card-title">Folders and jobs</text>
+    <text x="362" y="400" class="card-copy">Use folders for workflow families, then open a specific job in the editor when you are ready to inspect or change the run.</text>
+
+    <text x="362" y="442" class="label">Folders</text>
+    <rect x="362" y="456" width="218" height="44" rx="14" fill="#0e639c"/>
+    <text x="386" y="484" class="value">Review Gates</text>
+    <rect x="362" y="512" width="218" height="44" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="386" y="540" class="value">Recurring Ops</text>
+    <rect x="362" y="568" width="218" height="44" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="386" y="596" class="value">Bundled Jobs</text>
+
+    <text x="362" y="654" class="label">Jobs</text>
+    <rect x="362" y="668" width="218" height="116" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="386" y="700" class="item-title">Onboarding coverage pipeline</text>
+    <text x="386" y="724" class="meta">Current folder: Review Gates</text>
+    <text x="386" y="752" class="copy">Pause after docs draft before compile or downstream release prep.</text>
+
+    <rect x="362" y="800" width="218" height="84" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="386" y="832" class="item-title">Release readiness chain</text>
+    <text x="386" y="856" class="meta">Use the same job label to filter the Task List.</text>
+
+    <rect x="636" y="328" width="888" height="582" rx="22" fill="url(#card-bg)" stroke="#3a4048"/>
+    <text x="670" y="374" class="card-title">Workflow Studio</text>
+    <text x="670" y="400" class="card-copy">Read the flow from left to right. The pause node waits for approval before the next step is allowed to run.</text>
+
+    <rect x="1184" y="350" width="118" height="34" rx="11" fill="#0e639c"/>
+    <text x="1224" y="372" class="button-text">Save</text>
+    <rect x="1316" y="350" width="94" height="34" rx="11" fill="#3a3d41"/>
+    <text x="1346" y="372" class="button-text">Pause</text>
+    <rect x="1424" y="350" width="86" height="34" rx="11" fill="#3a3d41"/>
+    <text x="1446" y="372" class="button-text">Compile</text>
+
+    <text x="670" y="446" class="section">Compact timeline</text>
+    <rect x="670" y="466" width="820" height="130" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <line x1="760" y1="532" x2="1400" y2="532" stroke="#4a5665" stroke-width="4"/>
+    <circle cx="760" cy="532" r="28" fill="#0e639c"/>
+    <text x="725" y="578" class="item-title">Research intake</text>
+    <text x="705" y="602" class="meta">Step 1 | 20m window</text>
+
+    <circle cx="960" cy="532" r="28" fill="#0e639c"/>
+    <text x="914" y="578" class="item-title">Draft implementation</text>
+    <text x="914" y="602" class="meta">Step 2 | 45m window</text>
+
+    <circle cx="1180" cy="532" r="30" fill="#8a5a22"/>
+    <text x="1128" y="578" class="item-title">Pause checkpoint</text>
+    <text x="1110" y="602" class="meta">Approval required before step 3</text>
+
+    <circle cx="1400" cy="532" r="28" fill="#1f5a46"/>
+    <text x="1352" y="578" class="item-title">Compile handoff</text>
+    <text x="1338" y="602" class="meta">Bundle to downstream task if approved</text>
+
+    <text x="670" y="646" class="section">Steps</text>
+    <rect x="670" y="666" width="500" height="212" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <rect x="692" y="690" width="456" height="48" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="714" y="720" class="value">1. Research intake | agent planner | model GPT-5.4 | label onboarding-coverage</text>
+    <rect x="692" y="748" width="456" height="48" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="714" y="778" class="value">2. Draft implementation | agent remediation | model GPT-5.4 | 45 minute window</text>
+    <rect x="692" y="806" width="456" height="48" rx="14" fill="#30251c" stroke="#6d4b24"/>
+    <text x="714" y="836" fill="#ffe0b9" font-size="16">3. Pause checkpoint | wait for approval | reject reopens prior step in editor</text>
+
+    <rect x="1190" y="666" width="300" height="212" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="1214" y="696" class="section">Add to workflow</text>
+    <text x="1214" y="728" class="label">Pause name</text>
+    <rect x="1214" y="738" width="252" height="40" rx="12" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="1236" y="764" class="value">Needs approval</text>
+    <rect x="1214" y="792" width="126" height="30" rx="10" fill="#0e639c"/>
+    <text x="1246" y="812" class="button-text">Create pause</text>
+
+    <text x="1214" y="852" class="copy">Attach an existing task, draft a new step, or insert a pause without leaving the workflow canvas.</text>
+  </g>
+</svg>

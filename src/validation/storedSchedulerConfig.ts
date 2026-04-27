@@ -22,6 +22,7 @@ const storedSchedulerObjectSchema = z.object({
     jobFolders: arrayFieldSchema,
     deletedJobFolderIds: arrayFieldSchema,
     cockpitBoard: z.unknown().optional(),
+    githubIntegration: z.unknown().optional(),
     telegramNotification: z.unknown().optional(),
 }).catchall(z.unknown());
 
@@ -37,6 +38,7 @@ export type ParsedStoredSchedulerConfigInput = {
     jobFolders: unknown[];
     deletedJobFolderIds: string[];
     cockpitBoard?: unknown;
+    githubIntegration?: unknown;
     telegramNotification?: unknown;
     rootObject?: Record<string, unknown>;
 };
@@ -77,6 +79,7 @@ function toParsedStoredSchedulerConfig(
         jobFolders: root.jobFolders,
         deletedJobFolderIds: normalizeNonEmptyStringList(root.deletedJobFolderIds),
         cockpitBoard: root.cockpitBoard,
+        githubIntegration: root.githubIntegration,
         telegramNotification: root.telegramNotification,
         rootObject: root as Record<string, unknown>,
     };

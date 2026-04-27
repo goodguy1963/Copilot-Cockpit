@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "async_hooks";
 import * as fs from "fs";
 import * as path from "path";
 import type * as vscode from "vscode";
@@ -112,9 +113,26 @@ type WorkspaceFolderLike = {
 };
 
 const SQLITE_MIGRATION_JOURNAL_VERSION = 1;
+const DEFAULT_SQLITE_LOCK_STALE_MS = 30_000;
+const DEFAULT_SQLITE_LOCK_MAX_WAIT_MS = 2_000;
+const DEFAULT_SQLITE_LOCK_RETRY_MS = 50;
 
 let sqlJsModulePromise: Promise<SqlJsModule> | undefined;
 const sqliteAccessQueues = new Map<string, Promise<void>>();
+const sqliteLockContext = new AsyncLocalStorage<Set<string>>();
+const sqliteLockOptions = {
+  staleMs: DEFAULT_SQLITE_LOCK_STALE_MS,
+  maxWaitMs: DEFAULT_SQLITE_LOCK_MAX_WAIT_MS,
+  retryMs: DEFAULT_SQLITE_LOCK_RETRY_MS,
+};
+
+export function setSqliteLockOptionsForTests(
+  overrides?: Partial<typeof sqliteLockOptions>,
+): void {
+  sqliteLockOptions.staleMs = overrides?.staleMs ?? DEFAULT_SQLITE_LOCK_STALE_MS;
+  sqliteLockOptions.maxWaitMs = overrides?.maxWaitMs ?? DEFAULT_SQLITE_LOCK_MAX_WAIT_MS;
+  sqliteLockOptions.retryMs = overrides?.retryMs ?? DEFAULT_SQLITE_LOCK_RETRY_MS;
+}
 
 function getSqlJsWasmPath(): string {
   return path.join(__dirname, "sql-wasm.wasm");
@@ -129,26 +147,131 @@ async function getSqlJsModule(): Promise<SqlJsModule> {
   return sqlJsModulePromise;
 }
 
+function normalizeSqliteDatabasePath(databasePath: string): string {
+  const normalized = path.normalize(databasePath);
+  return process.platform === "win32"
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+function getSqliteDatabaseLockPath(databasePath: string): string {
+  return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.lock`);
+}
+
+const sqliteSleepBuffer = typeof SharedArrayBuffer !== "undefined"
+  ? new Int32Array(new SharedArrayBuffer(4))
+  : undefined;
+
+function sleepSync(ms: number): void {
+  if (ms <= 0) {
+    return;
+  }
+
+  if (sqliteSleepBuffer && typeof Atomics !== "undefined" && typeof Atomics.wait === "function") {
+    Atomics.wait(sqliteSleepBuffer, 0, 0, ms);
+    return;
+  }
+
+  const endAt = Date.now() + ms;
+  while (Date.now() < endAt) {
+    // busy wait fallback for runtimes without Atomics.wait
+  }
+}
+
+function acquireSqliteDatabaseLock(databasePath: string): () => void {
+  const lockPath = getSqliteDatabaseLockPath(databasePath);
+  const deadline = Date.now() + sqliteLockOptions.maxWaitMs;
+
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+
+  while (true) {
+    try {
+      fs.mkdirSync(lockPath);
+      try {
+        fs.writeFileSync(
+          path.join(lockPath, "owner.json"),
+          JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }, null, 2),
+          "utf8",
+        );
+      } catch (error) {
+        try {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+        } catch {
+          // best effort cleanup only
+        }
+        throw error;
+      }
+
+      return () => {
+        try {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+        } catch {
+          // best effort only
+        }
+      };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | undefined)?.code;
+      if (code !== "EEXIST") {
+        throw error;
+      }
+
+      let stale = false;
+      try {
+        const stat = fs.statSync(lockPath);
+        stale = Date.now() - stat.mtimeMs > sqliteLockOptions.staleMs;
+      } catch {
+        stale = true;
+      }
+
+      if (stale) {
+        try {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+          continue;
+        } catch {
+          // another writer may still own it
+        }
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`SQLite database is locked by another writer: ${databasePath}`);
+      }
+
+      sleepSync(sqliteLockOptions.retryMs);
+    }
+  }
+}
+
 async function withSerializedSqliteAccess<T>(
   databasePath: string,
   operation: () => Promise<T>,
 ): Promise<T> {
-  const previous = sqliteAccessQueues.get(databasePath) ?? Promise.resolve();
+  const queueKey = normalizeSqliteDatabasePath(databasePath);
+  const activeLocks = sqliteLockContext.getStore();
+  if (activeLocks?.has(queueKey)) {
+    return operation();
+  }
+
+  const previous = sqliteAccessQueues.get(queueKey) ?? Promise.resolve();
   let releaseQueue: (() => void) | undefined;
   const current = new Promise<void>((resolve) => {
     releaseQueue = resolve;
   });
   const next = previous.catch(() => undefined).then(() => current);
 
-  sqliteAccessQueues.set(databasePath, next);
+  sqliteAccessQueues.set(queueKey, next);
   await previous.catch(() => undefined);
 
+  const releaseLock = acquireSqliteDatabaseLock(databasePath);
+  const nextActiveLocks = new Set(activeLocks ?? []);
+  nextActiveLocks.add(queueKey);
+
   try {
-    return await operation();
+    return await sqliteLockContext.run(nextActiveLocks, operation);
   } finally {
+    releaseLock();
     releaseQueue?.();
-    if (sqliteAccessQueues.get(databasePath) === next) {
-      sqliteAccessQueues.delete(databasePath);
+    if (sqliteAccessQueues.get(queueKey) === next) {
+      sqliteAccessQueues.delete(queueKey);
     }
   }
 }
@@ -308,6 +431,32 @@ function resetTables(db: SqlJsDatabase, tableNames: readonly string[]): void {
   }
 }
 
+function serializeCockpitSqlitePayload(
+  tableName: string,
+  entityName: string,
+  entityId: string,
+  value: unknown,
+): string {
+  let payload: string | undefined;
+  try {
+    payload = JSON.stringify(value);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to serialize ${entityName} for sqlite table ${tableName} (id: ${entityId}): ${reason}`,
+    );
+  }
+
+  if (typeof payload !== "string") {
+    const serializedType = payload === undefined ? "undefined" : typeof payload;
+    throw new Error(
+      `Invalid sqlite payload for ${entityName} in ${tableName} (id: ${entityId}): JSON serialization returned ${serializedType}.`,
+    );
+  }
+
+  return payload;
+}
+
 function insertWorkspaceJsonSnapshot(
   db: SqlJsDatabase,
   workspaceRoot: string,
@@ -441,7 +590,7 @@ function insertWorkspaceJsonSnapshot(
         "INSERT INTO cockpit_sections(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
         [
           section.id,
-          JSON.stringify(section),
+          serializeCockpitSqlitePayload("cockpit_sections", "cockpit section", section.id, section),
           toIsoTimestamp(section.createdAt, importedAt),
           toIsoTimestamp(section.updatedAt, importedAt),
         ],
@@ -456,7 +605,7 @@ function insertWorkspaceJsonSnapshot(
         "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         [
           card.id,
-          JSON.stringify(card),
+          serializeCockpitSqlitePayload("cockpit_cards", "cockpit card", card.id, card),
           typeof card.sectionId === "string" ? card.sectionId : null,
           toIsoTimestamp(card.createdAt, importedAt),
           toIsoTimestamp(card.updatedAt, importedAt),
@@ -470,7 +619,12 @@ function insertWorkspaceJsonSnapshot(
         [
           comment.id,
           cardId,
-          JSON.stringify(comment),
+          serializeCockpitSqlitePayload(
+            "cockpit_comments",
+            "cockpit comment",
+            comment.id,
+            comment,
+          ),
           toIsoTimestamp(comment.createdAt, importedAt),
         ],
       );
@@ -487,7 +641,16 @@ function insertWorkspaceJsonSnapshot(
       }
       db.run(
         "INSERT INTO cockpit_label_catalog(key, payload_json, updated_at) VALUES (?, ?, ?)",
-        [key, JSON.stringify(definition), toIsoTimestamp(definition.updatedAt, importedAt)],
+        [
+          key,
+          serializeCockpitSqlitePayload(
+            "cockpit_label_catalog",
+            "cockpit label definition",
+            key,
+            definition,
+          ),
+          toIsoTimestamp(definition.updatedAt, importedAt),
+        ],
       );
     }
 
@@ -509,7 +672,16 @@ function insertWorkspaceJsonSnapshot(
       }
       db.run(
         "INSERT INTO cockpit_flag_catalog(key, payload_json, updated_at) VALUES (?, ?, ?)",
-        [key, JSON.stringify(definition), toIsoTimestamp(definition.updatedAt, importedAt)],
+        [
+          key,
+          serializeCockpitSqlitePayload(
+            "cockpit_flag_catalog",
+            "cockpit flag definition",
+            key,
+            definition,
+          ),
+          toIsoTimestamp(definition.updatedAt, importedAt),
+        ],
       );
     }
 
@@ -530,7 +702,10 @@ function insertWorkspaceJsonSnapshot(
     if (board?.filters) {
       db.run(
         "INSERT INTO cockpit_filters(id, payload_json, updated_at) VALUES (1, ?, ?)",
-        [JSON.stringify(board.filters), toIsoTimestamp(board.updatedAt, importedAt)],
+        [
+          serializeCockpitSqlitePayload("cockpit_filters", "cockpit filters", "1", board.filters),
+          toIsoTimestamp(board.updatedAt, importedAt),
+        ],
       );
     }
 
@@ -1052,7 +1227,7 @@ function replaceWorkspaceCockpitState(
         "INSERT INTO cockpit_sections(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
         [
           section.id,
-          JSON.stringify(section),
+          serializeCockpitSqlitePayload("cockpit_sections", "cockpit section", section.id, section),
           toIsoTimestamp(section.createdAt, syncedAt),
           toIsoTimestamp(section.updatedAt, syncedAt),
         ],
@@ -1067,7 +1242,7 @@ function replaceWorkspaceCockpitState(
         "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         [
           card.id,
-          JSON.stringify(card),
+          serializeCockpitSqlitePayload("cockpit_cards", "cockpit card", card.id, card),
           typeof card.sectionId === "string" ? card.sectionId : null,
           toIsoTimestamp(card.createdAt, syncedAt),
           toIsoTimestamp(card.updatedAt, syncedAt),
@@ -1081,7 +1256,12 @@ function replaceWorkspaceCockpitState(
         [
           comment.id,
           cardId,
-          JSON.stringify(comment),
+          serializeCockpitSqlitePayload(
+            "cockpit_comments",
+            "cockpit comment",
+            comment.id,
+            comment,
+          ),
           toIsoTimestamp(comment.createdAt, syncedAt),
         ],
       );
@@ -1098,7 +1278,16 @@ function replaceWorkspaceCockpitState(
       }
       db.run(
         "INSERT INTO cockpit_label_catalog(key, payload_json, updated_at) VALUES (?, ?, ?)",
-        [key, JSON.stringify(definition), toIsoTimestamp(definition.updatedAt, syncedAt)],
+        [
+          key,
+          serializeCockpitSqlitePayload(
+            "cockpit_label_catalog",
+            "cockpit label definition",
+            key,
+            definition,
+          ),
+          toIsoTimestamp(definition.updatedAt, syncedAt),
+        ],
       );
     }
 
@@ -1120,7 +1309,16 @@ function replaceWorkspaceCockpitState(
       }
       db.run(
         "INSERT INTO cockpit_flag_catalog(key, payload_json, updated_at) VALUES (?, ?, ?)",
-        [key, JSON.stringify(definition), toIsoTimestamp(definition.updatedAt, syncedAt)],
+        [
+          key,
+          serializeCockpitSqlitePayload(
+            "cockpit_flag_catalog",
+            "cockpit flag definition",
+            key,
+            definition,
+          ),
+          toIsoTimestamp(definition.updatedAt, syncedAt),
+        ],
       );
     }
 
@@ -1140,7 +1338,10 @@ function replaceWorkspaceCockpitState(
 
     db.run(
       "INSERT INTO cockpit_filters(id, payload_json, updated_at) VALUES (1, ?, ?)",
-      [JSON.stringify(board.filters), toIsoTimestamp(board.updatedAt, syncedAt)],
+      [
+        serializeCockpitSqlitePayload("cockpit_filters", "cockpit filters", "1", board.filters),
+        toIsoTimestamp(board.updatedAt, syncedAt),
+      ],
     );
 
     db.run("COMMIT");
@@ -1500,6 +1701,7 @@ export async function exportWorkspaceSqliteToJsonMirrors(
     jobFolders: schedulerState.jobFolders as any[],
     deletedJobFolderIds: schedulerState.deletedJobFolderIds,
     cockpitBoard: cockpitBoard ?? createDefaultCockpitBoard(),
+    githubIntegration: existingConfig.githubIntegration,
     telegramNotification: existingConfig.telegramNotification,
   };
   writeSchedulerConfig(workspaceRoot, nextConfig, {

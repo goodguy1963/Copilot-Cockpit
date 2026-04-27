@@ -10,9 +10,9 @@ Copilot Cockpit is easiest to understand as one operating loop:
 
 This page explains where that loop shows up in the product surface.
 
-## Planned Screenshots
+## Visual References
 
-This page is ready for one screenshot per major surface.
+This page mixes one live demo reference with illustrative SVG mockups for the tab-specific surfaces.
 
 - `S1` Hero overview for the top-level product identity.
 - `S2` Todo Cockpit planning state.
@@ -26,19 +26,24 @@ Current overview reference for `S1`:
 
 [![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
 
-This intro video is the current broad product overview for the docs. The tab-specific captures for `S2` through `S7` are still separate and should be added to the sections below.
+This intro video remains the current broad product overview for the docs. The tab-specific visuals below are illustrative SVG mockups for documentation, not live screenshots.
 
 ## Todo Cockpit
 
 `Todo Cockpit` is the planning and approval hub.
 
-Screenshot slot: `S2`
+Screenshot slot: `S2` for the full board surface.
 
 Caption: Plan and review work before it runs.
 
 - Use it to capture work before it becomes execution.
 - Keep comments, labels, flags, due dates, and approval state close to the item.
 - Move work into `ready` when it should hand off into execution.
+- When optional GitHub integration is enabled, the top of the board also becomes a cached inbox for `Issues`, `Pull Requests`, and `Security Alerts`, with direct `Create Todo` and `Create Todo + Review` actions.
+
+![Illustrative GitHub Inbox mockup in Todo Cockpit](../images/github-integration-inbox.svg)
+
+Illustrative SVG mockup of the GitHub Inbox at the top of Todo Cockpit, including cached Issues, Pull Requests, Security Alerts, and direct Todo import actions.
 
 This is especially useful when discoveries keep showing up during normal work: bugs, feature requests, maintenance tasks, pricing checks, security findings, or follow-up ideas that should not be forgotten just because you cannot do them immediately.
 
@@ -60,6 +65,10 @@ Recurring tasks are useful for ongoing security checks, maintenance routines, co
 
 In this repo, the example pack uses real recurring prompts instead of toy filler: a small-project opportunity scout, a delivery risk and security watch, and a knowledge-and-shipping packager.
 
+![Illustrative Tasks mockup](../images/feature-tour-tasks.svg)
+
+Illustrative SVG mockup of the Tasks surfaces, showing the Task List alongside Create / Edit Task controls for recurring versus one-time execution, optional agent or model overrides, and workspace-default execution when those fields stay blank.
+
 Best for: one direct action that is already ready to run.
 
 ## Jobs
@@ -78,6 +87,10 @@ Jobs are the right fit when the workflow feels more like an internal automation 
 
 The included example job shows the pattern: run a few useful recurring steps, stop at a review checkpoint, and let a person decide what should become a Todo, Task, Job, or Research run next.
 
+![Illustrative Jobs mockup](../images/feature-tour-jobs.svg)
+
+Illustrative SVG mockup of the Jobs workflow studio, including ordered task steps, a pause checkpoint that waits for approval, folder organization, and a visible Compile To Task handoff.
+
 Best for: work that should not run as one opaque chain.
 
 ## Research
@@ -95,6 +108,10 @@ Caption: Improve against a benchmark, not by guesswork.
 Research can also act as a collaborative discovery phase before implementation: gather web knowledge, review the findings with the user, refine the direction, and only then turn the result into scheduled execution.
 
 For onboarding, `Onboarding Example Coverage Research` shows the full loop in one pass: capture the gap in Todo Cockpit, use Research to benchmark the docs, promote approved fixes into Tasks or Jobs, and pause at a review checkpoint before broader autonomy.
+
+![Illustrative Research mockup](../images/feature-tour-research.svg)
+
+Illustrative SVG mockup of the Research tab, showing a benchmark-driven profile with editable paths, score extraction, run limits, and an active run summary with attempts and best score.
 
 Best for: prompt or workflow improvement that should be measured, not guessed.
 
@@ -115,15 +132,22 @@ Best for: teams and repos that want controlled specialization instead of one gen
 
 `Settings` control workspace-level behavior.
 
-Screenshot slot: `S6`
+Screenshot slot: `S6` for the full Settings overview.
 
 Caption: Keep control at the workspace level.
 
 - Configure repo-local defaults.
 - Set up integrations such as MCP and execution preferences.
 - Choose how the cockpit stores and restores its state.
+- Save repo-local GitHub settings, check VS Code connection status, and refresh the cached GitHub inbox without exposing the runtime access token to the webview.
+
+![Illustrative GitHub Integration settings mockup](../images/github-integration-settings.svg)
+
+Illustrative SVG mockup of the GitHub Integration card in Settings with repo-local fields, save and refresh actions, and cached sync status.
 
 Settings are also where the system becomes project-specific over time, because defaults, tooling, storage mode, and execution preferences can evolve with the repo instead of resetting on every session.
+
+If you want the detailed GitHub setup and workflow, go to [GitHub Integration](./github-integration.md).
 
 Best for: shaping how the extension behaves in the current repo.
 
@@ -137,6 +161,10 @@ Caption: Start with the operating model.
 
 - Start there if you are opening the extension for the first time.
 - Use it to understand the planning versus execution model before scheduling anything.
+
+![Illustrative How To Use mockup](../images/feature-tour-how-to.svg)
+
+Illustrative SVG mockup of the How To Use tab, showing the operating-model flow plus the built-in orientation sections for Todo, Tasks, Jobs, Research, storage, and overdue-task handling.
 
 Best for: first-time users who want the operating model before the controls.
 

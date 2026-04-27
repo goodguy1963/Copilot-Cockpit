@@ -48,6 +48,36 @@ type Deferred<T> = {
   reject: (reason?: unknown) => void;
 };
 
+type DirEntryLike = {
+  name: string;
+  isDirectory: () => boolean;
+};
+
+type StaleRuntimeStatusForTest = {
+  activeVersion: string;
+  latestInstalledVersion?: string;
+  latestInstalledRoot?: string;
+  isStale: boolean;
+};
+
+type ShouldSuppressSqliteWorkForExtensionContextForTest = (options: {
+  context: {
+    extensionUri?: { fsPath?: string };
+    extension?: {
+      packageJSON?: {
+        version?: string;
+        publisher?: string;
+        name?: string;
+      };
+    };
+  };
+  fsImpl?: {
+    existsSync: (filePath: string) => boolean;
+    readdirSync: (dirPath: string, options: { withFileTypes: true }) => DirEntryLike[];
+  };
+  onStaleRuntimeDetected?: (status: StaleRuntimeStatusForTest) => void;
+}) => boolean;
+
 type StartupSqliteHydrationDepsForTest = {
   workspaceRoot?: string;
   isSqliteModeEnabled: (workspaceRoot: string) => boolean;
@@ -80,6 +110,10 @@ const cockpitCommandNames = [
   "showVersion",
   "setupMcp",
   "syncBundledSkills",
+  "enableExternalAgentAccess",
+  "disableExternalAgentAccess",
+  "rotateExternalAgentKey",
+  "copyExternalAgentSetupInfo",
 ] as const;
 
 const requiredConfigDefaults = [
@@ -167,6 +201,13 @@ function createDeferred<T>(): Deferred<T> {
 
 function getExtensionEntry() {
   return vscode.extensions.getExtension(cockpitExtensionId);
+}
+
+function createDirEntry(name: string): DirEntryLike {
+  return {
+    name,
+    isDirectory: () => true,
+  };
 }
 
 async function getTestOnlyExports(): Promise<TestOnlyExports> {
@@ -724,6 +765,97 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(taskWaitCalls, 1);
     assert.strictEqual(boardWaitCalls, 0);
     assert.ok(elapsedMs < 500, `Expected timeout-bound completion, got ${elapsedMs}ms`);
+  });
+
+  test("stale runtime guard detects a newer installed version and suppresses sqlite work", async () => {
+    const testOnly = await getTestOnlyExports();
+    const shouldSuppress = testOnly.shouldSuppressSqliteWorkForExtensionContext as
+      | ShouldSuppressSqliteWorkForExtensionContextForTest
+      | undefined;
+
+    assert.ok(typeof shouldSuppress === "function");
+
+    const extensionsRoot = path.resolve("mock-stale-runtime-root");
+    const activeRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.33");
+    const latestRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.34");
+    const existingPaths = new Set([
+      path.resolve(extensionsRoot),
+      path.resolve(path.join(activeRoot, "package.json")),
+      path.resolve(path.join(latestRoot, "package.json")),
+    ]);
+    const detections: StaleRuntimeStatusForTest[] = [];
+
+    const suppressed = shouldSuppress!({
+      context: {
+        extensionUri: { fsPath: activeRoot },
+        extension: {
+          packageJSON: {
+            version: "2.0.33",
+            publisher: "local-dev",
+            name: "copilot-cockpit",
+          },
+        },
+      },
+      fsImpl: {
+        existsSync: (filePath) => existingPaths.has(path.resolve(filePath)),
+        readdirSync: (dirPath) =>
+          path.resolve(dirPath) === path.resolve(extensionsRoot)
+            ? [
+              createDirEntry("local-dev.copilot-cockpit-2.0.33"),
+              createDirEntry("local-dev.copilot-cockpit-2.0.34"),
+              createDirEntry("other.extension-1.0.0"),
+            ]
+            : [],
+      },
+      onStaleRuntimeDetected: (status) => {
+        detections.push(status);
+      },
+    });
+
+    assert.strictEqual(suppressed, true);
+    assert.strictEqual(detections.length, 1);
+    assert.strictEqual(detections[0]?.activeVersion, "2.0.33");
+    assert.strictEqual(detections[0]?.latestInstalledVersion, "2.0.34");
+    assert.strictEqual(detections[0]?.latestInstalledRoot, latestRoot);
+    assert.strictEqual(detections[0]?.isStale, true);
+  });
+
+  test("stale runtime guard tolerates partial extension context mocks", async () => {
+    const testOnly = await getTestOnlyExports();
+    const shouldSuppress = testOnly.shouldSuppressSqliteWorkForExtensionContext as
+      | ShouldSuppressSqliteWorkForExtensionContextForTest
+      | undefined;
+
+    assert.ok(typeof shouldSuppress === "function");
+
+    assert.doesNotThrow(() => {
+      assert.strictEqual(shouldSuppress!({ context: {} }), false);
+      assert.strictEqual(
+        shouldSuppress!({
+          context: {
+            extension: {},
+          },
+        }),
+        false,
+      );
+      assert.strictEqual(
+        shouldSuppress!({
+          context: {
+            extensionUri: {
+              fsPath: path.join("mock-stale-runtime-root", "local-dev.copilot-cockpit-2.0.33"),
+            },
+            extension: {},
+          },
+          fsImpl: {
+            existsSync: () => false,
+            readdirSync: () => {
+              throw new Error("readdirSync should not be called when the search root is unavailable");
+            },
+          },
+        }),
+        false,
+      );
+    });
   });
 
   test("custom sub-agent settings uri builder uses the active VS Code scheme", async () => {

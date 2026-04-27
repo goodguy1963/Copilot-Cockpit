@@ -378,11 +378,45 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'needsBotReviewModelSelect: document.getElementById("needs-bot-review-model-select")',
       'needsBotReviewChatSessionSelect: document.getElementById("needs-bot-review-chat-session-select")',
       'readyPromptTemplateInput: document.getElementById("ready-prompt-template-input")',
+      'githubIntegrationRefreshBtn: document.getElementById("github-integration-refresh-btn")',
+      'githubBoardInboxRoot: document.getElementById("github-board-inbox-root")',
       'type: "saveReviewDefaults"',
+      'type: "refreshGitHubIntegration"',
+      'function renderGitHubBoardInbox() {',
       'case "updateReviewDefaults":',
       'function renderReviewDefaultsControls() {',
       ],
       "review defaults",
+    );
+  });
+
+  test("GitHub inbox markup and actions are wired into the board tab", () => {
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(
+      templateSource,
+      [
+        'id="github-board-inbox-root"',
+        'id="github-integration-refresh-btn"',
+      ],
+      "GitHub inbox markup",
+    );
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
+        'function requestGitHubIntegrationRefresh() {',
+        'vscode.postMessage({ type: "refreshGitHubIntegration" });',
+        'function buildGitHubTodoSource(item) {',
+        'data-github-create-todo',
+        'data-github-create-review-todo',
+        'type: "createTodo"',
+        'flags: needsReview ? ["needs-bot-review"] : undefined',
+        'githubSource: buildGitHubTodoSource(item),',
+        'itemId: String(item.id || "")',
+        'renderGitHubBoardInbox();',
+      ],
+      "GitHub inbox board script",
     );
   });
 
@@ -1256,6 +1290,37 @@ test("todo comments style human form input separately and todo saves reset to cr
       },
     },
     {
+      name: "Queues GitHub integration updates until ready",
+      method: "updateGitHubIntegration",
+      args: [{
+        enabled: true,
+        owner: "octocat",
+        repo: "hello-world",
+        hasConnection: true,
+        syncStatus: "ready",
+        inboxCounts: { issues: 1, pullRequests: 2, securityAlerts: 3, total: 6 },
+      }],
+      messageType: "updateGitHubIntegration",
+      verify: (message) => {
+        const githubIntegration = message.githubIntegration as
+          | {
+              enabled?: boolean;
+              owner?: string;
+              repo?: string;
+              hasConnection?: boolean;
+              syncStatus?: string;
+              inboxCounts?: { total?: number };
+            }
+          | undefined;
+        assert.strictEqual(githubIntegration?.enabled, true);
+        assert.strictEqual(githubIntegration?.owner, "octocat");
+        assert.strictEqual(githubIntegration?.repo, "hello-world");
+        assert.strictEqual(githubIntegration?.hasConnection, true);
+        assert.strictEqual(githubIntegration?.syncStatus, "ready");
+        assert.strictEqual(githubIntegration?.inboxCounts?.total, 6);
+      },
+    },
+    {
       name: "Queues Telegram notification updates until ready",
       method: "updateTelegramNotification",
       args: [{ enabled: true, chatId: "123456789", hasBotToken: true, hookConfigured: true }],
@@ -1287,6 +1352,7 @@ test("todo comments style human form input separately and todo saves reset to cr
       args: [{
         mode: "sqlite",
         sqliteJsonMirror: false,
+        autoIgnorePrivateFiles: false,
         disabledSystemFlagKeys: ["ready"],
         appVersion: "99.0.78",
         mcpSetupStatus: "configured",
@@ -1300,11 +1366,13 @@ test("todo comments style human form input separately and todo saves reset to cr
           | {
               mode?: string;
               sqliteJsonMirror?: boolean;
+              autoIgnorePrivateFiles?: boolean;
               disabledSystemFlagKeys?: string[];
             }
           | undefined;
         assert.strictEqual(storageSettings?.mode, "sqlite");
         assert.strictEqual(storageSettings?.sqliteJsonMirror, false);
+        assert.strictEqual(storageSettings?.autoIgnorePrivateFiles, false);
         assert.deepStrictEqual(storageSettings?.disabledSystemFlagKeys, ["ready"]);
       },
     },
@@ -3899,6 +3967,19 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         data: { enabled: true, botToken: "token", chatId: "chat", messagePrefix: "prefix" },
       });
       await wv.handleMessage!({
+        type: "refreshGitHubIntegration",
+      });
+      await wv.handleMessage!({
+        type: "saveGitHubIntegration",
+        data: {
+          enabled: true,
+          owner: "owner",
+          repo: "repo",
+          apiBaseUrl: "https://api.github.example.com",
+          automationPromptTemplate: "Open an issue for {{taskName}}",
+        },
+      });
+      await wv.handleMessage!({
         type: "testTelegramNotification",
         data: { enabled: true, botToken: "token", chatId: "chat", messagePrefix: "prefix" },
       });
@@ -3953,6 +4034,21 @@ suite("SchedulerWebview Jobs Request Tests", () => {
           action: "saveTelegramNotification",
           taskId: "__settings__",
           telegramData: { enabled: true, botToken: "token", chatId: "chat", messagePrefix: "prefix" },
+        },
+        {
+          action: "refreshGitHubIntegration",
+          taskId: "__settings__",
+        },
+        {
+          action: "saveGitHubIntegration",
+          taskId: "__settings__",
+          githubData: {
+            enabled: true,
+            owner: "owner",
+            repo: "repo",
+            apiBaseUrl: "https://api.github.example.com",
+            automationPromptTemplate: "Open an issue for {{taskName}}",
+          },
         },
         {
           action: "testTelegramNotification",
@@ -4081,6 +4177,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         [],
         [],
         [],
+        {} as never,
         {} as never,
         {} as never,
         {} as never,

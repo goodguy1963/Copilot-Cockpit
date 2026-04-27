@@ -107,6 +107,8 @@ These are the default path and the main product surface.
 
 `Todo Cockpit` is the planning and triage layer. A `Todo` stays a planning artifact: capture work, add comments, apply labels and workflow flags, and decide what should happen next.
 
+Optional GitHub inbox triage also lives here. The `Settings` tab can save repo-local GitHub repository settings plus a reusable automation prompt, then expose a cached GitHub inbox at the top of the board with `Issues`, `Pull Requests`, and `Security Alerts`. Refresh uses your existing VS Code GitHub sign-in, inbox rows can create a plain Todo or `Create Todo + Review`, and repeat imports reuse the existing GitHub-sourced card instead of creating duplicates. For setup, storage, and current limits, see [docs/github-integration.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/github-integration.md).
+
 ### Tasks
 
 `Tasks` are the simplest execution layer artifact: one executable unit, one prompt, one scheduled action, one concrete piece of work. Use them for one-time runs or recurring execution.
@@ -204,19 +206,19 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 3. Capture or refine work in `Todo Cockpit` until the planning artifact is clear.
 4. Use `Research` if the work still needs exploratory context or outside evidence.
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
-6. Open `Settings` to configure repo-local defaults. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
+6. Open `Settings` to configure repo-local defaults and optional integrations such as the GitHub inbox flow. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
 If you want the optional integration layers, the practical order is:
 
 1. Get the core `Todo` -> `Research` -> `Task` or `Job` loop working first.
 2. Use `Set Up MCP` to create or repair `.vscode/mcp.json` and activate the repo-local scheduler MCP server for this workspace.
-3. Add any separate third-party MCP servers you want, such as Tavily or Perplexity, to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
-4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work.
+3. Add any separate third-party MCP servers you want, such as Tavily, Perplexity, or [Prefab by Max Health Inc.](https://github.com/Max-Health-Inc/prefab), to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
+4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI work through the shipped contract, prefer live rendering through `prefab/render_ui` when available, and fall back to wire-format JSON only when the renderer is unavailable or the request is explicitly JSON-only.
 5. Add the optional agent layer only if you want a specialist or orchestrator setup on top of the core workflow.
 
 `Sync Bundled Skills` is optional, but it is a good next step once the core loop is working because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
 
-For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. When the Prefab by Max Health Inc. MCP server is part of your workspace setup, that shipped agent path also includes `Prefab UI Specialist` as the focused router for Prefab by Max Health Inc. UI, renderer, and API-backed view work. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
 
 If you want the live bundled-agent workflow, enable custom subagents in GitHub Copilot settings with `chat.customAgentInSubagent.enabled` before relying on that layer.
 
@@ -234,6 +236,7 @@ Detailed documentation lives under [docs/index.md](https://github.com/goodguy196
 
 - [Getting Started](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/getting-started.md)
 - [Feature Tour](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/feature-tour.md)
+- [GitHub Integration](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/github-integration.md)
 - [Agent Workflow](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md)
 - [Workflows](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/workflows.md)
 - [Integrations](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/integrations.md)
@@ -247,7 +250,7 @@ These extend the core workflow. They are optional and should not be mandatory fo
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
 - Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
-- Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
+- Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`, plus `Prefab UI Specialist` when the Prefab by Max Health Inc. MCP server is configured for UI, renderer, or API-backed view work. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
 - Active review state is carried by canonical workflow flags such as `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.

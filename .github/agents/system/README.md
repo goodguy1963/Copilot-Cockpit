@@ -10,6 +10,7 @@ Agent files in `.github/agents/`:
 - `documentation-specialist.agent.md`: keeps docs and reusable knowledge aligned with the codebase.
 - `custom-agent-foundry.agent.md`: creates new repo-local agents or skills when a gap exists.
 - `cockpit-todo-expert.agent.md`: owns Todo Cockpit state, linked Task List todo alignment, approvals, and backlog hygiene.
+- `prefab-ui.agent.md`: optional Prefab UI Specialist for live Prefab rendering, Prefab UI JSON, and API-backed view workflows.
 
 Shared operating docs in `.github/agents/system/`:
 
@@ -42,7 +43,8 @@ Recommended pattern:
 3. Use `Remediation Implementer` for approved bounded code changes.
 4. Use `Documentation Specialist` when docs or knowledge need alignment.
 5. Use `Cockpit Todo Expert` for persistent board updates, Task List todo coordination, and approval routing.
-6. Use `Custom Agent Foundry` to create any missing specialists in the repo.
+6. Use `Prefab UI Specialist` when the request is specifically about live Prefab rendering, Prefab UI JSON, dashboards, forms, charts, settings panels, or API-backed Prefab views.
+7. Use `Custom Agent Foundry` to create any missing specialists in the repo.
 
 Recommended maintenance pattern:
 

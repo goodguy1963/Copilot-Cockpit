@@ -62,6 +62,7 @@ import {
 import { getWorkspaceStoragePaths } from "./sqliteStorage.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
+const MINIMUM_ONE_TIME_DELAY_SECONDS = 1;
 
 interface SchedulerTask {
     id: string;
@@ -71,6 +72,7 @@ interface SchedulerTask {
     prompt: string;
     enabled?: boolean;
     oneTime?: boolean;
+    oneTimeDelaySeconds?: number;
     chatSession?: "new" | "continue";
     agent?: string;
     model?: string;
@@ -96,6 +98,7 @@ interface SchedulerConfig {
     jobFolders?: any[];
     deletedJobFolderIds?: string[];
     cockpitBoard?: any;
+    githubIntegration?: any;
     telegramNotification?: any;
 }
 
@@ -165,6 +168,28 @@ let cachedWorkspaceSettings:
     }
     | undefined;
 const cockpitMutationQueues = new Map<string, Promise<void>>();
+
+function normalizeOneTimeDelaySeconds(value: unknown): number | undefined {
+    const numericValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return undefined;
+    }
+
+    const wholeSeconds = Math.floor(numericValue);
+    return wholeSeconds >= MINIMUM_ONE_TIME_DELAY_SECONDS ? wholeSeconds : undefined;
+}
+
+function resolveOneTimeDelayNextRun(
+    oneTimeDelaySeconds: unknown,
+    referenceTime: Date,
+): Date | undefined {
+    const delaySeconds = normalizeOneTimeDelaySeconds(oneTimeDelaySeconds);
+    if (delaySeconds === undefined) {
+        return undefined;
+    }
+
+    return new Date(referenceTime.getTime() + delaySeconds * 1000);
+}
 
 function normalizeCockpitDeterministicStateMode(
     value: unknown,
@@ -265,6 +290,9 @@ function ensureConfig(raw: unknown): SchedulerConfig {
             deletedJobFolderIds: normalizeStringList(config.deletedJobFolderIds),
             cockpitBoard: config.cockpitBoard && typeof config.cockpitBoard === "object"
                 ? normalizeCockpitBoard(config.cockpitBoard)
+                : undefined,
+            githubIntegration: config.githubIntegration && typeof config.githubIntegration === "object"
+                ? config.githubIntegration
                 : undefined,
             telegramNotification: config.telegramNotification && typeof config.telegramNotification === "object"
                 ? config.telegramNotification
@@ -944,6 +972,41 @@ function findTask(config: SchedulerConfig, id: string): SchedulerTask | undefine
     return config.tasks.find((task) => task.id === id);
 }
 
+function parseIsoDate(value: unknown): Date | undefined {
+    if (typeof value !== "string" || !value.trim()) {
+        return undefined;
+    }
+
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed : undefined;
+}
+
+function resolveOneTimeTaskNextRun(params: {
+    existing: SchedulerTask | undefined;
+    oneTimeDelaySeconds: number;
+    createdAt: string;
+}): string {
+    const { createdAt, existing, oneTimeDelaySeconds } = params;
+    const existingDelay = normalizeOneTimeDelaySeconds(existing?.oneTimeDelaySeconds);
+    const timingChanged = existing?.oneTime !== true || existingDelay !== oneTimeDelaySeconds;
+
+    if (!timingChanged && typeof existing?.nextRun === "string" && existing.nextRun.trim()) {
+        return existing.nextRun;
+    }
+
+    const referenceTime = !timingChanged
+        ? parseIsoDate(existing?.createdAt)
+            ?? parseIsoDate(createdAt)
+            ?? new Date()
+        : new Date();
+    const nextRun = resolveOneTimeDelayNextRun(oneTimeDelaySeconds, referenceTime);
+    if (!nextRun) {
+        throw new Error("Field 'oneTimeDelaySeconds' must be a positive number when oneTime is true.");
+    }
+
+    return nextRun.toISOString();
+}
+
 function toCockpitSeedTask(task: SchedulerTask): Record<string, unknown> {
     return {
         ...task,
@@ -967,6 +1030,22 @@ function normalizeTaskForWrite(existing: SchedulerTask | undefined, updates: Rec
         : !oneTime && (existing?.chatSession === "new" || existing?.chatSession === "continue")
             ? existing.chatSession
             : undefined;
+    const oneTimeDelaySeconds = oneTime
+        ? normalizeOneTimeDelaySeconds(updates.oneTimeDelaySeconds ?? existing?.oneTimeDelaySeconds)
+        : undefined;
+    if (oneTime && oneTimeDelaySeconds === undefined) {
+        throw new Error("Field 'oneTimeDelaySeconds' must be a positive number when oneTime is true.");
+    }
+    const createdAt = existing?.createdAt || timestamp;
+    const nextRun = oneTime
+        ? resolveOneTimeTaskNextRun({
+            existing,
+            oneTimeDelaySeconds,
+            createdAt,
+        })
+        : typeof updates.nextRun === "string"
+            ? updates.nextRun
+            : existing?.nextRun;
 
     return {
         ...existing,
@@ -984,6 +1063,7 @@ function normalizeTaskForWrite(existing: SchedulerTask | undefined, updates: Rec
             ? updates.enabled
             : existing?.enabled !== false,
         oneTime,
+        oneTimeDelaySeconds,
         chatSession,
         agent: typeof updates.agent === "string" ? updates.agent : existing?.agent,
         model: typeof updates.model === "string" ? updates.model : existing?.model,
@@ -1008,8 +1088,8 @@ function normalizeTaskForWrite(existing: SchedulerTask | undefined, updates: Rec
         lastRun: typeof updates.lastRun === "string" ? updates.lastRun : existing?.lastRun,
         lastError: typeof updates.lastError === "string" ? updates.lastError : existing?.lastError,
         lastErrorAt: typeof updates.lastErrorAt === "string" ? updates.lastErrorAt : existing?.lastErrorAt,
-        nextRun: typeof updates.nextRun === "string" ? updates.nextRun : existing?.nextRun,
-        createdAt: existing?.createdAt || timestamp,
+        nextRun,
+        createdAt,
         updatedAt: timestamp,
     };
 }
@@ -1084,6 +1164,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 prompt: { type: "string", description: "Prompt content or resolved prompt text." },
                 enabled: { type: "boolean", description: "Active state of the task." },
                 oneTime: { type: "boolean", description: "Whether the task runs once and then removes itself." },
+                oneTimeDelaySeconds: { type: "number", description: "Positive delay in seconds before a one-time task runs." },
                 chatSession: { type: "string", description: "Recurring tasks only: 'new' or 'continue'. One-time tasks ignore this field." },
                 agent: { type: "string", description: "Optional agent/mode to use for execution." },
                 model: { type: "string", description: "Optional model identifier." },
@@ -1108,6 +1189,7 @@ export const MCP_TOOL_DEFINITIONS = [
                 prompt: { type: "string" },
                 enabled: { type: "boolean" },
                 oneTime: { type: "boolean" },
+                oneTimeDelaySeconds: { type: "number", description: "Positive delay in seconds before a one-time task runs." },
                 chatSession: { type: "string" },
                 agent: { type: "string" },
                 model: { type: "string" },

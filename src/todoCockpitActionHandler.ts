@@ -4,8 +4,11 @@ import {
   COCKPIT_FINAL_USER_CHECK_FLAG,
   COCKPIT_ON_SCHEDULE_LIST_FLAG,
   COCKPIT_READY_FLAG,
+  DEFAULT_UNSORTED_SECTION_ID,
   getActiveCockpitWorkflowFlag,
+  isArchiveSectionId,
   isProtectedCockpitFlagKey,
+  replaceCockpitWorkflowFlag,
 } from "./cockpitBoard";
 import {
   addCockpitTodoComment,
@@ -38,13 +41,17 @@ import type {
   CockpitBoard,
   CockpitBoardFilters,
   CockpitTodoCard,
+  CockpitTodoPriority,
   CreateCockpitTodoInput,
   CreateTaskInput,
   ExecuteOptions,
+  GitHubIntegrationView,
+  GitHubTodoSource,
   ReviewDefaultsView,
   ScheduledTask,
   TaskAction,
   UpdateCockpitBoardFiltersInput,
+  UpdateCockpitTodoInput,
 } from "./types";
 import { listWorkspaceSkillMetadata, type ParsedSkillMetadata } from "./skillMetadata";
 
@@ -172,6 +179,137 @@ function areCockpitBoardFiltersEqual(
     && left.hideCardDetails === right.hideCardDetails;
 }
 
+function normalizeOptionalPromptText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : undefined;
+}
+
+function mergeDistinctStringsCaseInsensitive(
+  existing: string[] | undefined,
+  incoming: string[] | undefined,
+): string[] {
+  const merged = new Map<string, string>();
+  for (const entry of [...(existing ?? []), ...(incoming ?? [])]) {
+    const trimmed = String(entry || "").trim();
+    if (!trimmed) {
+      continue;
+    }
+    const key = trimmed.toLowerCase();
+    if (!merged.has(key)) {
+      merged.set(key, trimmed);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+const TODO_PRIORITY_RANK: Record<CockpitTodoPriority, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  urgent: 4,
+};
+
+function getStrongerPriority(
+  current: CockpitTodoPriority,
+  incoming: CockpitTodoPriority | undefined,
+): CockpitTodoPriority {
+  if (!incoming) {
+    return current;
+  }
+
+  return (TODO_PRIORITY_RANK[incoming] ?? 0) > (TODO_PRIORITY_RANK[current] ?? 0)
+    ? incoming
+    : current;
+}
+
+function getGitHubRepoKey(
+  githubSource: Pick<GitHubTodoSource, "owner" | "repo"> | undefined,
+): string | undefined {
+  const owner = String(githubSource?.owner || "").trim().toLowerCase();
+  const repo = String(githubSource?.repo || "").trim().toLowerCase();
+  return owner && repo ? `${owner}/${repo}` : undefined;
+}
+
+function areGitHubSourcesEquivalent(
+  left: GitHubTodoSource | undefined,
+  right: GitHubTodoSource | undefined,
+): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return left.itemId === right.itemId
+    && left.kind === right.kind
+    && (left.subtype ?? "") === (right.subtype ?? "")
+    && (left.number ?? 0) === (right.number ?? 0)
+    && left.title === right.title
+    && left.url === right.url
+    && (left.state ?? "") === (right.state ?? "")
+    && (left.severity ?? "") === (right.severity ?? "")
+    && (left.baseRef ?? "") === (right.baseRef ?? "")
+    && (left.headRef ?? "") === (right.headRef ?? "")
+    && (left.updatedAt ?? "") === (right.updatedAt ?? "")
+    && (getGitHubRepoKey(left) ?? "") === (getGitHubRepoKey(right) ?? "");
+}
+
+function countPopulatedGitHubSourceFields(
+  githubSource: GitHubTodoSource | undefined,
+): number {
+  if (!githubSource) {
+    return 0;
+  }
+
+  const values = [
+    githubSource.itemId,
+    githubSource.kind,
+    githubSource.subtype,
+    githubSource.number,
+    githubSource.title,
+    githubSource.url,
+    githubSource.owner,
+    githubSource.repo,
+    githubSource.state,
+    githubSource.severity,
+    githubSource.baseRef,
+    githubSource.headRef,
+    githubSource.updatedAt,
+  ];
+
+  return values.filter((value) => {
+    if (typeof value === "number") {
+      return Number.isFinite(value);
+    }
+    return typeof value === "string" && value.trim().length > 0;
+  }).length;
+}
+
+function isGitHubSourceNewer(
+  existing: GitHubTodoSource | undefined,
+  incoming: GitHubTodoSource | undefined,
+): boolean {
+  const incomingTime = Date.parse(incoming?.updatedAt || "");
+  if (!Number.isFinite(incomingTime)) {
+    return false;
+  }
+
+  const existingTime = Date.parse(existing?.updatedAt || "");
+  if (!Number.isFinite(existingTime)) {
+    return true;
+  }
+
+  return incomingTime > existingTime;
+}
+
+function isGitHubSourceMoreComplete(
+  existing: GitHubTodoSource | undefined,
+  incoming: GitHubTodoSource | undefined,
+): boolean {
+  return countPopulatedGitHubSourceFields(incoming)
+    > countPopulatedGitHubSourceFields(existing);
+}
+
 type TodoCockpitTaskAction = Extract<
   TaskAction["action"],
   | "createTodo"
@@ -230,6 +368,7 @@ type TodoPromptSource = {
   title: string;
   description?: string;
   labels?: string[];
+  githubSource?: GitHubTodoSource;
   taskId?: string | null;
   comments?: Array<{ author?: string; body?: string }>;
 };
@@ -253,7 +392,164 @@ type TodoCockpitActionHandlerDeps = {
   ) => void;
   showError: (message: string) => void;
   noWorkspaceOpenMessage: string;
+  getCurrentGitHubIntegration: () => GitHubIntegrationView | undefined;
+  getCurrentGitBranchName: (workspaceRoot: string | undefined) => Promise<string | undefined>;
 };
+
+function enrichGitHubSource(
+  githubSource: GitHubTodoSource | undefined,
+  githubIntegration: GitHubIntegrationView | undefined,
+): GitHubTodoSource | undefined {
+  if (!githubSource) {
+    return undefined;
+  }
+
+  return {
+    ...githubSource,
+    owner: githubSource.owner || githubIntegration?.owner,
+    repo: githubSource.repo || githubIntegration?.repo,
+  };
+}
+
+function findExistingTodoForGitHubSource(
+  board: CockpitBoard,
+  githubSource: GitHubTodoSource | undefined,
+): CockpitTodoCard | undefined {
+  if (!githubSource) {
+    return undefined;
+  }
+
+  return board.cards.find((card) => {
+    const existing = card.githubSource;
+    if (!existing) {
+      return false;
+    }
+
+    const existingRepoKey = getGitHubRepoKey(existing);
+    const incomingRepoKey = getGitHubRepoKey(githubSource);
+    if (existing.itemId === githubSource.itemId) {
+      return !existingRepoKey || !incomingRepoKey || existingRepoKey === incomingRepoKey;
+    }
+    if (existing.url && existing.url === githubSource.url) {
+      return true;
+    }
+    if (
+      existing.kind === githubSource.kind
+      && typeof existing.number === "number"
+      && typeof githubSource.number === "number"
+      && existing.number === githubSource.number
+    ) {
+      return !existingRepoKey || !incomingRepoKey || existingRepoKey === incomingRepoKey;
+    }
+    return false;
+  });
+}
+
+function mergeIncomingImportFlags(
+  existing: string[],
+  incoming: string[] | undefined,
+): string[] | undefined {
+  if (!incoming || incoming.length === 0) {
+    return undefined;
+  }
+
+  const merged = mergeDistinctStringsCaseInsensitive(existing, incoming);
+  const incomingWorkflowFlag = getActiveCockpitWorkflowFlag(incoming);
+  if (!incomingWorkflowFlag) {
+    return merged;
+  }
+
+  return replaceCockpitWorkflowFlag(
+    merged,
+    incomingWorkflowFlag as Parameters<typeof replaceCockpitWorkflowFlag>[1],
+  );
+}
+
+function buildGitHubImportUpdates(
+  existingTodo: CockpitTodoCard,
+  incoming: CreateCockpitTodoInput,
+  githubSource: GitHubTodoSource | undefined,
+): UpdateCockpitTodoInput {
+  const updates: UpdateCockpitTodoInput = {};
+  const incomingTitle = normalizeOptionalPromptText(incoming.title);
+  const incomingDescription = normalizeOptionalPromptText(incoming.description);
+  const sourceChanged = Boolean(
+    githubSource && !areGitHubSourcesEquivalent(existingTodo.githubSource, githubSource),
+  );
+  const shouldRefreshSource = Boolean(
+    githubSource && (
+      !existingTodo.githubSource
+      || isGitHubSourceNewer(existingTodo.githubSource, githubSource)
+      || isGitHubSourceMoreComplete(existingTodo.githubSource, githubSource)
+      || (!existingTodo.githubSource?.updatedAt && !githubSource.updatedAt && sourceChanged)
+    ),
+  );
+
+  const mergedLabels = mergeDistinctStringsCaseInsensitive(
+    existingTodo.labels,
+    incoming.labels,
+  );
+  if (!areStringListsEqual(existingTodo.labels, mergedLabels)) {
+    updates.labels = mergedLabels;
+  }
+
+  const mergedFlags = mergeIncomingImportFlags(existingTodo.flags, incoming.flags);
+  if (mergedFlags && !areStringListsEqual(existingTodo.flags, mergedFlags)) {
+    updates.flags = mergedFlags;
+  }
+
+  const strongerPriority = getStrongerPriority(existingTodo.priority, incoming.priority);
+  if (strongerPriority !== existingTodo.priority) {
+    updates.priority = strongerPriority;
+  }
+
+  if (
+    incomingDescription
+    && incomingDescription !== existingTodo.description
+    && (
+      shouldRefreshSource
+      || !existingTodo.description
+      || incomingDescription.length > existingTodo.description.length
+    )
+  ) {
+    updates.description = incomingDescription;
+  }
+
+  if (
+    incomingTitle
+    && incomingTitle !== existingTodo.title
+    && (
+      shouldRefreshSource
+      || !existingTodo.title
+      || existingTodo.title === existingTodo.githubSource?.title
+    )
+  ) {
+    updates.title = incomingTitle;
+  }
+
+  if (githubSource && sourceChanged && shouldRefreshSource) {
+    updates.githubSource = githubSource;
+  }
+
+  const incomingDueAt = normalizeOptionalPromptText(incoming.dueAt);
+  if (incomingDueAt && incomingDueAt !== existingTodo.dueAt) {
+    updates.dueAt = incomingDueAt;
+  }
+
+  const incomingSessionId = normalizeOptionalPromptText(incoming.sessionId);
+  if (incomingSessionId && incomingSessionId !== existingTodo.sessionId) {
+    updates.sessionId = incomingSessionId;
+  }
+
+  const incomingSectionId = normalizeOptionalPromptText(incoming.sectionId);
+  if (existingTodo.archived || isArchiveSectionId(existingTodo.sectionId)) {
+    updates.sectionId = incomingSectionId ?? DEFAULT_UNSORTED_SECTION_ID;
+  } else if (incomingSectionId && incomingSectionId !== existingTodo.sectionId) {
+    updates.sectionId = incomingSectionId;
+  }
+
+  return updates;
+}
 
 function getTodoWorkflowFlag(todo: Pick<CockpitTodoCard, "flags">): string | undefined {
   return getActiveCockpitWorkflowFlag(todo.flags);
@@ -317,6 +613,148 @@ function buildTodoContextBlock(todo: TodoPromptSource): string {
   ];
 
   return sections.join("\n\n");
+}
+
+function getGitHubKindLabel(githubSource: GitHubTodoSource): string {
+  switch (githubSource.kind) {
+    case "pullRequest":
+      return "pull request";
+    case "securityAlert":
+      return "security alert";
+    default:
+      return "issue";
+  }
+}
+
+function buildGitHubContextBlock(
+  githubSource: GitHubTodoSource | undefined,
+): string {
+  if (!githubSource) {
+    return "";
+  }
+
+  const lines = [
+    "GitHub context:",
+    `- Repository: ${getGitHubRepoKey(githubSource) || "unknown"}`,
+    `- Source: ${getGitHubKindLabel(githubSource)}${githubSource.subtype ? ` (${githubSource.subtype})` : ""}`,
+    `- GitHub item id: ${githubSource.itemId}`,
+    typeof githubSource.number === "number"
+      ? `- Number: ${githubSource.number}`
+      : undefined,
+    `- Title: ${githubSource.title}`,
+    `- URL: ${githubSource.url}`,
+    githubSource.state ? `- State: ${githubSource.state}` : undefined,
+    githubSource.severity ? `- Severity: ${githubSource.severity}` : undefined,
+    githubSource.baseRef ? `- Base branch: ${githubSource.baseRef}` : undefined,
+    githubSource.headRef ? `- Head branch: ${githubSource.headRef}` : undefined,
+    githubSource.updatedAt ? `- Updated at: ${githubSource.updatedAt}` : undefined,
+  ].filter((value): value is string => Boolean(value));
+
+  return lines.join("\n");
+}
+
+async function buildGitHubBranchPreflightBlock(
+  githubSource: GitHubTodoSource | undefined,
+  workspaceRoot: string | undefined,
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<string> {
+  if (!githubSource || githubSource.kind !== "pullRequest") {
+    return "";
+  }
+
+  const currentBranch = normalizeOptionalPromptText(
+    await deps.getCurrentGitBranchName(workspaceRoot),
+  );
+  const requiredHeadBranch = githubSource.headRef || "unknown";
+  const lines = [
+    "GitHub PR branch/security preflight:",
+    "- Security review comes before implementation work.",
+    "- Review the PR for security-sensitive changes before making code edits.",
+    `- Required PR head branch: ${requiredHeadBranch}`,
+    `- Current local branch: ${currentBranch || "unavailable"}`,
+  ];
+
+  if (!githubSource.headRef) {
+    lines.push(
+      "- Branch status: PR head branch unavailable. Stop before implementation until the required branch is known.",
+    );
+  } else if (!currentBranch) {
+    lines.push(
+      "- Branch status: unavailable. Stop before implementation until the current branch can be verified against the PR head branch.",
+    );
+  } else if (currentBranch !== githubSource.headRef) {
+    lines.push(
+      "- Branch status: mismatch. Stop before implementation and ask the user to switch to the PR head branch first.",
+    );
+  } else {
+    lines.push("- Branch status: match confirmed.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildGitHubAutomationPromptBlock(
+  automationPromptTemplate: string | undefined,
+): string {
+  const template = automationPromptTemplate?.trim() || "";
+  if (!template) {
+    return "";
+  }
+
+  return [
+    "Saved GitHub automation prompt:",
+    template,
+  ].join("\n");
+}
+
+type TodoGitHubPromptBlocks = {
+  githubContext: string;
+  githubBranchPreflight: string;
+  githubAutomationPrompt: string;
+  githubSupplement: string;
+};
+
+function buildGitHubPromptSupplement(
+  blocks: Omit<TodoGitHubPromptBlocks, "githubSupplement">,
+): string {
+  return [
+    blocks.githubContext,
+    blocks.githubBranchPreflight,
+    blocks.githubAutomationPrompt,
+  ].filter((value) => value.trim()).join("\n\n");
+}
+
+async function buildTodoGitHubPromptBlocks(
+  todo: TodoPromptSource,
+  workspaceRoot: string | undefined,
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<TodoGitHubPromptBlocks> {
+  if (!todo.githubSource) {
+    return {
+      githubContext: "",
+      githubBranchPreflight: "",
+      githubAutomationPrompt: "",
+      githubSupplement: "",
+    };
+  }
+
+  const githubIntegration = deps.getCurrentGitHubIntegration();
+  const blocks = {
+    githubContext: buildGitHubContextBlock(todo.githubSource),
+    githubBranchPreflight: await buildGitHubBranchPreflightBlock(
+      todo.githubSource,
+      workspaceRoot,
+      deps,
+    ),
+    githubAutomationPrompt: buildGitHubAutomationPromptBlock(
+      githubIntegration?.automationPromptTemplate,
+    ),
+  };
+
+  return {
+    ...blocks,
+    githubSupplement: buildGitHubPromptSupplement(blocks),
+  };
 }
 
 type SkillGuidanceIntent = "needs-bot-review" | "ready";
@@ -405,6 +843,7 @@ function applyTodoPromptTemplate(
   template: string,
   intent: SkillGuidanceIntent,
   workspaceRoot: string | undefined,
+  githubBlocks: TodoGitHubPromptBlocks,
 ): string {
   const labels = (todo.labels ?? []).join(", ") || "none";
   const recentComments = buildTodoRecentCommentsText(todo);
@@ -412,7 +851,8 @@ function applyTodoPromptTemplate(
   const todoContext = buildTodoContextBlock(todo);
   const mcpSkillGuidance = buildMcpSkillGuidanceBlock(workspaceRoot, intent);
 
-  return template
+  const hasExplicitGitHubPlaceholders = /\{\{github_(?:context|branch_preflight|automation_prompt)\}\}/.test(template);
+  const rendered = template
     .replace(/\{\{title\}\}/g, todo.title || "")
     .replace(/\{\{description\}\}/g, todo.description?.trim() || "")
     .replace(/\{\{labels\}\}/g, labels)
@@ -420,7 +860,25 @@ function applyTodoPromptTemplate(
     .replace(/\{\{linked_task\}\}/g, linkedTask)
     .replace(/\{\{todo_context\}\}/g, todoContext)
     .replace(/\{\{mcp_skill_guidance\}\}/g, mcpSkillGuidance)
+    .replace(/\{\{github_context\}\}/g, githubBlocks.githubContext)
+    .replace(/\{\{github_branch_preflight\}\}/g, githubBlocks.githubBranchPreflight)
+    .replace(/\{\{github_automation_prompt\}\}/g, githubBlocks.githubAutomationPrompt)
     .trim();
+
+  return !hasExplicitGitHubPlaceholders && githubBlocks.githubSupplement
+    ? [rendered, githubBlocks.githubSupplement].filter(Boolean).join("\n\n")
+    : rendered;
+}
+
+async function buildTodoPromptFromTemplate(
+  todo: TodoPromptSource,
+  template: string,
+  intent: SkillGuidanceIntent,
+  workspaceRoot: string | undefined,
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<string> {
+  const githubBlocks = await buildTodoGitHubPromptBlocks(todo, workspaceRoot, deps);
+  return applyTodoPromptTemplate(todo, template, intent, workspaceRoot, githubBlocks);
 }
 
 async function maybeRunBotReviewPlanning(
@@ -442,11 +900,12 @@ async function maybeRunBotReviewPlanning(
     return "skipped";
   }
 
-  const prompt = applyTodoPromptTemplate(
+  const prompt = await buildTodoPromptFromTemplate(
     todo,
     promptTemplate,
     "needs-bot-review",
     deps.getPrimaryWorkspaceRootPath(),
+    deps,
   );
   if (!prompt) {
     return "skipped";
@@ -492,7 +951,7 @@ async function ensureReadyTodoTaskDraft(
     name: todo.title,
     description: todo.description,
     cronExpression: "0 9 * * 1-5",
-    prompt: buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults(), workspaceRoot),
+    prompt: await buildReadyTaskPromptFromTodo(todo, deps.getReviewDefaults(), workspaceRoot, deps),
     enabled: false,
     oneTime: true,
     labels: Array.from(new Set([...(todo.labels ?? []), "from-todo-cockpit"])),
@@ -539,9 +998,53 @@ export async function handleTodoCockpitAction(
         return true;
       }
       const currentBoard = deps.getCurrentCockpitBoard();
+      const githubSource = enrichGitHubSource(
+        action.todoData.githubSource ?? undefined,
+        deps.getCurrentGitHubIntegration(),
+      );
+      const todoInput: CreateCockpitTodoInput = {
+        ...(action.todoData as CreateCockpitTodoInput),
+        githubSource,
+      };
+      const existingTodo = findExistingTodoForGitHubSource(currentBoard, githubSource);
+      if (existingTodo) {
+        const previousWorkflowFlag = getTodoWorkflowFlag(existingTodo);
+        const updates = buildGitHubImportUpdates(existingTodo, todoInput, githubSource);
+        const result = Object.keys(updates).length > 0
+          ? updateCockpitTodo(workspaceRoot, existingTodo.id, updates)
+          : { board: currentBoard, todo: existingTodo };
+        const refreshedTodo = result.todo ?? existingTodo;
+        maybeSeedNeedsBotReviewCommentTemplate(
+          workspaceRoot,
+          refreshedTodo,
+          previousWorkflowFlag,
+          deps,
+        );
+        const revealFilters = getRevealFiltersForCreatedTodo(
+          currentBoard.filters,
+          refreshedTodo,
+        );
+        const botReviewLaunchState = await maybeRunBotReviewPlanning(
+          refreshedTodo,
+          previousWorkflowFlag,
+          deps,
+        );
+        if (revealFilters) {
+          setCockpitBoardFilters(workspaceRoot, revealFilters);
+        }
+        deps.refreshSchedulerUiState();
+        SchedulerWebview.startCreateTodo();
+        SchedulerWebview.switchToTab("board");
+        deps.notifyInfo(
+          botReviewLaunchState === "launched"
+            ? "GitHub Todo already existed; refreshed the existing card and started bot review."
+            : "GitHub Todo already existed; refreshed the existing card.",
+        );
+        return true;
+      }
       const result = createCockpitTodo(
         workspaceRoot,
-        action.todoData as CreateCockpitTodoInput,
+        todoInput,
       );
       maybeSeedNeedsBotReviewCommentTemplate(workspaceRoot, result.todo, undefined, deps);
       const revealFilters = getRevealFiltersForCreatedTodo(
@@ -1021,19 +1524,29 @@ export async function handleTodoCockpitAction(
   }
 }
 
-function buildReadyTaskPromptFromTodo(
+async function buildReadyTaskPromptFromTodo(
   taskSource: TodoPromptSource,
   reviewDefaults: ReviewDefaultsView,
   workspaceRoot: string | undefined,
-): string {
+  deps: TodoCockpitActionHandlerDeps,
+): Promise<string> {
   const promptTemplate = reviewDefaults.readyPromptTemplate.trim();
   if (promptTemplate) {
-    return applyTodoPromptTemplate(taskSource, promptTemplate, "ready", workspaceRoot);
+    return buildTodoPromptFromTemplate(
+      taskSource,
+      promptTemplate,
+      "ready",
+      workspaceRoot,
+      deps,
+    );
   }
+
+  const githubBlocks = await buildTodoGitHubPromptBlocks(taskSource, workspaceRoot, deps);
 
   return [
     buildTodoContextBlock(taskSource),
     buildMcpSkillGuidanceBlock(workspaceRoot, "ready"),
+    githubBlocks.githubSupplement,
     "Analyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation. If there is no recent user comment, proceed with the bot's recommendation and update the Todo to the correct workflow state afterward.",
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }

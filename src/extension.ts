@@ -51,7 +51,11 @@ import {
   setSchedulerConflictNotifier,
   wasSchedulerConfigWrittenRecently,
 } from "./cockpitJsonSanitizer";
-import { ensurePrivateConfigIgnoredForWorkspaceRoots } from "./privateConfigIgnore";
+import {
+  applyPrivateConfigIgnoreForWorkspaceRoots,
+  ensurePrivateConfigIgnoredForWorkspaceRoots,
+} from "./privateConfigIgnore";
+import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "./privateConfigIgnore";
 import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
@@ -84,6 +88,13 @@ import {
   syncWorkspaceCockpitBoardToSqlite,
 } from "./sqliteBootstrap";
 import {
+  getGitHubIntegrationView,
+  saveGitHubIntegrationConfig,
+  syncGitHubIntegrationInbox,
+} from "./githubIntegrationManager";
+import { resolveGitHubAuthentication } from "./githubAuthResolver";
+import { createEmptyGitHubInboxSnapshot } from "./githubRestClient";
+import {
   getTelegramNotificationView,
   saveTelegramNotificationConfig,
   sendTelegramNotificationTest,
@@ -95,11 +106,29 @@ import {
 } from "./sqliteStorage";
 import {
   ensureWorkspaceMcpSupportFiles,
+  buildNodeShellExecutionCommand,
+  resolveNodeLaunchCommand,
   type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
   upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
 } from "./mcpConfigManager";
+import {
+  ExternalAgentAccessManager,
+} from "./externalAgentAccessManager";
+import {
+  buildExternalAgentControlSocketPath,
+  evaluateExternalAgentAuthorization,
+  ExternalAgentControlServerManager,
+  type ExternalAgentControlRequest,
+} from "./externalAgentControl";
+import {
+  ensureWorkspaceExternalAgentSupportFiles,
+  EXTERNAL_AGENT_KEY_ENV_VAR,
+  EXTERNAL_AGENT_REPO_ID_ENV_VAR,
+  getWorkspaceExternalAgentLauncherPath,
+  getWorkspaceExternalAgentSupportDirectory,
+} from "./externalAgentConfigManager";
 import { resolveGlobalPromptsRoot } from "./promptResolver";
 import {
   handleTodoCockpitAction,
@@ -131,7 +160,9 @@ import {
   warnIfCronTooFrequent as maybeWarnCronIntervalWithUi,
   notifyError as notifyErrorWithUi,
   notifyInfo as notifyInfoWithUi,
+  warnStaleRuntimeSqliteSuppressed as warnStaleRuntimeSqliteSuppressedWithUi,
 } from "./extensionUiFlows";
+import { shouldSuppressSqliteWorkForExtensionContext } from "./staleExtensionRuntime";
 import type {
   AddCockpitTodoCommentInput,
   ApprovalMode,
@@ -140,6 +171,8 @@ import type {
   ScheduledTask,
   CreateTaskInput,
   CreateResearchProfileInput,
+  GitHubAuthStatus,
+  GitHubIntegrationView,
   ResearchProvider,
   StorageSettingsView,
   SearchProvider,
@@ -160,6 +193,7 @@ const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const LAST_BUNDLED_AGENTS_SYNC_MAP_KEY = "lastBundledAgentsSyncByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
+const EXTERNAL_AGENT_HEARTBEAT_INTERVAL_MS = 2000;
 const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
 const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
 const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
@@ -227,6 +261,46 @@ const DEFAULT_READY_PROMPT_TEMPLATE = [
 const SCHEDULER_WATCHER_SUPPRESSION_MS = 1500;
 const SCHEDULER_UI_REFRESH_DEBOUNCE_MS = 50;
 
+let cachedGitHubAuthStatus: GitHubAuthStatus = {
+  hasConnection: false,
+  authStatusText: "No VS Code GitHub connection is available. Sign in with the built-in GitHub authentication provider to enable refresh.",
+};
+
+function getGitHubAuthResolverOptions(apiBaseUrl: string | undefined): {
+  apiBaseUrl?: string;
+  configurationScope?: vscode.ConfigurationScope;
+  configurationTarget: vscode.ConfigurationTarget;
+} {
+  const configurationScope = getPrimaryWorkspaceFolderUri();
+  return {
+    apiBaseUrl,
+    configurationScope,
+    configurationTarget: configurationScope
+      ? vscode.ConfigurationTarget.WorkspaceFolder
+      : vscode.ConfigurationTarget.Workspace,
+  };
+}
+
+async function refreshCachedGitHubAuthStatus(
+  workspaceRoot: string | undefined,
+): Promise<void> {
+  if (!workspaceRoot) {
+    cachedGitHubAuthStatus = {
+      hasConnection: false,
+      authStatusText: "No workspace is open.",
+    };
+    return;
+  }
+
+  const currentView = getGitHubIntegrationView(workspaceRoot);
+  cachedGitHubAuthStatus = await resolveGitHubAuthentication(
+    getGitHubAuthResolverOptions(currentView.apiBaseUrl),
+  );
+  SchedulerWebview.updateGitHubIntegration(
+    getGitHubIntegrationView(workspaceRoot, cachedGitHubAuthStatus),
+  );
+}
+
 const SYNC_TIMESTAMP_KEY = "promptSyncDate";
 const PROMPT_BACKUP_SYNC_MONTH_KEY = "promptBackupSyncMonth";
 const PREVIOUS_VERSION_KEY = "lastKnownVersion";
@@ -242,6 +316,25 @@ type WorkspaceSupportRepairPlan = {
 
 type WorkspaceTimestampMap = Record<string, string>;
 type WorkspaceActivationMap = Record<string, boolean>;
+
+type GitHeadLike = {
+  name?: string;
+};
+
+type GitRepositoryLike = {
+  rootUri: vscode.Uri;
+  state?: {
+    HEAD?: GitHeadLike;
+  };
+};
+
+type GitApiLike = {
+  repositories: GitRepositoryLike[];
+};
+
+type GitExtensionExportsLike = {
+  getAPI: (version: 1) => GitApiLike;
+};
 
 type StartupSqliteHydrationDeps = {
   workspaceRoot?: string;
@@ -309,6 +402,67 @@ function getCurrentProviderSettings(scope?: vscode.ConfigurationScope): {
     researchProvider: getSchedulerSetting<string>("researchProvider", "none", scope),
     hasExplicitResearchProvider: hasExplicitWorkspaceSetting("researchProvider", scope),
   });
+}
+
+function normalizeWorkspacePathForGitComparison(value: string): string {
+  const resolved = path.resolve(value);
+  return process.platform === "win32"
+    ? resolved.toLowerCase()
+    : resolved;
+}
+
+function findGitRepositoryForWorkspace(
+  api: GitApiLike,
+  workspaceRoot: string | undefined,
+): GitRepositoryLike | undefined {
+  if (!workspaceRoot) {
+    return api.repositories[0];
+  }
+
+  const targetRoot = normalizeWorkspacePathForGitComparison(workspaceRoot);
+  const exactMatch = api.repositories.find((repository) =>
+    normalizeWorkspacePathForGitComparison(repository.rootUri.fsPath) === targetRoot,
+  );
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  return api.repositories.find((repository) => {
+    const repositoryRoot = normalizeWorkspacePathForGitComparison(
+      repository.rootUri.fsPath,
+    );
+    return targetRoot.startsWith(`${repositoryRoot}${path.sep}`)
+      || repositoryRoot.startsWith(`${targetRoot}${path.sep}`);
+  });
+}
+
+async function getCurrentGitBranchNameForWorkspace(
+  workspaceRoot: string | undefined,
+): Promise<string | undefined> {
+  try {
+    const gitExtension = vscode.extensions.getExtension<GitExtensionExportsLike>(
+      "vscode.git",
+    );
+    if (!gitExtension) {
+      return undefined;
+    }
+
+    const gitExports = gitExtension.isActive
+      ? gitExtension.exports
+      : await gitExtension.activate();
+    const api = gitExports?.getAPI?.(1);
+    if (!api) {
+      return undefined;
+    }
+
+    const repository = findGitRepositoryForWorkspace(api, workspaceRoot);
+    const headName = repository?.state?.HEAD?.name;
+    return typeof headName === "string" && headName.trim()
+      ? headName.trim()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function updateSchedulerSetting(
@@ -456,6 +610,10 @@ function registerSchedulerCommands(
   commandDisposables.push(registerCloneTaskCommand(), registerRelocateToWorkspaceCommand());
   commandDisposables.push(registerPreferencesCommand(), registerShowVersionCommand(context));
   commandDisposables.push(registerSetupMcpCommand(context), registerSyncBundledSkillsCommand(context));
+  commandDisposables.push(registerEnableExternalAgentAccessCommand(context));
+  commandDisposables.push(registerDisableExternalAgentAccessCommand(context));
+  commandDisposables.push(registerRotateExternalAgentKeyCommand(context));
+  commandDisposables.push(registerCopyExternalAgentSetupInfoCommand(context));
   return commandDisposables;
 }
 
@@ -815,6 +973,26 @@ let cockpitBoardSqliteHydrationPromise: Promise<void> | undefined;
 let hasPromptedForMcpSetupThisSession = false;
 let extensionVersionChangedThisSession = false;
 let shouldAutoRepairWorkspaceSupportThisSession = false;
+let externalAgentAccessManager: ExternalAgentAccessManager | undefined;
+let externalAgentControlServerManager: ExternalAgentControlServerManager | undefined;
+let externalAgentSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+function shouldSuppressSqliteWorkForStaleRuntime(operation: string): boolean {
+  if (!extensionContext) {
+    return false;
+  }
+
+  return shouldSuppressSqliteWorkForExtensionContext({
+    context: extensionContext,
+    onStaleRuntimeDetected: (status) => {
+      const latestInstalledVersion = status.latestInstalledVersion ?? status.activeVersion;
+      logInfo(
+        `[CopilotScheduler] Suppressing SQLite ${operation} in stale runtime v${status.activeVersion}; installed v${latestInstalledVersion} is waiting for reload.`,
+      );
+      warnStaleRuntimeSqliteSuppressedWithUi(status.activeVersion, latestInstalledVersion);
+    },
+  });
+}
 
 function createWorkspaceSupportRepairPlan(
   states: Array<{ workspaceRoot: string; status: SchedulerMcpSetupState["status"] }>,
@@ -970,6 +1148,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateJobs(scheduler.getAllJobs());
   SchedulerWebview.updateJobFolders(scheduler.getAllJobFolders());
   SchedulerWebview.updateCockpitBoard(cockpitBoard);
+  SchedulerWebview.updateGitHubIntegration(getCurrentGitHubIntegrationView());
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
   SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
@@ -1000,6 +1179,7 @@ async function showSchedulerWebview(
     scheduler.getAllJobs(),
     scheduler.getAllJobFolders(),
     getCurrentCockpitBoard(),
+    getCurrentGitHubIntegrationView(),
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
     getCurrentReviewDefaults(),
@@ -1055,6 +1235,9 @@ async function syncCockpitBoardToSqliteIfNeeded(
   board: CockpitBoard,
 ): Promise<void> {
   if (!isWorkspaceSqliteModeEnabled(workspaceRoot)) {
+    return;
+  }
+  if (shouldSuppressSqliteWorkForStaleRuntime("Cockpit board sync")) {
     return;
   }
 
@@ -1126,6 +1309,9 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
   if (!workspaceRoot || !isWorkspaceSqliteModeEnabled(workspaceRoot)) {
     return;
   }
+  if (shouldSuppressSqliteWorkForStaleRuntime("Cockpit board hydration")) {
+    return;
+  }
   if (cockpitBoardSqliteHydrationPromise) {
     return;
   }
@@ -1192,6 +1378,237 @@ function collectCurrentWorkspaceRoots(): string[] {
   return workspaceRoot ? [workspaceRoot] : [];
 }
 
+function isWorkspaceEnabledForCockpit(workspaceRoot: string): boolean {
+  return getSchedulerSetting<boolean>("enabled", true, vscode.Uri.file(workspaceRoot)) !== false;
+}
+
+function isWorkspaceRootCurrentlyOpen(workspaceRoot: string): boolean {
+  const normalizedWorkspaceRoot = path.resolve(workspaceRoot);
+  return collectWorkspacePaths().some(
+    (candidate) => path.resolve(candidate) === normalizedWorkspaceRoot,
+  );
+}
+
+function getActiveEditorWorkspaceRoot(): string | undefined {
+  const documentUri = vscode.window.activeTextEditor?.document.uri;
+  if (!documentUri) {
+    return undefined;
+  }
+
+  return vscode.workspace.getWorkspaceFolder(documentUri)?.uri.fsPath;
+}
+
+async function promptToSelectWorkspaceRootForExternalAgent(
+  title: string,
+): Promise<string | undefined> {
+  const workspaceRoots = collectWorkspacePaths();
+  if (workspaceRoots.length === 0) {
+    notifyError("Open a workspace folder before configuring external-agent access.");
+    return undefined;
+  }
+
+  if (workspaceRoots.length === 1) {
+    return workspaceRoots[0];
+  }
+
+  const activeWorkspaceRoot = getActiveEditorWorkspaceRoot();
+  const normalizedActiveWorkspaceRoot = activeWorkspaceRoot
+    ? path.resolve(activeWorkspaceRoot)
+    : undefined;
+  const pick = await vscode.window.showQuickPick(
+    workspaceRoots.map((workspaceRoot) => ({
+      label: path.basename(workspaceRoot) || workspaceRoot,
+      description: workspaceRoot,
+      detail:
+        normalizedActiveWorkspaceRoot === path.resolve(workspaceRoot)
+          ? "Active editor workspace"
+          : undefined,
+      workspaceRoot,
+    })),
+    {
+      title,
+      placeHolder: "Select the workspace folder to configure.",
+    },
+  );
+
+  return pick?.workspaceRoot;
+}
+
+function getExternalAgentControlSocketPath(repoId: string): string {
+  return buildExternalAgentControlSocketPath({
+    repoId,
+    sessionId: externalAgentSessionId,
+  });
+}
+
+function buildExternalAgentCommandInfo(workspaceRoot: string): {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+} {
+  const launcherPath = getWorkspaceExternalAgentLauncherPath(workspaceRoot);
+  const nodeLaunch = resolveNodeLaunchCommand();
+  const args =
+    nodeLaunch.argsPrefix.length > 0
+      ? [...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
+      : [launcherPath];
+
+  return {
+    command: nodeLaunch.command,
+    args,
+    ...(nodeLaunch.env ? { env: nodeLaunch.env } : {}),
+  };
+}
+
+function buildExternalAgentSetupInfoText(
+  workspaceRoot: string,
+  repoId: string,
+): string {
+  const launcherPath = getWorkspaceExternalAgentLauncherPath(workspaceRoot);
+  const supportDirectory = getWorkspaceExternalAgentSupportDirectory(workspaceRoot);
+  const controlSocketPath = getExternalAgentControlSocketPath(repoId);
+  const commandInfo = buildExternalAgentCommandInfo(workspaceRoot);
+  const environment = {
+    ...(commandInfo.env ?? {}),
+    [EXTERNAL_AGENT_REPO_ID_ENV_VAR]: repoId,
+    [EXTERNAL_AGENT_KEY_ENV_VAR]: "<paste repo key here>",
+  };
+
+  return [
+    "Copilot Cockpit external-agent setup",
+    `Workspace root: ${workspaceRoot}`,
+    `Repo ID: ${repoId}`,
+    `Launcher path: ${launcherPath}`,
+    `Support folder: ${supportDirectory}`,
+    `Control endpoint: ${controlSocketPath}`,
+    `Command: ${commandInfo.command}`,
+    `Args: ${JSON.stringify(commandInfo.args)}`,
+    `Environment: ${JSON.stringify(environment, null, 2)}`,
+  ].join("\n");
+}
+
+async function revealExternalAgentSupportDirectory(workspaceRoot: string): Promise<void> {
+  await vscode.commands.executeCommand(
+    "revealFileInOS",
+    vscode.Uri.file(getWorkspaceExternalAgentSupportDirectory(workspaceRoot)),
+  );
+}
+
+async function showExternalAgentSetupActions(options: {
+  workspaceRoot: string;
+  repoId: string;
+  key?: string;
+  message: string;
+  copySetupFirst?: boolean;
+}): Promise<void> {
+  if (options.copySetupFirst) {
+    await vscode.env.clipboard.writeText(
+      buildExternalAgentSetupInfoText(options.workspaceRoot, options.repoId),
+    );
+  }
+
+  const copySetupAction = options.copySetupFirst ? "Copy Setup Again" : "Copy Setup Info";
+  const copyKeyAction = options.key ? "Copy Repo Key" : undefined;
+  const revealSupportAction = "Reveal Support Folder";
+  const choice = await vscode.window.showInformationMessage(
+    options.message,
+    ...[copySetupAction, copyKeyAction, revealSupportAction].filter(
+      (action): action is string => typeof action === "string",
+    ),
+  );
+
+  if (choice === copySetupAction) {
+    await vscode.env.clipboard.writeText(
+      buildExternalAgentSetupInfoText(options.workspaceRoot, options.repoId),
+    );
+    notifyInfo("External-agent setup info copied to clipboard.");
+    return;
+  }
+
+  if (choice === copyKeyAction && options.key) {
+    await vscode.env.clipboard.writeText(options.key);
+    notifyInfo("External-agent repo key copied to clipboard.");
+    return;
+  }
+
+  if (choice === revealSupportAction) {
+    await revealExternalAgentSupportDirectory(options.workspaceRoot);
+  }
+}
+
+async function authorizeExternalAgentWorkspaceRequest(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+  request: ExternalAgentControlRequest,
+) {
+  const accessState = await externalAgentAccessManager?.getWorkspaceAccessState(workspaceRoot);
+  const repoKey = await externalAgentAccessManager?.getWorkspaceKey(workspaceRoot);
+
+  return evaluateExternalAgentAuthorization({
+    request,
+    expectedRepoId: accessState?.repoId,
+    expectedKey: repoKey,
+    workspaceOpen: isWorkspaceRootCurrentlyOpen(workspaceRoot),
+    cockpitActivated: isCockpitWorkspaceActivated(context, workspaceRoot),
+    externalAgentEnabled: accessState?.enabled === true,
+    extensionEnabled: isWorkspaceEnabledForCockpit(workspaceRoot),
+  });
+}
+
+async function syncExternalAgentWorkspaceServer(
+  context: vscode.ExtensionContext,
+  workspaceRoot: string,
+): Promise<void> {
+  if (!externalAgentAccessManager || !externalAgentControlServerManager) {
+    return;
+  }
+
+  const accessState = await externalAgentAccessManager.getWorkspaceAccessState(workspaceRoot);
+  const shouldServe =
+    accessState?.enabled === true
+    && isWorkspaceRootCurrentlyOpen(workspaceRoot)
+    && isCockpitWorkspaceActivated(context, workspaceRoot)
+    && isWorkspaceEnabledForCockpit(workspaceRoot);
+
+  if (accessState) {
+    ensureWorkspaceMcpSupportFiles(workspaceRoot, context.extensionUri.fsPath);
+    ensureWorkspaceExternalAgentSupportFiles({
+      workspaceRoot,
+      repoId: accessState.repoId,
+      controlSocketPath: getExternalAgentControlSocketPath(accessState.repoId),
+      heartbeatIntervalMs: EXTERNAL_AGENT_HEARTBEAT_INTERVAL_MS,
+    });
+  }
+
+  if (!shouldServe || !accessState) {
+    await externalAgentControlServerManager.stopWorkspaceServer(
+      workspaceRoot,
+      "workspace access is no longer available",
+    );
+    return;
+  }
+  await externalAgentControlServerManager.ensureWorkspaceServer({
+    workspaceRoot,
+    controlSocketPath: getExternalAgentControlSocketPath(accessState.repoId),
+    authorize: (request) => authorizeExternalAgentWorkspaceRequest(context, workspaceRoot, request),
+  });
+}
+
+async function syncExternalAgentConnectorServers(
+  context: vscode.ExtensionContext,
+  workspaceRoots = collectWorkspacePaths(),
+): Promise<void> {
+  const knownWorkspaceRoots = Object.keys(
+    externalAgentAccessManager?.getAllWorkspaceAccessEntries() ?? {},
+  );
+  const uniqueWorkspaceRoots = Array.from(
+    new Set([...workspaceRoots, ...knownWorkspaceRoots]),
+  );
+  for (const workspaceRoot of uniqueWorkspaceRoots) {
+    await syncExternalAgentWorkspaceServer(context, workspaceRoot);
+  }
+}
+
 function getCockpitWorkspaceActivationMap(
   context: vscode.ExtensionContext,
 ): WorkspaceActivationMap {
@@ -1236,6 +1653,13 @@ async function setCockpitWorkspaceActivated(
   await context.workspaceState.update(
     COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY,
     nextState,
+  );
+
+  void syncExternalAgentConnectorServers(context, [workspaceRoot]).catch((error) =>
+    logError(
+      "[CopilotScheduler] Failed to sync external-agent connector after workspace activation change:",
+      redactPathsForLog(toErrorMessage(error)),
+    ),
   );
 }
 
@@ -1449,6 +1873,11 @@ function getCurrentStorageSettings(): StorageSettingsView {
     searchProvider: providerSettings.searchProvider,
     researchProvider: providerSettings.researchProvider,
     sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
+    autoIgnorePrivateFiles: getSchedulerSetting<boolean>(
+      AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
+      true,
+      folderUri,
+    ) !== false,
     disabledSystemFlagKeys: Array.isArray(board.disabledSystemFlagKeys)
       ? board.disabledSystemFlagKeys.slice()
       : [],
@@ -1593,6 +2022,29 @@ function getCurrentTelegramNotificationView() {
     };
   }
   return getTelegramNotificationView(workspaceRoot);
+}
+
+function getCurrentGitHubIntegrationView(): GitHubIntegrationView {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    const inbox = createEmptyGitHubInboxSnapshot();
+    return {
+      enabled: false,
+      hasConnection: false,
+      authStatusText: "No workspace is open.",
+      syncStatus: "disabled",
+      statusMessage: "GitHub integration is disabled.",
+      inbox,
+      inboxCounts: {
+        issues: 0,
+        pullRequests: 0,
+        securityAlerts: 0,
+        total: 0,
+      },
+    };
+  }
+  void refreshCachedGitHubAuthStatus(workspaceRoot);
+  return getGitHubIntegrationView(workspaceRoot, cachedGitHubAuthStatus);
 }
 
 async function setupWorkspaceMcpConfig(
@@ -2089,6 +2541,19 @@ async function syncApprovalMode(): Promise<void> {
  */
 export function activate(context: vscode.ExtensionContext): void {
   extensionContext = context;
+  externalAgentSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  externalAgentAccessManager = new ExternalAgentAccessManager(
+    context.globalState,
+    context.secrets,
+  );
+  externalAgentControlServerManager = new ExternalAgentControlServerManager((message, error) => {
+    if (error) {
+      logError(message, redactPathsForLog(toErrorMessage(error)));
+      return;
+    }
+
+    logError(message);
+  });
   setSchedulerConflictNotifier((message) => { void vscode.window.showWarningMessage(message); });
   // Re-sync prompts after an extension version bump
   {
@@ -2253,6 +2718,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const treeView = createSchedulerTreeView();
   const commands = registerSchedulerCommands(context);
 
+  void syncExternalAgentConnectorServers(context).catch((error) =>
+    logError(
+      "[CopilotScheduler] Failed to start external-agent connector servers:",
+      redactPathsForLog(toErrorMessage(error)),
+    ),
+  );
+
   const executeScheduledTask = async (task: ScheduledTask): Promise<void> => {
     await runScheduledTask(task);
   };
@@ -2275,6 +2747,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push({ // disposable
     dispose: () => clearPromptSyncIntervalHandle(),
+  });
+  context.subscriptions.push({
+    dispose: () => {
+      void externalAgentControlServerManager?.dispose();
+    },
   });
 
   // Display the startup banner
@@ -2300,6 +2777,14 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   // Listen for locale switches and refresh the webview accordingly
+  const workspaceFoldersWatcher = vscode.workspace.onDidChangeWorkspaceFolders(() => {
+    void syncExternalAgentConnectorServers(context).catch((error) =>
+      logError(
+        "[CopilotScheduler] Failed to resync external-agent connector after workspace folder change:",
+        redactPathsForLog(toErrorMessage(error)),
+      ),
+    );
+  });
   const settingsWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
     if (affectsCompatibleConfiguration(e, "language")) {
       SchedulerWebview.refreshLanguage(scheduler.getAllTasks());
@@ -2337,10 +2822,30 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const storageModeChanged = affectsCompatibleConfiguration(e, "storageMode");
     const sqliteJsonMirrorChanged = affectsCompatibleConfiguration(e, "sqliteJsonMirror");
+    const autoIgnorePrivateFilesChanged = affectsCompatibleConfiguration(
+      e,
+      AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
+    );
     const searchProviderChanged = affectsCompatibleConfiguration(e, "searchProvider");
     const researchProviderChanged = affectsCompatibleConfiguration(e, "researchProvider");
-    if (storageModeChanged || sqliteJsonMirrorChanged || searchProviderChanged || researchProviderChanged) {
+    if (
+      storageModeChanged
+      || sqliteJsonMirrorChanged
+      || autoIgnorePrivateFilesChanged
+      || searchProviderChanged
+      || researchProviderChanged
+    ) {
       SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+      if (autoIgnorePrivateFilesChanged) {
+        const workspaceRootsWithAutoIgnoreEnabled = collectWorkspacePaths().filter(
+          (workspaceRoot) => getSchedulerSetting<boolean>(
+            AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
+            true,
+            vscode.Uri.file(workspaceRoot),
+          ) !== false,
+        );
+        applyPrivateConfigIgnoreForWorkspaceRoots(workspaceRootsWithAutoIgnoreEnabled);
+      }
       if (
         storageModeChanged
         && extensionContext
@@ -2376,6 +2881,12 @@ export function activate(context: vscode.ExtensionContext): void {
       const enabled = getSchedulerSetting<boolean>("enabled", true);
       if (enabled) { scheduler.startScheduler(executeScheduledTask); needsRecalculate = true; }
       else { scheduler.stopScheduler(); }
+      void syncExternalAgentConnectorServers(context).catch((error) =>
+        logError(
+          "[CopilotScheduler] Failed to resync external-agent connector after enabled change:",
+          redactPathsForLog(toErrorMessage(error)),
+        ),
+      );
     }
     if (needsRecalculate === true) {
       // recomputeAllSchedules → saveTasks → emitTaskListChanged already
@@ -2395,7 +2906,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   // Wire up disposable subscriptions
-  context.subscriptions.push(treeView, settingsWatcher, ...commands);
+  context.subscriptions.push(treeView, workspaceFoldersWatcher, settingsWatcher, ...commands);
 }
 
 /**
@@ -2404,6 +2915,7 @@ export function activate(context: vscode.ExtensionContext): void {
 export function deactivate(): void {
   setSchedulerConflictNotifier(undefined);
   scheduler?.stopScheduler();
+  void externalAgentControlServerManager?.dispose();
   SchedulerWebview.dispose(); // cleanup
   // promptRefreshTimer is cleared by the disposable registered in context.subscriptions. /* local-diverge-1649 */
 }
@@ -2722,6 +3234,7 @@ export const __testOnly = {
   redactPathsForLog,
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
+  shouldSuppressSqliteWorkForExtensionContext,
   waitForSqliteStartupHydration,
 };
 
@@ -2796,6 +3309,14 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         },
         showError: SchedulerWebview.showError,
         noWorkspaceOpenMessage: messages.noWorkspaceOpen(),
+        getCurrentGitHubIntegration: () => {
+          const workspaceRoot = getPrimaryWorkspaceRootPath();
+          return workspaceRoot
+            ? getGitHubIntegrationView(workspaceRoot, cachedGitHubAuthStatus)
+            : undefined;
+        },
+        getCurrentGitBranchName: (workspaceRoot) =>
+          getCurrentGitBranchNameForWorkspace(workspaceRoot),
       });
       return;
     }
@@ -3367,6 +3888,48 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         SchedulerWebview.updateTelegramNotification(view);
         notifyInfo("Telegram notification settings saved.");
         SchedulerWebview.switchToTab("settings");
+        break;
+      }
+
+      case "saveGitHubIntegration": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot) {
+          const msg = messages.noWorkspaceOpen();
+          notifyWebviewError(msg);
+          break;
+        }
+        const authStatus = await resolveGitHubAuthentication(
+          getGitHubAuthResolverOptions(action.githubData?.apiBaseUrl),
+        );
+        cachedGitHubAuthStatus = authStatus;
+        const view = saveGitHubIntegrationConfig(
+          workspaceRoot,
+          action.githubData ?? {},
+          authStatus,
+        );
+        SchedulerWebview.updateGitHubIntegration(view);
+        notifyInfo("GitHub integration settings saved.");
+        SchedulerWebview.switchToTab("settings");
+        break;
+      }
+
+      case "refreshGitHubIntegration": {
+        const workspaceRoot = getPrimaryWorkspaceRootPath();
+        if (!workspaceRoot) {
+          const msg = messages.noWorkspaceOpen();
+          notifyWebviewError(msg);
+          break;
+        }
+        const view = await syncGitHubIntegrationInbox(workspaceRoot, {
+          resolveAuth: ({ apiBaseUrl }) => resolveGitHubAuthentication(
+            getGitHubAuthResolverOptions(apiBaseUrl),
+          ),
+        });
+        cachedGitHubAuthStatus = {
+          hasConnection: view.hasConnection,
+          authStatusText: view.authStatusText,
+        };
+        SchedulerWebview.updateGitHubIntegration(view);
         break;
       }
 
@@ -3981,6 +4544,158 @@ function registerShowVersionCommand(context: vscode.ExtensionContext): vscode.Di
       try {
         const packageJson = context.extension.packageJSON as { version: string };
         notifyInfo(messages.versionInfo(packageJson.version || "0.0.0"));
+      } catch (error) {
+        notifyCaughtError(error);
+      }
+    },
+  );
+}
+
+function registerEnableExternalAgentAccessCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return registerSchedulerCommand(
+    "enableExternalAgentAccess",
+    async () => {
+      try {
+        const workspaceRoot = await promptToSelectWorkspaceRootForExternalAgent(
+          "Enable external-agent access",
+        );
+        if (!workspaceRoot) {
+          return;
+        }
+
+        if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, [workspaceRoot])) {
+          return;
+        }
+
+        ensureWorkspaceMcpSupportFiles(workspaceRoot, context.extensionUri.fsPath);
+        const enabledAccess = await externalAgentAccessManager?.enableWorkspaceAccess(workspaceRoot);
+        if (!enabledAccess) {
+          notifyError("Unable to enable external-agent access for this workspace.");
+          return;
+        }
+
+        await syncExternalAgentWorkspaceServer(context, workspaceRoot);
+        await showExternalAgentSetupActions({
+          workspaceRoot,
+          repoId: enabledAccess.repoId,
+          key: enabledAccess.key,
+          message: `External-agent access enabled for ${path.basename(workspaceRoot) || workspaceRoot}.`,
+        });
+      } catch (error) {
+        notifyCaughtError(error);
+      }
+    },
+  );
+}
+
+function registerDisableExternalAgentAccessCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return registerSchedulerCommand(
+    "disableExternalAgentAccess",
+    async () => {
+      try {
+        const workspaceRoot = await promptToSelectWorkspaceRootForExternalAgent(
+          "Disable external-agent access",
+        );
+        if (!workspaceRoot) {
+          return;
+        }
+
+        const disabled = await externalAgentAccessManager?.disableWorkspaceAccess(workspaceRoot);
+        await externalAgentControlServerManager?.stopWorkspaceServer(
+          workspaceRoot,
+          "external-agent access was disabled",
+        );
+
+        if (!disabled) {
+          notifyInfo("External-agent access was already disabled for this workspace.");
+          return;
+        }
+
+        notifyInfo(`External-agent access disabled for ${path.basename(workspaceRoot) || workspaceRoot}.`);
+      } catch (error) {
+        notifyCaughtError(error);
+      }
+    },
+  );
+}
+
+function registerRotateExternalAgentKeyCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return registerSchedulerCommand(
+    "rotateExternalAgentKey",
+    async () => {
+      try {
+        const workspaceRoot = await promptToSelectWorkspaceRootForExternalAgent(
+          "Rotate external-agent repo key",
+        );
+        if (!workspaceRoot) {
+          return;
+        }
+
+        const accessState = await externalAgentAccessManager?.getWorkspaceAccessState(workspaceRoot);
+        if (!accessState) {
+          notifyError("Enable external-agent access for this workspace before rotating its repo key.");
+          return;
+        }
+
+        const rotated = await externalAgentAccessManager?.rotateWorkspaceKey(workspaceRoot);
+        if (!rotated) {
+          notifyError("Unable to rotate the external-agent repo key for this workspace.");
+          return;
+        }
+
+        await externalAgentControlServerManager?.stopWorkspaceServer(
+          workspaceRoot,
+          "external-agent repo key rotated",
+        );
+        await syncExternalAgentWorkspaceServer(context, workspaceRoot);
+        await showExternalAgentSetupActions({
+          workspaceRoot,
+          repoId: rotated.repoId,
+          key: rotated.key,
+          message: `External-agent repo key rotated for ${path.basename(workspaceRoot) || workspaceRoot}.`,
+        });
+      } catch (error) {
+        notifyCaughtError(error);
+      }
+    },
+  );
+}
+
+function registerCopyExternalAgentSetupInfoCommand(
+  context: vscode.ExtensionContext,
+): vscode.Disposable {
+  return registerSchedulerCommand(
+    "copyExternalAgentSetupInfo",
+    async () => {
+      try {
+        const workspaceRoot = await promptToSelectWorkspaceRootForExternalAgent(
+          "Copy external-agent setup info",
+        );
+        if (!workspaceRoot) {
+          return;
+        }
+
+        const accessState = await externalAgentAccessManager?.getWorkspaceAccessState(workspaceRoot);
+        if (!accessState || accessState.enabled !== true) {
+          notifyError("Enable external-agent access for this workspace before copying setup info.");
+          return;
+        }
+
+        await syncExternalAgentWorkspaceServer(context, workspaceRoot);
+        const repoKey = await externalAgentAccessManager?.getWorkspaceKey(workspaceRoot);
+        await showExternalAgentSetupActions({
+          workspaceRoot,
+          repoId: accessState.repoId,
+          key: repoKey,
+          message: `External-agent setup info copied for ${path.basename(workspaceRoot) || workspaceRoot}.`,
+          copySetupFirst: true,
+        });
       } catch (error) {
         notifyCaughtError(error);
       }

@@ -3,6 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
+import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "./privateConfigIgnore";
 import { resolveProviderSettings } from "./providerSettings";
 import type { ApprovalMode, StorageSettingsView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
@@ -98,6 +99,7 @@ export async function handleSettingsWebviewMessage(
           && Object.prototype.hasOwnProperty.call(requested, "researchProvider"),
       });
       const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
+      const autoIgnorePrivateFiles = requested?.autoIgnorePrivateFiles !== false;
       const disabledSystemFlagKeys = Array.isArray(requested?.disabledSystemFlagKeys)
         ? requested!.disabledSystemFlagKeys
         : [];
@@ -125,6 +127,12 @@ export async function handleSettingsWebviewMessage(
         target,
         scope,
       );
+      await updateCompatibleConfigurationValue(
+        AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
+        autoIgnorePrivateFiles,
+        target,
+        scope,
+      );
       let updatedBoard: unknown;
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (workspaceRoot) {
@@ -144,6 +152,7 @@ export async function handleSettingsWebviewMessage(
         searchProvider,
         researchProvider,
         sqliteJsonMirror,
+        autoIgnorePrivateFiles,
         disabledSystemFlagKeys: normalizedDisabledSystemFlagKeys,
         appVersion: current?.appVersion ?? "",
         mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",

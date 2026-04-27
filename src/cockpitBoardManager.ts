@@ -1120,6 +1120,7 @@ export function createTodoInBoard(
     labels: normalizeStringList(input.labels),
     flags: replaceCockpitWorkflowFlag(input.flags, workflowFlag as Parameters<typeof replaceCockpitWorkflowFlag>[1]),
     comments: [],
+    githubSource: input.githubSource ? { ...input.githubSource } : undefined,
     taskId: requestedTaskId,
     sessionId: normalizeOptionalString(input.sessionId),
     archived: Boolean(requestedArchiveOutcome),
@@ -1188,6 +1189,9 @@ export function updateTodoInBoard(
   }
   if (updates.labels) {
     todo.labels = normalizeStringList(updates.labels);
+  }
+  if (updates.githubSource !== undefined) {
+    todo.githubSource = updates.githubSource ? { ...updates.githubSource } : undefined;
   }
   if (updates.taskId !== undefined) {
     todo.taskId = normalizeOptionalString(updates.taskId ?? undefined);

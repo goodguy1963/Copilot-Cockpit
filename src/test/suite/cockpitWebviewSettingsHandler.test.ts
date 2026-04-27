@@ -8,6 +8,7 @@ import {
   handleSettingsWebviewMessage,
   getResourceScopedSettingsTarget,
 } from "../../cockpitWebviewSettingsHandler";
+import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "../../privateConfigIgnore";
 
 function patchWorkspaceFolders(value: Array<{ uri: vscode.Uri }> | undefined): void {
   const descriptor = { value, configurable: true };
@@ -76,6 +77,7 @@ suite("Scheduler webview settings handler behavior", () => {
             searchProvider: "tavily",
             researchProvider: "google-grounded",
             sqliteJsonMirror: false,
+            autoIgnorePrivateFiles: false,
             disabledSystemFlagKeys: ["go", "final-user-check"],
             appVersion: "99.0.78",
             mcpSetupStatus: "configured",
@@ -113,6 +115,11 @@ suite("Scheduler webview settings handler behavior", () => {
           value: false,
           target: vscode.ConfigurationTarget.WorkspaceFolder,
         },
+        {
+          key: AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
+          value: false,
+          target: vscode.ConfigurationTarget.WorkspaceFolder,
+        },
       ]);
       assert.deepStrictEqual(postedMessages, [
         {
@@ -122,6 +129,7 @@ suite("Scheduler webview settings handler behavior", () => {
             searchProvider: "tavily",
             researchProvider: "google-grounded",
             sqliteJsonMirror: false,
+            autoIgnorePrivateFiles: false,
             disabledSystemFlagKeys: ["ready", "final-user-check"],
             appVersion: "",
             mcpSetupStatus: "workspace-required",

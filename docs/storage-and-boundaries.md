@@ -11,6 +11,8 @@
 ## Private vs Public
 
 - Todo Cockpit state, planning notes, Telegram secrets, and sensitive coordination data stay in `.vscode/scheduler.private.json`.
+- Legacy GitHub token fields may still be read from older workspace state for compatibility, but current saves do not persist or reuse a GitHub PAT.
+- The public scheduler state and the webview only receive safe GitHub integration state plus cached inbox metadata. Runtime GitHub refresh resolves credentials from VS Code's built-in authentication providers instead.
 - The extension bootstraps `.vscode/.gitignore` to reduce accidental leaks of private cockpit state.
 
 ## Workspace Boundaries

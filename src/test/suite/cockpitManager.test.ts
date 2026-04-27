@@ -1953,6 +1953,108 @@ suite("ScheduleManager Overdue Task Tests", () => {
     }
   });
 
+  test("reload does not re-launch a recurring overdue task after a successful run when persist fails", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-ws-overdue-persist-failure-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-storage-overdue-persist-failure-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const now = new Date("2026-04-24T08:01:00.000Z");
+    let executeCount = 0;
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "scheduler.json"),
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: "maintenance-logs-checking",
+                name: "Maintenance logs checking",
+                cron: "0 8 * * *",
+                prompt: "check logs",
+                enabled: true,
+                createdAt: "2026-04-23T07:00:00.000Z",
+                updatedAt: "2026-04-23T07:00:00.000Z",
+                nextRun: "2026-04-23T07:15:00.000Z",
+              },
+            ],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      const persistTasks = (manager as unknown as {
+        persistTasks: (options?: { bumpRevision?: boolean }) => Promise<void>;
+      }).persistTasks;
+      let failPersist = true;
+      (manager as unknown as {
+        persistTasks: (options?: { bumpRevision?: boolean }) => Promise<void>;
+      }).persistTasks = async (options?: { bumpRevision?: boolean }) => {
+        if (failPersist) {
+          throw new Error("disk I/O error");
+        }
+        await persistTasks.call(manager, options);
+      };
+
+      const evaluateAndRunDueTasks = (manager as unknown as {
+        evaluateAndRunDueTasks: () => Promise<void>;
+      }).evaluateAndRunDueTasks.bind(manager);
+
+      await assert.rejects(
+        evaluateAndRunDueTasks(),
+        /disk I\/O error/,
+      );
+
+      assert.strictEqual(executeCount, 1);
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(now).map((task) => task.id),
+        [],
+      );
+
+      manager.reloadTasks();
+
+      const reloaded = manager.getTask("maintenance-logs-checking");
+      assert.ok(reloaded);
+      assert.strictEqual(
+        reloaded?.nextRun?.toISOString(),
+        "2026-04-23T07:15:00.000Z",
+      );
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(now).map((task) => task.id),
+        [],
+      );
+
+      failPersist = false;
+      await evaluateAndRunDueTasks();
+
+      assert.strictEqual(executeCount, 1);
+
+      reloaded!.nextRun = new Date("2026-04-25T08:00:00.000Z");
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(now).map((task) => task.id),
+        [],
+      );
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(new Date("2026-04-25T08:01:00.000Z")).map((task) => task.id),
+        ["maintenance-logs-checking"],
+      );
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
   test("scheduler tick does not re-execute a recurring due task after reload repopulates the registry", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-ws-tick-reload-revisit-"),

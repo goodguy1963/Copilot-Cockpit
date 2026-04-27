@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import type {
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   PromptTemplate,
@@ -21,6 +22,7 @@ type ReplayPanelStateParams = {
   jobs: JobDefinition[];
   jobFolders: JobFolder[];
   cockpitBoard: unknown;
+  githubIntegration: GitHubIntegrationView;
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
@@ -37,6 +39,7 @@ type ReplayPanelStateParams = {
   updateJobs: (jobs: JobDefinition[]) => void;
   updateJobFolders: (folders: JobFolder[]) => void;
   updateCockpitBoard: (board: unknown) => void;
+  updateGitHubIntegration: (integration: GitHubIntegrationView) => void;
   updateTelegramNotification: (notification: TelegramNotificationView) => void;
   updateExecutionDefaults: (defaults: ExecutionDefaultsView) => void;
   updateReviewDefaults: (defaults: ReviewDefaultsView) => void;
@@ -89,6 +92,7 @@ export function replayExistingSchedulerWebviewPanel(
   params.updateJobs(params.jobs);
   params.updateJobFolders(params.jobFolders);
   params.updateCockpitBoard(params.cockpitBoard);
+  params.updateGitHubIntegration(params.githubIntegration);
   params.updateTelegramNotification(params.telegramNotification);
   params.updateExecutionDefaults(params.executionDefaults);
   params.updateReviewDefaults(params.reviewDefaults);

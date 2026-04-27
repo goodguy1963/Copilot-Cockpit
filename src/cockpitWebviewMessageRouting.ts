@@ -95,6 +95,21 @@ export async function handleSchedulerWebviewCoreMessage(
       });
       return true;
 
+    case "saveGitHubIntegration":
+      deps.onTaskAction?.({
+        action: "saveGitHubIntegration",
+        taskId: "__settings__",
+        githubData: message.data,
+      });
+      return true;
+
+    case "refreshGitHubIntegration":
+      deps.onTaskAction?.({
+        action: "refreshGitHubIntegration",
+        taskId: "__settings__",
+      });
+      return true;
+
     case "testTelegramNotification":
       deps.onTaskAction?.({
         action: "testTelegramNotification",

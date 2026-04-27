@@ -17,7 +17,7 @@ import type {
   TaskScope,
 } from "./types";
 import { messages } from "./i18n";
-import { logDebug, logError } from "./logger";
+import { logDebug, logError, logInfo } from "./logger";
 import { // local-diverge-21
   getResolvedWorkspaceRoots,
   getPrivateSchedulerConfigPath,
@@ -30,6 +30,9 @@ import {
   syncGlobalTasksToSqlite,
   syncWorkspaceSchedulerStateToSqlite,
 } from "./sqliteBootstrap";
+import {
+  shouldSuppressSqliteWorkForExtensionContext,
+} from "./staleExtensionRuntime";
 import {
   getConfiguredSchedulerStorageMode,
   SQLITE_STORAGE_MODE,
@@ -99,6 +102,9 @@ import {
   resolvePreviousCronRun,
   truncateDateToMinute,
 } from "./cockpitManagerTiming";
+import {
+  warnStaleRuntimeSqliteSuppressed,
+} from "./extensionUiFlows";
 
 const TASK_STORAGE = {
   stateKey: "scheduledTasks",
@@ -177,6 +183,7 @@ type DeleteTaskStateSnapshot = {
   taskRegistry: Map<string, ScheduledTask>;
   jobs: Map<string, JobDefinition>;
   suppressedOverdueTaskIds: Set<string>;
+  suppressedOverdueReleaseTimes: Map<string, number>;
   pendingDeletedTaskIds: Set<string>;
   recentTaskLaunchTimes: Map<string, number>;
 };
@@ -191,6 +198,7 @@ export class ScheduleManager {
   private jobs: Map<string, JobDefinition> = new Map();
   private jobFolders: Map<string, JobFolder> = new Map();
   private suppressedOverdueTaskIds: Set<string> = new Set();
+  private suppressedOverdueReleaseTimes: Map<string, number> = new Map();
   private pendingDeletedTaskIds: Set<string> = new Set();
   private pendingDeletedJobIds: Set<string> = new Set();
   private pendingDeletedJobFolderIds: Set<string> = new Set();
@@ -506,7 +514,7 @@ export class ScheduleManager {
 
   private markTaskModified(task: ScheduledTask): void {
     task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(task.id);
+    this.clearOverdueTaskSuppression(task.id);
   }
 
   private scheduleBackgroundSave(
@@ -721,6 +729,11 @@ export class ScheduleManager {
         loadedTaskIds.has(id),
       ),
     );
+    this.suppressedOverdueReleaseTimes = new Map(
+      Array.from(this.suppressedOverdueReleaseTimes.entries()).filter(([id]) =>
+        loadedTaskIds.has(id),
+      ),
+    );
     this.retainRecentTaskLaunches(loadedTaskIds);
 
     // Persist only when mutations occurred
@@ -747,9 +760,25 @@ export class ScheduleManager {
     return getConfiguredSchedulerStorageMode(vscode.Uri.file(workspaceRoot)) === SQLITE_STORAGE_MODE;
   }
 
+  private shouldSuppressSqliteWorkForStaleRuntime(operation: string): boolean {
+    return shouldSuppressSqliteWorkForExtensionContext({
+      context: this.extensionCtx,
+      onStaleRuntimeDetected: (status) => {
+        const latestInstalledVersion = status.latestInstalledVersion ?? status.activeVersion;
+        logInfo(
+          `[CopilotScheduler] Suppressing SQLite ${operation} in stale runtime v${status.activeVersion}; installed v${latestInstalledVersion} is waiting for reload.`,
+        );
+        warnStaleRuntimeSqliteSuppressed(status.activeVersion, latestInstalledVersion);
+      },
+    });
+  }
+
   private scheduleSqliteWorkspaceHydration(): void {
     const workspaceRoot = this.getPrimaryWorkspaceRoot();
     if (!workspaceRoot || !this.isWorkspaceSqliteModeEnabled()) {
+      return;
+    }
+    if (this.shouldSuppressSqliteWorkForStaleRuntime("workspace task hydration")) {
       return;
     }
     if (this.sqliteHydrationPromise) {
@@ -1400,9 +1429,64 @@ export class ScheduleManager {
     return taskUpdateContext;
   }
 
+  private clearOverdueTaskSuppression(taskId: string): void {
+    this.suppressedOverdueTaskIds.delete(taskId);
+    this.suppressedOverdueReleaseTimes.delete(taskId);
+  }
+
+  private setTimedOverdueTaskSuppression(taskId: string, releaseAt: number): void {
+    this.suppressedOverdueTaskIds.add(taskId);
+    this.suppressedOverdueReleaseTimes.set(taskId, releaseAt);
+  }
+
+  private getEffectiveOverdueTaskSuppressionReleaseAt(
+    taskId: string,
+    releaseAt: number,
+    referenceTime: Date,
+  ): number {
+    const nextRunAt = this.taskRegistry.get(taskId)?.nextRun?.getTime();
+    if (nextRunAt === undefined || !Number.isFinite(nextRunAt)) {
+      return releaseAt;
+    }
+
+    const referenceAt = referenceTime.getTime();
+    if (nextRunAt <= referenceAt || nextRunAt >= releaseAt) {
+      return releaseAt;
+    }
+
+    this.suppressedOverdueReleaseTimes.set(taskId, nextRunAt);
+    return nextRunAt;
+  }
+
+  private shouldKeepOverdueTaskSuppressed(
+    taskId: string,
+    referenceTime: Date,
+  ): boolean {
+    if (!this.suppressedOverdueTaskIds.has(taskId)) {
+      return false;
+    }
+
+    const releaseAt = this.suppressedOverdueReleaseTimes.get(taskId);
+    if (releaseAt === undefined) {
+      return true;
+    }
+
+    const effectiveReleaseAt = this.getEffectiveOverdueTaskSuppressionReleaseAt(
+      taskId,
+      releaseAt,
+      referenceTime,
+    );
+    if (referenceTime.getTime() < effectiveReleaseAt) {
+      return true;
+    }
+
+    this.clearOverdueTaskSuppression(taskId);
+    return false;
+  }
+
   private clearTaskSchedulingState(taskId: string): void {
     this.pendingDeletedTaskIds.add(taskId);
-    this.suppressedOverdueTaskIds.delete(taskId);
+    this.clearOverdueTaskSuppression(taskId);
     this.clearRecentTaskLaunch(taskId);
   }
 
@@ -1415,6 +1499,7 @@ export class ScheduleManager {
         [...this.jobs.entries()].map(([jobId, job]) => [jobId, structuredClone(job)]),
       ),
       suppressedOverdueTaskIds: new Set(this.suppressedOverdueTaskIds),
+      suppressedOverdueReleaseTimes: new Map(this.suppressedOverdueReleaseTimes),
       pendingDeletedTaskIds: new Set(this.pendingDeletedTaskIds),
       recentTaskLaunchTimes: new Map(this.recentTaskLaunchTimes),
     };
@@ -1424,6 +1509,7 @@ export class ScheduleManager {
     this.taskRegistry = snapshot.taskRegistry;
     this.jobs = snapshot.jobs;
     this.suppressedOverdueTaskIds = snapshot.suppressedOverdueTaskIds;
+    this.suppressedOverdueReleaseTimes = snapshot.suppressedOverdueReleaseTimes;
     this.pendingDeletedTaskIds = snapshot.pendingDeletedTaskIds;
     this.recentTaskLaunchTimes = snapshot.recentTaskLaunchTimes;
   }
@@ -1482,7 +1568,12 @@ export class ScheduleManager {
       return { executedCount: 1, pendingWrite: true, deleteTask: true };
     }
 
-    task.nextRun = this.computeScheduledNextRun(task, new Date());
+    task.nextRun = this.computeScheduledNextRun(task, completionTime);
+    if (task.nextRun) {
+      this.setTimedOverdueTaskSuppression(task.id, task.nextRun.getTime());
+    } else {
+      this.clearOverdueTaskSuppression(task.id);
+    }
     return { executedCount: 1, pendingWrite: true, deleteTask: false };
   }
 
@@ -1506,7 +1597,7 @@ export class ScheduleManager {
     updatedAt: Date,
   ): Promise<void> {
     task.updatedAt = updatedAt;
-    this.suppressedOverdueTaskIds.delete(taskId);
+    this.clearOverdueTaskSuppression(taskId);
     return this.saveTasksAndSyncRecurringPromptBackups();
   }
 
@@ -1570,7 +1661,10 @@ export class ScheduleManager {
     return { defaultJitterSeconds, maxDailyLimit };
   }
 
-  private shouldSkipScheduledTask(task: ScheduledTask): boolean {
+  private shouldSkipScheduledTask(
+    task: ScheduledTask,
+    referenceTime = new Date(),
+  ): boolean {
     if (task.enabled !== true || !task.nextRun) {
       return true;
     }
@@ -1580,7 +1674,7 @@ export class ScheduleManager {
     if (!this.isTaskBoundToThisWorkspace(task)) {
       return true;
     }
-    return this.suppressedOverdueTaskIds.has(task.id);
+    return this.shouldKeepOverdueTaskSuppressed(task.id, referenceTime);
   }
 
   private tryBeginTaskExecution(taskId: string): boolean {
@@ -2109,14 +2203,15 @@ export class ScheduleManager {
 
   getOverdueTasks(referenceTime = new Date()): ScheduledTask[] {
     return Array.from(this.taskRegistry.values()).filter((task) => {
-      if (this.suppressedOverdueTaskIds.has(task.id)) {
+      const isOverdue =
+        this.isTaskBoundToThisWorkspace(task) &&
+        this.isTaskDueAt(task, referenceTime);
+
+      if (this.shouldKeepOverdueTaskSuppressed(task.id, referenceTime)) {
         return false;
       }
 
-      return (
-        this.isTaskBoundToThisWorkspace(task) &&
-        this.isTaskDueAt(task, referenceTime)
-      );
+      return isOverdue;
     });
   }
 
@@ -2128,6 +2223,7 @@ export class ScheduleManager {
     for (const taskId of taskIds) {
       if (typeof taskId === "string" && taskId.trim().length > 0) {
         this.suppressedOverdueTaskIds.add(taskId);
+        this.suppressedOverdueReleaseTimes.delete(taskId);
       }
     }
   }
@@ -2143,7 +2239,7 @@ export class ScheduleManager {
 
     task.nextRun = this.computeNextExecution(task.cronExpression, referenceTime);
     task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
+    this.clearOverdueTaskSuppression(id);
     await this.persistTasks();
     return true;
   }
@@ -2166,7 +2262,7 @@ export class ScheduleManager {
       new Date(referenceTime.getTime() + delayMinutes * 60 * 1000),
     );
     task.updatedAt = new Date();
-    this.suppressedOverdueTaskIds.delete(id);
+    this.clearOverdueTaskSuppression(id);
     await this.persistTasks();
     return true;
   }
@@ -3122,7 +3218,7 @@ export class ScheduleManager {
         continue;
       }
 
-      if (this.shouldSkipScheduledTask(task)) {
+      if (this.shouldSkipScheduledTask(task, now)) {
         continue;
       }
 
@@ -3265,7 +3361,7 @@ export class ScheduleManager {
         this.clearTaskSchedulingState(task.id);
       } else if (task.enabled) {
         task.nextRun = this.computeScheduledNextRun(task, completionTime);
-        this.suppressedOverdueTaskIds.delete(task.id);
+        this.clearOverdueTaskSuppression(task.id);
       }
       await this.persistTasks();
       this.postExecutionNotifier?.();

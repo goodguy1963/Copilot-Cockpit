@@ -3,6 +3,7 @@ import type {
   AgentInfo,
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ModelInfo,
@@ -19,6 +20,7 @@ import type {
 } from "./types";
 import {
   createDefaultExecutionDefaults,
+  createEmptyGitHubIntegration,
   createDefaultReviewDefaults,
   createDefaultStorageSettings,
   createEmptyCockpitBoard,
@@ -38,6 +40,7 @@ export type SchedulerWebviewRuntimeState = {
   jobs: JobDefinition[];
   jobFolders: JobFolder[];
   cockpitBoard: CockpitBoard;
+  githubIntegration: GitHubIntegrationView;
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
@@ -58,6 +61,7 @@ type AssignSchedulerWebviewRuntimeStateParams = {
   jobs: JobDefinition[];
   jobFolders: JobFolder[];
   cockpitBoard: CockpitBoard;
+  githubIntegration: GitHubIntegrationView;
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
@@ -85,6 +89,7 @@ export function createSchedulerWebviewRuntimeState(): SchedulerWebviewRuntimeSta
     jobs: [],
     jobFolders: [],
     cockpitBoard: createEmptyCockpitBoard(),
+    githubIntegration: createEmptyGitHubIntegration(),
     telegramNotification: createEmptyTelegramNotification(),
     executionDefaults: createDefaultExecutionDefaults(),
     reviewDefaults: createDefaultReviewDefaults(),
@@ -107,6 +112,7 @@ export function assignSchedulerWebviewRuntimeState(
   state.jobs = params.jobs;
   state.jobFolders = params.jobFolders;
   state.cockpitBoard = params.cockpitBoard;
+  state.githubIntegration = params.githubIntegration;
   state.telegramNotification = params.telegramNotification;
   state.executionDefaults = params.executionDefaults;
   state.reviewDefaults = params.reviewDefaults;

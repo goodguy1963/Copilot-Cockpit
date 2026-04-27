@@ -15,7 +15,19 @@ The recommended path is: start with a `Todo`, use `Research` when context is mis
 3. Capture or refine work in `Todo Cockpit`. A `Todo` is the planning artifact and intake surface.
 4. Use `Research` if the work still needs exploratory context, outside evidence, or benchmarked iteration.
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated or scheduled run.
-6. Open `Settings` to configure repo-local defaults and integrations. Use the top-bar `Plan Integration` button only when you want optional control-plane extensions such as MCP, skills, or starter agents.
+6. Open `Settings` to configure repo-local defaults and integrations. Use the top-bar `Plan Integration` button only when you want optional control-plane extensions such as MCP, skills, starter agents, or the GitHub inbox flow.
+
+## Optional: Enable GitHub Inbox Triage
+
+If you want GitHub intake to land directly in `Todo Cockpit`, the shortest path is:
+
+1. Open `Settings` and enable `GitHub Integration`.
+2. Fill in `Owner`, `Repository`, and keep the default API base URL for GitHub.com unless you intentionally need a different endpoint.
+3. Make sure VS Code is already signed in to GitHub, or to GitHub Enterprise when you use a non-default API base URL.
+4. Save the settings, then use `Refresh GitHub Inbox`.
+5. Switch to `Todo Cockpit` and use `Create Todo` or `Create Todo + Review` from the cached inbox at the top of the board.
+
+The GitHub inbox is repo-local, uses cached manual refreshes, and resolves credentials from VS Code's built-in GitHub authentication providers when you refresh. New saves no longer store or reuse a GitHub token in workspace config. For the full behavior and limits, see [GitHub Integration](./github-integration.md).
 
 ## Stable Primitives
 

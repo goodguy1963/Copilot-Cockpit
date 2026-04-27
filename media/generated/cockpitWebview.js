@@ -1,16 +1,11260 @@
-"use strict";(()=>{function Ls(t){var o=t&&t.target?t.target:t;return o&&o.nodeType===3&&(o=o.parentElement),o||null}function V(t,o){var i=Ls(t);return i&&i.closest?i.closest(o):null}function xs(t){return!!V(t,["input","button","select","textarea","a","label",'[role="button"]','[contenteditable="true"]',"[data-no-drag]","[data-todo-edit]","[data-todo-delete]","[data-todo-delete-cancel]","[data-todo-delete-reject]","[data-todo-delete-permanent]","[data-todo-purge]","[data-todo-restore]","[data-todo-complete]","[data-todo-complete-cancel]","[data-section-collapse]","[data-section-rename]","[data-section-delete]"].join(", "))}function xc(t,o,i){var n=t&&typeof t.setTimeout=="function"?t.setTimeout:typeof setTimeout=="function"?setTimeout:null;return n?n.call(null,o,i):(o(),null)}function jc(t,o){var i=t.getAttribute("data-section-collapse");o.toggleSectionCollapsed(i);var n=t.closest?t.closest("[data-section-id]"):null,l=n?n.querySelector(".section-body-wrapper"):null,d=o.collapsedSections.has(i);t.classList.toggle("collapsed",d),t.setAttribute("aria-expanded",d?"false":"true"),t.title=d?"Expand section":"Collapse section",l&&l.classList.toggle("collapsed",d),n&&n.classList.toggle("is-collapsed",d)}function Dc(t,o){var i=t.getAttribute("data-section-rename"),n=t.closest?t.closest("[data-section-id]"):null,l=n?n.querySelector(".cockpit-section-header"):null,d=l?l.querySelector("strong"):null;if(d){var p=d.textContent||"",m=o.document.createElement("input");m.type="text",m.value=p,m.style.cssText="font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";var y=!1,E=function(){if(!y){y=!0;var g=m.value.trim();g&&g!==p?o.vscode.postMessage({type:"renameCockpitSection",sectionId:i,title:g}):(d.style.display="",m.parentNode&&m.parentNode.removeChild(m))}};m.onkeydown=function(g){g.key==="Enter"&&(g.preventDefault(),E()),g.key==="Escape"&&(y=!0,d.style.display="",m.parentNode&&m.parentNode.removeChild(m))},m.onblur=function(){xc(o,E,120)},d.style.display="none",d.parentNode.insertBefore(m,d),m.select()}}function Lc(t,o){var i=t.getAttribute("data-section-delete");if(t.getAttribute("data-confirming")){o.vscode.postMessage({type:"deleteCockpitSection",sectionId:i}),t.removeAttribute("data-confirming");return}t.setAttribute("data-confirming","1");var n=t.textContent,l=t.style.color;t.textContent=o.strings.boardDeleteConfirm||"Delete?",t.style.color="var(--vscode-errorForeground)",t.style.opacity="1",xc(o,function(){t.getAttribute("data-confirming")&&(t.removeAttribute("data-confirming"),t.textContent=n,t.style.color=l,t.style.opacity="")},2500)}function Pc(t,o){var i=t.getAttribute("data-todo-complete"),n=t.closest?t.closest("[data-todo-id]"):null,l=o.cockpitBoard,d=null;if(l&&Array.isArray(l.cards)){for(var p=0;p<l.cards.length;p++)if(l.cards[p]&&l.cards[p].id===i){d=l.cards[p];break}}var m="";d&&Array.isArray(d.flags)&&d.flags.forEach(function(h){var j=String(h||"").trim().toLowerCase();j==="go"&&(j="ready"),["new","needs-bot-review","needs-user-review","ready","on-schedule-list","final-user-check"].indexOf(j)>=0&&(m=j)});var y=String(d&&d.status||"").trim().toLowerCase()==="ready",E=m==="ready"||m==="final-user-check"||y,g=E?"finalizeTodo":"approveTodo";if(i){if(!o.isPendingGridTodoCompletion||!o.isPendingGridTodoCompletion(i)){typeof o.startPendingGridTodoCompletion=="function"&&o.startPendingGridTodoCompletion(i);return}typeof o.clearPendingGridTodoCompletion=="function"&&o.clearPendingGridTodoCompletion(i,!0),t.disabled=!0,n&&(n.style.opacity="0.35",n.style.pointerEvents="none"),o.vscode.postMessage({type:g,todoId:i})}}function Fc(t,o){var i=t.getAttribute("data-todo-complete-cancel")||"";!i||!o||typeof o.clearPendingGridTodoCompletion!="function"||o.clearPendingGridTodoCompletion(i)}function ke(t){t&&(typeof t.preventDefault=="function"&&t.preventDefault(),typeof t.stopPropagation=="function"&&t.stopPropagation())}var sn=null,Ec=null,Ac=null,q=null,Br=!1,Bc=6;function Ps(t){return t&&(t.captureElement||t.draggedElement)||null}function tm(t){!q||q.finishing||Bt(t,!1)}function rm(t){var o=Ps(t);!t||t.captureLossListenerBound||!o||typeof o.addEventListener!="function"||(o.addEventListener("lostpointercapture",tm),t.captureLossListenerBound=!0)}function Bs(t,o){if(!(!o||!t||typeof t.pointerId!="number")){var i=Ps(o);if(!(!i||typeof i.setPointerCapture!="function"))try{i.setPointerCapture(t.pointerId),o.captureElement=i,o.pointerId=t.pointerId,rm(o)}catch{}}}function wc(t){if(!(!t||typeof t.pointerId!="number")){var o=Ps(t);if(!(!o||typeof o.releasePointerCapture!="function"))try{o.releasePointerCapture(t.pointerId)}catch{}}}function ha(t,o,i){var n=t&&t.document,l=n&&n.body;!l||!l.classList||(l.classList.toggle("cockpit-board-dragging",!!o),l.classList.toggle("cockpit-board-dragging-section",!!o&&i==="section"),l.classList.toggle("cockpit-board-dragging-todo",!!o&&i==="todo"),l.style&&(l.style.userSelect=o?"none":"",l.style.webkitUserSelect=o?"none":"",l.style.cursor=o?"grabbing":""))}function js(){Br=!0}function nm(t){return Br?(Br=!1,ke(t),!0):!1}function am(t,o){if(!t||!o||typeof t.clientX!="number"||typeof t.clientY!="number")return!0;var i=t.clientX-o.startX,n=t.clientY-o.startY;return i*i+n*n>=Bc*Bc}function Ds(t){var o=q;if(!(!t||!o||o.activated)){if(o.activated=!0,t.setIsBoardDragging(!0),ha(t,!0,o.kind),o.kind==="section"){t.setDraggingSectionId(o.draggedId),t.setLastDragOverSectionId(null),o.draggedElement&&o.draggedElement.classList.add("section-dragging");return}t.setDraggingTodoId(o.draggedId),o.draggedElement&&o.draggedElement.classList.add("todo-dragging")}}function Sa(t){return t?typeof t.getBoardColumns=="function"?t.getBoardColumns():t.boardColumns||null:null}function om(t){return!t||typeof t.querySelectorAll!="function"?[]:t.querySelectorAll(".board-column[data-section-id], .todo-list-section[data-section-id]")}function Ko(t){return Ls(t)}function Mc(t,o){var i=Sa(t),n=Ko(o);return!!(i&&n&&typeof i.contains=="function"&&i.contains(n))}function wr(t){!t||typeof t.querySelectorAll!="function"||(Array.prototype.forEach.call(t.querySelectorAll("[data-section-id].section-drag-over"),function(o){o.classList.remove("section-drag-over")}),Array.prototype.forEach.call(t.querySelectorAll("[data-section-id].section-dragging"),function(o){o.classList.remove("section-dragging")}),Array.prototype.forEach.call(t.querySelectorAll("[data-todo-id].todo-dragging"),function(o){o.classList.remove("todo-dragging")}),Array.prototype.forEach.call(t.querySelectorAll("[data-todo-id].todo-drop-target"),function(o){o.classList.remove("todo-drop-target")}))}function Rc(t,o){var i=t&&t.document;if(i&&typeof i.elementFromPoint=="function"&&o&&typeof o.clientX=="number"&&typeof o.clientY=="number"){var n=i.elementFromPoint(o.clientX,o.clientY);if(n)return n}return Ko(o)}function im(t,o,i,n){var l=Number(o&&o.getAttribute&&o.getAttribute("data-card-count")||0),d=o&&o.getAttribute&&o.getAttribute("data-section-id")||"",p=0;if(i&&i.getAttribute&&i.getAttribute("data-section-id")===d&&(p=0),!t||typeof t.querySelectorAll!="function"||!d)return i&&i.getAttribute?Number(i.getAttribute("data-order")||0):Math.max(0,l-p);var m=Array.prototype.filter.call(t.querySelectorAll("[data-todo-id]"),function(E){return E&&E.getAttribute&&E.getAttribute("data-section-id")===d&&E.getAttribute("data-todo-id")!==n});if(i){var y=m.indexOf(i);if(y>=0)return y;if(i.getAttribute)return Number(i.getAttribute("data-order")||0)}return m.length>0?m.length:Math.max(0,l-p)}function sm(t,o,i){var n=V(i,"[data-section-id]");if(wr(o),!n){t.setLastDragOverSectionId(null),q&&q.draggedElement&&q.draggedElement.classList.add("section-dragging");return}var l=n.getAttribute("data-section-id"),d=t.getDraggingSectionId();if(!l||l===d||t.isArchiveTodoSectionId(l)){t.setLastDragOverSectionId(null),q&&q.draggedElement&&q.draggedElement.classList.add("section-dragging");return}n.classList.add("section-drag-over"),q&&q.draggedElement&&q.draggedElement.classList.add("section-dragging"),t.setLastDragOverSectionId(l)}function lm(t,o,i){var n=V(i,"[data-section-id]"),l=V(i,"[data-todo-id]");if(wr(o),q&&q.draggedElement&&q.draggedElement.classList.add("todo-dragging"),!!n){var d=n.getAttribute("data-section-id");if(!(!d||t.isArchiveTodoSectionId(d))){if(l&&l.getAttribute("data-todo-id")!==t.getDraggingTodoId()){l.classList.add("todo-drop-target");return}n.classList.add("section-drag-over")}}}function dm(t){var o=sn;if(!(!o||!q)&&!(typeof q.pointerId=="number"&&t&&typeof t.pointerId=="number"&&t.pointerId!==q.pointerId)){if(!q.activated){if(!am(t,q))return;Ds(o),js()}ke(t);var i=Sa(o);if(!i){ha(o,!1),o.finishBoardDragState(),q=null;return}var n=Rc(o,t);if(n&&(q.lastPointTarget=n),q.kind==="section"){sm(o,i,n);return}lm(o,i,n)}}function Bt(t,o){var i=sn,n=q;if(!i||!n){q=null;return}if(!(typeof n.pointerId=="number"&&t&&typeof t.pointerId=="number"&&t.pointerId!==n.pointerId)){if(n.finishing=!0,!n.activated){wc(n),ha(i,!1),q=null,Br=!1;return}var l=Sa(i),d=o?null:Rc(i,t);if(!o&&(!d||typeof d.closest!="function")&&(d=n.lastPointTarget||null),l&&wr(l),!o&&l&&n.kind==="section"){var p=V(d,"[data-section-id]"),m=p?p.getAttribute("data-section-id"):null;if((!m||m===i.getDraggingSectionId())&&(m=i.getLastDragOverSectionId()),m&&m!==i.getDraggingSectionId()){for(var y=om(l),E=-1,g=0;g<y.length;g+=1)if(y[g].getAttribute("data-section-id")===m){E=g;break}E>=0&&i.vscode.postMessage({type:"reorderCockpitSection",sectionId:i.getDraggingSectionId(),targetIndex:E})}}if(!o&&l&&n.kind==="todo"){var h=V(d,"[data-section-id]"),j=V(d,"[data-todo-id]");if(h&&i.getDraggingTodoId()&&!i.isArchiveTodoSectionId(h.getAttribute("data-section-id"))){var E=im(l,h,j,i.getDraggingTodoId());i.vscode.postMessage({type:"moveTodo",todoId:i.getDraggingTodoId(),sectionId:h.getAttribute("data-section-id"),targetIndex:E})}}if(wc(n),ha(i,!1),i.finishBoardDragState(),q=null,o){Br=!1;return}typeof setTimeout=="function"&&setTimeout(function(){Br=!1},350)}}function cm(t,o){var i=sn;if(i){var n=Ko(o);!t||!n||!Mc(i,n)||(o&&typeof o.stopPropagation=="function"&&o.stopPropagation(),i.handleTodoCompletion(t))}}function ws(t,o,i){!t||typeof t.addEventListener!="function"||t.addEventListener(o,i)}var Cc=null;function um(t){!t||typeof t.addEventListener!="function"||Cc!==t&&(Cc=t,t.addEventListener("click",function(o){var i=sn;if(i){var n=Ls(o);if(!(!n||typeof n.closest!="function")&&!nm(o)){var l=n.closest("[data-todo-edit]");if(l){ke(o),i.openTodoEditor(l.getAttribute("data-todo-edit")||"");return}var d=n.closest("[data-todo-delete]");if(d){ke(o),i.setPendingBoardDelete(d.getAttribute("data-todo-delete")||"",!1);return}var p=n.closest("[data-todo-delete-cancel]");if(p){ke(o),i.clearPendingBoardDelete();return}var m=n.closest("[data-todo-delete-reject]");if(m){ke(o),i.submitBoardDeleteChoice("reject");return}var y=n.closest("[data-todo-delete-permanent]");if(y){ke(o),i.submitBoardDeleteChoice("permanent");return}var E=n.closest("[data-todo-purge]");if(E){ke(o),i.setPendingBoardDelete(E.getAttribute("data-todo-purge")||"",!0);return}var g=n.closest("[data-todo-restore]");if(g){ke(o),i.handleTodoRestore(g);return}var h=n.closest("[data-todo-complete-cancel]");if(h){ke(o),i.handleTodoCompletionCancel(h);return}var j=n.closest("[data-todo-complete]");if(j){cm(j,o);return}var R=n.closest("[data-section-collapse]");if(R){ke(o),i.handleSectionCollapse(R);return}var $=n.closest(".cockpit-section-header");if($&&!n.closest("[data-section-drag-handle]")&&!n.closest("[data-section-rename]")&&!n.closest("[data-section-delete]")){var D=$.querySelector("[data-section-collapse]");if(D){ke(o),i.handleSectionCollapse(D);return}}var lt=n.closest("[data-section-rename]");if(lt){ke(o),i.handleSectionRename(lt);return}var Ie=n.closest("[data-section-delete]");if(Ie){ke(o),i.handleSectionDelete(Ie);return}var M=n.closest("[data-todo-id]");if(M){if(xs(n))return;i.setSelectedTodoId(M.getAttribute("data-todo-id")),i.renderCockpitBoard()}}}}))}function fm(t,o){!t||typeof t.querySelectorAll!="function"||(Array.prototype.forEach.call(t.querySelectorAll("[data-section-drag-handle]"),function(i){ws(i,"pointerdown",Cs)}),Array.prototype.forEach.call(t.querySelectorAll(".cockpit-section-header"),function(i){ws(i,"pointerdown",Cs)}),Array.prototype.forEach.call(t.querySelectorAll("[data-todo-id]"),function(i){ws(i,"pointerdown",Cs)}))}function Cs(t){var o=sn;if(o&&(Br=!1,!(typeof t.button=="number"&&t.button!==0))){var i=Ko(t);if(Mc(o,i)){var n=V(i,"[data-section-drag-handle]"),l=V(i,"[data-todo-drag-handle]"),d=V(i,".cockpit-section-header"),p=Sa(o);if(p){var m=n&&n.closest?n.closest("[data-section-id]"):null,h=n?n.getAttribute("data-section-drag-handle"):"";if(n){ke(t),wr(p),q={kind:"section",draggedId:h,draggedElement:m,captureElement:n,activated:!1,lastPointTarget:i,pointerId:typeof t.pointerId=="number"?t.pointerId:null,startX:typeof t.clientX=="number"?t.clientX:0,startY:typeof t.clientY=="number"?t.clientY:0},Bs(t,q),Ds(o),js();return}if(d&&!xs(i)){var y=d.closest?d.closest("[data-section-id]"):null,E=y&&y.getAttribute?y.getAttribute("data-section-id"):"";if(E&&!o.isArchiveTodoSectionId(E)){wr(p),q={kind:"section",draggedId:E,draggedElement:y,captureElement:d,activated:!1,lastPointTarget:i,pointerId:typeof t.pointerId=="number"?t.pointerId:null,startX:typeof t.clientX=="number"?t.clientX:0,startY:typeof t.clientY=="number"?t.clientY:0},Bs(t,q);return}}var g=l&&l.closest?l.closest("[data-todo-id]"):V(i,"[data-todo-id]");if(g){var h=g.getAttribute?g.getAttribute("data-section-id"):"";!l&&(xs(i)||o.isArchiveTodoSectionId(h||""))||(wr(p),q={kind:"todo",draggedId:l?l.getAttribute("data-todo-drag-handle")||g.getAttribute("data-todo-id"):g.getAttribute("data-todo-id")||"",draggedElement:g,captureElement:l||g,activated:!1,lastPointTarget:i,pointerId:typeof t.pointerId=="number"?t.pointerId:null,startX:typeof t.clientX=="number"?t.clientX:0,startY:typeof t.clientY=="number"?t.clientY:0},Bs(t,q),l&&(ke(t),Ds(o),js()))}}}}}function pm(t){var o=t.window,i=t.document;!o||typeof o.addEventListener!="function"||(Ec!==o&&(o.addEventListener("pointermove",dm,!0),o.addEventListener("pointerup",function(n){Bt(n,!1)},!0),o.addEventListener("pointercancel",function(n){Bt(n,!0)},!0),o.addEventListener("mouseup",function(n){Bt(n,!1)},!0),o.addEventListener("blur",function(n){Bt(n,!0)},!0),Ec=o),!(!i||typeof i.addEventListener!="function"||Ac===i)&&(i.addEventListener("pointerup",function(n){Bt(n,!1)},!0),i.addEventListener("pointercancel",function(n){Bt(n,!0)},!0),i.addEventListener("mouseup",function(n){Bt(n,!1)},!0),i.addEventListener("visibilitychange",function(){i.visibilityState==="hidden"&&Bt(null,!0)},!0),Ac=i))}function Nc(t){var o=Sa(t);o&&(sn=t,ha(t,!1),wr(o),um(o),fm(o,t),pm(t))}function Oc(t){var o=t&&typeof t.initialLogLevel=="string"?t.initialLogLevel:"info";function i(){return o==="debug"}function n(g){if(typeof g>"u")return{};try{return JSON.parse(JSON.stringify(g))}catch{return{value:String(g)}}}function l(g,h){if(i()){var j={event:g,detail:n(h)};try{t&&t.console&&typeof t.console.log=="function"&&t.console.log("[SchedulerWebviewDebug]",j)}catch{}try{t&&t.vscode&&typeof t.vscode.postMessage=="function"&&t.vscode.postMessage({type:"debugWebview",event:g,detail:j.detail})}catch{}}}function d(){return{comment:"",title:"",description:"",dueAt:"",flagColor:"#f59e0b",flagInput:"",priority:"none",flag:"",labelColor:"#4f8cff",labelInput:"",sectionId:"",taskId:""}}function p(g){var h=d();return l("todoDraftReset",{reason:g||"unknown"}),h}function m(g){if(!g||g.selectedTodoId)return g?g.currentTodoDraft:d();var h=g.currentTodoDraft||d();return h.comment=g.todoCommentInput?String(g.todoCommentInput.value||""):"",h.title=g.todoTitleInput?String(g.todoTitleInput.value||""):"",h.description=g.todoDescriptionInput?String(g.todoDescriptionInput.value||""):"",h.dueAt=g.todoDueInput?String(g.todoDueInput.value||""):"",h.priority=g.todoPriorityInput?String(g.todoPriorityInput.value||"none"):"none",h.sectionId=g.todoSectionInput?String(g.todoSectionInput.value||""):"",h.taskId=g.todoLinkedTaskSelect?String(g.todoLinkedTaskSelect.value||""):"",g.reason&&l("todoDraftSync",{reason:g.reason,hasComment:h.comment.length>0,titleLength:h.title.length,hasDescription:h.description.length>0,hasDueAt:!!h.dueAt,sectionId:h.sectionId,taskId:h.taskId}),h}function y(g){o=typeof g=="string"&&g?g:"info"}function E(){return o}return{createEmptyTodoDraft:d,emitWebviewDebug:l,getLogLevel:E,resetTodoDraft:p,setLogLevel:y,syncTodoDraftFromInputs:m}}function Hc(t){var o=t.visibleSections,i=t.cards,n=t.filters,l=t.strings;return n.viewMode==="list"?mm(o,i,n,t):bm(o,i,n,t)}function gm(t){return Array.isArray(t.comments)&&t.comments.length?t.comments[t.comments.length-1]:null}function Jc(t,o,i){var n=o.strings,l=o.helpers,d=o.pendingBoardDeleteTodoId===t.id,p=!!(t.archived||d&&o.pendingBoardDeletePermanentOnly),m=i==="board"?"todo-card-action-row":"todo-list-actions";function y(j,R,$,D){return'<button type="button" class="'+j+' todo-list-action-btn todo-card-icon-btn" '+R+'="'+l.escapeAttr(t.id)+'" title="'+l.escapeAttr($)+'" aria-label="'+l.escapeAttr($)+'">'+D+"</button>"}function E(j,R,$){return'<button type="button" class="'+j+' todo-list-action-btn" '+R+'="'+l.escapeAttr(t.id)+'" title="'+l.escapeAttr($)+'" aria-label="'+l.escapeAttr($)+'">'+l.escapeHtml($)+"</button>"}if(d){var g=[E("btn-secondary todo-card-delete-cancel","data-todo-delete-cancel",n.boardDeleteTodoCancel||"Cancel")];return p||g.push(E("btn-secondary todo-card-delete-reject","data-todo-delete-reject",n.boardDeleteTodoReject||"Archive as Rejected")),g.push(E("btn-danger todo-card-delete-permanent","data-todo-delete-permanent",n.boardDeleteTodoPermanent||"Delete Permanently")),'<div class="'+m+'">'+g.join("")+"</div>"}var h=[y("btn-secondary todo-card-edit","data-todo-edit",n.boardEditTodo||"Open Editor","&#9998;")];return t.archived?(h.push(y("btn-secondary todo-card-restore","data-todo-restore",n.boardRestoreTodo||"Restore","&#8634;")),h.push(y("btn-danger todo-card-purge","data-todo-purge",n.boardDeleteTodoPermanent||"Delete Permanently","&#128465;"))):h.push(y("btn-secondary todo-card-delete","data-todo-delete",n.boardDeleteTodo||"Delete Todo","&#128465;")),'<div class="'+m+(h.length===1?" has-single-action":"")+'">'+h.join("")+"</div>"}function vm(t,o,i){var n=i.strings,l=i.helpers,d=i.selectedTodoId,p=t.id===d,m=gm(t),y=t.description?l.getTodoDescriptionPreview(t.description):t.taskId?n.boardTaskLinked||"Linked task":n.boardDescriptionPreviewEmpty||"No description yet.",E=m&&m.body?"#"+String(m.sequence||1)+" \u2022 "+l.getTodoCommentSourceLabel(m.source||"human-form")+" \u2022 "+l.getTodoDescriptionPreview(m.body):n.boardCommentsEmpty||"No comments yet.",g=Array.isArray(t.flags)?t.flags.slice(0,6):[],h=["<span data-card-meta>"+l.escapeHtml(l.getTodoPriorityLabel(t.priority||"none"))+"</span>","<span data-card-meta>"+l.escapeHtml(l.getTodoStatusLabel(t.status||"active"))+"</span>"];t.dueAt&&h.push("<span data-card-meta>"+l.escapeHtml((n.boardDueLabel||"Due")+": "+l.formatTodoDate(t.dueAt))+"</span>"),t.archived&&t.archiveOutcome&&h.push("<span data-card-meta>"+l.escapeHtml(l.getTodoArchiveOutcomeLabel(t.archiveOutcome))+"</span>");var j=Array.isArray(t.labels)?t.labels.slice(0,6):[],R=g.length||j.length?'<div class="todo-list-chip-row">'+(g.length?'<div class="card-flags">'+g.map(function($,D){return'<span data-flag-slot="'+D+'">'+l.renderFlagChip($,!1)+"</span>"}).join("")+"</div>":"")+(j.length?'<div class="card-labels">'+j.map(function($,D){return'<span data-label-slot="'+D+'">'+l.renderLabelChip($,!1,!1)+"</span>"}).join("")+"</div>":"")+"</div>":"";return'<article class="todo-list-row" draggable="false" data-todo-id="'+l.escapeAttr(t.id)+'" data-section-id="'+l.escapeAttr(o)+'" data-order="'+String(t.order||0)+'" data-selected="'+(p?"true":"false")+'" style="border-radius:8px;background:'+l.getTodoPriorityCardBg(t.priority||"none",!1)+';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div class="todo-list-title-block">'+l.renderTodoCompletionCheckbox(t)+'<strong class="todo-list-title">'+l.escapeHtml(t.title||n.boardCardUntitled||"Untitled")+'</strong></div><div class="todo-list-meta-trail">'+l.renderTodoDragHandle(t)+h.join("")+"</div></div>"+R+'<div class="cockpit-card-details todo-list-card-details"><div class="note todo-list-detail-line todo-list-detail-line-description"><strong data-card-meta>'+l.escapeHtml(n.boardDescriptionLabel||"Description")+':</strong><span class="todo-list-summary">'+l.escapeHtml(y)+'</span></div><div class="note todo-list-detail-line todo-list-detail-line-comment"><strong data-card-meta>'+l.escapeHtml(n.boardLatestComment||"Latest comment")+':</strong><span class="todo-list-summary">'+l.escapeHtml(E)+"</span></div></div></div>"+Jc(t,i,"list")+"</article>"}function mm(t,o,i,n){var l=n.strings,d=n.helpers,p=n.collapsedSections;return'<div class="todo-list-view">'+t.map(function(m){var y=d.sortTodoCards(o.filter(function(j){return j.sectionId===m.id&&d.cardMatchesTodoFilters(j,i)}),i),E=p.has(m.id),g=d.isSpecialTodoSectionId(m.id),h=d.escapeHtml(m.title||l.boardSectionUntitled||"Section");return'<section class="todo-list-section'+(E?" is-collapsed":"")+'" data-section-id="'+d.escapeAttr(m.id)+'" data-card-count="'+String(y.length)+'"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);"><button type="button" class="cockpit-collapse-btn'+(E?" collapsed":"")+'" data-section-collapse="'+d.escapeAttr(m.id)+'" aria-expanded="'+(E?"false":"true")+'" title="'+d.escapeAttr(E?l.boardSectionExpand||"Expand section":l.boardSectionCollapse||"Collapse section")+'">&#9660;</button>'+d.renderSectionDragHandle(m,g)+'<div class="cockpit-section-title-group"><strong class="cockpit-section-title">'+h+'</strong></div><span class="note cockpit-section-count">('+String(y.length)+")</span>"+(g?"":'<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="'+d.escapeAttr(m.id)+'" title="'+d.escapeAttr(l.boardSectionRename||"Rename section")+'">&#9998;</button><button type="button" class="btn-icon" data-section-delete="'+d.escapeAttr(m.id)+'" title="'+d.escapeAttr(l.boardSectionDelete||"Delete section")+'">&#215;</button></div>')+'</div><div class="section-body-wrapper'+(E?" collapsed":"")+'"><div class="section-body-inner"><div class="todo-list-items">'+(y.length?y.map(function(j){return vm(j,m.id,n)}).join(""):'<div class="note">'+d.escapeHtml(l.boardListEmptySection||l.boardEmpty||"No todos in this section.")+"</div>")+"</div></div></div></section>"}).join("")+"</div>"}function bm(t,o,i,n){var l=n.strings,d=n.helpers,p=n.collapsedSections,m=n.selectedTodoId;return'<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">'+t.map(function(y){var E=d.sortTodoCards(o.filter(function(h){return h.sectionId===y.id&&d.cardMatchesTodoFilters(h,i)}),i),g=d.isSpecialTodoSectionId(y.id);return'<section class="board-column'+(p.has(y.id)?" is-collapsed":"")+'" data-section-id="'+d.escapeAttr(y.id)+'" data-card-count="'+String(E.length)+'" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow:visible;"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)"><button type="button" class="cockpit-collapse-btn'+(p.has(y.id)?" collapsed":"")+'" data-section-collapse="'+d.escapeAttr(y.id)+'" title="'+d.escapeAttr(p.has(y.id)?l.boardSectionExpand||"Expand section":l.boardSectionCollapse||"Collapse section")+'">&#9660;</button>'+d.renderSectionDragHandle(y,g)+'<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+d.escapeHtml(y.title||l.boardSectionUntitled||"Section")+"</strong>"+(g?"":'<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="'+d.escapeAttr(y.id)+'" title="'+d.escapeAttr(l.boardSectionRename||"Rename section")+'">&#9998;</button><button type="button" class="btn-icon" data-section-delete="'+d.escapeAttr(y.id)+'" title="'+d.escapeAttr(l.boardSectionDelete||"Delete section")+'">&#215;</button></div>')+'</div><div class="section-body-wrapper'+(p.has(y.id)?" collapsed":"")+'"><div class="section-body-inner"><div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);"><div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">'+(E.length?E.map(function(h){var j=h.id===m,R=Array.isArray(h.flags)?h.flags.slice(0,6):[],$=R.length||Array.isArray(h.labels)&&h.labels.length?'<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'+(R.length?'<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:6px;">'+R.map(function(Ee,ge){return'<span data-flag-slot="'+ge+'">'+d.renderFlagChip(Ee,!1)+"</span>"}).join("")+"</div>":"")+(Array.isArray(h.labels)&&h.labels.length?'<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">'+h.labels.slice(0,6).map(function(Ee,ge){return'<span data-label-slot="'+ge+'">'+d.renderLabelChip(Ee,!1,!1)+"</span>"}).join("")+"</div>":"")+"</div>":"",D=Array.isArray(h.comments)&&h.comments.length?h.comments[h.comments.length-1]:null,lt=h.dueAt?'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+d.escapeHtml((l.boardDueLabel||"Due")+": "+d.formatTodoDate(h.dueAt))+"</span>":"",Ie=h.archived&&h.archiveOutcome?'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+d.escapeHtml(d.getTodoArchiveOutcomeLabel(h.archiveOutcome))+"</span>":"",M=D&&D.body?'<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>'+d.escapeHtml(l.boardLatestComment||"Latest comment")+":</strong><span data-card-meta>#"+d.escapeHtml(String(D.sequence||1))+" \u2022 "+d.escapeHtml(d.getTodoCommentSourceLabel(D.source||"human-form"))+" \u2022 "+d.escapeHtml(d.getTodoDescriptionPreview(D.body||""))+"</span></div>":"";return'<article draggable="false" data-todo-id="'+d.escapeAttr(h.id)+'" data-section-id="'+d.escapeAttr(y.id)+'" data-order="'+String(h.order||0)+'" data-selected="'+(j?"true":"false")+'" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:'+d.getTodoPriorityCardBg(h.priority||"none",!1)+';border:1px solid var(--vscode-widget-border);cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">'+d.renderTodoCompletionCheckbox(h)+'<strong style="line-height:1.3;min-width:0;">'+d.escapeHtml(h.title||l.boardCardUntitled||"Untitled")+'</strong></div><div style="display:flex;align-items:center;gap:6px;">'+d.renderTodoDragHandle(h)+'<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">'+d.escapeHtml(d.getTodoPriorityLabel(h.priority||"none"))+"</span></div></div>"+(lt||Ie?'<div style="display:flex;flex-wrap:wrap;gap:4px;">'+lt+Ie+"</div>":"")+$+'<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">'+d.escapeHtml(d.getTodoDescriptionPreview(h.description||""))+"</div>"+M+"</div>"+Jc(h,n,"board")+"</article>"}).join(""):'<div class="note">'+d.escapeHtml(l.boardEmpty||"No cards yet.")+"</div>")+"</div></div></div></div></section>"}).join("")+"</div>"}function it(t,o,i,n){var l=parseInt(String(t),10);return isNaN(l)&&(l=n),Math.max(o,Math.min(i,l))}function Vc(t){var o=it(t,0,59,0);return o<10?"0"+o:String(o)}function qc(t){var o=String(t||""),i=o.trim().toLowerCase();if(/^\d+$/.test(i)){var n=parseInt(i,10);if(n===7&&(n=0),n>=0&&n<=6)return n}var l=new Map([["sun",0],["mon",1],["tue",2],["wed",3],["thu",4],["fri",5],["sat",6]]);return l.has(i)?l.get(i):null}function Xo(t,o){return Vc(t)+":"+Vc(o)}function st(t){return/^\d+$/.test(String(t))}function $o(t,o,i){if(!st(t))return null;var n=parseInt(String(t),10);return n<o||n>i?null:n}function ym(t){switch(t){case"every-n":return["interval"];case"hourly":return["minute"];case"daily":return["hour","minute"];case"weekly":return["dow","hour","minute"];case"monthly":return["dom","hour","minute"];default:return[]}}function Fs(t,o){for(var i=ym(o),n=t?t.querySelectorAll(".friendly-field"):[],l=0;l<n.length;l+=1){var d=n[l];if(!(!d||!d.getAttribute)){var p=d.getAttribute("data-field"),m=i.indexOf(p)!==-1;d.classList&&(m?d.classList.add("visible"):d.classList.remove("visible")),d.style&&(d.style.display=m?"block":"none")}}}function Wc(t,o){var i=o||{};switch(t){case"every-n":return"*/"+it(i.interval,1,59,5)+" * * * *";case"hourly":return it(i.minute,0,59,0)+" * * * *";case"daily":return it(i.minute,0,59,0)+" "+it(i.hour,0,23,9)+" * * *";case"weekly":return it(i.minute,0,59,0)+" "+it(i.hour,0,23,9)+" * * "+it(i.dow,0,6,1);case"monthly":return it(i.minute,0,59,0)+" "+it(i.hour,0,23,9)+" "+it(i.dom,1,31,1)+" * *";default:return""}}function zc(t){var o=String(t||"").trim();if(!o)return null;var i=o.split(/\s+/);if(i.length!==5)return null;var n=i[0],l=i[1],d=i[2],p=i[3],m=i[4],y=/^\*\/(\d+)$/.exec(n),E=$o(n,0,59),g=$o(l,0,23),h=$o(d,1,31),j=qc(m);if(y&&l==="*"&&d==="*"&&p==="*"&&m==="*"){var R=$o(y[1],1,59);return R===null?null:{frequency:"every-n",interval:R}}return E!==null&&l==="*"&&d==="*"&&p==="*"&&m==="*"?{frequency:"hourly",minute:E}:E!==null&&g!==null&&d==="*"&&p==="*"&&m==="*"?{frequency:"daily",hour:g,minute:E}:E!==null&&g!==null&&d==="*"&&p==="*"&&j!==null?{frequency:"weekly",dow:j,hour:g,minute:E}:E!==null&&g!==null&&h!==null&&p==="*"&&m==="*"?{frequency:"monthly",dom:h,hour:g,minute:E}:null}function Uc(t,o){var i=o||{},n=i.labelFriendlyFallback||"",l=String(t||"").trim();if(!l)return n;var d=l.split(/\s+/);if(d.length!==5)return n;var p=d[0],m=d[1],y=d[2],E=d[3],g=d[4],h=String(g||"").toLowerCase(),j=h==="1-5"||h==="mon-fri",R=/^\*\/(\d+)$/.exec(p);if(R&&m==="*"&&y==="*"&&E==="*"&&g==="*"){var $=i.cronPreviewEveryNMinutes||"";return $?$.replace("{n}",String(R[1])):n}if(st(p)&&m==="*"&&y==="*"&&E==="*"&&g==="*"){var D=i.cronPreviewHourlyAtMinute||"";return D?D.replace("{m}",String(p)):n}if(st(p)&&st(m)&&y==="*"&&E==="*"&&g==="*"){var lt=i.cronPreviewDailyAt||"",Ie=Xo(m,p);return lt?lt.replace("{t}",String(Ie)):n}if(st(p)&&st(m)&&y==="*"&&E==="*"&&j){var M=i.cronPreviewWeekdaysAt||"",Ee=Xo(m,p);return M?M.replace("{t}",String(Ee)):n}var ge=qc(g);if(st(p)&&st(m)&&y==="*"&&E==="*"&&ge!==null){var L=i.cronPreviewWeeklyOnAt||"",Je=[i.daySun||"",i.dayMon||"",i.dayTue||"",i.dayWed||"",i.dayThu||"",i.dayFri||"",i.daySat||""],ve=Xo(m,p),ie=Je[ge]||String(ge);return L?L.replace("{d}",String(ie)).replace("{t}",String(ve)):n}if(st(p)&&st(m)&&st(y)&&E==="*"&&g==="*"){var ln=i.cronPreviewMonthlyOnAt||"",Ae=Xo(m,p);return ln?ln.replace("{dom}",String(y)).replace("{t}",String(Ae)):n}return n}function Zo(t,o){var i=o||"";return!t||!i?i:(t.value=i,t.value===i?"":i)}function hm(t,o){return'<option value="">'+t(o)+"</option>"}function Sm(t,o,i){return t.map(function(n){return'<option value="'+o(n.path)+'">'+i(n.name)+"</option>"}).join("")}function Qo(t){var o=t.templateSelect;if(o){var i=t.selectedPath||"",n=Array.isArray(t.promptTemplates)?t.promptTemplates:[],l=t.source||"inline",d=t.strings&&t.strings.placeholderSelectTemplate||"",p=t.escapeHtml,m=t.escapeAttr,y=hm(p,d),E=n.filter(function(R){return R&&R.source===l}),g=y+Sm(E,m,p);if(o.innerHTML=g,!i){var h="";o.value=h;return}var j=i;o.value=j,o.value!==j&&(o.value="")}}function Gc(t){var o=t.source||"inline",i=t.templateSelect,n=t.promptTextEl,l=t.templateSelectGroup,d=t.promptGroup,p=t.keepSelection===!0,m=p&&i?i.value:"",y=o==="inline";if(n&&(n.required=y),i&&(i.required=!y),l?l.style.display=y?"none":"block":!y&&typeof t.warnMissingTemplateGroup=="function"&&t.warnMissingTemplateGroup(),d&&(d.style.display="block"),y){var E=!p&&i;E&&(i.value="");return}Qo({templateSelect:i,promptTemplates:t.promptTemplates,source:o,selectedPath:m,strings:t.strings,escapeHtml:t.escapeHtml,escapeAttr:t.escapeAttr})}function _c(t){var o=t.templateSelect,i=t.pendingTemplatePath||(o?o.value:"");Qo({templateSelect:o,promptTemplates:t.promptTemplates,source:t.currentSource,selectedPath:i,strings:t.strings,escapeHtml:t.escapeHtml,escapeAttr:t.escapeAttr});var n=Zo(o,i);return t.templateSelectGroup&&(t.templateSelectGroup.style.display=t.currentSource==="local"||t.currentSource==="global"?"block":"none"),n}function Yc(t){var o=Array.isArray(t.items)?t.items:[],i=t.selectedId||"",n=t.fallbackSelectedId||"",l=i||n,d=!i,p='<option value="">'+t.escapeHtml(t.placeholder||"")+"</option>";return o.forEach(function(m){var y=m&&(m.id||m.slug);if(y){var E=t.getLabel(m,y);y===i&&(d=!0),p+='<option value="'+t.escapeAttr(y)+'"'+(y===l?" selected":"")+">"+t.escapeHtml(E)+"</option>"}}),i&&!d&&(p+='<option value="'+t.escapeAttr(i)+'" selected>'+t.escapeHtml(i)+"</option>"),'<select class="task-inline-select '+t.className+'" data-id="'+t.taskId+'">'+p+"</select>"}function Kc(t){var o=Yc({items:t.agents,selectedId:t.task&&t.task.agent,className:"task-agent-select",placeholder:t.strings.placeholderSelectAgent||"Agent",fallbackSelectedId:t.executionDefaults&&t.executionDefaults.agent,taskId:t.taskId,escapeAttr:t.escapeAttr,escapeHtml:t.escapeHtml,getLabel:function(n,l){return n&&n.name||l}}),i=Yc({items:t.models,selectedId:t.task&&t.task.model,className:"task-model-select",placeholder:t.strings.placeholderSelectModel||"Model",fallbackSelectedId:t.executionDefaults&&t.executionDefaults.model,taskId:t.taskId,escapeAttr:t.escapeAttr,escapeHtml:t.escapeHtml,getLabel:function(n,l){return t.formatModelLabel(n||{id:l,name:l})}});return'<div class="task-config">'+o+i+"</div>"}function Xc(t){var o=function(i){return'<button class="'+i.className+'" data-action="'+i.action+'" data-id="'+t.taskId+'" title="'+t.escapeAttr(i.title)+'">'+i.icon+"</button>"};return[{className:"btn-secondary btn-icon",action:"toggle",title:t.toggleTitle,icon:t.toggleIcon},{className:"btn-secondary btn-icon",action:"run",title:t.strings.actionRun,icon:"\u{1F680}"},{className:"btn-secondary btn-icon",action:"edit",title:t.strings.actionEdit,icon:"\u270F\uFE0F"},{className:"btn-secondary btn-icon",action:"copy",title:t.strings.actionCopyPrompt,icon:"\u{1F4CB}"},{className:"btn-secondary btn-icon",action:"duplicate",title:t.strings.actionDuplicate,icon:"\u{1F4C4}"}].map(o).join("")}function $c(t,o){return t&&t.isConnected?t:o()}function Zc(t){var o=t.event,i=t.taskList,n=t.getTaskList,l=t.getClosestEventTarget(o.target,"[data-ready-todo-open]");if(l&&(i=$c(i,n),i&&i.contains(l))){o.preventDefault();var d=l.getAttribute("data-ready-todo-open");return d&&t.openTodoEditor(d),!0}var p=t.resolveActionTarget(o.target);if(!p||(i=$c(i,n),i&&!i.contains(p)))return!1;var m=p.getAttribute("data-action"),y=p.getAttribute("data-id"),E=!!(m&&y);if(!E)return!1;var g=t.actionHandlers[m];return typeof g!="function"?!1:(o.preventDefault(),g(y),!0)}function ei(t,o){if(!t||!o)return!1;var i=t.options;if(!i||typeof i.length!="number")return!1;for(var n=0;n<i.length;n++){var l=i[n];if(l&&l.value===o)return!0}return!1}function Qc(t){var o=t.agentSelect;if(o){var i=Array.isArray(t.agents)?t.agents:[],n=t.escapeAttr,l=t.escapeHtml,d=t.strings||{},p=t.executionDefaults||{};if(i.length===0){var m=d.placeholderNoAgents||"";o.innerHTML='<option value="">'+l(m)+"</option>";return}var y=d.placeholderSelectAgent||"",E='<option value="">'+l(y)+"</option>";if(o.innerHTML=E+i.map(function(j){return'<option value="'+n(j.id)+'">'+l(j.name)+"</option>"}).join(""),!o.value){var g=p&&typeof p.agent=="string"?p.agent:"agent",h=i.find(function(j){return j.id===g});h&&(o.value=g)}}}function eu(t){var o=t.modelSelect;if(o){var i=Array.isArray(t.models)?t.models:[],n=t.escapeAttr,l=t.escapeHtml,d=t.strings||{},p=t.executionDefaults||{},m=t.formatModelLabel;if(i.length===0){var y=d.placeholderNoModels||"";o.innerHTML='<option value="">'+l(y)+"</option>";return}var E=d.placeholderSelectModel||"",g='<option value="">'+l(E)+"</option>";if(o.innerHTML=g+i.map(function(R){return'<option value="'+n(R.id)+'">'+l(m(R))+"</option>"}).join(""),!o.value){var h=p&&typeof p.model=="string"?p.model:"",j=i.find(function(R){return R.id===h});j&&(o.value=h)}}}function Ms(t){if(!t)return"";var o=String(t),i=o.lastIndexOf("\\"),n=o.lastIndexOf("/");return o.substring(Math.max(i,n)+1)}function wt(t){if(!t)return"";var o=String(t);if(!/^file:\/\/\/?/i.test(o))return Ms(o);try{var i=new URL(o);if(i.protocol==="file:")return Ms(decodeURIComponent(i.pathname||""))}catch{}return Ms(o.replace(/^file:\/\/\/?/i,""))}function Tm(t){var o=[t&&t.id,t&&t.name,t&&t.vendor,t&&t.description].filter(Boolean).map(function(i){return String(i).trim().toLowerCase()}).join(" ");return o.indexOf("openrouter")>=0?"OpenRouter":o.indexOf("copilot")>=0||o.indexOf("codex")>=0||o.indexOf("github")>=0||o.indexOf("microsoft")>=0?"Copilot":t&&t.vendor?String(t.vendor).trim():""}function Ta(t){var o=t&&(t.name||t.id)?String(t.name||t.id).trim():"",i=Tm(t);return!i||i.toLowerCase()===o.toLowerCase()?o:o+" \u2022 "+i}function Rs(t){var o=Math.max(0,Math.floor(t)),i=[["y",365*24*60*60],["mo",720*60*60],["w",10080*60],["d",1440*60],["h",3600],["m",60],["s",1]],n=[];return i.forEach(function(l){var d=l[0],p=l[1];if(!(o<p)){var m=Math.floor(o/p);o-=m*p,n.push(String(m)+d)}}),n.length>0?n.join(" "):"0s"}function tu(t,o,i){if(!t||!isFinite(o)||o<=0)return"";var n=typeof i=="number"?i:Date.now(),l=o-n;return l>0?" (in "+Rs(Math.floor(l/1e3))+")":" (due now)"}function ka(t){return t?String(t).replace(/'(file:\/\/[^']+)'/gi,function(o,i){return"'"+wt(i)+"'"}).replace(/"(file:\/\/[^"]+)"/gi,function(o,i){return'"'+wt(i)+'"'}).replace(/file:\/\/[^\s"'`]+/gi,function(o){return wt(o)}).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g,function(o,i){return"'"+wt(i)+"'"}).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g,function(o,i){return'"'+wt(i)+'"'}).replace(/(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g,function(o,i,n){return String(i)+wt(n)}).replace(/'(\/[^']+)'/g,function(o,i){return"'"+wt(i)+"'"}).replace(/"(\/[^\"]+)"/g,function(o,i){return'"'+wt(i)+'"'}).replace(/(^|[\s(])(\/[^\s"'`]+)/g,function(o,i,n){return String(i)+wt(n)}):""}function ru(t){var o=typeof t=="number"?t:Number(t);return isFinite(o)?Math.max(0,Math.min(1800,Math.floor(o))):600}function km(t){var o=t.getElementById("initial-data");if(!o||!o.textContent)return{};try{return JSON.parse(o.textContent)||{}}catch{return{}}}function Im(t){return typeof t.logLevel=="string"&&t.logLevel?t.logLevel:"info"}function Em(t){return typeof t.logDirectory=="string"?t.logDirectory:""}function nu(t){var o=km(t),i=o&&o.strings?o.strings:{};return{initialData:o,strings:i,currentLogLevel:Im(o),currentLogDirectory:Em(o)}}function Am(t,o){var i=o||"",n=t;if(typeof n=="string")i=n;else if(n){var l=typeof n=="object"&&"message"in n?n.message:n;i=String(l)}return String(i).split(/\r?\n/)[0]}function au(t){t.window.onerror=function(o,i,n){var l=t.strings.webviewScriptErrorPrefix||"",d=t.strings.webviewLinePrefix||"",p=t.strings.webviewLineSuffix||"";t.showGlobalError(l+t.sanitizeAbsolutePaths(String(o))+d+String(n)+p)},t.window.onunhandledrejection=function(o){var i=t.strings.webviewUnhandledErrorPrefix||"";t.showGlobalError(i+t.sanitizeAbsolutePaths(Am(o&&o.reason?o.reason:null,t.strings.webviewUnknown||"")))}}function Zt(t){return Array.isArray(t)?t:[]}function ou(t,o){var i=t||{};return{storageSettings:o(i.storageSettings),researchProfiles:Zt(i.researchProfiles),activeResearchRun:i.activeResearchRun||null,recentResearchRuns:Zt(i.recentResearchRuns),agents:Zt(i.agents),models:Zt(i.models),promptTemplates:Zt(i.promptTemplates),skills:Zt(i.skills),cockpitHistory:Zt(i.cockpitHistory),defaultChatSession:i.defaultChatSession==="continue"?"continue":"new",autoShowOnStartup:!!i.autoShowOnStartup,workspacePaths:Zt(i.workspacePaths),caseInsensitivePaths:!!i.caseInsensitivePaths}}function iu(t){return{taskForm:t.getElementById("task-form"),taskList:t.getElementById("task-list"),editTaskIdInput:t.getElementById("edit-task-id"),submitBtn:t.getElementById("submit-btn"),testBtn:t.getElementById("test-btn"),refreshBtn:t.getElementById("refresh-btn"),autoShowStartupBtn:t.getElementById("auto-show-startup-btn"),cockpitHistorySelect:t.getElementById("schedule-history-select"),restoreHistoryBtn:t.getElementById("restore-history-btn"),autoShowStartupNote:t.getElementById("auto-show-startup-note"),friendlyBuilder:t.getElementById("friendly-builder"),recurringScheduleGroup:t.getElementById("recurring-schedule-group"),oneTimeDelayGroup:t.getElementById("one-time-delay-group"),cronPreset:t.getElementById("cron-preset"),cronExpression:t.getElementById("cron-expression"),oneTimeDelayHours:t.getElementById("one-time-delay-hours"),oneTimeDelayMinutes:t.getElementById("one-time-delay-minutes"),oneTimeDelaySeconds:t.getElementById("one-time-delay-seconds"),oneTimeDelayPreviewText:t.getElementById("one-time-delay-preview-text"),agentSelect:t.getElementById("agent-select"),modelSelect:t.getElementById("model-select"),chatSessionGroup:t.getElementById("chat-session-group"),chatSessionSelect:t.getElementById("chat-session"),templateSelect:t.getElementById("template-select"),templateSelectGroup:t.getElementById("template-select-group"),templateRefreshBtn:t.getElementById("template-refresh-btn"),skillSelect:t.getElementById("skill-select"),skillDetailsNote:t.getElementById("skill-details-note"),insertSkillBtn:t.getElementById("insert-skill-btn"),setupMcpBtn:t.getElementById("setup-mcp-btn"),setupCodexBtn:t.getElementById("setup-codex-btn"),setupCodexSkillsBtn:t.getElementById("setup-codex-skills-btn"),syncBundledSkillsBtn:t.getElementById("sync-bundled-skills-btn"),stageBundledAgentsBtn:t.getElementById("stage-bundled-agents-btn"),syncBundledAgentsBtn:t.getElementById("sync-bundled-agents-btn"),openCopilotSettingsBtn:t.getElementById("open-copilot-settings-btn"),openExtensionSettingsBtn:t.getElementById("open-extension-settings-btn"),refreshStorageStatusBtn:t.getElementById("refresh-storage-status-btn"),settingsStatusRefreshNote:t.getElementById("settings-status-refresh-note"),importStorageFromJsonBtn:t.getElementById("import-storage-from-json-btn"),exportStorageToJsonBtn:t.getElementById("export-storage-to-json-btn"),helpLanguageSelect:t.getElementById("help-language-select"),settingsLanguageSelect:t.getElementById("settings-language-select"),helpWarpLayer:t.getElementById("help-warp-layer"),helpIntroRocket:t.getElementById("help-intro-rocket"),promptGroup:t.getElementById("prompt-group"),promptTextEl:t.getElementById("prompt-text"),jitterSecondsInput:t.getElementById("jitter-seconds"),friendlyFrequency:t.getElementById("friendly-frequency"),friendlyInterval:t.getElementById("friendly-interval"),friendlyMinute:t.getElementById("friendly-minute"),friendlyHour:t.getElementById("friendly-hour"),friendlyDow:t.getElementById("friendly-dow"),friendlyDom:t.getElementById("friendly-dom"),openGuruBtn:t.getElementById("open-guru-btn"),cronPreviewText:t.getElementById("cron-preview-text"),newTaskBtn:t.getElementById("new-task-btn"),taskFilterBar:t.getElementById("task-filter-bar"),taskLabelFilter:t.getElementById("task-label-filter"),taskLabelsInput:t.getElementById("task-labels"),runFirstGroup:t.getElementById("run-first-group"),jobsFolderList:t.getElementById("jobs-folder-list"),jobsCurrentFolderBanner:t.getElementById("jobs-current-folder-banner"),jobsList:t.getElementById("jobs-list"),jobsEmptyState:t.getElementById("jobs-empty-state"),jobsDetails:t.getElementById("jobs-details"),jobsLayout:t.getElementById("jobs-layout"),jobsToggleSidebarBtn:t.getElementById("jobs-toggle-sidebar-btn"),jobsShowSidebarBtn:t.getElementById("jobs-show-sidebar-btn"),jobsNewFolderBtn:t.getElementById("jobs-new-folder-btn"),jobsRenameFolderBtn:t.getElementById("jobs-rename-folder-btn"),jobsDeleteFolderBtn:t.getElementById("jobs-delete-folder-btn"),jobsNewJobBtn:t.getElementById("jobs-new-job-btn"),jobsSaveBtn:t.getElementById("jobs-save-btn"),jobsSaveDeckBtn:t.getElementById("jobs-save-deck-btn"),jobsDuplicateBtn:t.getElementById("jobs-duplicate-btn"),jobsPauseBtn:t.getElementById("jobs-pause-btn"),jobsCompileBtn:t.getElementById("jobs-compile-btn"),jobsDeleteBtn:t.getElementById("jobs-delete-btn"),jobsBackBtn:t.getElementById("jobs-back-btn"),jobsOpenEditorBtn:t.getElementById("jobs-open-editor-btn"),tabBar:t.querySelector(".tab-bar"),boardFilterSticky:t.getElementById("board-filter-sticky"),boardSummary:t.getElementById("board-summary"),boardColumns:t.getElementById("board-columns"),todoToggleFiltersBtn:t.getElementById("todo-toggle-filters-btn"),todoSearchInput:t.getElementById("todo-search-input"),todoSectionFilter:t.getElementById("todo-section-filter"),todoLabelFilter:t.getElementById("todo-label-filter"),todoFlagFilter:t.getElementById("todo-flag-filter"),todoPriorityFilter:t.getElementById("todo-priority-filter"),todoStatusFilter:t.getElementById("todo-status-filter"),todoArchiveOutcomeFilter:t.getElementById("todo-archive-outcome-filter"),todoSortBy:t.getElementById("todo-sort-by"),todoSortDirection:t.getElementById("todo-sort-direction"),todoViewMode:t.getElementById("todo-view-mode"),todoShowRecurringTasks:t.getElementById("todo-show-recurring-tasks"),todoShowArchived:t.getElementById("todo-show-archived"),todoHideCardDetails:t.getElementById("todo-hide-card-details"),todoNewBtn:t.getElementById("todo-new-btn"),todoClearSelectionBtn:t.getElementById("todo-clear-selection-btn"),todoClearFiltersBtn:t.getElementById("todo-clear-filters-btn"),todoBackBtn:t.getElementById("todo-back-btn"),todoDetailTitle:t.getElementById("todo-detail-title"),todoDetailModeNote:t.getElementById("todo-detail-mode-note"),todoDetailForm:t.getElementById("todo-detail-form"),todoDetailId:t.getElementById("todo-detail-id"),todoTitleInput:t.getElementById("todo-title-input"),todoDescriptionInput:t.getElementById("todo-description-input"),todoDueInput:t.getElementById("todo-due-input"),todoPriorityInput:t.getElementById("todo-priority-input"),todoSectionInput:t.getElementById("todo-section-input"),todoLinkedTaskSelect:t.getElementById("todo-linked-task-select"),todoDetailStatus:t.getElementById("todo-detail-status"),todoLabelChipList:t.getElementById("todo-label-chip-list"),todoLabelsInput:t.getElementById("todo-labels-input"),todoLabelSuggestions:t.getElementById("todo-label-suggestions"),todoLabelColorInput:t.getElementById("todo-label-color-input"),todoLabelAddBtn:t.getElementById("todo-label-add-btn"),todoLabelColorSaveBtn:t.getElementById("todo-label-color-save-btn"),todoLabelCatalog:t.getElementById("todo-label-catalog"),todoFlagNameInput:t.getElementById("todo-flag-name-input"),todoFlagColorInput:t.getElementById("todo-flag-color-input"),todoFlagAddBtn:t.getElementById("todo-flag-add-btn"),todoFlagColorSaveBtn:t.getElementById("todo-flag-color-save-btn"),todoLinkedTaskNote:t.getElementById("todo-linked-task-note"),todoSaveBtn:t.getElementById("todo-save-btn"),todoCreateTaskBtn:t.getElementById("todo-create-task-btn"),todoCompleteBtn:t.getElementById("todo-complete-btn"),todoDeleteBtn:t.getElementById("todo-delete-btn"),todoUploadFilesBtn:t.getElementById("todo-upload-files-btn"),todoUploadFilesNote:t.getElementById("todo-upload-files-note"),todoCommentList:t.getElementById("todo-comment-list"),todoCommentInput:t.getElementById("todo-comment-input"),todoAddCommentBtn:t.getElementById("todo-add-comment-btn"),todoCommentCountBadge:t.getElementById("todo-comment-count-badge"),todoCommentModePill:t.getElementById("todo-comment-mode-pill"),todoCommentContextNote:t.getElementById("todo-comment-context-note"),todoCommentComposerTitle:t.getElementById("todo-comment-composer-title"),todoCommentComposerNote:t.getElementById("todo-comment-composer-note"),todoCommentDraftStatus:t.getElementById("todo-comment-draft-status"),todoCommentThreadNote:t.getElementById("todo-comment-thread-note"),jobsNameInput:t.getElementById("jobs-name-input"),jobsCronPreset:t.getElementById("jobs-cron-preset"),jobsCronInput:t.getElementById("jobs-cron-input"),jobsCronPreviewText:t.getElementById("jobs-cron-preview-text"),jobsOpenGuruBtn:t.getElementById("jobs-open-guru-btn"),jobsFriendlyBuilder:t.getElementById("jobs-friendly-builder"),jobsFriendlyFrequency:t.getElementById("jobs-friendly-frequency"),jobsFriendlyInterval:t.getElementById("jobs-friendly-interval"),jobsFriendlyMinute:t.getElementById("jobs-friendly-minute"),jobsFriendlyHour:t.getElementById("jobs-friendly-hour"),jobsFriendlyDow:t.getElementById("jobs-friendly-dow"),jobsFriendlyDom:t.getElementById("jobs-friendly-dom"),jobsFolderSelect:t.getElementById("jobs-folder-select"),jobsStatusPill:t.getElementById("jobs-status-pill"),jobsTimelineInline:t.getElementById("jobs-timeline-inline"),jobsWorkflowMetrics:t.getElementById("jobs-workflow-metrics"),jobsStepList:t.getElementById("jobs-step-list"),jobsPauseNameInput:t.getElementById("jobs-pause-name-input"),jobsCreatePauseBtn:t.getElementById("jobs-create-pause-btn"),jobsExistingTaskSelect:t.getElementById("jobs-existing-task-select"),jobsExistingWindowInput:t.getElementById("jobs-existing-window-input"),jobsAttachBtn:t.getElementById("jobs-attach-btn"),jobsStepNameInput:t.getElementById("jobs-step-name-input"),jobsStepWindowInput:t.getElementById("jobs-step-window-input"),jobsStepPromptInput:t.getElementById("jobs-step-prompt-input"),jobsStepAgentSelect:t.getElementById("jobs-step-agent-select"),jobsStepModelSelect:t.getElementById("jobs-step-model-select"),jobsStepLabelsInput:t.getElementById("jobs-step-labels-input"),jobsCreateStepBtn:t.getElementById("jobs-create-step-btn"),researchNewBtn:t.getElementById("research-new-btn"),researchLoadAutoAgentExampleBtn:t.getElementById("research-load-autoagent-example-btn"),researchSaveBtn:t.getElementById("research-save-btn"),researchDuplicateBtn:t.getElementById("research-duplicate-btn"),researchDeleteBtn:t.getElementById("research-delete-btn"),researchStartBtn:t.getElementById("research-start-btn"),researchStopBtn:t.getElementById("research-stop-btn"),researchEditIdInput:t.getElementById("research-edit-id"),researchNameInput:t.getElementById("research-name"),researchInstructionsInput:t.getElementById("research-instructions"),researchEditablePathsInput:t.getElementById("research-editable-paths"),researchBenchmarkInput:t.getElementById("research-benchmark-command"),researchMetricPatternInput:t.getElementById("research-metric-pattern"),researchMetricDirectionSelect:t.getElementById("research-metric-direction"),researchMaxIterationsInput:t.getElementById("research-max-iterations"),researchMaxMinutesInput:t.getElementById("research-max-minutes"),researchMaxFailuresInput:t.getElementById("research-max-failures"),researchBenchmarkTimeoutInput:t.getElementById("research-benchmark-timeout"),researchEditWaitInput:t.getElementById("research-edit-wait"),researchAgentSelect:t.getElementById("research-agent-select"),researchModelSelect:t.getElementById("research-model-select"),researchProfileList:t.getElementById("research-profile-list"),researchRunList:t.getElementById("research-run-list"),researchRunTitle:t.getElementById("research-run-title"),researchFormError:t.getElementById("research-form-error"),researchActiveEmpty:t.getElementById("research-active-empty"),researchActiveDetails:t.getElementById("research-active-details"),researchActiveStatus:t.getElementById("research-active-status"),researchActiveBest:t.getElementById("research-active-best"),researchActiveAttempts:t.getElementById("research-active-attempts"),researchActiveLastOutcome:t.getElementById("research-active-last-outcome"),researchActiveMeta:t.getElementById("research-active-meta"),researchAttemptList:t.getElementById("research-attempt-list"),telegramEnabledInput:t.getElementById("telegram-enabled"),telegramBotTokenInput:t.getElementById("telegram-bot-token"),telegramChatIdInput:t.getElementById("telegram-chat-id"),telegramMessagePrefixInput:t.getElementById("telegram-message-prefix"),telegramSaveBtn:t.getElementById("telegram-save-btn"),telegramTestBtn:t.getElementById("telegram-test-btn"),telegramFeedback:t.getElementById("telegram-feedback"),telegramTokenStatus:t.getElementById("telegram-token-status"),telegramChatStatus:t.getElementById("telegram-chat-status"),telegramHookStatus:t.getElementById("telegram-hook-status"),telegramUpdatedAt:t.getElementById("telegram-updated-at"),telegramStatusNote:t.getElementById("telegram-status-note"),defaultAgentSelect:t.getElementById("default-agent-select"),defaultModelSelect:t.getElementById("default-model-select"),executionDefaultsSaveBtn:t.getElementById("execution-defaults-save-btn"),executionDefaultsNote:t.getElementById("execution-defaults-note"),approvalModeSelect:t.getElementById("settings-approval-mode-select"),approvalModeNote:t.getElementById("settings-approval-mode-note"),needsBotReviewCommentTemplateInput:t.getElementById("needs-bot-review-comment-template-input"),needsBotReviewPromptTemplateInput:t.getElementById("needs-bot-review-prompt-template-input"),needsBotReviewAgentSelect:t.getElementById("needs-bot-review-agent-select"),needsBotReviewModelSelect:t.getElementById("needs-bot-review-model-select"),needsBotReviewChatSessionSelect:t.getElementById("needs-bot-review-chat-session-select"),readyPromptTemplateInput:t.getElementById("ready-prompt-template-input"),reviewDefaultsSaveBtn:t.getElementById("review-defaults-save-btn"),reviewDefaultsNote:t.getElementById("review-defaults-note"),settingsStorageModeSelect:t.getElementById("settings-storage-mode-select"),settingsSearchProviderSelect:t.getElementById("settings-search-provider-select"),settingsResearchProviderSelect:t.getElementById("settings-research-provider-select"),settingsStorageMirrorInput:t.getElementById("settings-storage-mirror-input"),settingsFlagReadyInput:t.getElementById("settings-flag-ready-input"),settingsFlagNeedsBotReviewInput:t.getElementById("settings-flag-needs-bot-review-input"),settingsFlagNeedsUserReviewInput:t.getElementById("settings-flag-needs-user-review-input"),settingsFlagNewInput:t.getElementById("settings-flag-new-input"),settingsFlagOnScheduleListInput:t.getElementById("settings-flag-on-schedule-list-input"),settingsFlagFinalUserCheckInput:t.getElementById("settings-flag-final-user-check-input"),settingsStorageSaveBtn:t.getElementById("settings-storage-save-btn"),settingsStorageNote:t.getElementById("settings-storage-note"),settingsVersionValue:t.getElementById("settings-version-value"),settingsMcpStatusValue:t.getElementById("settings-mcp-status-value"),settingsMcpUpdatedValue:t.getElementById("settings-mcp-updated-value"),settingsSkillsUpdatedValue:t.getElementById("settings-skills-updated-value"),settingsAgentsUpdatedValue:t.getElementById("settings-agents-updated-value"),settingsLogLevelSelect:t.getElementById("settings-log-level-select"),settingsLogDirectoryInput:t.getElementById("settings-log-directory"),settingsOpenLogFolderBtn:t.getElementById("settings-open-log-folder-btn"),boardAddSectionBtn:t.getElementById("board-add-section-btn"),boardSectionInlineForm:t.getElementById("board-section-inline-form"),boardSectionNameInput:t.getElementById("board-section-name-input"),boardSectionSaveBtn:t.getElementById("board-section-save-btn"),boardSectionCancelBtn:t.getElementById("board-section-cancel-btn"),cockpitColSlider:t.getElementById("cockpit-col-slider")}}function su(){return{draggingTodoId:null,isBoardDragging:!1,pendingBoardRender:!1,scheduledBoardRenderFrame:0}}function lu(t,o,i){if(t.isBoardDragging){t.pendingBoardRender=!0;return}t.scheduledBoardRenderFrame||(t.scheduledBoardRenderFrame=o(function(){if(t.scheduledBoardRenderFrame=0,t.isBoardDragging){t.pendingBoardRender=!0;return}i()}))}function du(t,o,i){t.draggingTodoId=null,o(),t.isBoardDragging=!1,t.pendingBoardRender&&(t.pendingBoardRender=!1,i())}function cu(t){return{tasks:Array.isArray(t.tasks)?t.tasks:[],jobs:Array.isArray(t.jobs)?t.jobs:[],jobFolders:Array.isArray(t.jobFolders)?t.jobFolders:[],cockpitBoard:t.cockpitBoard||{version:4,sections:[],cards:[],labelCatalog:[],archives:{completedSuccessfully:[],rejected:[]},filters:{labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sortBy:"manual",sortDirection:"asc",viewMode:"board",showArchived:!1,showRecurringTasks:!1},updatedAt:""},telegramNotification:t.telegramNotification||{enabled:!1,hasBotToken:!1,hookConfigured:!1},executionDefaults:t.executionDefaults||{agent:"agent",model:""},reviewDefaults:t.reviewDefaults||{needsBotReviewCommentTemplate:"",needsBotReviewPromptTemplate:"",needsBotReviewAgent:"agent",needsBotReviewModel:"",needsBotReviewChatSession:"new",readyPromptTemplate:""}}}function Bm(t,o){switch(t){case"configured":case"missing":case"stale":case"invalid":case"workspace-required":return t;default:return o||"workspace-required"}}function uu(t){return function(i,n){var l=Array.isArray(i&&i.disabledSystemFlagKeys)?i.disabledSystemFlagKeys.map(function(y){return t(y)}).filter(function(y,E,g){return!!y&&g.indexOf(y)===E}):(n&&n.disabledSystemFlagKeys||[]).slice(),d=!!i&&Object.prototype.hasOwnProperty.call(i,"researchProvider"),p=i&&i.searchProvider==="tavily"?"tavily":n&&n.searchProvider||"built-in",m;return d?m=i&&(i.researchProvider==="perplexity"||i.researchProvider==="tavily"||i.researchProvider==="google-grounded")?i.researchProvider:"none":i&&i.searchProvider==="perplexity"?m="perplexity":i&&i.searchProvider==="tavily"?m="tavily":m=n&&n.researchProvider||"none",{mode:i&&i.mode==="json"?"json":"sqlite",searchProvider:p,researchProvider:m,sqliteJsonMirror:!i||i.sqliteJsonMirror!==!1,disabledSystemFlagKeys:l,appVersion:i&&typeof i.appVersion=="string"?i.appVersion:n&&n.appVersion||"",mcpSetupStatus:Bm(i&&i.mcpSetupStatus,n&&n.mcpSetupStatus),lastMcpSupportUpdateAt:i&&typeof i.lastMcpSupportUpdateAt=="string"?i.lastMcpSupportUpdateAt:n&&n.lastMcpSupportUpdateAt||"",lastBundledSkillsSyncAt:i&&typeof i.lastBundledSkillsSyncAt=="string"?i.lastBundledSkillsSyncAt:n&&n.lastBundledSkillsSyncAt||"",lastBundledAgentsSyncAt:i&&typeof i.lastBundledAgentsSyncAt=="string"?i.lastBundledAgentsSyncAt:n&&n.lastBundledAgentsSyncAt||""}}}function fu(t,o,i){Array.prototype.forEach.call(t.querySelectorAll(o),i)}function pu(t,o){fu(t,".tab-button",function(l){l.classList.remove("active")}),fu(t,".tab-content",function(l){l.classList.remove("active")});var i=t.querySelector('.tab-button[data-tab="'+o+'"]'),n=t.getElementById(o+"-tab");i&&i.classList.add("active"),n&&n.classList.add("active")}function Cr(t,o){t&&t.addEventListener("change",function(){o(t)})}function ti(t,o){t&&t.addEventListener("change",o)}function gu(t,o){Array.prototype.forEach.call(t.querySelectorAll(".tab-button[data-tab]"),function(i){i.addEventListener("click",function(n){n.preventDefault();var l=n.stopImmediatePropagation||n.stopPropagation;l.call(n);var d=i.getAttribute("data-tab");d&&o(d)})})}function vu(t,o){t&&(o.syncTaskFilterButtons(),t.addEventListener("click",function(i){for(var n=i&&i.target,l=n||null;l&&l!==t&&!(l.getAttribute&&l.getAttribute("data-filter"));)l=l.parentElement;if(!(!l||l===t)){var d=l.getAttribute("data-filter");o.isValidTaskFilter(d)&&(o.setActiveTaskFilter(d),o.syncTaskFilterButtons(),o.persistTaskFilter(),o.renderTaskList())}}))}function mu(t,o){t.forEach(function(i){!i||typeof i.addEventListener!="function"||(i.addEventListener("input",o),i.addEventListener("change",o))})}function O(t,o){!t||typeof t.addEventListener!="function"||t.addEventListener("click",o)}function Ns(t,o){if(t){var i=function(){o(t)};t.addEventListener("change",i)}}function Os(t,o,i){var n=function(l){var d=l&&l.target;if(!(!d||typeof d.id!="string")){var p=i[d.id];typeof p=="function"&&p(d)}};t.addEventListener(o,n)}function Hs(t,o,i){var n="* * * * *";O(t,function(){var l=o().trim();l||(l=n);var d="https://crontab.guru/#"+encodeURIComponent(l);i.open(d,"_blank")})}function bu(t,o){function i(n,l){o.postMessage({type:"updateTask",taskId:n.getAttribute("data-id"),data:l})}t.addEventListener("change",function(n){var l=n&&n.target;if(l){if(l.classList.contains("task-agent-select")){i(l,{agent:l.value});return}l.classList.contains("task-model-select")&&i(l,{model:l.value})}})}function yu(t,o){t.addEventListener("change",function(i){var n=i&&i.target,l=n&&n.name==="prompt-source"&&n.checked;l&&o(String(n.value||""))})}function Js(t,o,i){!t||!o||(t.addEventListener("change",function(){var n=t.value;n&&(o.value=n),i()}),o.addEventListener("input",function(){t.value="",i()}))}function hu(t,o,i){t&&t.addEventListener("change",function(){var n=t.value;if(n){var l=o.querySelector('input[name="prompt-source"]:checked'),d={type:"loadPromptTemplate",path:n,source:l?l.value:"inline"};i.postMessage(d)}})}function Ia(t,o){return t?(t.textContent=o,t.style.display="block",!0):!1}function Ea(t){return String(t||"").trim()}function Su(t){var o=typeof t=="number"?t:Number(t);if(!isFinite(o))return 0;var i=Math.floor(o);return i>0?i:0}function Tu(t){var o=t.taskData,i=t.promptSourceValue,n=t.formErr,l=t.strings,d=t.editingTaskId,p=t.getTaskByIdLocal,m=Ea(o.name);if(!m)return Ia(n,l.taskNameRequired||""),!1;var y=Ea(o.promptPath);if(i!=="inline"&&!y)return Ia(n,l.templateRequired||""),!1;var E=Ea(o.prompt);if(i!=="inline"&&!E&&d){var g=p(d);o.prompt=g&&typeof g.prompt=="string"?g.prompt:"",E=Ea(o.prompt)}if(i==="inline"&&!E)return Ia(n,l.promptRequired||""),!1;var h=Ea(o.cronExpression);if(o.oneTime){if(Su(o.oneTimeDelaySeconds)<1)return Ia(n,l.oneTimeDelayRequired||l.invalidCronExpression||""),!1}else if(!h)return Ia(n,l.cronExpressionRequired||l.invalidCronExpression||""),!1;return!0}function ku(t,o,i){var n=!!o,l=n?{type:"updateTask",taskId:String(o),data:i}:{type:"createTask",data:i};t.postMessage(l)}function Iu(t){var o=t.editorState||{},i=t.parseLabels?t.parseLabels(o.labels||""):[];return{name:o.name||"",prompt:o.prompt||"",cronExpression:o.cronExpression||(o.oneTime?"* * * * *":""),labels:i,agent:o.agent||"",model:o.model||"",scope:o.scope||"workspace",promptSource:o.promptSource||"inline",promptPath:o.promptPath||"",runFirstInOneMinute:!!t.runFirstInOneMinute,oneTime:!!o.oneTime,oneTimeDelaySeconds:o.oneTime?Su(o.oneTimeDelaySeconds):0,manualSession:!!o.manualSession,jitterSeconds:Number(o.jitterSeconds||0),enabled:t.editingTaskId?t.editingTaskEnabled:!0,chatSession:o.oneTime?"":o.chatSession||"new"}}function wm(t){["refreshTasks","refreshAgents","refreshPrompts"].forEach(function(o){t.postMessage({type:o})})}function Cm(t,o){return(Array.isArray(t)?t:[]).find(function(i){return i&&i.id===o})}function Eu(t,o){O(t,function(){var i=o.document.getElementById("prompt-text"),n=i?i.value:"",l=o.agentSelect?o.agentSelect.value:"",d=o.modelSelect?o.modelSelect.value:"";if(n){var p=Object.assign({type:"testPrompt"},{prompt:n,agent:l,model:d});o.vscode.postMessage(p)}})}function Au(t,o){O(t,function(){wm(o)})}function Bu(t,o){O(t,function(){o.postMessage({type:"toggleAutoShowOnStartup"})})}function wu(t,o){O(t,function(){var i=o.cockpitHistorySelect?o.cockpitHistorySelect.value:"";if(!i){o.window.alert(o.strings.cockpitHistoryRestoreSelectRequired||"Select a backup version first");return}var n=Cm(o.cockpitHistory,i),l=o.formatHistoryLabel(n),d=(o.strings.cockpitHistoryRestoreConfirm||"Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}",l).replace("{timestamp}",l);o.window.confirm(d)&&o.vscode.postMessage({type:"restoreScheduleHistory",snapshotId:i})})}function Cu(t){O(t.jobsNewFolderBtn,function(){t.vscode.postMessage({type:"requestCreateJobFolder",parentFolderId:t.getSelectedJobFolderId()||void 0})}),O(t.jobsRenameFolderBtn,function(){var n=t.getSelectedJobFolderId();n&&t.vscode.postMessage({type:"requestRenameJobFolder",folderId:n})}),O(t.jobsDeleteFolderBtn,function(){var n=t.getSelectedJobFolderId();n&&t.vscode.postMessage({type:"requestDeleteJobFolder",folderId:n})});function o(n){t.setCreatingJob(!0),t.syncEditorTabLabels(),t.vscode.postMessage({type:"requestCreateJob",folderId:t.getSelectedJobFolderId()||void 0}),n&&t.switchTab("jobs-edit")}O(t.jobsNewJobBtn,function(){o(!0)}),O(t.jobsEmptyNewBtn,function(){o(!1)}),O(t.jobsBackBtn,function(){t.switchTab("jobs")}),O(t.jobsOpenEditorBtn,function(){t.openJobEditor(t.getSelectedJobId()||"")}),O(t.jobsSaveBtn,t.submitJobEditor),O(t.jobsSaveDeckBtn,t.submitJobEditor),O(t.jobsDuplicateBtn,function(){var n=t.getSelectedJobId();n&&t.vscode.postMessage({type:"duplicateJob",jobId:n})});function i(){var n=t.getSelectedJobId();n&&t.vscode.postMessage({type:"toggleJobPaused",jobId:n})}O(t.jobsPauseBtn,i),O(t.jobsStatusPill,i),O(t.jobsCompileBtn,function(){var n=t.getSelectedJobId();n&&t.vscode.postMessage({type:"compileJob",jobId:n})}),O(t.jobsToggleSidebarBtn,function(){t.toggleJobsSidebar()}),O(t.jobsShowSidebarBtn,function(){t.showJobsSidebar()}),O(t.jobsDeleteBtn,function(){var n=t.getSelectedJobId();n&&t.vscode.postMessage({type:"deleteJob",jobId:n})}),O(t.jobsAttachBtn,function(){var n=t.getSelectedJobId();!n||!t.jobsExistingTaskSelect||!t.jobsExistingTaskSelect.value||t.vscode.postMessage({type:"attachTaskToJob",jobId:n,taskId:t.jobsExistingTaskSelect.value,windowMinutes:t.jobsExistingWindowInput?Number(t.jobsExistingWindowInput.value||30):30})}),O(t.jobsCreateStepBtn,function(){var n=t.getSelectedJobId();if(n){var l=t.jobsStepNameInput?t.jobsStepNameInput.value.trim():"",d=t.jobsStepPromptInput?t.jobsStepPromptInput.value.trim():"";if(!(!l||!d)){var p=t.getJobById(n);t.vscode.postMessage({type:"createJobTask",jobId:n,windowMinutes:t.jobsStepWindowInput?Number(t.jobsStepWindowInput.value||30):30,data:{name:l,prompt:d,cronExpression:p&&p.cronExpression?p.cronExpression:"0 9 * * 1-5",agent:t.jobsStepAgentSelect?t.jobsStepAgentSelect.value:"",model:t.jobsStepModelSelect?t.jobsStepModelSelect.value:"",labels:t.parseLabels(t.jobsStepLabelsInput?t.jobsStepLabelsInput.value:""),scope:"workspace",promptSource:"inline",oneTime:!1}}),t.jobsStepNameInput&&(t.jobsStepNameInput.value=""),t.jobsStepPromptInput&&(t.jobsStepPromptInput.value=""),t.jobsStepLabelsInput&&(t.jobsStepLabelsInput.value=""),t.jobsStepWindowInput&&(t.jobsStepWindowInput.value="30")}}}),O(t.jobsCreatePauseBtn,function(){var n=t.getSelectedJobId();if(n){var l=t.jobsPauseNameInput?t.jobsPauseNameInput.value.trim():"";t.vscode.postMessage({type:"createJobPause",jobId:n,data:{title:l||t.defaultPauseTitle||"Manual review"}}),t.jobsPauseNameInput&&(t.jobsPauseNameInput.value="")}})}function ju(t){return t||"auto"}function Du(t,o){t.postMessage({type:o})}function Lu(t,o){O(t,function(){Du(o.vscode,"refreshPrompts");var i=o.templateSelect?o.templateSelect.value:"",n=o.document.querySelector('input[name="prompt-source"]:checked'),l=n?n.value:"inline";if(i&&(l==="local"||l==="global")){var d=Object.assign({type:"loadPromptTemplate"},{path:i,source:l});o.vscode.postMessage(d)}})}function Pu(t,o){Object.keys(o).forEach(function(i){O(o[i],function(){Du(t,i)})})}function Fu(t,o,i){var n=ju(i);t&&(t.value=n),o&&(o.value=n)}function xu(t,o,i,n){var l=ju(n);Fu(t,o,l),i.postMessage({type:"setLanguage",language:l})}function Mu(t,o,i,n){Fu(t,o,n),t&&t.addEventListener("change",function(){xu(t,o,i,t.value)}),o&&o.addEventListener("change",function(){xu(t,o,i,o.value)})}function Ru(t,o){var i=t&&t.target,n=o.getClosestEventTarget(t,"[data-research-id]");if(n&&o.researchProfileList&&o.researchProfileList.contains(n))return t.preventDefault(),t.stopPropagation(),o.selectResearchProfile(n.getAttribute("data-research-id")||""),!0;var l=o.getClosestEventTarget(t,"[data-run-id]");if(l&&o.researchRunList&&o.researchRunList.contains(l))return t.preventDefault(),t.stopPropagation(),o.selectResearchRun(l.getAttribute("data-run-id")||""),!0;var d=i&&i.closest?i.closest("[data-job-folder]"):null;if(d&&o.jobsFolderList&&o.jobsFolderList.contains(d))return o.setSelectedJobFolderId(d.getAttribute("data-job-folder")||""),o.setSelectedJobId(""),o.persistTaskFilter(),o.renderJobsTab(),!0;var p=i&&i.closest?i.closest("[data-job-open-editor]"):null;if(p&&o.jobsList&&o.jobsList.contains(p))return o.openJobEditor(p.getAttribute("data-job-open-editor")||""),!0;var m=i&&i.closest?i.closest("[data-job-id]"):null;if(m&&o.jobsList&&o.jobsList.contains(m))return o.setSelectedJobId(m.getAttribute("data-job-id")||""),o.persistTaskFilter(),o.renderJobsTab(),!0;var y=i&&i.getAttribute?i.getAttribute("data-job-action"):"";if(!y)return!1;if(y==="detach-node"){var E=i.getAttribute("data-job-node-id")||"";return o.getSelectedJobId()&&E&&o.vscode.postMessage({type:"requestDeleteJobTask",jobId:o.getSelectedJobId(),nodeId:E}),!0}if(y==="edit-task"){var g=i.getAttribute("data-job-task-id")||"";return g&&typeof o.editTask=="function"&&o.editTask(g),!0}if(y==="edit-pause"){var h=i.getAttribute("data-job-node-id")||"";return o.getSelectedJobId()&&h&&o.vscode.postMessage({type:"requestRenameJobPause",jobId:o.getSelectedJobId(),nodeId:h}),!0}if(y==="delete-pause"){var j=i.getAttribute("data-job-node-id")||"";return o.getSelectedJobId()&&j&&o.vscode.postMessage({type:"requestDeleteJobPause",jobId:o.getSelectedJobId(),nodeId:j}),!0}if(y==="approve-pause"){var R=i.getAttribute("data-job-node-id")||"";return o.getSelectedJobId()&&R&&o.vscode.postMessage({type:"approveJobPause",jobId:o.getSelectedJobId(),nodeId:R}),!0}if(y==="reject-pause"){var $=i.getAttribute("data-job-node-id")||"";return o.getSelectedJobId()&&$&&o.vscode.postMessage({type:"rejectJobPause",jobId:o.getSelectedJobId(),nodeId:$}),!0}if(y==="run-task"){var D=i.getAttribute("data-job-task-id")||"";return D&&typeof o.runTask=="function"&&o.runTask(D),!0}return!1}function Nu(t,o){t.addEventListener("change",function(i){var n=i&&i.target;if(n&&n.classList&&n.classList.contains("job-node-window-input")){var l=o.getSelectedJobId();if(!l)return;var d=n.getAttribute("data-job-node-window-id")||"";if(!d)return;o.vscode.postMessage({type:"updateJobNodeWindow",jobId:l,nodeId:d,windowMinutes:Number(n.value||30)})}})}function Ou(t,o){t.addEventListener("dragstart",function(i){var n=i&&i.target,l=n&&n.closest?n.closest("[data-job-id]"):null;if(l&&o.jobsList&&o.jobsList.contains(l)){o.setDraggedJobId(l.getAttribute("data-job-id")||""),l.classList&&l.classList.add("dragging"),i.dataTransfer&&(i.dataTransfer.effectAllowed="move");return}var d=n&&n.closest?n.closest("[data-job-node-id]"):null;d&&(o.setDraggedJobNodeId(d.getAttribute("data-job-node-id")||""),d.classList&&d.classList.add("dragging"),i.dataTransfer&&(i.dataTransfer.effectAllowed="move"))}),t.addEventListener("dragend",function(i){var n=i&&i.target,l=n&&n.closest?n.closest("[data-job-id]"):null;l&&l.classList&&l.classList.remove("dragging");var d=n&&n.closest?n.closest("[data-job-node-id]"):null;d&&d.classList&&d.classList.remove("dragging"),o.setDraggedJobId(""),o.setDraggedJobNodeId(""),Array.prototype.forEach.call(t.querySelectorAll(".jobs-step-card.drag-over"),function(p){p&&p.classList&&p.classList.remove("drag-over")}),Array.prototype.forEach.call(t.querySelectorAll(".jobs-folder-item.drag-over"),function(p){p&&p.classList&&p.classList.remove("drag-over")})}),t.addEventListener("dragover",function(i){var n=i&&i.target,l=n&&n.closest?n.closest("[data-job-folder]"):null;if(l&&o.getDraggedJobId()){i.preventDefault(),i.dataTransfer&&(i.dataTransfer.dropEffect="move"),l.classList&&l.classList.add("drag-over");return}var d=n&&n.closest?n.closest("[data-job-node-id]"):null;!d||!o.getDraggedJobNodeId()||(i.preventDefault(),i.dataTransfer&&(i.dataTransfer.dropEffect="move"),d.classList&&d.classList.add("drag-over"))}),t.addEventListener("dragleave",function(i){var n=i&&i.target,l=n&&n.closest?n.closest("[data-job-folder]"):null;l&&l.classList&&l.classList.remove("drag-over");var d=n&&n.closest?n.closest("[data-job-node-id]"):null;d&&d.classList&&d.classList.remove("drag-over")}),t.addEventListener("drop",function(i){var n=i&&i.target,l=o.getDraggedJobId(),d=n&&n.closest?n.closest("[data-job-folder]"):null;if(d&&l){i.preventDefault(),d.classList&&d.classList.remove("drag-over");var p=d.getAttribute("data-job-folder")||"",m=o.getJobById(l);if(!m||(m.folderId||"")===p)return;o.vscode.postMessage({type:"updateJob",jobId:l,data:{folderId:p||void 0}});return}var y=n&&n.closest?n.closest("[data-job-node-id]"):null,E=o.getDraggedJobNodeId(),g=o.getSelectedJobId();if(!(!y||!E||!g)){i.preventDefault(),y.classList&&y.classList.remove("drag-over");var h=y.getAttribute("data-job-node-id")||"",j=o.getJobById(g);if(!(!j||!Array.isArray(j.nodes))){var R=j.nodes.findIndex(function($){return $&&$.id===h});R<0||E===h||o.vscode.postMessage({type:"reorderJobNode",jobId:g,nodeId:E,targetIndex:R})}}})}function Hu(t,o,i){return{currentTodoLabels:[],currentTodoDraft:t(),selectedTodoLabelName:"",currentTodoFlag:"",pendingTodoFilters:null,pendingDeleteLabelName:"",pendingDeleteFlagName:"",pendingTodoDeleteId:"",pendingBoardDeleteTodoId:"",pendingBoardDeletePermanentOnly:!1,todoDeleteModalRoot:null,todoCommentModalRoot:null,pendingAgentValue:"",pendingModelValue:"",pendingTemplatePath:"",editingTaskEnabled:!0,pendingSubmit:!1,helpWarpIntroPending:xm(o,i),helpWarpFadeTimeout:0,helpWarpCleanupTimeout:0,isCreatingJob:!1,todoEditorListenersBound:!1}}function xm(t,o){try{return t.getItem(o)!=="1"}catch{return!0}}(function(){var t=null,o=nu(document),i=o.initialData,n=o.strings,l=o.currentLogLevel,d=o.currentLogDirectory,p=null;function m(){(!_||!_.isConnected)&&(_=document.getElementById("task-list")),_&&_.querySelectorAll(".task-next-run-countdown").forEach(function(e){var r=Number(e.getAttribute("data-next-run-ms")||""),a=e.getAttribute("data-enabled")==="true";e.textContent=tu(a,r)})}var y=0;function E(){var e=document.getElementById("global-error-banner"),r=document.getElementById("global-error-text");y&&(clearTimeout(y),y=0),r&&(r.textContent=""),e&&e.classList.remove("is-visible")}function g(e,r){var a=document.getElementById("global-error-banner"),s=document.getElementById("global-error-text");if(a){var c=ka(String(e||"")).trim();if(!c){E();return}y&&(clearTimeout(y),y=0),s?s.textContent=c:a.textContent=c,a.classList.add("is-visible");var u=r&&typeof r.durationMs=="number"?r.durationMs:8e3;u>0&&(y=setTimeout(function(){E()},u))}}au({window,strings:n,showGlobalError:g,sanitizeAbsolutePaths:ka});function h(){return{postMessage:function(){}}}var j=typeof acquireVsCodeApi=="function";t=j?acquireVsCodeApi():h(),j||(t=h(),g(n.webviewApiUnavailable||"",{durationMs:0}));var R=Oc({console,initialLogLevel:l,vscode:t}),$=R.createEmptyTodoDraft,D=R.emitWebviewDebug;function lt(e,r){!e||typeof e.addEventListener!="function"||e.addEventListener("click",function(a){var s=a&&a.target&&a.target.nodeType===3?a.target.parentElement:a.target;if(!(!s||typeof s.closest!="function")){var c=s.closest(r.selector);c&&D(r.eventName,{controlId:c.id||"",tagName:c.tagName?String(c.tagName).toLowerCase():"",disabled:!!c.disabled,selectedTodoId:C||""})}},!0)}var Ie=cu(i),M=Ie.tasks,Ee=Ie.jobs,ge=Ie.jobFolders,L=Ie.cockpitBoard,Je=Ie.telegramNotification,ve=Ie.executionDefaults,ie=Ie.reviewDefaults,ln=uu(w),Ae=ou(i,ln),me=Ae.storageSettings,Qt=Ae.researchProfiles,Be=Ae.activeResearchRun,er=Ae.recentResearchRuns,tr=Ae.agents,rr=Ae.models,Aa=Ae.promptTemplates,dn=Ae.skills,Ba=Ae.cockpitHistory,xr=Ae.defaultChatSession,ri=Ae.autoShowOnStartup,Ju=Ae.workspacePaths,Vu=Ae.caseInsensitivePaths,Ge=null,C=null,Vs=3e4,qu=1e4,yt=null,wa=null,cn={},un={},Ca="+",ni="\u2699",_e=su(),nr=null,jr=!1;function ar(){_e.draggingTodoId=nr,_e.isBoardDragging=jr,lu(_e,requestAnimationFrame,function(){Yt()}),nr=_e.draggingTodoId,jr=_e.isBoardDragging}function Wu(){_e.draggingTodoId=nr,_e.isBoardDragging=jr,du(_e,function(){Ni=null,Oi=null},function(){nr=_e.draggingTodoId,jr=_e.isBoardDragging,ar()}),nr=_e.draggingTodoId,jr=_e.isBoardDragging}var qs="copilot-scheduler-help-warp-seen-v1",te=Hu($,localStorage,qs),Z=te.currentTodoLabels,X=te.currentTodoDraft,z=te.selectedTodoLabelName,U=te.currentTodoFlag,fn=te.pendingTodoFilters,ai=te.pendingDeleteLabelName,oi=te.pendingDeleteFlagName,Dr=te.pendingTodoDeleteId,ht=te.pendingBoardDeleteTodoId,pn=te.pendingBoardDeletePermanentOnly,Pe=te.todoDeleteModalRoot,Fe=te.todoCommentModalRoot,dt=te.pendingAgentValue,ct=te.pendingModelValue,St=te.pendingTemplatePath,ii=te.editingTaskEnabled,si=te.pendingSubmit,Ws=te.helpWarpIntroPending,zs=te.helpWarpFadeTimeout,Us=te.helpWarpCleanupTimeout,Ve=te.isCreatingJob,Gs=te.todoEditorListenersBound,Lr={name:"",color:""},Pr={name:"",color:""};function _s(e){X=R.resetTodoDraft(e),es()}function gn(e){X=R.syncTodoDraftFromInputs({currentTodoDraft:X,reason:e,selectedTodoId:C,todoCommentInput:ee,todoDescriptionInput:tt,todoDueInput:vt,todoLinkedTaskSelect:Ce,todoPriorityInput:ye,todoSectionInput:we,todoTitleInput:Lt})}function Ct(){C||!X||(X.flag=U||"")}function be(){C||!X||(X.flag=U||"",X.labelInput=N?String(N.value||""):X.labelInput||"",X.labelColor=H?String(H.value||""):X.labelColor||"#4f8cff",X.flagInput=We?String(We.value||""):X.flagInput||"",X.flagColor=je?String(je.value||""):X.flagColor||"#f59e0b")}function Ys(){var e=gt?String(gt.value||"").trim():"";return e||(C?String(C):"")}var li=ru(i.defaultJitterSeconds),Tt=typeof i.locale=="string"&&i.locale||void 0,Ks="",xa=!1,{taskForm:vn,taskList:_,editTaskIdInput:Xs,submitBtn:Fr,testBtn:zu,refreshBtn:Uu,autoShowStartupBtn:di,cockpitHistorySelect:ut,restoreHistoryBtn:mn,autoShowStartupNote:$s,friendlyBuilder:Gu,recurringScheduleGroup:Zs,oneTimeDelayGroup:Qs,cronPreset:ja,cronExpression:qe,oneTimeDelayHours:bn,oneTimeDelayMinutes:yn,oneTimeDelaySeconds:hn,oneTimeDelayPreviewText:ci,agentSelect:Ye,modelSelect:Ke,chatSessionGroup:el,chatSessionSelect:Me,templateSelect:ft,templateSelectGroup:tl,templateRefreshBtn:_u,skillSelect:pt,skillDetailsNote:rl,insertSkillBtn:Yu,setupMcpBtn:Ku,setupCodexBtn:Xu,setupCodexSkillsBtn:$u,syncBundledSkillsBtn:Zu,stageBundledAgentsBtn:Qu,syncBundledAgentsBtn:ef,openCopilotSettingsBtn:tf,openExtensionSettingsBtn:rf,refreshStorageStatusBtn:nf,settingsStatusRefreshNote:Sn,importStorageFromJsonBtn:af,exportStorageToJsonBtn:of,helpLanguageSelect:sf,settingsLanguageSelect:lf,helpWarpLayer:Re,helpIntroRocket:xt,promptGroup:nl,promptTextEl:df,jitterSecondsInput:Mr,friendlyFrequency:or,friendlyInterval:Tn,friendlyMinute:kn,friendlyHour:In,friendlyDow:En,friendlyDom:An,openGuruBtn:cf,cronPreviewText:uf,newTaskBtn:Da,taskFilterBar:ui,taskLabelFilter:jt,taskLabelsInput:Rr,runFirstGroup:al,jobsFolderList:fi,jobsCurrentFolderBanner:ol,jobsList:Bn,jobsEmptyState:La,jobsDetails:Pa,jobsLayout:pi,jobsToggleSidebarBtn:gi,jobsShowSidebarBtn:wn,jobsNewFolderBtn:ff,jobsRenameFolderBtn:vi,jobsDeleteFolderBtn:mi,jobsNewJobBtn:pf,jobsSaveBtn:bi,jobsSaveDeckBtn:gf,jobsDuplicateBtn:yi,jobsPauseBtn:Fa,jobsCompileBtn:hi,jobsDeleteBtn:Si,jobsBackBtn:vf,jobsOpenEditorBtn:Ti,tabBar:il,boardFilterSticky:Dt,boardSummary:sl,boardColumns:Nr,todoToggleFiltersBtn:Cn,todoSearchInput:xn,todoSectionFilter:Or,todoLabelFilter:ir,todoFlagFilter:sr,todoPriorityFilter:lr,todoStatusFilter:dr,todoArchiveOutcomeFilter:cr,todoSortBy:Hr,todoSortDirection:Jr,todoViewMode:Vr,todoShowRecurringTasks:jn,todoShowArchived:Dn,todoHideCardDetails:Ln,todoNewBtn:ll,todoClearSelectionBtn:dl,todoClearFiltersBtn:Ma,todoBackBtn:cl,todoDetailTitle:Ra,todoDetailModeNote:ul,todoDetailForm:qr,todoDetailId:gt,todoTitleInput:Lt,todoDescriptionInput:tt,todoDueInput:vt,todoPriorityInput:ye,todoSectionInput:we,todoLinkedTaskSelect:Ce,todoDetailStatus:Na,todoLabelChipList:Oa,todoLabelsInput:N,todoLabelSuggestions:xe,todoLabelColorInput:H,todoLabelAddBtn:ki,todoLabelColorSaveBtn:ur,todoLabelCatalog:Pn,todoFlagNameInput:We,todoFlagColorInput:je,todoFlagAddBtn:Ii,todoFlagColorSaveBtn:rt,todoLinkedTaskNote:fr,todoSaveBtn:Fn,todoCreateTaskBtn:Ha,todoCompleteBtn:Pt,todoDeleteBtn:Ja,todoUploadFilesBtn:Va,todoUploadFilesNote:Mn,todoCommentList:Wr,todoCommentInput:ee,todoAddCommentBtn:zr,todoCommentCountBadge:fl,todoCommentModePill:pl,todoCommentContextNote:gl,todoCommentComposerTitle:vl,todoCommentComposerNote:ml,todoCommentDraftStatus:qa,todoCommentThreadNote:Ei,jobsNameInput:Ft,jobsCronPreset:Wa,jobsCronInput:de,jobsCronPreviewText:mf,jobsOpenGuruBtn:bf,jobsFriendlyBuilder:yf,jobsFriendlyFrequency:Ur,jobsFriendlyInterval:za,jobsFriendlyMinute:Ua,jobsFriendlyHour:Ga,jobsFriendlyDow:_a,jobsFriendlyDom:Ya,jobsFolderSelect:Xe,jobsStatusPill:pr,jobsTimelineInline:bl,jobsWorkflowMetrics:Gr,jobsStepList:Ai,jobsPauseNameInput:hf,jobsCreatePauseBtn:Sf,jobsExistingTaskSelect:Ka,jobsExistingWindowInput:Tf,jobsAttachBtn:Bi,jobsStepNameInput:kf,jobsStepWindowInput:If,jobsStepPromptInput:Ef,jobsStepAgentSelect:Xa,jobsStepModelSelect:$a,jobsStepLabelsInput:Af,jobsCreateStepBtn:Bf,researchNewBtn:jm,researchLoadAutoAgentExampleBtn:Dm,researchSaveBtn:yl,researchDuplicateBtn:hl,researchDeleteBtn:Sl,researchStartBtn:Tl,researchStopBtn:kl,researchEditIdInput:Mt,researchNameInput:nt,researchInstructionsInput:Rn,researchEditablePathsInput:Nn,researchBenchmarkInput:On,researchMetricPatternInput:Hn,researchMetricDirectionSelect:Jn,researchMaxIterationsInput:Vn,researchMaxMinutesInput:qn,researchMaxFailuresInput:Wn,researchBenchmarkTimeoutInput:zn,researchEditWaitInput:Un,researchAgentSelect:Rt,researchModelSelect:Nt,researchProfileList:Za,researchRunList:Qa,researchRunTitle:Il,researchFormError:_r,researchActiveEmpty:eo,researchActiveDetails:wi,researchActiveStatus:El,researchActiveBest:Al,researchActiveAttempts:Bl,researchActiveLastOutcome:wl,researchActiveMeta:Cl,researchAttemptList:to,telegramEnabledInput:Gn,telegramBotTokenInput:Yr,telegramChatIdInput:_n,telegramMessagePrefixInput:Yn,telegramSaveBtn:wf,telegramTestBtn:Cf,telegramFeedback:Ot,telegramTokenStatus:xl,telegramChatStatus:jl,telegramHookStatus:Dl,telegramUpdatedAt:Ll,telegramStatusNote:Pl,defaultAgentSelect:Ci,defaultModelSelect:xi,executionDefaultsSaveBtn:xf,executionDefaultsNote:jf,approvalModeSelect:ji,approvalModeNote:Di,needsBotReviewCommentTemplateInput:ro,needsBotReviewPromptTemplateInput:no,needsBotReviewAgentSelect:Li,needsBotReviewModelSelect:Pi,needsBotReviewChatSessionSelect:ao,readyPromptTemplateInput:oo,reviewDefaultsSaveBtn:Df,reviewDefaultsNote:Fl,settingsStorageModeSelect:io,settingsSearchProviderSelect:Kn,settingsResearchProviderSelect:gr,settingsStorageMirrorInput:so,settingsFlagReadyInput:lo,settingsFlagNeedsBotReviewInput:co,settingsFlagNeedsUserReviewInput:uo,settingsFlagNewInput:fo,settingsFlagOnScheduleListInput:po,settingsFlagFinalUserCheckInput:go,settingsStorageSaveBtn:Lf,settingsStorageNote:Ml,settingsVersionValue:Rl,settingsMcpStatusValue:Nl,settingsMcpUpdatedValue:Ol,settingsSkillsUpdatedValue:Hl,settingsAgentsUpdatedValue:Jl,settingsLogLevelSelect:Fi,settingsLogDirectoryInput:Mi,settingsOpenLogFolderBtn:Pf,boardAddSectionBtn:Xn,boardSectionInlineForm:vo,boardSectionNameInput:vr,boardSectionSaveBtn:Vl,boardSectionCancelBtn:ql,cockpitColSlider:Ne}=iu(document),ce="all",Ri=!1,at="",$n=!1,Kr={manual:!1,jobs:!0,recurring:!1,"todo-draft":!1,"one-time":!1},ne="",Y="",K="",ze="",$e="",Zn=Object.create(null),Wl="",zl="",Ni=null,Oi=null,Ht=!1,Qn=!1,Jt=!1,ea=0,Hi=0,Ji=0,mo=0,Vi=0,bo=(function(){try{return localStorage.getItem("cockpit-hide-card-details")==="1"}catch{return!1}})(),Vt="",Oe="",Xr=(function(){try{return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections")||"[]"))}catch{return new Set}})();function Ff(e){Xr.has(e)?Xr.delete(e):Xr.add(e);try{localStorage.setItem("cockpit-collapsed-sections",JSON.stringify(Array.from(Xr)))}catch{}}function Mf(e){var r=e>=390?"labels-6":e>=300?"labels-3":"labels-1";document.documentElement.classList.remove("labels-1","labels-3","labels-6"),document.documentElement.classList.add(r)}function Rf(){var e=Ne?Number(Ne.min):180,r=Ne?Number(Ne.max):520,a=r-e;return a>0?Math.round(e+a*.16):214}function Ul(e){var r=Math.round(9+(e-180)*3/340),a=Math.round(6+(e-180)*5/340),s=Math.round(3+(e-180)*3/340),c=Math.max(8,Math.round(8+(e-180)*3/340)),u=Math.max(2,Math.round(2+(e-180)*2/340)),B=Math.max(0,Math.round((e-180)*2/340)),I=Math.max(4,Math.round(4+(e-180)*3/340)),T=Math.max(0,Math.round((e-180)*2/340)),b=Math.max(4,Math.round(4+(e-180)*3/340));document.documentElement.style.setProperty("--cockpit-col-width",e+"px"),document.documentElement.style.setProperty("--cockpit-col-font",r+"px"),document.documentElement.style.setProperty("--cockpit-card-pad",a+"px"),document.documentElement.style.setProperty("--cockpit-card-gap",s+"px"),document.documentElement.style.setProperty("--cockpit-chip-font",c+"px"),document.documentElement.style.setProperty("--cockpit-chip-gap",u+"px"),document.documentElement.style.setProperty("--cockpit-label-pad-y",B+"px"),document.documentElement.style.setProperty("--cockpit-label-pad-x",I+"px"),document.documentElement.style.setProperty("--cockpit-flag-pad-y",T+"px"),document.documentElement.style.setProperty("--cockpit-flag-pad-x",b+"px"),Mf(e),document.documentElement.classList.toggle("cockpit-board-compact-details",e<=Rf())}(function(){var e=localStorage.getItem("cockpit-col-width"),r=e?Number(e):Ne?Number(Ne.value):240;r>=180&&r<=520&&(Ul(r),Ne&&!e&&(Ne.value=String(r)))})();var mr=!1,ta=!1,Nf="";function Gl(e){return e==="all"||e==="manual"||e==="recurring"||e==="one-time"}function Of(e){return e==="manual"||e==="jobs"||e==="recurring"||e==="todo-draft"||e==="one-time"}function br(e){return e==="help"||e==="settings"||e==="research"||e==="jobs"||e==="jobs-edit"||e==="list"||e==="create"||e==="board"||e==="todo-edit"}function Hf(){if(typeof window.scrollY=="number")return Math.max(0,Math.round(window.scrollY));var e=document.scrollingElement||document.documentElement||document.body;return e&&typeof e.scrollTop=="number"?Math.max(0,Math.round(e.scrollTop)):0}function _l(e){var r=Number(e);(!isFinite(r)||r<0)&&(r=0),window.scrollTo(0,Math.round(r))}function Yl(e){br(e)&&(Zn[e]=Hf())}function Jf(e){var r=0;if(br(e)&&typeof Zn[e]=="number"&&(r=Zn[e]),typeof window.requestAnimationFrame=="function"){window.requestAnimationFrame(function(){_l(r)});return}_l(r)}function Vf(){if(!(!t||typeof t.getState!="function"))try{var e=t.getState()||{},r=e&&e.taskFilter;Gl(r)&&(ce=r,Ri=r!=="all"),e&&typeof e.labelFilter=="string"&&(at=e.labelFilter,$n=e.labelFilter.length>0),e&&e.taskSectionCollapseState&&typeof e.taskSectionCollapseState=="object"&&Object.keys(Kr).forEach(function(a){typeof e.taskSectionCollapseState[a]=="boolean"&&(Kr[a]=e.taskSectionCollapseState[a])}),e&&typeof e.selectedJobFolderId=="string"&&(ne=e.selectedJobFolderId),e&&typeof e.selectedJobId=="string"&&(Y=e.selectedJobId),e&&typeof e.jobsSidebarHidden=="boolean"&&(Ht=e.jobsSidebarHidden),e&&typeof e.boardFiltersCollapsed=="boolean"&&(Qn=e.boardFiltersCollapsed),e&&typeof e.selectedResearchId=="string"&&(K=e.selectedResearchId),e&&typeof e.selectedResearchRunId=="string"&&(ze=e.selectedResearchRunId),e&&br(e.activeTab)&&($e=e.activeTab),e&&e.tabScrollPositions&&typeof e.tabScrollPositions=="object"&&Object.keys(e.tabScrollPositions).forEach(function(a){var s=e.tabScrollPositions[a];br(a)&&typeof s=="number"&&isFinite(s)&&s>=0&&(Zn[a]=Math.round(s))})}catch{}}function ue(){if(!(!t||typeof t.setState!="function"))try{var e=typeof t.getState=="function"?t.getState()||{}:{},r={};if(e&&typeof e=="object")for(var a in e)Object.prototype.hasOwnProperty.call(e,a)&&(r[a]=e[a]);r.taskFilter=ce,r.labelFilter=at,r.taskSectionCollapseState=Kr,r.selectedJobFolderId=ne,r.selectedJobId=Y,r.jobsSidebarHidden=Ht,r.boardFiltersCollapsed=Qn,r.selectedResearchId=K,r.selectedResearchRunId=ze,r.activeTab=$e,r.tabScrollPositions=Zn,t.setState(r)}catch{}}function qi(){Ot&&(Ot.textContent="",Ot.style.display="none",Ot.classList.remove("error"))}function Wi(){return!!(Qn||Jt)}function $r(){Hi||(Hi=requestAnimationFrame(function(){Hi=0,qf()}))}function qf(){var e=0;il&&(e=Math.max(0,Math.ceil(il.getBoundingClientRect().height)));var r=e;Dt&&pa("board")&&(r=Math.max(e,e+Math.ceil(Dt.getBoundingClientRect().height+8))),document.documentElement.style.setProperty("--cockpit-tab-bar-sticky-top",e+"px"),document.documentElement.style.setProperty("--cockpit-board-sticky-top",r+"px")}function Kl(){Ji=0,mo=0,Vi=0}function Wf(e){var r=Dt?Math.ceil(Dt.getBoundingClientRect().height):0;Ji=e,mo=Math.max(56,Math.ceil(r+16)),Vi=Date.now()+240}function zf(e){return Vi>Date.now()?!0:mo<=0?!1:Math.abs(e-Ji)<=mo?!0:(Kl(),!1)}function Xl(e){var r=Math.max(window.scrollY||0,document.documentElement&&document.documentElement.scrollTop||0);if(e||!pa("board")){ea=r,Kl(),Jt&&(Jt=!1,yo());return}if(zf(r)){ea=r;return}var a=Jt;r>ea+18&&r>140?a=!0:(r<ea-14||r<72)&&(a=!1),ea=r,a!==Jt&&(Jt=a,Wf(r),yo())}function yo(){if(Dt&&Dt.classList){var e=Wi();Dt.classList.toggle("is-collapsed",e),Dt.setAttribute("data-auto-collapsed",Jt?"true":"false")}if(Cn){var r=Wi();Cn.textContent=r?n.boardShowFilters||"Show Filters":n.boardHideFilters||"Hide Filters",Cn.setAttribute("aria-expanded",r?"false":"true")}$r()}function Zr(e){if(!e||!L||!Array.isArray(L.cards))return null;for(var r=0;r<L.cards.length;r+=1){var a=L.cards[r];if(a&&a.id===e)return a}return null}function ho(e,r){Mn&&(Mn.textContent=e||n.boardUploadFilesHint||"",Mn.classList.remove("is-success","is-error"),r==="success"?Mn.classList.add("is-success"):r==="error"&&Mn.classList.add("is-error"))}function Uf(e){if(!(!tt||!e)){var r=String(tt.value||""),a=r?/\n\s*$/.test(r)?`
-`:`
+"use strict";
+(() => {
+  // media/cockpitWebviewBoardInteractions.js
+  function getEventTargetElement(eventOrTarget) {
+    var target = eventOrTarget && eventOrTarget.target ? eventOrTarget.target : eventOrTarget;
+    if (target && target.nodeType === 3) {
+      target = target.parentElement;
+    }
+    return target || null;
+  }
+  function getClosestEventTarget(eventOrTarget, selector) {
+    var target = getEventTargetElement(eventOrTarget);
+    return target && target.closest ? target.closest(selector) : null;
+  }
+  function isTodoInteractiveTarget(target) {
+    return !!getClosestEventTarget(
+      target,
+      [
+        "input",
+        "button",
+        "select",
+        "textarea",
+        "a",
+        "label",
+        '[role="button"]',
+        '[contenteditable="true"]',
+        "[data-no-drag]",
+        "[data-todo-edit]",
+        "[data-todo-delete]",
+        "[data-todo-delete-cancel]",
+        "[data-todo-delete-reject]",
+        "[data-todo-delete-permanent]",
+        "[data-todo-purge]",
+        "[data-todo-restore]",
+        "[data-todo-complete]",
+        "[data-todo-complete-cancel]",
+        "[data-section-collapse]",
+        "[data-section-rename]",
+        "[data-section-delete]"
+      ].join(", ")
+    );
+  }
+  function scheduleBoardTimeout(options, callback, delay) {
+    var timeoutFn = options && typeof options.setTimeout === "function" ? options.setTimeout : typeof setTimeout === "function" ? setTimeout : null;
+    if (!timeoutFn) {
+      callback();
+      return null;
+    }
+    return timeoutFn.call(null, callback, delay);
+  }
+  function handleBoardSectionCollapse(collapseBtn, options) {
+    var sectionId = collapseBtn.getAttribute("data-section-collapse");
+    options.toggleSectionCollapsed(sectionId);
+    var sectionEl = collapseBtn.closest ? collapseBtn.closest("[data-section-id]") : null;
+    var bodyWrapper = sectionEl ? sectionEl.querySelector(".section-body-wrapper") : null;
+    var isNowCollapsed = options.collapsedSections.has(sectionId);
+    collapseBtn.classList.toggle("collapsed", isNowCollapsed);
+    collapseBtn.setAttribute("aria-expanded", isNowCollapsed ? "false" : "true");
+    collapseBtn.title = isNowCollapsed ? "Expand section" : "Collapse section";
+    if (bodyWrapper) {
+      bodyWrapper.classList.toggle("collapsed", isNowCollapsed);
+    }
+    if (sectionEl) {
+      sectionEl.classList.toggle("is-collapsed", isNowCollapsed);
+    }
+  }
+  function handleBoardSectionRename(sectionRenameBtn, options) {
+    var sectionId = sectionRenameBtn.getAttribute("data-section-rename");
+    var sectionEl = sectionRenameBtn.closest ? sectionRenameBtn.closest("[data-section-id]") : null;
+    var sectionHeader = sectionEl ? sectionEl.querySelector(".cockpit-section-header") : null;
+    var strongEl = sectionHeader ? sectionHeader.querySelector("strong") : null;
+    if (!strongEl) return;
+    var currentTitle = strongEl.textContent || "";
+    var inputEl = options.document.createElement("input");
+    inputEl.type = "text";
+    inputEl.value = currentTitle;
+    inputEl.style.cssText = "font-weight:600;font-size:inherit;width:110px;max-width:100%;border:1px solid var(--vscode-focusBorder);background:var(--vscode-input-background);color:var(--vscode-input-foreground);border-radius:3px;padding:1px 4px;";
+    var committed = false;
+    var saveRename = function() {
+      if (committed) return;
+      committed = true;
+      var newTitle = inputEl.value.trim();
+      if (newTitle && newTitle !== currentTitle) {
+        options.vscode.postMessage({ type: "renameCockpitSection", sectionId, title: newTitle });
+      } else {
+        strongEl.style.display = "";
+        if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+      }
+    };
+    inputEl.onkeydown = function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveRename();
+      }
+      if (e.key === "Escape") {
+        committed = true;
+        strongEl.style.display = "";
+        if (inputEl.parentNode) inputEl.parentNode.removeChild(inputEl);
+      }
+    };
+    inputEl.onblur = function() {
+      scheduleBoardTimeout(options, saveRename, 120);
+    };
+    strongEl.style.display = "none";
+    strongEl.parentNode.insertBefore(inputEl, strongEl);
+    inputEl.select();
+  }
+  function handleBoardSectionDelete(sectionDeleteBtn, options) {
+    var sectionId = sectionDeleteBtn.getAttribute("data-section-delete");
+    if (sectionDeleteBtn.getAttribute("data-confirming")) {
+      options.vscode.postMessage({ type: "deleteCockpitSection", sectionId });
+      sectionDeleteBtn.removeAttribute("data-confirming");
+      return;
+    }
+    sectionDeleteBtn.setAttribute("data-confirming", "1");
+    var origText = sectionDeleteBtn.textContent;
+    var origColor = sectionDeleteBtn.style.color;
+    sectionDeleteBtn.textContent = options.strings.boardDeleteConfirm || "Delete?";
+    sectionDeleteBtn.style.color = "var(--vscode-errorForeground)";
+    sectionDeleteBtn.style.opacity = "1";
+    scheduleBoardTimeout(options, function() {
+      if (sectionDeleteBtn.getAttribute("data-confirming")) {
+        sectionDeleteBtn.removeAttribute("data-confirming");
+        sectionDeleteBtn.textContent = origText;
+        sectionDeleteBtn.style.color = origColor;
+        sectionDeleteBtn.style.opacity = "";
+      }
+    }, 2500);
+  }
+  function handleBoardTodoCompletion(completeToggle, options) {
+    var todoId = completeToggle.getAttribute("data-todo-complete");
+    var cardEl = completeToggle.closest ? completeToggle.closest("[data-todo-id]") : null;
+    var cockpitBoard = options.cockpitBoard;
+    var todoCard = null;
+    if (cockpitBoard && Array.isArray(cockpitBoard.cards)) {
+      for (var oi = 0; oi < cockpitBoard.cards.length; oi++) {
+        if (cockpitBoard.cards[oi] && cockpitBoard.cards[oi].id === todoId) {
+          todoCard = cockpitBoard.cards[oi];
+          break;
+        }
+      }
+    }
+    var workflowFlag = "";
+    if (todoCard && Array.isArray(todoCard.flags)) {
+      todoCard.flags.forEach(function(flag) {
+        var key = String(flag || "").trim().toLowerCase();
+        if (key === "go") {
+          key = "ready";
+        }
+        if (["new", "needs-bot-review", "needs-user-review", "ready", "on-schedule-list", "final-user-check"].indexOf(key) >= 0) {
+          workflowFlag = key;
+        }
+      });
+    }
+    var legacyReadyStatus = String(todoCard && todoCard.status || "").trim().toLowerCase() === "ready";
+    var isReadyTodo = workflowFlag === "ready" || workflowFlag === "final-user-check" || legacyReadyStatus;
+    var completionActionType = isReadyTodo ? "finalizeTodo" : "approveTodo";
+    if (!todoId) {
+      return;
+    }
+    if (!options.isPendingGridTodoCompletion || !options.isPendingGridTodoCompletion(todoId)) {
+      if (typeof options.startPendingGridTodoCompletion === "function") {
+        options.startPendingGridTodoCompletion(todoId);
+      }
+      return;
+    }
+    if (typeof options.clearPendingGridTodoCompletion === "function") {
+      options.clearPendingGridTodoCompletion(todoId, true);
+    }
+    completeToggle.disabled = true;
+    if (cardEl) {
+      cardEl.style.opacity = "0.35";
+      cardEl.style.pointerEvents = "none";
+    }
+    options.vscode.postMessage({ type: completionActionType, todoId });
+  }
+  function handleBoardTodoCompletionCancel(cancelBtn, options) {
+    var todoId = cancelBtn.getAttribute("data-todo-complete-cancel") || "";
+    if (!todoId || !options || typeof options.clearPendingGridTodoCompletion !== "function") {
+      return;
+    }
+    options.clearPendingGridTodoCompletion(todoId);
+  }
+  function stopBoardEvent(event) {
+    if (!event) {
+      return;
+    }
+    if (typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    if (typeof event.stopPropagation === "function") {
+      event.stopPropagation();
+    }
+  }
+  var activeBoardOptions = null;
+  var installedBoardWindow = null;
+  var installedBoardDocument = null;
+  var pointerDragSession = null;
+  var suppressNextBoardClick = false;
+  var TODO_POINTER_DRAG_THRESHOLD_PX = 6;
+  function resolvePointerCaptureElement(session) {
+    if (!session) {
+      return null;
+    }
+    return session.captureElement || session.draggedElement || null;
+  }
+  function handlePointerCaptureLoss(event) {
+    if (!pointerDragSession || pointerDragSession.finishing) {
+      return;
+    }
+    finishPointerDragSession(event, false);
+  }
+  function installPointerCaptureFallback(session) {
+    var captureElement = resolvePointerCaptureElement(session);
+    if (!session || session.captureLossListenerBound || !captureElement || typeof captureElement.addEventListener !== "function") {
+      return;
+    }
+    captureElement.addEventListener("lostpointercapture", handlePointerCaptureLoss);
+    session.captureLossListenerBound = true;
+  }
+  function trySetPointerCapture(event, session) {
+    if (!session || !event || typeof event.pointerId !== "number") {
+      return;
+    }
+    var captureElement = resolvePointerCaptureElement(session);
+    if (!captureElement || typeof captureElement.setPointerCapture !== "function") {
+      return;
+    }
+    try {
+      captureElement.setPointerCapture(event.pointerId);
+      session.captureElement = captureElement;
+      session.pointerId = event.pointerId;
+      installPointerCaptureFallback(session);
+    } catch (_error) {
+    }
+  }
+  function releasePointerCapture(session) {
+    if (!session || typeof session.pointerId !== "number") {
+      return;
+    }
+    var captureElement = resolvePointerCaptureElement(session);
+    if (!captureElement || typeof captureElement.releasePointerCapture !== "function") {
+      return;
+    }
+    try {
+      captureElement.releasePointerCapture(session.pointerId);
+    } catch (_error) {
+    }
+  }
+  function setBoardDocumentDragState(options, active, kind) {
+    var doc = options && options.document;
+    var body = doc && doc.body;
+    if (!body || !body.classList) {
+      return;
+    }
+    body.classList.toggle("cockpit-board-dragging", !!active);
+    body.classList.toggle("cockpit-board-dragging-section", !!active && kind === "section");
+    body.classList.toggle("cockpit-board-dragging-todo", !!active && kind === "todo");
+    if (body.style) {
+      body.style.userSelect = active ? "none" : "";
+      body.style.webkitUserSelect = active ? "none" : "";
+      body.style.cursor = active ? "grabbing" : "";
+    }
+  }
+  function armBoardClickSuppression() {
+    suppressNextBoardClick = true;
+  }
+  function consumeSuppressedBoardClick(event) {
+    if (!suppressNextBoardClick) {
+      return false;
+    }
+    suppressNextBoardClick = false;
+    stopBoardEvent(event);
+    return true;
+  }
+  function hasTodoPointerDragThreshold(event, session) {
+    if (!event || !session || typeof event.clientX !== "number" || typeof event.clientY !== "number") {
+      return true;
+    }
+    var deltaX = event.clientX - session.startX;
+    var deltaY = event.clientY - session.startY;
+    return deltaX * deltaX + deltaY * deltaY >= TODO_POINTER_DRAG_THRESHOLD_PX * TODO_POINTER_DRAG_THRESHOLD_PX;
+  }
+  function activatePointerDragSession(options) {
+    var session = pointerDragSession;
+    if (!options || !session || session.activated) {
+      return;
+    }
+    session.activated = true;
+    options.setIsBoardDragging(true);
+    setBoardDocumentDragState(options, true, session.kind);
+    if (session.kind === "section") {
+      options.setDraggingSectionId(session.draggedId);
+      options.setLastDragOverSectionId(null);
+      if (session.draggedElement) {
+        session.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    options.setDraggingTodoId(session.draggedId);
+    if (session.draggedElement) {
+      session.draggedElement.classList.add("todo-dragging");
+    }
+  }
+  function getBoardColumns(options) {
+    if (!options) {
+      return null;
+    }
+    if (typeof options.getBoardColumns === "function") {
+      return options.getBoardColumns();
+    }
+    return options.boardColumns || null;
+  }
+  function getBoardSectionElements(boardColumns) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return [];
+    }
+    return boardColumns.querySelectorAll(".board-column[data-section-id], .todo-list-section[data-section-id]");
+  }
+  function getBoardTarget(eventOrTarget) {
+    return getEventTargetElement(eventOrTarget);
+  }
+  function isTargetInsideBoard(options, target) {
+    var boardColumns = getBoardColumns(options);
+    var element = getBoardTarget(target);
+    return !!(boardColumns && element && typeof boardColumns.contains === "function" && boardColumns.contains(element));
+  }
+  function clearBoardDragClasses(boardColumns) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return;
+    }
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-id].section-drag-over"), function(el) {
+      el.classList.remove("section-drag-over");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-id].section-dragging"), function(el) {
+      el.classList.remove("section-dragging");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id].todo-dragging"), function(el) {
+      el.classList.remove("todo-dragging");
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id].todo-drop-target"), function(el) {
+      el.classList.remove("todo-drop-target");
+    });
+  }
+  function getPointerPointTarget(options, event) {
+    var doc = options && options.document;
+    if (doc && typeof doc.elementFromPoint === "function" && event && typeof event.clientX === "number" && typeof event.clientY === "number") {
+      var pointTarget = doc.elementFromPoint(event.clientX, event.clientY);
+      if (pointTarget) {
+        return pointTarget;
+      }
+    }
+    return getBoardTarget(event);
+  }
+  function getTodoDropTargetIndex(boardColumns, section, targetCard, draggingTodoId) {
+    var fallbackCount = Number(section && section.getAttribute ? section.getAttribute("data-card-count") || 0 : 0);
+    var sectionId = section && section.getAttribute ? section.getAttribute("data-section-id") || "" : "";
+    var sameSectionCardAdjustment = 0;
+    if (targetCard && targetCard.getAttribute && targetCard.getAttribute("data-section-id") === sectionId) {
+      sameSectionCardAdjustment = 0;
+    }
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function" || !sectionId) {
+      if (targetCard && targetCard.getAttribute) {
+        return Number(targetCard.getAttribute("data-order") || 0);
+      }
+      return Math.max(0, fallbackCount - sameSectionCardAdjustment);
+    }
+    var sectionCards = Array.prototype.filter.call(
+      boardColumns.querySelectorAll("[data-todo-id]"),
+      function(card) {
+        return card && card.getAttribute && card.getAttribute("data-section-id") === sectionId && card.getAttribute("data-todo-id") !== draggingTodoId;
+      }
+    );
+    if (targetCard) {
+      var targetIndex = sectionCards.indexOf(targetCard);
+      if (targetIndex >= 0) {
+        return targetIndex;
+      }
+      if (targetCard.getAttribute) {
+        return Number(targetCard.getAttribute("data-order") || 0);
+      }
+    }
+    return sectionCards.length > 0 ? sectionCards.length : Math.max(0, fallbackCount - sameSectionCardAdjustment);
+  }
+  function updateSectionDragState(options, boardColumns, pointTarget) {
+    var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+    clearBoardDragClasses(boardColumns);
+    if (!section) {
+      options.setLastDragOverSectionId(null);
+      if (pointerDragSession && pointerDragSession.draggedElement) {
+        pointerDragSession.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    var sectionId = section.getAttribute("data-section-id");
+    var draggingSectionId = options.getDraggingSectionId();
+    if (!sectionId || sectionId === draggingSectionId || options.isArchiveTodoSectionId(sectionId)) {
+      options.setLastDragOverSectionId(null);
+      if (pointerDragSession && pointerDragSession.draggedElement) {
+        pointerDragSession.draggedElement.classList.add("section-dragging");
+      }
+      return;
+    }
+    section.classList.add("section-drag-over");
+    if (pointerDragSession && pointerDragSession.draggedElement) {
+      pointerDragSession.draggedElement.classList.add("section-dragging");
+    }
+    options.setLastDragOverSectionId(sectionId);
+  }
+  function updateTodoDragState(options, boardColumns, pointTarget) {
+    var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+    var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
+    clearBoardDragClasses(boardColumns);
+    if (pointerDragSession && pointerDragSession.draggedElement) {
+      pointerDragSession.draggedElement.classList.add("todo-dragging");
+    }
+    if (!section) {
+      return;
+    }
+    var sectionId = section.getAttribute("data-section-id");
+    if (!sectionId || options.isArchiveTodoSectionId(sectionId)) {
+      return;
+    }
+    if (targetCard && targetCard.getAttribute("data-todo-id") !== options.getDraggingTodoId()) {
+      targetCard.classList.add("todo-drop-target");
+      return;
+    }
+    section.classList.add("section-drag-over");
+  }
+  function updatePointerDragSession(event) {
+    var options = activeBoardOptions;
+    if (!options || !pointerDragSession) {
+      return;
+    }
+    if (typeof pointerDragSession.pointerId === "number" && event && typeof event.pointerId === "number" && event.pointerId !== pointerDragSession.pointerId) {
+      return;
+    }
+    if (!pointerDragSession.activated) {
+      if (!hasTodoPointerDragThreshold(event, pointerDragSession)) {
+        return;
+      }
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+    }
+    stopBoardEvent(event);
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      setBoardDocumentDragState(options, false);
+      options.finishBoardDragState();
+      pointerDragSession = null;
+      return;
+    }
+    var pointTarget = getPointerPointTarget(options, event);
+    if (pointTarget) {
+      pointerDragSession.lastPointTarget = pointTarget;
+    }
+    if (pointerDragSession.kind === "section") {
+      updateSectionDragState(options, boardColumns, pointTarget);
+      return;
+    }
+    updateTodoDragState(options, boardColumns, pointTarget);
+  }
+  function finishPointerDragSession(event, cancelled) {
+    var options = activeBoardOptions;
+    var session = pointerDragSession;
+    if (!options || !session) {
+      pointerDragSession = null;
+      return;
+    }
+    if (typeof session.pointerId === "number" && event && typeof event.pointerId === "number" && event.pointerId !== session.pointerId) {
+      return;
+    }
+    session.finishing = true;
+    if (!session.activated) {
+      releasePointerCapture(session);
+      setBoardDocumentDragState(options, false);
+      pointerDragSession = null;
+      suppressNextBoardClick = false;
+      return;
+    }
+    var boardColumns = getBoardColumns(options);
+    var pointTarget = cancelled ? null : getPointerPointTarget(options, event);
+    if (!cancelled && (!pointTarget || typeof pointTarget.closest !== "function")) {
+      pointTarget = session.lastPointTarget || null;
+    }
+    if (boardColumns) {
+      clearBoardDragClasses(boardColumns);
+    }
+    if (!cancelled && boardColumns && session.kind === "section") {
+      var dropSection = getClosestEventTarget(pointTarget, "[data-section-id]");
+      var dropSectionId = dropSection ? dropSection.getAttribute("data-section-id") : null;
+      if (!dropSectionId || dropSectionId === options.getDraggingSectionId()) {
+        dropSectionId = options.getLastDragOverSectionId();
+      }
+      if (dropSectionId && dropSectionId !== options.getDraggingSectionId()) {
+        var allSections = getBoardSectionElements(boardColumns);
+        var targetIndex = -1;
+        for (var i = 0; i < allSections.length; i += 1) {
+          if (allSections[i].getAttribute("data-section-id") === dropSectionId) {
+            targetIndex = i;
+            break;
+          }
+        }
+        if (targetIndex >= 0) {
+          options.vscode.postMessage({ type: "reorderCockpitSection", sectionId: options.getDraggingSectionId(), targetIndex });
+        }
+      }
+    }
+    if (!cancelled && boardColumns && session.kind === "todo") {
+      var section = getClosestEventTarget(pointTarget, "[data-section-id]");
+      var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
+      if (section && options.getDraggingTodoId() && !options.isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
+        var targetIndex = getTodoDropTargetIndex(
+          boardColumns,
+          section,
+          targetCard,
+          options.getDraggingTodoId()
+        );
+        options.vscode.postMessage({
+          type: "moveTodo",
+          todoId: options.getDraggingTodoId(),
+          sectionId: section.getAttribute("data-section-id"),
+          targetIndex
+        });
+      }
+    }
+    releasePointerCapture(session);
+    setBoardDocumentDragState(options, false);
+    options.finishBoardDragState();
+    pointerDragSession = null;
+    if (cancelled) {
+      suppressNextBoardClick = false;
+      return;
+    }
+    if (typeof setTimeout === "function") {
+      setTimeout(function() {
+        suppressNextBoardClick = false;
+      }, 350);
+    }
+  }
+  function handleBoardTodoChange(completeToggle, event) {
+    var options = activeBoardOptions;
+    if (!options) {
+      return;
+    }
+    var target = getBoardTarget(event);
+    if (!completeToggle || !target || !isTargetInsideBoard(options, target)) {
+      return;
+    }
+    if (event && typeof event.stopPropagation === "function") {
+      event.stopPropagation();
+    }
+    options.handleTodoCompletion(completeToggle);
+  }
+  function bindElementListener(element, eventName, handler) {
+    if (!element || typeof element.addEventListener !== "function") {
+      return;
+    }
+    element.addEventListener(eventName, handler);
+  }
+  var delegatedBoardColumns = null;
+  function installBoardClickDelegation(boardColumns) {
+    if (!boardColumns || typeof boardColumns.addEventListener !== "function") {
+      return;
+    }
+    if (delegatedBoardColumns === boardColumns) {
+      return;
+    }
+    delegatedBoardColumns = boardColumns;
+    boardColumns.addEventListener("click", function(event) {
+      var options = activeBoardOptions;
+      if (!options) {
+        return;
+      }
+      var target = getEventTargetElement(event);
+      if (!target || typeof target.closest !== "function") {
+        return;
+      }
+      if (consumeSuppressedBoardClick(event)) {
+        return;
+      }
+      var editBtn = target.closest("[data-todo-edit]");
+      if (editBtn) {
+        stopBoardEvent(event);
+        options.openTodoEditor(editBtn.getAttribute("data-todo-edit") || "");
+        return;
+      }
+      var deleteBtn = target.closest("[data-todo-delete]");
+      if (deleteBtn) {
+        stopBoardEvent(event);
+        options.setPendingBoardDelete(deleteBtn.getAttribute("data-todo-delete") || "", false);
+        return;
+      }
+      var deleteCancelBtn = target.closest("[data-todo-delete-cancel]");
+      if (deleteCancelBtn) {
+        stopBoardEvent(event);
+        options.clearPendingBoardDelete();
+        return;
+      }
+      var deleteRejectBtn = target.closest("[data-todo-delete-reject]");
+      if (deleteRejectBtn) {
+        stopBoardEvent(event);
+        options.submitBoardDeleteChoice("reject");
+        return;
+      }
+      var deletePermanentBtn = target.closest("[data-todo-delete-permanent]");
+      if (deletePermanentBtn) {
+        stopBoardEvent(event);
+        options.submitBoardDeleteChoice("permanent");
+        return;
+      }
+      var purgeBtn = target.closest("[data-todo-purge]");
+      if (purgeBtn) {
+        stopBoardEvent(event);
+        options.setPendingBoardDelete(purgeBtn.getAttribute("data-todo-purge") || "", true);
+        return;
+      }
+      var restoreBtn = target.closest("[data-todo-restore]");
+      if (restoreBtn) {
+        stopBoardEvent(event);
+        options.handleTodoRestore(restoreBtn);
+        return;
+      }
+      var completeCancelBtn = target.closest("[data-todo-complete-cancel]");
+      if (completeCancelBtn) {
+        stopBoardEvent(event);
+        options.handleTodoCompletionCancel(completeCancelBtn);
+        return;
+      }
+      var completeBtn = target.closest("[data-todo-complete]");
+      if (completeBtn) {
+        handleBoardTodoChange(completeBtn, event);
+        return;
+      }
+      var collapseBtn = target.closest("[data-section-collapse]");
+      if (collapseBtn) {
+        stopBoardEvent(event);
+        options.handleSectionCollapse(collapseBtn);
+        return;
+      }
+      var sectionHeader = target.closest(".cockpit-section-header");
+      if (sectionHeader && !target.closest("[data-section-drag-handle]") && !target.closest("[data-section-rename]") && !target.closest("[data-section-delete]")) {
+        var headerCollapseBtn = sectionHeader.querySelector("[data-section-collapse]");
+        if (headerCollapseBtn) {
+          stopBoardEvent(event);
+          options.handleSectionCollapse(headerCollapseBtn);
+          return;
+        }
+      }
+      var renameBtn = target.closest("[data-section-rename]");
+      if (renameBtn) {
+        stopBoardEvent(event);
+        options.handleSectionRename(renameBtn);
+        return;
+      }
+      var sectionDelBtn = target.closest("[data-section-delete]");
+      if (sectionDelBtn) {
+        stopBoardEvent(event);
+        options.handleSectionDelete(sectionDelBtn);
+        return;
+      }
+      var card = target.closest("[data-todo-id]");
+      if (card) {
+        if (isTodoInteractiveTarget(target)) {
+          return;
+        }
+        options.setSelectedTodoId(card.getAttribute("data-todo-id"));
+        options.renderCockpitBoard();
+      }
+    });
+  }
+  function bindRenderedBoardListeners(boardColumns, options) {
+    if (!boardColumns || typeof boardColumns.querySelectorAll !== "function") {
+      return;
+    }
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-section-drag-handle]"), function(sectionHandle) {
+      bindElementListener(sectionHandle, "pointerdown", handleBoardPointerDown);
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll(".cockpit-section-header"), function(sectionHeader) {
+      bindElementListener(sectionHeader, "pointerdown", handleBoardPointerDown);
+    });
+    Array.prototype.forEach.call(boardColumns.querySelectorAll("[data-todo-id]"), function(card) {
+      bindElementListener(card, "pointerdown", handleBoardPointerDown);
+    });
+  }
+  function handleBoardPointerDown(event) {
+    var options = activeBoardOptions;
+    if (!options) {
+      return;
+    }
+    suppressNextBoardClick = false;
+    if (typeof event.button === "number" && event.button !== 0) {
+      return;
+    }
+    var target = getBoardTarget(event);
+    if (!isTargetInsideBoard(options, target)) {
+      return;
+    }
+    var sectionHandle = getClosestEventTarget(target, "[data-section-drag-handle]");
+    var todoHandle = getClosestEventTarget(target, "[data-todo-drag-handle]");
+    var sectionHeader = getClosestEventTarget(target, ".cockpit-section-header");
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      return;
+    }
+    var sectionEl = sectionHandle && sectionHandle.closest ? sectionHandle.closest("[data-section-id]") : null;
+    var sectionId = sectionHandle ? sectionHandle.getAttribute("data-section-drag-handle") : "";
+    if (sectionHandle) {
+      stopBoardEvent(event);
+      clearBoardDragClasses(boardColumns);
+      pointerDragSession = {
+        kind: "section",
+        draggedId: sectionId,
+        draggedElement: sectionEl,
+        captureElement: sectionHandle,
+        activated: false,
+        lastPointTarget: target,
+        pointerId: typeof event.pointerId === "number" ? event.pointerId : null,
+        startX: typeof event.clientX === "number" ? event.clientX : 0,
+        startY: typeof event.clientY === "number" ? event.clientY : 0
+      };
+      trySetPointerCapture(event, pointerDragSession);
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+      return;
+    }
+    if (sectionHeader && !isTodoInteractiveTarget(target)) {
+      var headerSection = sectionHeader.closest ? sectionHeader.closest("[data-section-id]") : null;
+      var headerSectionId = headerSection && headerSection.getAttribute ? headerSection.getAttribute("data-section-id") : "";
+      if (headerSectionId && !options.isArchiveTodoSectionId(headerSectionId)) {
+        clearBoardDragClasses(boardColumns);
+        pointerDragSession = {
+          kind: "section",
+          draggedId: headerSectionId,
+          draggedElement: headerSection,
+          captureElement: sectionHeader,
+          activated: false,
+          lastPointTarget: target,
+          pointerId: typeof event.pointerId === "number" ? event.pointerId : null,
+          startX: typeof event.clientX === "number" ? event.clientX : 0,
+          startY: typeof event.clientY === "number" ? event.clientY : 0
+        };
+        trySetPointerCapture(event, pointerDragSession);
+        return;
+      }
+    }
+    var card = todoHandle && todoHandle.closest ? todoHandle.closest("[data-todo-id]") : getClosestEventTarget(target, "[data-todo-id]");
+    if (!card) {
+      return;
+    }
+    var sectionId = card.getAttribute ? card.getAttribute("data-section-id") : "";
+    if (!todoHandle && (isTodoInteractiveTarget(target) || options.isArchiveTodoSectionId(sectionId || ""))) {
+      return;
+    }
+    clearBoardDragClasses(boardColumns);
+    pointerDragSession = {
+      kind: "todo",
+      draggedId: todoHandle ? todoHandle.getAttribute("data-todo-drag-handle") || card.getAttribute("data-todo-id") : card.getAttribute("data-todo-id") || "",
+      draggedElement: card,
+      captureElement: todoHandle || card,
+      activated: false,
+      lastPointTarget: target,
+      pointerId: typeof event.pointerId === "number" ? event.pointerId : null,
+      startX: typeof event.clientX === "number" ? event.clientX : 0,
+      startY: typeof event.clientY === "number" ? event.clientY : 0
+    };
+    trySetPointerCapture(event, pointerDragSession);
+    if (todoHandle) {
+      stopBoardEvent(event);
+      activatePointerDragSession(options);
+      armBoardClickSuppression();
+    }
+  }
+  function installBoardListeners(options) {
+    var win = options.window;
+    var doc = options.document;
+    if (!win || typeof win.addEventListener !== "function") {
+      return;
+    }
+    if (installedBoardWindow !== win) {
+      win.addEventListener("pointermove", updatePointerDragSession, true);
+      win.addEventListener("pointerup", function(event) {
+        finishPointerDragSession(event, false);
+      }, true);
+      win.addEventListener("pointercancel", function(event) {
+        finishPointerDragSession(event, true);
+      }, true);
+      win.addEventListener("mouseup", function(event) {
+        finishPointerDragSession(event, false);
+      }, true);
+      win.addEventListener("blur", function(event) {
+        finishPointerDragSession(event, true);
+      }, true);
+      installedBoardWindow = win;
+    }
+    if (!doc || typeof doc.addEventListener !== "function" || installedBoardDocument === doc) {
+      return;
+    }
+    doc.addEventListener("pointerup", function(event) {
+      finishPointerDragSession(event, false);
+    }, true);
+    doc.addEventListener("pointercancel", function(event) {
+      finishPointerDragSession(event, true);
+    }, true);
+    doc.addEventListener("mouseup", function(event) {
+      finishPointerDragSession(event, false);
+    }, true);
+    doc.addEventListener("visibilitychange", function() {
+      if (doc.visibilityState === "hidden") {
+        finishPointerDragSession(null, true);
+      }
+    }, true);
+    installedBoardDocument = doc;
+  }
+  function bindBoardColumnInteractions(options) {
+    var boardColumns = getBoardColumns(options);
+    if (!boardColumns) {
+      return;
+    }
+    activeBoardOptions = options;
+    setBoardDocumentDragState(options, false);
+    clearBoardDragClasses(boardColumns);
+    installBoardClickDelegation(boardColumns);
+    bindRenderedBoardListeners(boardColumns, options);
+    installBoardListeners(options);
+  }
 
-`:"";tt.value=r+a+e,gn("upload")}}function Gf(e){if(!(!ee||!e||ee.disabled)){var r=String(ee.value||"");if(r.indexOf(e)>=0){ee.focus();return}var a=r?/\n\s*$/.test(r)?`
-`:`
+  // media/cockpitWebviewDebug.js
+  function createWebviewDebugTools(options) {
+    var currentLogLevel = options && typeof options.initialLogLevel === "string" ? options.initialLogLevel : "info";
+    function shouldEmitDetailedLogs() {
+      return currentLogLevel === "debug";
+    }
+    function cloneDebugDetail(detail) {
+      if (typeof detail === "undefined") {
+        return {};
+      }
+      try {
+        return JSON.parse(JSON.stringify(detail));
+      } catch (_error) {
+        return { value: String(detail) };
+      }
+    }
+    function emitWebviewDebug(eventName, detail) {
+      if (!shouldEmitDetailedLogs()) {
+        return;
+      }
+      var payload = {
+        event: eventName,
+        detail: cloneDebugDetail(detail)
+      };
+      try {
+        if (options && options.console && typeof options.console.log === "function") {
+          options.console.log("[SchedulerWebviewDebug]", payload);
+        }
+      } catch (_error) {
+      }
+      try {
+        if (options && options.vscode && typeof options.vscode.postMessage === "function") {
+          options.vscode.postMessage({
+            type: "debugWebview",
+            event: eventName,
+            detail: payload.detail
+          });
+        }
+      } catch (_error) {
+      }
+    }
+    function createEmptyTodoDraft() {
+      return {
+        comment: "",
+        title: "",
+        description: "",
+        dueAt: "",
+        flagColor: "#f59e0b",
+        flagInput: "",
+        priority: "none",
+        flag: "",
+        labelColor: "#4f8cff",
+        labelInput: "",
+        sectionId: "",
+        taskId: ""
+      };
+    }
+    function resetTodoDraft(reason) {
+      var nextDraft = createEmptyTodoDraft();
+      emitWebviewDebug("todoDraftReset", { reason: reason || "unknown" });
+      return nextDraft;
+    }
+    function syncTodoDraftFromInputs(params) {
+      if (!params || params.selectedTodoId) {
+        return params ? params.currentTodoDraft : createEmptyTodoDraft();
+      }
+      var nextDraft = params.currentTodoDraft || createEmptyTodoDraft();
+      nextDraft.comment = params.todoCommentInput ? String(params.todoCommentInput.value || "") : "";
+      nextDraft.title = params.todoTitleInput ? String(params.todoTitleInput.value || "") : "";
+      nextDraft.description = params.todoDescriptionInput ? String(params.todoDescriptionInput.value || "") : "";
+      nextDraft.dueAt = params.todoDueInput ? String(params.todoDueInput.value || "") : "";
+      nextDraft.priority = params.todoPriorityInput ? String(params.todoPriorityInput.value || "none") : "none";
+      nextDraft.sectionId = params.todoSectionInput ? String(params.todoSectionInput.value || "") : "";
+      nextDraft.taskId = params.todoLinkedTaskSelect ? String(params.todoLinkedTaskSelect.value || "") : "";
+      if (params.reason) {
+        emitWebviewDebug("todoDraftSync", {
+          reason: params.reason,
+          hasComment: nextDraft.comment.length > 0,
+          titleLength: nextDraft.title.length,
+          hasDescription: nextDraft.description.length > 0,
+          hasDueAt: !!nextDraft.dueAt,
+          sectionId: nextDraft.sectionId,
+          taskId: nextDraft.taskId
+        });
+      }
+      return nextDraft;
+    }
+    function setLogLevel(nextLevel) {
+      currentLogLevel = typeof nextLevel === "string" && nextLevel ? nextLevel : "info";
+    }
+    function getLogLevel() {
+      return currentLogLevel;
+    }
+    return {
+      createEmptyTodoDraft,
+      emitWebviewDebug,
+      getLogLevel,
+      resetTodoDraft,
+      setLogLevel,
+      syncTodoDraftFromInputs
+    };
+  }
 
-`:"";ee.value=r+a+e,gn("comment-template"),Ro(C?Zr(C):null),ee.focus()}}function $l(){ye&&ye.setAttribute("data-priority",String(ye.value||"none"))}function _f(e){var r=e&&e.source?String(e.source):"human-form";return r==="bot-mcp"?" is-bot-mcp":r==="bot-manual"?" is-bot-manual":r==="system-event"?" is-system-event":" is-human-form"}function Zl(e,r){Ot&&(Ot.textContent=String(e||""),Ot.style.display=e?"block":"none",Ot.classList.toggle("error",!!r))}function Yf(e){if(!e)return"-";var r=new Date(e);return isNaN(r.getTime())?String(e):r.toLocaleString(Tt)}function zi(e){if(!e)return n.settingsStorageNeverUpdated||"Never";var r=new Date(e);return isNaN(r.getTime())?String(e):r.toLocaleString(Tt)}function Kf(e){switch(e){case"configured":return n.settingsStorageMcpStatusConfigured||"Configured";case"missing":return n.settingsStorageMcpStatusMissing||"Missing";case"stale":return n.settingsStorageMcpStatusStale||"Needs refresh";case"invalid":return n.settingsStorageMcpStatusInvalid||"Invalid";default:return n.settingsStorageMcpStatusWorkspaceRequired||"Open a workspace to inspect"}}function Xf(){return{enabled:!!(Gn&&Gn.checked),botToken:Yr?String(Yr.value||""):"",chatId:_n?String(_n.value||""):"",messagePrefix:Yn?String(Yn.value||""):""}}function $f(e){var r=e.enabled||!!String(e.chatId||"").trim()||!!String(e.messagePrefix||"").trim();return r&&!String(e.chatId||"").trim()?n.telegramValidationChatId||"Telegram chat ID is required.":r&&!String(e.botToken||"").trim()&&!(Je&&Je.hasBotToken)?n.telegramValidationBotToken||"Telegram bot token is required.":""}function Ql(){Gn&&(Gn.checked=!!Je.enabled),_n&&(_n.value=Je.chatId||""),Yn&&(Yn.value=Je.messagePrefix||""),Yr&&(Yr.value="",Yr.placeholder=Je.hasBotToken?n.telegramSavedToken||"Bot token stored privately":n.telegramBotTokenPlaceholder||"123456:ABCDEF..."),xl&&(xl.textContent=Je.hasBotToken?n.telegramSavedToken||"Bot token stored privately":n.telegramMissingToken||"No bot token saved yet"),jl&&(jl.textContent=Je.chatId||"-"),Dl&&(Dl.textContent=Je.hookConfigured?n.telegramHookReady||"Stop hook configured":n.telegramHookMissing||"Stop hook files not configured"),Ll&&(Ll.textContent=Yf(Je.updatedAt)),Pl&&(Pl.textContent=n.telegramWorkspaceNote||"The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json."),qi()}function Zf(){return{agent:Ci?String(Ci.value||""):"",model:xi?String(xi.value||""):""}}function Qf(){return{needsBotReviewCommentTemplate:ro?String(ro.value||""):"",needsBotReviewPromptTemplate:no?String(no.value||""):"",needsBotReviewAgent:Li?String(Li.value||""):"",needsBotReviewModel:Pi?String(Pi.value||""):"",needsBotReviewChatSession:ao&&ao.value==="continue"?"continue":"new",readyPromptTemplate:oo?String(oo.value||""):""}}function ep(){var e=[];return lo&&lo.checked===!1&&e.push("ready"),co&&co.checked===!1&&e.push("needs-bot-review"),uo&&uo.checked===!1&&e.push("needs-user-review"),fo&&fo.checked===!1&&e.push("new"),po&&po.checked===!1&&e.push("on-schedule-list"),go&&go.checked===!1&&e.push("final-user-check"),{mode:io&&io.value==="sqlite"?"sqlite":"json",searchProvider:Kn&&Kn.value==="tavily"?Kn.value:"built-in",researchProvider:gr&&(gr.value==="perplexity"||gr.value==="tavily"||gr.value==="google-grounded")?gr.value:"none",sqliteJsonMirror:!so||so.checked!==!1,disabledSystemFlagKeys:e}}function So(){var e=Ci||document.getElementById("default-agent-select"),r=xi||document.getElementById("default-model-select"),a=jf||document.getElementById("execution-defaults-note");mt(e,tr,n.placeholderSelectAgent||"Select agent",ve&&typeof ve.agent=="string"?ve.agent:"agent",function(s){return s&&s.id?s.id:""},function(s){return s&&s.name?s.name:""}),mt(r,rr,n.placeholderSelectModel||"Select model",ve&&typeof ve.model=="string"?ve.model:"",function(s){return s&&s.id?s.id:""},function(s){return Ta(s)}),a&&(a.textContent=n.executionDefaultsSaved||"Workspace default agent and model settings.")}function To(){ro&&(ro.value=ie&&typeof ie.needsBotReviewCommentTemplate=="string"?ie.needsBotReviewCommentTemplate:""),no&&(no.value=ie&&typeof ie.needsBotReviewPromptTemplate=="string"?ie.needsBotReviewPromptTemplate:""),oo&&(oo.value=ie&&typeof ie.readyPromptTemplate=="string"?ie.readyPromptTemplate:""),mt(Li,tr,n.placeholderSelectAgent||"Select agent",ie&&typeof ie.needsBotReviewAgent=="string"?ie.needsBotReviewAgent:"agent",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),mt(Pi,rr,n.placeholderSelectModel||"Select model",ie&&typeof ie.needsBotReviewModel=="string"?ie.needsBotReviewModel:"",function(e){return e&&e.id?e.id:""},function(e){return Ta(e)}),ao&&(ao.value=ie&&ie.needsBotReviewChatSession==="continue"?"continue":"new"),Fl&&(Fl.textContent=n.reviewDefaultsSaved||"The review comment text is inserted on review-state changes, and needs-bot-review launches the planning prompt immediately after save.")}function ed(){var e=Object.create(null);(me.disabledSystemFlagKeys||[]).forEach(function(r){e[w(r)]=!0}),io&&(io.value=me.mode==="json"?"json":"sqlite"),Kn&&(Kn.value=me.searchProvider==="tavily"?me.searchProvider:"built-in"),gr&&(gr.value=me.researchProvider==="perplexity"||me.researchProvider==="tavily"||me.researchProvider==="google-grounded"?me.researchProvider:"none"),so&&(so.checked=me.sqliteJsonMirror!==!1),lo&&(lo.checked=!e.ready),co&&(co.checked=!e["needs-bot-review"]),uo&&(uo.checked=!e["needs-user-review"]),fo&&(fo.checked=!e.new),po&&(po.checked=!e["on-schedule-list"]),go&&(go.checked=!e["final-user-check"]),Ml&&(Ml.textContent=n.settingsStorageSaved||"Storage settings are repo-local. Reload after changing the backend mode."),Rl&&(Rl.textContent=me.appVersion||"-"),Nl&&(Nl.textContent=Kf(me.mcpSetupStatus)),Ol&&(Ol.textContent=zi(me.lastMcpSupportUpdateAt)),Hl&&(Hl.textContent=zi(me.lastBundledSkillsSyncAt)),Jl&&(Jl.textContent=zi(me.lastBundledAgentsSyncAt))}function tp(){Sn&&(Sn.textContent=n.settingsStatusUpdated||"\u2713 Updated",Sn.style.opacity="1",p&&window.clearTimeout(p),p=window.setTimeout(function(){Sn.style.opacity="0",Sn.textContent="",p=null},2e3))}function Ui(){Fi&&(Fi.value=l||"info"),Mi&&(Mi.value=d||"",Mi.title=d||"")}function Gi(){pi&&pi.classList&&pi.classList.toggle("sidebar-collapsed",!!Ht),wn&&(wn.style.display=Ht?"inline-flex":"none")}function ko(e){return e&&e.runtime&&e.runtime.waitingPause?n.jobsPauseWaiting||"Waiting for approval":e&&e.archived?n.jobsArchivedBadge||"Archived":e&&e.paused?n.jobsPaused||"Inactive":n.jobsRunning||"Active"}function td(){if(ui)for(var e=ui.querySelectorAll(".task-filter-btn"),r=0;r<e.length;r++){var a=e[r];!a||!a.classList||(a.getAttribute("data-filter")===ce?a.classList.add("active"):a.classList.remove("active"))}}function rp(){if(Re){Re.textContent="";for(var e=0;e<22;e+=1){var r=document.createElement("span"),a=4+e*91/22+Math.random()*3.5,s=Math.random()*.95,c=1.05+Math.random()*1.25,u=110+Math.round(Math.random()*180),B=1+Math.round(Math.random()*2),I=(-7+Math.random()*14).toFixed(2);r.className="help-warp-streak",r.style.setProperty("--warp-top",a.toFixed(2)+"%"),r.style.setProperty("--warp-delay",s.toFixed(2)+"s"),r.style.setProperty("--warp-duration",c.toFixed(2)+"s"),r.style.setProperty("--warp-length",String(u)+"px"),r.style.setProperty("--warp-thickness",String(B)+"px"),r.style.setProperty("--warp-rotate",I+"deg"),Re.appendChild(r)}}}function rd(e){if(Re){var r=e||{};window.clearTimeout(zs),window.clearTimeout(Us),Re.classList.remove("is-active"),Re.classList.remove("is-fading"),rp(),Re.offsetWidth,Re.classList.add("is-active"),r.animateRocket&&xt&&(xt.classList.remove("is-launching"),xt.offsetWidth,xt.classList.add("is-launching"),window.setTimeout(function(){xt&&xt.classList.remove("is-launching")},1250)),zs=window.setTimeout(function(){Re&&Re.classList.add("is-fading")},1e4),Us=window.setTimeout(function(){Re&&(Re.classList.remove("is-active"),Re.classList.remove("is-fading"),Re.textContent="")},13800)}}function nd(e){if(!(e!=="help"||!Ws)){Ws=!1;try{localStorage.setItem(qs,"1")}catch{}rd({animateRocket:!1})}}function ad(){di&&(di.textContent=ri?n.autoShowOnStartupToggleEnabled||"Disable Auto Open":n.autoShowOnStartupToggleDisabled||"Enable Auto Open"),$s&&($s.textContent=ri?n.autoShowOnStartupEnabled||"Auto-open on startup: On":n.autoShowOnStartupDisabled||"Auto-open on startup: Off")}function Io(){var e=document.getElementById("one-time"),r=document.getElementById("manual-session"),a=document.getElementById("run-first"),s=!!(e&&e.checked),c=!!(r&&r.checked);s&&r&&r.checked&&(r.checked=!1,c=!1),c&&e&&e.checked&&(e.checked=!1,s=!1),Zs&&(Zs.style.display=s?"none":""),Qs&&(Qs.style.display=s?"block":"none"),al&&(al.style.display=s?"none":"block"),el&&(el.style.display=s?"none":"block"),Me&&!Me.value&&(Me.value=xr),s&&Me&&(Me.value=xr),s&&a&&a.checked&&(a.checked=!1),yr()}function Qr(e,r){var a=typeof e=="number"?e:Number(e);if(!isFinite(a)||a<0)return 0;var s=Math.floor(a);return typeof r=="number"?Math.min(s,r):s}function od(){return Qr(bn?bn.value:0)*3600+Qr(yn?yn.value:0,59)*60+Qr(hn?hn.value:0,59)}function np(e){var r=Qr(e),a=Math.floor(r/3600),s=Math.floor(r%3600/60),c=r%60;return a>0?s>0?a+" "+(a===1?"hour":"hours")+" "+s+" "+(s===1?"minute":"minutes"):a+" "+(a===1?"hour":"hours"):s>0?c>0?s+" "+(s===1?"minute":"minutes")+" "+c+" "+(c===1?"second":"seconds"):s+" "+(s===1?"minute":"minutes"):r+" "+(r===1?"second":"seconds")}function _i(e){var r=Qr(e);bn&&(bn.value=String(Math.floor(r/3600))),yn&&(yn.value=String(Math.floor(r%3600/60))),hn&&(hn.value=String(r%60))}function id(e){var r=Qr(e&&e.oneTimeDelaySeconds);if(r>0)return r;if(!(e&&e.oneTime===!0&&e.nextRun))return 0;var a=new Date(e.nextRun),s=Math.ceil((a.getTime()-Date.now())/1e3);return s>0?s:0}function yr(){if(ci){var e=od();if(e<1){ci.textContent=n.oneTimeDelayPreviewUnset||"Set a delay to schedule this one-time run.";return}var r=new Date(Date.now()+e*1e3);ci.textContent=np(e)+" "+(n.oneTimeDelayFromNow||"from now")+" \u2022 "+r.toLocaleString(Tt)}}function sd(e){if(!e||!e.createdAt)return n.cockpitHistoryPlaceholder||"Select a backup version";var r=new Date(e.createdAt);return isNaN(r.getTime())?String(e.createdAt):r.toLocaleString(Tt)}function ld(){if(ut){var e=ut.value||"",r=Array.isArray(Ba)?Ba:[];if(r=r.slice().sort(function(a,s){return new Date(s.createdAt).getTime()-new Date(a.createdAt).getTime()}),r.length===0){ut.innerHTML='<option value="">'+f(n.cockpitHistoryEmpty||"No backup versions yet")+"</option>",ut.disabled=!0,mn&&(mn.disabled=!0);return}ut.innerHTML='<option value="">'+f(n.cockpitHistoryPlaceholder||"Select a backup version")+"</option>"+r.map(function(a){return'<option value="'+v(a.id||"")+'">'+f(sd(a))+"</option>"}).join(""),ut.disabled=!1,mn&&(mn.disabled=!1),e&&(ut.value=e),ut.value!==e&&(ut.value="")}}function Yi(e){return e?String(e).split(",").map(function(r){return String(r||"").trim()}).filter(function(r,a,s){return r&&s.indexOf(r)===a}):[]}function dd(e){return Array.isArray(e)?e.join(", "):""}function kt(e){return(Array.isArray(Ee)?Ee:[]).find(function(r){return r&&r.id===e})||null}function Ki(e){return!!e&&e.type==="pause"}function Lm(e){return!!e&&e.type!=="pause"&&!!e.taskId}function ap(e){var r=e&&e.runtime&&Array.isArray(e.runtime.approvedPauseNodeIds)?e.runtime.approvedPauseNodeIds:[];return r.filter(function(a){return typeof a=="string"&&a})}function op(e){return e&&e.runtime&&e.runtime.waitingPause?e.runtime.waitingPause:null}function ra(e){return(Array.isArray(ge)?ge:[]).find(function(r){return r&&r.id===e})||null}function Eo(e){return(Array.isArray(M)?M:[]).find(function(r){return r&&r.id===e})||null}function na(e){return!!(e&&(e.oneTime===!0||String(e.id||"").indexOf("exec-")===0))}function qt(e){return String(e||"").trim().toLowerCase()}function aa(e){return!!(e&&na(e)&&Array.isArray(e.labels)&&e.labels.some(function(r){return w(r)==="from-todo-cockpit"}))}function cd(e){if(!e||!Array.isArray(M))return null;var r=qt(e.id),a=qt(e.title),s=qt(e.description),c=Array.isArray(e.labels)?e.labels.map(function(u){return qt(u)}).filter(function(u){return u.length>0}):[];return M.find(function(u){if(!aa(u))return!1;var B=qt(u.prompt);if(r&&B.indexOf("todo id: "+r)>=0)return!0;var I=qt(u.name);if(!a||I!==a)return!1;var T=qt(u.description);return s&&T!==s?!1:c.every(function(b){return Array.isArray(u.labels)&&u.labels.some(function(J){return qt(J)===b})})})||null}function Xi(e){return!!(e&&Object.prototype.hasOwnProperty.call(un,e))}function hr(e,r){Xi(e)&&(window.clearTimeout(un[e]),delete un[e],r||Ze(M))}function ip(e){e&&(hr(e,!0),un[e]=window.setTimeout(function(){hr(e)},qu),Ze(M))}function ud(){var e={};ia().forEach(function(r){r&&r.id&&(e[r.id]=r)}),Object.keys(un).forEach(function(r){var a=e[r];if(!a){hr(r,!0);return}if(a.archived||It(a.sectionId)){hr(r,!0);return}if(Tr(a)!=="ready"){hr(r,!0);return}if(a.taskId&&aa(Eo(a.taskId))){hr(r,!0);return}cd(a)&&hr(r,!0)})}function $i(){var e=at;return arguments.length>0&&typeof arguments[0]=="string"&&(e=arguments[0]),ia().filter(function(r){if(!r||r.archived||It(r.sectionId)||Tr(r)!=="ready"||Xi(r.id||""))return!1;var a=r.taskId?Eo(r.taskId):null;return a&&aa(a)||cd(r)?!1:e?Array.isArray(r.labels)&&r.labels.indexOf(e)>=0:!0})}function Zi(){return(Array.isArray(Ee)?Ee:[]).filter(function(e){return e&&(e.folderId||"")===ne}).sort(function(e,r){var a=wo(r&&r.updatedAt)-wo(e&&e.updatedAt);if(a!==0)return a;var s=e&&e.name?String(e.name):"",c=r&&r.name?String(r.name):"";return s.localeCompare(c)})}function Ao(e){for(var r=0,a=e;a&&a.parentId&&(r+=1,a=ra(a.parentId),!(r>20)););return r}function Qi(e){if(!e)return n.jobsRootFolder||"All jobs";for(var r=[],a=ra(e),s=0;a&&s<20;)r.unshift(a.name||""),a=a.parentId?ra(a.parentId):null,s+=1;return r.unshift(n.jobsRootFolder||"All jobs"),r.filter(Boolean).join(" / ")}function en(e){return!!e&&String(e.name||"").toLowerCase()===String(n.jobsArchiveFolder||"Archive").toLowerCase()}function sp(e){if(!e)return[];var r=[];return ia().forEach(function(a){!a||a.taskId!==e||!Array.isArray(a.labels)||(r=r.concat(a.labels))}),Ut(r)}function Bo(e){var r=[];if(e&&Array.isArray(e.labels)&&(r=r.concat(e.labels)),e&&e.jobId){var a=kt(e.jobId);a&&a.name&&r.push(a.name)}return e&&e.id&&(r=r.concat(sp(e.id))),Ut(r)}function wo(e){if(!e)return Number.MAX_SAFE_INTEGER;var r=new Date(e),a=r.getTime();return isNaN(a)?Number.MAX_SAFE_INTEGER:a}function fd(e){return(Array.isArray(e)?e.slice():[]).sort(function(r,a){var s=wo(r&&r.nextRun)-wo(a&&a.nextRun);if(s!==0)return s;var c=r&&r.name?String(r.name):"",u=a&&a.name?String(a.name):"";return c.localeCompare(u)})}function lp(){return fd((Array.isArray(M)?M:[]).filter(function(e){return e&&e.oneTime!==!0}))}function pd(e){var r=ga(e||"");return(!r||r===(n.labelFriendlyFallback||""))&&(r=e||n.labelNever||"Never"),r}function dp(){if(Gr){var e=Gr.querySelector("[data-jobs-workflow-cadence]");if(e){var r=de?String(de.value||"").trim():"";e.textContent=pd(r),e.parentElement&&e.parentElement.setAttribute("title",e.textContent||"")}}}function Co(){if(jt){var e=[];(Array.isArray(M)?M:[]).forEach(function(a){Bo(a).forEach(function(s){e.indexOf(s)===-1&&e.push(s)})}),e.sort(function(a,s){return String(a).localeCompare(String(s))});var r=at||"";jt.innerHTML='<option value="">'+f(n.labelAllLabels||"All labels")+"</option>"+e.map(function(a){return'<option value="'+v(a)+'">'+f(a)+"</option>"}).join(""),jt.value=r,jt.value!==r&&(at="",$n=!1,jt.value="")}}function cp(){if(ne&&!ra(ne)&&(ne=""),Ve){Y="";return}var e=Y?kt(Y):null;if(e&&(e.folderId||"")!==ne&&(Y="",e=null),Y&&!e&&(Y=""),!Y){var r=Zi();r.length>0&&(Y=r[0].id)}}function gd(){return ne?ra(ne):null}Vf(),gu(document,fe),De("applyBoardFilterCollapseState",yo),De("syncAutoShowOnStartupUi",ad),De("syncScheduleHistoryOptions",ld),De("updateJobsCronPreview",qo),De("updateJobsFriendlyVisibility",Wo),De("syncResearchSelectors",ks),De("hookResearchFormDirtyTracking",Hv),De("hookEditorTabDirtyTracking",Jv),De("renderResearchTab",Er),De("renderTelegramTab",Ql),De("renderCockpitBoard",Yt),De("renderExecutionDefaultsControls",So),De("renderReviewDefaultsControls",To),De("renderStorageSettingsControls",ed),De("renderLoggingControls",Ui);function Pm(e){return e?String(e).split(",").map(function(r){return r.trim()}).filter(function(r){return r.length>0}):[]}function se(e){return String(e||"").trim().replace(/\s+/g," ")}function w(e){return se(e).toLowerCase()}function Sr(){var e=N?se(N.value):"";return e||(Oe?se(Oe):z?se(z):"")}function Wt(){var e=We?se(We.value):"";return e||(Vt?se(Vt):U?se(U):"")}function vd(e){e.name="",e.color=""}function es(){vd(Lr),vd(Pr)}function zt(e,r,a){e.name=se(r),e.color=Do(a)?String(a):""}function md(e,r){return w(e.name)!==w(r)?"":Do(e.color)?e.color:""}function Ut(e){var r={};return(Array.isArray(e)?e:[]).map(se).filter(function(a){var s=w(a);return!s||r[s]?!1:(r[s]=!0,!0)})}function oa(e){return e==="archive-completed"||e==="archive-rejected"}function It(e){return e==="recurring-tasks"}function ts(e){return oa(e)||It(e)}function ia(){return L&&Array.isArray(L.cards)?L.cards.slice():[]}function De(e,r){try{r()}catch(u){D("startupRenderStepFailed",{step:e,error:u&&u.message?String(u.message):String(u)});var a=n.webviewClientErrorPrefix||"Webview error: ",s=u&&u.message?u.message:u,c=String(s||"").split(/\r?\n/)[0];g(a+ka(e+": "+c),{durationMs:0})}}function up(e){var r=ia();return(!e||e.showArchived!==!0)&&(r=r.filter(function(a){return!a.archived&&!oa(a.sectionId)})),(!e||e.showRecurringTasks!==!0)&&(r=r.filter(function(a){return!It(a.sectionId)})),r}function fp(){var e=[],r=Object.create(null);return(Array.isArray(M)?M:[]).forEach(function(a){Bo(a).forEach(function(s){var c=se(s),u=w(c);!c||!u||r[u]||(r[u]=!0,e.push({key:u,name:c,color:"var(--vscode-badge-background)",source:"task"}))})}),e.sort(function(a,s){return String(a.name).localeCompare(String(s.name))})}function sa(){var e=[],r=Object.create(null),a=L&&Array.isArray(L.labelCatalog)?L.labelCatalog.slice():[];return a.forEach(function(s){var c=se(s&&s.name),u=w(s&&(s.key||s.name||""));!c||!u||(r[u]={key:u,name:c,color:s.color||"var(--vscode-badge-background)",createdAt:s.createdAt,updatedAt:s.updatedAt,source:"board"})}),fp().forEach(function(s){r[s.key]||(r[s.key]=s)}),Object.keys(r).forEach(function(s){e.push(r[s])}),e.sort(function(s,c){return String(s.name).localeCompare(String(c.name))})}function xo(){return L&&Array.isArray(L.flagCatalog)?L.flagCatalog.slice():[]}function jo(e){for(var r=w(e),a=xo(),s=0;s<a.length;s+=1)if(w(a[s].key||a[s].name)===r)return a[s];return null}function pp(e){var r=jo(e);return r&&r.color?r.color:"#f59e0b"}function rs(e){var r=w(e);if(r==="ready"||r==="go")return n.boardFlagPresetReady||"Ready";if(r==="needs-bot-review")return n.boardFlagPresetNeedsBotReview||"Needs bot review";if(r==="needs-user-review")return n.boardFlagPresetNeedsUserReview||"Needs user review";if(r==="new")return n.boardFlagPresetNew||"New";if(r==="on-schedule-list")return n.boardFlagPresetOnScheduleList||"On Schedule List";if(r==="final-user-check")return n.boardFlagPresetFinalUserCheck||"Final User Check";var a=jo(e);return a&&a.name?a.name:e}function gp(e){var r=e&&typeof e=="object"?e:jo(e);if(r&&r.system===!0)return!0;var a=w(r&&(r.key||r.name)?r.key||r.name:e);return a==="ready"||a==="needs-bot-review"||a==="needs-user-review"||a==="new"||a==="on-schedule-list"||a==="final-user-check"}function Tr(e){if(!e||!Array.isArray(e.flags))return"";var r=["new","needs-bot-review","needs-user-review","ready","on-schedule-list","final-user-check"],a=Object.create(null),s=[];return e.flags.forEach(function(c){var u=w(c);u==="go"&&(u="ready"),r.indexOf(u)>=0&&!a[u]&&(a[u]=!0,s.push(u))}),s.length?s[s.length-1]:""}function kr(e){for(var r=w(e),a=sa(),s=0;s<a.length;s+=1)if(w(a[s].key||a[s].name)===r)return a[s];return null}function bd(e){var r=kr(e);return r&&r.color?r.color:"var(--vscode-badge-background)"}function Do(e){return/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(e||""))}function la(e,r){var a=String(e||"");return Do(a)?a:r||"#4f8cff"}function ns(e,r){var a=String(e||"");return Do(a)?a:r||"#f59e0b"}function as(e,r,a){var s=se(e),c=/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(r||""))?String(r):"#4f8cff",u=w(s),B=w(a||""),I=null,T;!s||!u||(L||(L={version:4,sections:[],cards:[],labelCatalog:[],filters:{labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sortBy:"manual",sortDirection:"asc",viewMode:"board",showArchived:!1,showRecurringTasks:!1},updatedAt:""}),T=Array.isArray(L.labelCatalog)?L.labelCatalog.slice():[],T=T.filter(function(b){var J=w(b&&(b.key||b.name||""));return J?J===u||B&&J===B?(I||(I=b),!1):!0:!1}),T.push({key:u,name:s,color:c,createdAt:I&&I.createdAt?I.createdAt:void 0,updatedAt:L.updatedAt||new Date().toISOString()}),L=Object.assign({},L,{labelCatalog:T.sort(function(b,J){return String(b.name).localeCompare(String(J.name))})}))}function he(e){(!e||e==="label")&&(ai=""),(!e||e==="flag")&&(oi="")}function yd(e,r){var a=e==="flag"?oi:ai;return!!a&&w(a)===w(r||"")}function vp(e){Ir(Z.filter(function(r){return w(r)!==w(e)}),!0),w(z)===w(e)&&(z="")}function mp(){if(z&&!kr(z)){var e=Z.some(function(r){return w(r)===w(z)});e||(z="")}}function da(e){var r=String(e||"").trim();if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(r)){var a=r.slice(1);a.length===3&&(a=a.split("").map(function(I){return I+I}).join(""));var s=parseInt(a.slice(0,2),16),c=parseInt(a.slice(2,4),16),u=parseInt(a.slice(4,6),16),B=(s*299+c*587+u*114)/1e3;return B>=150?"#111111":"#ffffff"}return"var(--vscode-badge-foreground)"}function hd(e,r,a){var s=bd(e),c=da(s),u=a?"var(--vscode-focusBorder)":"var(--vscode-panel-border)";return'<span data-label-chip="'+v(e)+'" style="border-radius:999px;background:'+v(s)+";color:"+v(c)+";border:1px solid "+v(u)+';"><button type="button" data-label-chip-select="'+v(e)+'" style="all:unset;cursor:pointer;color:inherit;">'+f(e)+"</button>"+(r?'<button type="button" data-label-chip-remove="'+v(e)+'" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xD7</button>':"")+"</span>"}function Sd(e,r){var a=pp(e),s=da(a),c=rs(e);return'<span data-flag-chip="'+v(e)+'" style="border-radius:4px;background:'+v(a)+";color:"+v(s)+";border:1px solid color-mix(in srgb,"+v(a)+' 70%,var(--vscode-panel-border));font-weight:600;"><span>'+f(c)+"</span>"+(r?'<button type="button" data-flag-chip-remove="'+v(e)+'" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="'+v(n.boardFlagClearTitle||n.boardFlagClear||"Clear flag")+'">\xD7</button>':"")+"</span>"}function Ir(e,r){Z=Ut(e),r?z&&Z.map(w).indexOf(w(z))<0&&(z=Z[0]||""):z=Z[0]||"",Le()}function bp(){if(Pn){var e=sa(),r=Z.map(w),a=e.filter(function(I){return r.indexOf(w(I.name))<0}),s=null;if(Oe){for(var c=0;c<e.length;c++)if(w(e[c].name)===w(Oe)){s=e[c];break}}if(a.length===0&&!s){Pn.innerHTML="";return}var u="";if(s&&s.source!=="task"){var B=String(n.boardLabelCatalogDeleteConfirm||'Delete label "{name}"?').replace("{name}",s.name);u='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 45%,var(--vscode-panel-border));background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#7f1d1d) 20%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 92%,transparent) 100%);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 10%,transparent);"><span style="font-size:12px;line-height:1.45;font-weight:600;color:var(--vscode-foreground);">'+f(B)+"</span>"+(yd("label",s.name)?'<button type="button" data-label-catalog-confirm-delete="'+v(s.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 78%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 62%,var(--vscode-button-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 78%,var(--vscode-panel-border));color:var(--vscode-button-foreground);box-shadow:0 6px 14px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 24%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="'+v(n.boardLabelCatalogDeleteTitle||"Delete label")+'">'+f(n.boardDeleteConfirm||"Delete?")+"</button>":'<button type="button" data-label-catalog-delete="'+v(s.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 16%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 10%,var(--vscode-editorWidget-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 56%,var(--vscode-panel-border));color:var(--vscode-errorForeground,var(--vscode-foreground));box-shadow:0 4px 12px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 14%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="'+v(n.boardLabelCatalogDeleteTitle||"Delete label")+'">'+f(n.boardLabelCatalogDeleteTitle||"Delete label")+"</button>")+"</div>"}Pn.innerHTML=u+a.map(function(I){var T=I.color||"var(--vscode-badge-background)",b=da(T),J="color-mix(in srgb,"+T+" 60%,var(--vscode-panel-border))";return'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:'+v(T)+";color:"+v(b)+";border:1.5px solid "+v(J)+';font-size:12px;"><button type="button" data-label-catalog-select="'+v(I.name)+'" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="'+v(n.boardLabelCatalogAddTitle||"Add to todo")+'">'+f(I.name)+'</button><button type="button" data-label-catalog-edit="'+v(I.name)+'" data-label-catalog-edit-color="'+v(T)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="'+v(n.boardLabelCatalogEditTitle||"Edit label")+'">\u270E</button></span>'}).join("")}}function os(){if(xe){var e=N?w(N.value):"",r=Z.map(w),a=Ut(sa().map(function(s){return s.name}).concat(Z)).filter(function(s){return r.indexOf(w(s))<0}).sort(function(s,c){return s.localeCompare(c)});if(e?a=a.filter(function(s){return w(s).indexOf(e)>=0}):a=[],a.length===0){xe.style.display="none",xe.innerHTML="";return}xe.style.display="flex",xe.innerHTML=a.map(function(s){var c=bd(s),u=da(c);return'<button type="button" data-label-suggestion="'+v(s)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:'+v(c)+";color:"+v(u)+";border:1px solid color-mix(in srgb,"+v(c)+' 60%,var(--vscode-panel-border));font-size:12.5px;line-height:1.5;">'+f(s)+"</button>"}).join("")}}function ot(){Oa&&(Oa.innerHTML=Z.length>0?Z.map(function(B){return hd(B,!0,w(B)===w(z))}).join(""):'<div class="note">No labels yet.</div>');var e=Sr(),r=e?kr(e):null;if(H){var a=!C&&X?la(X.labelColor,""):"",s=md(Lr,e),c=s||a||la(r&&r.color,""),u=N&&N.value.trim();c?H.value=la(c,"#4f8cff"):(e||!u)&&(H.value="#4f8cff"),zt(Lr,e,H.value),H.disabled=!1}ur&&(ur.disabled=!Sr()),os(),bp()}function Lo(){if(!N){D("todoLabelAddIgnored",{reason:"missingInput"});return}he("label");var e=se(N.value);if(!e){D("todoLabelAddIgnored",{reason:"emptyLabel",rawValue:String(N.value||"")});return}D("todoLabelAddAccepted",{label:e,editingExisting:!!Oe,color:H?H.value:""});var r=Oe;Oe="";var a=H?H.value:"",s=kr(e);if(N.value="",r){var c=w(r),u=Z.map(w),B=u.indexOf(c);if(B>=0){var I=Z.slice();I.splice(B,1,e),Ir(I,!0),z=e}a&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a)&&(as(e,a,r),t.postMessage({type:"saveTodoLabelDefinition",data:{name:e,previousName:r,color:a}})),xe&&(xe.style.display="none"),be(),ot();return}Ir(Z.concat([e]),!0),z=e,xe&&(xe.style.display="none"),!s&&a&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a)&&(as(e,a),t.postMessage({type:"saveTodoLabelDefinition",data:{name:e,color:a}})),be(),ot()}function yp(e){he("label"),Ir(Z.filter(function(r){return w(r)!==w(e)}),!0),ot()}function hp(){Nc({boardColumns:Nr,getBoardColumns:function(){return Nr},document,window,vscode:t,renderCockpitBoard:Yt,openTodoEditor:vs,openTodoDeleteModal:Pd,setPendingBoardDelete:function(e,r){ht=String(e||""),pn=!!r,ar()},clearPendingBoardDelete:function(){ht="",pn=!1,ar()},submitBoardDeleteChoice:function(e){if(ht){var r=ht;ht="",pn=!1,C===r&&(C=null,Z=[],z="",U=""),ar(),t.postMessage({type:e==="permanent"?"purgeTodo":"rejectTodo",todoId:r})}},handleSectionCollapse:function(e){jc(e,{toggleSectionCollapsed:Ff,collapsedSections:Xr})},handleSectionRename:function(e){Dc(e,{document,vscode:t,setTimeout})},handleSectionDelete:function(e){Lc(e,{strings:n,vscode:t,setTimeout})},handleTodoCompletion:function(e){Pc(e,{cockpitBoard:L,clearPendingGridTodoCompletion:ua,isPendingGridTodoCompletion:cs,startPendingGridTodoCompletion:Dp,strings:n,vscode:t})},handleTodoCompletionCancel:function(e){Fc(e,{clearPendingGridTodoCompletion:ua})},handleTodoReject:function(e){var r=e.getAttribute("data-todo-reject")||"";r&&t.postMessage({type:"rejectTodo",todoId:r})},handleTodoRestore:function(e){var r=e.getAttribute("data-todo-restore")||"";r&&t.postMessage({type:"archiveTodo",todoId:r,archived:!1})},setSelectedTodoId:function(e){C=e},getDraggingSectionId:function(){return Ni},setDraggingSectionId:function(e){Ni=e},getLastDragOverSectionId:function(){return Oi},setLastDragOverSectionId:function(e){Oi=e},getDraggingTodoId:function(){return nr},setDraggingTodoId:function(e){nr=e},setIsBoardDragging:function(e){jr=e},requestAnimationFrame,finishBoardDragState:Wu,isArchiveTodoSectionId:oa,isSpecialTodoSectionId:ts})}function Sp(){Gs||(Gs=!0,[Lt,tt,ee,vt].forEach(function(e){!e||typeof e.addEventListener!="function"||e.addEventListener("input",function(){gn("input"),e===ee&&Ro(C?Zr(C):null)})}),[ye,we,Ce].forEach(function(e){!e||typeof e.addEventListener!="function"||e.addEventListener("change",function(){gn("change"),e===ye&&$l()})}),lt(qr,{selector:"#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",eventName:"todoDetailClickAttempt"}),qr&&qr.addEventListener("click",function(e){var r=V(e,"[data-comment-template]");r&&Gf(String(r.getAttribute("data-comment-template")||""))}),document.addEventListener("click",function(e){var r=V(e,"[data-flag-chip-remove]");if(r){U="",Ct(),Et();return}var a=V(e,"[data-flag-catalog-select]");if(a){e.preventDefault(),e.stopPropagation(),he("flag");var s=a.getAttribute("data-flag-catalog-select")||"";if(!s)return;U=se(s)||s,Ct(),Et();return}var c=V(e,"[data-flag-catalog-edit]");if(c){e.preventDefault(),e.stopPropagation(),he("flag");for(var u=c.getAttribute("data-flag-catalog-edit")||"",B=xo(),I=null,T=0;T<B.length;T++)if(w(B[T].name)===w(u)){I=B[T];break}var b=document.getElementById("todo-flag-name-input"),J=document.getElementById("todo-flag-color-input");b&&(b.value=I?I.name:u),J&&I&&I.color&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(I.color)&&(J.value=I.color),Vt=u,be(),b&&b.focus();return}var re=V(e,"[data-flag-catalog-confirm-delete]");if(re){e.preventDefault(),e.stopPropagation();var pe=re.getAttribute("data-flag-catalog-confirm-delete")||"";if(!pe)return;he("flag"),w(U)===w(pe)&&(U="",Ct()),Et(),t.postMessage({type:"deleteTodoFlagDefinition",data:{name:pe}});return}var Se=V(e,"[data-flag-catalog-delete]");if(Se){e.preventDefault(),e.stopPropagation();var s=Se.getAttribute("data-flag-catalog-delete")||"";if(!s)return;oi=s,Et()}}))}function Et(){var e=document.getElementById("todo-flag-current"),r=document.getElementById("todo-flag-picker"),a=Wt(),s=a?jo(a):null;if(e&&(U?e.innerHTML=Sd(U,!0):e.innerHTML='<span class="note">'+f(n.boardFlagNone||"No flag set.")+"</span>"),r){var c=xo();c.length===0?r.innerHTML="":r.innerHTML=c.map(function(T){var b=T.color||"#f59e0b",J=da(b),re=w(T.name)===w(U),pe=re?"2px solid var(--vscode-focusBorder)":"1px solid color-mix(in srgb,"+b+" 70%,var(--vscode-panel-border))",Se=yd("flag",T.name),k=gp(T),x=rs(T.name);return'<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:'+v(b)+";color:"+v(J)+";border:"+pe+';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="'+v(T.name)+'" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="'+v(n.boardFlagCatalogSelectTitle||"Set as flag")+'">'+f(x)+"</button>"+(k?'<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="'+v(n.boardFlagCatalogLockedTitle||"Built-in flag")+'">\u{1F512}</span>':Se?'<button type="button" data-flag-catalog-confirm-delete="'+v(T.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="'+v(n.boardFlagCatalogDeleteTitle||"Delete flag")+'">'+f(n.boardDeleteConfirm||"Delete?")+"</button>":'<button type="button" data-flag-catalog-edit="'+v(T.name)+'" data-flag-catalog-edit-color="'+v(b)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="'+v(n.boardFlagCatalogEditTitle||"Edit flag")+'">\u270E</button><button type="button" data-flag-catalog-delete="'+v(T.name)+'" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="'+v(n.boardFlagCatalogDeleteTitle||"Delete flag")+'">\xD7</button>')+"</span>"}).join("")}if(je){var u=!C&&X?ns(X.flagColor,""):"",B=md(Pr,a),I=B||u||ns(s&&s.color,"");je.value=ns(I,"#f59e0b"),zt(Pr,a,je.value),je.disabled=!1}Le()}function Td(){he("flag");var e=document.getElementById("todo-flag-name-input"),r=document.getElementById("todo-flag-color-input");if(!e){D("todoFlagAddIgnored",{reason:"missingInput"});return}var a=se(e.value);if(!a){D("todoFlagAddIgnored",{reason:"emptyFlag",rawValue:String(e.value||"")});return}var s=r?r.value:"#f59e0b";D("todoFlagAddAccepted",{flag:a,editingExisting:!!Vt,color:s});var c=Vt;Vt="",e.value="",c&&w(c)!==w(a)&&w(U)===w(c)&&(U=a),t.postMessage({type:"saveTodoFlagDefinition",data:{name:a,previousName:c||void 0,color:s}}),c||(U=a),Ct(),be(),Et()}function Po(e){return e<10?"0"+e:String(e)}function kd(e){if(!e)return"";var r=new Date(e);if(isNaN(r.getTime()))return"";var a=r.getFullYear(),s=Po(r.getMonth()+1),c=Po(r.getDate()),u=Po(r.getHours()),B=Po(r.getMinutes());return a+"-"+s+"-"+c+"T"+u+":"+B}function Tp(e){if(e){var r=new Date(e);if(!isNaN(r.getTime()))return r.toISOString()}}function Fo(e){if(!e)return"";var r=new Date(e);return isNaN(r.getTime())?String(e):r.toLocaleString(Tt||void 0,{dateStyle:"medium",timeStyle:"short"})}function Gt(e){switch(e){case"low":return n.boardPriorityLow||"Low";case"medium":return n.boardPriorityMedium||"Medium";case"high":return n.boardPriorityHigh||"High";case"urgent":return n.boardPriorityUrgent||"Urgent";default:return n.boardPriorityNone||"None"}}function Id(e){switch(e){case"urgent":return 4;case"high":return 3;case"medium":return 2;case"low":return 1;default:return 0}}function kp(e,r){if(r)return"var(--vscode-list-activeSelectionBackground)";switch(e){case"urgent":return"color-mix(in srgb, #ef4444 12%, var(--vscode-sideBar-background))";case"high":return"color-mix(in srgb, #f59e0b 12%, var(--vscode-sideBar-background))";case"medium":return"color-mix(in srgb, #3b82f6 12%, var(--vscode-sideBar-background))";case"low":return"color-mix(in srgb, #6b7280 12%, var(--vscode-sideBar-background))";default:return"color-mix(in srgb, #9ca3af 6%, var(--vscode-sideBar-background))"}}function tn(e){switch(e){case"completed":return n.boardStatusCompleted||"Completed";case"rejected":return n.boardArchiveRejected||"Rejected";default:return n.boardStatusActive||"Active"}}function Mo(e){switch(e){case"completed-successfully":return n.boardArchiveCompletedSuccessfully||"Completed successfully";case"rejected":return n.boardArchiveRejected||"Rejected";default:return n.boardAllArchiveOutcomes||"All outcomes"}}function is(e){switch(e){case"bot-mcp":return n.boardCommentSourceBotMcp||"Bot MCP";case"bot-manual":return n.boardCommentSourceBotManual||"Bot manual";case"system-event":return n.boardCommentSourceSystemEvent||"System event";default:return n.boardCommentSourceHumanForm||"Human form"}}function Ed(e,r){return'<div class="todo-comment-empty-state"><div class="todo-comment-empty-title">'+f(e)+'</div><div class="note">'+f(r)+"</div></div>"}function Ip(e){return'<article class="todo-comment-card is-human-form is-user-form is-preview"><div class="todo-comment-header"><div class="todo-comment-heading"><span class="todo-comment-sequence">'+f(n.boardCommentModeCreate||"Kickoff note")+'</span><span class="todo-comment-source-chip">'+f(n.boardCommentSourceHumanForm||"Human form")+'</span></div><div class="todo-comment-meta"><span class="note">'+f(n.boardCommentPreviewPending||"Saved on create")+'</span></div></div><div class="note todo-comment-author">user</div><div class="todo-comment-body">'+f(e||"")+'</div><div class="todo-comment-expand-hint">'+f(n.boardCommentThreadCreateNote||"Preview of the kickoff note that will be saved on create.")+"</div></article>"}function Ep(e){return e.length?e.slice().reverse().map(function(r,a){var s=r&&r.source?String(r.source):"human-form",c=e.length-a-1,u=is(s),B=typeof r.sequence=="number"?r.sequence:1,I=r.updatedAt||r.editedAt||r.createdAt,T=_f(r),b=s==="human-form"&&String(r.author||"").toLowerCase()==="user"?" is-user-form":"",J=String(r.body||""),re=s==="system-event"?J.replace(/\s+/g," ").trim():J;return s==="system-event"&&re.length>140&&(re=re.slice(0,137)+"..."),'<article class="todo-comment-card'+T+b+'" data-comment-index="'+v(String(c))+'" tabindex="0" role="button" aria-label="'+v(n.boardCommentOpenFull||"Open full comment")+'"><div class="todo-comment-header"><div class="todo-comment-heading"><span class="todo-comment-sequence">#'+f(String(B))+'</span><span class="todo-comment-source-chip">'+f(u)+'</span></div><div class="todo-comment-meta"><span class="note">'+f(Fo(I))+'</span><button type="button" class="btn-icon todo-comment-delete-btn" data-delete-comment-index="'+v(String(c))+'" title="'+v(n.boardCommentDelete||"Delete comment")+'">&#128465;</button></div></div><div class="note todo-comment-author">'+f(r.author||"system")+'</div><div class="todo-comment-body">'+f(re)+'</div><div class="todo-comment-expand-hint">'+f(n.boardCommentOpenFull||"Open full comment")+"</div></article>"}).join(""):Ed(n.boardCommentsEmpty||"No comments yet.",n.boardCommentEditHint||"Add a focused update without rewriting the full description.")}function Ro(e){var r=!!e,a=!!(e&&e.archived),s=r?null:X,c=r&&Array.isArray(e.comments)?e.comments:[],u=ee?String(ee.value||"").trim():!r&&s?String(s.comment||"").trim():"";fl&&(fl.textContent=r?String(c.length):u?n.boardCommentBadgePreview||"Preview":n.boardCommentBadgeDraft||"Draft"),pl&&(pl.textContent=r?n.boardCommentModeEdit||"Live thread":n.boardCommentModeCreate||"Kickoff note"),gl&&(gl.textContent=r?n.boardCommentsEditIntro||"Keep approvals, decisions, and handoff context in the thread while the main description stays stable.":n.boardCommentsCreateIntro||"Start the thread early so context, approvals, and decisions do not get buried in the description.");var B=document.getElementById("todo-comments-heading");if(B){var I=r?n.boardCommentsEditIntro||"Keep approvals, decisions, and handoff context in the thread while the main description stays stable.":n.boardCommentsCreateIntro||"Start the thread early so context, approvals, and decisions do not get buried in the description.";B.setAttribute("title",I);var T=B.parentElement;if(T){T.setAttribute("title",I);var b=T.querySelector(".section-title-help-trigger");b&&b.setAttribute("title",I)}}if(vl&&(vl.textContent=r?n.boardCommentComposerEditTitle||"Add to the thread":n.boardCommentComposerCreateTitle||"Write the kickoff comment"),ml&&(ml.textContent=r?n.boardCommentEditHint||"Add a focused update without rewriting the full description.":n.boardCommentCreateHint||"Optional, but recommended: add the first human note now so the todo starts with useful context."),qa&&(a?qa.textContent=n.boardReadOnlyArchived||"Archived items are read-only in the editor. Use Restore on the board to reopen them.":r?qa.textContent=u?n.boardCommentReadyToAdd||"Ready to append to the live thread.":n.boardCommentEditHint||"Add a focused update without rewriting the full description.":qa.textContent=u?n.boardCommentCreateReady||"This draft will be saved as the first human comment when you create the todo.":n.boardCommentCreateHint||"Optional, but recommended: add the first human note now so the todo starts with useful context."),Ei&&(r?Ei.textContent=c.length>0?n.boardCommentThreadEditNote||"Open any card to read the full comment or remove a thread entry.":n.boardCommentEditHint||"Add a focused update without rewriting the full description.":Ei.textContent=u?n.boardCommentThreadCreateNote||"Preview of the kickoff note that will be saved on create.":n.boardCommentThreadCreateEmpty||"Start typing to preview the kickoff comment."),ee&&(ee.placeholder=r?n.boardCommentPlaceholder||"Add a comment with context, provenance, or approval notes...":n.boardCommentCreatePlaceholder||"Capture the first decision, approval note, or handoff context for this todo..."),zr&&(zr.textContent=n.boardAddComment||"Add Comment",zr.hidden=!r,zr.disabled=!r||a||!u),!!Wr){if(r){Wr.innerHTML=Ep(c);return}Wr.innerHTML=u?Ip(u):Ed(n.boardCommentBadgeDraft||"Draft",n.boardCommentThreadCreateEmpty||"Start typing to preview the kickoff comment.")}}function Ad(e){var r=String(e||"").trim().replace(/\s+/g," ");return r?r.length>140?r.slice(0,137)+"...":r:n.boardDescriptionPreviewEmpty||"No description yet."}function rn(e){var r=e&&typeof e=="object"?e:{};return{searchText:r.searchText||"",labels:Array.isArray(r.labels)?r.labels.slice():[],priorities:Array.isArray(r.priorities)?r.priorities.slice():[],statuses:Array.isArray(r.statuses)?r.statuses.slice():[],archiveOutcomes:Array.isArray(r.archiveOutcomes)?r.archiveOutcomes.slice():[],flags:Array.isArray(r.flags)?r.flags.slice():[],sectionId:r.sectionId||"",sortBy:r.sortBy||"manual",sortDirection:r.sortDirection||"asc",viewMode:r.viewMode==="list"?"list":"board",showArchived:r.showArchived===!0,showRecurringTasks:r.showRecurringTasks===!0,hideCardDetails:r.hideCardDetails===!0}}function ca(e,r){if(e.length!==r.length)return!1;for(var a=0;a<e.length;a+=1)if(e[a]!==r[a])return!1;return!0}function Ap(e,r){var a=rn(e),s=rn(r);return a.searchText===s.searchText&&ca(a.labels,s.labels)&&ca(a.priorities,s.priorities)&&ca(a.statuses,s.statuses)&&ca(a.archiveOutcomes,s.archiveOutcomes)&&ca(a.flags,s.flags)&&a.sectionId===s.sectionId&&a.sortBy===s.sortBy&&a.sortDirection===s.sortDirection&&a.viewMode===s.viewMode&&a.showArchived===s.showArchived&&a.showRecurringTasks===s.showRecurringTasks&&a.hideCardDetails===s.hideCardDetails}function ss(){return rn(L&&L.filters?L.filters:{})}function He(e){var r=rn(Object.assign({},ss(),e||{}));if(e&&typeof e.hideCardDetails=="boolean"){bo=e.hideCardDetails;try{localStorage.setItem("cockpit-hide-card-details",bo?"1":"0")}catch{}}L||(L={sections:[],cards:[],labelCatalog:[],archives:{completedSuccessfully:[],rejected:[]},filters:{},updatedAt:""}),fn=r,L.filters=r,Yt(),t.postMessage({type:"setTodoFilters",data:r})}function Bp(e){var r=e||ss();return!!(r.searchText&&String(r.searchText).trim()||Array.isArray(r.labels)&&r.labels.length>0||Array.isArray(r.priorities)&&r.priorities.length>0||Array.isArray(r.statuses)&&r.statuses.length>0||Array.isArray(r.archiveOutcomes)&&r.archiveOutcomes.length>0||Array.isArray(r.flags)&&r.flags.length>0||r.sectionId&&String(r.sectionId).trim()||r.showArchived===!0||r.showRecurringTasks===!0||r.hideCardDetails===!0)}function wp(){He({searchText:"",labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sectionId:"",showArchived:!1,showRecurringTasks:!1,hideCardDetails:!1})}function Bd(e){var r=Array.isArray(L.sections)?L.sections.slice():[];return r.sort(function(a,s){return(a.order||0)-(s.order||0)}),r.filter(function(a){return!(!(e&&e.showArchived===!0)&&oa(a.id)||!(e&&e.showRecurringTasks===!0)&&It(a.id))})}function Cp(){return Bd({showArchived:!0,showRecurringTasks:!0}).filter(function(e){return!ts(e.id)})}function _t(e){var r=Tr(e);return!!(e&&!e.archived&&(r==="ready"||r==="final-user-check"||String(e.status||"").toLowerCase()==="ready"))}function ls(e){return _t(e)?"finalizeTodo":"approveTodo"}function ds(e){return _t(e)?n.boardFinalizeTodo||"Final Accept":n.boardApproveTodo||"Approve"}function xp(){return n.boardFinalizeTodoYes||"Yes"}function jp(){return n.boardFinalizeTodoNo||"No"}function No(){wa&&(window.clearTimeout(wa),wa=null)}function cs(e){return!!(e&&Object.prototype.hasOwnProperty.call(cn,e))}function ua(e,r){cs(e)&&(window.clearTimeout(cn[e]),delete cn[e],r||ar())}function Dp(e){e&&(ua(e,!0),cn[e]=window.setTimeout(function(){ua(e)},Vs),ar())}function Lp(e){var r={};Array.isArray(e)&&e.forEach(function(a){a&&a.id&&!a.archived&&(r[a.id]=!0)}),Object.keys(cn).forEach(function(a){r[a]||ua(a,!0)})}function us(e){return!!(e&&yt&&yt.todoId===e.id&&yt.actionType===ls(e))}function Pp(e){return(n.boardConfirmAction||"Confirm")+" "+ds(e)}function fs(){if(Pt){var e=C?Zr(C):null,r=!!e,a=!!(e&&e.archived),s=us(e);yt&&!s&&(No(),yt=null);var c=r?ds(e):n.boardApproveTodo||"Approve";s&&(c=Pp(e)),Pt.textContent=c,Pt.disabled=!r||a,Pt.setAttribute("aria-label",c),Pt.setAttribute("title",c),Pt.setAttribute("data-confirm-state",s?"pending":"idle")}}function fa(){No(),yt=null,fs()}function Fp(e){!e||e.archived||(yt={todoId:e.id,actionType:ls(e)},No(),wa=window.setTimeout(function(){fa()},Vs),fs())}function Oo(e){return!!(e&&e.archived&&e.archiveOutcome==="completed-successfully")}function Mp(e){var r=!!(e&&e.archived),a=!r&&cs(e&&e.id),s=r?n.boardRestoreTodo||"Restore":ds(e),c=Oo(e)?"\u2713":"\u25CB",u=r?"data-todo-restore":"data-todo-complete",B="todo-complete-button";if(_t(e)&&(B+=" is-ready-to-finalize"),Oo(e)&&(B+=" is-completed"),a){var I=_t(e)?n.boardFinalizeTodoYes||"Yes":n.boardConfirmAction||"Confirm",T=_t(e)?n.boardFinalizePrompt||"Archive this todo as completed successfully?":n.boardApprovePrompt||"Mark this todo ready for task draft creation?",b=_t(e)?n.boardFinalizeTodoNo||"No":n.boardCancelAction||"Cancel";return'<button type="button" class="'+B+' is-confirming" data-todo-complete="'+v(e.id)+'" data-no-drag="1" title="'+v(T)+'" aria-label="'+v(I)+'"'+(_t(e)?' data-finalize-state="confirming"':"")+' style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-input-background);color:var(--vscode-foreground);cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;"><span aria-hidden="true">'+f(I)+'</span></button><button type="button" class="todo-complete-button is-cancel" data-todo-complete-cancel="'+v(e.id)+'" data-no-drag="1" title="'+v(b)+'" aria-label="'+v(b)+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-button-secondaryBackground, var(--vscode-input-background));color:var(--vscode-button-secondaryForeground, var(--vscode-foreground));cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;margin-left:6px;">'+f(b)+"</button>"}return'<button type="button" class="'+B+'" '+u+'="'+v(e.id)+'" data-no-drag="1" title="'+v(s)+'" aria-label="'+v(s)+'"'+(_t(e)?' data-finalize-state="idle" data-confirm-label="'+v(xp())+'" data-cancel-label="'+v(jp())+'"':"")+' style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:'+(Oo(e)?"color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background))":"var(--vscode-input-background)")+";color:"+(Oo(e)?"var(--vscode-button-foreground)":"var(--vscode-foreground)")+';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;"><span aria-hidden="true">'+f(c)+"</span></button>"}function Rp(e){return!e||e.archived?"":'<span class="cockpit-drag-handle" data-todo-drag-handle="'+v(e.id)+'" data-no-drag="1" title="'+v(n.boardReorderTodo||"Drag todo")+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>'}function Np(e,r){return!e||r?"":'<span class="cockpit-drag-handle" data-section-drag-handle="'+v(e.id)+'" data-no-drag="1" title="'+v(n.boardReorderSection||"Drag section")+'" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>'}function Op(e){if(!e)return null;for(var r=0;r<M.length;r+=1)if(M[r]&&M[r].id===e)return M[r];return null}function Hp(e,r){if(!r.showArchived&&e.archived||!r.showRecurringTasks&&It(e.sectionId)||r.sectionId&&e.sectionId!==r.sectionId)return!1;if(r.labels.length>0){var a=(e.labels||[]).some(function(I){return r.labels.indexOf(I)>=0});if(!a)return!1}if(r.priorities.length>0&&r.priorities.indexOf(e.priority||"none")<0||r.statuses.length>0&&r.statuses.indexOf(e.status||"active")<0||r.archiveOutcomes.length>0&&(!e.archived||r.archiveOutcomes.indexOf(e.archiveOutcome||"")<0))return!1;if(r.flags.length>0){var s=(e.flags||[]).some(function(I){return r.flags.indexOf(I)>=0});if(!s)return!1}if(r.searchText){var c=String(r.searchText).toLowerCase(),u=(e.comments||[]).map(function(I){return(I.author||"")+" "+(I.body||"")}).join(" "),B=[e.title||"",e.description||"",(e.labels||[]).join(" "),(e.flags||[]).join(" "),u].join(" ").toLowerCase();if(B.indexOf(c)<0)return!1}return!0}function Jp(e,r){var a=r.sortDirection==="desc"?-1:1;return e.slice().sort(function(s,c){var u=0;switch(r.sortBy){case"dueAt":{var B=s.dueAt?new Date(s.dueAt).getTime():Number.MAX_SAFE_INTEGER,I=c.dueAt?new Date(c.dueAt).getTime():Number.MAX_SAFE_INTEGER;u=B-I;break}case"priority":u=Id(s.priority)-Id(c.priority);break;case"updatedAt":u=new Date(s.updatedAt||0).getTime()-new Date(c.updatedAt||0).getTime();break;case"createdAt":u=new Date(s.createdAt||0).getTime()-new Date(c.createdAt||0).getTime();break;default:u=(s.order||0)-(c.order||0);break}return u===0&&(u=String(s.title||"").localeCompare(String(c.title||""))),u*a})}function Vp(e,r,a){var s=Ut(sa().map(function(T){return T.name}).concat((Array.isArray(a)?a:[]).reduce(function(T,b){return T.concat(b.labels||[])},[]))).sort(),c=Ut(xo().map(function(T){return T.name}).concat((Array.isArray(a)?a:[]).reduce(function(T,b){return T.concat(b.flags||[])},[]))).sort();if(xn&&(xn.value=e.searchText||""),Or&&(Or.innerHTML='<option value="">'+f(n.boardAllSections||"All sections")+"</option>"+r.map(function(T){return'<option value="'+v(T.id)+'">'+f(T.title)+"</option>"}).join(""),Or.value=e.sectionId||""),ir&&(ir.innerHTML='<option value="">'+f(n.boardAllLabels||"All labels")+"</option>"+s.map(function(T){return'<option value="'+v(T)+'">'+f(T)+"</option>"}).join(""),ir.value=e.labels[0]||""),sr&&(sr.innerHTML='<option value="">'+f(n.boardAllFlags||"All flags")+"</option>"+c.map(function(T){return'<option value="'+v(T)+'">'+f(T)+"</option>"}).join(""),sr.value=e.flags[0]||""),lr){var u={"":"",none:"background:#d1d5db;color:#374151;",low:"background:#6b7280;color:#fff;",medium:"background:#3b82f6;color:#fff;",high:"background:#f59e0b;color:#fff;",urgent:"background:#ef4444;color:#fff;"};lr.innerHTML=[{value:"",label:n.boardAllPriorities||"All priorities"},{value:"none",label:Gt("none")},{value:"low",label:Gt("low")},{value:"medium",label:Gt("medium")},{value:"high",label:Gt("high")},{value:"urgent",label:Gt("urgent")}].map(function(T){var b=u[T.value]||"",J=b?' style="'+b+'"':"";return'<option value="'+v(T.value)+'"'+J+">"+f(T.label)+"</option>"}).join(""),lr.value=e.priorities[0]||""}if(dr&&(dr.innerHTML=[{value:"",label:n.boardAllStatuses||"All statuses"},{value:"active",label:tn("active")},{value:"completed",label:tn("completed")},{value:"rejected",label:tn("rejected")}].map(function(T){return'<option value="'+v(T.value)+'">'+f(T.label)+"</option>"}).join(""),dr.value=e.statuses[0]||""),cr&&(cr.innerHTML=[{value:"",label:n.boardAllArchiveOutcomes||"All outcomes"},{value:"completed-successfully",label:Mo("completed-successfully")},{value:"rejected",label:Mo("rejected")}].map(function(T){return'<option value="'+v(T.value)+'">'+f(T.label)+"</option>"}).join(""),cr.value=e.archiveOutcomes[0]||""),Hr&&(Hr.innerHTML=[{value:"manual",label:n.boardSortManual||"Manual order"},{value:"dueAt",label:n.boardSortDueAt||"Due date"},{value:"priority",label:n.boardSortPriority||"Priority"},{value:"updatedAt",label:n.boardSortUpdatedAt||"Last updated"},{value:"createdAt",label:n.boardSortCreatedAt||"Created date"}].map(function(T){return'<option value="'+v(T.value)+'">'+f(T.label)+"</option>"}).join(""),Hr.value=e.sortBy||"manual"),Jr&&(Jr.innerHTML=[{value:"asc",label:n.boardSortAsc||"Ascending"},{value:"desc",label:n.boardSortDesc||"Descending"}].map(function(T){return'<option value="'+v(T.value)+'">'+f(T.label)+"</option>"}).join(""),Jr.value=e.sortDirection||"asc"),Vr&&(Vr.innerHTML=[{value:"board",label:n.boardViewBoard||"Board"},{value:"list",label:n.boardViewList||"List"}].map(function(T){return'<option value="'+v(T.value)+'">'+f(T.label)+"</option>"}).join(""),Vr.value=e.viewMode||"board"),Dn&&(Dn.checked=e.showArchived===!0),jn&&(jn.checked=e.showRecurringTasks===!0),Ln){var B=e.hideCardDetails===!0||bo===!0;Ln.checked=B}if(document.documentElement.classList.toggle("cockpit-board-hide-card-details",e.hideCardDetails===!0||bo===!0),Ma&&(Ma.disabled=!Bp(e)),Ne){var I=Ne.closest?Ne.closest(".board-col-width-group"):null;I&&(I.style.display=e.viewMode==="list"?"none":"flex")}}function wd(e,r){var a=!!e,s=!!(e&&e.archived),c=a?null:X,u=a&&$e==="todo-edit"&&gt&&gt.value===e.id,B=Cp();if(a&&e&&e.sectionId){var I=B.some(function(F){return F.id===e.sectionId});if(!I){var T=(Array.isArray(r)?r:[]).find(function(F){return F.id===e.sectionId});T&&(B=B.concat([T]))}}if(Le(),u||(a?Ir(e.labels||[],!1):Ir(Z,!0)),Ra){var b=a?n.boardDetailModeEdit||"Update this todo.":n.boardDetailModeCreate||"Fill the form to create a new todo.";Ra.textContent=a?n.boardDetailTitleEdit||"Edit Todo":n.boardDetailTitleCreate||"Create Todo",Ra.setAttribute("title",b);var J=Ra.parentElement;if(J){J.setAttribute("title",b);var re=J.querySelector(".section-title-help-trigger");re&&re.setAttribute("title",b)}}if(ul&&(ul.textContent=a?n.boardDetailModeEdit||"Update this todo.":n.boardDetailModeCreate||"Fill the form to create a new todo."),gt&&(gt.value=a?e.id:""),u||(Lt&&(Lt.value=a?e.title||"":c.title||""),tt&&(tt.value=a?e.description||"":c.description||""),ee&&(ee.value=a?"":c.comment||""),vt&&(vt.value=a?kd(e.dueAt):c.dueAt||""),N&&(N.value=a?"":c.labelInput||""),H&&!a&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.labelColor||"")&&(H.value=c.labelColor),U=a?Tr(e)||(e.flags||[])[0]||"":c.flag||"",We&&(We.value=a?"":c.flagInput||""),je&&!a&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.flagColor||"")&&(je.value=c.flagColor)),ho(n.boardUploadFilesHint||"","neutral"),Ct(),Et(),ot(),rt&&(rt.disabled=!We||!We.value.trim()),Na)if(!a)Na.textContent=n.boardStatusLabel?n.boardStatusLabel+": "+(n.boardStatusActive||"Active"):"Status: Active";else if(e.archived)Na.textContent=(n.boardStatusLabel||"Status")+": "+tn(e.status||"active")+" \u2022 "+Mo(e.archiveOutcome||"rejected");else{var pe=Tr(e);Na.textContent=(n.boardStatusLabel||"Status")+": "+tn(e.status||"active")+" \u2022 "+(n.boardWorkflowLabel||"Workflow")+": "+rs(pe||"new")}if(ye){var Se=u?ye.value:"";ye.innerHTML=["none","low","medium","high","urgent"].map(function(F){return'<option value="'+v(F)+'">'+f(Gt(F))+"</option>"}).join(""),ye.value=u?Se:a?e.priority||"none":c.priority||"none",$l()}if(we){var k=u?we.value:"";we.innerHTML=B.map(function(F){return'<option value="'+v(F.id)+'">'+f(F.title)+"</option>"}).join(""),u&&ei(we,k)?we.value=k:we.value=a?e.sectionId:c.sectionId&&ei(we,c.sectionId)?c.sectionId:B[0]?B[0].id:""}u||Cd(a&&e?e.taskId||"":c.taskId||""),a||(X.priority=ye&&ye.value||"none",X.sectionId=we&&we.value||"",X.dueAt=vt&&vt.value||""),Fn&&(Fn.textContent=a?n.boardSaveUpdate||"Save Todo":n.boardSaveCreate||"Create Todo",Fn.disabled=s),Ha&&(Ha.disabled=!a||s||Tr(e)!=="ready"),yt&&!us(e)&&(No(),yt=null),fs(),Ja&&(Ja.disabled=!a||s),Va&&(Va.disabled=!!s),ee&&(ee.disabled=!!s);var x=a?Op(e.taskId):null;fr&&(a?e.archived?fr.textContent=n.boardReadOnlyArchived||"Archived items are read-only.":Tr(e)==="ready"?fr.textContent=n.boardReadyForTask||"Approved items can become scheduled task drafts or be final accepted.":e.taskId&&!x?fr.textContent=n.boardTaskMissing||"Linked task not found in Task List.":x?fr.textContent=(n.boardTaskLinked||"Linked task")+": "+(x.name||x.id):fr.textContent=n.boardTaskDraftNote||"Scheduled tasks remain separate from planning todos.":fr.textContent=n.boardTaskDraftNote||"Scheduled tasks remain separate from planning todos."),Le(),Ro(e)}function Cd(e){if(Ce){var r=Ce.value||"",a=e||r;if(Ce.innerHTML='<option value="">'+f(n.boardLinkedTaskNone||"No linked task")+"</option>"+M.map(function(c){return'<option value="'+v(c.id)+'">'+f(c.name||c.id)+"</option>"}).join(""),!a){Ce.value="",C||(X.taskId="");return}var s=M.some(function(c){return c&&c.id===a});Ce.value=s?a:"",C||(X.taskId=Ce.value||"")}}function Yt(){Sp();var e=ss(),r=Bd(e),a=Array.isArray(L.sections)?L.sections.slice().sort(function(k,x){return(k.order||0)-(x.order||0)}):[],s=ia(),c=up(e),u=$e==="todo-edit"?Ys():"";if(!C&&u){var B=s.some(function(k){return k&&k.id===u});B&&(C=u)}if(C){var I=s.find(function(k){return k&&k.id===C});I&&I.archived&&e.showArchived!==!0&&C!==u&&(C=null),I&&It(I.sectionId)&&e.showRecurringTasks!==!0&&C!==u&&(C=null);var T=s.some(function(k){return k&&k.id===C});T||(C=null)}if(Vp(e,r,c),sl){var b=s.filter(function(k){return!k.archived}).length,J=s.filter(function(k){return k.archived}).length;sl.textContent=(n.boardSections||"Sections")+": "+r.length+" \u2022 "+(n.boardCards||"Cards")+": "+b+" \u2022 Archived: "+String(J)+" \u2022 "+(n.boardComments||"Comments")+": "+s.reduce(function(k,x){return k+(Array.isArray(x.comments)?x.comments.length:0)},0)}if(!Nr)return;var re=r.filter(function(k){return!e.sectionId||k.id===e.sectionId});if(re.length===0){Nr.innerHTML='<div class="note">'+f(n.boardEmpty||"No cards yet.")+"</div>",wd(null,r);return}Nr.innerHTML=Hc({visibleSections:re,cards:c,filters:e,strings:n,selectedTodoId:C,pendingBoardDeleteTodoId:ht,pendingBoardDeletePermanentOnly:pn,collapsedSections:Xr,helpers:{escapeAttr:v,escapeHtml:f,sortTodoCards:Jp,cardMatchesTodoFilters:Hp,isArchiveTodoSectionId:oa,isSpecialTodoSectionId:ts,renderSectionDragHandle:Np,renderTodoCompletionCheckbox:Mp,renderTodoDragHandle:Rp,renderFlagChip:Sd,renderLabelChip:hd,getTodoPriorityLabel:Gt,getTodoStatusLabel:tn,getTodoDescriptionPreview:Ad,getTodoCommentSourceLabel:is,getTodoArchiveOutcomeLabel:Mo,getTodoPriorityCardBg:kp,formatTodoDate:Fo}}),wd(C&&s.find(function(k){return k.id===C})||null,a),Nr&&hp(),$r(),ll&&(ll.onclick=function(){he(),vs("")}),dl&&(dl.onclick=function(){he(),C=null,Z=[],z="",U="",Ct(),Yt(),fe("board")}),Xn&&(Xn.onclick=function(){Xn.style.display="none",vo&&(vo.style.display="flex",vr&&(vr.value="",vr.focus()))});function pe(){vo&&(vo.style.display="none"),Xn&&(Xn.style.display="")}function Se(){var k=vr?vr.value.trim():"";k&&t.postMessage({type:"addCockpitSection",title:k}),pe()}Vl&&(Vl.onclick=Se),ql&&(ql.onclick=pe),vr&&(vr.onkeydown=function(k){k.key==="Enter"&&(k.preventDefault(),Se()),k.key==="Escape"&&pe()}),Ne&&(Ne.oninput=function(){var k=Number(Ne.value);Ul(k);try{localStorage.setItem("cockpit-col-width",k)}catch{}}),cl&&(cl.onclick=function(){fe("board")}),xn&&(xn.oninput=function(){He({searchText:xn.value||""})}),Or&&(Or.onchange=function(){He({sectionId:Or.value||""})}),ir&&(ir.onchange=function(){He({labels:ir.value?[ir.value]:[]})}),sr&&(sr.onchange=function(){He({flags:sr.value?[sr.value]:[]})}),lr&&(lr.onchange=function(){He({priorities:lr.value?[lr.value]:[]})}),dr&&(dr.onchange=function(){He({statuses:dr.value?[dr.value]:[]})}),cr&&(cr.onchange=function(){He({archiveOutcomes:cr.value?[cr.value]:[]})}),Hr&&(Hr.onchange=function(){He({sortBy:Hr.value||"manual"})}),Jr&&(Jr.onchange=function(){He({sortDirection:Jr.value||"asc"})}),Vr&&(Vr.onchange=function(){He({viewMode:Vr.value==="list"?"list":"board"})}),Dn&&(Dn.onchange=function(){He({showArchived:Dn.checked===!0})}),jn&&(jn.onchange=function(){He({showRecurringTasks:jn.checked===!0})}),Ln&&(Ln.onchange=function(){He({hideCardDetails:Ln.checked===!0})}),Cn&&(Cn.onclick=function(){Wi()?(Qn=!1,Jt=!1):Qn=!0,yo(),ue()}),Ma&&(Ma.onclick=function(){wp()}),qr&&(qr.onsubmit=function(k){if(k.preventDefault(),!(!Lt||!we||!ye)){gn("submit");var x=ee?String(ee.value||"").trim():"",F={title:Lt.value||"",description:tt?tt.value:"",dueAt:Tp(vt?vt.value:"")||null,sectionId:we.value||"",priority:ye.value||"none",labels:Z.slice(),flags:U?[U]:[],taskId:Ce&&Ce.value?Ce.value:null},W=Ys();W?(C=W,t.postMessage({type:"updateTodo",todoId:W,data:F})):(x&&(F.comment=x),D("todoCreateSubmit",{hasComment:!!x,titleLength:F.title.length,sectionId:F.sectionId,taskId:F.taskId||""}),t.postMessage({type:"createTodo",data:F}))}}),zr&&(zr.onclick=function(){!C||!ee||!ee.value.trim()||(t.postMessage({type:"addTodoComment",todoId:C,data:{body:ee.value.trim(),author:"user",source:"human-form"}}),ee.value="",Ro(Zr(C)))}),Wr&&(Wr.onclick=function(k){var x=V(k,"[data-delete-comment-index]");if(x&&C){k.stopPropagation();var W=Number(x.getAttribute("data-delete-comment-index"));isNaN(W)||t.postMessage({type:"deleteTodoComment",todoId:C,commentIndex:W});return}var F=V(k,"[data-comment-index]");if(!(!F||!C)){var W=Number(F.getAttribute("data-comment-index")),G=Zr(C),Q=G&&Array.isArray(G.comments)?G.comments:[];W<0||W>=Q.length||rg(Q[W])}},Wr.onkeydown=function(k){if(!(k.key!=="Enter"&&k.key!==" ")){var x=V(k,"[data-comment-index]");x&&(k.preventDefault(),x.click())}}),Va&&(Va.onclick=function(){t.postMessage({type:"requestTodoFileUpload",todoId:C||void 0})}),Ha&&(Ha.onclick=function(){C&&t.postMessage({type:"createTaskFromTodo",todoId:C})}),Pt&&(Pt.onclick=function(){if(C){var k=Zr(C);if(!k||k.archived){fa();return}var x=ls(k);if(!us(k)){Fp(k);return}fa(),t.postMessage({type:x,todoId:C})}}),Ja&&(Ja.onclick=function(){C&&Pd(C)}),ki&&(ki.onclick=function(){D("todoLabelAddButtonClick",{disabled:!!ki.disabled,inputValue:N?String(N.value||""):""}),Lo()}),N&&(N.oninput=function(){var k=se(N.value);if(k){var x=kr(k);x&&x.color&&H?(H.value=x.color,z=x.name):z="",H&&(H.disabled=!1)}else z="";zt(Lr,Sr(),H?H.value:""),ot(),ur&&(ur.disabled=!Sr()),be(),os()},N.onfocus=function(){os()},N.onblur=function(){setTimeout(function(){xe&&(xe.style.display="none")},200)},N.onkeydown=function(k){k.key==="Enter"?(k.preventDefault(),Lo()):k.key==="Escape"&&xe&&(xe.style.display="none")}),H&&(H.oninput=function(){zt(Lr,Sr(),H.value),be()},H.onchange=function(){zt(Lr,Sr(),H.value),be()}),Oa&&(Oa.onclick=function(k){var x=V(k,"[data-label-chip-remove]"),F=V(k,"[data-label-chip-select]");if(x){yp(x.getAttribute("data-label-chip-remove")||"");return}if(F){he("label");var W=F.getAttribute("data-label-chip-select")||"";z=W,N&&(N.value=W,N.focus()),be(),ot()}}),ur&&(ur.onclick=function(){var k=Sr();if(D("todoLabelSaveButtonClick",{disabled:!!ur.disabled,inputValue:k,hasColorInput:!!H}),!k||!H){D("todoLabelSaveIgnored",{reason:k?"missingColorInput":"emptyLabel"});return}var x=se?se(k):k,F=Oe||(z&&w(z)!==w(x)?z:void 0);D("todoLabelSaveAccepted",{label:x,color:H.value,editingExisting:!!F}),he("label"),as(x,H.value,F),t.postMessage({type:"saveTodoLabelDefinition",data:{name:x,previousName:F,color:H.value}});var W=F;if(W&&w(W)!==w(x)){var G=Z.map(w).indexOf(w(W));if(G>=0){var Q=Z.slice();Q.splice(G,1,x),Ir(Q,!0)}}z=x,Oe="",N&&(N.value=x),be(),ot()}),xe&&(xe.onclick=function(k){var x=V(k,"[data-label-suggestion]");if(x){var F=x.getAttribute("data-label-suggestion")||"",W=kr(F);Oe="",W&&W.color&&H&&(H.value=W.color),N&&(N.value=F),be(),Lo()}}),Pn&&(Pn.onclick=function(k){var x=V(k,"[data-label-catalog-edit]"),F=V(k,"[data-label-catalog-delete]"),W=V(k,"[data-label-catalog-confirm-delete]"),G=V(k,"[data-label-catalog-select]");if(x){k.preventDefault(),k.stopPropagation(),he("label");for(var Q=x.getAttribute("data-label-catalog-edit")||"",Ue=sa(),Te=null,At=0;At<Ue.length;At++)if(w(Ue[At].name)===w(Q)){Te=Ue[At];break}N&&(N.value=Te?Te.name:Q),H&&(H.value=la(Te&&Te.color,"#4f8cff")),z=Te?Te.name:Q,Oe=Te?Te.name:Q,be(),ot(),N&&N.focus();return}if(W){k.preventDefault(),k.stopPropagation();var bt=W.getAttribute("data-label-catalog-confirm-delete")||"";if(!bt)return;he("label"),w(Oe)===w(bt)&&(Oe=""),w(z)===w(bt)&&(z=""),N&&w(N.value)===w(bt)&&(N.value=""),vp(bt),ot(),t.postMessage({type:"deleteTodoLabelDefinition",data:{name:bt}});return}if(F){k.preventDefault(),k.stopPropagation();var Qe=F.getAttribute("data-label-catalog-delete")||"";if(!Qe)return;ai=Qe,ot();return}if(G){k.preventDefault(),k.stopPropagation(),he("label");var Qe=G.getAttribute("data-label-catalog-select")||"";if(!Qe)return;var Ar=kr(Qe);Oe="",N&&(N.value=Qe),H&&(H.value=la(Ar&&Ar.color,H.value||"#4f8cff")),be(),Lo()}}),rt&&(rt.onclick=function(){var k=document.getElementById("todo-flag-name-input"),x=document.getElementById("todo-flag-color-input"),F=Wt();if(D("todoFlagSaveButtonClick",{disabled:!!rt.disabled,inputValue:F,hasNameInput:!!k,hasColorInput:!!x}),!k||!x){D("todoFlagSaveIgnored",{reason:"missingInputs"});return}var W=F;if(!W){D("todoFlagSaveIgnored",{reason:"emptyFlag"});return}var G=se?se(W):W,Q=Vt||(U&&w(U)!==w(G)?U:void 0);D("todoFlagSaveAccepted",{flag:G,color:x.value,editingExisting:!!Q}),t.postMessage({type:"saveTodoFlagDefinition",data:{name:G,previousName:Q,color:x.value}});var Ue=Q;Ue&&w(Ue)!==w(G)&&w(U)===w(Ue)&&(U=G,Ct(),Et()),(!Ue||w(U)===w(Ue))&&(U=G,Ct()),Vt="",k.value=G,be(),Et()}),Ii&&(Ii.onclick=function(){D("todoFlagAddButtonClick",{disabled:!!Ii.disabled,inputValue:We?String(We.value||""):""}),Td()}),We&&(We.oninput=function(){rt&&(rt.disabled=!Wt()),zt(Pr,Wt(),je?je.value:""),be()},We.onkeydown=function(k){k.key==="Enter"&&(k.preventDefault(),Td())}),je&&(je.oninput=function(){rt&&(rt.disabled=!Wt()),zt(Pr,Wt(),je.value),be()},je.onchange=function(){rt&&(rt.disabled=!Wt()),zt(Pr,Wt(),je.value),be()})}function qp(e){return document.querySelector('[data-tab-label="'+e+'"]')}function Wp(e){return document.querySelector('[data-tab-symbol="'+e+'"]')}function zp(e){return document.querySelector('.tab-button[data-tab="'+e+'"]')}function xd(e){if(!e)return null;for(var r=Array.isArray(M)?M:[],a=0;a<r.length;a+=1)if(r[a]&&r[a].id===e)return r[a];return null}function jd(e){return Yi(e||"").join(",")}function Dd(){var e=document.getElementById("task-name"),r=document.getElementById("prompt-text"),a=Bg(),s=document.getElementById("one-time"),c=document.getElementById("manual-session"),u=a.promptSource?String(a.promptSource.value||"inline"):"inline",B=ft?String(ft.value||""):"";u!=="inline"&&!B&&St&&(B=St);var I=Ye?String(Ye.value||""):"";!I&&dt&&(I=dt);var T=Ke?String(Ke.value||""):"";!T&&ct&&(T=ct);var b=!!(s&&s.checked),J=!b&&!!(c&&c.checked);return{name:e?String(e.value||""):"",prompt:r?String(r.value||""):"",cronExpression:qe?String(qe.value||""):"",oneTimeDelaySeconds:od(),labels:jd(Rr?Rr.value:""),agent:I,model:T,scope:a.scope?String(a.scope.value||"workspace"):"workspace",promptSource:u,promptPath:B,oneTime:b,manualSession:J,chatSession:b?"":Me?String(Me.value||""):"",jitterSeconds:Mr?Number(Mr.value||0):0}}function Up(e){return e?{name:String(e.name||""),prompt:typeof e.prompt=="string"?e.prompt:"",cronExpression:String(e.cronExpression||""),oneTimeDelaySeconds:id(e),labels:jd(dd(e.labels)),agent:String(e.agent||""),model:String(e.model||""),scope:String(e.scope||"workspace"),promptSource:String(e.promptSource||"inline"),promptPath:String(e.promptPath||""),oneTime:e.oneTime===!0,manualSession:e.oneTime===!0?!1:e.manualSession===!0,chatSession:e.oneTime===!0?"":String(e.chatSession||xr||"new"),jitterSeconds:Number(e.jitterSeconds!=null?e.jitterSeconds:li)}:null}function Gp(){return{title:Lt?String(Lt.value||""):"",description:tt?String(tt.value||""):"",dueAt:vt?String(vt.value||""):"",priority:ye?String(ye.value||"none"):"none",sectionId:we?String(we.value||""):"",taskId:Ce?String(Ce.value||""):"",labels:Ut(Z).map(w).join(","),flag:w(U||"")}}function _p(e){return e?{title:String(e.title||""),description:String(e.description||""),dueAt:kd(e.dueAt),priority:String(e.priority||"none"),sectionId:String(e.sectionId||""),taskId:String(e.taskId||""),labels:Ut(e.labels||[]).map(w).join(","),flag:w((e.flags||[])[0]||"")}:null}function Yp(){return{name:Ft?String(Ft.value||""):"",cronExpression:de?String(de.value||""):"",folderId:Xe?String(Xe.value||""):""}}function Kp(e){return e?{name:String(e.name||""),cronExpression:String(e.cronExpression||""),folderId:String(e.folderId||"")}:null}function ps(e,r){if(!e||!r)return e===r;var a=Object.keys(e),s=Object.keys(r);if(a.length!==s.length)return!1;for(var c=0;c<a.length;c+=1){var u=a[c];if(e[u]!==r[u])return!1}return!0}function Xp(){return Ge?!ps(Dd(),Up(xd(Ge))):!1}function $p(){if(!C)return!1;var e=L&&Array.isArray(L.cards)?L.cards.find(function(r){return r&&r.id===C}):null;return!ps(Gp(),_p(e))}function Zp(){return Ve||!Y?!1:!ps(Yp(),Kp(kt(Y)))}function gs(e,r){var a=zp(e),s=Wp(e),c=qp(e);if(s&&(s.textContent=r.symbol||Ca),c&&(c.textContent="",c.classList&&c.classList.toggle("is-dirty",r.dirty===!0)),a){var u=r.title||"";r.dirty&&(u=u+" \u2022 "+(n.tabUnsavedChanges||n.researchUnsavedChanges||"Unsaved changes")),a.title=u,a.setAttribute("aria-label",u||e)}}function Le(){gs("create",{symbol:Ge?ni:Ca,dirty:Xp(),title:Ge?n.tabTaskEditorEdit||n.tabEdit||"Edit Task":n.tabTaskEditorCreate||n.tabTaskEditor||"Create Task"}),gs("todo-edit",{symbol:C?ni:Ca,dirty:$p(),title:C?n.tabTodoEditorEdit||n.boardDetailTitleEdit||"Edit Todo":n.tabTodoEditorCreate||n.tabTodoEditor||"Create Todo"}),gs("jobs-edit",{symbol:Ve||!Y?Ca:ni,dirty:Zp(),title:Ve||!Y?n.tabJobsEditorCreate||n.tabJobsEditor||"Create Job":n.tabJobsEditorEdit||"Edit Job"})}function Ld(e){Ge=e||null,Xs&&(Xs.value=Ge||""),Le();var r=!!Ge;Pg(r),Fg(r)}function vs(e){he(),Kt(),fa(),es(),C=e||null,gt&&(gt.value=C||""),C?D("openTodoEditor",{mode:"edit",todoId:C}):(_s("open-create"),Z=[],z="",U="",D("openTodoEditor",{mode:"create"})),Yt(),fe("todo-edit")}function Qp(){he(),Kt(),fa(),es(),C=null,gt&&(gt.value=""),_s("reset-editor"),Z=[],z="",U="",Le(),Yt()}function eg(){return Pe&&document.body.contains(Pe)||(Pe=document.createElement("div"),Pe.className="cockpit-inline-modal",Pe.setAttribute("hidden","hidden"),Pe.innerHTML='<div class="cockpit-inline-modal-card" role="dialog" aria-modal="true" aria-labelledby="todo-delete-modal-title"><div class="cockpit-inline-modal-title" id="todo-delete-modal-title"></div><div class="note" data-todo-delete-modal-message></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-todo-delete-cancel>'+f(n.boardDeleteTodoCancel||"Cancel")+'</button><button type="button" class="btn-secondary" data-todo-delete-reject>'+f(n.boardDeleteTodoReject||"Archive as Rejected")+'</button><button type="button" class="btn-danger" data-todo-delete-permanent>'+f(n.boardDeleteTodoPermanent||"Delete Permanently")+"</button></div></div>",Pe.onclick=function(e){if(e.target===Pe){Kt();return}var r=V(e,"[data-todo-delete-cancel]");if(r){Kt();return}var a=V(e,"[data-todo-delete-reject]");if(a){Fd("reject");return}var s=V(e,"[data-todo-delete-permanent]");s&&Fd("permanent")},document.body.appendChild(Pe)),Pe}function Kt(){Dr="",Pe&&(Pe.classList.remove("is-open"),Pe.setAttribute("hidden","hidden"))}function tg(){return Fe&&document.body.contains(Fe)||(Fe=document.createElement("div"),Fe.className="cockpit-inline-modal",Fe.setAttribute("hidden","hidden"),Fe.innerHTML='<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title"><div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div><div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div><div class="todo-comment-modal-body" id="todo-comment-modal-body"></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-comment-modal-close="1">'+f(n.boardCancelAction||"Cancel")+"</button></div></div>",Fe.onclick=function(e){if(e.target===Fe){ms();return}var r=V(e,"[data-comment-modal-close]");r&&ms()},document.body.appendChild(Fe)),Fe}function ms(){Fe&&(Fe.classList.remove("is-open"),Fe.setAttribute("hidden","hidden"))}function rg(e){if(e){var r=tg(),a=r.querySelector("#todo-comment-modal-title"),s=r.querySelector("#todo-comment-modal-meta"),c=r.querySelector("#todo-comment-modal-body"),u=is(e.source||"human-form"),B=e.updatedAt||e.editedAt||e.createdAt;a&&(a.textContent=n.boardCommentModalTitle||"Comment Detail"),s&&(s.innerHTML="<span><strong>"+f(u)+"</strong></span><span>"+f(e.author||"system")+"</span><span>"+f(Fo(B))+"</span>"),c&&(c.textContent=e.body||""),r.removeAttribute("hidden"),r.classList.add("is-open")}}function Pd(e,r){if(e){var a=!!(r&&r.permanentOnly),s=L&&Array.isArray(L.cards)?L.cards.find(function(b){return b&&b.id===e}):null,c=eg();Dr=e;var u=c.querySelector("#todo-delete-modal-title"),B=c.querySelector("[data-todo-delete-modal-message]"),I=c.querySelector("[data-todo-delete-reject]");if(u&&(u.textContent=a?n.boardDeleteTodoPermanent||"Delete Permanently":n.boardDeleteTodoTitle||"Delete Todo"),B){var T=a?n.boardDeleteTodoPermanentPrompt||"Delete this archived todo permanently? This cannot be undone.":n.boardDeleteTodoPrompt||"Choose whether this todo should be rejected into the archive or removed permanently.";B.textContent=s&&s.title?'"'+String(s.title||"")+'". '+T:T}I&&(I.hidden=a),c.removeAttribute("hidden"),c.classList.add("is-open"),setTimeout(function(){var b=c.querySelector(a?"[data-todo-delete-permanent]":"[data-todo-delete-reject]");b&&typeof b.focus=="function"&&b.focus()},0)}}function Fd(e){if(!Dr){Kt();return}var r=Dr;Kt(),C===r&&(C=null,Z=[],z="",U="",Yt()),t.postMessage({type:e==="permanent"?"purgeTodo":"rejectTodo",todoId:r})}function Md(e){if(Ve=!1,typeof e=="string")Y=e;else if(!Y){var r=Zi();Y=r.length?String(r[0].id||""):""}ue(),Xt(),fe("jobs-edit")}function ng(){Ve=!0,Y="",ue(),Xt(),fe("jobs-edit")}function ag(){var e=Ft?String(Ft.value||"").trim():"",r=de?String(de.value||"").trim():"";if(!e||!r){D("jobSaveBlocked",{isCreatingJob:Ve,hasName:!!e,hasCron:!!r});return}if(Ve||!Y){D("jobCreateSubmit",{name:e,folderId:Xe&&Xe.value?Xe.value:""}),t.postMessage({type:"createJob",data:{name:e,cronExpression:r,folderId:Xe&&Xe.value?Xe.value:void 0}});return}t.postMessage({type:"updateJob",jobId:Y,data:{name:Ft?Ft.value:"",cronExpression:de?de.value:"",folderId:Xe&&Xe.value?Xe.value:void 0}})}function Rd(e){return e?typeof e.requestSubmit=="function"?(e.requestSubmit(),!0):e.dispatchEvent(new Event("submit",{bubbles:!0,cancelable:!0})):!1}function og(e){return!!e&&(e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey&&String(e.key||"").toLowerCase()==="s"}function ig(e){if(og(e)){if(pa("create")){e.preventDefault(),si||Rd(vn);return}pa("todo-edit")&&(e.preventDefault(),(!Fn||!Fn.disabled)&&Rd(qr))}}function pa(e){var r=document.getElementById(e+"-tab");return!!(r&&r.classList.contains("active"))}function fe(e){br(e)||(e="help");var r=e==="settings"&&$e!=="settings";$e&&Yl($e),pu(document,e),$e=e,gi&&(gi.style.display=""),wn&&(wn.style.display=e==="jobs"&&Ht?"inline-flex":"none"),e==="list"&&m(),ue(),Jf(e),Xl(!0),$r(),r&&t.postMessage({type:"refreshStorageStatus"}),nd(e)}function sg(){if(br($e))return $e;var e=typeof i.initialTab=="string"?i.initialTab:"help";return br(e)?e:"help"}Cr(Ye,function(e){dt=e?String(e.value||""):"",D("taskAgentChanged",{value:dt})}),Cr(Ke,function(e){ct=e?String(e.value||""):"",D("taskModelChanged",{value:ct})}),Cr(ft,function(e){St=e?e.value:""});var lg=document.getElementById("one-time");ti(lg,function(){Io()});var dg=document.getElementById("manual-session");ti(dg,function(){Io()}),[bn,yn,hn].forEach(function(e){ti(e,function(){yr(),Le()})}),vu(ui,{syncTaskFilterButtons:td,isValidTaskFilter:Gl,setActiveTaskFilter:function(e){ce=e},persistTaskFilter:ue,renderTaskList:function(){Ze(M)}}),Cr(jt,function(e){at=e.value||"",$n=!1,ue(),Ze(M)}),yu(document,ya),Js(ja,qe,function(){va()}),Js(Wa,de,function(){qo(),Le()}),Cr(or,function(){zo()}),Cr(Ur,function(){Uo()}),mu([Gn,Yr,_n,Yn],qi),O(wf,function(){Sc("saveTelegramNotification")}),O(Cf,function(){Sc("testTelegramNotification")}),O(xf,function(){t.postMessage({type:"saveExecutionDefaults",data:Zf()})}),O(Df,function(){t.postMessage({type:"saveReviewDefaults",data:Qf()})}),O(Lf,function(){t.postMessage({type:"setStorageSettings",data:ep()})}),Ns(ji,function(e){t.postMessage({type:"setApprovalMode",approvalMode:e.value}),Di&&(Di.style.display="",setTimeout(function(){Di.style.display="none"},3e3))}),Ns(Fi,function(e){l=e.value||"info",R.setLogLevel(l),Ui(),t.postMessage({type:"setLogLevel",logLevel:l})}),O(Pf,function(){t.postMessage({type:"openLogFolder"})}),Os(document,"change",{"friendly-frequency":function(){zo()},"jobs-friendly-frequency":function(){Uo()}}),Os(document,"input",{"friendly-frequency":function(){zo()},"jobs-friendly-frequency":function(){Uo()},"one-time-delay-hours":function(){yr()},"one-time-delay-minutes":function(){yr()},"one-time-delay-seconds":function(){yr()}}),document.addEventListener("click",function(e){var r=e&&e.target&&e.target.nodeType===3?e.target.parentElement:e.target;if(!(!r||typeof r.closest!="function")){var a=r.closest(".one-time-delay-preset");a&&(e.preventDefault(),_i(a.getAttribute("data-seconds")),yr(),Le())}}),$d({controls:[Tn,kn,In,En,An],onRefresh:zo}),$d({controls:[za,Ua,Ga,_a,Ya],onRefresh:Uo}),Hs(cf,function(){return qe?qe.value:""},window),Hs(bf,function(){return de?de.value:""},window),bu(document,t),hu(ft,document,t);function cg(e){e.preventDefault(),E();var r=fv(),a=document.getElementById("run-first"),s=Dd(),c=Iu({editorState:s,parseLabels:Yi,editingTaskId:Ge,editingTaskEnabled:ii,runFirstInOneMinute:a?.checked??!1});Tu({taskData:c,promptSourceValue:s.promptSource,formErr:r,strings:n,editingTaskId:Ge,getTaskByIdLocal:xd})&&(pv(),ku(t,Ge,c))}vn&&vn.addEventListener("submit",cg),Eu(zu,{document,agentSelect:Ye,modelSelect:Ke,vscode:t}),Au(Uu,t),Bu(di,t),wu(mn,{cockpitHistorySelect:ut,cockpitHistory:Ba,strings:n,formatHistoryLabel:sd,window,vscode:t});function ug(e){return e==="research-new-btn"?(mr=!0,K="",ze=Be&&Be.id?Be.id:ze,an(null),Er(),nt&&typeof nt.focus=="function"&&nt.focus(),!0):e==="research-load-autoagent-example-btn"?(an(Pv()),ta=!0,Er(),nt&&typeof nt.focus=="function"&&nt.focus(),!0):!1}function fg(e){if(ug(e))return!0;if(e==="research-save-btn"){var r=Fv(),a=Mv(r);return a?(Cv(a),!0):(Ts(),K?t.postMessage({type:"updateResearchProfile",researchId:K,data:r}):t.postMessage({type:"createResearchProfile",data:r}),!0)}return e==="research-duplicate-btn"?(K&&t.postMessage({type:"duplicateResearchProfile",researchId:K}),!0):e==="research-delete-btn"?(K&&t.postMessage({type:"deleteResearchProfile",researchId:K}),!0):e==="research-start-btn"?(K&&t.postMessage({type:"startResearchRun",researchId:K}),!0):e==="research-stop-btn"?(t.postMessage({type:"stopResearchRun"}),!0):!1}function Nd(e){K=e||"",mr=!K;var r=yc();return an(r||null),Er(),!!r}function Od(e){ze=e||"",ue(),Er()}var pg=document.getElementById("jobs-empty-new-btn");Cu({jobsNewFolderBtn:ff,jobsRenameFolderBtn:vi,jobsDeleteFolderBtn:mi,jobsNewJobBtn:pf,jobsEmptyNewBtn:pg,jobsBackBtn:vf,jobsOpenEditorBtn:Ti,jobsSaveBtn:bi,jobsSaveDeckBtn:gf,jobsDuplicateBtn:yi,jobsPauseBtn:Fa,jobsCompileBtn:hi,jobsStatusPill:pr,jobsToggleSidebarBtn:gi,jobsShowSidebarBtn:wn,jobsDeleteBtn:Si,jobsAttachBtn:Bi,jobsExistingTaskSelect:Ka,jobsExistingWindowInput:Tf,jobsCreateStepBtn:Bf,jobsStepNameInput:kf,jobsStepPromptInput:Ef,jobsStepWindowInput:If,jobsStepAgentSelect:Xa,jobsStepModelSelect:$a,jobsStepLabelsInput:Af,jobsCreatePauseBtn:Sf,jobsPauseNameInput:hf,defaultPauseTitle:n.jobsPauseDefaultTitle||"Manual review",getSelectedJobFolderId:function(){return ne},getSelectedJobId:function(){return Y},setCreatingJob:function(e){Ve=e},syncEditorTabLabels:Le,switchTab:fe,openJobEditor:Md,submitJobEditor:ag,toggleJobsSidebar:function(){Ht=!Ht,Gi(),ue()},showJobsSidebar:function(){Ht=!1,Gi(),ue()},getJobById:kt,parseLabels:Yi,vscode:t}),document.addEventListener("click",function(r){var a=r&&r.target,s=V(r,"#research-new-btn, #research-load-autoagent-example-btn, #research-save-btn, #research-duplicate-btn, #research-delete-btn, #research-start-btn, #research-stop-btn");s&&(r.preventDefault(),r.stopPropagation(),fg(s.id||""))||Ru(r,{getClosestEventTarget:V,researchProfileList:Za,researchRunList:Qa,selectResearchProfile:Nd,selectResearchRun:Od,jobsFolderList:fi,jobsList:Bn,setSelectedJobFolderId:function(c){ne=c},setSelectedJobId:function(c){Y=c},getSelectedJobId:function(){return Y},persistTaskFilter:ue,renderJobsTab:Xt,openJobEditor:Md,editTask:typeof window.editTask=="function"?window.editTask:void 0,runTask:typeof window.runTask=="function"?window.runTask:void 0,getJobById:kt,vscode:t})}),Nu(document,{getSelectedJobId:function(){return Y},vscode:t}),Ou(document,{jobsList:Bn,getDraggedJobId:function(){return zl},setDraggedJobId:function(e){zl=e},getDraggedJobNodeId:function(){return Wl},setDraggedJobNodeId:function(e){Wl=e},getSelectedJobId:function(){return Y},getJobById:kt,vscode:t}),Lu(_u,{templateSelect:ft,document,vscode:t}),O(Yu,function(){wv()}),pt&&typeof pt.addEventListener=="function"&&pt.addEventListener("change",function(){fc()}),Pu(t,{setupMcp:Ku,setupCodex:Xu,setupCodexSkills:$u,syncBundledSkills:Zu,stageBundledAgents:Qu,syncBundledAgents:ef,openCopilotSettings:tf,openExtensionSettings:rf,refreshStorageStatus:nf,importStorageFromJson:af,exportStorageToJson:of}),Mu(sf,lf,t,typeof i.languageSetting=="string"&&i.languageSetting?i.languageSetting:"auto");var Hd=document.getElementById("btn-intro-tutorial");Hd&&Hd.addEventListener("click",function(){t.postMessage({type:"introTutorial"})});var Jd=document.getElementById("btn-plan-integration");Jd&&Jd.addEventListener("click",function(){t.postMessage({type:"planIntegration"})}),xt&&xt.addEventListener("click",function(){rd({animateRocket:!0})}),["btn-help-switch-settings","btn-help-switch-board","btn-help-switch-create","btn-help-switch-list","btn-help-switch-jobs","btn-help-switch-research"].forEach(function(e){var r=document.getElementById(e);r&&r.addEventListener("click",function(){var a={"btn-help-switch-settings":"settings","btn-help-switch-board":"board","btn-help-switch-create":"create","btn-help-switch-list":"list","btn-help-switch-jobs":"jobs","btn-help-switch-research":"research"};fe(a[e])})}),document.getElementById("help-tab")&&document.getElementById("help-tab").classList.contains("active")&&window.requestAnimationFrame(function(){nd("help")});function gg(e){for(var r=e&&e.nodeType===3?e.parentElement:e;r&&r!==document.body;){var a=r.hasAttribute&&r.hasAttribute("data-action"),s=a&&(r.hasAttribute("data-id")||r.hasAttribute("data-task-id")||r.hasAttribute("data-job-id")||r.hasAttribute("data-profile-id"));if(s)return r;r=r.parentElement}return null}function Vd(e){if(!e)return"";var r=String(e).replace(/\\/g,"/");return r==="/"||(r=r.replace(/\/+$/,""),!r)?"/":Vu?r.toLowerCase():r}function vg(e){if(!e)return"";var r=String(e).replace(/[/\\]+$/,""),a=r.split(/[/\\]+/);return a.length?a[a.length-1]||"":r}function mg(e){var r=e&&e.nextRun?new Date(e.nextRun):null,a=r&&!isNaN(r.getTime());return{millis:a?r.getTime():0,text:a?r.toLocaleString(Tt):n.labelNever}}function bg(e){var r=e&&e.scope?e.scope:"workspace",a=r==="workspace"&&e.workspacePath||"",s=a?vg(a):"",c=r!=="workspace"?!0:!!a&&(Ju||[]).some(function(T){return Vd(T)===Vd(a)}),u=r==="global"?n.labelScopeGlobal||"":n.labelScopeWorkspace||"",B=r==="global"?"\u{1F310} "+f(u):"\u{1F4C1} "+f(u)+(s?" \u2022 "+f(s):"");if(r==="workspace"){var I=c?n.labelThisWorkspaceShort||"":n.labelOtherWorkspaceShort||"";B+=" \u2022 "+f(I)}return{inThisWorkspace:c,scopeInfo:B,scopeValue:r}}function qd(e,r){return e+'<button class="'+r.className+'" data-action="'+r.action+'" data-id="'+r.taskId+'" title="'+v(r.title)+'">'+r.icon+"</button>"}function Wd(){return'<div class="empty-state">'+f(n.noTasksFound)+"</div>"}function zd(e,r,a,s){var c=Kr[e]===!0,u=c?n.boardSectionExpand||"Expand section":n.boardSectionCollapse||"Collapse section";return'<div class="task-section'+(c?" is-collapsed":"")+'" data-task-section="'+v(e)+'"><div class="task-section-title"><button type="button" class="task-section-toggle" data-task-section-toggle="'+v(e)+'" aria-expanded="'+(c?"false":"true")+'" title="'+v(u)+'">&#9660;</button><span class="cell">'+f(r)+"</span>"+a+'</div><div class="task-section-body"><div class="task-section-body-inner">'+s+"</div></div></div>"}function yg(){var e=[["toggle",window.toggleTask],["run",window.runTask],["edit",window.editTask],["copy",window.copyPrompt],["duplicate",window.duplicateTask],["move",window.moveTaskToCurrentWorkspace],["delete",window.deleteTask]];return e.reduce(function(r,a){return r[a[0]]=a[1],r},{})}function hg(e){var r=e.enabled||!1;return{enabled:r,statusClass:r?"enabled":"disabled",statusText:r?n.labelEnabled:n.labelDisabled,toggleIcon:r?"\u23F8\uFE0F":"\u25B6\uFE0F",toggleTitle:r?n.actionDisable:n.actionEnable}}function Sg(e){return Bo(e).map(function(r){return'<span class="task-badge label">'+f(r)+"</span>"}).join("")}function Tg(e,r){return e?'<div class="task-prompt" style="color: var(--vscode-errorForeground);">Last error'+(r?" ("+f(r)+")":"")+": "+f(e)+"</div>":""}function kg(e){var r=document.getElementById("success-toast");if(r){var a=n.webviewSuccessPrefix||"\u2714 ";r.textContent=a+e,Ud(r,"block","1"),Ig(r,"0",3e3),Eg(r,3500)}}function Ho(){si=!1,Fr&&(Fr.disabled=!1)}function Ud(e,r,a){e.style.display=r,e.style.opacity=a}function Ig(e,r,a){setTimeout(function(){e.style.opacity=r},a)}function Eg(e,r){setTimeout(function(){Ud(e,"none","1")},r)}function Jo(e,r){var a=e?document.querySelector(e):null;a&&(typeof a.scrollIntoView=="function"&&a.scrollIntoView({behavior:"smooth",block:"nearest"}),r&&typeof a.focus=="function"&&a.focus())}function Ag(){var e=document.querySelector('input[name="prompt-source"]:checked');return e?e.value:"inline"}function Bg(){return{promptSource:document.querySelector('input[name="prompt-source"]:checked'),scope:document.querySelector('input[name="scope"]:checked')}}function wg(e,r){return e.oneTime!==!0?"":'<span class="task-badge clickable" data-action="toggle" data-id="'+r+'">'+f(n.labelOneTime||"One-time")+"</span>"}function Cg(e){if(e.oneTime===!0||e.manualSession!==!0)return"";var r=n.labelManualSession||"Manual session";return'<span class="task-badge" title="'+v(r)+'">'+f(r)+"</span>"}function xg(e){if(e.oneTime===!0)return"";var r=n.labelChatSession||"Recurring chat session",a=e.chatSession==="continue"?n.labelChatSessionBadgeContinue||"Chat: Continue":n.labelChatSessionBadgeNew||"Chat: New";return'<span class="task-badge" title="'+v(r)+'">'+f(a)+"</span>"}function jg(){filters.showRecurringTasks===!0&&visibleSections.sort(function(e,r){var a=It(e.id),s=It(r.id);return a===s?0:a?-1:1})}function Dg(e,r,a,s,c){var u=Xc({taskId:e,toggleTitle:r,toggleIcon:a,strings:n,escapeAttr:v});return s==="workspace"&&!c&&(u=qd(u,{className:"btn-secondary btn-icon",action:"move",taskId:e,title:n.actionMoveToCurrentWorkspace||"",icon:"\u{1F4CC}"}),jg()),(s==="global"||c)&&(u=qd(u,{className:"btn-danger btn-icon",action:"delete",taskId:e,title:n.actionDelete,icon:"\u{1F5D1}\uFE0F"})),u}function Lg(e){var r=document.getElementById("prompt-text");r&&(r.value=e)}function Pg(e){if(Fr){var r=e?n.actionSave:n.actionCreate;r&&(Fr.textContent=r)}}function Fg(e){Da&&(Da.style.display=e?"inline-flex":"none")}function Mg(e){return Array.isArray(e)&&(M=e.filter(Boolean)),Array.isArray(M)?M.filter(Boolean):[]}function Rg(){return(!_||!_.isConnected)&&(_=document.getElementById("task-list")),_}function Gd(e,r){return r?e.filter(function(a){return Bo(a).indexOf(r)!==-1}):e}function Fm(e){return Gd(e,at)}function Ng(e,r){return!Array.isArray(e)||e.length===0?!1:e.some(function(a){return!a||!a.id?!1:r==="manual"?a.manualSession===!0:r==="recurring"?a.oneTime!==!0&&!a.jobId&&a.manualSession!==!0:r==="one-time"?a.oneTime===!0:!0})}function Og(e){return!Ri||ce==="all"||!Array.isArray(e)||e.length===0||Ng(e,ce)||(ce="all",Ri=!1,td(),ue()),e}function Hg(e){var r;return at?(r=Gd(e,at),!$n||r.length>0||$i(at).length>0||(!Array.isArray(e)||e.length===0)&&$i("").length===0?r:(at="",$n=!1,jt&&(jt.value=""),ue(),e)):e}function Jg(e){return e.length>100?`${e.substring(0,100)}\u2026`:e}function Vg(e,r,a){var s=["task-card"];return e||s.push("disabled"),r==="workspace"&&!a&&s.push("other-workspace"),s.join(" ")}function qg(e,r,a){var s=['<span class="task-status ',r,'" data-action="toggle" data-id="',e,'">',f(a),"</span>"];return s.join("")}function Wg(e){var r=e.manualSessionBadgeHtml+e.chatSessionBadgeHtml+e.oneTimeBadgeHtml;return r?'<div class="task-badges task-badges-inline">'+r+"</div>":""}function zg(e){return'<div class="task-header" role="group"><div class="task-header-main"><div class="task-title-row"><span class="task-name clickable" role="button" data-action="toggle" data-id="'+e.taskId+'">'+e.taskName+"</span>"+qg(e.taskId,e.statusClass,e.statusText)+"</div>"+Wg(e)+"</div></div>"}function nn(e,r){return'<span class="task-meta-pill '+e+'">'+r+"</span>"}function Ug(e,r,a,s){var c='<span class="task-next-run-countdown" data-enabled="'+(e?"true":"false")+'" data-next-run-ms="'+v(a.millis>0?String(a.millis):"")+'"></span>',u=nn("task-meta-pill-next-run",f(n.labelNextRun)+': <span class="task-next-run-label">'+f(a.text)+"</span>"+c);return'<div class="task-meta-strip">'+nn("task-meta-pill-cron","\u23F0 "+f(r))+u+Gg(s)+"</div>"}function Gg(e){return nn("task-meta-pill-scope",e)}function _d(e){return e?'<div class="task-prompt">'+f(e)+"</div>":""}function _g(e){return'<div class="'+Vg(e.enabled,e.scopeValue,e.inThisWorkspace)+'" data-id="'+e.taskId+'"><div class="task-card-top">'+zg(e)+Ug(e.enabled,e.cronSummary,e.nextRunPresentation,e.scopeInfo)+'<div class="task-info task-info-compact"><span>Cron: '+e.cronText+"</span></div></div>"+(e.labelBadgesHtml?'<div class="task-badges task-badges-labels">'+e.labelBadgesHtml+"</div>":"")+_d(e.promptPreview)+Tg(e.lastErrorText,e.lastErrorAt)+'<div class="task-card-footer">'+e.configRow+'<div class="task-actions" role="toolbar">'+e.actionsHtml+"</div></div></div>"}function Yg(e){Ho(),E(),tc(),fe("list"),e&&kg(e)}function Kg(e,r){ne=typeof e=="string"?e:"",Ve=!0,Y="",ue(),Xt(),fe("jobs"),setTimeout(function(){Jo(r?'[data-job-id="'+r+'"]':"",!1)},50)}function Xg(e){fe("research"),e?Nd(e):(mr=!0,K="",an(null),Er()),setTimeout(function(){Jo(e?'[data-research-id="'+e+'"]':"#research-name",!e)},50)}function $g(e){fe("list"),setTimeout(function(){Ev(e)},100)}function Zg(e){fe("list"),setTimeout(function(){Jo(e?'[data-ready-todo-id="'+e+'"]':'[data-task-section="todo-draft"]',!1)},100)}function Qg(e){fe("research"),e&&Od(e),setTimeout(function(){Jo(e?'[data-run-id="'+e+'"]':"",!1)},50)}function ev(e){Aa=Array.isArray(e)?e:[],St=_c({promptTemplates:Aa,pendingTemplatePath:St,templateSelect:ft,templateSelectGroup:tl,currentSource:Ag(),strings:n,escapeHtml:f,escapeAttr:v})}function tv(e){var r=n.webviewClientErrorPrefix||"",a=e&&e.message?e.message:e,s=String(a).split(/\r?\n/)[0];g(r+ka(s)),Ho()}document.addEventListener("click",function(r){for(var a=r&&r.target&&r.target.nodeType===3?r.target.parentElement:r.target;a&&a!==document.body&&!(a.getAttribute&&a.getAttribute("data-task-section-toggle"));)a=a.parentElement;if(a&&a!==document.body&&((!_||!_.isConnected)&&(_=document.getElementById("task-list")),_&&_.contains(a))){var s=a.getAttribute("data-task-section-toggle");if(Of(s)){r.preventDefault(),Kr[s]=Kr[s]!==!0,ue(),Ze(M);return}}var c=V(r,"[data-ready-todo-create]");if(c&&((!_||!_.isConnected)&&(_=document.getElementById("task-list")),_&&_.contains(c))){r.preventDefault();var u=c.getAttribute("data-ready-todo-create");u&&!Xi(u)&&(ip(u),t.postMessage({type:"createTaskFromTodo",todoId:u}));return}Zc({event:r,taskList:_,getTaskList:function(){return _=document.getElementById("task-list"),_},getClosestEventTarget:V,resolveActionTarget:gg,openTodoEditor:vs,actionHandlers:yg()})});function Ze(e){var r=Mg(e);if(_=Rg(),!_)return;r=fd(r),r=Og(r),r=Hg(r);var a="";function s(S){if(!S||!S.id)return"";var P=hg(S),le=P.enabled,oe=P.statusClass,$t=P.statusText,et=P.toggleIcon,on=P.toggleTitle,Is=mg(S),Vv=typeof S.prompt=="string"?S.prompt:"",qv=Jg(Vv),Wv=typeof S.lastError=="string"?S.lastError:"",Es=S.lastErrorAt?new Date(S.lastErrorAt):null,zv=Es&&!isNaN(Es.getTime())?Es.toLocaleString(Tt):"",Uv=f(S.cronExpression||""),Gv=ga(S.cronExpression||""),_v=f(S.name||""),As=bg(S),kc=As.scopeValue,Ic=As.inThisWorkspace,Yv=As.scopeInfo,Yo=v(S.id||""),Kv=wg(S,Yo),Xv=Cg(S),$v=xg(S),Zv=Sg(S),Qv=Kc({task:S,taskId:Yo,agents:tr,models:rr,executionDefaults:ve,strings:n,escapeAttr:v,escapeHtml:f,formatModelLabel:Ta}),em=Dg(Yo,on,et,kc,Ic);return _g({actionsHtml:em,chatSessionBadgeHtml:$v,configRow:Qv,cronSummary:Gv,cronText:Uv,enabled:le,inThisWorkspace:Ic,labelBadgesHtml:Zv,lastErrorAt:zv,lastErrorText:Wv,manualSessionBadgeHtml:Xv,nextRunPresentation:Is,oneTimeBadgeHtml:Kv,promptPreview:qv,scopeInfo:Yv,scopeValue:kc,statusClass:oe,statusText:$t,taskId:Yo,taskName:_v})}function c(S,P,le){var oe=le.map(s).filter(Boolean).join("");return oe||(oe=Wd()),zd(S,P,"<span>"+String(le.length)+"</span>",oe)}function u(S,P,le,oe){return zd(S,P,'<span class="task-section-count">'+String(oe)+"</span>",le)}function B(S,P){var le=P.map(s).filter(Boolean).join("");return le||(le=Wd()),'<div class="task-subsection"><div class="task-subsection-title"><span class="task-subsection-name">'+f(S)+'</span><span class="task-subsection-count">'+String(P.length)+'</span></div><div class="task-subsection-body">'+le+"</div></div>"}function I(S){return!!(S&&S.jobId)}function T(S){if(!S)return"";var P=f(S.title||"Untitled Todo"),le=Ad(S.description||"")||n.boardDescriptionPreviewEmpty||"No description yet.",oe=f(Gt(S.priority||"none")),$t=S.dueAt?nn("task-meta-pill-due",f(n.boardDueLabel||"Due")+": "+f(Fo(S.dueAt))):"",et=Array.isArray(S.labels)?S.labels.slice(0,6).map(function(on){return'<span class="task-badge label">'+f(on)+"</span>"}).join(""):"";return'<div class="task-card todo-draft-candidate" data-ready-todo-id="'+v(S.id||"")+'"><div class="task-card-top"><div class="task-header" role="banner"><div class="task-header-main"><div class="task-title-row"><span class="task-name">'+P+'</span><span class="task-status enabled">'+f(n.boardFlagPresetReady||"Ready")+'</span></div></div><div class="task-badges task-badges-inline"><span class="task-badge">Ready Todo</span></div></div><div class="task-meta-strip">'+nn("task-meta-pill-workflow",f(n.boardWorkflowLabel||"Workflow")+": "+f(n.boardFlagPresetReady||"Ready"))+nn("task-meta-pill-priority","Priority: "+oe)+$t+"</div></div>"+(et?'<div class="task-badges task-badges-labels">'+et+"</div>":"")+_d(le)+'<div class="task-card-footer"><div class="task-actions" aria-label="actions"><button class="btn-secondary" data-ready-todo-open="'+v(S.id||"")+'">Open Todo</button><button class="btn-primary" data-ready-todo-create="'+v(S.id||"")+'">Create Draft</button></div></div></div>'}var b=r.filter(function(S){if(!S)return!1;var P=na(S);return!P&&!I(S)&&S.manualSession===!0}),J=r.filter(function(S){return!!S&&I(S)}),re=r.filter(function(S){if(!S)return!1;var P=na(S);return!P&&!I(S)&&S.manualSession!==!0}),pe=r.filter(function(S){if(!S)return!1;var P=na(S);return P&&!I(S)&&aa(S)&&S.enabled===!1}),Se=$i(),k=r.filter(function(S){if(!S)return!1;var P=na(S);return P&&!I(S)&&(!aa(S)||S.enabled!==!1)}),x="";if(J.length>0){var F=Object.create(null);J.forEach(function(S){var P=String(S.jobId||"");if(P){if(!F[P]){var le=kt(P);F[P]={title:le&&le.name?String(le.name):P,items:[]}}F[P].items.push(S)}});var W=Object.keys(F).map(function(S){return{id:S,title:F[S].title,items:F[S].items}}).sort(function(S,P){return S.title.localeCompare(P.title)});x=u("jobs",n.labelJobTasks||"Jobs",W.map(function(S){return B(S.title,S.items)}).join(""),J.length)}else x=u("jobs",n.labelJobTasks||"Jobs",'<div class="empty-state">'+f(n.noTasksFound)+"</div>",0);var G="",Q="";if((ce==="all"||ce==="manual")&&(G+=c("manual",n.labelManualSessions||"Manual Sessions",b)),ce==="all"&&(G+=x),(ce==="all"||ce==="recurring")&&(G+=c("recurring",n.labelRecurringTasks||"Recurring Tasks",re)),ce==="all"||ce==="one-time"){var Ue=Se.length>0?'<div class="note" style="margin-bottom:8px;">'+f(String(Se.length)+" ready todos are waiting for task draft creation.")+"</div>":"",Te=Se.map(T).filter(Boolean).join(""),At=pe.map(function(S){return s(S).replace('class="task-card','class="task-card todo-draft-compact')}).filter(Boolean).join(""),bt=Te||At?'<div class="todo-draft-grid">'+Te+At+"</div>":"",Qe=Ue+bt;Qe||(Qe='<div class="empty-state">'+f(n.noTasksFound)+"</div>"),Q+=u("todo-draft",n.labelTodoTaskDrafts||"Todo Task Drafts",Qe,Se.length+pe.length)}(ce==="all"||ce==="one-time")&&(Q+=c("one-time",n.labelOneTimeTasks||"One-time Tasks",k));var Ar="task-sections",A="";ce!=="all"&&(Ar+=" filtered",A=' style="display:grid;grid-template-columns:1fr;"');var ae=ce==="all"?'<div class="task-sections-column task-sections-column-primary">'+G+'</div><div class="task-sections-column task-sections-column-secondary">'+Q+"</div>":G+Q;if(a=['<div class="',Ar,'"',A,">",ae,"</div>"].join(""),a!==Ks){if(Kd()){xa=!0;return}xa=!1,Ks=a,_.innerHTML=a,m()}}function rv(){!xa||Kd()||(xa=!1,Ze(M))}function Yd(e,r,a){if(e){var s={};s[r]=a,t.postMessage({type:"updateTask",taskId:e,data:s})}}_&&(_.addEventListener("change",function(e){var r=e&&e.target;if(!(!r||!r.classList)){if(r.classList.contains("task-agent-select")){Yd(r.getAttribute("data-id")||"","agent",r.value||"");return}r.classList.contains("task-model-select")&&Yd(r.getAttribute("data-id")||"","model",r.value||"")}}),_.addEventListener("focusout",function(e){var r=e&&e.target;!r||!r.classList||!r.classList.contains("task-agent-select")&&!r.classList.contains("task-model-select")||setTimeout(function(){rv()},0)}));var Vo=null;function f(e){return e==null?"":(Vo||(Vo=document.createElement("div")),Vo.textContent=String(e),Vo.innerHTML)}function v(e){var r=typeof e=="string"?e:String(e||""),a=[[/&/g,"&amp;"],[/"/g,"&quot;"],[/'/g,"&#39;"],[/</g,"&lt;"],[/>/g,"&gt;"]];return a.reduce(function(s,c){return s.replace(c[0],c[1])},r)}function Kd(){var e=document.activeElement;return!e||!e.classList?!1:e.classList.contains("task-agent-select")||e.classList.contains("task-model-select")}function ga(e){return Uc(e,n)}function Xd(e,r){e&&(e.textContent=ga(r||""))}function va(){qe&&Xd(uf,qe.value)}function qo(){de&&(Xd(mf,de.value),dp())}function ma(){Fs(Gu,or?or.value:"")}function Wo(){Fs(yf,Ur?Ur.value:"")}function nv(e){e&&(e.frequency&&(e.frequency.value=""),e.interval&&(e.interval.value=""),e.minute&&(e.minute.value=""),e.hour&&(e.hour.value=""),e.dow&&(e.dow.value=""),e.dom&&(e.dom.value=""),typeof e.updateVisibility=="function"&&e.updateVisibility())}function bs(e){if(!e)return!1;var r=zc(e.expression);return r?(e.frequency&&(e.frequency.value=r.frequency||""),e.interval&&(e.interval.value=r.interval==null?"":String(r.interval)),e.minute&&(e.minute.value=r.minute==null?"":String(r.minute)),e.hour&&(e.hour.value=r.hour==null?"":String(r.hour)),e.dow&&(e.dow.value=r.dow==null?"":String(r.dow)),e.dom&&(e.dom.value=r.dom==null?"":String(r.dom)),typeof e.updateVisibility=="function"&&e.updateVisibility(),!0):(nv(e),!1)}function $d(e){!e||typeof e.onRefresh!="function"||!e.controls||e.controls.forEach(function(r){!r||typeof r.addEventListener!="function"||(r.addEventListener("change",e.onRefresh),r.addEventListener("input",e.onRefresh))})}function zo(){ma(),av()}function Uo(){Wo(),ov(),Le()}function av(){!or||!qe||Zd({frequency:or.value,interval:Tn?Tn.value:"",minute:kn?kn.value:"",hour:In?In.value:"",dow:En?En.value:"",dom:An?An.value:"",cronInput:qe,cronPresetInput:ja,onUpdate:va})}function ov(){!Ur||!de||Zd({frequency:Ur.value,interval:za?za.value:"",minute:Ua?Ua.value:"",hour:Ga?Ga.value:"",dow:_a?_a.value:"",dom:Ya?Ya.value:"",cronInput:de,cronPresetInput:Wa,onUpdate:qo})}function Zd(e){var r=Wc(e.frequency,{interval:e.interval,minute:e.minute,hour:e.hour,dow:e.dow,dom:e.dom});r&&(e.cronInput.value=r,e.cronPresetInput&&(e.cronPresetInput.value=""),e.onUpdate())}function iv(){[dt,ct,St]=["","",""],ii=!0}function sv(){var e=document.getElementById("run-first");e&&(e.checked=!1);var r=document.getElementById("one-time");r&&(r.checked=!1);var a=document.getElementById("manual-session");a&&(a.checked=!1)}function Qd(){bv("task-name")}function ec(){[Io,ma,va,yr].forEach(function(e){e()})}function tc(){vn&&vn.reset(),hv(),sv(),Me&&(Me.value=xr),Ye&&(Ye.value=ve.agent||""),Ke&&(Ke.value=ve.model||""),ec()}function rc(){return{executionDefaults:ve,escapeAttr:v,escapeHtml:f,strings:n}}function nc(){Qc(Object.assign({agentSelect:Ye,agents:tr},rc()))}function ac(){eu(Object.assign({formatModelLabel:Ta,modelSelect:Ke,models:rr},rc()))}function oc(){So(),To(),Go(),ks()}function lv(){return Array.isArray(M)?M:[]}function ic(e){return lv().find(function(r){return r&&r.id===e})}function ys(e,r){return e?r&&!ei(e,r)?(e.value="",r):Zo(e,r):r}function dv(e,r){return r||(e?e.value:"")}function sc(e){var r=dv(e.selectElement,e.pendingValue);return Iv({eventName:e.eventName,debugData:e.createDebugData(r),assignItems:e.assignItems,updateOptions:e.updateOptions,selectElement:e.selectElement,currentValue:r,pendingValue:e.pendingValue})}function cv(){nc(),ac();var e=document.querySelector('input[name="prompt-source"]:checked');e&&ya(e.value),Me&&!Me.value&&(Me.value=xr),Io(),ma(),va(),pc(),Co(),Go(),gc(""),Ss(),Xt(),Le()}function lc(){tc(),fe("create"),Qd()}function uv(){E(),Ho(),lc(),setTimeout(function(){Qd()},0)}function fv(){var e=document.getElementById("form-error");return e&&(e.style.display="none"),e}function pv(){si=!0,Fr&&(Fr.disabled=!0)}function dc(e,r){var a=document.querySelector('input[name="'+e+'"][value="'+r+'"]');a&&(a.checked=!0)}function gv(e){return e.chatSession==="continue"?"continue":e.chatSession==="new"?"new":xr}function vv(e){e&&(g(e),Ho())}function mv(e){e&&typeof window.editTask=="function"&&window.editTask(e)}function bv(e){var r=document.getElementById(e);r&&typeof r.focus=="function"&&r.focus()}function yv(){ya("inline"),Mr&&(Mr.value=String(li)),_i(0),Rr&&(Rr.value=""),bs({expression:qe?qe.value:"",frequency:or,interval:Tn,minute:kn,hour:In,dow:En,dom:An,updateVisibility:ma})}function hv(){Ld(null),iv(),yv()}function Sv(e){return e.data}function Tv(e,r){var a=document.getElementById("task-name"),s=document.getElementById("prompt-text"),c=e.promptSource||"inline";Ld(r),a&&(a.value=e.name||""),Rr&&(Rr.value=dd(e.labels)),s&&(s.value=typeof e.prompt=="string"?e.prompt:""),qe&&(qe.value=e.cronExpression||""),ja&&(ja.value=""),bs({expression:e.cronExpression||"",frequency:or,interval:Tn,minute:kn,hour:In,dow:En,dom:An,updateVisibility:ma}),va(),dt=ys(Ye,e.agent||""),ct=ys(Ke,e.model||""),ii=e.enabled!==!1,dc("scope",e.scope||"workspace"),dc("prompt-source",c),ya(c,!0),St=e.promptPath||"",ft&&(St=ys(ft,St)),Mr&&(Mr.value=String(e.jitterSeconds??li)),_i(id(e));var u=document.getElementById("run-first");u&&(u.checked=!1);var B=document.getElementById("one-time");B&&(B.checked=e.oneTime===!0);var I=document.getElementById("manual-session");I&&(I.checked=e.oneTime===!0?!1:e.manualSession===!0),Me&&(Me.value=gv(e)),ec(),fe("create")}function ba(e,r){t.postMessage({type:e,taskId:r})}function kv(e,r,a){return!e||!r?a:Zo(e,r)}function Iv(e){return D(e.eventName,e.debugData),e.assignItems(),e.updateOptions(),So(),To(),Go(),ks(),e.pendingValue=kv(e.selectElement,e.currentValue,e.pendingValue),Ze(M),e.pendingValue}function Ev(e){var r='.task-card[data-id="'+e+'"]',a=document.querySelector(r);a&&typeof a.scrollIntoView=="function"&&a.scrollIntoView({behavior:"smooth"})}function Mm(e,r){Qo({templateSelect:ft,promptTemplates:Aa,source:e,selectedPath:r,strings:n,escapeHtml:f,escapeAttr:v})}function ya(e,r){Gc({source:e,keepSelection:r,templateSelect:ft,promptTextEl:df,templateSelectGroup:tl,promptGroup:nl,promptTemplates:Aa,strings:n,escapeHtml:f,escapeAttr:v,warnMissingTemplateGroup:function(){console.warn("[CopilotCockpit] Template select container not found; template picking is disabled.")}})}function cc(){if(pt){var e=pt.value||"";if(e)return(Array.isArray(dn)?dn:[]).find(function(r){return r&&r.path===e})}}function uc(e){return!e||e.skillType!=="support"?n.skillTypeOperational||"Operational":n.skillTypeSupport||"Support"}function hs(e){return Array.isArray(e)&&e.length>0?e.join(", "):n.skillMetadataNone||"none"}function Av(e){if(!e)return"";var r=e.reference||e.name||"";return uc(e)+": "+r}function Bv(e){if(!e)return n.skillMetadataEmptyState||"";var r=n.skillMetadataSummaryTemplate||"Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";return r.replace("{type}",uc(e)).replace("{summary}",e.promptSummary||e.reference||e.name||n.skillMetadataNone||"none").replace("{tools}",hs(e.toolNamespaces)).replace("{readyFlags}",hs(e.readyWorkflowFlags)).replace("{closeoutFlags}",hs(e.closeoutWorkflowFlags)).replace("{approval}",e.approvalSensitive?n.skillApprovalSensitive||"Approval-sensitive":n.skillApprovalRoutine||"Routine")}function fc(){rl&&(rl.textContent=Bv(cc()))}function pc(){if(pt){var e=Array.isArray(dn)?dn:[],r=n.placeholderSelectSkill||"Select a skill",a=pt.value||"";pt.innerHTML='<option value="">'+f(r)+"</option>"+e.map(function(s){return'<option value="'+v(s.path||"")+'">'+f(Av(s))+"</option>"}).join(""),pt.value=e.some(function(s){return s&&s.path===a})?a:"",fc()}}function wv(){if(!(!pt||!nl)){var e=cc();if(e){var r=document.querySelector('input[name="prompt-source"][value="inline"]');r&&(r.checked=!0),ya("inline",!1);var a=document.getElementById("prompt-text");if(a){var s=n.skillSentenceTemplate||"Use {skill} to know how things must be done.",c=s.replace("{skill}",e.reference||e.name||"skill"),u=a.value||"";a.value=u.trim()?u.replace(/\s*$/,`
+  // media/cockpitWebviewBoardRendering.js
+  function renderTodoBoardMarkup(options) {
+    var visibleSections2 = options.visibleSections;
+    var cards = options.cards;
+    var filters2 = options.filters;
+    var strings = options.strings;
+    if (filters2.viewMode === "list") {
+      return renderTodoListView(visibleSections2, cards, filters2, options);
+    }
+    return renderTodoBoardColumns(visibleSections2, cards, filters2, options);
+  }
+  function getLatestTodoComment(card) {
+    return Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
+  }
+  function renderTodoCompactActions(card, options, layout) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var isDeleteConfirmOpen = options.pendingBoardDeleteTodoId === card.id;
+    var permanentOnly = !!(card.archived || isDeleteConfirmOpen && options.pendingBoardDeletePermanentOnly);
+    var actionRowClass = layout === "board" ? "todo-card-action-row" : "todo-list-actions";
+    function renderActionButton(cls, dataAttr, label, iconHtml) {
+      return '<button type="button" class="' + cls + ' todo-list-action-btn todo-card-icon-btn" ' + dataAttr + '="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(label) + '" aria-label="' + helpers.escapeAttr(label) + '">' + iconHtml + "</button>";
+    }
+    function renderConfirmButton(cls, dataAttr, label) {
+      return '<button type="button" class="' + cls + ' todo-list-action-btn" ' + dataAttr + '="' + helpers.escapeAttr(card.id) + '" title="' + helpers.escapeAttr(label) + '" aria-label="' + helpers.escapeAttr(label) + '">' + helpers.escapeHtml(label) + "</button>";
+    }
+    if (isDeleteConfirmOpen) {
+      var confirmActions = [
+        renderConfirmButton(
+          "btn-secondary todo-card-delete-cancel",
+          "data-todo-delete-cancel",
+          strings.boardDeleteTodoCancel || "Cancel"
+        )
+      ];
+      if (!permanentOnly) {
+        confirmActions.push(
+          renderConfirmButton(
+            "btn-secondary todo-card-delete-reject",
+            "data-todo-delete-reject",
+            strings.boardDeleteTodoReject || "Archive as Rejected"
+          )
+        );
+      }
+      confirmActions.push(
+        renderConfirmButton(
+          "btn-danger todo-card-delete-permanent",
+          "data-todo-delete-permanent",
+          strings.boardDeleteTodoPermanent || "Delete Permanently"
+        )
+      );
+      return '<div class="' + actionRowClass + '">' + confirmActions.join("") + "</div>";
+    }
+    var actions = [
+      renderActionButton(
+        "btn-secondary todo-card-edit",
+        "data-todo-edit",
+        strings.boardEditTodo || "Open Editor",
+        "&#9998;"
+      )
+    ];
+    if (card.archived) {
+      actions.push(
+        renderActionButton(
+          "btn-secondary todo-card-restore",
+          "data-todo-restore",
+          strings.boardRestoreTodo || "Restore",
+          "&#8634;"
+        )
+      );
+      actions.push(
+        renderActionButton(
+          "btn-danger todo-card-purge",
+          "data-todo-purge",
+          strings.boardDeleteTodoPermanent || "Delete Permanently",
+          "&#128465;"
+        )
+      );
+    } else {
+      actions.push(
+        renderActionButton(
+          "btn-secondary todo-card-delete",
+          "data-todo-delete",
+          strings.boardDeleteTodo || "Delete Todo",
+          "&#128465;"
+        )
+      );
+    }
+    return '<div class="' + actionRowClass + (actions.length === 1 ? " has-single-action" : "") + '">' + actions.join("") + "</div>";
+  }
+  function renderTodoListRow(card, sectionId, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var selectedTodoId = options.selectedTodoId;
+    var isSelected = card.id === selectedTodoId;
+    var latestComment = getLatestTodoComment(card);
+    var descriptionText = card.description ? helpers.getTodoDescriptionPreview(card.description) : card.taskId ? strings.boardTaskLinked || "Linked task" : strings.boardDescriptionPreviewEmpty || "No description yet.";
+    var latestCommentText = latestComment && latestComment.body ? "#" + String(latestComment.sequence || 1) + " \u2022 " + helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + " \u2022 " + helpers.getTodoDescriptionPreview(latestComment.body) : strings.boardCommentsEmpty || "No comments yet.";
+    var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
+    var metaParts = [
+      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span>",
+      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoStatusLabel(card.status || "active")) + "</span>"
+    ];
+    if (card.dueAt) {
+      metaParts.push("<span data-card-meta>" + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>");
+    }
+    if (card.archived && card.archiveOutcome) {
+      metaParts.push("<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>");
+    }
+    var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 6) : [];
+    var chipMarkup = visibleFlags.length || visibleLabels.length ? '<div class="todo-list-chip-row">' + (visibleFlags.length ? '<div class="card-flags">' + visibleFlags.map(function(flag, idx) {
+      return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + "</span>";
+    }).join("") + "</div>" : "") + (visibleLabels.length ? '<div class="card-labels">' + visibleLabels.map(function(label, idx) {
+      return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
+    }).join("") + "</div>" : "") + "</div>" : "";
+    return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div class="todo-list-title-block">' + helpers.renderTodoCompletionCheckbox(card) + '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + "</div></div>" + chipMarkup + '<div class="cockpit-card-details todo-list-card-details"><div class="note todo-list-detail-line todo-list-detail-line-description"><strong data-card-meta>' + helpers.escapeHtml(strings.boardDescriptionLabel || "Description") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(descriptionText) + '</span></div><div class="note todo-list-detail-line todo-list-detail-line-comment"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(latestCommentText) + "</span></div></div></div>" + renderTodoCompactActions(card, options, "list") + "</article>";
+  }
+  function renderTodoListView(visibleSections2, cards, filters2, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var collapsedSections = options.collapsedSections;
+    return '<div class="todo-list-view">' + visibleSections2.map(function(section) {
+      var sectionCards = helpers.sortTodoCards(cards.filter(function(card) {
+        return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters2);
+      }), filters2);
+      var isCollapsed = collapsedSections.has(section.id);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
+      var sectionTitle = helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section"));
+      return '<section class="todo-list-section' + (isCollapsed ? " is-collapsed" : "") + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px);"><button type="button" class="cockpit-collapse-btn' + (isCollapsed ? " collapsed" : "") + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" aria-expanded="' + (isCollapsed ? "false" : "true") + '" title="' + helpers.escapeAttr(isCollapsed ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section") + '">&#9660;</button>' + helpers.renderSectionDragHandle(section, isSpecialSection) + '<div class="cockpit-section-title-group"><strong class="cockpit-section-title">' + sectionTitle + '</strong></div><span class="note cockpit-section-count">(' + String(sectionCards.length) + ")</span>" + (isSpecialSection ? "" : '<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button><button type="button" class="btn-icon" data-section-delete="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button></div>') + '</div><div class="section-body-wrapper' + (isCollapsed ? " collapsed" : "") + '"><div class="section-body-inner"><div class="todo-list-items">' + (sectionCards.length ? sectionCards.map(function(card) {
+        return renderTodoListRow(card, section.id, options);
+      }).join("") : '<div class="note">' + helpers.escapeHtml(strings.boardListEmptySection || strings.boardEmpty || "No todos in this section.") + "</div>") + "</div></div></div></section>";
+    }).join("") + "</div>";
+  }
+  function renderTodoBoardColumns(visibleSections2, cards, filters2, options) {
+    var strings = options.strings;
+    var helpers = options.helpers;
+    var collapsedSections = options.collapsedSections;
+    var selectedTodoId = options.selectedTodoId;
+    return '<div style="display:flex;gap:16px;align-items:flex-start;min-width:max-content;">' + visibleSections2.map(function(section) {
+      var sectionCards = helpers.sortTodoCards(cards.filter(function(card) {
+        return card.sectionId === section.id && helpers.cardMatchesTodoFilters(card, filters2);
+      }), filters2);
+      var isSpecialSection = helpers.isSpecialTodoSectionId(section.id);
+      return '<section class="board-column' + (collapsedSections.has(section.id) ? " is-collapsed" : "") + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow:visible;"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)"><button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? " collapsed" : "") + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section") + '">&#9660;</button>' + helpers.renderSectionDragHandle(section, isSpecialSection) + '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + "</strong>" + (isSpecialSection ? "" : '<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button><button type="button" class="btn-icon" data-section-delete="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button></div>') + '</div><div class="section-body-wrapper' + (collapsedSections.has(section.id) ? " collapsed" : "") + '"><div class="section-body-inner"><div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);"><div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">' + (sectionCards.length ? sectionCards.map(function(card) {
+        var isSelected = card.id === selectedTodoId;
+        var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
+        var chipMarkup = visibleFlags.length || Array.isArray(card.labels) && card.labels.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + (visibleFlags.length ? '<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:6px;">' + visibleFlags.map(function(flag, idx) {
+          return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + "</span>";
+        }).join("") + "</div>" : "") + (Array.isArray(card.labels) && card.labels.length ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function(label, idx) {
+          return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
+        }).join("") + "</div>" : "") + "</div>" : "";
+        var latestComment = Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
+        var dueMarkup = card.dueAt ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>" : "";
+        var archiveMarkup = card.archived && card.archiveOutcome ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>" : "";
+        var latestCommentMarkup = latestComment && latestComment.body ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ":</strong><span data-card-meta>#" + helpers.escapeHtml(String(latestComment.sequence || 1)) + " \u2022 " + helpers.escapeHtml(helpers.getTodoCommentSourceLabel(latestComment.source || "human-form")) + " \u2022 " + helpers.escapeHtml(helpers.getTodoDescriptionPreview(latestComment.body || "")) + "</span></div>" : "";
+        return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' + helpers.renderTodoCompletionCheckbox(card) + '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div style="display:flex;align-items:center;gap:6px;">' + helpers.renderTodoDragHandle(card) + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span></div></div>" + (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + "</div>" : "") + chipMarkup + '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + "</div>" + latestCommentMarkup + "</div>" + renderTodoCompactActions(card, options, "board") + "</article>";
+      }).join("") : '<div class="note">' + helpers.escapeHtml(strings.boardEmpty || "No cards yet.") + "</div>") + "</div></div></div></div></section>";
+    }).join("") + "</div>";
+  }
 
-`)+c:c,typeof a.focus=="function"&&a.focus()}}}}function mt(e,r,a,s,c,u){if(e){var B=Array.isArray(r)?r:[],I=s||"",T=!I,b='<option value="">'+f(a||"")+"</option>"+B.map(function(J){var re=c(J),pe=u(J);return re===I&&(T=!0),'<option value="'+v(re)+'">'+f(pe)+"</option>"}).join("");I&&!T&&(b+='<option value="'+v(I)+'" selected>'+f(I)+"</option>"),e.innerHTML=b,e.value=I,e.value!==I&&(e.value="")}}function gc(e){mt(Xe,Array.isArray(ge)?ge.slice().sort(function(r,a){return String(r&&r.name||"").localeCompare(String(a&&a.name||""))}):[],n.jobsRootFolder||"All jobs",e||"",function(r){return r&&r.id?r.id:""},function(r){var a=Ao(r),s=new Array(a+1).join("  ");return s+(r&&r.name?r.name:"")})}function Go(){mt(Xa,tr,n.placeholderSelectAgent||"Select agent",Xa?Xa.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),mt($a,rr,n.placeholderSelectModel||"Select model",$a?$a.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""})}function Ss(){var e=lp();mt(Ka,e,n.jobsNoStandaloneTasks||"No standalone tasks available",Ka?Ka.value:"",function(r){return r&&r.id?r.id:""},function(r){if(!r||!r.name)return"";if(!r.jobId)return r.name;var a=kt(r.jobId);return a&&a.name?r.name+" \xB7 "+a.name:r.name}),Bi&&(Bi.disabled=e.length===0)}function vc(){var e=Array.isArray(Qt)?Qt:[];if(mr){Mt&&(Mt.value="");return}var r=e.some(function(a){return a&&a.id===K});r||(K=e.length>0&&e[0]?e[0].id:""),Mt&&(Mt.value=K||"")}function Ts(){_r&&(_r.textContent="",_r.style.display="none")}function Cv(e){_r&&(_r.textContent=String(e||""),_r.style.display=e?"block":"none")}function _o(e){if(!e)return"-";var r=new Date(e);return isNaN(r.getTime())?String(e):r.toLocaleString(Tt)}function mc(e,r){if(!e)return"-";var a=new Date(e).getTime();if(!isFinite(a))return"-";var s=r?new Date(r).getTime():Date.now();if(!isFinite(s)||s<a)return"-";var c=Math.max(0,Math.floor((s-a)/1e3));return Rs(c)}function xv(e){return String(e||"").replace(/-/g," ")}function jv(e){return(Array.isArray(er)?er:[]).find(function(r){return r&&r.id===e})}function bc(){var e=Array.isArray(er)?er:[],r=Be&&Be.id?Be.id:"",a=e.some(function(s){return s&&s.id===ze});if(!a){if(r){ze=r;return}ze=e.length>0&&e[0]?e[0].id:""}}function Dv(){return bc(),jv(ze)||null}function Lv(e){return String(e||"").split(/\r?\n/).map(function(r){return String(r||"").trim()}).filter(function(r){return r.length>0})}function yc(){return(Array.isArray(Qt)?Qt:[]).find(function(e){return e&&e.id===K})}function hc(e){return e==="running"?n.researchStatusRunning||"Running":e==="stopping"?n.researchStatusStopping||"Stopping":e==="completed"?n.researchStatusCompleted||"Completed":e==="failed"?n.researchStatusFailed||"Failed":e==="stopped"?n.researchStatusStopped||"Stopped":n.researchStatusIdle||"Idle"}function Pv(){return{name:n.researchAutoAgentExampleName||"AutoAgent Harbor Example",instructions:n.researchAutoAgentExampleInstructions||"Use this preset inside the autoagent repo to improve the Harbor agent harness score by editing agent.py while refining the experiment directive in program.md. Start with one representative task, keep the editable surface small, and make sure the benchmark command prints a final numeric score or reward line that matches the regex before you run the loop.",editablePaths:["agent.py","program.md"],benchmarkCommand:'uv run harbor run -p tasks/ --task-name "<task-name>" -l 1 -n 1 --agent-import-path agent:AutoAgent -o jobs --job-name latest',metricPattern:"(?:score|reward)\\s*[:=]\\s*([0-9.]+)",metricDirection:"maximize",maxIterations:8,maxMinutes:90,maxConsecutiveFailures:3,benchmarkTimeoutSeconds:900,editWaitSeconds:45,agent:"",model:""}}function an(e){var r=e||null;K=r&&r.id?r.id:"",Nf=K||"",ta=!1,mr=!K,Ts(),Mt&&(Mt.value=K||""),nt&&(nt.value=r&&r.name?r.name:""),Rn&&(Rn.value=r&&r.instructions?r.instructions:""),Nn&&(Nn.value=r&&Array.isArray(r.editablePaths)?r.editablePaths.join(`
-`):""),On&&(On.value=r&&r.benchmarkCommand?r.benchmarkCommand:""),Hn&&(Hn.value=r&&r.metricPattern?r.metricPattern:""),Jn&&(Jn.value=r&&r.metricDirection==="minimize"?"minimize":"maximize"),Vn&&(Vn.value=String(r&&r.maxIterations!==void 0?r.maxIterations:3)),qn&&(qn.value=String(r&&r.maxMinutes!==void 0?r.maxMinutes:15)),Wn&&(Wn.value=String(r&&r.maxConsecutiveFailures!==void 0?r.maxConsecutiveFailures:2)),zn&&(zn.value=String(r&&r.benchmarkTimeoutSeconds!==void 0?r.benchmarkTimeoutSeconds:180)),Un&&(Un.value=String(r&&r.editWaitSeconds!==void 0?r.editWaitSeconds:20)),Rt&&(Rt.value=r&&r.agent?r.agent:""),Nt&&(Nt.value=r&&r.model?r.model:""),ue()}function Fv(){return{name:nt?nt.value:"",instructions:Rn?Rn.value:"",editablePaths:Lv(Nn?Nn.value:""),benchmarkCommand:On?On.value:"",metricPattern:Hn?Hn.value:"",metricDirection:Jn&&Jn.value==="minimize"?"minimize":"maximize",maxIterations:Vn?Number(Vn.value||0):0,maxMinutes:qn?Number(qn.value||0):0,maxConsecutiveFailures:Wn?Number(Wn.value||0):0,benchmarkTimeoutSeconds:zn?Number(zn.value||0):0,editWaitSeconds:Un?Number(Un.value||0):0,agent:Rt?Rt.value:"",model:Nt?Nt.value:""}}function Mv(e){return String(e.name||"").trim()?String(e.benchmarkCommand||"").trim()?String(e.metricPattern||"").trim()?!Array.isArray(e.editablePaths)||e.editablePaths.length===0?n.researchEditableRequired||"Add at least one editable file path.":"":n.researchMetricRequired||"Metric regex is required.":n.researchBenchmarkRequired||"Benchmark command is required.":n.researchProfileNameRequired||"Research profile name is required."}function ks(){mt(Rt,tr,n.placeholderSelectAgent||"Select agent",Rt?Rt.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""}),mt(Nt,rr,n.placeholderSelectModel||"Select model",Nt?Nt.value:"",function(e){return e&&e.id?e.id:""},function(e){return e&&e.name?e.name:""})}function Rv(){if(vc(),!!Za){var e=Array.isArray(Qt)?Qt.slice():[];if(e.sort(function(r,a){return String(r&&r.name||"").localeCompare(String(a&&a.name||""))}),e.length===0){Za.innerHTML='<div class="jobs-empty">'+f(n.researchEmptyProfiles||"No research profiles yet.")+"</div>",!ta&&!mr&&an(null);return}Za.innerHTML=e.map(function(r){var a=r&&r.id===K;return'<div class="research-card'+(a?" active":"")+'" data-research-id="'+v(r.id||"")+'"><div class="research-card-header"><strong>'+f(r.name||"")+'</strong><span class="jobs-pill">'+f(r.metricDirection==="minimize"?n.researchDirectionMinimize||"Minimize":n.researchDirectionMaximize||"Maximize")+'</span></div><div class="research-meta">'+f(r.benchmarkCommand||"")+'</div><div class="research-chip-row"><span class="research-chip">'+f((n.researchEditableCount||"Editable files")+": "+String((r.editablePaths||[]).length))+'</span><span class="research-chip">'+f((n.researchBudgetShort||"Budget")+": "+String(r.maxIterations||0)+" / "+String(r.maxMinutes||0)+"m")+'</span><span class="research-chip">'+f((n.researchMetricPatternShort||"Metric")+": "+String(r.metricPattern||""))+"</span></div></div>"}).join("")}}function Nv(){if(Qa){var e=Array.isArray(er)?er:[];if(e.length===0){Qa.innerHTML='<div class="jobs-empty">'+f(n.researchEmptyRuns||"No research runs yet.")+"</div>";return}Qa.innerHTML=e.map(function(r){var a=Array.isArray(r.attempts)&&r.attempts.length>0?r.attempts[r.attempts.length-1]:null,s=r&&r.id===ze;return'<div class="research-run-card'+(s?" active":"")+'" data-run-id="'+v(r.id||"")+'"><div class="research-run-card-header"><strong>'+f(r.profileName||"")+'</strong><span class="jobs-pill">'+f(hc(r.status))+'</span></div><div class="research-run-meta">'+f("Best: "+(r.bestScore!==void 0?String(r.bestScore):n.researchNoScore||"No score yet"))+`
-`+f("Duration: "+mc(r.startedAt,r.finishedAt))+`
-`+f("Attempts: "+String(Array.isArray(r.attempts)?r.attempts.length:0))+(a?`
-`+f("Last: "+(a.summary||a.outcome||"")):"")+"</div></div>"}).join("")}}function Ov(){if(!(!eo||!wi)){var e=Dv();if(Il&&(Il.textContent=n.researchActiveRunTitle||"Run details"),!e){eo.style.display="block",wi.style.display="none",eo.textContent=n.researchNoRunSelected||"Select a recent run to inspect its attempts.",to&&(to.innerHTML="");return}eo.style.display="none",wi.style.display="block";var r=Array.isArray(e.attempts)?e.attempts:[],a=r.length>0?r[r.length-1]:null;El&&(El.textContent=hc(e.status)),Al&&(Al.textContent=e.bestScore!==void 0?String(e.bestScore):n.researchNoScore||"No score yet"),Bl&&(Bl.textContent=String(r.length)),wl&&(wl.textContent=a?String(a.outcome||"-"):"-"),Cl&&(Cl.textContent=[e.profileName||"",(n.researchStartedAt||"Started")+": "+_o(e.startedAt),(n.researchFinishedAt||"Finished")+": "+_o(e.finishedAt),(n.researchDuration||"Duration")+": "+mc(e.startedAt,e.finishedAt),(n.researchBaselineScore||"Baseline score")+": "+(e.baselineScore!==void 0?String(e.baselineScore):n.researchNoScore||"No score yet"),(n.researchBestScore||"Best score")+": "+(e.bestScore!==void 0?String(e.bestScore):n.researchNoScore||"No score yet"),(n.researchCompletedIterations||"Completed iterations")+": "+String(e.completedIterations||0),e.stopReason?(n.researchStopReason||"Stop reason")+": "+e.stopReason:""].filter(Boolean).join(`
-`)),to&&(to.innerHTML=r.map(function(s){var c=s.iteration===0?n.researchBaselineLabel||"Baseline":(n.researchIterationLabel||"Iteration")+" "+s.iteration,u=[s.summary||"",(n.researchStartedAt||"Started")+": "+_o(s.startedAt),s.finishedAt?(n.researchFinishedAt||"Finished")+": "+_o(s.finishedAt):"",s.score!==void 0?"Score: "+String(s.score):"",s.bestScoreAfter!==void 0?(n.researchBestScore||"Best score")+": "+String(s.bestScoreAfter):"",s.exitCode!==void 0?(n.researchExitCode||"Exit code")+": "+String(s.exitCode):""].filter(Boolean),B=[];return Array.isArray(s.changedPaths)&&s.changedPaths.length>0&&B.push((n.researchChangedFiles||"Changed files")+": "+s.changedPaths.join(", ")),Array.isArray(s.policyViolationPaths)&&s.policyViolationPaths.length>0&&B.push((n.researchViolationFiles||"Policy violation files")+": "+s.policyViolationPaths.join(", ")),s.snapshot&&s.snapshot.label&&B.push((n.researchSnapshot||"Snapshot")+": "+s.snapshot.label),'<div class="research-attempt-card"><div class="research-attempt-card-header"><strong>'+f(c)+'</strong><span class="jobs-pill">'+f(xv(s.outcome||""))+'</span></div><div class="research-attempt-meta">'+f(u.join(`
-`))+"</div>"+(B.length>0?'<div class="research-attempt-paths">'+f(B.join(`
-`))+"</div>":"")+(s.output?'<div class="research-output"><details><summary>'+f(n.researchBenchmarkOutput||"Benchmark output")+"</summary><pre>"+f(s.output)+"</pre></details></div>":"")+"</div>"}).join(""))}}function Er(){Rv(),Nv(),Ov();var e=yc();ta?Mt&&(Mt.value=K||""):an(e||null),yl&&(yl.textContent=mr?n.researchCreateProfile||n.researchSaveProfile||"Create Profile":n.researchSaveProfile||"Save Profile"),hl&&(hl.disabled=!K),Sl&&(Sl.disabled=!K),Tl&&(Tl.disabled=!K||Be&&Be.status==="running"),kl&&(kl.disabled=!(Be&&(Be.status==="running"||Be.status==="stopping"))),ue()}function Sc(e){qi();var r=Xf(),a=$f(r);if(a){Zl(a,!0);return}t.postMessage({type:e,data:r}),Zl(e==="saveTelegramNotification"?n.telegramStatusSaved||"Saving Telegram settings...":n.telegramTest||"Sending test message...",!1)}function Tc(){ta=!0,Ts()}function Hv(){[nt,Rn,Nn,On,Hn,Jn,Vn,qn,Wn,zn,Un,Rt,Nt].forEach(function(e){!e||typeof e.addEventListener!="function"||(e.addEventListener("input",Tc),e.addEventListener("change",Tc))})}function Jv(){var e=["#task-name","#prompt-text","#cron-expression","#task-labels","#agent-select","#model-select","#template-select","#jitter-seconds","#one-time-delay-hours","#one-time-delay-minutes","#one-time-delay-seconds","#chat-session","#run-first","#one-time",'input[name="scope"]','input[name="prompt-source"]',"#todo-title-input","#todo-description-input","#todo-due-input","#todo-priority-input","#todo-section-input","#todo-linked-task-select","#todo-labels-input","#todo-label-color-input","#todo-flag-name-input","#todo-flag-color-input","#jobs-name-input","#jobs-cron-input","#jobs-folder-select"].join(", ");["input","change"].forEach(function(r){document.addEventListener(r,function(a){var s=a&&a.target;!s||typeof s.matches!="function"||s.matches(e)&&Le()})})}function Xt(){cp(),ue(),Le();var e=document.getElementById("jobs-overview-stats"),r=document.getElementById("jobs-overview-selection"),a=Zi();if(ol){var s=gd(),c=en(s),u=ne?(s||{}).name||n.jobsRootFolder||"All jobs":n.jobsRootFolder||"All jobs";ol.innerHTML='<div><span class="jobs-current-folder-label">'+f(n.jobsCurrentFolderLabel||"Current folder")+'</span><strong class="jobs-current-folder-name">'+f(c&&n.jobsArchiveFolderBadge||u)+'</strong><div class="jobs-folder-path">'+f(Qi(ne))+'</div></div><span class="jobs-pill'+(c?" is-inactive":"")+'">'+f(n.jobsCurrentFolderBadge||"Current")+"</span>"}if(vi&&(vi.disabled=!ne),mi&&(mi.disabled=!ne),fi){var B=(Array.isArray(ge)?ge.slice():[]).sort(function(A,ae){var S=(en(A)?1:0)-(en(ae)?1:0);if(S!==0)return S;var P=Ao(A)-Ao(ae);return P!==0?P:String(A&&A.name||"").localeCompare(String(ae&&ae.name||""))}),I=ne?"jobs-folder-item":"jobs-folder-item active",T='<div class="'+I+'" data-job-folder=""><div class="jobs-folder-item-header"><span>'+f(n.jobsRootFolder||"All jobs")+'</span><span class="jobs-pill">'+String((Array.isArray(Ee)?Ee:[]).filter(function(A){return A&&!A.folderId}).length)+"</span></div></div>";T+=B.map(function(A){var ae=Ao(A),S=A&&A.id===ne,P=en(A)?" is-archive":"",le=(Array.isArray(Ee)?Ee:[]).filter(function(et){return et&&et.folderId===A.id}).length,oe=new Array(ae+1).join('<span class="jobs-folder-indent"></span>'),$t=Qi(A.id);return'<div class="jobs-folder-item'+(S?" active":"")+P+'" data-job-folder="'+v(A.id||"")+'"><div class="jobs-folder-item-header"><span>'+oe+f(A.name||"")+'</span><span class="jobs-pill">'+String(le)+"</span></div>"+(en(A)?'<div class="jobs-folder-path"><span class="jobs-pill is-inactive">'+f(n.jobsArchiveFolderBadge||"Archived jobs")+"</span></div>":'<div class="jobs-folder-path">'+f($t)+"</div>")+"</div>"}).join(""),fi.innerHTML=T||'<div class="jobs-empty">'+f(n.jobsNoFolders||"No folders yet.")+"</div>"}Bn&&(a.length===0?Bn.innerHTML='<div class="jobs-empty">'+f(n.jobsNoJobs||"No jobs in this folder yet.")+"</div>":Bn.innerHTML=a.map(function(A){var ae=ga(A.cronExpression||""),S=ae!==(n.labelFriendlyFallback||"")?ae:A.cronExpression||"",P="";return A&&A.runtime&&A.runtime.waitingPause?P=" is-waiting":A&&(A.paused||A.archived)&&(P=" is-inactive"),'<div class="jobs-list-item'+(A.id===Y?" active":"")+'" data-job-id="'+v(A.id||"")+'" draggable="true"><div class="jobs-list-item-header"><strong>'+f(A.name||"")+'</strong><span class="jobs-pill'+P+'">'+f(ko(A))+'</span></div><div class="jobs-list-item-meta-row" title="'+v(A.cronExpression||"")+'"><div class="jobs-list-item-meta">'+f(S)+" \u2022 "+String(Array.isArray(A.nodes)?A.nodes.length:0)+' items</div><div style="display:flex;align-items:center;gap:8px;">'+(A.archived?'<span class="jobs-pill is-inactive">'+f(n.jobsArchivedBadge||"Archived")+"</span>":"")+'<button type="button" class="btn-secondary" data-job-open-editor="'+v(A.id||"")+'">'+f(n.jobsOpenEditor||"Open editor")+"</button></div></div></div>"}).join(""));var b=kt(Y);if(e){var J=a.filter(function(A){return A&&!A.paused&&!A.archived}).length,re=a.reduce(function(A,ae){return A+(Array.isArray(ae&&ae.nodes)?ae.nodes.length:0)},0),pe=1+(Array.isArray(ge)?ge.filter(function(A){return A&&!en(A)}).length:0);e.innerHTML=[{label:n.jobsTitle||"Jobs",value:String(a.length)},{label:n.jobsRunning||"Active",value:String(J)},{label:n.jobsFoldersTitle||"Folders",value:String(pe)},{label:n.jobsWorkflowTaskCount||"Task steps",value:String(re)}].map(function(A){return'<div class="jobs-overview-stat"><div class="jobs-overview-stat-label">'+f(A.label)+'</div><div class="jobs-overview-stat-value">'+f(A.value)+"</div></div>"}).join("")}if(r){var Se=gd(),u=ne?(Se||{}).name||n.jobsRootFolder||"All jobs":n.jobsRootFolder||"All jobs",k=Qi(ne);if(b){var x=ga(b.cronExpression||""),F=Array.isArray(b.nodes)?b.nodes:[];r.innerHTML='<div class="jobs-overview-selection-card"><div class="jobs-overview-selection-header"><div><div class="jobs-overview-selection-label">'+f(n.jobsCurrentFolderLabel||"Current folder")+'</div><strong class="jobs-overview-selection-title" title="'+v(b.name||"")+'">'+f(b.name||"")+'</strong></div><span class="jobs-pill'+(b.paused||b.archived?" is-inactive":"")+'">'+f(ko(b))+'</span></div><div class="jobs-overview-selection-meta"><span>'+f(u)+"</span><span>"+f(x!==(n.labelFriendlyFallback||"")?x:b.cronExpression||"-")+"</span><span>"+f(String(F.length)+" items")+'</span></div><div class="jobs-overview-selection-note">'+f(k||n.jobsSelectJob||"Select a job to edit its workflow.")+"</div></div>"}else r.innerHTML='<div class="jobs-overview-selection-card jobs-overview-selection-empty"><div class="jobs-overview-selection-label">'+f(n.jobsCurrentFolderLabel||"Current folder")+'</div><strong class="jobs-overview-selection-title">'+f(u)+'</strong><div class="jobs-overview-selection-note">'+f(k||n.jobsRootFolder||"All jobs")+'</div><div class="jobs-overview-selection-meta"><span>'+f(n.jobsSelectJob||"Select a job to edit its workflow.")+"</span></div></div>"}var W=!b&&Ve;if(Gi(),Ti&&(Ti.disabled=!b),!b&&!W){Gr&&(Gr.innerHTML=""),La&&(La.style.display="block"),Pa&&(Pa.style.display="none");return}b&&(Ve=!1),Le(),La&&(La.style.display="none"),Pa&&(Pa.style.display="block");var G=b&&Array.isArray(b.nodes)?b.nodes:[],Q=op(b),Ue=ap(b),Te=G.filter(function(A){return Ki(A)}).length,At=Math.max(0,G.length-Te),bt=pd(b&&b.cronExpression||"");if(Gr&&(Gr.innerHTML=[{label:n.jobsWorkflowStatus||"Status",value:b?ko(b):n.jobsCreateJob||"New Job",tone:Q?"is-waiting":b&&(b.paused||b.archived)?"is-muted":"is-accent"},{label:n.jobsWorkflowCadence||"Cadence",value:b?bt:n.jobsEditorScheduleNote||"Define a schedule before saving.",tone:"is-accent",valueAttr:b?' data-jobs-workflow-cadence="1"':""},{label:n.jobsWorkflowTaskCount||"Task steps",value:String(At),tone:""},{label:n.jobsWorkflowPauseCount||"Pause checkpoints",value:String(Te),tone:Te>0?"is-accent":""}].map(function(A){return'<div class="jobs-workflow-metric'+(String(A.value||"").length>18?" is-compact":"")+(A.tone?" "+A.tone:"")+'" title="'+v(A.value)+'"><div class="jobs-workflow-metric-label">'+f(A.label)+'</div><div class="jobs-workflow-metric-value"'+(A.valueAttr||"")+">"+f(A.value)+"</div></div>"}).join("")),Ft&&(Ft.value=b&&b.name||""),de&&(de.value=b?b.cronExpression||"":"0 9 * * 1-5"),Wa&&(Wa.value=""),bs({expression:de?de.value:"",frequency:Ur,interval:za,minute:Ua,hour:Ga,dow:_a,dom:Ya,updateVisibility:Wo}),gc(b?b.folderId||"":ne||""),pr&&(pr.textContent=b?ko(b):n.jobsRunning||"Running",pr.classList&&(pr.classList.toggle("is-inactive",!!(b&&(b.paused||b.archived))),pr.classList.toggle("is-waiting",!!Q)),pr.disabled=!b),Fa&&(Fa.textContent=b&&b.paused?n.jobsResume||"Resume Job":n.jobsPause||"Pause Job",Fa.disabled=!b),hi&&(hi.disabled=!b||G.length===0),yi&&(yi.disabled=!b),Si&&(Si.disabled=!b),bi&&(bi.textContent=b?n.jobsSave||"Save Job":n.jobsCreateJob||"New Job"),bl){var Qe=G.map(function(A,ae){var S="";if(Ki(A))S=(n.jobsPausePrefix||"Pause")+": "+(A.title||n.jobsPauseDefaultTitle||"Manual review");else{var P=Eo(A.taskId);S=P&&P.name?P.name:(n.jobsStepPrefix||"Step")+" "+String(ae+1)}return'<span class="jobs-timeline-node" title="'+v(S)+'">'+f(S)+"</span>"+(ae<G.length-1?'<span class="jobs-timeline-arrow">\u2192</span>':"")}).join("");bl.innerHTML=b&&Qe||f(n.jobsTimelineEmpty||"No steps yet")}if(Ss(),Go(),qo(),Wo(),Ai){if(!b){Ai.innerHTML='<div class="jobs-empty">'+f(n.jobsCreateJob||"Create Job")+": "+f(n.jobsSave||"Save Job")+"</div>";return}var Ar=G.map(function(A,ae){if(Ki(A)){var S=!!Q&&Q.nodeId===A.id,P=Ue.indexOf(A.id)>=0,le=S?n.jobsPauseWaiting||"Waiting for approval":P?n.jobsPauseApproved||"Approved":n.jobsPauseDefaultTitle||"Manual review";return'<div class="jobs-step-card jobs-pause-card'+(S?" is-waiting":"")+'" draggable="true" data-job-node-id="'+v(A.id||"")+'"><div class="jobs-step-header"><strong title="'+v(A.title||"")+'">'+String(ae+1)+". "+f(A.title||n.jobsPauseDefaultTitle||"Manual review")+'</strong><span class="jobs-pill'+(S?" is-waiting":"")+'">'+f(le)+'</span></div><div class="jobs-pause-copy">'+f(n.jobsPauseHelpText||"This checkpoint blocks downstream steps until you approve the previous result.")+'</div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-pause" data-job-node-id="'+v(A.id||"")+'">'+f(n.jobsPauseEdit||"Edit")+'</button><button type="button" class="btn-danger" data-job-action="delete-pause" data-job-node-id="'+v(A.id||"")+'">'+f(n.jobsPauseDelete||"Delete")+"</button>"+(S?'<button type="button" class="btn-primary" data-job-action="approve-pause" data-job-node-id="'+v(A.id||"")+'">'+f(n.jobsPauseApprove||"Approve")+'</button><button type="button" class="btn-secondary" data-job-action="reject-pause" data-job-node-id="'+v(A.id||"")+'">'+f(n.jobsPauseReject||"Reject and edit previous step")+"</button>":"")+"</div></div>"}var oe=Eo(A.taskId),$t=oe&&oe.name?oe.name:"Missing task",et=oe&&oe.prompt?String(oe.prompt):"",on=et.length>120?et.slice(0,120)+"...":et,Is=oe&&oe.nextRun?new Date(oe.nextRun).toLocaleString(Tt):n.labelNever||"Never";return'<div class="jobs-step-card" draggable="true" data-job-node-id="'+v(A.id||"")+'"><div class="jobs-step-header"><strong title="'+v($t)+'">'+String(ae+1)+". "+f($t)+'</strong><span class="jobs-pill">'+f(String(A.windowMinutes||30)+"m")+'</span></div><div class="jobs-step-meta">'+f(n.labelNextRun||"Next run")+": "+f(Is)+'</div><div class="jobs-step-summary" title="'+v(et||on)+'">'+f(on||"-")+'</div><div class="jobs-inline-form"><div class="form-group"><input type="number" class="job-node-window-input" data-job-node-window-id="'+v(A.id||"")+'" min="1" max="1440" value="'+v(String(A.windowMinutes||30))+'"></div></div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="'+v(A.taskId||"")+'">'+f(n.actionEdit||"Edit")+'</button><button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="'+v(A.taskId||"")+'">'+f(n.actionRun||"Run")+'</button><button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="'+v(A.id||"")+'">Delete</button></div></div>'}).join("");Ai.innerHTML=Ar||'<div class="jobs-empty">'+f(n.jobsEmptySteps||"This job has no steps yet.")+"</div>"}}cv(),window.runTask=function(r){t.postMessage({type:"runTask",taskId:r})},window.editTask=function(r){var a=ic(r);a&&Tv(a,r)},Da&&Da.addEventListener("click",function(){lc()}),window.copyPrompt=function(r){ba("copyTask",r)},window.duplicateTask=function(r){ba("duplicateTask",r)},window.moveTaskToCurrentWorkspace=function(r){ba("moveTaskToCurrentWorkspace",r)},window.toggleTask=function(r){ba("toggleTask",r)},window.deleteTask=function(r){var a=ic(r);a&&ba("deleteTask",r)},window.addEventListener("message",function(r){var a=Sv(r),s=a&&a.type;try{switch(s){case"updateTasks":M=Array.isArray(a.tasks)?a.tasks:[],ud(),D("updateTasks",{taskCount:M.length,selectedTodoId:C||"",isCreatingJob:Ve}),Co(),Ss(),Ze(a.tasks),Xt(),Cd(C?"":Ce?Ce.value:"");break;case"updateJobs":Ee=Array.isArray(a.jobs)?a.jobs:[],Co(),Ze(M),Xt();break;case"updateJobFolders":ge=Array.isArray(a.jobFolders)?a.jobFolders:[],Xt();break;case"updateCockpitBoard":if(L=a.cockpitBoard||{version:4,sections:[],cards:[],filters:{labels:[],priorities:[],statuses:[],archiveOutcomes:[],flags:[],sortBy:"manual",sortDirection:"asc",viewMode:"board",showArchived:!1,showRecurringTasks:!1},updatedAt:""},fn){var c=rn(L.filters);Ap(c,fn)?fn=null:L=Object.assign({},L,{filters:rn(Object.assign({},c,fn))})}Lp(L.cards),ud(),D("updateCockpitBoard",{sectionCount:Array.isArray(L.sections)?L.sections.length:0,cardCount:Array.isArray(L.cards)?L.cards.length:0,selectedTodoId:C||"",draftTitleLength:X.title.length}),Dr&&!L.cards.some(function(u){return u&&u.id===Dr})&&Kt(),ht&&!L.cards.some(function(u){return u&&u.id===ht})&&(ht="",pn=!1),he(),Co(),Ze(M),ar(),mp(),Et(),ot(),$r();break;case"updateResearchState":Qt=Array.isArray(a.profiles)?a.profiles:[],Be=a.activeRun||null,er=Array.isArray(a.recentRuns)?a.recentRuns:[],Be&&(!ze||ze===Be.id)?ze=Be.id:bc(),K||vc(),Er();break;case"updateTelegramNotification":Je=a.telegramNotification||{enabled:!1,hasBotToken:!1,hookConfigured:!1},Ql();break;case"updateLogLevel":l=typeof a.logLevel=="string"&&a.logLevel?a.logLevel:"info",R.setLogLevel(l),Ui();break;case"updateStorageSettings":me=ln(a.storageSettings,me),ed(),tp();break;case"updateApprovalMode":ji&&a.approvalMode&&(ji.value=a.approvalMode);break;case"updateExecutionDefaults":ve=a.executionDefaults||{agent:"agent",model:""},D("updateExecutionDefaults",{agent:ve.agent||"",model:ve.model||"",editingTaskId:Ge||"",pendingAgentValue:dt,pendingModelValue:ct}),So(),Ge||(Ye&&!dt&&!Ye.value&&(Ye.value=ve.agent||""),Ke&&!ct&&!Ke.value&&(Ke.value=ve.model||"")),Ze(M);break;case"updateReviewDefaults":ie=a.reviewDefaults||{needsBotReviewCommentTemplate:"",needsBotReviewPromptTemplate:"",needsBotReviewAgent:"agent",needsBotReviewModel:"",needsBotReviewChatSession:"new",readyPromptTemplate:""},To();break;case"updateAgents":dt=sc({eventName:"updateAgents",selectElement:Ye,pendingValue:dt,createDebugData:function(u){return{currentAgentValue:u,agentCount:Array.isArray(a.agents)?a.agents.length:0}},assignItems:function(){tr=Array.isArray(a.agents)?a.agents:[]},updateOptions:nc}),oc();break;case"updateModels":ct=sc({eventName:"updateModels",selectElement:Ke,pendingValue:ct,createDebugData:function(u){return{currentModelValue:u,modelCount:Array.isArray(a.models)?a.models.length:0}},assignItems:function(){rr=Array.isArray(a.models)?a.models:[]},updateOptions:ac}),oc();break;case"updatePromptTemplates":ev(a.templates);break;case"updateSkills":dn=Array.isArray(a.skills)?a.skills:[],pc();break;case"updateAutoShowOnStartup":ri=!!a.enabled,ad();break;case"updateScheduleHistory":Ba=Array.isArray(a.entries)?a.entries:[],ld();break;case"promptTemplateLoaded":Lg(a.content);break;case"switchToList":Yg(a.successMessage);break;case"switchToTab":a.tab&&fe(a.tab);break;case"focusTask":$g(a.taskId);break;case"focusReadyTodoDraft":Zg(a.todoId);break;case"focusJob":Kg(a.folderId,a.jobId||"");break;case"focusResearchProfile":Xg(a.researchId);break;case"focusResearchRun":Qg(a.runId);break;case"editTask":mv(a.taskId);break;case"startCreateTask":uv();break;case"startCreateTodo":D("startCreateTodo",{reason:"host"}),Qp();break;case"startCreateJob":D("startCreateJob",{reason:"host"}),ng();break;case"showError":vv(a.text);break;case"todoFileUploadResult":a.ok&&a.insertedText?(Uf(String(a.insertedText||"")),ho(String(a.message||n.boardUploadFilesSuccess||""),"success")):a.cancelled?ho(String(a.message||n.boardUploadFilesHint||""),"neutral"):ho(String(a.message||n.boardUploadFilesError||""),"error");break}}catch(u){tv(u)}}),Ze(M),fe(sg()),window.addEventListener("scroll",function(){$e&&(Yl($e),ue()),Xl(!1)},{passive:!0}),window.addEventListener("resize",$r),document.addEventListener("keydown",function(e){ig(e),e.key==="Escape"&&(Kt(),ms())}),$r(),setInterval(function(){pa("list")&&m()},1e3),t.postMessage({type:"webviewReady"})})();})();
+  // media/cockpitWebviewCronUtils.js
+  function clampFriendlyNumber(value, min, max, fallback) {
+    var parsed = parseInt(String(value), 10);
+    if (isNaN(parsed)) {
+      parsed = fallback;
+    }
+    return Math.max(min, Math.min(max, parsed));
+  }
+  function padFriendlyNumber(value) {
+    var normalized = clampFriendlyNumber(value, 0, 59, 0);
+    return normalized < 10 ? "0" + normalized : String(normalized);
+  }
+  function normalizeDayOfWeekValue(value) {
+    var normalizedSource = String(value || "");
+    var normalized = normalizedSource.trim().toLowerCase();
+    if (/^\d+$/.test(normalized)) {
+      var numericValue = parseInt(normalized, 10);
+      if (numericValue === 7) {
+        numericValue = 0;
+      }
+      if (numericValue >= 0 && numericValue <= 6) {
+        return numericValue;
+      }
+    }
+    var aliases = /* @__PURE__ */ new Map([
+      ["sun", 0],
+      ["mon", 1],
+      ["tue", 2],
+      ["wed", 3],
+      ["thu", 4],
+      ["fri", 5],
+      ["sat", 6]
+    ]);
+    return aliases.has(normalized) ? aliases.get(normalized) : null;
+  }
+  function formatFriendlyTime(hour, minute) {
+    return padFriendlyNumber(hour) + ":" + padFriendlyNumber(minute);
+  }
+  function isFriendlyCronWholeNumber(value) {
+    return /^\d+$/.test(String(value));
+  }
+  function parseFriendlyCronNumber(value, min, max) {
+    if (!isFriendlyCronWholeNumber(value)) {
+      return null;
+    }
+    var parsed = parseInt(String(value), 10);
+    if (parsed < min || parsed > max) {
+      return null;
+    }
+    return parsed;
+  }
+  function getFriendlyFieldsForSelection(selection) {
+    switch (selection) {
+      case "every-n":
+        return ["interval"];
+      case "hourly":
+        return ["minute"];
+      case "daily":
+        return ["hour", "minute"];
+      case "weekly":
+        return ["dow", "hour", "minute"];
+      case "monthly":
+        return ["dom", "hour", "minute"];
+      default:
+        return [];
+    }
+  }
+  function syncFriendlyFieldVisibility(builder, selection) {
+    var visibleFields = getFriendlyFieldsForSelection(selection);
+    var friendlyFields = builder ? builder.querySelectorAll(".friendly-field") : [];
+    for (var index = 0; index < friendlyFields.length; index += 1) {
+      var element = friendlyFields[index];
+      if (!element || !element.getAttribute) {
+        continue;
+      }
+      var fieldName = element.getAttribute("data-field");
+      var isVisible = visibleFields.indexOf(fieldName) !== -1;
+      if (element.classList) {
+        if (isVisible) {
+          element.classList.add("visible");
+        } else {
+          element.classList.remove("visible");
+        }
+      }
+      if (element.style) {
+        element.style.display = isVisible ? "block" : "none";
+      }
+    }
+  }
+  function buildFriendlyCronExpression(selection, rawValues) {
+    var values = rawValues || {};
+    switch (selection) {
+      case "every-n":
+        return "*/" + clampFriendlyNumber(values.interval, 1, 59, 5) + " * * * *";
+      case "hourly":
+        return clampFriendlyNumber(values.minute, 0, 59, 0) + " * * * *";
+      case "daily":
+        return clampFriendlyNumber(values.minute, 0, 59, 0) + " " + clampFriendlyNumber(values.hour, 0, 23, 9) + " * * *";
+      case "weekly":
+        return clampFriendlyNumber(values.minute, 0, 59, 0) + " " + clampFriendlyNumber(values.hour, 0, 23, 9) + " * * " + clampFriendlyNumber(values.dow, 0, 6, 1);
+      case "monthly":
+        return clampFriendlyNumber(values.minute, 0, 59, 0) + " " + clampFriendlyNumber(values.hour, 0, 23, 9) + " " + clampFriendlyNumber(values.dom, 1, 31, 1) + " * *";
+      default:
+        return "";
+    }
+  }
+  function parseFriendlyCronExpression(expression) {
+    var normalizedExpression = String(expression || "").trim();
+    if (!normalizedExpression) {
+      return null;
+    }
+    var cronParts = normalizedExpression.split(/\s+/);
+    if (cronParts.length !== 5) {
+      return null;
+    }
+    var minute = cronParts[0];
+    var hour = cronParts[1];
+    var dayOfMonth = cronParts[2];
+    var month = cronParts[3];
+    var dayOfWeek = cronParts[4];
+    var intervalMatch = /^\*\/(\d+)$/.exec(minute);
+    var parsedMinute = parseFriendlyCronNumber(minute, 0, 59);
+    var parsedHour = parseFriendlyCronNumber(hour, 0, 23);
+    var parsedDayOfMonth = parseFriendlyCronNumber(dayOfMonth, 1, 31);
+    var parsedDayOfWeek = normalizeDayOfWeekValue(dayOfWeek);
+    if (intervalMatch && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      var parsedInterval = parseFriendlyCronNumber(intervalMatch[1], 1, 59);
+      return parsedInterval === null ? null : {
+        frequency: "every-n",
+        interval: parsedInterval
+      };
+    }
+    if (parsedMinute !== null && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      return {
+        frequency: "hourly",
+        minute: parsedMinute
+      };
+    }
+    if (parsedMinute !== null && parsedHour !== null && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      return {
+        frequency: "daily",
+        hour: parsedHour,
+        minute: parsedMinute
+      };
+    }
+    if (parsedMinute !== null && parsedHour !== null && dayOfMonth === "*" && month === "*" && parsedDayOfWeek !== null) {
+      return {
+        frequency: "weekly",
+        dow: parsedDayOfWeek,
+        hour: parsedHour,
+        minute: parsedMinute
+      };
+    }
+    if (parsedMinute !== null && parsedHour !== null && parsedDayOfMonth !== null && month === "*" && dayOfWeek === "*") {
+      return {
+        frequency: "monthly",
+        dom: parsedDayOfMonth,
+        hour: parsedHour,
+        minute: parsedMinute
+      };
+    }
+    return null;
+  }
+  function summarizeCronExpression(expression, strings) {
+    var labels = strings || {};
+    var fallback = labels.labelFriendlyFallback || "";
+    var normalizedExpression = String(expression || "").trim();
+    if (!normalizedExpression) {
+      return fallback;
+    }
+    var cronParts = normalizedExpression.split(/\s+/);
+    if (cronParts.length !== 5) {
+      return fallback;
+    }
+    var minute = cronParts[0];
+    var hour = cronParts[1];
+    var dayOfMonth = cronParts[2];
+    var month = cronParts[3];
+    var dayOfWeek = cronParts[4];
+    var normalizedDayOfWeek = String(dayOfWeek || "").toLowerCase();
+    var isWeekdays = normalizedDayOfWeek === "1-5" || normalizedDayOfWeek === "mon-fri";
+    var everyNMinutesMatch = /^\*\/(\d+)$/.exec(minute);
+    if (everyNMinutesMatch && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      var everyNTemplate = labels.cronPreviewEveryNMinutes || "";
+      return everyNTemplate ? everyNTemplate.replace("{n}", String(everyNMinutesMatch[1])) : fallback;
+    }
+    if (isFriendlyCronWholeNumber(minute) && hour === "*" && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      var hourlyTemplate = labels.cronPreviewHourlyAtMinute || "";
+      return hourlyTemplate ? hourlyTemplate.replace("{m}", String(minute)) : fallback;
+    }
+    if (isFriendlyCronWholeNumber(minute) && isFriendlyCronWholeNumber(hour) && dayOfMonth === "*" && month === "*" && dayOfWeek === "*") {
+      var dailyTemplate = labels.cronPreviewDailyAt || "";
+      var dailyTime = formatFriendlyTime(hour, minute);
+      return dailyTemplate ? dailyTemplate.replace("{t}", String(dailyTime)) : fallback;
+    }
+    if (isFriendlyCronWholeNumber(minute) && isFriendlyCronWholeNumber(hour) && dayOfMonth === "*" && month === "*" && isWeekdays) {
+      var weekdaysTemplate = labels.cronPreviewWeekdaysAt || "";
+      var weekdaysTime = formatFriendlyTime(hour, minute);
+      return weekdaysTemplate ? weekdaysTemplate.replace("{t}", String(weekdaysTime)) : fallback;
+    }
+    var numericDayOfWeek = normalizeDayOfWeekValue(dayOfWeek);
+    if (isFriendlyCronWholeNumber(minute) && isFriendlyCronWholeNumber(hour) && dayOfMonth === "*" && month === "*" && numericDayOfWeek !== null) {
+      var weeklyTemplate = labels.cronPreviewWeeklyOnAt || "";
+      var dayNames = [
+        labels.daySun || "",
+        labels.dayMon || "",
+        labels.dayTue || "",
+        labels.dayWed || "",
+        labels.dayThu || "",
+        labels.dayFri || "",
+        labels.daySat || ""
+      ];
+      var weeklyTime = formatFriendlyTime(hour, minute);
+      var weeklyDayLabel = dayNames[numericDayOfWeek] || String(numericDayOfWeek);
+      return weeklyTemplate ? weeklyTemplate.replace("{d}", String(weeklyDayLabel)).replace("{t}", String(weeklyTime)) : fallback;
+    }
+    if (isFriendlyCronWholeNumber(minute) && isFriendlyCronWholeNumber(hour) && isFriendlyCronWholeNumber(dayOfMonth) && month === "*" && dayOfWeek === "*") {
+      var monthlyTemplate = labels.cronPreviewMonthlyOnAt || "";
+      var monthlyTime = formatFriendlyTime(hour, minute);
+      return monthlyTemplate ? monthlyTemplate.replace("{dom}", String(dayOfMonth)).replace("{t}", String(monthlyTime)) : fallback;
+    }
+    return fallback;
+  }
+
+  // media/cockpitWebviewPromptState.js
+  function restorePendingSelectValue(selectEl, desiredValue) {
+    var pendingValue = desiredValue || "";
+    if (!selectEl || !pendingValue) {
+      return pendingValue;
+    }
+    selectEl.value = pendingValue;
+    return selectEl.value === pendingValue ? "" : pendingValue;
+  }
+  function buildPromptTemplatePlaceholder(escapeHtml, placeholderText) {
+    return '<option value="">' + escapeHtml(placeholderText) + "</option>";
+  }
+  function buildPromptTemplateMarkup(templates, escapeAttr, escapeHtml) {
+    return templates.map(function(template) {
+      return '<option value="' + escapeAttr(template.path) + '">' + escapeHtml(template.name) + "</option>";
+    }).join("");
+  }
+  function updatePromptTemplateOptions(params) {
+    var templateSelect = params.templateSelect;
+    if (!templateSelect) {
+      return;
+    }
+    var selectedPath = params.selectedPath || "";
+    var promptTemplates = Array.isArray(params.promptTemplates) ? params.promptTemplates : [];
+    var currentSource = params.source || "inline";
+    var placeholderText = params.strings && params.strings.placeholderSelectTemplate || "";
+    var escapeHtml = params.escapeHtml;
+    var escapeAttr = params.escapeAttr;
+    var placeholder = buildPromptTemplatePlaceholder(escapeHtml, placeholderText);
+    var filteredTemplates = promptTemplates.filter(function(template) {
+      return template && template.source === currentSource;
+    });
+    var optionMarkup = placeholder + buildPromptTemplateMarkup(filteredTemplates, escapeAttr, escapeHtml);
+    templateSelect.innerHTML = optionMarkup;
+    if (!selectedPath) {
+      var emptyValue = "";
+      templateSelect.value = emptyValue;
+      return;
+    }
+    var nextTemplateValue = selectedPath;
+    templateSelect.value = nextTemplateValue;
+    if (templateSelect.value !== nextTemplateValue) {
+      templateSelect.value = "";
+    }
+  }
+  function applyPromptSourceUi(params) {
+    var effectiveSource = params.source || "inline";
+    var templateSelect = params.templateSelect;
+    var promptTextEl = params.promptTextEl;
+    var templateSelectGroup = params.templateSelectGroup;
+    var promptGroup = params.promptGroup;
+    var keepSelection = params.keepSelection === true;
+    var selectedPath = keepSelection && templateSelect ? templateSelect.value : "";
+    var usesInlinePrompt = effectiveSource === "inline";
+    if (promptTextEl) {
+      promptTextEl.required = usesInlinePrompt;
+    }
+    if (templateSelect) {
+      templateSelect.required = !usesInlinePrompt;
+    }
+    if (templateSelectGroup) {
+      templateSelectGroup.style.display = usesInlinePrompt ? "none" : "block";
+    } else if (!usesInlinePrompt && typeof params.warnMissingTemplateGroup === "function") {
+      params.warnMissingTemplateGroup();
+    }
+    if (promptGroup) {
+      promptGroup.style.display = "block";
+    }
+    if (usesInlinePrompt) {
+      var shouldClearSelection = !keepSelection && templateSelect;
+      if (shouldClearSelection) {
+        templateSelect.value = "";
+      }
+      return;
+    }
+    updatePromptTemplateOptions({
+      templateSelect,
+      promptTemplates: params.promptTemplates,
+      source: effectiveSource,
+      selectedPath,
+      strings: params.strings,
+      escapeHtml: params.escapeHtml,
+      escapeAttr: params.escapeAttr
+    });
+  }
+  function syncPromptTemplatesFromMessage(params) {
+    var templateSelect = params.templateSelect;
+    var currentTemplateValue = params.pendingTemplatePath || (templateSelect ? templateSelect.value : "");
+    updatePromptTemplateOptions({
+      templateSelect,
+      promptTemplates: params.promptTemplates,
+      source: params.currentSource,
+      selectedPath: currentTemplateValue,
+      strings: params.strings,
+      escapeHtml: params.escapeHtml,
+      escapeAttr: params.escapeAttr
+    });
+    var nextPendingTemplatePath = restorePendingSelectValue(
+      templateSelect,
+      currentTemplateValue
+    );
+    if (params.templateSelectGroup) {
+      params.templateSelectGroup.style.display = params.currentSource === "local" || params.currentSource === "global" ? "block" : "none";
+    }
+    return nextPendingTemplatePath;
+  }
+
+  // media/cockpitWebviewTaskCards.js
+  function buildTaskInlineSelect(params) {
+    var items = Array.isArray(params.items) ? params.items : [];
+    var selectedId = params.selectedId || "";
+    var fallbackSelectedId = params.fallbackSelectedId || "";
+    var effectiveSelectedId = selectedId || fallbackSelectedId;
+    var hasSelectedOption = !selectedId;
+    var options = '<option value="">' + params.escapeHtml(params.placeholder || "") + "</option>";
+    items.forEach(function(item) {
+      var id = item && (item.id || item.slug);
+      if (!id) {
+        return;
+      }
+      var label = params.getLabel(item, id);
+      if (id === selectedId) {
+        hasSelectedOption = true;
+      }
+      options += '<option value="' + params.escapeAttr(id) + '"' + (id === effectiveSelectedId ? " selected" : "") + ">" + params.escapeHtml(label) + "</option>";
+    });
+    if (selectedId && !hasSelectedOption) {
+      options += '<option value="' + params.escapeAttr(selectedId) + '" selected>' + params.escapeHtml(selectedId) + "</option>";
+    }
+    return '<select class="task-inline-select ' + params.className + '" data-id="' + params.taskId + '">' + options + "</select>";
+  }
+  function buildTaskConfigRowMarkup(params) {
+    var agentSelect = buildTaskInlineSelect({
+      items: params.agents,
+      selectedId: params.task && params.task.agent,
+      className: "task-agent-select",
+      placeholder: params.strings.placeholderSelectAgent || "Agent",
+      fallbackSelectedId: params.executionDefaults && params.executionDefaults.agent,
+      taskId: params.taskId,
+      escapeAttr: params.escapeAttr,
+      escapeHtml: params.escapeHtml,
+      getLabel: function(item, id) {
+        return item && item.name || id;
+      }
+    });
+    var modelSelect = buildTaskInlineSelect({
+      items: params.models,
+      selectedId: params.task && params.task.model,
+      className: "task-model-select",
+      placeholder: params.strings.placeholderSelectModel || "Model",
+      fallbackSelectedId: params.executionDefaults && params.executionDefaults.model,
+      taskId: params.taskId,
+      escapeAttr: params.escapeAttr,
+      escapeHtml: params.escapeHtml,
+      getLabel: function(item, id) {
+        return params.formatModelLabel(item || { id, name: id });
+      }
+    });
+    return '<div class="task-config">' + agentSelect + modelSelect + "</div>";
+  }
+  function buildBaseTaskActionsMarkup(params) {
+    var createActionButton = function(button) {
+      return '<button class="' + button.className + '" data-action="' + button.action + '" data-id="' + params.taskId + '" title="' + params.escapeAttr(button.title) + '">' + button.icon + "</button>";
+    };
+    return [
+      {
+        className: "btn-secondary btn-icon",
+        action: "toggle",
+        title: params.toggleTitle,
+        icon: params.toggleIcon
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "run",
+        title: params.strings.actionRun,
+        icon: "\u{1F680}"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "edit",
+        title: params.strings.actionEdit,
+        icon: "\u270F\uFE0F"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "copy",
+        title: params.strings.actionCopyPrompt,
+        icon: "\u{1F4CB}"
+      },
+      {
+        className: "btn-secondary btn-icon",
+        action: "duplicate",
+        title: params.strings.actionDuplicate,
+        icon: "\u{1F4C4}"
+      }
+    ].map(createActionButton).join("");
+  }
+
+  // media/cockpitWebviewTaskActions.js
+  function getConnectedTaskList(taskList, getTaskList) {
+    if (taskList && taskList.isConnected) {
+      return taskList;
+    }
+    return getTaskList();
+  }
+  function handleTaskListClick(params) {
+    var event = params.event;
+    var taskList = params.taskList;
+    var getTaskList = params.getTaskList;
+    var readyTodoOpenTarget = params.getClosestEventTarget(
+      event.target,
+      "[data-ready-todo-open]"
+    );
+    if (readyTodoOpenTarget) {
+      taskList = getConnectedTaskList(taskList, getTaskList);
+      if (taskList && taskList.contains(readyTodoOpenTarget)) {
+        event.preventDefault();
+        var openTodoId = readyTodoOpenTarget.getAttribute("data-ready-todo-open");
+        if (openTodoId) {
+          params.openTodoEditor(openTodoId);
+        }
+        return true;
+      }
+    }
+    var actionTarget = params.resolveActionTarget(event.target);
+    if (!actionTarget) {
+      return false;
+    }
+    taskList = getConnectedTaskList(taskList, getTaskList);
+    if (taskList && !taskList.contains(actionTarget)) {
+      return false;
+    }
+    var action = actionTarget.getAttribute("data-action");
+    var taskId = actionTarget.getAttribute("data-id");
+    var hasTaskAction = Boolean(action && taskId);
+    if (!hasTaskAction) {
+      return false;
+    }
+    var handler = params.actionHandlers[action];
+    if (typeof handler !== "function") {
+      return false;
+    }
+    event.preventDefault();
+    handler(taskId);
+    return true;
+  }
+
+  // media/cockpitWebviewTaskSelectState.js
+  function selectHasOptionValue(selectEl, value) {
+    if (!selectEl) return false;
+    if (!value) return false;
+    var optionCollection = selectEl.options;
+    if (!optionCollection || typeof optionCollection.length !== "number") return false;
+    for (var index = 0; index < optionCollection.length; index++) {
+      var currentOption = optionCollection[index];
+      if (currentOption && currentOption.value === value) return true;
+    }
+    return false;
+  }
+  function populateAgentDropdown(params) {
+    var agentSelect = params.agentSelect;
+    if (!agentSelect) return;
+    var items = Array.isArray(params.agents) ? params.agents : [];
+    var escapeAttr = params.escapeAttr;
+    var escapeHtml = params.escapeHtml;
+    var strings = params.strings || {};
+    var executionDefaults = params.executionDefaults || {};
+    if (items.length === 0) {
+      var noText = strings.placeholderNoAgents || "";
+      agentSelect.innerHTML = '<option value="">' + escapeHtml(noText) + "</option>";
+      return;
+    }
+    var selectText = strings.placeholderSelectAgent || "";
+    var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
+    agentSelect.innerHTML = placeholder + items.map(function(agent) {
+      return '<option value="' + escapeAttr(agent.id) + '">' + escapeHtml(agent.name) + "</option>";
+    }).join("");
+    if (!agentSelect.value) {
+      var defaultAgentId = executionDefaults && typeof executionDefaults.agent === "string" ? executionDefaults.agent : "agent";
+      var hasDefaultAgent = items.find(function(agent) {
+        return agent.id === defaultAgentId;
+      });
+      if (hasDefaultAgent) {
+        agentSelect.value = defaultAgentId;
+      }
+    }
+  }
+  function populateModelDropdown(params) {
+    var modelSelect = params.modelSelect;
+    if (!modelSelect) return;
+    var items = Array.isArray(params.models) ? params.models : [];
+    var escapeAttr = params.escapeAttr;
+    var escapeHtml = params.escapeHtml;
+    var strings = params.strings || {};
+    var executionDefaults = params.executionDefaults || {};
+    var formatModelLabel2 = params.formatModelLabel;
+    if (items.length === 0) {
+      var noText = strings.placeholderNoModels || "";
+      modelSelect.innerHTML = '<option value="">' + escapeHtml(noText) + "</option>";
+      return;
+    }
+    var selectText = strings.placeholderSelectModel || "";
+    var placeholder = '<option value="">' + escapeHtml(selectText) + "</option>";
+    modelSelect.innerHTML = placeholder + items.map(function(model) {
+      return '<option value="' + escapeAttr(model.id) + '">' + escapeHtml(formatModelLabel2(model)) + "</option>";
+    }).join("");
+    if (!modelSelect.value) {
+      var defaultModelId = executionDefaults && typeof executionDefaults.model === "string" ? executionDefaults.model : "";
+      var hasDefaultModel = items.find(function(model) {
+        return model.id === defaultModelId;
+      });
+      if (hasDefaultModel) {
+        modelSelect.value = defaultModelId;
+      }
+    }
+  }
+
+  // media/cockpitWebviewDisplayUtils.js
+  function pickPathLeaf(value) {
+    if (!value) {
+      return "";
+    }
+    var normalized = String(value);
+    var lastBackslash = normalized.lastIndexOf("\\");
+    var lastSlash = normalized.lastIndexOf("/");
+    return normalized.substring(Math.max(lastBackslash, lastSlash) + 1);
+  }
+  function decodeFileLikePath(value) {
+    if (!value) {
+      return "";
+    }
+    var normalized = String(value);
+    if (!/^file:\/\/\/?/i.test(normalized)) {
+      return pickPathLeaf(normalized);
+    }
+    try {
+      var parsed = new URL(normalized);
+      if (parsed.protocol === "file:") {
+        return pickPathLeaf(decodeURIComponent(parsed.pathname || ""));
+      }
+    } catch (_error) {
+    }
+    return pickPathLeaf(normalized.replace(/^file:\/\/\/?/i, ""));
+  }
+  function inferModelSourceName(model) {
+    var fragments = [
+      model && model.id,
+      model && model.name,
+      model && model.vendor,
+      model && model.description
+    ].filter(Boolean).map(function(value) {
+      return String(value).trim().toLowerCase();
+    }).join(" ");
+    if (fragments.indexOf("openrouter") >= 0) {
+      return "OpenRouter";
+    }
+    if (fragments.indexOf("copilot") >= 0 || fragments.indexOf("codex") >= 0 || fragments.indexOf("github") >= 0 || fragments.indexOf("microsoft") >= 0) {
+      return "Copilot";
+    }
+    return model && model.vendor ? String(model.vendor).trim() : "";
+  }
+  function formatModelLabel(model) {
+    var displayName = model && (model.name || model.id) ? String(model.name || model.id).trim() : "";
+    var sourceName = inferModelSourceName(model);
+    return !sourceName || sourceName.toLowerCase() === displayName.toLowerCase() ? displayName : displayName + " \u2022 " + sourceName;
+  }
+  function formatCountdown(totalSeconds) {
+    var remainingSeconds = Math.max(0, Math.floor(totalSeconds));
+    var units = [
+      ["y", 365 * 24 * 60 * 60],
+      ["mo", 30 * 24 * 60 * 60],
+      ["w", 7 * 24 * 60 * 60],
+      ["d", 24 * 60 * 60],
+      ["h", 60 * 60],
+      ["m", 60],
+      ["s", 1]
+    ];
+    var parts = [];
+    units.forEach(function(entry) {
+      var label = entry[0];
+      var seconds = entry[1];
+      if (remainingSeconds < seconds) {
+        return;
+      }
+      var count = Math.floor(remainingSeconds / seconds);
+      remainingSeconds -= count * seconds;
+      parts.push(String(count) + label);
+    });
+    return parts.length > 0 ? parts.join(" ") : "0s";
+  }
+  function getNextRunCountdownText(enabled, nextRunMs, nowMs) {
+    if (!enabled || !isFinite(nextRunMs) || nextRunMs <= 0) {
+      return "";
+    }
+    var referenceNow = typeof nowMs === "number" ? nowMs : Date.now();
+    var remainingMs = nextRunMs - referenceNow;
+    return remainingMs > 0 ? " (in " + formatCountdown(Math.floor(remainingMs / 1e3)) + ")" : " (due now)";
+  }
+  function sanitizeAbsolutePaths(text) {
+    if (!text) {
+      return "";
+    }
+    return String(text).replace(/'(file:\/\/[^']+)'/gi, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"(file:\/\/[^"]+)"/gi, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/file:\/\/[^\s"'`]+/gi, function(captured) {
+      return decodeFileLikePath(captured);
+    }).replace(/'((?:[A-Za-z]:(?:\\|\/)|\\\\)[^']+)'/g, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"((?:[A-Za-z]:(?:\\|\/)|\\\\)[^"]+)"/g, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/(^|[^A-Za-z0-9_])((?:[A-Za-z]:(?:\\|\/)|\\\\)[^\s"'`]+)/g, function(_match, prefix, captured) {
+      return String(prefix) + decodeFileLikePath(captured);
+    }).replace(/'(\/[^']+)'/g, function(_match, captured) {
+      return "'" + decodeFileLikePath(captured) + "'";
+    }).replace(/"(\/[^\"]+)"/g, function(_match, captured) {
+      return '"' + decodeFileLikePath(captured) + '"';
+    }).replace(/(^|[\s(])(\/[^\s"'`]+)/g, function(_match, prefix, captured) {
+      return String(prefix) + decodeFileLikePath(captured);
+    });
+  }
+  function normalizeDefaultJitterSeconds(rawValue) {
+    var parsed = typeof rawValue === "number" ? rawValue : Number(rawValue);
+    if (!isFinite(parsed)) {
+      return 600;
+    }
+    return Math.max(0, Math.min(1800, Math.floor(parsed)));
+  }
+
+  // media/cockpitWebviewBootstrap.js
+  function parseBootstrapPayload(documentRef) {
+    var scriptNode = documentRef.getElementById("initial-data");
+    if (!scriptNode || !scriptNode.textContent) {
+      return {};
+    }
+    try {
+      return JSON.parse(scriptNode.textContent) || {};
+    } catch (_error) {
+      return {};
+    }
+  }
+  function resolveLogLevel(payload) {
+    return typeof payload.logLevel === "string" && payload.logLevel ? payload.logLevel : "info";
+  }
+  function resolveLogDirectory(payload) {
+    return typeof payload.logDirectory === "string" ? payload.logDirectory : "";
+  }
+  function readInitialWebviewBootstrap(documentRef) {
+    var payload = parseBootstrapPayload(documentRef);
+    var strings = payload && payload.strings ? payload.strings : {};
+    return {
+      initialData: payload,
+      strings,
+      currentLogLevel: resolveLogLevel(payload),
+      currentLogDirectory: resolveLogDirectory(payload)
+    };
+  }
+  function firstErrorLine(reason, unknownText) {
+    var raw = unknownText || "";
+    var resolvedReason = reason;
+    if (typeof resolvedReason === "string") {
+      raw = resolvedReason;
+    } else if (resolvedReason) {
+      var reasonMessage = typeof resolvedReason === "object" && "message" in resolvedReason ? resolvedReason.message : resolvedReason;
+      raw = String(reasonMessage);
+    }
+    return String(raw).split(/\r?\n/)[0];
+  }
+  function installGlobalErrorHandlers(params) {
+    params.window.onerror = function(messageText, _url, line) {
+      var prefix = params.strings.webviewScriptErrorPrefix || "";
+      var linePrefix = params.strings.webviewLinePrefix || "";
+      var lineSuffix = params.strings.webviewLineSuffix || "";
+      params.showGlobalError(
+        prefix + params.sanitizeAbsolutePaths(String(messageText)) + linePrefix + String(line) + lineSuffix
+      );
+    };
+    params.window.onunhandledrejection = function(event) {
+      var prefix = params.strings.webviewUnhandledErrorPrefix || "";
+      params.showGlobalError(
+        prefix + params.sanitizeAbsolutePaths(
+          firstErrorLine(
+            event && event.reason ? event.reason : null,
+            params.strings.webviewUnknown || ""
+          )
+        )
+      );
+    };
+  }
+
+  // media/cockpitWebviewInitialState.js
+  function readArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+  function createInitialSchedulerWebviewState(initialData, normalizeStorageSettings) {
+    var data = initialData || {};
+    return {
+      storageSettings: normalizeStorageSettings(data.storageSettings),
+      researchProfiles: readArray(data.researchProfiles),
+      activeResearchRun: data.activeResearchRun || null,
+      recentResearchRuns: readArray(data.recentResearchRuns),
+      agents: readArray(data.agents),
+      models: readArray(data.models),
+      promptTemplates: readArray(data.promptTemplates),
+      skills: readArray(data.skills),
+      cockpitHistory: readArray(data.cockpitHistory),
+      defaultChatSession: data.defaultChatSession === "continue" ? "continue" : "new",
+      autoShowOnStartup: !!data.autoShowOnStartup,
+      workspacePaths: readArray(data.workspacePaths),
+      caseInsensitivePaths: !!data.caseInsensitivePaths
+    };
+  }
+
+  // media/cockpitWebviewDomRefs.js
+  function createSchedulerWebviewDomRefs(document2) {
+    return {
+      taskForm: document2.getElementById("task-form"),
+      taskList: document2.getElementById("task-list"),
+      editTaskIdInput: document2.getElementById("edit-task-id"),
+      submitBtn: document2.getElementById("submit-btn"),
+      testBtn: document2.getElementById("test-btn"),
+      refreshBtn: document2.getElementById("refresh-btn"),
+      autoShowStartupBtn: document2.getElementById("auto-show-startup-btn"),
+      cockpitHistorySelect: document2.getElementById("schedule-history-select"),
+      restoreHistoryBtn: document2.getElementById("restore-history-btn"),
+      autoShowStartupNote: document2.getElementById("auto-show-startup-note"),
+      friendlyBuilder: document2.getElementById("friendly-builder"),
+      recurringScheduleGroup: document2.getElementById("recurring-schedule-group"),
+      oneTimeDelayGroup: document2.getElementById("one-time-delay-group"),
+      cronPreset: document2.getElementById("cron-preset"),
+      cronExpression: document2.getElementById("cron-expression"),
+      oneTimeDelayHours: document2.getElementById("one-time-delay-hours"),
+      oneTimeDelayMinutes: document2.getElementById("one-time-delay-minutes"),
+      oneTimeDelaySeconds: document2.getElementById("one-time-delay-seconds"),
+      oneTimeDelayPreviewText: document2.getElementById("one-time-delay-preview-text"),
+      agentSelect: document2.getElementById("agent-select"),
+      modelSelect: document2.getElementById("model-select"),
+      chatSessionGroup: document2.getElementById("chat-session-group"),
+      chatSessionSelect: document2.getElementById("chat-session"),
+      templateSelect: document2.getElementById("template-select"),
+      templateSelectGroup: document2.getElementById("template-select-group"),
+      templateRefreshBtn: document2.getElementById("template-refresh-btn"),
+      skillSelect: document2.getElementById("skill-select"),
+      skillDetailsNote: document2.getElementById("skill-details-note"),
+      insertSkillBtn: document2.getElementById("insert-skill-btn"),
+      setupMcpBtn: document2.getElementById("setup-mcp-btn"),
+      setupCodexBtn: document2.getElementById("setup-codex-btn"),
+      setupCodexSkillsBtn: document2.getElementById("setup-codex-skills-btn"),
+      syncBundledSkillsBtn: document2.getElementById("sync-bundled-skills-btn"),
+      stageBundledAgentsBtn: document2.getElementById("stage-bundled-agents-btn"),
+      syncBundledAgentsBtn: document2.getElementById("sync-bundled-agents-btn"),
+      openCopilotSettingsBtn: document2.getElementById("open-copilot-settings-btn"),
+      openExtensionSettingsBtn: document2.getElementById("open-extension-settings-btn"),
+      refreshStorageStatusBtn: document2.getElementById("refresh-storage-status-btn"),
+      settingsStatusRefreshNote: document2.getElementById("settings-status-refresh-note"),
+      importStorageFromJsonBtn: document2.getElementById("import-storage-from-json-btn"),
+      exportStorageToJsonBtn: document2.getElementById("export-storage-to-json-btn"),
+      helpLanguageSelect: document2.getElementById("help-language-select"),
+      settingsLanguageSelect: document2.getElementById("settings-language-select"),
+      helpWarpLayer: document2.getElementById("help-warp-layer"),
+      helpIntroRocket: document2.getElementById("help-intro-rocket"),
+      promptGroup: document2.getElementById("prompt-group"),
+      promptTextEl: document2.getElementById("prompt-text"),
+      jitterSecondsInput: document2.getElementById("jitter-seconds"),
+      friendlyFrequency: document2.getElementById("friendly-frequency"),
+      friendlyInterval: document2.getElementById("friendly-interval"),
+      friendlyMinute: document2.getElementById("friendly-minute"),
+      friendlyHour: document2.getElementById("friendly-hour"),
+      friendlyDow: document2.getElementById("friendly-dow"),
+      friendlyDom: document2.getElementById("friendly-dom"),
+      openGuruBtn: document2.getElementById("open-guru-btn"),
+      cronPreviewText: document2.getElementById("cron-preview-text"),
+      newTaskBtn: document2.getElementById("new-task-btn"),
+      taskFilterBar: document2.getElementById("task-filter-bar"),
+      taskLabelFilter: document2.getElementById("task-label-filter"),
+      taskLabelsInput: document2.getElementById("task-labels"),
+      runFirstGroup: document2.getElementById("run-first-group"),
+      jobsFolderList: document2.getElementById("jobs-folder-list"),
+      jobsCurrentFolderBanner: document2.getElementById("jobs-current-folder-banner"),
+      jobsList: document2.getElementById("jobs-list"),
+      jobsEmptyState: document2.getElementById("jobs-empty-state"),
+      jobsDetails: document2.getElementById("jobs-details"),
+      jobsLayout: document2.getElementById("jobs-layout"),
+      jobsToggleSidebarBtn: document2.getElementById("jobs-toggle-sidebar-btn"),
+      jobsShowSidebarBtn: document2.getElementById("jobs-show-sidebar-btn"),
+      jobsNewFolderBtn: document2.getElementById("jobs-new-folder-btn"),
+      jobsRenameFolderBtn: document2.getElementById("jobs-rename-folder-btn"),
+      jobsDeleteFolderBtn: document2.getElementById("jobs-delete-folder-btn"),
+      jobsNewJobBtn: document2.getElementById("jobs-new-job-btn"),
+      jobsSaveBtn: document2.getElementById("jobs-save-btn"),
+      jobsSaveDeckBtn: document2.getElementById("jobs-save-deck-btn"),
+      jobsDuplicateBtn: document2.getElementById("jobs-duplicate-btn"),
+      jobsPauseBtn: document2.getElementById("jobs-pause-btn"),
+      jobsCompileBtn: document2.getElementById("jobs-compile-btn"),
+      jobsDeleteBtn: document2.getElementById("jobs-delete-btn"),
+      jobsBackBtn: document2.getElementById("jobs-back-btn"),
+      jobsOpenEditorBtn: document2.getElementById("jobs-open-editor-btn"),
+      tabBar: document2.querySelector(".tab-bar"),
+      boardFilterSticky: document2.getElementById("board-filter-sticky"),
+      boardSummary: document2.getElementById("board-summary"),
+      githubBoardInboxRoot: document2.getElementById("github-board-inbox-root"),
+      boardColumns: document2.getElementById("board-columns"),
+      todoToggleFiltersBtn: document2.getElementById("todo-toggle-filters-btn"),
+      todoSearchInput: document2.getElementById("todo-search-input"),
+      todoSectionFilter: document2.getElementById("todo-section-filter"),
+      todoLabelFilter: document2.getElementById("todo-label-filter"),
+      todoFlagFilter: document2.getElementById("todo-flag-filter"),
+      todoPriorityFilter: document2.getElementById("todo-priority-filter"),
+      todoStatusFilter: document2.getElementById("todo-status-filter"),
+      todoArchiveOutcomeFilter: document2.getElementById("todo-archive-outcome-filter"),
+      todoSortBy: document2.getElementById("todo-sort-by"),
+      todoSortDirection: document2.getElementById("todo-sort-direction"),
+      todoViewMode: document2.getElementById("todo-view-mode"),
+      todoShowRecurringTasks: document2.getElementById("todo-show-recurring-tasks"),
+      todoShowArchived: document2.getElementById("todo-show-archived"),
+      todoHideCardDetails: document2.getElementById("todo-hide-card-details"),
+      todoNewBtn: document2.getElementById("todo-new-btn"),
+      todoClearSelectionBtn: document2.getElementById("todo-clear-selection-btn"),
+      todoClearFiltersBtn: document2.getElementById("todo-clear-filters-btn"),
+      todoBackBtn: document2.getElementById("todo-back-btn"),
+      todoDetailTitle: document2.getElementById("todo-detail-title"),
+      todoDetailModeNote: document2.getElementById("todo-detail-mode-note"),
+      todoDetailForm: document2.getElementById("todo-detail-form"),
+      todoDetailId: document2.getElementById("todo-detail-id"),
+      todoTitleInput: document2.getElementById("todo-title-input"),
+      todoDescriptionInput: document2.getElementById("todo-description-input"),
+      todoDueInput: document2.getElementById("todo-due-input"),
+      todoPriorityInput: document2.getElementById("todo-priority-input"),
+      todoSectionInput: document2.getElementById("todo-section-input"),
+      todoLinkedTaskSelect: document2.getElementById("todo-linked-task-select"),
+      todoDetailStatus: document2.getElementById("todo-detail-status"),
+      todoLabelChipList: document2.getElementById("todo-label-chip-list"),
+      todoLabelsInput: document2.getElementById("todo-labels-input"),
+      todoLabelSuggestions: document2.getElementById("todo-label-suggestions"),
+      todoLabelColorInput: document2.getElementById("todo-label-color-input"),
+      todoLabelAddBtn: document2.getElementById("todo-label-add-btn"),
+      todoLabelColorSaveBtn: document2.getElementById("todo-label-color-save-btn"),
+      todoLabelCatalog: document2.getElementById("todo-label-catalog"),
+      todoFlagNameInput: document2.getElementById("todo-flag-name-input"),
+      todoFlagColorInput: document2.getElementById("todo-flag-color-input"),
+      todoFlagAddBtn: document2.getElementById("todo-flag-add-btn"),
+      todoFlagColorSaveBtn: document2.getElementById("todo-flag-color-save-btn"),
+      todoLinkedTaskNote: document2.getElementById("todo-linked-task-note"),
+      todoSaveBtn: document2.getElementById("todo-save-btn"),
+      todoCreateTaskBtn: document2.getElementById("todo-create-task-btn"),
+      todoCompleteBtn: document2.getElementById("todo-complete-btn"),
+      todoDeleteBtn: document2.getElementById("todo-delete-btn"),
+      todoUploadFilesBtn: document2.getElementById("todo-upload-files-btn"),
+      todoUploadFilesNote: document2.getElementById("todo-upload-files-note"),
+      todoCommentList: document2.getElementById("todo-comment-list"),
+      todoCommentInput: document2.getElementById("todo-comment-input"),
+      todoAddCommentBtn: document2.getElementById("todo-add-comment-btn"),
+      todoCommentCountBadge: document2.getElementById("todo-comment-count-badge"),
+      todoCommentModePill: document2.getElementById("todo-comment-mode-pill"),
+      todoCommentContextNote: document2.getElementById("todo-comment-context-note"),
+      todoCommentComposerTitle: document2.getElementById("todo-comment-composer-title"),
+      todoCommentComposerNote: document2.getElementById("todo-comment-composer-note"),
+      todoCommentDraftStatus: document2.getElementById("todo-comment-draft-status"),
+      todoCommentThreadNote: document2.getElementById("todo-comment-thread-note"),
+      jobsNameInput: document2.getElementById("jobs-name-input"),
+      jobsCronPreset: document2.getElementById("jobs-cron-preset"),
+      jobsCronInput: document2.getElementById("jobs-cron-input"),
+      jobsCronPreviewText: document2.getElementById("jobs-cron-preview-text"),
+      jobsOpenGuruBtn: document2.getElementById("jobs-open-guru-btn"),
+      jobsFriendlyBuilder: document2.getElementById("jobs-friendly-builder"),
+      jobsFriendlyFrequency: document2.getElementById("jobs-friendly-frequency"),
+      jobsFriendlyInterval: document2.getElementById("jobs-friendly-interval"),
+      jobsFriendlyMinute: document2.getElementById("jobs-friendly-minute"),
+      jobsFriendlyHour: document2.getElementById("jobs-friendly-hour"),
+      jobsFriendlyDow: document2.getElementById("jobs-friendly-dow"),
+      jobsFriendlyDom: document2.getElementById("jobs-friendly-dom"),
+      jobsFolderSelect: document2.getElementById("jobs-folder-select"),
+      jobsStatusPill: document2.getElementById("jobs-status-pill"),
+      jobsTimelineInline: document2.getElementById("jobs-timeline-inline"),
+      jobsWorkflowMetrics: document2.getElementById("jobs-workflow-metrics"),
+      jobsStepList: document2.getElementById("jobs-step-list"),
+      jobsPauseNameInput: document2.getElementById("jobs-pause-name-input"),
+      jobsCreatePauseBtn: document2.getElementById("jobs-create-pause-btn"),
+      jobsExistingTaskSelect: document2.getElementById("jobs-existing-task-select"),
+      jobsExistingWindowInput: document2.getElementById("jobs-existing-window-input"),
+      jobsAttachBtn: document2.getElementById("jobs-attach-btn"),
+      jobsStepNameInput: document2.getElementById("jobs-step-name-input"),
+      jobsStepWindowInput: document2.getElementById("jobs-step-window-input"),
+      jobsStepPromptInput: document2.getElementById("jobs-step-prompt-input"),
+      jobsStepAgentSelect: document2.getElementById("jobs-step-agent-select"),
+      jobsStepModelSelect: document2.getElementById("jobs-step-model-select"),
+      jobsStepLabelsInput: document2.getElementById("jobs-step-labels-input"),
+      jobsCreateStepBtn: document2.getElementById("jobs-create-step-btn"),
+      researchNewBtn: document2.getElementById("research-new-btn"),
+      researchLoadAutoAgentExampleBtn: document2.getElementById("research-load-autoagent-example-btn"),
+      researchSaveBtn: document2.getElementById("research-save-btn"),
+      researchDuplicateBtn: document2.getElementById("research-duplicate-btn"),
+      researchDeleteBtn: document2.getElementById("research-delete-btn"),
+      researchStartBtn: document2.getElementById("research-start-btn"),
+      researchStopBtn: document2.getElementById("research-stop-btn"),
+      researchEditIdInput: document2.getElementById("research-edit-id"),
+      researchNameInput: document2.getElementById("research-name"),
+      researchInstructionsInput: document2.getElementById("research-instructions"),
+      researchEditablePathsInput: document2.getElementById("research-editable-paths"),
+      researchBenchmarkInput: document2.getElementById("research-benchmark-command"),
+      researchMetricPatternInput: document2.getElementById("research-metric-pattern"),
+      researchMetricDirectionSelect: document2.getElementById("research-metric-direction"),
+      researchMaxIterationsInput: document2.getElementById("research-max-iterations"),
+      researchMaxMinutesInput: document2.getElementById("research-max-minutes"),
+      researchMaxFailuresInput: document2.getElementById("research-max-failures"),
+      researchBenchmarkTimeoutInput: document2.getElementById("research-benchmark-timeout"),
+      researchEditWaitInput: document2.getElementById("research-edit-wait"),
+      researchAgentSelect: document2.getElementById("research-agent-select"),
+      researchModelSelect: document2.getElementById("research-model-select"),
+      researchProfileList: document2.getElementById("research-profile-list"),
+      researchRunList: document2.getElementById("research-run-list"),
+      researchRunTitle: document2.getElementById("research-run-title"),
+      researchFormError: document2.getElementById("research-form-error"),
+      researchActiveEmpty: document2.getElementById("research-active-empty"),
+      researchActiveDetails: document2.getElementById("research-active-details"),
+      researchActiveStatus: document2.getElementById("research-active-status"),
+      researchActiveBest: document2.getElementById("research-active-best"),
+      researchActiveAttempts: document2.getElementById("research-active-attempts"),
+      researchActiveLastOutcome: document2.getElementById("research-active-last-outcome"),
+      researchActiveMeta: document2.getElementById("research-active-meta"),
+      researchAttemptList: document2.getElementById("research-attempt-list"),
+      githubIntegrationEnabledInput: document2.getElementById("github-integration-enabled"),
+      githubIntegrationOwnerInput: document2.getElementById("github-integration-owner"),
+      githubIntegrationRepoInput: document2.getElementById("github-integration-repo"),
+      githubIntegrationApiBaseUrlInput: document2.getElementById("github-integration-api-base-url"),
+      githubIntegrationAutomationPromptTemplateInput: document2.getElementById("github-integration-automation-prompt-template"),
+      githubIntegrationSaveBtn: document2.getElementById("github-integration-save-btn"),
+      githubIntegrationRefreshBtn: document2.getElementById("github-integration-refresh-btn"),
+      githubIntegrationFeedback: document2.getElementById("github-integration-feedback"),
+      githubIntegrationStatusValue: document2.getElementById("github-integration-status-value"),
+      githubIntegrationRepositoryStatus: document2.getElementById("github-integration-repository-status"),
+      githubIntegrationConnectionStatus: document2.getElementById("github-integration-connection-status"),
+      githubIntegrationLastSyncAt: document2.getElementById("github-integration-last-sync-at"),
+      githubIntegrationUpdatedAt: document2.getElementById("github-integration-updated-at"),
+      githubIntegrationStatusNote: document2.getElementById("github-integration-status-note"),
+      telegramEnabledInput: document2.getElementById("telegram-enabled"),
+      telegramBotTokenInput: document2.getElementById("telegram-bot-token"),
+      telegramChatIdInput: document2.getElementById("telegram-chat-id"),
+      telegramMessagePrefixInput: document2.getElementById("telegram-message-prefix"),
+      telegramSaveBtn: document2.getElementById("telegram-save-btn"),
+      telegramTestBtn: document2.getElementById("telegram-test-btn"),
+      telegramFeedback: document2.getElementById("telegram-feedback"),
+      telegramTokenStatus: document2.getElementById("telegram-token-status"),
+      telegramChatStatus: document2.getElementById("telegram-chat-status"),
+      telegramHookStatus: document2.getElementById("telegram-hook-status"),
+      telegramUpdatedAt: document2.getElementById("telegram-updated-at"),
+      telegramStatusNote: document2.getElementById("telegram-status-note"),
+      defaultAgentSelect: document2.getElementById("default-agent-select"),
+      defaultModelSelect: document2.getElementById("default-model-select"),
+      executionDefaultsSaveBtn: document2.getElementById("execution-defaults-save-btn"),
+      executionDefaultsNote: document2.getElementById("execution-defaults-note"),
+      approvalModeSelect: document2.getElementById("settings-approval-mode-select"),
+      approvalModeNote: document2.getElementById("settings-approval-mode-note"),
+      needsBotReviewCommentTemplateInput: document2.getElementById("needs-bot-review-comment-template-input"),
+      needsBotReviewPromptTemplateInput: document2.getElementById("needs-bot-review-prompt-template-input"),
+      needsBotReviewAgentSelect: document2.getElementById("needs-bot-review-agent-select"),
+      needsBotReviewModelSelect: document2.getElementById("needs-bot-review-model-select"),
+      needsBotReviewChatSessionSelect: document2.getElementById("needs-bot-review-chat-session-select"),
+      readyPromptTemplateInput: document2.getElementById("ready-prompt-template-input"),
+      reviewDefaultsSaveBtn: document2.getElementById("review-defaults-save-btn"),
+      reviewDefaultsNote: document2.getElementById("review-defaults-note"),
+      settingsStorageModeSelect: document2.getElementById("settings-storage-mode-select"),
+      settingsSearchProviderSelect: document2.getElementById("settings-search-provider-select"),
+      settingsResearchProviderSelect: document2.getElementById("settings-research-provider-select"),
+      settingsStorageMirrorInput: document2.getElementById("settings-storage-mirror-input"),
+      settingsAutoIgnorePrivateFilesInput: document2.getElementById("settings-auto-ignore-private-files-input"),
+      settingsFlagReadyInput: document2.getElementById("settings-flag-ready-input"),
+      settingsFlagNeedsBotReviewInput: document2.getElementById("settings-flag-needs-bot-review-input"),
+      settingsFlagNeedsUserReviewInput: document2.getElementById("settings-flag-needs-user-review-input"),
+      settingsFlagNewInput: document2.getElementById("settings-flag-new-input"),
+      settingsFlagOnScheduleListInput: document2.getElementById("settings-flag-on-schedule-list-input"),
+      settingsFlagFinalUserCheckInput: document2.getElementById("settings-flag-final-user-check-input"),
+      settingsStorageSaveBtn: document2.getElementById("settings-storage-save-btn"),
+      settingsStorageNote: document2.getElementById("settings-storage-note"),
+      settingsVersionValue: document2.getElementById("settings-version-value"),
+      settingsMcpStatusValue: document2.getElementById("settings-mcp-status-value"),
+      settingsMcpUpdatedValue: document2.getElementById("settings-mcp-updated-value"),
+      settingsSkillsUpdatedValue: document2.getElementById("settings-skills-updated-value"),
+      settingsAgentsUpdatedValue: document2.getElementById("settings-agents-updated-value"),
+      settingsLogLevelSelect: document2.getElementById("settings-log-level-select"),
+      settingsLogDirectoryInput: document2.getElementById("settings-log-directory"),
+      settingsOpenLogFolderBtn: document2.getElementById("settings-open-log-folder-btn"),
+      boardAddSectionBtn: document2.getElementById("board-add-section-btn"),
+      boardSectionInlineForm: document2.getElementById("board-section-inline-form"),
+      boardSectionNameInput: document2.getElementById("board-section-name-input"),
+      boardSectionSaveBtn: document2.getElementById("board-section-save-btn"),
+      boardSectionCancelBtn: document2.getElementById("board-section-cancel-btn"),
+      cockpitColSlider: document2.getElementById("cockpit-col-slider")
+    };
+  }
+
+  // media/cockpitWebviewBoardState.js
+  function createBoardRenderState() {
+    return {
+      draggingTodoId: null,
+      isBoardDragging: false,
+      pendingBoardRender: false,
+      scheduledBoardRenderFrame: 0
+    };
+  }
+  function requestBoardRender(state, requestAnimationFrameImpl, renderBoard) {
+    if (state.isBoardDragging) {
+      state.pendingBoardRender = true;
+      return;
+    }
+    if (state.scheduledBoardRenderFrame) {
+      return;
+    }
+    state.scheduledBoardRenderFrame = requestAnimationFrameImpl(function() {
+      state.scheduledBoardRenderFrame = 0;
+      if (state.isBoardDragging) {
+        state.pendingBoardRender = true;
+        return;
+      }
+      renderBoard();
+    });
+  }
+  function finishBoardDrag(state, resetSectionDragState, requestRender) {
+    state.draggingTodoId = null;
+    resetSectionDragState();
+    state.isBoardDragging = false;
+    if (!state.pendingBoardRender) {
+      return;
+    }
+    state.pendingBoardRender = false;
+    requestRender();
+  }
+
+  // media/cockpitWebviewDefaults.js
+  function resolveInitialSchedulerCollections(initialData) {
+    return {
+      tasks: Array.isArray(initialData.tasks) ? initialData.tasks : [],
+      jobs: Array.isArray(initialData.jobs) ? initialData.jobs : [],
+      jobFolders: Array.isArray(initialData.jobFolders) ? initialData.jobFolders : [],
+      cockpitBoard: initialData.cockpitBoard || {
+        version: 4,
+        sections: [],
+        cards: [],
+        labelCatalog: [],
+        archives: { completedSuccessfully: [], rejected: [] },
+        filters: {
+          labels: [],
+          priorities: [],
+          statuses: [],
+          archiveOutcomes: [],
+          flags: [],
+          sortBy: "manual",
+          sortDirection: "asc",
+          viewMode: "board",
+          showArchived: false,
+          showRecurringTasks: false
+        },
+        updatedAt: ""
+      },
+      githubIntegration: initialData.githubIntegration || {
+        enabled: false,
+        hasConnection: false,
+        syncStatus: "disabled",
+        inbox: {
+          issues: { items: [], itemCount: 0 },
+          pullRequests: { items: [], itemCount: 0 },
+          securityAlerts: { items: [], itemCount: 0 }
+        },
+        inboxCounts: {
+          issues: 0,
+          pullRequests: 0,
+          securityAlerts: 0,
+          total: 0
+        }
+      },
+      telegramNotification: initialData.telegramNotification || {
+        enabled: false,
+        hasBotToken: false,
+        hookConfigured: false
+      },
+      executionDefaults: initialData.executionDefaults || {
+        agent: "agent",
+        model: ""
+      },
+      reviewDefaults: initialData.reviewDefaults || {
+        needsBotReviewCommentTemplate: "",
+        needsBotReviewPromptTemplate: "",
+        needsBotReviewAgent: "agent",
+        needsBotReviewModel: "",
+        needsBotReviewChatSession: "new",
+        readyPromptTemplate: ""
+      }
+    };
+  }
+  function normalizeMcpSetupStatus(value, previousValue) {
+    switch (value) {
+      case "configured":
+      case "missing":
+      case "stale":
+      case "invalid":
+      case "workspace-required":
+        return value;
+      default:
+        return previousValue || "workspace-required";
+    }
+  }
+  function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
+    return function normalizeStorageSettings(value, previousValue) {
+      var disabledSystemFlagKeys = Array.isArray(value && value.disabledSystemFlagKeys) ? value.disabledSystemFlagKeys.map(function(entry) {
+        return normalizeTodoLabelKey(entry);
+      }).filter(function(entry, index, values) {
+        return !!entry && values.indexOf(entry) === index;
+      }) : (previousValue && previousValue.disabledSystemFlagKeys || []).slice();
+      var hasExplicitResearchProvider = !!value && Object.prototype.hasOwnProperty.call(value, "researchProvider");
+      var hasExplicitAutoIgnorePrivateFiles = !!value && Object.prototype.hasOwnProperty.call(value, "autoIgnorePrivateFiles");
+      var normalizedSearchProvider = value && value.searchProvider === "tavily" ? "tavily" : previousValue && previousValue.searchProvider || "built-in";
+      var normalizedResearchProvider;
+      if (hasExplicitResearchProvider) {
+        normalizedResearchProvider = value && (value.researchProvider === "perplexity" || value.researchProvider === "tavily" || value.researchProvider === "google-grounded") ? value.researchProvider : "none";
+      } else if (value && value.searchProvider === "perplexity") {
+        normalizedResearchProvider = "perplexity";
+      } else if (value && value.searchProvider === "tavily") {
+        normalizedResearchProvider = "tavily";
+      } else {
+        normalizedResearchProvider = previousValue && previousValue.researchProvider || "none";
+      }
+      return {
+        mode: value && value.mode === "json" ? "json" : "sqlite",
+        searchProvider: normalizedSearchProvider,
+        researchProvider: normalizedResearchProvider,
+        sqliteJsonMirror: !value || value.sqliteJsonMirror !== false,
+        autoIgnorePrivateFiles: hasExplicitAutoIgnorePrivateFiles ? value.autoIgnorePrivateFiles !== false : (previousValue && previousValue.autoIgnorePrivateFiles) !== false,
+        disabledSystemFlagKeys,
+        appVersion: value && typeof value.appVersion === "string" ? value.appVersion : previousValue && previousValue.appVersion || "",
+        mcpSetupStatus: normalizeMcpSetupStatus(
+          value && value.mcpSetupStatus,
+          previousValue && previousValue.mcpSetupStatus
+        ),
+        lastMcpSupportUpdateAt: value && typeof value.lastMcpSupportUpdateAt === "string" ? value.lastMcpSupportUpdateAt : previousValue && previousValue.lastMcpSupportUpdateAt || "",
+        lastBundledSkillsSyncAt: value && typeof value.lastBundledSkillsSyncAt === "string" ? value.lastBundledSkillsSyncAt : previousValue && previousValue.lastBundledSkillsSyncAt || "",
+        lastBundledAgentsSyncAt: value && typeof value.lastBundledAgentsSyncAt === "string" ? value.lastBundledAgentsSyncAt : previousValue && previousValue.lastBundledAgentsSyncAt || ""
+      };
+    };
+  }
+
+  // media/cockpitWebviewTabState.js
+  function forEachTabElement(document2, selector, callback) {
+    Array.prototype.forEach.call(document2.querySelectorAll(selector), callback);
+  }
+  function activateSchedulerTab(document2, tabName) {
+    forEachTabElement(document2, ".tab-button", function(button) {
+      button.classList.remove("active");
+    });
+    forEachTabElement(document2, ".tab-content", function(content) {
+      content.classList.remove("active");
+    });
+    var targetButton = document2.querySelector(
+      '.tab-button[data-tab="' + tabName + '"]'
+    );
+    var targetContent = document2.getElementById(tabName + "-tab");
+    if (targetButton) {
+      targetButton.classList.add("active");
+    }
+    if (targetContent) {
+      targetContent.classList.add("active");
+    }
+  }
+  function bindSelectValueChange(control, onChange) {
+    if (!control) {
+      return;
+    }
+    control.addEventListener("change", function() {
+      onChange(control);
+    });
+  }
+  function bindGenericChange(control, handler) {
+    if (!control) {
+      return;
+    }
+    control.addEventListener("change", handler);
+  }
+  function bindTabButtons(document2, switchTab) {
+    Array.prototype.forEach.call(
+      document2.querySelectorAll(".tab-button[data-tab]"),
+      function(button) {
+        button.addEventListener("click", function(event) {
+          event.preventDefault();
+          var stopEvent = event.stopImmediatePropagation || event.stopPropagation;
+          stopEvent.call(event);
+          var selectedTabName = button.getAttribute("data-tab");
+          if (selectedTabName) {
+            switchTab(selectedTabName);
+          }
+        });
+      }
+    );
+  }
+  function bindTaskFilterBar(taskFilterBar, options) {
+    if (!taskFilterBar) {
+      return;
+    }
+    options.syncTaskFilterButtons();
+    taskFilterBar.addEventListener("click", function(event) {
+      var target = event && event.target;
+      var filterButton = target || null;
+      while (filterButton && filterButton !== taskFilterBar) {
+        if (filterButton.getAttribute && filterButton.getAttribute("data-filter")) {
+          break;
+        }
+        filterButton = filterButton.parentElement;
+      }
+      if (!filterButton || filterButton === taskFilterBar) {
+        return;
+      }
+      var filterValue = filterButton.getAttribute("data-filter");
+      if (!options.isValidTaskFilter(filterValue)) {
+        return;
+      }
+      options.setActiveTaskFilter(filterValue);
+      options.syncTaskFilterButtons();
+      options.persistTaskFilter();
+      options.renderTaskList();
+    });
+  }
+
+  // media/cockpitWebviewBindings.js
+  function bindInputFeedbackClear(elements, clearFeedback) {
+    elements.forEach(function(element) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("input", clearFeedback);
+      element.addEventListener("change", clearFeedback);
+    });
+  }
+  function bindClickAction(button, action) {
+    if (!button || typeof button.addEventListener !== "function") {
+      return;
+    }
+    button.addEventListener("click", action);
+  }
+  function bindSelectChange(select, onChange) {
+    if (!select) {
+      return;
+    }
+    var handleChange = function() {
+      onChange(select);
+    };
+    select.addEventListener("change", handleChange);
+  }
+  function bindDocumentValueDelegates(document2, eventName, handlersById) {
+    var handleDelegateEvent = function(event) {
+      var target = event && event.target;
+      if (!target || typeof target.id !== "string") {
+        return;
+      }
+      var handler = handlersById[target.id];
+      if (typeof handler === "function") {
+        handler(target);
+      }
+    };
+    document2.addEventListener(eventName, handleDelegateEvent);
+  }
+  function bindOpenCronGuruButton(button, getExpression, windowObject) {
+    var fallbackExpression = "* * * * *";
+    bindClickAction(button, function() {
+      var expression = getExpression().trim();
+      if (!expression) {
+        expression = fallbackExpression;
+      }
+      var targetUrl = "https://crontab.guru/#" + encodeURIComponent(expression);
+      windowObject.open(targetUrl, "_blank");
+    });
+  }
+  function bindInlineTaskQuickUpdate(document2, vscode) {
+    function postInlineTaskUpdate(target, data) {
+      vscode.postMessage({
+        type: "updateTask",
+        taskId: target.getAttribute("data-id"),
+        data
+      });
+    }
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      if (!target) {
+        return;
+      }
+      if (target.classList.contains("task-agent-select")) {
+        postInlineTaskUpdate(target, { agent: target.value });
+        return;
+      }
+      if (target.classList.contains("task-model-select")) {
+        postInlineTaskUpdate(target, { model: target.value });
+      }
+    });
+  }
+
+  // media/cockpitWebviewFormBindings.js
+  function bindPromptSourceDelegation(document2, applyPromptSource) {
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      var isPromptSourceRadio = target && target.name === "prompt-source" && target.checked;
+      if (isPromptSourceRadio) {
+        applyPromptSource(String(target.value || ""));
+      }
+    });
+  }
+  function bindCronPresetPair(presetControl, valueControl, onSynchronized) {
+    if (!presetControl || !valueControl) {
+      return;
+    }
+    presetControl.addEventListener("change", function() {
+      var nextPresetValue = presetControl.value;
+      if (nextPresetValue) {
+        valueControl.value = nextPresetValue;
+      }
+      onSynchronized();
+    });
+    valueControl.addEventListener("input", function() {
+      presetControl.value = "";
+      onSynchronized();
+    });
+  }
+  function bindTemplateSelectionLoader(templateSelect, document2, vscode) {
+    if (!templateSelect) {
+      return;
+    }
+    templateSelect.addEventListener("change", function() {
+      var selectedPath = templateSelect.value;
+      if (!selectedPath) {
+        return;
+      }
+      var promptSourceControl = document2.querySelector(
+        'input[name="prompt-source"]:checked'
+      );
+      var templateMessage = {
+        type: "loadPromptTemplate",
+        path: selectedPath,
+        source: promptSourceControl ? promptSourceControl.value : "inline"
+      };
+      vscode.postMessage(templateMessage);
+    });
+  }
+
+  // media/cockpitWebviewTaskSubmit.js
+  function showFormError(formErrorElement, message) {
+    if (!formErrorElement) {
+      return false;
+    }
+    formErrorElement.textContent = message;
+    formErrorElement.style.display = "block";
+    return true;
+  }
+  function getTrimmedValue(value) {
+    return String(value || "").trim();
+  }
+  function normalizeOneTimeDelaySeconds(value) {
+    var numericValue = typeof value === "number" ? value : Number(value);
+    if (!isFinite(numericValue)) {
+      return 0;
+    }
+    var wholeSeconds = Math.floor(numericValue);
+    return wholeSeconds > 0 ? wholeSeconds : 0;
+  }
+  function validateTaskSubmission(options) {
+    var taskData = options.taskData;
+    var promptSourceValue = options.promptSourceValue;
+    var formErr = options.formErr;
+    var strings = options.strings;
+    var editingTaskId = options.editingTaskId;
+    var getTaskByIdLocal = options.getTaskByIdLocal;
+    var nameValue = getTrimmedValue(taskData.name);
+    if (!nameValue) {
+      showFormError(formErr, strings.taskNameRequired || "");
+      return false;
+    }
+    var templateValue = getTrimmedValue(taskData.promptPath);
+    if (promptSourceValue !== "inline" && !templateValue) {
+      showFormError(formErr, strings.templateRequired || "");
+      return false;
+    }
+    var promptValue = getTrimmedValue(taskData.prompt);
+    if (promptSourceValue !== "inline" && !promptValue && editingTaskId) {
+      var editingTask = getTaskByIdLocal(editingTaskId);
+      taskData.prompt = editingTask && typeof editingTask.prompt === "string" ? editingTask.prompt : "";
+      promptValue = getTrimmedValue(taskData.prompt);
+    }
+    if (promptSourceValue === "inline" && !promptValue) {
+      showFormError(formErr, strings.promptRequired || "");
+      return false;
+    }
+    var cronValue = getTrimmedValue(taskData.cronExpression);
+    if (taskData.oneTime) {
+      if (normalizeOneTimeDelaySeconds(taskData.oneTimeDelaySeconds) < 1) {
+        showFormError(
+          formErr,
+          strings.oneTimeDelayRequired || strings.invalidCronExpression || ""
+        );
+        return false;
+      }
+    } else if (!cronValue) {
+      showFormError(
+        formErr,
+        strings.cronExpressionRequired || strings.invalidCronExpression || ""
+      );
+      return false;
+    }
+    return true;
+  }
+  function postTaskSubmission(vscode, editingTaskId, taskData) {
+    var isEditing = Boolean(editingTaskId);
+    var message = isEditing ? {
+      type: "updateTask",
+      taskId: String(editingTaskId),
+      data: taskData
+    } : {
+      type: "createTask",
+      data: taskData
+    };
+    vscode.postMessage(message);
+    if (isEditing) {
+      return;
+    }
+  }
+  function buildTaskSubmissionData(options) {
+    var editorState = options.editorState || {};
+    var parsedLabels = options.parseLabels ? options.parseLabels(editorState.labels || "") : [];
+    return {
+      name: editorState.name || "",
+      prompt: editorState.prompt || "",
+      cronExpression: editorState.cronExpression || (editorState.oneTime ? "* * * * *" : ""),
+      labels: parsedLabels,
+      agent: editorState.agent || "",
+      model: editorState.model || "",
+      scope: editorState.scope || "workspace",
+      promptSource: editorState.promptSource || "inline",
+      promptPath: editorState.promptPath || "",
+      runFirstInOneMinute: !!options.runFirstInOneMinute,
+      oneTime: !!editorState.oneTime,
+      oneTimeDelaySeconds: editorState.oneTime ? normalizeOneTimeDelaySeconds(editorState.oneTimeDelaySeconds) : 0,
+      manualSession: !!editorState.manualSession,
+      jitterSeconds: Number(editorState.jitterSeconds || 0),
+      enabled: options.editingTaskId ? options.editingTaskEnabled : true,
+      chatSession: editorState.oneTime ? "" : editorState.chatSession || "new"
+    };
+  }
+
+  // media/cockpitWebviewToolbarBindings.js
+  function postRefreshMessages(vscode) {
+    ["refreshTasks", "refreshAgents", "refreshPrompts"].forEach(function(type) {
+      vscode.postMessage({ type });
+    });
+  }
+  function findHistoryEntry(entries, snapshotId) {
+    return (Array.isArray(entries) ? entries : []).find(function(entry) {
+      return entry && entry.id === snapshotId;
+    });
+  }
+  function bindTaskTestButton(button, options) {
+    bindClickAction(button, function() {
+      var promptTextEl = options.document.getElementById("prompt-text");
+      var prompt = promptTextEl ? promptTextEl.value : "";
+      var agent = options.agentSelect ? options.agentSelect.value : "";
+      var model = options.modelSelect ? options.modelSelect.value : "";
+      if (!prompt) {
+        return;
+      }
+      var promptMessage = Object.assign(
+        { type: "testPrompt" },
+        { prompt, agent, model }
+      );
+      options.vscode.postMessage(promptMessage);
+    });
+  }
+  function bindRefreshButton(button, vscode) {
+    bindClickAction(button, function() {
+      postRefreshMessages(vscode);
+    });
+  }
+  function bindAutoShowStartupButton(button, vscode) {
+    bindClickAction(button, function() {
+      vscode.postMessage({ type: "toggleAutoShowOnStartup" });
+    });
+  }
+  function bindRestoreHistoryButton(button, options) {
+    bindClickAction(button, function() {
+      var snapshotId = options.cockpitHistorySelect ? options.cockpitHistorySelect.value : "";
+      if (!snapshotId) {
+        options.window.alert(
+          options.strings.cockpitHistoryRestoreSelectRequired || "Select a backup version first"
+        );
+        return;
+      }
+      var selectedEntry = findHistoryEntry(options.cockpitHistory, snapshotId);
+      var selectedLabel = options.formatHistoryLabel(selectedEntry);
+      var confirmText = (options.strings.cockpitHistoryRestoreConfirm || "Restore the repo schedule from {createdAt}? The current state will be backed up first.").replace("{createdAt}", selectedLabel).replace("{timestamp}", selectedLabel);
+      if (!options.window.confirm(confirmText)) {
+        return;
+      }
+      options.vscode.postMessage({
+        type: "restoreScheduleHistory",
+        snapshotId
+      });
+    });
+  }
+
+  // media/cockpitWebviewJobBindings.js
+  function bindJobToolbarButtons(options) {
+    bindClickAction(options.jobsNewFolderBtn, function() {
+      options.vscode.postMessage({
+        type: "requestCreateJobFolder",
+        parentFolderId: options.getSelectedJobFolderId() || void 0
+      });
+    });
+    bindClickAction(options.jobsRenameFolderBtn, function() {
+      var selectedJobFolderId = options.getSelectedJobFolderId();
+      if (!selectedJobFolderId) return;
+      options.vscode.postMessage({
+        type: "requestRenameJobFolder",
+        folderId: selectedJobFolderId
+      });
+    });
+    bindClickAction(options.jobsDeleteFolderBtn, function() {
+      var selectedJobFolderId = options.getSelectedJobFolderId();
+      if (!selectedJobFolderId) return;
+      options.vscode.postMessage({
+        type: "requestDeleteJobFolder",
+        folderId: selectedJobFolderId
+      });
+    });
+    function requestCreateJob(switchToEditor) {
+      options.setCreatingJob(true);
+      options.syncEditorTabLabels();
+      options.vscode.postMessage({
+        type: "requestCreateJob",
+        folderId: options.getSelectedJobFolderId() || void 0
+      });
+      if (switchToEditor) {
+        options.switchTab("jobs-edit");
+      }
+    }
+    bindClickAction(options.jobsNewJobBtn, function() {
+      requestCreateJob(true);
+    });
+    bindClickAction(options.jobsEmptyNewBtn, function() {
+      requestCreateJob(false);
+    });
+    bindClickAction(options.jobsBackBtn, function() {
+      options.switchTab("jobs");
+    });
+    bindClickAction(options.jobsOpenEditorBtn, function() {
+      options.openJobEditor(options.getSelectedJobId() || "");
+    });
+    bindClickAction(options.jobsSaveBtn, options.submitJobEditor);
+    bindClickAction(options.jobsSaveDeckBtn, options.submitJobEditor);
+    bindClickAction(options.jobsDuplicateBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "duplicateJob", jobId: selectedJobId });
+    });
+    function toggleSelectedJobPaused() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "toggleJobPaused", jobId: selectedJobId });
+    }
+    bindClickAction(options.jobsPauseBtn, toggleSelectedJobPaused);
+    bindClickAction(options.jobsStatusPill, toggleSelectedJobPaused);
+    bindClickAction(options.jobsCompileBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "compileJob", jobId: selectedJobId });
+    });
+    bindClickAction(options.jobsToggleSidebarBtn, function() {
+      options.toggleJobsSidebar();
+    });
+    bindClickAction(options.jobsShowSidebarBtn, function() {
+      options.showJobsSidebar();
+    });
+    bindClickAction(options.jobsDeleteBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      options.vscode.postMessage({ type: "deleteJob", jobId: selectedJobId });
+    });
+    bindClickAction(options.jobsAttachBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId || !options.jobsExistingTaskSelect || !options.jobsExistingTaskSelect.value) {
+        return;
+      }
+      options.vscode.postMessage({
+        type: "attachTaskToJob",
+        jobId: selectedJobId,
+        taskId: options.jobsExistingTaskSelect.value,
+        windowMinutes: options.jobsExistingWindowInput ? Number(options.jobsExistingWindowInput.value || 30) : 30
+      });
+    });
+    bindClickAction(options.jobsCreateStepBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      var name = options.jobsStepNameInput ? options.jobsStepNameInput.value.trim() : "";
+      var prompt = options.jobsStepPromptInput ? options.jobsStepPromptInput.value.trim() : "";
+      if (!name || !prompt) return;
+      var selectedJob = options.getJobById(selectedJobId);
+      options.vscode.postMessage({
+        type: "createJobTask",
+        jobId: selectedJobId,
+        windowMinutes: options.jobsStepWindowInput ? Number(options.jobsStepWindowInput.value || 30) : 30,
+        data: {
+          name,
+          prompt,
+          cronExpression: selectedJob && selectedJob.cronExpression ? selectedJob.cronExpression : "0 9 * * 1-5",
+          agent: options.jobsStepAgentSelect ? options.jobsStepAgentSelect.value : "",
+          model: options.jobsStepModelSelect ? options.jobsStepModelSelect.value : "",
+          labels: options.parseLabels(
+            options.jobsStepLabelsInput ? options.jobsStepLabelsInput.value : ""
+          ),
+          scope: "workspace",
+          promptSource: "inline",
+          oneTime: false
+        }
+      });
+      if (options.jobsStepNameInput) options.jobsStepNameInput.value = "";
+      if (options.jobsStepPromptInput) options.jobsStepPromptInput.value = "";
+      if (options.jobsStepLabelsInput) options.jobsStepLabelsInput.value = "";
+      if (options.jobsStepWindowInput) options.jobsStepWindowInput.value = "30";
+    });
+    bindClickAction(options.jobsCreatePauseBtn, function() {
+      var selectedJobId = options.getSelectedJobId();
+      if (!selectedJobId) return;
+      var title = options.jobsPauseNameInput ? options.jobsPauseNameInput.value.trim() : "";
+      options.vscode.postMessage({
+        type: "createJobPause",
+        jobId: selectedJobId,
+        data: {
+          title: title || options.defaultPauseTitle || "Manual review"
+        }
+      });
+      if (options.jobsPauseNameInput) {
+        options.jobsPauseNameInput.value = "";
+      }
+    });
+  }
+
+  // media/cockpitWebviewUtilityBindings.js
+  function resolveLanguageValue(value) {
+    return value || "auto";
+  }
+  function postUtilityAction(vscode, type) {
+    vscode.postMessage({ type });
+  }
+  function bindTemplateRefreshButton(button, options) {
+    bindClickAction(button, function() {
+      postUtilityAction(options.vscode, "refreshPrompts");
+      var selectedPath = options.templateSelect ? options.templateSelect.value : "";
+      var promptSourceControl = options.document.querySelector(
+        'input[name="prompt-source"]:checked'
+      );
+      var source = promptSourceControl ? promptSourceControl.value : "inline";
+      if (selectedPath && (source === "local" || source === "global")) {
+        var templateMessage = Object.assign(
+          { type: "loadPromptTemplate" },
+          { path: selectedPath, source }
+        );
+        options.vscode.postMessage(templateMessage);
+      }
+    });
+  }
+  function bindUtilityActionButtons(vscode, buttonMap) {
+    Object.keys(buttonMap).forEach(function(action) {
+      bindClickAction(buttonMap[action], function() {
+        postUtilityAction(vscode, action);
+      });
+    });
+  }
+  function syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, value) {
+    var nextValue = resolveLanguageValue(value);
+    if (helpLanguageSelect) {
+      helpLanguageSelect.value = nextValue;
+    }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.value = nextValue;
+    }
+  }
+  function saveLanguageSelection(helpLanguageSelect, settingsLanguageSelect, vscode, value) {
+    var nextValue = resolveLanguageValue(value);
+    syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, nextValue);
+    vscode.postMessage({
+      type: "setLanguage",
+      language: nextValue
+    });
+  }
+  function bindLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, vscode, initialValue) {
+    syncLanguageSelectors(helpLanguageSelect, settingsLanguageSelect, initialValue);
+    if (helpLanguageSelect) {
+      helpLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(
+          helpLanguageSelect,
+          settingsLanguageSelect,
+          vscode,
+          helpLanguageSelect.value
+        );
+      });
+    }
+    if (settingsLanguageSelect) {
+      settingsLanguageSelect.addEventListener("change", function() {
+        saveLanguageSelection(
+          helpLanguageSelect,
+          settingsLanguageSelect,
+          vscode,
+          settingsLanguageSelect.value
+        );
+      });
+    }
+  }
+
+  // media/cockpitWebviewJobInteractions.js
+  function handleSchedulerDetailClick(event, options) {
+    var target = event && event.target;
+    var researchProfileCard = options.getClosestEventTarget(event, "[data-research-id]");
+    if (researchProfileCard && options.researchProfileList && options.researchProfileList.contains(researchProfileCard)) {
+      event.preventDefault();
+      event.stopPropagation();
+      options.selectResearchProfile(
+        researchProfileCard.getAttribute("data-research-id") || ""
+      );
+      return true;
+    }
+    var researchRunCard = options.getClosestEventTarget(event, "[data-run-id]");
+    if (researchRunCard && options.researchRunList && options.researchRunList.contains(researchRunCard)) {
+      event.preventDefault();
+      event.stopPropagation();
+      options.selectResearchRun(researchRunCard.getAttribute("data-run-id") || "");
+      return true;
+    }
+    var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+    if (folderItem && options.jobsFolderList && options.jobsFolderList.contains(folderItem)) {
+      options.setSelectedJobFolderId(folderItem.getAttribute("data-job-folder") || "");
+      options.setSelectedJobId("");
+      options.persistTaskFilter();
+      options.renderJobsTab();
+      return true;
+    }
+    var openJobEditorButton = target && target.closest ? target.closest("[data-job-open-editor]") : null;
+    if (openJobEditorButton && options.jobsList && options.jobsList.contains(openJobEditorButton)) {
+      options.openJobEditor(
+        openJobEditorButton.getAttribute("data-job-open-editor") || ""
+      );
+      return true;
+    }
+    var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+    if (jobItem && options.jobsList && options.jobsList.contains(jobItem)) {
+      options.setSelectedJobId(jobItem.getAttribute("data-job-id") || "");
+      options.persistTaskFilter();
+      options.renderJobsTab();
+      return true;
+    }
+    var jobAction = target && target.getAttribute ? target.getAttribute("data-job-action") : "";
+    if (!jobAction) {
+      return false;
+    }
+    if (jobAction === "detach-node") {
+      var detachNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && detachNodeId) {
+        options.vscode.postMessage({
+          type: "requestDeleteJobTask",
+          jobId: options.getSelectedJobId(),
+          nodeId: detachNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "edit-task") {
+      var editTaskId = target.getAttribute("data-job-task-id") || "";
+      if (editTaskId && typeof options.editTask === "function") {
+        options.editTask(editTaskId);
+      }
+      return true;
+    }
+    if (jobAction === "edit-pause") {
+      var editPauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && editPauseNodeId) {
+        options.vscode.postMessage({
+          type: "requestRenameJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: editPauseNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "delete-pause") {
+      var deletePauseNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && deletePauseNodeId) {
+        options.vscode.postMessage({
+          type: "requestDeleteJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: deletePauseNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "approve-pause") {
+      var approveNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && approveNodeId) {
+        options.vscode.postMessage({
+          type: "approveJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: approveNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "reject-pause") {
+      var rejectNodeId = target.getAttribute("data-job-node-id") || "";
+      if (options.getSelectedJobId() && rejectNodeId) {
+        options.vscode.postMessage({
+          type: "rejectJobPause",
+          jobId: options.getSelectedJobId(),
+          nodeId: rejectNodeId
+        });
+      }
+      return true;
+    }
+    if (jobAction === "run-task") {
+      var runTaskId = target.getAttribute("data-job-task-id") || "";
+      if (runTaskId && typeof options.runTask === "function") {
+        options.runTask(runTaskId);
+      }
+      return true;
+    }
+    return false;
+  }
+  function bindJobNodeWindowChange(document2, options) {
+    document2.addEventListener("change", function(event) {
+      var target = event && event.target;
+      if (!target) return;
+      if (target.classList && target.classList.contains("job-node-window-input")) {
+        var selectedJobId = options.getSelectedJobId();
+        if (!selectedJobId) return;
+        var nodeId = target.getAttribute("data-job-node-window-id") || "";
+        if (!nodeId) return;
+        options.vscode.postMessage({
+          type: "updateJobNodeWindow",
+          jobId: selectedJobId,
+          nodeId,
+          windowMinutes: Number(target.value || 30)
+        });
+      }
+    });
+  }
+  function bindJobDragAndDrop(document2, options) {
+    document2.addEventListener("dragstart", function(event) {
+      var target = event && event.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && options.jobsList && options.jobsList.contains(jobItem)) {
+        options.setDraggedJobId(jobItem.getAttribute("data-job-id") || "");
+        if (jobItem.classList) jobItem.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+        }
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card) return;
+      options.setDraggedJobNodeId(card.getAttribute("data-job-node-id") || "");
+      if (card.classList) card.classList.add("dragging");
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = "move";
+      }
+    });
+    document2.addEventListener("dragend", function(event) {
+      var target = event && event.target;
+      var jobItem = target && target.closest ? target.closest("[data-job-id]") : null;
+      if (jobItem && jobItem.classList) jobItem.classList.remove("dragging");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("dragging");
+      options.setDraggedJobId("");
+      options.setDraggedJobNodeId("");
+      Array.prototype.forEach.call(
+        document2.querySelectorAll(".jobs-step-card.drag-over"),
+        function(item) {
+          if (item && item.classList) item.classList.remove("drag-over");
+        }
+      );
+      Array.prototype.forEach.call(
+        document2.querySelectorAll(".jobs-folder-item.drag-over"),
+        function(item) {
+          if (item && item.classList) item.classList.remove("drag-over");
+        }
+      );
+    });
+    document2.addEventListener("dragover", function(event) {
+      var target = event && event.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && options.getDraggedJobId()) {
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+        if (folderItem.classList) folderItem.classList.add("drag-over");
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (!card || !options.getDraggedJobNodeId()) return;
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+      if (card.classList) card.classList.add("drag-over");
+    });
+    document2.addEventListener("dragleave", function(event) {
+      var target = event && event.target;
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && folderItem.classList) folderItem.classList.remove("drag-over");
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      if (card && card.classList) card.classList.remove("drag-over");
+    });
+    document2.addEventListener("drop", function(event) {
+      var target = event && event.target;
+      var draggedJobId = options.getDraggedJobId();
+      var folderItem = target && target.closest ? target.closest("[data-job-folder]") : null;
+      if (folderItem && draggedJobId) {
+        event.preventDefault();
+        if (folderItem.classList) folderItem.classList.remove("drag-over");
+        var droppedFolderId = folderItem.getAttribute("data-job-folder") || "";
+        var draggedJob = options.getJobById(draggedJobId);
+        if (!draggedJob) return;
+        if ((draggedJob.folderId || "") === droppedFolderId) return;
+        options.vscode.postMessage({
+          type: "updateJob",
+          jobId: draggedJobId,
+          data: {
+            folderId: droppedFolderId || void 0
+          }
+        });
+        return;
+      }
+      var card = target && target.closest ? target.closest("[data-job-node-id]") : null;
+      var draggedJobNodeId = options.getDraggedJobNodeId();
+      var selectedJobId = options.getSelectedJobId();
+      if (!card || !draggedJobNodeId || !selectedJobId) return;
+      event.preventDefault();
+      if (card.classList) card.classList.remove("drag-over");
+      var targetNodeId = card.getAttribute("data-job-node-id") || "";
+      var selectedJob = options.getJobById(selectedJobId);
+      if (!selectedJob || !Array.isArray(selectedJob.nodes)) return;
+      var targetIndex = selectedJob.nodes.findIndex(function(node) {
+        return node && node.id === targetNodeId;
+      });
+      if (targetIndex < 0 || draggedJobNodeId === targetNodeId) return;
+      options.vscode.postMessage({
+        type: "reorderJobNode",
+        jobId: selectedJobId,
+        nodeId: draggedJobNodeId,
+        targetIndex
+      });
+    });
+  }
+
+  // media/cockpitWebviewTransientState.js
+  function createSchedulerWebviewTransientState(createEmptyTodoDraft, localStorage2, helpWarpSeenKey) {
+    return {
+      currentTodoLabels: [],
+      currentTodoDraft: createEmptyTodoDraft(),
+      selectedTodoLabelName: "",
+      currentTodoFlag: "",
+      pendingTodoFilters: null,
+      pendingDeleteLabelName: "",
+      pendingDeleteFlagName: "",
+      pendingTodoDeleteId: "",
+      pendingBoardDeleteTodoId: "",
+      pendingBoardDeletePermanentOnly: false,
+      todoDeleteModalRoot: null,
+      todoCommentModalRoot: null,
+      pendingAgentValue: "",
+      pendingModelValue: "",
+      pendingTemplatePath: "",
+      editingTaskEnabled: true,
+      pendingSubmit: false,
+      helpWarpIntroPending: readHelpWarpIntroPending(localStorage2, helpWarpSeenKey),
+      helpWarpFadeTimeout: 0,
+      helpWarpCleanupTimeout: 0,
+      isCreatingJob: false,
+      todoEditorListenersBound: false
+    };
+  }
+  function readHelpWarpIntroPending(localStorage2, helpWarpSeenKey) {
+    try {
+      return localStorage2.getItem(helpWarpSeenKey) !== "1";
+    } catch (_error) {
+      return true;
+    }
+  }
+
+  // media/cockpitWebview.js
+  (function() {
+    var vscode = null;
+    var bootstrapData = readInitialWebviewBootstrap(document);
+    var initialData = bootstrapData.initialData;
+    var strings = bootstrapData.strings;
+    var currentLogLevel = bootstrapData.currentLogLevel;
+    var currentLogDirectory = bootstrapData.currentLogDirectory;
+    var storageStatusRefreshNoteTimer = null;
+    function refreshTaskCountdowns() {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      if (!taskList) {
+        return;
+      }
+      taskList.querySelectorAll(".task-next-run-countdown").forEach(function(node) {
+        var nextRunMs = Number(node.getAttribute("data-next-run-ms") || "");
+        var enabled = node.getAttribute("data-enabled") === "true";
+        node.textContent = getNextRunCountdownText(enabled, nextRunMs);
+      });
+    }
+    var globalErrorHideTimer = 0;
+    function hideGlobalError() {
+      var errorBanner = document.getElementById("global-error-banner");
+      var errorText = document.getElementById("global-error-text");
+      if (globalErrorHideTimer) {
+        clearTimeout(globalErrorHideTimer);
+        globalErrorHideTimer = 0;
+      }
+      if (errorText) {
+        errorText.textContent = "";
+      }
+      if (errorBanner) {
+        errorBanner.classList.remove("is-visible");
+      }
+    }
+    function showGlobalError(message, options) {
+      var errorBanner = document.getElementById("global-error-banner");
+      var errorText = document.getElementById("global-error-text");
+      if (!errorBanner) {
+        return;
+      }
+      var normalized = sanitizeAbsolutePaths(String(message || "")).trim();
+      if (!normalized) {
+        hideGlobalError();
+        return;
+      }
+      if (globalErrorHideTimer) {
+        clearTimeout(globalErrorHideTimer);
+        globalErrorHideTimer = 0;
+      }
+      if (errorText) {
+        errorText.textContent = normalized;
+      } else {
+        errorBanner.textContent = normalized;
+      }
+      errorBanner.classList.add("is-visible");
+      var durationMs = options && typeof options.durationMs === "number" ? options.durationMs : 8e3;
+      if (durationMs > 0) {
+        globalErrorHideTimer = setTimeout(function() {
+          hideGlobalError();
+        }, durationMs);
+      }
+    }
+    installGlobalErrorHandlers({
+      window,
+      strings,
+      showGlobalError,
+      sanitizeAbsolutePaths
+    });
+    function createFallbackVsCodeApi() {
+      return { postMessage: function() {
+      } };
+    }
+    var hasVsCodeApi = typeof acquireVsCodeApi === "function";
+    vscode = hasVsCodeApi ? acquireVsCodeApi() : createFallbackVsCodeApi();
+    if (!hasVsCodeApi) {
+      vscode = createFallbackVsCodeApi();
+      showGlobalError(strings.webviewApiUnavailable || "", { durationMs: 0 });
+    }
+    var debugTools = createWebviewDebugTools({
+      console,
+      initialLogLevel: currentLogLevel,
+      vscode
+    });
+    var createEmptyTodoDraft = debugTools.createEmptyTodoDraft;
+    var emitWebviewDebug = debugTools.emitWebviewDebug;
+    function bindDebugClickAttempts(element, config) {
+      if (!element || typeof element.addEventListener !== "function") {
+        return;
+      }
+      element.addEventListener("click", function(event) {
+        var target = event && event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
+        if (!target || typeof target.closest !== "function") {
+          return;
+        }
+        var actionTarget = target.closest(config.selector);
+        if (!actionTarget) {
+          return;
+        }
+        emitWebviewDebug(config.eventName, {
+          controlId: actionTarget.id || "",
+          tagName: actionTarget.tagName ? String(actionTarget.tagName).toLowerCase() : "",
+          disabled: !!actionTarget.disabled,
+          selectedTodoId: selectedTodoId || ""
+        });
+      }, true);
+    }
+    var initialCollections = resolveInitialSchedulerCollections(initialData);
+    var tasks = initialCollections.tasks;
+    var jobs = initialCollections.jobs;
+    var jobFolders = initialCollections.jobFolders;
+    var cockpitBoard = initialCollections.cockpitBoard;
+    var githubIntegration = initialCollections.githubIntegration;
+    var telegramNotification = initialCollections.telegramNotification;
+    var executionDefaults = initialCollections.executionDefaults;
+    var reviewDefaults = initialCollections.reviewDefaults;
+    var normalizeStorageSettings = createStorageSettingsNormalizer(normalizeTodoLabelKey);
+    var initialState = createInitialSchedulerWebviewState(
+      initialData,
+      normalizeStorageSettings
+    );
+    var storageSettings = initialState.storageSettings;
+    var researchProfiles = initialState.researchProfiles;
+    var activeResearchRun = initialState.activeResearchRun;
+    var recentResearchRuns = initialState.recentResearchRuns;
+    var agents = initialState.agents;
+    var models = initialState.models;
+    var promptTemplates = initialState.promptTemplates;
+    var skills = initialState.skills;
+    var cockpitHistory = initialState.cockpitHistory;
+    var defaultChatSession = initialState.defaultChatSession;
+    var autoShowOnStartup = initialState.autoShowOnStartup;
+    var workspacePaths = initialState.workspacePaths;
+    var caseInsensitivePaths = initialState.caseInsensitivePaths;
+    var editingTaskId = null;
+    var selectedTodoId = null;
+    var TODO_COMPLETION_CONFIRM_TIMEOUT_MS = 3e4;
+    var READY_TODO_CREATE_PENDING_TIMEOUT_MS = 1e4;
+    var todoCompletionConfirmState = null;
+    var todoCompletionConfirmTimer = null;
+    var pendingGridTodoCompletions = {};
+    var pendingReadyTodoDraftCreates = {};
+    var EDITOR_CREATE_SYMBOL = "+";
+    var EDITOR_EDIT_SYMBOL = "\u2699";
+    var boardRenderState = createBoardRenderState();
+    var draggingTodoId = null;
+    var isBoardDragging = false;
+    function requestCockpitBoardRender() {
+      boardRenderState.draggingTodoId = draggingTodoId;
+      boardRenderState.isBoardDragging = isBoardDragging;
+      requestBoardRender(boardRenderState, requestAnimationFrame, function() {
+        renderCockpitBoard();
+      });
+      draggingTodoId = boardRenderState.draggingTodoId;
+      isBoardDragging = boardRenderState.isBoardDragging;
+    }
+    function finishBoardDragState() {
+      boardRenderState.draggingTodoId = draggingTodoId;
+      boardRenderState.isBoardDragging = isBoardDragging;
+      finishBoardDrag(
+        boardRenderState,
+        function() {
+          draggingSectionId = null;
+          lastDragOverSectionId = null;
+        },
+        function() {
+          draggingTodoId = boardRenderState.draggingTodoId;
+          isBoardDragging = boardRenderState.isBoardDragging;
+          requestCockpitBoardRender();
+        }
+      );
+      draggingTodoId = boardRenderState.draggingTodoId;
+      isBoardDragging = boardRenderState.isBoardDragging;
+    }
+    var HELP_WARP_SEEN_KEY = "copilot-scheduler-help-warp-seen-v1";
+    var GITHUB_INBOX_COLLAPSED_KEY = "copilot-scheduler-github-inbox-collapsed-v1";
+    var transientState = createSchedulerWebviewTransientState(
+      createEmptyTodoDraft,
+      localStorage,
+      HELP_WARP_SEEN_KEY
+    );
+    var currentTodoLabels = transientState.currentTodoLabels;
+    var currentTodoDraft = transientState.currentTodoDraft;
+    var selectedTodoLabelName = transientState.selectedTodoLabelName;
+    var currentTodoFlag = transientState.currentTodoFlag;
+    var pendingTodoFilters = transientState.pendingTodoFilters;
+    var pendingDeleteLabelName = transientState.pendingDeleteLabelName;
+    var pendingDeleteFlagName = transientState.pendingDeleteFlagName;
+    var pendingTodoDeleteId = transientState.pendingTodoDeleteId;
+    var pendingBoardDeleteTodoId = transientState.pendingBoardDeleteTodoId;
+    var pendingBoardDeletePermanentOnly = transientState.pendingBoardDeletePermanentOnly;
+    var todoDeleteModalRoot = transientState.todoDeleteModalRoot;
+    var todoCommentModalRoot = transientState.todoCommentModalRoot;
+    var pendingAgentValue = transientState.pendingAgentValue;
+    var pendingModelValue = transientState.pendingModelValue;
+    var pendingTemplatePath = transientState.pendingTemplatePath;
+    var editingTaskEnabled = transientState.editingTaskEnabled;
+    var pendingSubmit = transientState.pendingSubmit;
+    var helpWarpIntroPending = transientState.helpWarpIntroPending;
+    var helpWarpFadeTimeout = transientState.helpWarpFadeTimeout;
+    var helpWarpCleanupTimeout = transientState.helpWarpCleanupTimeout;
+    var isCreatingJob = transientState.isCreatingJob;
+    var todoEditorListenersBound = transientState.todoEditorListenersBound;
+    var pendingTodoLabelEditorState = { name: "", color: "" };
+    var pendingTodoFlagEditorState = { name: "", color: "" };
+    var githubBoardInboxCollapsed = false;
+    try {
+      githubBoardInboxCollapsed = localStorage.getItem(GITHUB_INBOX_COLLAPSED_KEY) === "true";
+    } catch (error) {
+      githubBoardInboxCollapsed = false;
+    }
+    function resetTodoDraft(reason) {
+      currentTodoDraft = debugTools.resetTodoDraft(reason);
+      clearPendingTodoEditorColors();
+    }
+    function syncTodoDraftFromInputs(reason) {
+      currentTodoDraft = debugTools.syncTodoDraftFromInputs({
+        currentTodoDraft,
+        reason,
+        selectedTodoId,
+        todoCommentInput,
+        todoDescriptionInput,
+        todoDueInput,
+        todoLinkedTaskSelect,
+        todoPriorityInput,
+        todoSectionInput,
+        todoTitleInput
+      });
+    }
+    function syncTodoFlagDraft() {
+      if (selectedTodoId || !currentTodoDraft) {
+        return;
+      }
+      currentTodoDraft.flag = currentTodoFlag || "";
+    }
+    function syncTodoEditorTransientDraft() {
+      if (selectedTodoId || !currentTodoDraft) {
+        return;
+      }
+      currentTodoDraft.flag = currentTodoFlag || "";
+      currentTodoDraft.labelInput = todoLabelsInput ? String(todoLabelsInput.value || "") : currentTodoDraft.labelInput || "";
+      currentTodoDraft.labelColor = todoLabelColorInput ? String(todoLabelColorInput.value || "") : currentTodoDraft.labelColor || "#4f8cff";
+      currentTodoDraft.flagInput = todoFlagNameInput ? String(todoFlagNameInput.value || "") : currentTodoDraft.flagInput || "";
+      currentTodoDraft.flagColor = todoFlagColorInput ? String(todoFlagColorInput.value || "") : currentTodoDraft.flagColor || "#f59e0b";
+    }
+    function getActiveTodoEditorId() {
+      var editorTodoId = todoDetailId ? String(todoDetailId.value || "").trim() : "";
+      if (editorTodoId) {
+        return editorTodoId;
+      }
+      return selectedTodoId ? String(selectedTodoId) : "";
+    }
+    var defaultJitterSeconds = normalizeDefaultJitterSeconds(
+      initialData.defaultJitterSeconds
+    );
+    var locale = typeof initialData.locale === "string" && initialData.locale || void 0;
+    var lastRenderedTasksHtml = "";
+    var pendingTaskListRender = false;
+    var {
+      taskForm,
+      taskList,
+      editTaskIdInput,
+      submitBtn,
+      testBtn,
+      refreshBtn,
+      autoShowStartupBtn,
+      cockpitHistorySelect,
+      restoreHistoryBtn,
+      autoShowStartupNote,
+      friendlyBuilder,
+      recurringScheduleGroup,
+      oneTimeDelayGroup,
+      cronPreset,
+      cronExpression,
+      oneTimeDelayHours,
+      oneTimeDelayMinutes,
+      oneTimeDelaySeconds,
+      oneTimeDelayPreviewText,
+      agentSelect,
+      modelSelect,
+      chatSessionGroup,
+      chatSessionSelect,
+      templateSelect,
+      templateSelectGroup,
+      templateRefreshBtn,
+      skillSelect,
+      skillDetailsNote,
+      insertSkillBtn,
+      setupMcpBtn,
+      setupCodexBtn,
+      setupCodexSkillsBtn,
+      syncBundledSkillsBtn,
+      stageBundledAgentsBtn,
+      syncBundledAgentsBtn,
+      openCopilotSettingsBtn,
+      openExtensionSettingsBtn,
+      refreshStorageStatusBtn,
+      settingsStatusRefreshNote,
+      importStorageFromJsonBtn,
+      exportStorageToJsonBtn,
+      helpLanguageSelect,
+      settingsLanguageSelect,
+      helpWarpLayer,
+      helpIntroRocket,
+      promptGroup,
+      promptTextEl,
+      jitterSecondsInput,
+      friendlyFrequency,
+      friendlyInterval,
+      friendlyMinute,
+      friendlyHour,
+      friendlyDow,
+      friendlyDom,
+      openGuruBtn,
+      cronPreviewText,
+      newTaskBtn,
+      taskFilterBar,
+      taskLabelFilter,
+      taskLabelsInput,
+      runFirstGroup,
+      jobsFolderList,
+      jobsCurrentFolderBanner,
+      jobsList,
+      jobsEmptyState,
+      jobsDetails,
+      jobsLayout,
+      jobsToggleSidebarBtn,
+      jobsShowSidebarBtn,
+      jobsNewFolderBtn,
+      jobsRenameFolderBtn,
+      jobsDeleteFolderBtn,
+      jobsNewJobBtn,
+      jobsSaveBtn,
+      jobsSaveDeckBtn,
+      jobsDuplicateBtn,
+      jobsPauseBtn,
+      jobsCompileBtn,
+      jobsDeleteBtn,
+      jobsBackBtn,
+      jobsOpenEditorBtn,
+      tabBar,
+      boardFilterSticky,
+      boardSummary,
+      githubBoardInboxRoot,
+      boardColumns,
+      todoToggleFiltersBtn,
+      todoSearchInput,
+      todoSectionFilter,
+      todoLabelFilter,
+      todoFlagFilter,
+      todoPriorityFilter,
+      todoStatusFilter,
+      todoArchiveOutcomeFilter,
+      todoSortBy,
+      todoSortDirection,
+      todoViewMode,
+      todoShowRecurringTasks,
+      todoShowArchived,
+      todoHideCardDetails,
+      todoNewBtn,
+      todoClearSelectionBtn,
+      todoClearFiltersBtn,
+      todoBackBtn,
+      todoDetailTitle,
+      todoDetailModeNote,
+      todoDetailForm,
+      todoDetailId,
+      todoTitleInput,
+      todoDescriptionInput,
+      todoDueInput,
+      todoPriorityInput,
+      todoSectionInput,
+      todoLinkedTaskSelect,
+      todoDetailStatus,
+      todoLabelChipList,
+      todoLabelsInput,
+      todoLabelSuggestions,
+      todoLabelColorInput,
+      todoLabelAddBtn,
+      todoLabelColorSaveBtn,
+      todoLabelCatalog,
+      todoFlagNameInput,
+      todoFlagColorInput,
+      todoFlagAddBtn,
+      todoFlagColorSaveBtn,
+      todoLinkedTaskNote,
+      todoSaveBtn,
+      todoCreateTaskBtn,
+      todoCompleteBtn,
+      todoDeleteBtn,
+      todoUploadFilesBtn,
+      todoUploadFilesNote,
+      todoCommentList,
+      todoCommentInput,
+      todoAddCommentBtn,
+      todoCommentCountBadge,
+      todoCommentModePill,
+      todoCommentContextNote,
+      todoCommentComposerTitle,
+      todoCommentComposerNote,
+      todoCommentDraftStatus,
+      todoCommentThreadNote,
+      jobsNameInput,
+      jobsCronPreset,
+      jobsCronInput,
+      jobsCronPreviewText,
+      jobsOpenGuruBtn,
+      jobsFriendlyBuilder,
+      jobsFriendlyFrequency,
+      jobsFriendlyInterval,
+      jobsFriendlyMinute,
+      jobsFriendlyHour,
+      jobsFriendlyDow,
+      jobsFriendlyDom,
+      jobsFolderSelect,
+      jobsStatusPill,
+      jobsTimelineInline,
+      jobsWorkflowMetrics,
+      jobsStepList,
+      jobsPauseNameInput,
+      jobsCreatePauseBtn,
+      jobsExistingTaskSelect,
+      jobsExistingWindowInput,
+      jobsAttachBtn,
+      jobsStepNameInput,
+      jobsStepWindowInput,
+      jobsStepPromptInput,
+      jobsStepAgentSelect,
+      jobsStepModelSelect,
+      jobsStepLabelsInput,
+      jobsCreateStepBtn,
+      researchNewBtn,
+      researchLoadAutoAgentExampleBtn,
+      researchSaveBtn,
+      researchDuplicateBtn,
+      researchDeleteBtn,
+      researchStartBtn,
+      researchStopBtn,
+      researchEditIdInput,
+      researchNameInput,
+      researchInstructionsInput,
+      researchEditablePathsInput,
+      researchBenchmarkInput,
+      researchMetricPatternInput,
+      researchMetricDirectionSelect,
+      researchMaxIterationsInput,
+      researchMaxMinutesInput,
+      researchMaxFailuresInput,
+      researchBenchmarkTimeoutInput,
+      researchEditWaitInput,
+      researchAgentSelect,
+      researchModelSelect,
+      researchProfileList,
+      researchRunList,
+      researchRunTitle,
+      researchFormError,
+      researchActiveEmpty,
+      researchActiveDetails,
+      researchActiveStatus,
+      researchActiveBest,
+      researchActiveAttempts,
+      researchActiveLastOutcome,
+      researchActiveMeta,
+      researchAttemptList,
+      githubIntegrationEnabledInput,
+      githubIntegrationOwnerInput,
+      githubIntegrationRepoInput,
+      githubIntegrationApiBaseUrlInput,
+      githubIntegrationAutomationPromptTemplateInput,
+      githubIntegrationSaveBtn,
+      githubIntegrationRefreshBtn,
+      githubIntegrationFeedback,
+      githubIntegrationStatusValue,
+      githubIntegrationRepositoryStatus,
+      githubIntegrationConnectionStatus,
+      githubIntegrationLastSyncAt,
+      githubIntegrationUpdatedAt,
+      githubIntegrationStatusNote,
+      telegramEnabledInput,
+      telegramBotTokenInput,
+      telegramChatIdInput,
+      telegramMessagePrefixInput,
+      telegramSaveBtn,
+      telegramTestBtn,
+      telegramFeedback,
+      telegramTokenStatus,
+      telegramChatStatus,
+      telegramHookStatus,
+      telegramUpdatedAt,
+      telegramStatusNote,
+      defaultAgentSelect,
+      defaultModelSelect,
+      executionDefaultsSaveBtn,
+      executionDefaultsNote,
+      approvalModeSelect,
+      approvalModeNote: approvalModeNoteEl,
+      needsBotReviewCommentTemplateInput,
+      needsBotReviewPromptTemplateInput,
+      needsBotReviewAgentSelect,
+      needsBotReviewModelSelect,
+      needsBotReviewChatSessionSelect,
+      readyPromptTemplateInput,
+      reviewDefaultsSaveBtn,
+      reviewDefaultsNote,
+      settingsStorageModeSelect,
+      settingsSearchProviderSelect,
+      settingsResearchProviderSelect,
+      settingsStorageMirrorInput,
+      settingsAutoIgnorePrivateFilesInput,
+      settingsFlagReadyInput,
+      settingsFlagNeedsBotReviewInput,
+      settingsFlagNeedsUserReviewInput,
+      settingsFlagNewInput,
+      settingsFlagOnScheduleListInput,
+      settingsFlagFinalUserCheckInput,
+      settingsStorageSaveBtn,
+      settingsStorageNote,
+      settingsVersionValue,
+      settingsMcpStatusValue,
+      settingsMcpUpdatedValue,
+      settingsSkillsUpdatedValue,
+      settingsAgentsUpdatedValue,
+      settingsLogLevelSelect,
+      settingsLogDirectoryInput,
+      settingsOpenLogFolderBtn,
+      boardAddSectionBtn,
+      boardSectionInlineForm,
+      boardSectionNameInput,
+      boardSectionSaveBtn,
+      boardSectionCancelBtn,
+      cockpitColSlider
+    } = createSchedulerWebviewDomRefs(document);
+    var activeTaskFilter = "all";
+    var restoredTaskFilterWasExplicit = false;
+    var activeLabelFilter = "";
+    var restoredLabelFilterWasExplicit = false;
+    var taskSectionCollapseState = {
+      manual: false,
+      jobs: true,
+      recurring: false,
+      "todo-draft": false,
+      "one-time": false
+    };
+    var selectedJobFolderId = "";
+    var selectedJobId = "";
+    var selectedResearchId = "";
+    var selectedResearchRunId = "";
+    var activeTabName = "";
+    var tabScrollPositions = /* @__PURE__ */ Object.create(null);
+    var draggedJobNodeId = "";
+    var draggedJobId = "";
+    var draggingSectionId = null;
+    var lastDragOverSectionId = null;
+    var jobsSidebarHidden = false;
+    var boardFiltersManualCollapsed = false;
+    var boardFiltersAutoCollapsed = false;
+    var boardLastScrollY = 0;
+    var boardStickyMetricsFrame = 0;
+    var boardAutoCollapseSettleY = 0;
+    var boardAutoCollapseSettleDistance = 0;
+    var boardAutoCollapseSettleUntil = 0;
+    var boardCardDetailsHidden = (function() {
+      try {
+        return localStorage.getItem("cockpit-hide-card-details") === "1";
+      } catch (_e) {
+        return false;
+      }
+    })();
+    var editingFlagOriginalName = "";
+    var editingLabelOriginalName = "";
+    var collapsedSections = (function() {
+      try {
+        return new Set(JSON.parse(localStorage.getItem("cockpit-collapsed-sections") || "[]"));
+      } catch (e) {
+        return /* @__PURE__ */ new Set();
+      }
+    })();
+    function toggleSectionCollapsed(sectionId) {
+      if (collapsedSections.has(sectionId)) {
+        collapsedSections.delete(sectionId);
+      } else {
+        collapsedSections.add(sectionId);
+      }
+      try {
+        localStorage.setItem("cockpit-collapsed-sections", JSON.stringify(Array.from(collapsedSections)));
+      } catch (e) {
+      }
+    }
+    function setLabelSlotsClass(w) {
+      var cls = w >= 390 ? "labels-6" : w >= 300 ? "labels-3" : "labels-1";
+      document.documentElement.classList.remove("labels-1", "labels-3", "labels-6");
+      document.documentElement.classList.add(cls);
+    }
+    function getCockpitCompactDetailsThreshold() {
+      var min = cockpitColSlider ? Number(cockpitColSlider.min) : 180;
+      var max = cockpitColSlider ? Number(cockpitColSlider.max) : 520;
+      var range = max - min;
+      if (!(range > 0)) {
+        return 214;
+      }
+      return Math.round(min + range * 0.16);
+    }
+    function applyCockpitColumnScale(w) {
+      var font = Math.round(9 + (w - 180) * 3 / 340);
+      var pad = Math.round(6 + (w - 180) * 5 / 340);
+      var gap = Math.round(3 + (w - 180) * 3 / 340);
+      var chipFont = Math.max(8, Math.round(8 + (w - 180) * 3 / 340));
+      var chipGap = Math.max(2, Math.round(2 + (w - 180) * 2 / 340));
+      var labelPadY = Math.max(0, Math.round((w - 180) * 2 / 340));
+      var labelPadX = Math.max(4, Math.round(4 + (w - 180) * 3 / 340));
+      var flagPadY = Math.max(0, Math.round((w - 180) * 2 / 340));
+      var flagPadX = Math.max(4, Math.round(4 + (w - 180) * 3 / 340));
+      document.documentElement.style.setProperty("--cockpit-col-width", w + "px");
+      document.documentElement.style.setProperty("--cockpit-col-font", font + "px");
+      document.documentElement.style.setProperty("--cockpit-card-pad", pad + "px");
+      document.documentElement.style.setProperty("--cockpit-card-gap", gap + "px");
+      document.documentElement.style.setProperty("--cockpit-chip-font", chipFont + "px");
+      document.documentElement.style.setProperty("--cockpit-chip-gap", chipGap + "px");
+      document.documentElement.style.setProperty("--cockpit-label-pad-y", labelPadY + "px");
+      document.documentElement.style.setProperty("--cockpit-label-pad-x", labelPadX + "px");
+      document.documentElement.style.setProperty("--cockpit-flag-pad-y", flagPadY + "px");
+      document.documentElement.style.setProperty("--cockpit-flag-pad-x", flagPadX + "px");
+      setLabelSlotsClass(w);
+      document.documentElement.classList.toggle(
+        "cockpit-board-compact-details",
+        w <= getCockpitCompactDetailsThreshold()
+      );
+    }
+    (function() {
+      var saved = localStorage.getItem("cockpit-col-width");
+      var w = saved ? Number(saved) : cockpitColSlider ? Number(cockpitColSlider.value) : 240;
+      if (w >= 180 && w <= 520) {
+        applyCockpitColumnScale(w);
+        if (cockpitColSlider && !saved) cockpitColSlider.value = String(w);
+      }
+    })();
+    var isCreatingResearchProfile = false;
+    var researchFormDirty = false;
+    var loadedResearchProfileId = "";
+    function isValidTaskFilter(value) {
+      return value === "all" || value === "manual" || value === "recurring" || value === "one-time";
+    }
+    function isTaskSectionKey(value) {
+      return value === "manual" || value === "jobs" || value === "recurring" || value === "todo-draft" || value === "one-time";
+    }
+    function isPersistedTabName(value) {
+      return value === "help" || value === "settings" || value === "research" || value === "jobs" || value === "jobs-edit" || value === "list" || value === "create" || value === "board" || value === "todo-edit";
+    }
+    function getWindowScrollY() {
+      if (typeof window.scrollY === "number") {
+        return Math.max(0, Math.round(window.scrollY));
+      }
+      var scrollingElement = document.scrollingElement || document.documentElement || document.body;
+      return scrollingElement && typeof scrollingElement.scrollTop === "number" ? Math.max(0, Math.round(scrollingElement.scrollTop)) : 0;
+    }
+    function setWindowScrollY(value) {
+      var next = Number(value);
+      if (!isFinite(next) || next < 0) {
+        next = 0;
+      }
+      window.scrollTo(0, Math.round(next));
+    }
+    function captureTabScrollPosition(tabName) {
+      if (!isPersistedTabName(tabName)) {
+        return;
+      }
+      tabScrollPositions[tabName] = getWindowScrollY();
+    }
+    function restoreTabScrollPosition(tabName) {
+      var nextScroll = 0;
+      if (isPersistedTabName(tabName) && typeof tabScrollPositions[tabName] === "number") {
+        nextScroll = tabScrollPositions[tabName];
+      }
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(function() {
+          setWindowScrollY(nextScroll);
+        });
+        return;
+      }
+      setWindowScrollY(nextScroll);
+    }
+    function restoreTaskFilter() {
+      if (!vscode || typeof vscode.getState !== "function") return;
+      try {
+        var state = vscode.getState() || {};
+        var saved = state && state.taskFilter;
+        if (isValidTaskFilter(saved)) {
+          activeTaskFilter = saved;
+          restoredTaskFilterWasExplicit = saved !== "all";
+        }
+        if (state && typeof state.labelFilter === "string") {
+          activeLabelFilter = state.labelFilter;
+          restoredLabelFilterWasExplicit = state.labelFilter.length > 0;
+        }
+        if (state && state.taskSectionCollapseState && typeof state.taskSectionCollapseState === "object") {
+          Object.keys(taskSectionCollapseState).forEach(function(key) {
+            if (typeof state.taskSectionCollapseState[key] === "boolean") {
+              taskSectionCollapseState[key] = state.taskSectionCollapseState[key];
+            }
+          });
+        }
+        if (state && typeof state.selectedJobFolderId === "string") {
+          selectedJobFolderId = state.selectedJobFolderId;
+        }
+        if (state && typeof state.selectedJobId === "string") {
+          selectedJobId = state.selectedJobId;
+        }
+        if (state && typeof state.jobsSidebarHidden === "boolean") {
+          jobsSidebarHidden = state.jobsSidebarHidden;
+        }
+        if (state && typeof state.boardFiltersCollapsed === "boolean") {
+          boardFiltersManualCollapsed = state.boardFiltersCollapsed;
+        }
+        if (state && typeof state.selectedResearchId === "string") {
+          selectedResearchId = state.selectedResearchId;
+        }
+        if (state && typeof state.selectedResearchRunId === "string") {
+          selectedResearchRunId = state.selectedResearchRunId;
+        }
+        if (state && isPersistedTabName(state.activeTab)) {
+          activeTabName = state.activeTab;
+        }
+        if (state && state.tabScrollPositions && typeof state.tabScrollPositions === "object") {
+          Object.keys(state.tabScrollPositions).forEach(function(key) {
+            var value = state.tabScrollPositions[key];
+            if (isPersistedTabName(key) && typeof value === "number" && isFinite(value) && value >= 0) {
+              tabScrollPositions[key] = Math.round(value);
+            }
+          });
+        }
+      } catch (_e) {
+      }
+    }
+    function persistTaskFilter() {
+      if (!vscode || typeof vscode.setState !== "function") return;
+      try {
+        var prev = typeof vscode.getState === "function" ? vscode.getState() || {} : {};
+        var next = {};
+        if (prev && typeof prev === "object") {
+          for (var key in prev) {
+            if (Object.prototype.hasOwnProperty.call(prev, key)) {
+              next[key] = prev[key];
+            }
+          }
+        }
+        next.taskFilter = activeTaskFilter;
+        next.labelFilter = activeLabelFilter;
+        next.taskSectionCollapseState = taskSectionCollapseState;
+        next.selectedJobFolderId = selectedJobFolderId;
+        next.selectedJobId = selectedJobId;
+        next.jobsSidebarHidden = jobsSidebarHidden;
+        next.boardFiltersCollapsed = boardFiltersManualCollapsed;
+        next.selectedResearchId = selectedResearchId;
+        next.selectedResearchRunId = selectedResearchRunId;
+        next.activeTab = activeTabName;
+        next.tabScrollPositions = tabScrollPositions;
+        vscode.setState(next);
+      } catch (_e) {
+      }
+    }
+    function clearTelegramFeedback() {
+      if (!telegramFeedback) return;
+      telegramFeedback.textContent = "";
+      telegramFeedback.style.display = "none";
+      telegramFeedback.classList.remove("error");
+    }
+    function isBoardFiltersCollapsed() {
+      return !!(boardFiltersManualCollapsed || boardFiltersAutoCollapsed);
+    }
+    function scheduleBoardStickyMetrics() {
+      if (boardStickyMetricsFrame) {
+        return;
+      }
+      boardStickyMetricsFrame = requestAnimationFrame(function() {
+        boardStickyMetricsFrame = 0;
+        updateBoardStickyMetrics();
+      });
+    }
+    function updateBoardStickyMetrics() {
+      var tabBarStickyTop = 0;
+      if (tabBar) {
+        tabBarStickyTop = Math.max(
+          0,
+          Math.ceil(tabBar.getBoundingClientRect().height)
+        );
+      }
+      var stickyTop = tabBarStickyTop;
+      if (boardFilterSticky && isTabActive("board")) {
+        stickyTop = Math.max(
+          tabBarStickyTop,
+          tabBarStickyTop + Math.ceil(boardFilterSticky.getBoundingClientRect().height + 8)
+        );
+      }
+      document.documentElement.style.setProperty(
+        "--cockpit-tab-bar-sticky-top",
+        tabBarStickyTop + "px"
+      );
+      document.documentElement.style.setProperty(
+        "--cockpit-board-sticky-top",
+        stickyTop + "px"
+      );
+    }
+    function clearBoardAutoCollapseSettle() {
+      boardAutoCollapseSettleY = 0;
+      boardAutoCollapseSettleDistance = 0;
+      boardAutoCollapseSettleUntil = 0;
+    }
+    function armBoardAutoCollapseSettle(currentY) {
+      var stickyHeight = boardFilterSticky ? Math.ceil(boardFilterSticky.getBoundingClientRect().height) : 0;
+      boardAutoCollapseSettleY = currentY;
+      boardAutoCollapseSettleDistance = Math.max(56, Math.ceil(stickyHeight + 16));
+      boardAutoCollapseSettleUntil = Date.now() + 240;
+    }
+    function shouldIgnoreBoardAutoCollapseScroll(currentY) {
+      if (boardAutoCollapseSettleUntil > Date.now()) {
+        return true;
+      }
+      if (boardAutoCollapseSettleDistance <= 0) {
+        return false;
+      }
+      if (Math.abs(currentY - boardAutoCollapseSettleY) <= boardAutoCollapseSettleDistance) {
+        return true;
+      }
+      clearBoardAutoCollapseSettle();
+      return false;
+    }
+    function updateBoardAutoCollapseFromScroll(forceExpand) {
+      var currentY = Math.max(
+        window.scrollY || 0,
+        document.documentElement ? document.documentElement.scrollTop || 0 : 0
+      );
+      if (forceExpand || !isTabActive("board")) {
+        boardLastScrollY = currentY;
+        clearBoardAutoCollapseSettle();
+        if (boardFiltersAutoCollapsed) {
+          boardFiltersAutoCollapsed = false;
+          applyBoardFilterCollapseState();
+        }
+        return;
+      }
+      if (shouldIgnoreBoardAutoCollapseScroll(currentY)) {
+        boardLastScrollY = currentY;
+        return;
+      }
+      var nextAutoCollapsed = boardFiltersAutoCollapsed;
+      if (currentY > boardLastScrollY + 18 && currentY > 140) {
+        nextAutoCollapsed = true;
+      } else if (currentY < boardLastScrollY - 14 || currentY < 72) {
+        nextAutoCollapsed = false;
+      }
+      boardLastScrollY = currentY;
+      if (nextAutoCollapsed !== boardFiltersAutoCollapsed) {
+        boardFiltersAutoCollapsed = nextAutoCollapsed;
+        armBoardAutoCollapseSettle(currentY);
+        applyBoardFilterCollapseState();
+      }
+    }
+    function applyBoardFilterCollapseState() {
+      if (boardFilterSticky && boardFilterSticky.classList) {
+        var collapsed = isBoardFiltersCollapsed();
+        boardFilterSticky.classList.toggle("is-collapsed", collapsed);
+        boardFilterSticky.setAttribute(
+          "data-auto-collapsed",
+          boardFiltersAutoCollapsed ? "true" : "false"
+        );
+      }
+      if (todoToggleFiltersBtn) {
+        var isCollapsed = isBoardFiltersCollapsed();
+        todoToggleFiltersBtn.textContent = isCollapsed ? strings.boardShowFilters || "Show Filters" : strings.boardHideFilters || "Hide Filters";
+        todoToggleFiltersBtn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+      }
+      scheduleBoardStickyMetrics();
+    }
+    function findTodoById(todoId) {
+      if (!todoId || !cockpitBoard || !Array.isArray(cockpitBoard.cards)) {
+        return null;
+      }
+      for (var i = 0; i < cockpitBoard.cards.length; i += 1) {
+        var card = cockpitBoard.cards[i];
+        if (card && card.id === todoId) {
+          return card;
+        }
+      }
+      return null;
+    }
+    function setTodoUploadNote(text, state) {
+      if (!todoUploadFilesNote) {
+        return;
+      }
+      todoUploadFilesNote.textContent = text || (strings.boardUploadFilesHint || "");
+      todoUploadFilesNote.classList.remove("is-success", "is-error");
+      if (state === "success") {
+        todoUploadFilesNote.classList.add("is-success");
+      } else if (state === "error") {
+        todoUploadFilesNote.classList.add("is-error");
+      }
+    }
+    function appendTextToTodoDescription(insertedText) {
+      if (!todoDescriptionInput || !insertedText) {
+        return;
+      }
+      var currentValue = String(todoDescriptionInput.value || "");
+      var separator = currentValue ? /\n\s*$/.test(currentValue) ? "\n" : "\n\n" : "";
+      todoDescriptionInput.value = currentValue + separator + insertedText;
+      syncTodoDraftFromInputs("upload");
+    }
+    function appendTextToTodoComment(insertedText) {
+      if (!todoCommentInput || !insertedText || todoCommentInput.disabled) {
+        return;
+      }
+      var currentValue = String(todoCommentInput.value || "");
+      if (currentValue.indexOf(insertedText) >= 0) {
+        todoCommentInput.focus();
+        return;
+      }
+      var separator = currentValue ? /\n\s*$/.test(currentValue) ? "\n" : "\n\n" : "";
+      todoCommentInput.value = currentValue + separator + insertedText;
+      syncTodoDraftFromInputs("comment-template");
+      renderTodoCommentSectionState(selectedTodoId ? findTodoById(selectedTodoId) : null);
+      todoCommentInput.focus();
+    }
+    function syncTodoPriorityInputTone() {
+      if (!todoPriorityInput) {
+        return;
+      }
+      todoPriorityInput.setAttribute(
+        "data-priority",
+        String(todoPriorityInput.value || "none")
+      );
+    }
+    function getTodoCommentToneClass(comment) {
+      var source = comment && comment.source ? String(comment.source) : "human-form";
+      if (source === "bot-mcp") {
+        return " is-bot-mcp";
+      }
+      if (source === "bot-manual") {
+        return " is-bot-manual";
+      }
+      if (source === "system-event") {
+        return " is-system-event";
+      }
+      return " is-human-form";
+    }
+    function showTelegramFeedback(message, isError) {
+      if (!telegramFeedback) return;
+      telegramFeedback.textContent = String(message || "");
+      telegramFeedback.style.display = message ? "block" : "none";
+      telegramFeedback.classList.toggle("error", !!isError);
+    }
+    function formatTelegramUpdatedAt(value) {
+      if (!value) return "-";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function formatSettingsTimestamp(value) {
+      if (!value) {
+        return strings.settingsStorageNeverUpdated || "Never";
+      }
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function getMcpSetupStatusLabel(status) {
+      switch (status) {
+        case "configured":
+          return strings.settingsStorageMcpStatusConfigured || "Configured";
+        case "missing":
+          return strings.settingsStorageMcpStatusMissing || "Missing";
+        case "stale":
+          return strings.settingsStorageMcpStatusStale || "Needs refresh";
+        case "invalid":
+          return strings.settingsStorageMcpStatusInvalid || "Invalid";
+        default:
+          return strings.settingsStorageMcpStatusWorkspaceRequired || "Open a workspace to inspect";
+      }
+    }
+    function clearGitHubIntegrationFeedback() {
+      if (!githubIntegrationFeedback) return;
+      githubIntegrationFeedback.textContent = "";
+      githubIntegrationFeedback.style.display = "none";
+      githubIntegrationFeedback.classList.remove("error");
+    }
+    function showGitHubIntegrationFeedback(message, isError) {
+      if (!githubIntegrationFeedback) return;
+      githubIntegrationFeedback.textContent = String(message || "");
+      githubIntegrationFeedback.style.display = message ? "block" : "none";
+      githubIntegrationFeedback.classList.toggle("error", !!isError);
+    }
+    function getGitHubSyncStatusLabel(status) {
+      switch (status) {
+        case "ready":
+          return strings.githubIntegrationStatusReady || "Ready";
+        case "syncing":
+          return strings.githubIntegrationStatusSyncing || "Syncing";
+        case "stale":
+          return strings.githubIntegrationStatusStale || "Stale";
+        case "partial":
+          return strings.githubIntegrationStatusPartial || "Needs setup";
+        case "rate-limited":
+          return strings.githubIntegrationStatusRateLimited || "Rate-limited";
+        case "error":
+          return strings.githubIntegrationStatusError || "Error";
+        default:
+          return strings.githubIntegrationStatusDisabled || "Disabled";
+      }
+    }
+    function getGitHubSyncStatusIndicator(status) {
+      switch (status) {
+        case "ready":
+          return {
+            color: "var(--vscode-testing-iconPassed, #4caf50)",
+            icon: "\u25CF"
+          };
+        case "syncing":
+          return {
+            color: "var(--vscode-focusBorder, #3794ff)",
+            icon: "\u25CF"
+          };
+        case "stale":
+        case "partial":
+        case "rate-limited":
+          return {
+            color: "var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #cca700))",
+            icon: "\u25CF"
+          };
+        case "error":
+          return {
+            color: "var(--vscode-errorForeground, var(--vscode-testing-iconFailed, #f14c4c))",
+            icon: "\u25CF"
+          };
+        default:
+          return {
+            color: "var(--vscode-descriptionForeground)",
+            icon: "\u25CB"
+          };
+      }
+    }
+    function renderGitHubSyncStatusIndicator(status) {
+      var label = getGitHubSyncStatusLabel(status);
+      var indicator = getGitHubSyncStatusIndicator(status);
+      return '<span style="display:inline-flex;align-items:center;gap:6px;"><span aria-hidden="true" style="min-width:1em;text-align:center;color:' + indicator.color + ';">' + escapeHtml(indicator.icon) + "</span><span>" + escapeHtml(label) + "</span></span>";
+    }
+    function collectGitHubIntegrationFormData() {
+      return {
+        enabled: !!(githubIntegrationEnabledInput && githubIntegrationEnabledInput.checked),
+        owner: githubIntegrationOwnerInput ? String(githubIntegrationOwnerInput.value || "") : "",
+        repo: githubIntegrationRepoInput ? String(githubIntegrationRepoInput.value || "") : "",
+        apiBaseUrl: githubIntegrationApiBaseUrlInput ? String(githubIntegrationApiBaseUrlInput.value || "") : "",
+        automationPromptTemplate: githubIntegrationAutomationPromptTemplateInput ? String(githubIntegrationAutomationPromptTemplateInput.value || "") : ""
+      };
+    }
+    function createEmptyGitHubIntegrationState() {
+      return {
+        enabled: false,
+        hasConnection: false,
+        syncStatus: "disabled",
+        inbox: {
+          issues: { items: [], itemCount: 0 },
+          pullRequests: { items: [], itemCount: 0 },
+          securityAlerts: { items: [], itemCount: 0 }
+        },
+        inboxCounts: {
+          issues: 0,
+          pullRequests: 0,
+          securityAlerts: 0,
+          total: 0
+        }
+      };
+    }
+    function getGitHubInboxSnapshot() {
+      var fallback = createEmptyGitHubIntegrationState().inbox;
+      var snapshot = githubIntegration && githubIntegration.inbox ? githubIntegration.inbox : fallback;
+      return {
+        issues: snapshot.issues || fallback.issues,
+        pullRequests: snapshot.pullRequests || fallback.pullRequests,
+        securityAlerts: snapshot.securityAlerts || fallback.securityAlerts
+      };
+    }
+    function getGitHubInboxCounts() {
+      var snapshot = getGitHubInboxSnapshot();
+      var counts = githubIntegration && githubIntegration.inboxCounts ? githubIntegration.inboxCounts : {};
+      var issues = Number(counts.issues || snapshot.issues.itemCount || (snapshot.issues.items || []).length || 0);
+      var pullRequests = Number(counts.pullRequests || snapshot.pullRequests.itemCount || (snapshot.pullRequests.items || []).length || 0);
+      var securityAlerts = Number(counts.securityAlerts || snapshot.securityAlerts.itemCount || (snapshot.securityAlerts.items || []).length || 0);
+      return {
+        issues,
+        pullRequests,
+        securityAlerts,
+        total: Number(counts.total || issues + pullRequests + securityAlerts || 0)
+      };
+    }
+    function hasGitHubRefreshConfiguration() {
+      return !!(githubIntegration && githubIntegration.enabled && githubIntegration.hasConnection && String(githubIntegration.owner || "").trim() && String(githubIntegration.repo || "").trim());
+    }
+    function persistGitHubInboxCollapseState() {
+      try {
+        localStorage.setItem(GITHUB_INBOX_COLLAPSED_KEY, githubBoardInboxCollapsed ? "true" : "false");
+      } catch (error) {
+      }
+    }
+    function getGitHubInboxItem(itemId) {
+      var snapshot = getGitHubInboxSnapshot();
+      var lanes = [snapshot.issues, snapshot.pullRequests, snapshot.securityAlerts];
+      for (var laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+        var lane = lanes[laneIndex];
+        var items = Array.isArray(lane && lane.items) ? lane.items : [];
+        for (var itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+          if (items[itemIndex] && items[itemIndex].id === itemId) {
+            return items[itemIndex];
+          }
+        }
+      }
+      return null;
+    }
+    function getGitHubInboxSubtypeLabel(subtype) {
+      switch (subtype) {
+        case "code-scanning":
+          return strings.githubInboxCodeScanning || "Code Scanning";
+        case "dependabot":
+          return strings.githubInboxDependabot || "Dependabot";
+        default:
+          return "";
+      }
+    }
+    function getGitHubInboxLaneLabel(laneKey) {
+      switch (laneKey) {
+        case "issues":
+          return strings.githubInboxIssues || "Issues";
+        case "pullRequests":
+          return strings.githubInboxPullRequests || "Pull Requests";
+        default:
+          return strings.githubInboxSecurityAlerts || "Security Alerts";
+      }
+    }
+    function buildGitHubInboxMeta(item) {
+      var parts = [];
+      if (typeof item.number === "number" && isFinite(item.number)) {
+        parts.push("#" + String(item.number));
+      }
+      if (item.subtype) {
+        parts.push(getGitHubInboxSubtypeLabel(item.subtype));
+      }
+      if (item.state) {
+        parts.push(String(item.state));
+      }
+      if (item.severity) {
+        parts.push(String(item.severity));
+      }
+      if (item.headRef || item.baseRef) {
+        parts.push(String(item.headRef || "?") + " -> " + String(item.baseRef || "?"));
+      }
+      if (item.updatedAt) {
+        parts.push(formatSettingsTimestamp(item.updatedAt));
+      }
+      return parts;
+    }
+    function getGitHubTodoLabels(item) {
+      var labels = ["github"];
+      if (item.kind === "issue") {
+        labels.push("github-issue");
+      } else if (item.kind === "pullRequest") {
+        labels.push("github-pr");
+      } else {
+        labels.push("github-security");
+        if (item.subtype === "code-scanning") {
+          labels.push("code-scanning");
+        }
+        if (item.subtype === "dependabot") {
+          labels.push("dependabot");
+        }
+      }
+      return labels;
+    }
+    function getGitHubTodoTitle(item) {
+      var prefix = item.kind === "pullRequest" ? "PR" : item.kind === "issue" ? "Issue" : item.subtype === "dependabot" ? "Dependabot Alert" : "Security Alert";
+      return prefix + (typeof item.number === "number" && isFinite(item.number) ? " #" + String(item.number) : "") + ": " + String(item.title || "GitHub item");
+    }
+    function buildGitHubTodoDescription(item) {
+      var parts = [];
+      if (item.summary) {
+        parts.push(String(item.summary));
+      }
+      var meta = [];
+      if (item.state) {
+        meta.push("State: " + String(item.state));
+      }
+      if (item.severity) {
+        meta.push("Severity: " + String(item.severity));
+      }
+      if (item.headRef || item.baseRef) {
+        meta.push("Branches: " + String(item.headRef || "?") + " -> " + String(item.baseRef || "?"));
+      }
+      if (meta.length > 0) {
+        parts.push(meta.join(" | "));
+      }
+      parts.push("GitHub source: " + String(item.url || ""));
+      return parts.join("\n\n");
+    }
+    function buildGitHubTodoSource(item) {
+      if (!item) {
+        return void 0;
+      }
+      var source = {
+        itemId: String(item.id || ""),
+        kind: String(item.kind || ""),
+        title: String(item.title || getGitHubTodoTitle(item)),
+        url: String(item.url || ""),
+        owner: githubIntegration && githubIntegration.owner ? String(githubIntegration.owner) : void 0,
+        repo: githubIntegration && githubIntegration.repo ? String(githubIntegration.repo) : void 0,
+        state: item.state ? String(item.state) : void 0,
+        severity: item.severity ? String(item.severity) : void 0,
+        baseRef: item.baseRef ? String(item.baseRef) : void 0,
+        headRef: item.headRef ? String(item.headRef) : void 0,
+        updatedAt: item.updatedAt ? String(item.updatedAt) : void 0
+      };
+      if (item.subtype) {
+        source.subtype = String(item.subtype);
+      }
+      if (typeof item.number === "number" && isFinite(item.number)) {
+        source.number = item.number;
+      }
+      return source;
+    }
+    function createTodoFromGitHubInboxItem(itemId, needsReview) {
+      var item = getGitHubInboxItem(itemId);
+      if (!item) {
+        return;
+      }
+      vscode.postMessage({
+        type: "createTodo",
+        data: {
+          title: getGitHubTodoTitle(item),
+          description: buildGitHubTodoDescription(item),
+          labels: getGitHubTodoLabels(item),
+          priority: item.kind === "securityAlert" ? "high" : "none",
+          flags: needsReview ? ["needs-bot-review"] : void 0,
+          githubSource: buildGitHubTodoSource(item)
+        }
+      });
+    }
+    function renderGitHubInboxItem(item) {
+      var meta = buildGitHubInboxMeta(item);
+      var titleMarkup = '<a href="' + escapeAttr(String(item.url || "")) + '" target="_blank" rel="noopener" style="color:var(--vscode-textLink-foreground);text-decoration:none;">' + escapeHtml(String(item.title || "GitHub item")) + "</a>";
+      return '<div style="border:1px solid var(--vscode-panel-border);border-radius:8px;padding:10px;background:var(--vscode-editor-background);display:flex;flex-direction:column;gap:6px;"><div style="font-weight:600;line-height:1.35;">' + titleMarkup + "</div>" + (meta.length > 0 ? '<div class="note" style="margin:0;">' + escapeHtml(meta.join(" \u2022 ")) + "</div>" : "") + (item.summary ? '<div class="note" style="margin:0;">' + escapeHtml(String(item.summary)) + "</div>" : "") + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"><button type="button" class="btn-secondary" data-github-create-todo="' + escapeAttr(String(item.id || "")) + '">' + escapeHtml(strings.githubInboxCreateTodo || "Create Todo") + '</button><button type="button" class="btn-secondary" data-github-create-review-todo="' + escapeAttr(String(item.id || "")) + '">' + escapeHtml(strings.githubInboxCreateTodoReview || "Create Todo + Review") + "</button></div></div>";
+    }
+    function renderGitHubInboxLane(laneKey, lane) {
+      var items = Array.isArray(lane && lane.items) ? lane.items : [];
+      var laneCount = Number(lane && lane.itemCount || items.length || 0);
+      return '<section style="border:1px solid var(--vscode-panel-border);border-radius:10px;padding:12px;background:var(--vscode-editor-background);display:flex;flex-direction:column;gap:10px;min-width:0;"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;"><div class="section-title" style="margin:0;">' + escapeHtml(getGitHubInboxLaneLabel(laneKey)) + '</div><div class="note" style="margin:0;">' + escapeHtml(String(laneCount)) + "</div></div>" + (lane && lane.error ? '<div class="note" style="margin:0;color:var(--vscode-inputValidation-warningForeground, var(--vscode-editorWarning-foreground, #cca700));">' + escapeHtml(String(lane.error)) + "</div>" : "") + (items.length > 0 ? items.map(function(item) {
+        return renderGitHubInboxItem(item);
+      }).join("") : '<div class="note" style="margin:0;">' + escapeHtml(strings.githubInboxLaneEmpty || "No items in this lane.") + "</div>") + "</section>";
+    }
+    function renderGitHubBoardInbox() {
+      if (!githubBoardInboxRoot) {
+        return;
+      }
+      if (!githubIntegration || !githubIntegration.enabled) {
+        githubBoardInboxRoot.innerHTML = "";
+        githubBoardInboxRoot.style.display = "none";
+        return;
+      }
+      githubBoardInboxRoot.style.display = "block";
+      var counts = getGitHubInboxCounts();
+      var snapshot = getGitHubInboxSnapshot();
+      var canRefresh = hasGitHubRefreshConfiguration();
+      var toggleLabel = githubBoardInboxCollapsed ? strings.githubInboxExpand || "Expand" : strings.githubInboxCollapse || "Collapse";
+      githubBoardInboxRoot.innerHTML = '<section class="telegram-card settings-card settings-card-github" style="margin-bottom:12px;"><div class="settings-card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;"><div><div class="section-title">GitHub ' + escapeHtml(strings.githubInboxTitle || "Inbox") + '</div><p class="note" style="margin:6px 0 0 0;">' + escapeHtml(String(githubIntegration.statusMessage || strings.githubIntegrationWorkspaceNote || "")) + '</p></div><div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;"><button type="button" class="btn-secondary" id="github-board-refresh-btn"' + (canRefresh && githubIntegration.syncStatus !== "syncing" ? "" : " disabled") + ">" + escapeHtml(strings.githubIntegrationRefresh || "Refresh GitHub Inbox") + '</button><button type="button" class="btn-secondary" id="github-board-toggle-btn">' + escapeHtml(toggleLabel) + '</button></div></div><div class="telegram-status-grid" style="margin-top:12px;"><div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubIntegrationStatus || "Status") + '</div><div class="telegram-status-value">' + renderGitHubSyncStatusIndicator(githubIntegration.syncStatus) + '</div></div><div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxIssues || "Issues") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.issues)) + '</div></div><div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxPullRequests || "Pull Requests") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.pullRequests)) + '</div></div><div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubInboxSecurityAlerts || "Security Alerts") + '</div><div class="telegram-status-value">' + escapeHtml(String(counts.securityAlerts)) + '</div></div><div class="telegram-status-item"><div class="telegram-status-label">' + escapeHtml(strings.githubIntegrationLastSyncAt || "Last sync") + '</div><div class="telegram-status-value">' + escapeHtml(formatSettingsTimestamp(githubIntegration.lastSyncAt)) + "</div></div></div>" + (!githubBoardInboxCollapsed ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:12px;">' + renderGitHubInboxLane("issues", snapshot.issues) + renderGitHubInboxLane("pullRequests", snapshot.pullRequests) + renderGitHubInboxLane("securityAlerts", snapshot.securityAlerts) + "</div>" : "") + (counts.total === 0 && !snapshot.issues.error && !snapshot.pullRequests.error && !snapshot.securityAlerts.error ? '<div class="note" style="margin-top:12px;">' + escapeHtml(strings.githubInboxEmpty || "No cached GitHub items yet.") + "</div>" : "") + "</section>";
+      var refreshBtn2 = document.getElementById("github-board-refresh-btn");
+      if (refreshBtn2) {
+        refreshBtn2.onclick = function() {
+          requestGitHubIntegrationRefresh();
+        };
+      }
+      var toggleBtn = document.getElementById("github-board-toggle-btn");
+      if (toggleBtn) {
+        toggleBtn.onclick = function() {
+          githubBoardInboxCollapsed = !githubBoardInboxCollapsed;
+          persistGitHubInboxCollapseState();
+          renderGitHubBoardInbox();
+        };
+      }
+      Array.prototype.forEach.call(
+        githubBoardInboxRoot.querySelectorAll("[data-github-create-todo]"),
+        function(button) {
+          button.onclick = function() {
+            createTodoFromGitHubInboxItem(button.getAttribute("data-github-create-todo"), false);
+          };
+        }
+      );
+      Array.prototype.forEach.call(
+        githubBoardInboxRoot.querySelectorAll("[data-github-create-review-todo]"),
+        function(button) {
+          button.onclick = function() {
+            createTodoFromGitHubInboxItem(button.getAttribute("data-github-create-review-todo"), true);
+          };
+        }
+      );
+    }
+    function requestGitHubIntegrationRefresh() {
+      githubIntegration = Object.assign({}, createEmptyGitHubIntegrationState(), githubIntegration || {}, {
+        syncStatus: "syncing",
+        statusMessage: strings.githubIntegrationRefreshing || "Refreshing GitHub inbox..."
+      });
+      showGitHubIntegrationFeedback(strings.githubIntegrationRefreshing || "Refreshing GitHub inbox...", false);
+      renderGitHubIntegrationTab();
+      renderCockpitBoard();
+      vscode.postMessage({ type: "refreshGitHubIntegration" });
+    }
+    function renderGitHubIntegrationTab() {
+      if (githubIntegrationEnabledInput) {
+        githubIntegrationEnabledInput.checked = !!githubIntegration.enabled;
+      }
+      if (githubIntegrationOwnerInput) {
+        githubIntegrationOwnerInput.value = githubIntegration.owner || "";
+      }
+      if (githubIntegrationRepoInput) {
+        githubIntegrationRepoInput.value = githubIntegration.repo || "";
+      }
+      if (githubIntegrationApiBaseUrlInput) {
+        githubIntegrationApiBaseUrlInput.value = githubIntegration.apiBaseUrl || "";
+      }
+      if (githubIntegrationAutomationPromptTemplateInput) {
+        githubIntegrationAutomationPromptTemplateInput.value = githubIntegration.automationPromptTemplate || "";
+      }
+      if (githubIntegrationStatusValue) {
+        githubIntegrationStatusValue.innerHTML = renderGitHubSyncStatusIndicator(githubIntegration.syncStatus);
+        githubIntegrationStatusValue.title = getGitHubSyncStatusLabel(githubIntegration.syncStatus);
+      }
+      if (githubIntegrationRepositoryStatus) {
+        var owner = String(githubIntegration.owner || "").trim();
+        var repo = String(githubIntegration.repo || "").trim();
+        githubIntegrationRepositoryStatus.textContent = owner && repo ? owner + "/" + repo : "-";
+      }
+      if (githubIntegrationConnectionStatus) {
+        githubIntegrationConnectionStatus.textContent = githubIntegration.authStatusText || (githubIntegration.hasConnection ? strings.githubIntegrationConnected || "Connected in VS Code" : strings.githubIntegrationNotConnected || "Not connected in VS Code");
+      }
+      if (githubIntegrationLastSyncAt) {
+        githubIntegrationLastSyncAt.textContent = formatSettingsTimestamp(githubIntegration.lastSyncAt);
+      }
+      if (githubIntegrationUpdatedAt) {
+        githubIntegrationUpdatedAt.textContent = formatSettingsTimestamp(githubIntegration.updatedAt);
+      }
+      if (githubIntegrationStatusNote) {
+        githubIntegrationStatusNote.textContent = githubIntegration.statusMessage || strings.githubIntegrationWorkspaceNote || "Settings are repo-local. GitHub refresh uses your current VS Code GitHub connection and cached inbox data.";
+      }
+      if (githubIntegrationRefreshBtn) {
+        githubIntegrationRefreshBtn.disabled = !hasGitHubRefreshConfiguration() || githubIntegration.syncStatus === "syncing";
+      }
+      if (githubIntegration.syncStatus !== "syncing") {
+        clearGitHubIntegrationFeedback();
+      }
+    }
+    function submitGitHubIntegrationForm() {
+      clearGitHubIntegrationFeedback();
+      vscode.postMessage({
+        type: "saveGitHubIntegration",
+        data: collectGitHubIntegrationFormData()
+      });
+      showGitHubIntegrationFeedback(
+        strings.githubIntegrationStatusSaved || "Saving GitHub settings...",
+        false
+      );
+    }
+    function collectTelegramFormData() {
+      return {
+        enabled: !!(telegramEnabledInput && telegramEnabledInput.checked),
+        botToken: telegramBotTokenInput ? String(telegramBotTokenInput.value || "") : "",
+        chatId: telegramChatIdInput ? String(telegramChatIdInput.value || "") : "",
+        messagePrefix: telegramMessagePrefixInput ? String(telegramMessagePrefixInput.value || "") : ""
+      };
+    }
+    function validateTelegramFormData(data) {
+      var needsConfig = data.enabled || !!String(data.chatId || "").trim() || !!String(data.messagePrefix || "").trim();
+      if (needsConfig && !String(data.chatId || "").trim()) {
+        return strings.telegramValidationChatId || "Telegram chat ID is required.";
+      }
+      if (needsConfig && !String(data.botToken || "").trim() && !(telegramNotification && telegramNotification.hasBotToken)) {
+        return strings.telegramValidationBotToken || "Telegram bot token is required.";
+      }
+      return "";
+    }
+    function renderTelegramTab() {
+      if (telegramEnabledInput) {
+        telegramEnabledInput.checked = !!telegramNotification.enabled;
+      }
+      if (telegramChatIdInput) {
+        telegramChatIdInput.value = telegramNotification.chatId || "";
+      }
+      if (telegramMessagePrefixInput) {
+        telegramMessagePrefixInput.value = telegramNotification.messagePrefix || "";
+      }
+      if (telegramBotTokenInput) {
+        telegramBotTokenInput.value = "";
+        telegramBotTokenInput.placeholder = telegramNotification.hasBotToken ? strings.telegramSavedToken || "Bot token stored privately" : strings.telegramBotTokenPlaceholder || "123456:ABCDEF...";
+      }
+      if (telegramTokenStatus) {
+        telegramTokenStatus.textContent = telegramNotification.hasBotToken ? strings.telegramSavedToken || "Bot token stored privately" : strings.telegramMissingToken || "No bot token saved yet";
+      }
+      if (telegramChatStatus) {
+        telegramChatStatus.textContent = telegramNotification.chatId || "-";
+      }
+      if (telegramHookStatus) {
+        telegramHookStatus.textContent = telegramNotification.hookConfigured ? strings.telegramHookReady || "Stop hook configured" : strings.telegramHookMissing || "Stop hook files not configured";
+      }
+      if (telegramUpdatedAt) {
+        telegramUpdatedAt.textContent = formatTelegramUpdatedAt(telegramNotification.updatedAt);
+      }
+      if (telegramStatusNote) {
+        telegramStatusNote.textContent = strings.telegramWorkspaceNote || "The hook files are generated under .github/hooks and read secrets from .vscode/scheduler.private.json.";
+      }
+      clearTelegramFeedback();
+    }
+    function collectExecutionDefaultsFormData() {
+      return {
+        agent: defaultAgentSelect ? String(defaultAgentSelect.value || "") : "",
+        model: defaultModelSelect ? String(defaultModelSelect.value || "") : ""
+      };
+    }
+    function collectReviewDefaultsFormData() {
+      return {
+        needsBotReviewCommentTemplate: needsBotReviewCommentTemplateInput ? String(needsBotReviewCommentTemplateInput.value || "") : "",
+        needsBotReviewPromptTemplate: needsBotReviewPromptTemplateInput ? String(needsBotReviewPromptTemplateInput.value || "") : "",
+        needsBotReviewAgent: needsBotReviewAgentSelect ? String(needsBotReviewAgentSelect.value || "") : "",
+        needsBotReviewModel: needsBotReviewModelSelect ? String(needsBotReviewModelSelect.value || "") : "",
+        needsBotReviewChatSession: needsBotReviewChatSessionSelect && needsBotReviewChatSessionSelect.value === "continue" ? "continue" : "new",
+        readyPromptTemplate: readyPromptTemplateInput ? String(readyPromptTemplateInput.value || "") : ""
+      };
+    }
+    function collectStorageSettingsFormData() {
+      var disabledSystemFlagKeys = [];
+      if (settingsFlagReadyInput && settingsFlagReadyInput.checked === false) {
+        disabledSystemFlagKeys.push("ready");
+      }
+      if (settingsFlagNeedsBotReviewInput && settingsFlagNeedsBotReviewInput.checked === false) {
+        disabledSystemFlagKeys.push("needs-bot-review");
+      }
+      if (settingsFlagNeedsUserReviewInput && settingsFlagNeedsUserReviewInput.checked === false) {
+        disabledSystemFlagKeys.push("needs-user-review");
+      }
+      if (settingsFlagNewInput && settingsFlagNewInput.checked === false) {
+        disabledSystemFlagKeys.push("new");
+      }
+      if (settingsFlagOnScheduleListInput && settingsFlagOnScheduleListInput.checked === false) {
+        disabledSystemFlagKeys.push("on-schedule-list");
+      }
+      if (settingsFlagFinalUserCheckInput && settingsFlagFinalUserCheckInput.checked === false) {
+        disabledSystemFlagKeys.push("final-user-check");
+      }
+      return {
+        mode: settingsStorageModeSelect && settingsStorageModeSelect.value === "sqlite" ? "sqlite" : "json",
+        searchProvider: settingsSearchProviderSelect && settingsSearchProviderSelect.value === "tavily" ? settingsSearchProviderSelect.value : "built-in",
+        researchProvider: settingsResearchProviderSelect && (settingsResearchProviderSelect.value === "perplexity" || settingsResearchProviderSelect.value === "tavily" || settingsResearchProviderSelect.value === "google-grounded") ? settingsResearchProviderSelect.value : "none",
+        sqliteJsonMirror: !settingsStorageMirrorInput || settingsStorageMirrorInput.checked !== false,
+        autoIgnorePrivateFiles: !settingsAutoIgnorePrivateFilesInput || settingsAutoIgnorePrivateFilesInput.checked !== false,
+        disabledSystemFlagKeys
+      };
+    }
+    function renderExecutionDefaultsControls() {
+      var agentSelectEl = defaultAgentSelect || document.getElementById("default-agent-select");
+      var modelSelectEl = defaultModelSelect || document.getElementById("default-model-select");
+      var executionDefaultsNoteEl = executionDefaultsNote || document.getElementById("execution-defaults-note");
+      updateSimpleSelect(
+        agentSelectEl,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        executionDefaults && typeof executionDefaults.agent === "string" ? executionDefaults.agent : "agent",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        modelSelectEl,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        executionDefaults && typeof executionDefaults.model === "string" ? executionDefaults.model : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return formatModelLabel(item);
+        }
+      );
+      if (executionDefaultsNoteEl) {
+        executionDefaultsNoteEl.textContent = strings.executionDefaultsSaved || "Workspace default agent and model settings.";
+      }
+    }
+    function renderReviewDefaultsControls() {
+      if (needsBotReviewCommentTemplateInput) {
+        needsBotReviewCommentTemplateInput.value = reviewDefaults && typeof reviewDefaults.needsBotReviewCommentTemplate === "string" ? reviewDefaults.needsBotReviewCommentTemplate : "";
+      }
+      if (needsBotReviewPromptTemplateInput) {
+        needsBotReviewPromptTemplateInput.value = reviewDefaults && typeof reviewDefaults.needsBotReviewPromptTemplate === "string" ? reviewDefaults.needsBotReviewPromptTemplate : "";
+      }
+      if (readyPromptTemplateInput) {
+        readyPromptTemplateInput.value = reviewDefaults && typeof reviewDefaults.readyPromptTemplate === "string" ? reviewDefaults.readyPromptTemplate : "";
+      }
+      updateSimpleSelect(
+        needsBotReviewAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        reviewDefaults && typeof reviewDefaults.needsBotReviewAgent === "string" ? reviewDefaults.needsBotReviewAgent : "agent",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        needsBotReviewModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        reviewDefaults && typeof reviewDefaults.needsBotReviewModel === "string" ? reviewDefaults.needsBotReviewModel : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return formatModelLabel(item);
+        }
+      );
+      if (needsBotReviewChatSessionSelect) {
+        needsBotReviewChatSessionSelect.value = reviewDefaults && reviewDefaults.needsBotReviewChatSession === "continue" ? "continue" : "new";
+      }
+      if (reviewDefaultsNote) {
+        reviewDefaultsNote.textContent = strings.reviewDefaultsSaved || "The review comment text is inserted on review-state changes, and needs-bot-review launches the planning prompt immediately after save.";
+      }
+    }
+    function renderStorageSettingsControls() {
+      var disabledSystemFlagKeySet = /* @__PURE__ */ Object.create(null);
+      (storageSettings.disabledSystemFlagKeys || []).forEach(function(key) {
+        disabledSystemFlagKeySet[normalizeTodoLabelKey(key)] = true;
+      });
+      if (settingsStorageModeSelect) {
+        settingsStorageModeSelect.value = storageSettings.mode === "json" ? "json" : "sqlite";
+      }
+      if (settingsSearchProviderSelect) {
+        settingsSearchProviderSelect.value = storageSettings.searchProvider === "tavily" ? storageSettings.searchProvider : "built-in";
+      }
+      if (settingsResearchProviderSelect) {
+        settingsResearchProviderSelect.value = storageSettings.researchProvider === "perplexity" || storageSettings.researchProvider === "tavily" || storageSettings.researchProvider === "google-grounded" ? storageSettings.researchProvider : "none";
+      }
+      if (settingsStorageMirrorInput) {
+        settingsStorageMirrorInput.checked = storageSettings.sqliteJsonMirror !== false;
+      }
+      if (settingsAutoIgnorePrivateFilesInput) {
+        settingsAutoIgnorePrivateFilesInput.checked = storageSettings.autoIgnorePrivateFiles !== false;
+      }
+      if (settingsFlagReadyInput) {
+        settingsFlagReadyInput.checked = !disabledSystemFlagKeySet.ready;
+      }
+      if (settingsFlagNeedsBotReviewInput) {
+        settingsFlagNeedsBotReviewInput.checked = !disabledSystemFlagKeySet["needs-bot-review"];
+      }
+      if (settingsFlagNeedsUserReviewInput) {
+        settingsFlagNeedsUserReviewInput.checked = !disabledSystemFlagKeySet["needs-user-review"];
+      }
+      if (settingsFlagNewInput) {
+        settingsFlagNewInput.checked = !disabledSystemFlagKeySet.new;
+      }
+      if (settingsFlagOnScheduleListInput) {
+        settingsFlagOnScheduleListInput.checked = !disabledSystemFlagKeySet["on-schedule-list"];
+      }
+      if (settingsFlagFinalUserCheckInput) {
+        settingsFlagFinalUserCheckInput.checked = !disabledSystemFlagKeySet["final-user-check"];
+      }
+      if (settingsStorageNote) {
+        settingsStorageNote.textContent = strings.settingsStorageSaved || "Storage settings are repo-local. Reload after changing the backend mode.";
+      }
+      if (settingsVersionValue) {
+        settingsVersionValue.textContent = storageSettings.appVersion || "-";
+      }
+      if (settingsMcpStatusValue) {
+        settingsMcpStatusValue.textContent = getMcpSetupStatusLabel(storageSettings.mcpSetupStatus);
+      }
+      if (settingsMcpUpdatedValue) {
+        settingsMcpUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastMcpSupportUpdateAt);
+      }
+      if (settingsSkillsUpdatedValue) {
+        settingsSkillsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledSkillsSyncAt);
+      }
+      if (settingsAgentsUpdatedValue) {
+        settingsAgentsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledAgentsSyncAt);
+      }
+    }
+    function showStorageStatusRefreshNote() {
+      if (!settingsStatusRefreshNote) {
+        return;
+      }
+      settingsStatusRefreshNote.textContent = strings.settingsStatusUpdated || "\u2713 Updated";
+      settingsStatusRefreshNote.style.opacity = "1";
+      if (storageStatusRefreshNoteTimer) {
+        window.clearTimeout(storageStatusRefreshNoteTimer);
+      }
+      storageStatusRefreshNoteTimer = window.setTimeout(function() {
+        settingsStatusRefreshNote.style.opacity = "0";
+        settingsStatusRefreshNote.textContent = "";
+        storageStatusRefreshNoteTimer = null;
+      }, 2e3);
+    }
+    function renderLoggingControls() {
+      if (settingsLogLevelSelect) {
+        settingsLogLevelSelect.value = currentLogLevel || "info";
+      }
+      if (settingsLogDirectoryInput) {
+        settingsLogDirectoryInput.value = currentLogDirectory || "";
+        settingsLogDirectoryInput.title = currentLogDirectory || "";
+      }
+    }
+    function applyJobsSidebarState() {
+      if (jobsLayout && jobsLayout.classList) {
+        jobsLayout.classList.toggle("sidebar-collapsed", !!jobsSidebarHidden);
+      }
+      if (jobsShowSidebarBtn) {
+        jobsShowSidebarBtn.style.display = jobsSidebarHidden ? "inline-flex" : "none";
+      }
+    }
+    function getJobStatusText(job) {
+      if (job && job.runtime && job.runtime.waitingPause) {
+        return strings.jobsPauseWaiting || "Waiting for approval";
+      }
+      if (job && job.archived) {
+        return strings.jobsArchivedBadge || "Archived";
+      }
+      return job && job.paused ? strings.jobsPaused || "Inactive" : strings.jobsRunning || "Active";
+    }
+    function syncTaskFilterButtons() {
+      if (!taskFilterBar) return;
+      var buttons = taskFilterBar.querySelectorAll(".task-filter-btn");
+      for (var i = 0; i < buttons.length; i++) {
+        var btn = buttons[i];
+        if (!btn || !btn.classList) continue;
+        if (btn.getAttribute("data-filter") === activeTaskFilter) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      }
+    }
+    function buildHelpWarpStreaks() {
+      if (!helpWarpLayer) {
+        return;
+      }
+      helpWarpLayer.textContent = "";
+      for (var i = 0; i < 22; i += 1) {
+        var streak = document.createElement("span");
+        var top = 4 + i * 91 / 22 + Math.random() * 3.5;
+        var delay = Math.random() * 0.95;
+        var duration = 1.05 + Math.random() * 1.25;
+        var length = 110 + Math.round(Math.random() * 180);
+        var thickness = 1 + Math.round(Math.random() * 2);
+        var rotation = (-7 + Math.random() * 14).toFixed(2);
+        streak.className = "help-warp-streak";
+        streak.style.setProperty("--warp-top", top.toFixed(2) + "%");
+        streak.style.setProperty("--warp-delay", delay.toFixed(2) + "s");
+        streak.style.setProperty("--warp-duration", duration.toFixed(2) + "s");
+        streak.style.setProperty("--warp-length", String(length) + "px");
+        streak.style.setProperty("--warp-thickness", String(thickness) + "px");
+        streak.style.setProperty("--warp-rotate", rotation + "deg");
+        helpWarpLayer.appendChild(streak);
+      }
+    }
+    function triggerHelpWarpAnimation(options) {
+      if (!helpWarpLayer) {
+        return;
+      }
+      var settings = options || {};
+      window.clearTimeout(helpWarpFadeTimeout);
+      window.clearTimeout(helpWarpCleanupTimeout);
+      helpWarpLayer.classList.remove("is-active");
+      helpWarpLayer.classList.remove("is-fading");
+      buildHelpWarpStreaks();
+      void helpWarpLayer.offsetWidth;
+      helpWarpLayer.classList.add("is-active");
+      if (settings.animateRocket && helpIntroRocket) {
+        helpIntroRocket.classList.remove("is-launching");
+        void helpIntroRocket.offsetWidth;
+        helpIntroRocket.classList.add("is-launching");
+        window.setTimeout(function() {
+          if (helpIntroRocket) {
+            helpIntroRocket.classList.remove("is-launching");
+          }
+        }, 1250);
+      }
+      helpWarpFadeTimeout = window.setTimeout(function() {
+        if (helpWarpLayer) {
+          helpWarpLayer.classList.add("is-fading");
+        }
+      }, 1e4);
+      helpWarpCleanupTimeout = window.setTimeout(function() {
+        if (helpWarpLayer) {
+          helpWarpLayer.classList.remove("is-active");
+          helpWarpLayer.classList.remove("is-fading");
+          helpWarpLayer.textContent = "";
+        }
+      }, 13800);
+    }
+    function maybePlayInitialHelpWarp(tabName) {
+      if (tabName !== "help" || !helpWarpIntroPending) {
+        return;
+      }
+      helpWarpIntroPending = false;
+      try {
+        localStorage.setItem(HELP_WARP_SEEN_KEY, "1");
+      } catch (_e) {
+      }
+      triggerHelpWarpAnimation({ animateRocket: false });
+    }
+    function syncAutoShowOnStartupUi() {
+      if (autoShowStartupBtn) {
+        autoShowStartupBtn.textContent = autoShowOnStartup ? strings.autoShowOnStartupToggleEnabled || "Disable Auto Open" : strings.autoShowOnStartupToggleDisabled || "Enable Auto Open";
+      }
+      if (autoShowStartupNote) {
+        autoShowStartupNote.textContent = autoShowOnStartup ? strings.autoShowOnStartupEnabled || "Auto-open on startup: On" : strings.autoShowOnStartupDisabled || "Auto-open on startup: Off";
+      }
+    }
+    function syncRecurringChatSessionUi() {
+      var oneTimeEl = document.getElementById("one-time");
+      var manualSessionEl = document.getElementById("manual-session");
+      var runFirstEl = document.getElementById("run-first");
+      var isOneTime = !!(oneTimeEl && oneTimeEl.checked);
+      var isManualSession = !!(manualSessionEl && manualSessionEl.checked);
+      if (isOneTime && manualSessionEl && manualSessionEl.checked) {
+        manualSessionEl.checked = false;
+        isManualSession = false;
+      }
+      if (isManualSession && oneTimeEl && oneTimeEl.checked) {
+        oneTimeEl.checked = false;
+        isOneTime = false;
+      }
+      if (recurringScheduleGroup) {
+        recurringScheduleGroup.style.display = isOneTime ? "none" : "";
+      }
+      if (oneTimeDelayGroup) {
+        oneTimeDelayGroup.style.display = isOneTime ? "block" : "none";
+      }
+      if (runFirstGroup) {
+        runFirstGroup.style.display = isOneTime ? "none" : "block";
+      }
+      if (chatSessionGroup) {
+        chatSessionGroup.style.display = isOneTime ? "none" : "block";
+      }
+      if (chatSessionSelect && !chatSessionSelect.value) {
+        chatSessionSelect.value = defaultChatSession;
+      }
+      if (isOneTime && chatSessionSelect) {
+        chatSessionSelect.value = defaultChatSession;
+      }
+      if (isOneTime && runFirstEl && runFirstEl.checked) {
+        runFirstEl.checked = false;
+      }
+      updateOneTimeDelayPreview();
+    }
+    function normalizeOneTimeDelayPart(value, maxValue) {
+      var numericValue = typeof value === "number" ? value : Number(value);
+      if (!isFinite(numericValue) || numericValue < 0) {
+        return 0;
+      }
+      var wholeNumber = Math.floor(numericValue);
+      if (typeof maxValue === "number") {
+        return Math.min(wholeNumber, maxValue);
+      }
+      return wholeNumber;
+    }
+    function getOneTimeDelaySecondsFromInputs() {
+      return normalizeOneTimeDelayPart(oneTimeDelayHours ? oneTimeDelayHours.value : 0) * 3600 + normalizeOneTimeDelayPart(oneTimeDelayMinutes ? oneTimeDelayMinutes.value : 0, 59) * 60 + normalizeOneTimeDelayPart(oneTimeDelaySeconds ? oneTimeDelaySeconds.value : 0, 59);
+    }
+    function formatHumanDuration(totalSeconds) {
+      var normalizedSeconds = normalizeOneTimeDelayPart(totalSeconds);
+      var hours = Math.floor(normalizedSeconds / 3600);
+      var minutes = Math.floor(normalizedSeconds % 3600 / 60);
+      var seconds = normalizedSeconds % 60;
+      if (hours > 0) {
+        return minutes > 0 ? hours + " " + (hours === 1 ? "hour" : "hours") + " " + minutes + " " + (minutes === 1 ? "minute" : "minutes") : hours + " " + (hours === 1 ? "hour" : "hours");
+      }
+      if (minutes > 0) {
+        return seconds > 0 ? minutes + " " + (minutes === 1 ? "minute" : "minutes") + " " + seconds + " " + (seconds === 1 ? "second" : "seconds") : minutes + " " + (minutes === 1 ? "minute" : "minutes");
+      }
+      return normalizedSeconds + " " + (normalizedSeconds === 1 ? "second" : "seconds");
+    }
+    function setOneTimeDelayInputs(totalSeconds) {
+      var normalized = normalizeOneTimeDelayPart(totalSeconds);
+      if (oneTimeDelayHours) {
+        oneTimeDelayHours.value = String(Math.floor(normalized / 3600));
+      }
+      if (oneTimeDelayMinutes) {
+        oneTimeDelayMinutes.value = String(Math.floor(normalized % 3600 / 60));
+      }
+      if (oneTimeDelaySeconds) {
+        oneTimeDelaySeconds.value = String(normalized % 60);
+      }
+    }
+    function deriveTaskOneTimeDelaySeconds(task) {
+      var storedDelay = normalizeOneTimeDelayPart(task && task.oneTimeDelaySeconds);
+      if (storedDelay > 0) {
+        return storedDelay;
+      }
+      if (!(task && task.oneTime === true && task.nextRun)) {
+        return 0;
+      }
+      var nextRunDate = new Date(task.nextRun);
+      var remainingSeconds = Math.ceil((nextRunDate.getTime() - Date.now()) / 1e3);
+      return remainingSeconds > 0 ? remainingSeconds : 0;
+    }
+    function updateOneTimeDelayPreview() {
+      if (!oneTimeDelayPreviewText) {
+        return;
+      }
+      var totalSeconds = getOneTimeDelaySecondsFromInputs();
+      if (totalSeconds < 1) {
+        oneTimeDelayPreviewText.textContent = strings.oneTimeDelayPreviewUnset || "Set a delay to schedule this one-time run.";
+        return;
+      }
+      var nextRunDate = new Date(Date.now() + totalSeconds * 1e3);
+      oneTimeDelayPreviewText.textContent = formatHumanDuration(totalSeconds) + " " + (strings.oneTimeDelayFromNow || "from now") + " \u2022 " + nextRunDate.toLocaleString(locale);
+    }
+    function formatHistoryLabel(entry) {
+      if (!entry || !entry.createdAt) {
+        return strings.cockpitHistoryPlaceholder || "Select a backup version";
+      }
+      var date = new Date(entry.createdAt);
+      if (isNaN(date.getTime())) {
+        return String(entry.createdAt);
+      }
+      return date.toLocaleString(locale);
+    }
+    function syncScheduleHistoryOptions() {
+      if (!cockpitHistorySelect) return;
+      var previousValue = cockpitHistorySelect.value || "";
+      var entries = Array.isArray(cockpitHistory) ? cockpitHistory : [];
+      entries = entries.slice().sort(function(a, b) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      if (entries.length === 0) {
+        cockpitHistorySelect.innerHTML = '<option value="">' + escapeHtml(strings.cockpitHistoryEmpty || "No backup versions yet") + "</option>";
+        cockpitHistorySelect.disabled = true;
+        if (restoreHistoryBtn) restoreHistoryBtn.disabled = true;
+        return;
+      }
+      cockpitHistorySelect.innerHTML = '<option value="">' + escapeHtml(strings.cockpitHistoryPlaceholder || "Select a backup version") + "</option>" + entries.map(function(entry) {
+        return '<option value="' + escapeAttr(entry.id || "") + '">' + escapeHtml(formatHistoryLabel(entry)) + "</option>";
+      }).join("");
+      cockpitHistorySelect.disabled = false;
+      if (restoreHistoryBtn) restoreHistoryBtn.disabled = false;
+      if (previousValue) {
+        cockpitHistorySelect.value = previousValue;
+      }
+      if (cockpitHistorySelect.value !== previousValue) {
+        cockpitHistorySelect.value = "";
+      }
+    }
+    function parseLabels(value) {
+      if (!value) return [];
+      return String(value).split(",").map(function(item) {
+        return String(item || "").trim();
+      }).filter(function(item, index, list) {
+        return item && list.indexOf(item) === index;
+      });
+    }
+    function toLabelString(labels) {
+      return Array.isArray(labels) ? labels.join(", ") : "";
+    }
+    function getJobById(id) {
+      return (Array.isArray(jobs) ? jobs : []).find(function(job) {
+        return job && job.id === id;
+      }) || null;
+    }
+    function isPauseNode(node) {
+      return !!node && node.type === "pause";
+    }
+    function isTaskNode(node) {
+      return !!node && node.type !== "pause" && !!node.taskId;
+    }
+    function getApprovedPauseIds(job) {
+      var approved = job && job.runtime && Array.isArray(job.runtime.approvedPauseNodeIds) ? job.runtime.approvedPauseNodeIds : [];
+      return approved.filter(function(value) {
+        return typeof value === "string" && value;
+      });
+    }
+    function getWaitingPauseState(job) {
+      return job && job.runtime && job.runtime.waitingPause ? job.runtime.waitingPause : null;
+    }
+    function getFolderById(id) {
+      return (Array.isArray(jobFolders) ? jobFolders : []).find(function(folder) {
+        return folder && folder.id === id;
+      }) || null;
+    }
+    function getTaskById(id) {
+      return (Array.isArray(tasks) ? tasks : []).find(function(task) {
+        return task && task.id === id;
+      }) || null;
+    }
+    function isOneTimeTask(task) {
+      return !!(task && (task.oneTime === true || String(task.id || "").indexOf("exec-") === 0));
+    }
+    function normalizeTodoDraftMatchText(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+    function isTodoTaskDraft(task) {
+      return !!(task && isOneTimeTask(task) && Array.isArray(task.labels) && task.labels.some(function(label) {
+        return normalizeTodoLabelKey(label) === "from-todo-cockpit";
+      }));
+    }
+    function findTodoDraftTaskForTodo(todo) {
+      if (!todo || !Array.isArray(tasks)) {
+        return null;
+      }
+      var todoId = normalizeTodoDraftMatchText(todo.id);
+      var todoTitle = normalizeTodoDraftMatchText(todo.title);
+      var todoDescription = normalizeTodoDraftMatchText(todo.description);
+      var todoLabels = Array.isArray(todo.labels) ? todo.labels.map(function(label) {
+        return normalizeTodoDraftMatchText(label);
+      }).filter(function(label) {
+        return label.length > 0;
+      }) : [];
+      return tasks.find(function(task) {
+        if (!isTodoTaskDraft(task)) {
+          return false;
+        }
+        var taskPrompt = normalizeTodoDraftMatchText(task.prompt);
+        if (todoId && taskPrompt.indexOf("todo id: " + todoId) >= 0) {
+          return true;
+        }
+        var taskName = normalizeTodoDraftMatchText(task.name);
+        if (!todoTitle || taskName !== todoTitle) {
+          return false;
+        }
+        var taskDescription = normalizeTodoDraftMatchText(task.description);
+        if (todoDescription && taskDescription !== todoDescription) {
+          return false;
+        }
+        return todoLabels.every(function(label) {
+          return Array.isArray(task.labels) && task.labels.some(function(entry) {
+            return normalizeTodoDraftMatchText(entry) === label;
+          });
+        });
+      }) || null;
+    }
+    function hasPendingReadyTodoDraftCreate(todoId) {
+      return !!(todoId && Object.prototype.hasOwnProperty.call(pendingReadyTodoDraftCreates, todoId));
+    }
+    function clearPendingReadyTodoDraftCreate(todoId, skipRender) {
+      if (!hasPendingReadyTodoDraftCreate(todoId)) {
+        return;
+      }
+      window.clearTimeout(pendingReadyTodoDraftCreates[todoId]);
+      delete pendingReadyTodoDraftCreates[todoId];
+      if (!skipRender) {
+        renderTaskList(tasks);
+      }
+    }
+    function startPendingReadyTodoDraftCreate(todoId) {
+      if (!todoId) {
+        return;
+      }
+      clearPendingReadyTodoDraftCreate(todoId, true);
+      pendingReadyTodoDraftCreates[todoId] = window.setTimeout(function() {
+        clearPendingReadyTodoDraftCreate(todoId);
+      }, READY_TODO_CREATE_PENDING_TIMEOUT_MS);
+      renderTaskList(tasks);
+    }
+    function reconcilePendingReadyTodoDraftCreates() {
+      var cardsById = {};
+      getAllTodoCards().forEach(function(todo) {
+        if (todo && todo.id) {
+          cardsById[todo.id] = todo;
+        }
+      });
+      Object.keys(pendingReadyTodoDraftCreates).forEach(function(todoId) {
+        var todo = cardsById[todoId];
+        if (!todo) {
+          clearPendingReadyTodoDraftCreate(todoId, true);
+          return;
+        }
+        if (todo.archived || isRecurringTodoSectionId(todo.sectionId)) {
+          clearPendingReadyTodoDraftCreate(todoId, true);
+          return;
+        }
+        if (getTodoWorkflowFlag(todo) !== "ready") {
+          clearPendingReadyTodoDraftCreate(todoId, true);
+          return;
+        }
+        if (todo.taskId && isTodoTaskDraft(getTaskById(todo.taskId))) {
+          clearPendingReadyTodoDraftCreate(todoId, true);
+          return;
+        }
+        if (findTodoDraftTaskForTodo(todo)) {
+          clearPendingReadyTodoDraftCreate(todoId, true);
+        }
+      });
+    }
+    function getReadyTodoDraftCandidates() {
+      var effectiveLabelFilter = activeLabelFilter;
+      if (arguments.length > 0 && typeof arguments[0] === "string") {
+        effectiveLabelFilter = arguments[0];
+      }
+      return getAllTodoCards().filter(function(todo) {
+        if (!todo || todo.archived || isRecurringTodoSectionId(todo.sectionId)) {
+          return false;
+        }
+        if (getTodoWorkflowFlag(todo) !== "ready") {
+          return false;
+        }
+        if (hasPendingReadyTodoDraftCreate(todo.id || "")) {
+          return false;
+        }
+        var linkedTask = todo.taskId ? getTaskById(todo.taskId) : null;
+        if (linkedTask && isTodoTaskDraft(linkedTask)) {
+          return false;
+        }
+        if (findTodoDraftTaskForTodo(todo)) {
+          return false;
+        }
+        if (effectiveLabelFilter) {
+          return Array.isArray(todo.labels) && todo.labels.indexOf(effectiveLabelFilter) >= 0;
+        }
+        return true;
+      });
+    }
+    function getVisibleJobs() {
+      return (Array.isArray(jobs) ? jobs : []).filter(function(job) {
+        return job && (job.folderId || "") === selectedJobFolderId;
+      }).sort(function(a, b) {
+        var updatedDiff = getComparableTime(b && b.updatedAt) - getComparableTime(a && a.updatedAt);
+        if (updatedDiff !== 0) {
+          return updatedDiff;
+        }
+        var aName = a && a.name ? String(a.name) : "";
+        var bName = b && b.name ? String(b.name) : "";
+        return aName.localeCompare(bName);
+      });
+    }
+    function getFolderDepth(folder) {
+      var depth = 0;
+      var current = folder;
+      while (current && current.parentId) {
+        depth += 1;
+        current = getFolderById(current.parentId);
+        if (depth > 20) break;
+      }
+      return depth;
+    }
+    function getFolderPath(folderId) {
+      if (!folderId) {
+        return strings.jobsRootFolder || "All jobs";
+      }
+      var parts = [];
+      var current = getFolderById(folderId);
+      var guard = 0;
+      while (current && guard < 20) {
+        parts.unshift(current.name || "");
+        current = current.parentId ? getFolderById(current.parentId) : null;
+        guard += 1;
+      }
+      parts.unshift(strings.jobsRootFolder || "All jobs");
+      return parts.filter(Boolean).join(" / ");
+    }
+    function isArchiveFolder(folder) {
+      return !!folder && String(folder.name || "").toLowerCase() === String(strings.jobsArchiveFolder || "Archive").toLowerCase();
+    }
+    function getLinkedTodoLabels(taskId) {
+      if (!taskId) {
+        return [];
+      }
+      var labels = [];
+      getAllTodoCards().forEach(function(card) {
+        if (!card || card.taskId !== taskId || !Array.isArray(card.labels)) {
+          return;
+        }
+        labels = labels.concat(card.labels);
+      });
+      return dedupeStringList(labels);
+    }
+    function getEffectiveLabels(task) {
+      var labels = [];
+      if (task && Array.isArray(task.labels)) {
+        labels = labels.concat(task.labels);
+      }
+      if (task && task.jobId) {
+        var job = getJobById(task.jobId);
+        if (job && job.name) {
+          labels.push(job.name);
+        }
+      }
+      if (task && task.id) {
+        labels = labels.concat(getLinkedTodoLabels(task.id));
+      }
+      return dedupeStringList(labels);
+    }
+    function getComparableTime(value) {
+      if (!value) return Number.MAX_SAFE_INTEGER;
+      var d = new Date(value);
+      var t = d.getTime();
+      return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    }
+    function sortTasksByNextRun(list) {
+      return (Array.isArray(list) ? list.slice() : []).sort(function(a, b) {
+        var diff = getComparableTime(a && a.nextRun) - getComparableTime(b && b.nextRun);
+        if (diff !== 0) return diff;
+        var aName = a && a.name ? String(a.name) : "";
+        var bName = b && b.name ? String(b.name) : "";
+        return aName.localeCompare(bName);
+      });
+    }
+    function getStandaloneTasks() {
+      return sortTasksByNextRun(
+        (Array.isArray(tasks) ? tasks : []).filter(function(task) {
+          return task && task.oneTime !== true;
+        })
+      );
+    }
+    function getJobsCadenceText(expression) {
+      var cadenceText = getCronSummary(expression || "");
+      if (!cadenceText || cadenceText === (strings.labelFriendlyFallback || "")) {
+        cadenceText = expression || (strings.labelNever || "Never");
+      }
+      return cadenceText;
+    }
+    function updateJobsCadenceMetric() {
+      if (!jobsWorkflowMetrics) return;
+      var cadenceValue = jobsWorkflowMetrics.querySelector("[data-jobs-workflow-cadence]");
+      if (!cadenceValue) return;
+      var currentExpression = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+      cadenceValue.textContent = getJobsCadenceText(currentExpression);
+      if (cadenceValue.parentElement) {
+        cadenceValue.parentElement.setAttribute("title", cadenceValue.textContent || "");
+      }
+    }
+    function syncTaskLabelFilterOptions() {
+      if (!taskLabelFilter) return;
+      var values = [];
+      (Array.isArray(tasks) ? tasks : []).forEach(function(task) {
+        getEffectiveLabels(task).forEach(function(label) {
+          if (values.indexOf(label) === -1) {
+            values.push(label);
+          }
+        });
+      });
+      values.sort(function(a, b) {
+        return String(a).localeCompare(String(b));
+      });
+      var currentValue = activeLabelFilter || "";
+      taskLabelFilter.innerHTML = '<option value="">' + escapeHtml(strings.labelAllLabels || "All labels") + "</option>" + values.map(function(label) {
+        return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + "</option>";
+      }).join("");
+      taskLabelFilter.value = currentValue;
+      if (taskLabelFilter.value !== currentValue) {
+        activeLabelFilter = "";
+        restoredLabelFilterWasExplicit = false;
+        taskLabelFilter.value = "";
+      }
+    }
+    function ensureValidJobSelection() {
+      if (selectedJobFolderId && !getFolderById(selectedJobFolderId)) {
+        selectedJobFolderId = "";
+      }
+      if (isCreatingJob) {
+        selectedJobId = "";
+        return;
+      }
+      var selectedJob = selectedJobId ? getJobById(selectedJobId) : null;
+      if (selectedJob && (selectedJob.folderId || "") !== selectedJobFolderId) {
+        selectedJobId = "";
+        selectedJob = null;
+      }
+      if (selectedJobId && !selectedJob) {
+        selectedJobId = "";
+      }
+      if (!selectedJobId) {
+        var visibleJobs = getVisibleJobs();
+        if (visibleJobs.length > 0) {
+          selectedJobId = visibleJobs[0].id;
+        }
+      }
+    }
+    function getSelectedJobFolder() {
+      return selectedJobFolderId ? getFolderById(selectedJobFolderId) : null;
+    }
+    restoreTaskFilter();
+    bindTabButtons(document, switchTab);
+    runStartupRenderStep("applyBoardFilterCollapseState", applyBoardFilterCollapseState);
+    runStartupRenderStep("syncAutoShowOnStartupUi", syncAutoShowOnStartupUi);
+    runStartupRenderStep("syncScheduleHistoryOptions", syncScheduleHistoryOptions);
+    runStartupRenderStep("updateJobsCronPreview", updateJobsCronPreview);
+    runStartupRenderStep("updateJobsFriendlyVisibility", updateJobsFriendlyVisibility);
+    runStartupRenderStep("syncResearchSelectors", syncResearchSelectors);
+    runStartupRenderStep("hookResearchFormDirtyTracking", hookResearchFormDirtyTracking);
+    runStartupRenderStep("hookEditorTabDirtyTracking", hookEditorTabDirtyTracking);
+    runStartupRenderStep("renderResearchTab", renderResearchTab);
+    runStartupRenderStep("renderTelegramTab", renderTelegramTab);
+    runStartupRenderStep("renderCockpitBoard", renderCockpitBoard);
+    runStartupRenderStep("renderExecutionDefaultsControls", renderExecutionDefaultsControls);
+    runStartupRenderStep("renderReviewDefaultsControls", renderReviewDefaultsControls);
+    runStartupRenderStep("renderStorageSettingsControls", renderStorageSettingsControls);
+    runStartupRenderStep("renderLoggingControls", renderLoggingControls);
+    function parseTagList(text) {
+      if (!text) return [];
+      return String(text).split(",").map(function(entry) {
+        return entry.trim();
+      }).filter(function(entry) {
+        return entry.length > 0;
+      });
+    }
+    function normalizeTodoLabel(value) {
+      return String(value || "").trim().replace(/\s+/g, " ");
+    }
+    function normalizeTodoLabelKey(value) {
+      return normalizeTodoLabel(value).toLowerCase();
+    }
+    function getActiveTodoLabelEditorName() {
+      var typedLabel = todoLabelsInput ? normalizeTodoLabel(todoLabelsInput.value) : "";
+      if (typedLabel) {
+        return typedLabel;
+      }
+      if (editingLabelOriginalName) {
+        return normalizeTodoLabel(editingLabelOriginalName);
+      }
+      if (selectedTodoLabelName) {
+        return normalizeTodoLabel(selectedTodoLabelName);
+      }
+      return "";
+    }
+    function getActiveTodoFlagEditorName() {
+      var typedFlag = todoFlagNameInput ? normalizeTodoLabel(todoFlagNameInput.value) : "";
+      if (typedFlag) {
+        return typedFlag;
+      }
+      if (editingFlagOriginalName) {
+        return normalizeTodoLabel(editingFlagOriginalName);
+      }
+      if (currentTodoFlag) {
+        return normalizeTodoLabel(currentTodoFlag);
+      }
+      return "";
+    }
+    function clearPendingTodoEditorColor(state) {
+      state.name = "";
+      state.color = "";
+    }
+    function clearPendingTodoEditorColors() {
+      clearPendingTodoEditorColor(pendingTodoLabelEditorState);
+      clearPendingTodoEditorColor(pendingTodoFlagEditorState);
+    }
+    function rememberPendingTodoEditorColor(state, name, color) {
+      state.name = normalizeTodoLabel(name);
+      state.color = isValidTodoEditorHexColor(color) ? String(color) : "";
+    }
+    function getPendingTodoEditorColor(state, name) {
+      if (normalizeTodoLabelKey(state.name) !== normalizeTodoLabelKey(name)) {
+        return "";
+      }
+      return isValidTodoEditorHexColor(state.color) ? state.color : "";
+    }
+    function dedupeStringList(values) {
+      var seen = {};
+      return (Array.isArray(values) ? values : []).map(normalizeTodoLabel).filter(function(value) {
+        var key = normalizeTodoLabelKey(value);
+        if (!key || seen[key]) {
+          return false;
+        }
+        seen[key] = true;
+        return true;
+      });
+    }
+    function isArchiveTodoSectionId(sectionId) {
+      return sectionId === "archive-completed" || sectionId === "archive-rejected";
+    }
+    function isRecurringTodoSectionId(sectionId) {
+      return sectionId === "recurring-tasks";
+    }
+    function isSpecialTodoSectionId(sectionId) {
+      return isArchiveTodoSectionId(sectionId) || isRecurringTodoSectionId(sectionId);
+    }
+    function getAllTodoCards() {
+      return cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.slice() : [];
+    }
+    function runStartupRenderStep(stepName, runStep) {
+      try {
+        runStep();
+      } catch (error) {
+        emitWebviewDebug("startupRenderStepFailed", {
+          step: stepName,
+          error: error && error.message ? String(error.message) : String(error)
+        });
+        var prefix = strings.webviewClientErrorPrefix || "Webview error: ";
+        var detail = error && error.message ? error.message : error;
+        var firstLine = String(detail || "").split(/\r?\n/)[0];
+        showGlobalError(prefix + sanitizeAbsolutePaths(stepName + ": " + firstLine), {
+          durationMs: 0
+        });
+      }
+    }
+    function getVisibleTodoCards(filters2) {
+      var allCards = getAllTodoCards();
+      if (!filters2 || filters2.showArchived !== true) {
+        allCards = allCards.filter(function(card) {
+          return !card.archived && !isArchiveTodoSectionId(card.sectionId);
+        });
+      }
+      if (!filters2 || filters2.showRecurringTasks !== true) {
+        allCards = allCards.filter(function(card) {
+          return !isRecurringTodoSectionId(card.sectionId);
+        });
+      }
+      return allCards;
+    }
+    function getTaskLabelCatalog() {
+      var catalog = [];
+      var seen = /* @__PURE__ */ Object.create(null);
+      (Array.isArray(tasks) ? tasks : []).forEach(function(task) {
+        getEffectiveLabels(task).forEach(function(label) {
+          var normalizedName = normalizeTodoLabel(label);
+          var key = normalizeTodoLabelKey(normalizedName);
+          if (!normalizedName || !key || seen[key]) {
+            return;
+          }
+          seen[key] = true;
+          catalog.push({
+            key,
+            name: normalizedName,
+            color: "var(--vscode-badge-background)",
+            source: "task"
+          });
+        });
+      });
+      return catalog.sort(function(left, right) {
+        return String(left.name).localeCompare(String(right.name));
+      });
+    }
+    function getLabelCatalog() {
+      var merged = [];
+      var byKey = /* @__PURE__ */ Object.create(null);
+      var boardCatalog = cockpitBoard && Array.isArray(cockpitBoard.labelCatalog) ? cockpitBoard.labelCatalog.slice() : [];
+      boardCatalog.forEach(function(entry) {
+        var normalizedName = normalizeTodoLabel(entry && entry.name);
+        var key = normalizeTodoLabelKey(entry && (entry.key || entry.name || ""));
+        if (!normalizedName || !key) {
+          return;
+        }
+        byKey[key] = {
+          key,
+          name: normalizedName,
+          color: entry.color || "var(--vscode-badge-background)",
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt,
+          source: "board"
+        };
+      });
+      getTaskLabelCatalog().forEach(function(entry) {
+        if (!byKey[entry.key]) {
+          byKey[entry.key] = entry;
+        }
+      });
+      Object.keys(byKey).forEach(function(key) {
+        merged.push(byKey[key]);
+      });
+      return merged.sort(function(left, right) {
+        return String(left.name).localeCompare(String(right.name));
+      });
+    }
+    function getFlagCatalog() {
+      return cockpitBoard && Array.isArray(cockpitBoard.flagCatalog) ? cockpitBoard.flagCatalog.slice() : [];
+    }
+    function getFlagDefinition(flagName) {
+      var key = normalizeTodoLabelKey(flagName);
+      var catalog = getFlagCatalog();
+      for (var index = 0; index < catalog.length; index += 1) {
+        if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+          return catalog[index];
+        }
+      }
+      return null;
+    }
+    function getFlagColor(flagName) {
+      var definition = getFlagDefinition(flagName);
+      return definition && definition.color ? definition.color : "#f59e0b";
+    }
+    function getFlagDisplayName(flagName) {
+      var key = normalizeTodoLabelKey(flagName);
+      if (key === "ready" || key === "go") {
+        return strings.boardFlagPresetReady || "Ready";
+      }
+      if (key === "needs-bot-review") {
+        return strings.boardFlagPresetNeedsBotReview || "Needs bot review";
+      }
+      if (key === "needs-user-review") {
+        return strings.boardFlagPresetNeedsUserReview || "Needs user review";
+      }
+      if (key === "new") {
+        return strings.boardFlagPresetNew || "New";
+      }
+      if (key === "on-schedule-list") {
+        return strings.boardFlagPresetOnScheduleList || "On Schedule List";
+      }
+      if (key === "final-user-check") {
+        return strings.boardFlagPresetFinalUserCheck || "Final User Check";
+      }
+      var definition = getFlagDefinition(flagName);
+      return definition && definition.name ? definition.name : flagName;
+    }
+    function isProtectedFlagDefinition(entryOrName) {
+      var entry = entryOrName && typeof entryOrName === "object" ? entryOrName : getFlagDefinition(entryOrName);
+      if (entry && entry.system === true) {
+        return true;
+      }
+      var key = normalizeTodoLabelKey(
+        entry && (entry.key || entry.name) ? entry.key || entry.name : entryOrName
+      );
+      return key === "ready" || key === "needs-bot-review" || key === "needs-user-review" || key === "new" || key === "on-schedule-list" || key === "final-user-check";
+    }
+    function getTodoWorkflowFlag(card) {
+      if (!card || !Array.isArray(card.flags)) {
+        return "";
+      }
+      var workflowKeys = ["new", "needs-bot-review", "needs-user-review", "ready", "on-schedule-list", "final-user-check"];
+      var seen = /* @__PURE__ */ Object.create(null);
+      var matched = [];
+      card.flags.forEach(function(flag) {
+        var key = normalizeTodoLabelKey(flag);
+        if (key === "go") {
+          key = "ready";
+        }
+        if (workflowKeys.indexOf(key) >= 0 && !seen[key]) {
+          seen[key] = true;
+          matched.push(key);
+        }
+      });
+      return matched.length ? matched[matched.length - 1] : "";
+    }
+    function getLabelDefinition(label) {
+      var key = normalizeTodoLabelKey(label);
+      var catalog = getLabelCatalog();
+      for (var index = 0; index < catalog.length; index += 1) {
+        if (normalizeTodoLabelKey(catalog[index].key || catalog[index].name) === key) {
+          return catalog[index];
+        }
+      }
+      return null;
+    }
+    function getLabelColor(label) {
+      var definition = getLabelDefinition(label);
+      return definition && definition.color ? definition.color : "var(--vscode-badge-background)";
+    }
+    function isValidTodoEditorHexColor(color) {
+      return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || ""));
+    }
+    function getValidLabelColorValue(color, fallbackColor) {
+      var value = String(color || "");
+      if (isValidTodoEditorHexColor(value)) {
+        return value;
+      }
+      return fallbackColor || "#4f8cff";
+    }
+    function getValidFlagColorValue(color, fallbackColor) {
+      var value = String(color || "");
+      if (isValidTodoEditorHexColor(value)) {
+        return value;
+      }
+      return fallbackColor || "#f59e0b";
+    }
+    function upsertLocalLabelDefinition(name, color, previousName) {
+      var normalizedName = normalizeTodoLabel(name);
+      var nextColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || "")) ? String(color) : "#4f8cff";
+      var nextKey = normalizeTodoLabelKey(normalizedName);
+      var previousKey = normalizeTodoLabelKey(previousName || "");
+      var existingEntry = null;
+      var nextCatalog;
+      if (!normalizedName || !nextKey) {
+        return;
+      }
+      if (!cockpitBoard) {
+        cockpitBoard = {
+          version: 4,
+          sections: [],
+          cards: [],
+          labelCatalog: [],
+          filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
+          updatedAt: ""
+        };
+      }
+      nextCatalog = Array.isArray(cockpitBoard.labelCatalog) ? cockpitBoard.labelCatalog.slice() : [];
+      nextCatalog = nextCatalog.filter(function(entry) {
+        var entryKey = normalizeTodoLabelKey(entry && (entry.key || entry.name || ""));
+        if (!entryKey) {
+          return false;
+        }
+        if (entryKey === nextKey || previousKey && entryKey === previousKey) {
+          if (!existingEntry) {
+            existingEntry = entry;
+          }
+          return false;
+        }
+        return true;
+      });
+      nextCatalog.push({
+        key: nextKey,
+        name: normalizedName,
+        color: nextColor,
+        createdAt: existingEntry && existingEntry.createdAt ? existingEntry.createdAt : void 0,
+        updatedAt: cockpitBoard.updatedAt || (/* @__PURE__ */ new Date()).toISOString()
+      });
+      cockpitBoard = Object.assign({}, cockpitBoard, {
+        labelCatalog: nextCatalog.sort(function(left, right) {
+          return String(left.name).localeCompare(String(right.name));
+        })
+      });
+    }
+    function clearCatalogDeleteState(kind) {
+      if (!kind || kind === "label") {
+        pendingDeleteLabelName = "";
+      }
+      if (!kind || kind === "flag") {
+        pendingDeleteFlagName = "";
+      }
+    }
+    function isPendingCatalogDelete(kind, name) {
+      var pendingName = kind === "flag" ? pendingDeleteFlagName : pendingDeleteLabelName;
+      return !!pendingName && normalizeTodoLabelKey(pendingName) === normalizeTodoLabelKey(name || "");
+    }
+    function removeLabelFromCurrentTodo(label) {
+      setTodoEditorLabels(
+        currentTodoLabels.filter(function(entry) {
+          return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+        }),
+        true
+      );
+      if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(label)) {
+        selectedTodoLabelName = "";
+      }
+    }
+    function reconcileTodoEditorCatalogState() {
+      if (selectedTodoLabelName && !getLabelDefinition(selectedTodoLabelName)) {
+        var stillApplied = currentTodoLabels.some(function(label) {
+          return normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName);
+        });
+        if (!stillApplied) {
+          selectedTodoLabelName = "";
+        }
+      }
+    }
+    function getReadableTextColor(background) {
+      var value = String(background || "").trim();
+      if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+        var hex = value.slice(1);
+        if (hex.length === 3) {
+          hex = hex.split("").map(function(part) {
+            return part + part;
+          }).join("");
+        }
+        var red = parseInt(hex.slice(0, 2), 16);
+        var green = parseInt(hex.slice(2, 4), 16);
+        var blue = parseInt(hex.slice(4, 6), 16);
+        var luminance = (red * 299 + green * 587 + blue * 114) / 1e3;
+        return luminance >= 150 ? "#111111" : "#ffffff";
+      }
+      return "var(--vscode-badge-foreground)";
+    }
+    function renderLabelChip(label, removable, selected) {
+      var color = getLabelColor(label);
+      var textColor = getReadableTextColor(color);
+      var borderColor = selected ? "var(--vscode-focusBorder)" : "var(--vscode-panel-border)";
+      return '<span data-label-chip="' + escapeAttr(label) + '" style="border-radius:999px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid " + escapeAttr(borderColor) + ';"><button type="button" data-label-chip-select="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;color:inherit;">' + escapeHtml(label) + "</button>" + (removable ? '<button type="button" data-label-chip-remove="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;">\xD7</button>' : "") + "</span>";
+    }
+    function renderFlagChip(flagName, removable) {
+      var color = getFlagColor(flagName);
+      var textColor = getReadableTextColor(color);
+      var displayName = getFlagDisplayName(flagName);
+      return '<span data-flag-chip="' + escapeAttr(flagName) + '" style="border-radius:4px;background:' + escapeAttr(color) + ";color:" + escapeAttr(textColor) + ";border:1px solid color-mix(in srgb," + escapeAttr(color) + ' 70%,var(--vscode-panel-border));font-weight:600;"><span>' + escapeHtml(displayName) + "</span>" + (removable ? '<button type="button" data-flag-chip-remove="' + escapeAttr(flagName) + '" style="all:unset;cursor:pointer;font-weight:700;color:inherit;line-height:1;" title="' + escapeAttr(strings.boardFlagClearTitle || strings.boardFlagClear || "Clear flag") + '">\xD7</button>' : "") + "</span>";
+    }
+    function setTodoEditorLabels(labels, preserveSelection) {
+      currentTodoLabels = dedupeStringList(labels);
+      if (!preserveSelection) {
+        selectedTodoLabelName = currentTodoLabels[0] || "";
+      } else if (selectedTodoLabelName && currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(selectedTodoLabelName)) < 0) {
+        selectedTodoLabelName = currentTodoLabels[0] || "";
+      }
+      syncEditorTabLabels();
+    }
+    function syncLabelCatalog() {
+      if (!todoLabelCatalog) return;
+      var fullCatalog = getLabelCatalog();
+      var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+      var catalog = fullCatalog.filter(function(entry) {
+        return addedKeys.indexOf(normalizeTodoLabelKey(entry.name)) < 0;
+      });
+      var activeEditEntry = null;
+      if (editingLabelOriginalName) {
+        for (var catalogIndex = 0; catalogIndex < fullCatalog.length; catalogIndex++) {
+          if (normalizeTodoLabelKey(fullCatalog[catalogIndex].name) === normalizeTodoLabelKey(editingLabelOriginalName)) {
+            activeEditEntry = fullCatalog[catalogIndex];
+            break;
+          }
+        }
+      }
+      if (catalog.length === 0 && !activeEditEntry) {
+        todoLabelCatalog.innerHTML = "";
+        return;
+      }
+      var activeEditMarkup = "";
+      if (activeEditEntry && activeEditEntry.source !== "task") {
+        var deletePrompt = String(
+          strings.boardLabelCatalogDeleteConfirm || 'Delete label "{name}"?'
+        ).replace("{name}", activeEditEntry.name);
+        activeEditMarkup = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 45%,var(--vscode-panel-border));background:linear-gradient(135deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#7f1d1d) 20%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 92%,transparent) 100%);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 10%,transparent);"><span style="font-size:12px;line-height:1.45;font-weight:600;color:var(--vscode-foreground);">' + escapeHtml(deletePrompt) + "</span>" + (isPendingCatalogDelete("label", activeEditEntry.name) ? '<button type="button" data-label-catalog-confirm-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 78%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 62%,var(--vscode-button-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 78%,var(--vscode-panel-border));color:var(--vscode-button-foreground);box-shadow:0 6px 14px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#c2410c) 24%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-label-catalog-delete="' + escapeAttr(activeEditEntry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:26px;padding:4px 12px;border-radius:999px;background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 16%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 10%,var(--vscode-editorWidget-background)) 100%);border:1px solid color-mix(in srgb,var(--vscode-inputValidation-errorBorder,var(--vscode-errorForeground)) 56%,var(--vscode-panel-border));color:var(--vscode-errorForeground,var(--vscode-foreground));box-shadow:0 4px 12px color-mix(in srgb,var(--vscode-inputValidation-errorBackground,#dc2626) 14%,transparent);font-size:11px;font-weight:800;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;" title="' + escapeAttr(strings.boardLabelCatalogDeleteTitle || "Delete label") + '">' + escapeHtml(strings.boardLabelCatalogDeleteTitle || "Delete label") + "</button>") + "</div>";
+      }
+      todoLabelCatalog.innerHTML = activeEditMarkup + catalog.map(function(entry) {
+        var bg = entry.color || "var(--vscode-badge-background)";
+        var fg = getReadableTextColor(bg);
+        var borderColor = "color-mix(in srgb," + bg + " 60%,var(--vscode-panel-border))";
+        return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 12px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1.5px solid " + escapeAttr(borderColor) + ';font-size:12px;"><button type="button" data-label-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardLabelCatalogAddTitle || "Add to todo") + '">' + escapeHtml(entry.name) + '</button><button type="button" data-label-catalog-edit="' + escapeAttr(entry.name) + '" data-label-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardLabelCatalogEditTitle || "Edit label") + '">\u270E</button></span>';
+      }).join("");
+    }
+    function syncTodoLabelSuggestions() {
+      if (!todoLabelSuggestions) {
+        return;
+      }
+      var inputValue = todoLabelsInput ? normalizeTodoLabelKey(todoLabelsInput.value) : "";
+      var addedKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+      var labels = dedupeStringList(
+        getLabelCatalog().map(function(entry) {
+          return entry.name;
+        }).concat(currentTodoLabels)
+      ).filter(function(label) {
+        return addedKeys.indexOf(normalizeTodoLabelKey(label)) < 0;
+      }).sort(function(left, right) {
+        return left.localeCompare(right);
+      });
+      if (inputValue) {
+        labels = labels.filter(function(label) {
+          return normalizeTodoLabelKey(label).indexOf(inputValue) >= 0;
+        });
+      } else {
+        labels = [];
+      }
+      if (labels.length === 0) {
+        todoLabelSuggestions.style.display = "none";
+        todoLabelSuggestions.innerHTML = "";
+        return;
+      }
+      todoLabelSuggestions.style.display = "flex";
+      todoLabelSuggestions.innerHTML = labels.map(function(label) {
+        var bg = getLabelColor(label);
+        var fg = getReadableTextColor(bg);
+        return '<button type="button" data-label-suggestion="' + escapeAttr(label) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;padding:5px 14px;border-radius:999px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:1px solid color-mix(in srgb," + escapeAttr(bg) + ' 60%,var(--vscode-panel-border));font-size:12.5px;line-height:1.5;">' + escapeHtml(label) + "</button>";
+      }).join("");
+    }
+    function syncTodoLabelEditor() {
+      if (todoLabelChipList) {
+        todoLabelChipList.innerHTML = currentTodoLabels.length > 0 ? currentTodoLabels.map(function(label) {
+          return renderLabelChip(
+            label,
+            true,
+            normalizeTodoLabelKey(label) === normalizeTodoLabelKey(selectedTodoLabelName)
+          );
+        }).join("") : '<div class="note">No labels yet.</div>';
+      }
+      var activeLabelName = getActiveTodoLabelEditorName();
+      var selectedDefinition = activeLabelName ? getLabelDefinition(activeLabelName) : null;
+      if (todoLabelColorInput) {
+        var draftLabelColor = !selectedTodoId && currentTodoDraft ? getValidLabelColorValue(currentTodoDraft.labelColor, "") : "";
+        var pendingLabelColor = getPendingTodoEditorColor(
+          pendingTodoLabelEditorState,
+          activeLabelName
+        );
+        var nextLabelColor = pendingLabelColor || draftLabelColor || getValidLabelColorValue(selectedDefinition && selectedDefinition.color, "");
+        var isTypingNew = todoLabelsInput && todoLabelsInput.value.trim();
+        if (nextLabelColor) {
+          todoLabelColorInput.value = getValidLabelColorValue(nextLabelColor, "#4f8cff");
+        } else if (activeLabelName || !isTypingNew) {
+          todoLabelColorInput.value = "#4f8cff";
+        }
+        rememberPendingTodoEditorColor(
+          pendingTodoLabelEditorState,
+          activeLabelName,
+          todoLabelColorInput.value
+        );
+        todoLabelColorInput.disabled = false;
+      }
+      if (todoLabelColorSaveBtn) {
+        todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName();
+      }
+      syncTodoLabelSuggestions();
+      syncLabelCatalog();
+    }
+    function addEditorLabelFromInput() {
+      if (!todoLabelsInput) {
+        emitWebviewDebug("todoLabelAddIgnored", { reason: "missingInput" });
+        return;
+      }
+      clearCatalogDeleteState("label");
+      var label = normalizeTodoLabel(todoLabelsInput.value);
+      if (!label) {
+        emitWebviewDebug("todoLabelAddIgnored", {
+          reason: "emptyLabel",
+          rawValue: String(todoLabelsInput.value || "")
+        });
+        return;
+      }
+      emitWebviewDebug("todoLabelAddAccepted", {
+        label,
+        editingExisting: !!editingLabelOriginalName,
+        color: todoLabelColorInput ? todoLabelColorInput.value : ""
+      });
+      var prevName = editingLabelOriginalName;
+      editingLabelOriginalName = "";
+      var pendingColor = todoLabelColorInput ? todoLabelColorInput.value : "";
+      var existingDefinition = getLabelDefinition(label);
+      todoLabelsInput.value = "";
+      if (prevName) {
+        var prevKey = normalizeTodoLabelKey(prevName);
+        var currentLabelKeys = currentTodoLabels.map(normalizeTodoLabelKey);
+        var prevIndex = currentLabelKeys.indexOf(prevKey);
+        if (prevIndex >= 0) {
+          var renamedLabels = currentTodoLabels.slice();
+          renamedLabels.splice(prevIndex, 1, label);
+          setTodoEditorLabels(renamedLabels, true);
+          selectedTodoLabelName = label;
+        }
+        if (pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+          upsertLocalLabelDefinition(label, pendingColor, prevName);
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: label, previousName: prevName, color: pendingColor } });
+        }
+        if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+        syncTodoEditorTransientDraft();
+        syncTodoLabelEditor();
+        return;
+      }
+      setTodoEditorLabels(currentTodoLabels.concat([label]), true);
+      selectedTodoLabelName = label;
+      if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+      if (!existingDefinition && pendingColor && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(pendingColor)) {
+        upsertLocalLabelDefinition(label, pendingColor);
+        vscode.postMessage({
+          type: "saveTodoLabelDefinition",
+          data: { name: label, color: pendingColor }
+        });
+      }
+      syncTodoEditorTransientDraft();
+      syncTodoLabelEditor();
+    }
+    function removeEditorLabel(label) {
+      clearCatalogDeleteState("label");
+      setTodoEditorLabels(
+        currentTodoLabels.filter(function(entry) {
+          return normalizeTodoLabelKey(entry) !== normalizeTodoLabelKey(label);
+        }),
+        true
+      );
+      syncTodoLabelEditor();
+    }
+    function bindRenderedCockpitBoardInteractions() {
+      bindBoardColumnInteractions({
+        boardColumns,
+        getBoardColumns: function() {
+          return boardColumns;
+        },
+        document,
+        window,
+        vscode,
+        renderCockpitBoard,
+        openTodoEditor,
+        openTodoDeleteModal,
+        setPendingBoardDelete: function(todoId, permanentOnly) {
+          pendingBoardDeleteTodoId = String(todoId || "");
+          pendingBoardDeletePermanentOnly = !!permanentOnly;
+          requestCockpitBoardRender();
+        },
+        clearPendingBoardDelete: function() {
+          pendingBoardDeleteTodoId = "";
+          pendingBoardDeletePermanentOnly = false;
+          requestCockpitBoardRender();
+        },
+        submitBoardDeleteChoice: function(choice) {
+          if (!pendingBoardDeleteTodoId) {
+            return;
+          }
+          var todoId = pendingBoardDeleteTodoId;
+          pendingBoardDeleteTodoId = "";
+          pendingBoardDeletePermanentOnly = false;
+          if (selectedTodoId === todoId) {
+            selectedTodoId = null;
+            currentTodoLabels = [];
+            selectedTodoLabelName = "";
+            currentTodoFlag = "";
+          }
+          requestCockpitBoardRender();
+          vscode.postMessage({
+            type: choice === "permanent" ? "purgeTodo" : "rejectTodo",
+            todoId
+          });
+        },
+        handleSectionCollapse: function(collapseBtn) {
+          handleBoardSectionCollapse(collapseBtn, {
+            toggleSectionCollapsed,
+            collapsedSections
+          });
+        },
+        handleSectionRename: function(sectionRenameBtn) {
+          handleBoardSectionRename(sectionRenameBtn, {
+            document,
+            vscode,
+            setTimeout
+          });
+        },
+        handleSectionDelete: function(sectionDeleteBtn) {
+          handleBoardSectionDelete(sectionDeleteBtn, {
+            strings,
+            vscode,
+            setTimeout
+          });
+        },
+        handleTodoCompletion: function(completeToggle) {
+          handleBoardTodoCompletion(completeToggle, {
+            cockpitBoard,
+            clearPendingGridTodoCompletion,
+            isPendingGridTodoCompletion: hasPendingGridTodoCompletion,
+            startPendingGridTodoCompletion,
+            strings,
+            vscode
+          });
+        },
+        handleTodoCompletionCancel: function(cancelBtn) {
+          handleBoardTodoCompletionCancel(cancelBtn, {
+            clearPendingGridTodoCompletion
+          });
+        },
+        handleTodoReject: function(rejectBtn) {
+          var todoId = rejectBtn.getAttribute("data-todo-reject") || "";
+          if (!todoId) {
+            return;
+          }
+          vscode.postMessage({ type: "rejectTodo", todoId });
+        },
+        handleTodoRestore: function(restoreBtn) {
+          var todoId = restoreBtn.getAttribute("data-todo-restore") || "";
+          if (!todoId) {
+            return;
+          }
+          vscode.postMessage({ type: "archiveTodo", todoId, archived: false });
+        },
+        setSelectedTodoId: function(todoId) {
+          selectedTodoId = todoId;
+        },
+        getDraggingSectionId: function() {
+          return draggingSectionId;
+        },
+        setDraggingSectionId: function(value) {
+          draggingSectionId = value;
+        },
+        getLastDragOverSectionId: function() {
+          return lastDragOverSectionId;
+        },
+        setLastDragOverSectionId: function(value) {
+          lastDragOverSectionId = value;
+        },
+        getDraggingTodoId: function() {
+          return draggingTodoId;
+        },
+        setDraggingTodoId: function(value) {
+          draggingTodoId = value;
+        },
+        setIsBoardDragging: function(value) {
+          isBoardDragging = value;
+        },
+        requestAnimationFrame,
+        finishBoardDragState,
+        isArchiveTodoSectionId,
+        isSpecialTodoSectionId
+      });
+    }
+    function ensureTodoEditorListenersBound() {
+      if (todoEditorListenersBound) {
+        return;
+      }
+      todoEditorListenersBound = true;
+      [todoTitleInput, todoDescriptionInput, todoCommentInput, todoDueInput].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("input", function() {
+          syncTodoDraftFromInputs("input");
+          if (element === todoCommentInput) {
+            renderTodoCommentSectionState(selectedTodoId ? findTodoById(selectedTodoId) : null);
+          }
+        });
+      });
+      [todoPriorityInput, todoSectionInput, todoLinkedTaskSelect].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("change", function() {
+          syncTodoDraftFromInputs("change");
+          if (element === todoPriorityInput) {
+            syncTodoPriorityInputTone();
+          }
+        });
+      });
+      bindDebugClickAttempts(todoDetailForm, {
+        selector: "#todo-label-add-btn, #todo-label-color-save-btn, #todo-flag-add-btn, #todo-flag-color-save-btn, #todo-label-color-input, #todo-flag-color-input",
+        eventName: "todoDetailClickAttempt"
+      });
+      if (todoDetailForm) {
+        todoDetailForm.addEventListener("click", function(event) {
+          var templateBtn = getClosestEventTarget(event, "[data-comment-template]");
+          if (!templateBtn) {
+            return;
+          }
+          appendTextToTodoComment(String(templateBtn.getAttribute("data-comment-template") || ""));
+        });
+      }
+      document.addEventListener("click", function(event) {
+        var removeBtn = getClosestEventTarget(event, "[data-flag-chip-remove]");
+        if (removeBtn) {
+          currentTodoFlag = "";
+          syncTodoFlagDraft();
+          syncFlagEditor();
+          return;
+        }
+        var catalogSelect = getClosestEventTarget(event, "[data-flag-catalog-select]");
+        if (catalogSelect) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCatalogDeleteState("flag");
+          var flagName = catalogSelect.getAttribute("data-flag-catalog-select") || "";
+          if (!flagName) return;
+          currentTodoFlag = normalizeTodoLabel(flagName) || flagName;
+          syncTodoFlagDraft();
+          syncFlagEditor();
+          return;
+        }
+        var catalogEdit = getClosestEventTarget(event, "[data-flag-catalog-edit]");
+        if (catalogEdit) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearCatalogDeleteState("flag");
+          var feName = catalogEdit.getAttribute("data-flag-catalog-edit") || "";
+          var feCatalog = getFlagCatalog();
+          var feEntry = null;
+          for (var fei = 0; fei < feCatalog.length; fei++) {
+            if (normalizeTodoLabelKey(feCatalog[fei].name) === normalizeTodoLabelKey(feName)) {
+              feEntry = feCatalog[fei];
+              break;
+            }
+          }
+          var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+          var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+          if (todoFlagNameInputEl) todoFlagNameInputEl.value = feEntry ? feEntry.name : feName;
+          if (todoFlagColorInputEl && feEntry && feEntry.color && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(feEntry.color)) todoFlagColorInputEl.value = feEntry.color;
+          editingFlagOriginalName = feName;
+          syncTodoEditorTransientDraft();
+          if (todoFlagNameInputEl) todoFlagNameInputEl.focus();
+          return;
+        }
+        var catalogConfirmDelete = getClosestEventTarget(event, "[data-flag-catalog-confirm-delete]");
+        if (catalogConfirmDelete) {
+          event.preventDefault();
+          event.stopPropagation();
+          var confirmFlagName = catalogConfirmDelete.getAttribute("data-flag-catalog-confirm-delete") || "";
+          if (!confirmFlagName) return;
+          clearCatalogDeleteState("flag");
+          if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(confirmFlagName)) {
+            currentTodoFlag = "";
+            syncTodoFlagDraft();
+          }
+          syncFlagEditor();
+          vscode.postMessage({ type: "deleteTodoFlagDefinition", data: { name: confirmFlagName } });
+          return;
+        }
+        var catalogDelete = getClosestEventTarget(event, "[data-flag-catalog-delete]");
+        if (catalogDelete) {
+          event.preventDefault();
+          event.stopPropagation();
+          var flagName = catalogDelete.getAttribute("data-flag-catalog-delete") || "";
+          if (!flagName) return;
+          pendingDeleteFlagName = flagName;
+          syncFlagEditor();
+        }
+      });
+    }
+    function syncFlagEditor() {
+      var todoflagCurrentEl = document.getElementById("todo-flag-current");
+      var todoFlagPickerEl = document.getElementById("todo-flag-picker");
+      var activeFlagName = getActiveTodoFlagEditorName();
+      var activeFlagDefinition = activeFlagName ? getFlagDefinition(activeFlagName) : null;
+      if (todoflagCurrentEl) {
+        if (currentTodoFlag) {
+          todoflagCurrentEl.innerHTML = renderFlagChip(currentTodoFlag, true);
+        } else {
+          todoflagCurrentEl.innerHTML = '<span class="note">' + escapeHtml(strings.boardFlagNone || "No flag set.") + "</span>";
+        }
+      }
+      if (todoFlagPickerEl) {
+        var catalog = getFlagCatalog();
+        if (catalog.length === 0) {
+          todoFlagPickerEl.innerHTML = "";
+        } else {
+          todoFlagPickerEl.innerHTML = catalog.map(function(entry) {
+            var bg = entry.color || "#f59e0b";
+            var fg = getReadableTextColor(bg);
+            var isActive = normalizeTodoLabelKey(entry.name) === normalizeTodoLabelKey(currentTodoFlag);
+            var borderStyle = isActive ? "2px solid var(--vscode-focusBorder)" : "1px solid color-mix(in srgb," + bg + " 70%,var(--vscode-panel-border))";
+            var pendingDelete = isPendingCatalogDelete("flag", entry.name);
+            var protectedFlag = isProtectedFlagDefinition(entry);
+            var displayName = getFlagDisplayName(entry.name);
+            return '<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;background:' + escapeAttr(bg) + ";color:" + escapeAttr(fg) + ";border:" + borderStyle + ';font-size:inherit;font-weight:600;line-height:1.4;"><button type="button" data-flag-catalog-select="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;flex:1;padding:2px 0;" title="' + escapeAttr(strings.boardFlagCatalogSelectTitle || "Set as flag") + '">' + escapeHtml(displayName) + "</button>" + (protectedFlag ? '<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.75;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogLockedTitle || "Built-in flag") + '">\u{1F512}</span>' : pendingDelete ? '<button type="button" data-flag-catalog-confirm-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:18px;padding:1px 8px;border-radius:999px;background:rgba(0,0,0,0.16);font-size:11px;font-weight:700;line-height:1.2;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">' + escapeHtml(strings.boardDeleteConfirm || "Delete?") + "</button>" : '<button type="button" data-flag-catalog-edit="' + escapeAttr(entry.name) + '" data-flag-catalog-edit-color="' + escapeAttr(bg) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:11px;opacity:0.7;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogEditTitle || "Edit flag") + '">\u270E</button><button type="button" data-flag-catalog-delete="' + escapeAttr(entry.name) + '" style="all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-width:22px;min-height:22px;padding:2px 4px;border-radius:999px;font-size:14px;font-weight:700;opacity:0.8;line-height:1;" title="' + escapeAttr(strings.boardFlagCatalogDeleteTitle || "Delete flag") + '">\xD7</button>') + "</span>";
+          }).join("");
+        }
+      }
+      if (todoFlagColorInput) {
+        var draftFlagColor = !selectedTodoId && currentTodoDraft ? getValidFlagColorValue(currentTodoDraft.flagColor, "") : "";
+        var pendingFlagColor = getPendingTodoEditorColor(
+          pendingTodoFlagEditorState,
+          activeFlagName
+        );
+        var nextFlagColor = pendingFlagColor || draftFlagColor || getValidFlagColorValue(activeFlagDefinition && activeFlagDefinition.color, "");
+        todoFlagColorInput.value = getValidFlagColorValue(nextFlagColor, "#f59e0b");
+        rememberPendingTodoEditorColor(
+          pendingTodoFlagEditorState,
+          activeFlagName,
+          todoFlagColorInput.value
+        );
+        todoFlagColorInput.disabled = false;
+      }
+      syncEditorTabLabels();
+    }
+    function addFlagFromInput() {
+      clearCatalogDeleteState("flag");
+      var todoFlagNameInput2 = document.getElementById("todo-flag-name-input");
+      var todoFlagColorInput2 = document.getElementById("todo-flag-color-input");
+      if (!todoFlagNameInput2) {
+        emitWebviewDebug("todoFlagAddIgnored", { reason: "missingInput" });
+        return;
+      }
+      var name = normalizeTodoLabel(todoFlagNameInput2.value);
+      if (!name) {
+        emitWebviewDebug("todoFlagAddIgnored", {
+          reason: "emptyFlag",
+          rawValue: String(todoFlagNameInput2.value || "")
+        });
+        return;
+      }
+      var color = todoFlagColorInput2 ? todoFlagColorInput2.value : "#f59e0b";
+      emitWebviewDebug("todoFlagAddAccepted", {
+        flag: name,
+        editingExisting: !!editingFlagOriginalName,
+        color
+      });
+      var prevName = editingFlagOriginalName;
+      editingFlagOriginalName = "";
+      todoFlagNameInput2.value = "";
+      if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(name)) {
+        if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+          currentTodoFlag = name;
+        }
+      }
+      vscode.postMessage({ type: "saveTodoFlagDefinition", data: { name, previousName: prevName || void 0, color } });
+      if (!prevName) {
+        currentTodoFlag = name;
+      }
+      syncTodoFlagDraft();
+      syncTodoEditorTransientDraft();
+      syncFlagEditor();
+    }
+    function padNumber(value) {
+      return value < 10 ? "0" + value : String(value);
+    }
+    function toLocalDateTimeInput(value) {
+      if (!value) return "";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return "";
+      var year = date.getFullYear();
+      var month = padNumber(date.getMonth() + 1);
+      var day = padNumber(date.getDate());
+      var hour = padNumber(date.getHours());
+      var minute = padNumber(date.getMinutes());
+      return year + "-" + month + "-" + day + "T" + hour + ":" + minute;
+    }
+    function fromLocalDateTimeInput(value) {
+      if (!value) return void 0;
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return void 0;
+      return date.toISOString();
+    }
+    function formatTodoDate(value) {
+      if (!value) return "";
+      var date = new Date(value);
+      if (isNaN(date.getTime())) return String(value);
+      return date.toLocaleString(locale || void 0, {
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+    }
+    function getTodoPriorityLabel(priority) {
+      switch (priority) {
+        case "low":
+          return strings.boardPriorityLow || "Low";
+        case "medium":
+          return strings.boardPriorityMedium || "Medium";
+        case "high":
+          return strings.boardPriorityHigh || "High";
+        case "urgent":
+          return strings.boardPriorityUrgent || "Urgent";
+        default:
+          return strings.boardPriorityNone || "None";
+      }
+    }
+    function getTodoPriorityRank(priority) {
+      switch (priority) {
+        case "urgent":
+          return 4;
+        case "high":
+          return 3;
+        case "medium":
+          return 2;
+        case "low":
+          return 1;
+        default:
+          return 0;
+      }
+    }
+    function getTodoPriorityCardBg(priority, isSelected) {
+      if (isSelected) return "var(--vscode-list-activeSelectionBackground)";
+      switch (priority) {
+        case "urgent":
+          return "color-mix(in srgb, #ef4444 12%, var(--vscode-sideBar-background))";
+        case "high":
+          return "color-mix(in srgb, #f59e0b 12%, var(--vscode-sideBar-background))";
+        case "medium":
+          return "color-mix(in srgb, #3b82f6 12%, var(--vscode-sideBar-background))";
+        case "low":
+          return "color-mix(in srgb, #6b7280 12%, var(--vscode-sideBar-background))";
+        default:
+          return "color-mix(in srgb, #9ca3af 6%, var(--vscode-sideBar-background))";
+      }
+    }
+    function getTodoStatusLabel(status) {
+      switch (status) {
+        case "completed":
+          return strings.boardStatusCompleted || "Completed";
+        case "rejected":
+          return strings.boardArchiveRejected || "Rejected";
+        default:
+          return strings.boardStatusActive || "Active";
+      }
+    }
+    function getTodoArchiveOutcomeLabel(outcome) {
+      switch (outcome) {
+        case "completed-successfully":
+          return strings.boardArchiveCompletedSuccessfully || "Completed successfully";
+        case "rejected":
+          return strings.boardArchiveRejected || "Rejected";
+        default:
+          return strings.boardAllArchiveOutcomes || "All outcomes";
+      }
+    }
+    function getTodoCommentSourceLabel(source) {
+      switch (source) {
+        case "bot-mcp":
+          return strings.boardCommentSourceBotMcp || "Bot MCP";
+        case "bot-manual":
+          return strings.boardCommentSourceBotManual || "Bot manual";
+        case "system-event":
+          return strings.boardCommentSourceSystemEvent || "System event";
+        default:
+          return strings.boardCommentSourceHumanForm || "Human form";
+      }
+    }
+    function renderTodoCommentEmptyMarkup(title, body) {
+      return '<div class="todo-comment-empty-state"><div class="todo-comment-empty-title">' + escapeHtml(title) + '</div><div class="note">' + escapeHtml(body) + "</div></div>";
+    }
+    function renderTodoCommentDraftPreviewMarkup(commentBody) {
+      return '<article class="todo-comment-card is-human-form is-user-form is-preview"><div class="todo-comment-header"><div class="todo-comment-heading"><span class="todo-comment-sequence">' + escapeHtml(strings.boardCommentModeCreate || "Kickoff note") + '</span><span class="todo-comment-source-chip">' + escapeHtml(strings.boardCommentSourceHumanForm || "Human form") + '</span></div><div class="todo-comment-meta"><span class="note">' + escapeHtml(strings.boardCommentPreviewPending || "Saved on create") + '</span></div></div><div class="note todo-comment-author">user</div><div class="todo-comment-body">' + escapeHtml(commentBody || "") + '</div><div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentThreadCreateNote || "Preview of the kickoff note that will be saved on create.") + "</div></article>";
+    }
+    function renderTodoCommentListMarkup(comments) {
+      if (!comments.length) {
+        return renderTodoCommentEmptyMarkup(
+          strings.boardCommentsEmpty || "No comments yet.",
+          strings.boardCommentEditHint || "Add a focused update without rewriting the full description."
+        );
+      }
+      return comments.slice().reverse().map(function(comment, reverseIndex) {
+        var source = comment && comment.source ? String(comment.source) : "human-form";
+        var commentIndex = comments.length - reverseIndex - 1;
+        var sourceLabel = getTodoCommentSourceLabel(source);
+        var sequence = typeof comment.sequence === "number" ? comment.sequence : 1;
+        var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+        var toneClass = getTodoCommentToneClass(comment);
+        var userFormClass = source === "human-form" && String(comment.author || "").toLowerCase() === "user" ? " is-user-form" : "";
+        var rawBody = String(comment.body || "");
+        var previewBody = source === "system-event" ? rawBody.replace(/\s+/g, " ").trim() : rawBody;
+        if (source === "system-event" && previewBody.length > 140) {
+          previewBody = previewBody.slice(0, 137) + "...";
+        }
+        return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '"><div class="todo-comment-header"><div class="todo-comment-heading"><span class="todo-comment-sequence">#' + escapeHtml(String(sequence)) + '</span><span class="todo-comment-source-chip">' + escapeHtml(sourceLabel) + '</span></div><div class="todo-comment-meta"><span class="note">' + escapeHtml(formatTodoDate(displayDate)) + '</span><button type="button" class="btn-icon todo-comment-delete-btn" data-delete-comment-index="' + escapeAttr(String(commentIndex)) + '" title="' + escapeAttr(strings.boardCommentDelete || "Delete comment") + '">&#128465;</button></div></div><div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div><div class="todo-comment-body">' + escapeHtml(previewBody) + '</div><div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + "</div></article>";
+      }).join("");
+    }
+    function renderTodoCommentSectionState(selectedTodo) {
+      var isEditingTodo = !!selectedTodo;
+      var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+      var todoDraft = isEditingTodo ? null : currentTodoDraft;
+      var comments = isEditingTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+      var commentDraftValue = todoCommentInput ? String(todoCommentInput.value || "").trim() : !isEditingTodo && todoDraft ? String(todoDraft.comment || "").trim() : "";
+      if (todoCommentCountBadge) {
+        todoCommentCountBadge.textContent = isEditingTodo ? String(comments.length) : commentDraftValue ? strings.boardCommentBadgePreview || "Preview" : strings.boardCommentBadgeDraft || "Draft";
+      }
+      if (todoCommentModePill) {
+        todoCommentModePill.textContent = isEditingTodo ? strings.boardCommentModeEdit || "Live thread" : strings.boardCommentModeCreate || "Kickoff note";
+      }
+      if (todoCommentContextNote) {
+        todoCommentContextNote.textContent = isEditingTodo ? strings.boardCommentsEditIntro || "Keep approvals, decisions, and handoff context in the thread while the main description stays stable." : strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.";
+      }
+      var todoCommentsHeading = document.getElementById("todo-comments-heading");
+      if (todoCommentsHeading) {
+        var todoCommentsHelpText = isEditingTodo ? strings.boardCommentsEditIntro || "Keep approvals, decisions, and handoff context in the thread while the main description stays stable." : strings.boardCommentsCreateIntro || "Start the thread early so context, approvals, and decisions do not get buried in the description.";
+        todoCommentsHeading.setAttribute("title", todoCommentsHelpText);
+        var todoCommentsHeadingHelpRoot = todoCommentsHeading.parentElement;
+        if (todoCommentsHeadingHelpRoot) {
+          todoCommentsHeadingHelpRoot.setAttribute("title", todoCommentsHelpText);
+          var todoCommentsHeadingHelpTrigger = todoCommentsHeadingHelpRoot.querySelector(".section-title-help-trigger");
+          if (todoCommentsHeadingHelpTrigger) {
+            todoCommentsHeadingHelpTrigger.setAttribute("title", todoCommentsHelpText);
+          }
+        }
+      }
+      if (todoCommentComposerTitle) {
+        todoCommentComposerTitle.textContent = isEditingTodo ? strings.boardCommentComposerEditTitle || "Add to the thread" : strings.boardCommentComposerCreateTitle || "Write the kickoff comment";
+      }
+      if (todoCommentComposerNote) {
+        todoCommentComposerNote.textContent = isEditingTodo ? strings.boardCommentEditHint || "Add a focused update without rewriting the full description." : strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.";
+      }
+      if (todoCommentDraftStatus) {
+        if (isArchivedTodo) {
+          todoCommentDraftStatus.textContent = strings.boardReadOnlyArchived || "Archived items are read-only in the editor. Use Restore on the board to reopen them.";
+        } else if (isEditingTodo) {
+          todoCommentDraftStatus.textContent = commentDraftValue ? strings.boardCommentReadyToAdd || "Ready to append to the live thread." : strings.boardCommentEditHint || "Add a focused update without rewriting the full description.";
+        } else {
+          todoCommentDraftStatus.textContent = commentDraftValue ? strings.boardCommentCreateReady || "This draft will be saved as the first human comment when you create the todo." : strings.boardCommentCreateHint || "Optional, but recommended: add the first human note now so the todo starts with useful context.";
+        }
+      }
+      if (todoCommentThreadNote) {
+        if (isEditingTodo) {
+          todoCommentThreadNote.textContent = comments.length > 0 ? strings.boardCommentThreadEditNote || "Open any card to read the full comment or remove a thread entry." : strings.boardCommentEditHint || "Add a focused update without rewriting the full description.";
+        } else {
+          todoCommentThreadNote.textContent = commentDraftValue ? strings.boardCommentThreadCreateNote || "Preview of the kickoff note that will be saved on create." : strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment.";
+        }
+      }
+      if (todoCommentInput) {
+        todoCommentInput.placeholder = isEditingTodo ? strings.boardCommentPlaceholder || "Add a comment with context, provenance, or approval notes..." : strings.boardCommentCreatePlaceholder || "Capture the first decision, approval note, or handoff context for this todo...";
+      }
+      if (todoAddCommentBtn) {
+        todoAddCommentBtn.textContent = strings.boardAddComment || "Add Comment";
+        todoAddCommentBtn.hidden = !isEditingTodo;
+        todoAddCommentBtn.disabled = !isEditingTodo || isArchivedTodo || !commentDraftValue;
+      }
+      if (!todoCommentList) {
+        return;
+      }
+      if (isEditingTodo) {
+        todoCommentList.innerHTML = renderTodoCommentListMarkup(comments);
+        return;
+      }
+      todoCommentList.innerHTML = commentDraftValue ? renderTodoCommentDraftPreviewMarkup(commentDraftValue) : renderTodoCommentEmptyMarkup(
+        strings.boardCommentBadgeDraft || "Draft",
+        strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment."
+      );
+    }
+    function getTodoDescriptionPreview(description) {
+      var text = String(description || "").trim().replace(/\s+/g, " ");
+      if (!text) {
+        return strings.boardDescriptionPreviewEmpty || "No description yet.";
+      }
+      return text.length > 140 ? text.slice(0, 137) + "..." : text;
+    }
+    function normalizeTodoFilters(filters2) {
+      var record = filters2 && typeof filters2 === "object" ? filters2 : {};
+      return {
+        searchText: record.searchText || "",
+        labels: Array.isArray(record.labels) ? record.labels.slice() : [],
+        priorities: Array.isArray(record.priorities) ? record.priorities.slice() : [],
+        statuses: Array.isArray(record.statuses) ? record.statuses.slice() : [],
+        archiveOutcomes: Array.isArray(record.archiveOutcomes) ? record.archiveOutcomes.slice() : [],
+        flags: Array.isArray(record.flags) ? record.flags.slice() : [],
+        sectionId: record.sectionId || "",
+        sortBy: record.sortBy || "manual",
+        sortDirection: record.sortDirection || "asc",
+        viewMode: record.viewMode === "list" ? "list" : "board",
+        showArchived: record.showArchived === true,
+        showRecurringTasks: record.showRecurringTasks === true,
+        hideCardDetails: record.hideCardDetails === true
+      };
+    }
+    function areTodoFilterListsEqual(left, right) {
+      if (left.length !== right.length) {
+        return false;
+      }
+      for (var index = 0; index < left.length; index += 1) {
+        if (left[index] !== right[index]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    function areTodoFiltersEqual(left, right) {
+      var nextLeft = normalizeTodoFilters(left);
+      var nextRight = normalizeTodoFilters(right);
+      return nextLeft.searchText === nextRight.searchText && areTodoFilterListsEqual(nextLeft.labels, nextRight.labels) && areTodoFilterListsEqual(nextLeft.priorities, nextRight.priorities) && areTodoFilterListsEqual(nextLeft.statuses, nextRight.statuses) && areTodoFilterListsEqual(nextLeft.archiveOutcomes, nextRight.archiveOutcomes) && areTodoFilterListsEqual(nextLeft.flags, nextRight.flags) && nextLeft.sectionId === nextRight.sectionId && nextLeft.sortBy === nextRight.sortBy && nextLeft.sortDirection === nextRight.sortDirection && nextLeft.viewMode === nextRight.viewMode && nextLeft.showArchived === nextRight.showArchived && nextLeft.showRecurringTasks === nextRight.showRecurringTasks && nextLeft.hideCardDetails === nextRight.hideCardDetails;
+    }
+    function getTodoFilters() {
+      return normalizeTodoFilters(cockpitBoard && cockpitBoard.filters ? cockpitBoard.filters : {});
+    }
+    function updateTodoFilters(partial) {
+      var next = normalizeTodoFilters(Object.assign({}, getTodoFilters(), partial || {}));
+      if (partial && typeof partial.hideCardDetails === "boolean") {
+        boardCardDetailsHidden = partial.hideCardDetails;
+        try {
+          localStorage.setItem("cockpit-hide-card-details", boardCardDetailsHidden ? "1" : "0");
+        } catch (_e) {
+        }
+      }
+      if (!cockpitBoard) {
+        cockpitBoard = {
+          sections: [],
+          cards: [],
+          labelCatalog: [],
+          archives: { completedSuccessfully: [], rejected: [] },
+          filters: {},
+          updatedAt: ""
+        };
+      }
+      pendingTodoFilters = next;
+      cockpitBoard.filters = next;
+      renderCockpitBoard();
+      vscode.postMessage({ type: "setTodoFilters", data: next });
+    }
+    function hasActiveTodoFilters(filters2) {
+      var current = filters2 || getTodoFilters();
+      return Boolean(
+        current.searchText && String(current.searchText).trim() || Array.isArray(current.labels) && current.labels.length > 0 || Array.isArray(current.priorities) && current.priorities.length > 0 || Array.isArray(current.statuses) && current.statuses.length > 0 || Array.isArray(current.archiveOutcomes) && current.archiveOutcomes.length > 0 || Array.isArray(current.flags) && current.flags.length > 0 || current.sectionId && String(current.sectionId).trim() || current.showArchived === true || current.showRecurringTasks === true || current.hideCardDetails === true
+      );
+    }
+    function clearTodoFilters() {
+      updateTodoFilters({
+        searchText: "",
+        labels: [],
+        priorities: [],
+        statuses: [],
+        archiveOutcomes: [],
+        flags: [],
+        sectionId: "",
+        showArchived: false,
+        showRecurringTasks: false,
+        hideCardDetails: false
+      });
+    }
+    function getTodoSections(filters2) {
+      var sections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice() : [];
+      sections.sort(function(left, right) {
+        return (left.order || 0) - (right.order || 0);
+      });
+      return sections.filter(function(section) {
+        if (!(filters2 && filters2.showArchived === true) && isArchiveTodoSectionId(section.id)) {
+          return false;
+        }
+        if (!(filters2 && filters2.showRecurringTasks === true) && isRecurringTodoSectionId(section.id)) {
+          return false;
+        }
+        return true;
+      });
+    }
+    function getEditableTodoSections() {
+      return getTodoSections({ showArchived: true, showRecurringTasks: true }).filter(function(section) {
+        return !isSpecialTodoSectionId(section.id);
+      });
+    }
+    function isTodoReadyForFinalize(card) {
+      var workflowFlag = getTodoWorkflowFlag(card);
+      return !!(card && !card.archived && (workflowFlag === "ready" || workflowFlag === "final-user-check" || String(card.status || "").toLowerCase() === "ready"));
+    }
+    function getTodoCompletionActionType(card) {
+      return isTodoReadyForFinalize(card) ? "finalizeTodo" : "approveTodo";
+    }
+    function getTodoCompletionActionLabel(card) {
+      return isTodoReadyForFinalize(card) ? strings.boardFinalizeTodo || "Final Accept" : strings.boardApproveTodo || "Approve";
+    }
+    function getTodoFinalizeConfirmLabel() {
+      return strings.boardFinalizeTodoYes || "Yes";
+    }
+    function getTodoFinalizeCancelLabel() {
+      return strings.boardFinalizeTodoNo || "No";
+    }
+    function clearTodoCompletionConfirmTimer() {
+      if (todoCompletionConfirmTimer) {
+        window.clearTimeout(todoCompletionConfirmTimer);
+        todoCompletionConfirmTimer = null;
+      }
+    }
+    function hasPendingGridTodoCompletion(todoId) {
+      return !!(todoId && Object.prototype.hasOwnProperty.call(pendingGridTodoCompletions, todoId));
+    }
+    function clearPendingGridTodoCompletion(todoId, skipRender) {
+      if (!hasPendingGridTodoCompletion(todoId)) {
+        return;
+      }
+      window.clearTimeout(pendingGridTodoCompletions[todoId]);
+      delete pendingGridTodoCompletions[todoId];
+      if (!skipRender) {
+        requestCockpitBoardRender();
+      }
+    }
+    function startPendingGridTodoCompletion(todoId) {
+      if (!todoId) {
+        return;
+      }
+      clearPendingGridTodoCompletion(todoId, true);
+      pendingGridTodoCompletions[todoId] = window.setTimeout(function() {
+        clearPendingGridTodoCompletion(todoId);
+      }, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);
+      requestCockpitBoardRender();
+    }
+    function reconcilePendingGridTodoCompletions(cards) {
+      var activeCardsById = {};
+      if (Array.isArray(cards)) {
+        cards.forEach(function(card) {
+          if (card && card.id && !card.archived) {
+            activeCardsById[card.id] = true;
+          }
+        });
+      }
+      Object.keys(pendingGridTodoCompletions).forEach(function(todoId) {
+        if (!activeCardsById[todoId]) {
+          clearPendingGridTodoCompletion(todoId, true);
+        }
+      });
+    }
+    function isTodoCompletionConfirmPending(card) {
+      return !!(card && todoCompletionConfirmState && todoCompletionConfirmState.todoId === card.id && todoCompletionConfirmState.actionType === getTodoCompletionActionType(card));
+    }
+    function getTodoCompletionConfirmStepLabel(card) {
+      return (strings.boardConfirmAction || "Confirm") + " " + getTodoCompletionActionLabel(card);
+    }
+    function syncTodoCompletionButtonState() {
+      if (!todoCompleteBtn) {
+        return;
+      }
+      var selectedTodo = selectedTodoId ? findTodoById(selectedTodoId) : null;
+      var isEditingTodo = !!selectedTodo;
+      var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+      var hasPendingConfirm = isTodoCompletionConfirmPending(selectedTodo);
+      if (todoCompletionConfirmState && !hasPendingConfirm) {
+        clearTodoCompletionConfirmTimer();
+        todoCompletionConfirmState = null;
+      }
+      var buttonLabel = isEditingTodo ? getTodoCompletionActionLabel(selectedTodo) : strings.boardApproveTodo || "Approve";
+      if (hasPendingConfirm) {
+        buttonLabel = getTodoCompletionConfirmStepLabel(selectedTodo);
+      }
+      todoCompleteBtn.textContent = buttonLabel;
+      todoCompleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+      todoCompleteBtn.setAttribute("aria-label", buttonLabel);
+      todoCompleteBtn.setAttribute("title", buttonLabel);
+      todoCompleteBtn.setAttribute("data-confirm-state", hasPendingConfirm ? "pending" : "idle");
+    }
+    function resetTodoCompletionInlineConfirm() {
+      clearTodoCompletionConfirmTimer();
+      todoCompletionConfirmState = null;
+      syncTodoCompletionButtonState();
+    }
+    function startTodoCompletionInlineConfirm(card) {
+      if (!card || card.archived) {
+        return;
+      }
+      todoCompletionConfirmState = {
+        todoId: card.id,
+        actionType: getTodoCompletionActionType(card)
+      };
+      clearTodoCompletionConfirmTimer();
+      todoCompletionConfirmTimer = window.setTimeout(function() {
+        resetTodoCompletionInlineConfirm();
+      }, TODO_COMPLETION_CONFIRM_TIMEOUT_MS);
+      syncTodoCompletionButtonState();
+    }
+    function isTodoCompleted(card) {
+      return !!(card && card.archived && card.archiveOutcome === "completed-successfully");
+    }
+    function renderTodoCompletionButton(card) {
+      var isArchivedCard = !!(card && card.archived);
+      var hasPendingConfirm = !isArchivedCard && hasPendingGridTodoCompletion(card && card.id);
+      var title = isArchivedCard ? strings.boardRestoreTodo || "Restore" : getTodoCompletionActionLabel(card);
+      var icon = isTodoCompleted(card) ? "\u2713" : "\u25CB";
+      var actionAttr = isArchivedCard ? "data-todo-restore" : "data-todo-complete";
+      var className = "todo-complete-button";
+      if (isTodoReadyForFinalize(card)) {
+        className += " is-ready-to-finalize";
+      }
+      if (isTodoCompleted(card)) {
+        className += " is-completed";
+      }
+      if (hasPendingConfirm) {
+        var confirmLabel = isTodoReadyForFinalize(card) ? strings.boardFinalizeTodoYes || "Yes" : strings.boardConfirmAction || "Confirm";
+        var confirmPrompt = isTodoReadyForFinalize(card) ? strings.boardFinalizePrompt || "Archive this todo as completed successfully?" : strings.boardApprovePrompt || "Mark this todo ready for task draft creation?";
+        var cancelLabel = isTodoReadyForFinalize(card) ? strings.boardFinalizeTodoNo || "No" : strings.boardCancelAction || "Cancel";
+        return '<button type="button" class="' + className + ' is-confirming" data-todo-complete="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(confirmPrompt) + '" aria-label="' + escapeAttr(confirmLabel) + '"' + (isTodoReadyForFinalize(card) ? ' data-finalize-state="confirming"' : "") + ' style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-input-background);color:var(--vscode-foreground);cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;"><span aria-hidden="true">' + escapeHtml(confirmLabel) + '</span></button><button type="button" class="todo-complete-button is-cancel" data-todo-complete-cancel="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(cancelLabel) + '" aria-label="' + escapeAttr(cancelLabel) + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:var(--vscode-button-secondaryBackground, var(--vscode-input-background));color:var(--vscode-button-secondaryForeground, var(--vscode-foreground));cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;padding:0 10px;margin-left:6px;">' + escapeHtml(cancelLabel) + "</button>";
+      }
+      return '<button type="button" class="' + className + '" ' + actionAttr + '="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(title) + '" aria-label="' + escapeAttr(title) + '"' + (isTodoReadyForFinalize(card) ? ' data-finalize-state="idle" data-confirm-label="' + escapeAttr(getTodoFinalizeConfirmLabel()) + '" data-cancel-label="' + escapeAttr(getTodoFinalizeCancelLabel()) + '"' : "") + ' style="display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:999px;border:1px solid var(--vscode-input-border, var(--vscode-panel-border));background:' + (isTodoCompleted(card) ? "color-mix(in srgb, var(--vscode-testing-iconPassed, #4caf50) 82%, var(--vscode-button-background))" : "var(--vscode-input-background)") + ";color:" + (isTodoCompleted(card) ? "var(--vscode-button-foreground)" : "var(--vscode-foreground)") + ';cursor:pointer;font-size:12px;font-weight:700;line-height:1;flex:0 0 auto;"><span aria-hidden="true">' + escapeHtml(icon) + "</span></button>";
+    }
+    function renderTodoDragHandle(card) {
+      if (!card || card.archived) {
+        return "";
+      }
+      return '<span class="cockpit-drag-handle" data-todo-drag-handle="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderTodo || "Drag todo") + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+    }
+    function renderSectionDragHandle(section, isArchiveSection) {
+      if (!section || isArchiveSection) {
+        return "";
+      }
+      return '<span class="cockpit-drag-handle" data-section-drag-handle="' + escapeAttr(section.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderSection || "Drag section") + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+    }
+    function getLinkedTask(taskId) {
+      if (!taskId) return null;
+      for (var i = 0; i < tasks.length; i += 1) {
+        if (tasks[i] && tasks[i].id === taskId) {
+          return tasks[i];
+        }
+      }
+      return null;
+    }
+    function cardMatchesTodoFilters(card, filters2) {
+      if (!filters2.showArchived && card.archived) {
+        return false;
+      }
+      if (!filters2.showRecurringTasks && isRecurringTodoSectionId(card.sectionId)) {
+        return false;
+      }
+      if (filters2.sectionId && card.sectionId !== filters2.sectionId) {
+        return false;
+      }
+      if (filters2.labels.length > 0) {
+        var hasLabel = (card.labels || []).some(function(label) {
+          return filters2.labels.indexOf(label) >= 0;
+        });
+        if (!hasLabel) return false;
+      }
+      if (filters2.priorities.length > 0 && filters2.priorities.indexOf(card.priority || "none") < 0) {
+        return false;
+      }
+      if (filters2.statuses.length > 0 && filters2.statuses.indexOf(card.status || "active") < 0) {
+        return false;
+      }
+      if (filters2.archiveOutcomes.length > 0) {
+        if (!card.archived || filters2.archiveOutcomes.indexOf(card.archiveOutcome || "") < 0) {
+          return false;
+        }
+      }
+      if (filters2.flags.length > 0) {
+        var hasFlag = (card.flags || []).some(function(flag) {
+          return filters2.flags.indexOf(flag) >= 0;
+        });
+        if (!hasFlag) return false;
+      }
+      if (filters2.searchText) {
+        var needle = String(filters2.searchText).toLowerCase();
+        var commentsText = (card.comments || []).map(function(comment) {
+          return (comment.author || "") + " " + (comment.body || "");
+        }).join(" ");
+        var haystack = [
+          card.title || "",
+          card.description || "",
+          (card.labels || []).join(" "),
+          (card.flags || []).join(" "),
+          commentsText
+        ].join(" ").toLowerCase();
+        if (haystack.indexOf(needle) < 0) {
+          return false;
+        }
+      }
+      return true;
+    }
+    function sortTodoCards(cards, filters2) {
+      var direction = filters2.sortDirection === "desc" ? -1 : 1;
+      return cards.slice().sort(function(left, right) {
+        var result = 0;
+        switch (filters2.sortBy) {
+          case "dueAt": {
+            var leftDue = left.dueAt ? new Date(left.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+            var rightDue = right.dueAt ? new Date(right.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+            result = leftDue - rightDue;
+            break;
+          }
+          case "priority":
+            result = getTodoPriorityRank(left.priority) - getTodoPriorityRank(right.priority);
+            break;
+          case "updatedAt":
+            result = new Date(left.updatedAt || 0).getTime() - new Date(right.updatedAt || 0).getTime();
+            break;
+          case "createdAt":
+            result = new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime();
+            break;
+          default:
+            result = (left.order || 0) - (right.order || 0);
+            break;
+        }
+        if (result === 0) {
+          result = String(left.title || "").localeCompare(String(right.title || ""));
+        }
+        return result * direction;
+      });
+    }
+    function renderTodoFilterControls(filters2, sections, cards) {
+      var labels = dedupeStringList(
+        getLabelCatalog().map(function(entry) {
+          return entry.name;
+        }).concat((Array.isArray(cards) ? cards : []).reduce(function(all, card) {
+          return all.concat(card.labels || []);
+        }, []))
+      ).sort();
+      var flags = dedupeStringList(
+        getFlagCatalog().map(function(entry) {
+          return entry.name;
+        }).concat((Array.isArray(cards) ? cards : []).reduce(function(all, card) {
+          return all.concat(card.flags || []);
+        }, []))
+      ).sort();
+      if (todoSearchInput) todoSearchInput.value = filters2.searchText || "";
+      if (todoSectionFilter) {
+        todoSectionFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllSections || "All sections") + "</option>" + sections.map(function(section) {
+          return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + "</option>";
+        }).join("");
+        todoSectionFilter.value = filters2.sectionId || "";
+      }
+      if (todoLabelFilter) {
+        todoLabelFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllLabels || "All labels") + "</option>" + labels.map(function(label) {
+          return '<option value="' + escapeAttr(label) + '">' + escapeHtml(label) + "</option>";
+        }).join("");
+        todoLabelFilter.value = filters2.labels[0] || "";
+      }
+      if (todoFlagFilter) {
+        todoFlagFilter.innerHTML = '<option value="">' + escapeHtml(strings.boardAllFlags || "All flags") + "</option>" + flags.map(function(flag) {
+          return '<option value="' + escapeAttr(flag) + '">' + escapeHtml(flag) + "</option>";
+        }).join("");
+        todoFlagFilter.value = filters2.flags[0] || "";
+      }
+      if (todoPriorityFilter) {
+        var PRIORITY_FILTER_STYLES = { "": "", none: "background:#d1d5db;color:#374151;", low: "background:#6b7280;color:#fff;", medium: "background:#3b82f6;color:#fff;", high: "background:#f59e0b;color:#fff;", urgent: "background:#ef4444;color:#fff;" };
+        todoPriorityFilter.innerHTML = [
+          { value: "", label: strings.boardAllPriorities || "All priorities" },
+          { value: "none", label: getTodoPriorityLabel("none") },
+          { value: "low", label: getTodoPriorityLabel("low") },
+          { value: "medium", label: getTodoPriorityLabel("medium") },
+          { value: "high", label: getTodoPriorityLabel("high") },
+          { value: "urgent", label: getTodoPriorityLabel("urgent") }
+        ].map(function(option) {
+          var optStyle = PRIORITY_FILTER_STYLES[option.value] || "";
+          var style = optStyle ? ' style="' + optStyle + '"' : "";
+          return '<option value="' + escapeAttr(option.value) + '"' + style + ">" + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoPriorityFilter.value = filters2.priorities[0] || "";
+      }
+      if (todoStatusFilter) {
+        todoStatusFilter.innerHTML = [
+          { value: "", label: strings.boardAllStatuses || "All statuses" },
+          { value: "active", label: getTodoStatusLabel("active") },
+          { value: "completed", label: getTodoStatusLabel("completed") },
+          { value: "rejected", label: getTodoStatusLabel("rejected") }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoStatusFilter.value = filters2.statuses[0] || "";
+      }
+      if (todoArchiveOutcomeFilter) {
+        todoArchiveOutcomeFilter.innerHTML = [
+          { value: "", label: strings.boardAllArchiveOutcomes || "All outcomes" },
+          { value: "completed-successfully", label: getTodoArchiveOutcomeLabel("completed-successfully") },
+          { value: "rejected", label: getTodoArchiveOutcomeLabel("rejected") }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoArchiveOutcomeFilter.value = filters2.archiveOutcomes[0] || "";
+      }
+      if (todoSortBy) {
+        todoSortBy.innerHTML = [
+          { value: "manual", label: strings.boardSortManual || "Manual order" },
+          { value: "dueAt", label: strings.boardSortDueAt || "Due date" },
+          { value: "priority", label: strings.boardSortPriority || "Priority" },
+          { value: "updatedAt", label: strings.boardSortUpdatedAt || "Last updated" },
+          { value: "createdAt", label: strings.boardSortCreatedAt || "Created date" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoSortBy.value = filters2.sortBy || "manual";
+      }
+      if (todoSortDirection) {
+        todoSortDirection.innerHTML = [
+          { value: "asc", label: strings.boardSortAsc || "Ascending" },
+          { value: "desc", label: strings.boardSortDesc || "Descending" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoSortDirection.value = filters2.sortDirection || "asc";
+      }
+      if (todoViewMode) {
+        todoViewMode.innerHTML = [
+          { value: "board", label: strings.boardViewBoard || "Board" },
+          { value: "list", label: strings.boardViewList || "List" }
+        ].map(function(option) {
+          return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + "</option>";
+        }).join("");
+        todoViewMode.value = filters2.viewMode || "board";
+      }
+      if (todoShowArchived) {
+        todoShowArchived.checked = filters2.showArchived === true;
+      }
+      if (todoShowRecurringTasks) {
+        todoShowRecurringTasks.checked = filters2.showRecurringTasks === true;
+      }
+      if (todoHideCardDetails) {
+        var hideCardDetails = filters2.hideCardDetails === true || boardCardDetailsHidden === true;
+        todoHideCardDetails.checked = hideCardDetails;
+      }
+      document.documentElement.classList.toggle(
+        "cockpit-board-hide-card-details",
+        filters2.hideCardDetails === true || boardCardDetailsHidden === true
+      );
+      if (todoClearFiltersBtn) {
+        todoClearFiltersBtn.disabled = !hasActiveTodoFilters(filters2);
+      }
+      if (cockpitColSlider) {
+        var widthGroup = cockpitColSlider.closest ? cockpitColSlider.closest(".board-col-width-group") : null;
+        if (widthGroup) {
+          widthGroup.style.display = filters2.viewMode === "list" ? "none" : "flex";
+        }
+      }
+    }
+    function renderTodoDetailPanel(selectedTodo, sections) {
+      var isEditingTodo = !!selectedTodo;
+      var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+      var todoDraft = isEditingTodo ? null : currentTodoDraft;
+      var isRefreshingSameTodo = isEditingTodo && activeTabName === "todo-edit" && todoDetailId && todoDetailId.value === selectedTodo.id;
+      var sectionOptions = getEditableTodoSections();
+      if (isEditingTodo && selectedTodo && selectedTodo.sectionId) {
+        var hasCurrentSection = sectionOptions.some(function(section) {
+          return section.id === selectedTodo.sectionId;
+        });
+        if (!hasCurrentSection) {
+          var currentSection = (Array.isArray(sections) ? sections : []).find(function(section) {
+            return section.id === selectedTodo.sectionId;
+          });
+          if (currentSection) {
+            sectionOptions = sectionOptions.concat([currentSection]);
+          }
+        }
+      }
+      syncEditorTabLabels();
+      if (!isRefreshingSameTodo) {
+        if (isEditingTodo) {
+          setTodoEditorLabels(selectedTodo.labels || [], false);
+        } else {
+          setTodoEditorLabels(currentTodoLabels, true);
+        }
+      }
+      if (todoDetailTitle) {
+        var todoDetailHelpText = isEditingTodo ? strings.boardDetailModeEdit || "Update this todo." : strings.boardDetailModeCreate || "Fill the form to create a new todo.";
+        todoDetailTitle.textContent = isEditingTodo ? strings.boardDetailTitleEdit || "Edit Todo" : strings.boardDetailTitleCreate || "Create Todo";
+        todoDetailTitle.setAttribute("title", todoDetailHelpText);
+        var todoDetailTitleHelpRoot = todoDetailTitle.parentElement;
+        if (todoDetailTitleHelpRoot) {
+          todoDetailTitleHelpRoot.setAttribute("title", todoDetailHelpText);
+          var todoDetailTitleHelpTrigger = todoDetailTitleHelpRoot.querySelector(".section-title-help-trigger");
+          if (todoDetailTitleHelpTrigger) {
+            todoDetailTitleHelpTrigger.setAttribute("title", todoDetailHelpText);
+          }
+        }
+      }
+      if (todoDetailModeNote) {
+        todoDetailModeNote.textContent = isEditingTodo ? strings.boardDetailModeEdit || "Update this todo." : strings.boardDetailModeCreate || "Fill the form to create a new todo.";
+      }
+      if (todoDetailId) todoDetailId.value = isEditingTodo ? selectedTodo.id : "";
+      if (!isRefreshingSameTodo) {
+        if (todoTitleInput) todoTitleInput.value = isEditingTodo ? selectedTodo.title || "" : todoDraft.title || "";
+        if (todoDescriptionInput) todoDescriptionInput.value = isEditingTodo ? selectedTodo.description || "" : todoDraft.description || "";
+        if (todoCommentInput) todoCommentInput.value = isEditingTodo ? "" : todoDraft.comment || "";
+        if (todoDueInput) todoDueInput.value = isEditingTodo ? toLocalDateTimeInput(selectedTodo.dueAt) : todoDraft.dueAt || "";
+        if (todoLabelsInput) todoLabelsInput.value = isEditingTodo ? "" : todoDraft.labelInput || "";
+        if (todoLabelColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.labelColor || "")) {
+          todoLabelColorInput.value = todoDraft.labelColor;
+        }
+        currentTodoFlag = isEditingTodo ? getTodoWorkflowFlag(selectedTodo) || ((selectedTodo.flags || [])[0] || "") : todoDraft.flag || "";
+        if (todoFlagNameInput) todoFlagNameInput.value = isEditingTodo ? "" : todoDraft.flagInput || "";
+        if (todoFlagColorInput && !isEditingTodo && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(todoDraft.flagColor || "")) {
+          todoFlagColorInput.value = todoDraft.flagColor;
+        }
+      }
+      setTodoUploadNote(strings.boardUploadFilesHint || "", "neutral");
+      syncTodoFlagDraft();
+      syncFlagEditor();
+      syncTodoLabelEditor();
+      if (todoFlagColorSaveBtn) {
+        todoFlagColorSaveBtn.disabled = !todoFlagNameInput || !todoFlagNameInput.value.trim();
+      }
+      if (todoDetailStatus) {
+        if (!isEditingTodo) {
+          todoDetailStatus.textContent = strings.boardStatusLabel ? strings.boardStatusLabel + ": " + (strings.boardStatusActive || "Active") : "Status: Active";
+        } else if (selectedTodo.archived) {
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \u2022 " + getTodoArchiveOutcomeLabel(selectedTodo.archiveOutcome || "rejected");
+        } else {
+          var workflowFlag = getTodoWorkflowFlag(selectedTodo);
+          todoDetailStatus.textContent = (strings.boardStatusLabel || "Status") + ": " + getTodoStatusLabel(selectedTodo.status || "active") + " \u2022 " + (strings.boardWorkflowLabel || "Workflow") + ": " + getFlagDisplayName(workflowFlag || "new");
+        }
+      }
+      if (todoPriorityInput) {
+        var prevPriority = isRefreshingSameTodo ? todoPriorityInput.value : "";
+        todoPriorityInput.innerHTML = ["none", "low", "medium", "high", "urgent"].map(function(priority) {
+          return '<option value="' + escapeAttr(priority) + '">' + escapeHtml(getTodoPriorityLabel(priority)) + "</option>";
+        }).join("");
+        todoPriorityInput.value = isRefreshingSameTodo ? prevPriority : isEditingTodo ? selectedTodo.priority || "none" : todoDraft.priority || "none";
+        syncTodoPriorityInputTone();
+      }
+      if (todoSectionInput) {
+        var prevSection = isRefreshingSameTodo ? todoSectionInput.value : "";
+        todoSectionInput.innerHTML = sectionOptions.map(function(section) {
+          return '<option value="' + escapeAttr(section.id) + '">' + escapeHtml(section.title) + "</option>";
+        }).join("");
+        if (isRefreshingSameTodo && selectHasOptionValue(todoSectionInput, prevSection)) {
+          todoSectionInput.value = prevSection;
+        } else {
+          todoSectionInput.value = isEditingTodo ? selectedTodo.sectionId : todoDraft.sectionId && selectHasOptionValue(todoSectionInput, todoDraft.sectionId) ? todoDraft.sectionId : sectionOptions[0] ? sectionOptions[0].id : "";
+        }
+      }
+      if (!isRefreshingSameTodo) {
+        syncTodoLinkedTaskOptions(isEditingTodo && selectedTodo ? selectedTodo.taskId || "" : todoDraft.taskId || "");
+      }
+      if (!isEditingTodo) {
+        currentTodoDraft.priority = todoPriorityInput ? todoPriorityInput.value || "none" : "none";
+        currentTodoDraft.sectionId = todoSectionInput ? todoSectionInput.value || "" : "";
+        currentTodoDraft.dueAt = todoDueInput ? todoDueInput.value || "" : "";
+      }
+      if (todoSaveBtn) {
+        todoSaveBtn.textContent = isEditingTodo ? strings.boardSaveUpdate || "Save Todo" : strings.boardSaveCreate || "Create Todo";
+        todoSaveBtn.disabled = isArchivedTodo;
+      }
+      if (todoCreateTaskBtn) {
+        todoCreateTaskBtn.disabled = !isEditingTodo || isArchivedTodo || getTodoWorkflowFlag(selectedTodo) !== "ready";
+      }
+      if (todoCompletionConfirmState && !isTodoCompletionConfirmPending(selectedTodo)) {
+        clearTodoCompletionConfirmTimer();
+        todoCompletionConfirmState = null;
+      }
+      syncTodoCompletionButtonState();
+      if (todoDeleteBtn) todoDeleteBtn.disabled = !isEditingTodo || isArchivedTodo;
+      if (todoUploadFilesBtn) todoUploadFilesBtn.disabled = !!isArchivedTodo;
+      if (todoCommentInput) {
+        todoCommentInput.disabled = !!isArchivedTodo;
+      }
+      var linkedTask = isEditingTodo ? getLinkedTask(selectedTodo.taskId) : null;
+      if (todoLinkedTaskNote) {
+        if (!isEditingTodo) {
+          todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+        } else if (selectedTodo.archived) {
+          todoLinkedTaskNote.textContent = strings.boardReadOnlyArchived || "Archived items are read-only.";
+        } else if (getTodoWorkflowFlag(selectedTodo) === "ready") {
+          todoLinkedTaskNote.textContent = strings.boardReadyForTask || "Approved items can become scheduled task drafts or be final accepted.";
+        } else if (selectedTodo.taskId && !linkedTask) {
+          todoLinkedTaskNote.textContent = strings.boardTaskMissing || "Linked task not found in Task List.";
+        } else if (linkedTask) {
+          todoLinkedTaskNote.textContent = (strings.boardTaskLinked || "Linked task") + ": " + (linkedTask.name || linkedTask.id);
+        } else {
+          todoLinkedTaskNote.textContent = strings.boardTaskDraftNote || "Scheduled tasks remain separate from planning todos.";
+        }
+      }
+      syncEditorTabLabels();
+      renderTodoCommentSectionState(selectedTodo);
+    }
+    function syncTodoLinkedTaskOptions(preferredTaskId) {
+      if (!todoLinkedTaskSelect) {
+        return;
+      }
+      var currentValue = todoLinkedTaskSelect.value || "";
+      var nextValue = preferredTaskId || currentValue;
+      todoLinkedTaskSelect.innerHTML = '<option value="">' + escapeHtml(strings.boardLinkedTaskNone || "No linked task") + "</option>" + tasks.map(function(task) {
+        return '<option value="' + escapeAttr(task.id) + '">' + escapeHtml(task.name || task.id) + "</option>";
+      }).join("");
+      if (!nextValue) {
+        todoLinkedTaskSelect.value = "";
+        if (!selectedTodoId) {
+          currentTodoDraft.taskId = "";
+        }
+        return;
+      }
+      var hasTaskOption = tasks.some(function(task) {
+        return task && task.id === nextValue;
+      });
+      todoLinkedTaskSelect.value = hasTaskOption ? nextValue : "";
+      if (!selectedTodoId) {
+        currentTodoDraft.taskId = todoLinkedTaskSelect.value || "";
+      }
+    }
+    function renderCockpitBoard() {
+      ensureTodoEditorListenersBound();
+      renderGitHubBoardInbox();
+      var filters2 = getTodoFilters();
+      var sections = getTodoSections(filters2);
+      var allSections = Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.slice().sort(function(left, right) {
+        return (left.order || 0) - (right.order || 0);
+      }) : [];
+      var allCards = getAllTodoCards();
+      var cards = getVisibleTodoCards(filters2);
+      var editorTodoId = activeTabName === "todo-edit" ? getActiveTodoEditorId() : "";
+      if (!selectedTodoId && editorTodoId) {
+        var editorTodoExists = allCards.some(function(card) {
+          return card && card.id === editorTodoId;
+        });
+        if (editorTodoExists) {
+          selectedTodoId = editorTodoId;
+        }
+      }
+      if (selectedTodoId) {
+        var selectedTodo = allCards.find(function(card) {
+          return card && card.id === selectedTodoId;
+        });
+        if (selectedTodo && selectedTodo.archived && filters2.showArchived !== true && selectedTodoId !== editorTodoId) {
+          selectedTodoId = null;
+        }
+        if (selectedTodo && isRecurringTodoSectionId(selectedTodo.sectionId) && filters2.showRecurringTasks !== true && selectedTodoId !== editorTodoId) {
+          selectedTodoId = null;
+        }
+        var hasSelectedTodo = allCards.some(function(card) {
+          return card && card.id === selectedTodoId;
+        });
+        if (!hasSelectedTodo) {
+          selectedTodoId = null;
+        }
+      }
+      renderTodoFilterControls(filters2, sections, cards);
+      if (boardSummary) {
+        var activeCount = allCards.filter(function(card) {
+          return !card.archived;
+        }).length;
+        var archivedCount = allCards.filter(function(card) {
+          return card.archived;
+        }).length;
+        boardSummary.textContent = (strings.boardSections || "Sections") + ": " + sections.length + " \u2022 " + (strings.boardCards || "Cards") + ": " + activeCount + " \u2022 Archived: " + String(archivedCount) + " \u2022 " + (strings.boardComments || "Comments") + ": " + allCards.reduce(function(count, card) {
+          return count + (Array.isArray(card.comments) ? card.comments.length : 0);
+        }, 0);
+      }
+      if (!boardColumns) {
+        return;
+      }
+      var visibleSections2 = sections.filter(function(section) {
+        return !filters2.sectionId || section.id === filters2.sectionId;
+      });
+      if (visibleSections2.length === 0) {
+        boardColumns.innerHTML = '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + "</div>";
+        renderTodoDetailPanel(null, sections);
+        return;
+      }
+      boardColumns.innerHTML = renderTodoBoardMarkup({
+        visibleSections: visibleSections2,
+        cards,
+        filters: filters2,
+        strings,
+        selectedTodoId,
+        pendingBoardDeleteTodoId,
+        pendingBoardDeletePermanentOnly,
+        collapsedSections,
+        helpers: {
+          escapeAttr,
+          escapeHtml,
+          sortTodoCards,
+          cardMatchesTodoFilters,
+          isArchiveTodoSectionId,
+          isSpecialTodoSectionId,
+          renderSectionDragHandle,
+          renderTodoCompletionCheckbox: renderTodoCompletionButton,
+          renderTodoDragHandle,
+          renderFlagChip,
+          renderLabelChip,
+          getTodoPriorityLabel,
+          getTodoStatusLabel,
+          getTodoDescriptionPreview,
+          getTodoCommentSourceLabel,
+          getTodoArchiveOutcomeLabel,
+          getTodoPriorityCardBg,
+          formatTodoDate
+        }
+      });
+      renderTodoDetailPanel(
+        selectedTodoId ? allCards.find(function(card) {
+          return card.id === selectedTodoId;
+        }) || null : null,
+        allSections
+      );
+      if (boardColumns) {
+        bindRenderedCockpitBoardInteractions();
+      }
+      scheduleBoardStickyMetrics();
+      if (todoNewBtn) {
+        todoNewBtn.onclick = function() {
+          clearCatalogDeleteState();
+          openTodoEditor("");
+        };
+      }
+      if (todoClearSelectionBtn) {
+        todoClearSelectionBtn.onclick = function() {
+          clearCatalogDeleteState();
+          selectedTodoId = null;
+          currentTodoLabels = [];
+          selectedTodoLabelName = "";
+          currentTodoFlag = "";
+          syncTodoFlagDraft();
+          renderCockpitBoard();
+          switchTab("board");
+        };
+      }
+      if (boardAddSectionBtn) {
+        boardAddSectionBtn.onclick = function() {
+          boardAddSectionBtn.style.display = "none";
+          if (boardSectionInlineForm) {
+            boardSectionInlineForm.style.display = "flex";
+            if (boardSectionNameInput) {
+              boardSectionNameInput.value = "";
+              boardSectionNameInput.focus();
+            }
+          }
+        };
+      }
+      function hideSectionForm() {
+        if (boardSectionInlineForm) boardSectionInlineForm.style.display = "none";
+        if (boardAddSectionBtn) boardAddSectionBtn.style.display = "";
+      }
+      function doAddSection() {
+        var title = boardSectionNameInput ? boardSectionNameInput.value.trim() : "";
+        if (title) {
+          vscode.postMessage({ type: "addCockpitSection", title });
+        }
+        hideSectionForm();
+      }
+      if (boardSectionSaveBtn) {
+        boardSectionSaveBtn.onclick = doAddSection;
+      }
+      if (boardSectionCancelBtn) {
+        boardSectionCancelBtn.onclick = hideSectionForm;
+      }
+      if (boardSectionNameInput) {
+        boardSectionNameInput.onkeydown = function(e) {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            doAddSection();
+          }
+          if (e.key === "Escape") {
+            hideSectionForm();
+          }
+        };
+      }
+      if (cockpitColSlider) {
+        cockpitColSlider.oninput = function() {
+          var w = Number(cockpitColSlider.value);
+          applyCockpitColumnScale(w);
+          try {
+            localStorage.setItem("cockpit-col-width", w);
+          } catch (e) {
+          }
+        };
+      }
+      if (todoBackBtn) {
+        todoBackBtn.onclick = function() {
+          switchTab("board");
+        };
+      }
+      if (todoSearchInput) {
+        todoSearchInput.oninput = function() {
+          updateTodoFilters({ searchText: todoSearchInput.value || "" });
+        };
+      }
+      if (todoSectionFilter) {
+        todoSectionFilter.onchange = function() {
+          updateTodoFilters({ sectionId: todoSectionFilter.value || "" });
+        };
+      }
+      if (todoLabelFilter) {
+        todoLabelFilter.onchange = function() {
+          updateTodoFilters({ labels: todoLabelFilter.value ? [todoLabelFilter.value] : [] });
+        };
+      }
+      if (todoFlagFilter) {
+        todoFlagFilter.onchange = function() {
+          updateTodoFilters({ flags: todoFlagFilter.value ? [todoFlagFilter.value] : [] });
+        };
+      }
+      if (todoPriorityFilter) {
+        todoPriorityFilter.onchange = function() {
+          updateTodoFilters({ priorities: todoPriorityFilter.value ? [todoPriorityFilter.value] : [] });
+        };
+      }
+      if (todoStatusFilter) {
+        todoStatusFilter.onchange = function() {
+          updateTodoFilters({ statuses: todoStatusFilter.value ? [todoStatusFilter.value] : [] });
+        };
+      }
+      if (todoArchiveOutcomeFilter) {
+        todoArchiveOutcomeFilter.onchange = function() {
+          updateTodoFilters({ archiveOutcomes: todoArchiveOutcomeFilter.value ? [todoArchiveOutcomeFilter.value] : [] });
+        };
+      }
+      if (todoSortBy) {
+        todoSortBy.onchange = function() {
+          updateTodoFilters({ sortBy: todoSortBy.value || "manual" });
+        };
+      }
+      if (todoSortDirection) {
+        todoSortDirection.onchange = function() {
+          updateTodoFilters({ sortDirection: todoSortDirection.value || "asc" });
+        };
+      }
+      if (todoViewMode) {
+        todoViewMode.onchange = function() {
+          updateTodoFilters({ viewMode: todoViewMode.value === "list" ? "list" : "board" });
+        };
+      }
+      if (todoShowArchived) {
+        todoShowArchived.onchange = function() {
+          updateTodoFilters({ showArchived: todoShowArchived.checked === true });
+        };
+      }
+      if (todoShowRecurringTasks) {
+        todoShowRecurringTasks.onchange = function() {
+          updateTodoFilters({ showRecurringTasks: todoShowRecurringTasks.checked === true });
+        };
+      }
+      if (todoHideCardDetails) {
+        todoHideCardDetails.onchange = function() {
+          updateTodoFilters({ hideCardDetails: todoHideCardDetails.checked === true });
+        };
+      }
+      if (todoToggleFiltersBtn) {
+        todoToggleFiltersBtn.onclick = function() {
+          if (isBoardFiltersCollapsed()) {
+            boardFiltersManualCollapsed = false;
+            boardFiltersAutoCollapsed = false;
+          } else {
+            boardFiltersManualCollapsed = true;
+          }
+          applyBoardFilterCollapseState();
+          persistTaskFilter();
+        };
+      }
+      if (todoClearFiltersBtn) {
+        todoClearFiltersBtn.onclick = function() {
+          clearTodoFilters();
+        };
+      }
+      if (todoDetailForm) {
+        todoDetailForm.onsubmit = function(event) {
+          event.preventDefault();
+          if (!todoTitleInput || !todoSectionInput || !todoPriorityInput) {
+            return;
+          }
+          syncTodoDraftFromInputs("submit");
+          var commentBody = todoCommentInput ? String(todoCommentInput.value || "").trim() : "";
+          var payload = {
+            title: todoTitleInput.value || "",
+            description: todoDescriptionInput ? todoDescriptionInput.value : "",
+            dueAt: fromLocalDateTimeInput(todoDueInput ? todoDueInput.value : "") || null,
+            sectionId: todoSectionInput.value || "",
+            priority: todoPriorityInput.value || "none",
+            labels: currentTodoLabels.slice(),
+            flags: currentTodoFlag ? [currentTodoFlag] : [],
+            taskId: todoLinkedTaskSelect && todoLinkedTaskSelect.value ? todoLinkedTaskSelect.value : null
+          };
+          var activeTodoId = getActiveTodoEditorId();
+          if (activeTodoId) {
+            selectedTodoId = activeTodoId;
+            vscode.postMessage({ type: "updateTodo", todoId: activeTodoId, data: payload });
+          } else {
+            if (commentBody) {
+              payload.comment = commentBody;
+            }
+            emitWebviewDebug("todoCreateSubmit", {
+              hasComment: !!commentBody,
+              titleLength: payload.title.length,
+              sectionId: payload.sectionId,
+              taskId: payload.taskId || ""
+            });
+            vscode.postMessage({ type: "createTodo", data: payload });
+          }
+        };
+      }
+      if (todoAddCommentBtn) {
+        todoAddCommentBtn.onclick = function() {
+          if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
+            return;
+          }
+          vscode.postMessage({
+            type: "addTodoComment",
+            todoId: selectedTodoId,
+            data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" }
+          });
+          todoCommentInput.value = "";
+          renderTodoCommentSectionState(findTodoById(selectedTodoId));
+        };
+      }
+      if (todoCommentList) {
+        todoCommentList.onclick = function(event) {
+          var deleteBtn = getClosestEventTarget(event, "[data-delete-comment-index]");
+          if (deleteBtn && selectedTodoId) {
+            event.stopPropagation();
+            var commentIndex = Number(deleteBtn.getAttribute("data-delete-comment-index"));
+            if (!isNaN(commentIndex)) {
+              vscode.postMessage({
+                type: "deleteTodoComment",
+                todoId: selectedTodoId,
+                commentIndex
+              });
+            }
+            return;
+          }
+          var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+          if (!commentCard || !selectedTodoId) {
+            return;
+          }
+          var commentIndex = Number(commentCard.getAttribute("data-comment-index"));
+          var selectedTodo2 = findTodoById(selectedTodoId);
+          var comments = selectedTodo2 && Array.isArray(selectedTodo2.comments) ? selectedTodo2.comments : [];
+          if (commentIndex < 0 || commentIndex >= comments.length) {
+            return;
+          }
+          openTodoCommentModal(comments[commentIndex]);
+        };
+        todoCommentList.onkeydown = function(event) {
+          if (event.key !== "Enter" && event.key !== " ") {
+            return;
+          }
+          var commentCard = getClosestEventTarget(event, "[data-comment-index]");
+          if (!commentCard) {
+            return;
+          }
+          event.preventDefault();
+          commentCard.click();
+        };
+      }
+      if (todoUploadFilesBtn) {
+        todoUploadFilesBtn.onclick = function() {
+          vscode.postMessage({
+            type: "requestTodoFileUpload",
+            todoId: selectedTodoId || void 0
+          });
+        };
+      }
+      if (todoCreateTaskBtn) {
+        todoCreateTaskBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          vscode.postMessage({ type: "createTaskFromTodo", todoId: selectedTodoId });
+        };
+      }
+      if (todoCompleteBtn) {
+        todoCompleteBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          var selectedTodo2 = findTodoById(selectedTodoId);
+          if (!selectedTodo2 || selectedTodo2.archived) {
+            resetTodoCompletionInlineConfirm();
+            return;
+          }
+          var actionType = getTodoCompletionActionType(selectedTodo2);
+          if (!isTodoCompletionConfirmPending(selectedTodo2)) {
+            startTodoCompletionInlineConfirm(selectedTodo2);
+            return;
+          }
+          resetTodoCompletionInlineConfirm();
+          vscode.postMessage({
+            type: actionType,
+            todoId: selectedTodoId
+          });
+        };
+      }
+      if (todoDeleteBtn) {
+        todoDeleteBtn.onclick = function() {
+          if (!selectedTodoId) return;
+          openTodoDeleteModal(selectedTodoId);
+        };
+      }
+      if (todoLabelAddBtn) {
+        todoLabelAddBtn.onclick = function() {
+          emitWebviewDebug("todoLabelAddButtonClick", {
+            disabled: !!todoLabelAddBtn.disabled,
+            inputValue: todoLabelsInput ? String(todoLabelsInput.value || "") : ""
+          });
+          addEditorLabelFromInput();
+        };
+      }
+      if (todoLabelsInput) {
+        todoLabelsInput.oninput = function() {
+          var label = normalizeTodoLabel(todoLabelsInput.value);
+          if (label) {
+            var def = getLabelDefinition(label);
+            if (def && def.color && todoLabelColorInput) {
+              todoLabelColorInput.value = def.color;
+              selectedTodoLabelName = def.name;
+            } else {
+              selectedTodoLabelName = "";
+            }
+            if (todoLabelColorInput) todoLabelColorInput.disabled = false;
+          } else {
+            selectedTodoLabelName = "";
+          }
+          rememberPendingTodoEditorColor(
+            pendingTodoLabelEditorState,
+            getActiveTodoLabelEditorName(),
+            todoLabelColorInput ? todoLabelColorInput.value : ""
+          );
+          syncTodoLabelEditor();
+          if (todoLabelColorSaveBtn) todoLabelColorSaveBtn.disabled = !getActiveTodoLabelEditorName();
+          syncTodoEditorTransientDraft();
+          syncTodoLabelSuggestions();
+        };
+        todoLabelsInput.onfocus = function() {
+          syncTodoLabelSuggestions();
+        };
+        todoLabelsInput.onblur = function() {
+          setTimeout(function() {
+            if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+          }, 200);
+        };
+        todoLabelsInput.onkeydown = function(event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addEditorLabelFromInput();
+          } else if (event.key === "Escape") {
+            if (todoLabelSuggestions) todoLabelSuggestions.style.display = "none";
+          }
+        };
+      }
+      if (todoLabelColorInput) {
+        todoLabelColorInput.oninput = function() {
+          rememberPendingTodoEditorColor(
+            pendingTodoLabelEditorState,
+            getActiveTodoLabelEditorName(),
+            todoLabelColorInput.value
+          );
+          syncTodoEditorTransientDraft();
+        };
+        todoLabelColorInput.onchange = function() {
+          rememberPendingTodoEditorColor(
+            pendingTodoLabelEditorState,
+            getActiveTodoLabelEditorName(),
+            todoLabelColorInput.value
+          );
+          syncTodoEditorTransientDraft();
+        };
+      }
+      if (todoLabelChipList) {
+        todoLabelChipList.onclick = function(event) {
+          var removeButton = getClosestEventTarget(event, "[data-label-chip-remove]");
+          var selectButton = getClosestEventTarget(event, "[data-label-chip-select]");
+          if (removeButton) {
+            removeEditorLabel(removeButton.getAttribute("data-label-chip-remove") || "");
+            return;
+          }
+          if (selectButton) {
+            clearCatalogDeleteState("label");
+            var lname = selectButton.getAttribute("data-label-chip-select") || "";
+            selectedTodoLabelName = lname;
+            if (todoLabelsInput) {
+              todoLabelsInput.value = lname;
+              todoLabelsInput.focus();
+            }
+            syncTodoEditorTransientDraft();
+            syncTodoLabelEditor();
+          }
+        };
+      }
+      if (todoLabelColorSaveBtn) {
+        todoLabelColorSaveBtn.onclick = function() {
+          var name = getActiveTodoLabelEditorName();
+          emitWebviewDebug("todoLabelSaveButtonClick", {
+            disabled: !!todoLabelColorSaveBtn.disabled,
+            inputValue: name,
+            hasColorInput: !!todoLabelColorInput
+          });
+          if (!name || !todoLabelColorInput) {
+            emitWebviewDebug("todoLabelSaveIgnored", {
+              reason: !name ? "emptyLabel" : "missingColorInput"
+            });
+            return;
+          }
+          var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          var previousName = editingLabelOriginalName || (selectedTodoLabelName && normalizeTodoLabelKey(selectedTodoLabelName) !== normalizeTodoLabelKey(normalized) ? selectedTodoLabelName : void 0);
+          emitWebviewDebug("todoLabelSaveAccepted", {
+            label: normalized,
+            color: todoLabelColorInput.value,
+            editingExisting: !!previousName
+          });
+          clearCatalogDeleteState("label");
+          upsertLocalLabelDefinition(normalized, todoLabelColorInput.value, previousName);
+          vscode.postMessage({ type: "saveTodoLabelDefinition", data: { name: normalized, previousName, color: todoLabelColorInput.value } });
+          var prevName = previousName;
+          if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+            var prevIdx = currentTodoLabels.map(normalizeTodoLabelKey).indexOf(normalizeTodoLabelKey(prevName));
+            if (prevIdx >= 0) {
+              var newLabels = currentTodoLabels.slice();
+              newLabels.splice(prevIdx, 1, normalized);
+              setTodoEditorLabels(newLabels, true);
+            }
+          }
+          selectedTodoLabelName = normalized;
+          editingLabelOriginalName = "";
+          if (todoLabelsInput) {
+            todoLabelsInput.value = normalized;
+          }
+          syncTodoEditorTransientDraft();
+          syncTodoLabelEditor();
+        };
+      }
+      if (todoLabelSuggestions) {
+        todoLabelSuggestions.onclick = function(event) {
+          var btn = getClosestEventTarget(event, "[data-label-suggestion]");
+          if (btn) {
+            var pickedLabel = btn.getAttribute("data-label-suggestion") || "";
+            var def = getLabelDefinition(pickedLabel);
+            editingLabelOriginalName = "";
+            if (def && def.color && todoLabelColorInput) {
+              todoLabelColorInput.value = def.color;
+            }
+            if (todoLabelsInput) todoLabelsInput.value = pickedLabel;
+            syncTodoEditorTransientDraft();
+            addEditorLabelFromInput();
+          }
+        };
+      }
+      if (todoLabelCatalog) {
+        todoLabelCatalog.onclick = function(event) {
+          var editBtn = getClosestEventTarget(event, "[data-label-catalog-edit]");
+          var deleteBtn = getClosestEventTarget(event, "[data-label-catalog-delete]");
+          var confirmDeleteBtn = getClosestEventTarget(event, "[data-label-catalog-confirm-delete]");
+          var selectBtn = getClosestEventTarget(event, "[data-label-catalog-select]");
+          if (editBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            clearCatalogDeleteState("label");
+            var eName = editBtn.getAttribute("data-label-catalog-edit") || "";
+            var eCatalog = getLabelCatalog();
+            var eEntry = null;
+            for (var ei = 0; ei < eCatalog.length; ei++) {
+              if (normalizeTodoLabelKey(eCatalog[ei].name) === normalizeTodoLabelKey(eName)) {
+                eEntry = eCatalog[ei];
+                break;
+              }
+            }
+            if (todoLabelsInput) todoLabelsInput.value = eEntry ? eEntry.name : eName;
+            if (todoLabelColorInput) {
+              todoLabelColorInput.value = getValidLabelColorValue(eEntry && eEntry.color, "#4f8cff");
+            }
+            selectedTodoLabelName = eEntry ? eEntry.name : eName;
+            editingLabelOriginalName = eEntry ? eEntry.name : eName;
+            syncTodoEditorTransientDraft();
+            syncTodoLabelEditor();
+            if (todoLabelsInput) todoLabelsInput.focus();
+            return;
+          }
+          if (confirmDeleteBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            var confirmName = confirmDeleteBtn.getAttribute("data-label-catalog-confirm-delete") || "";
+            if (!confirmName) return;
+            clearCatalogDeleteState("label");
+            if (normalizeTodoLabelKey(editingLabelOriginalName) === normalizeTodoLabelKey(confirmName)) {
+              editingLabelOriginalName = "";
+            }
+            if (normalizeTodoLabelKey(selectedTodoLabelName) === normalizeTodoLabelKey(confirmName)) {
+              selectedTodoLabelName = "";
+            }
+            if (todoLabelsInput && normalizeTodoLabelKey(todoLabelsInput.value) === normalizeTodoLabelKey(confirmName)) {
+              todoLabelsInput.value = "";
+            }
+            removeLabelFromCurrentTodo(confirmName);
+            syncTodoLabelEditor();
+            vscode.postMessage({ type: "deleteTodoLabelDefinition", data: { name: confirmName } });
+            return;
+          }
+          if (deleteBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            var name = deleteBtn.getAttribute("data-label-catalog-delete") || "";
+            if (!name) return;
+            pendingDeleteLabelName = name;
+            syncTodoLabelEditor();
+            return;
+          }
+          if (selectBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            clearCatalogDeleteState("label");
+            var name = selectBtn.getAttribute("data-label-catalog-select") || "";
+            if (!name) return;
+            var definition = getLabelDefinition(name);
+            editingLabelOriginalName = "";
+            if (todoLabelsInput) todoLabelsInput.value = name;
+            if (todoLabelColorInput) {
+              todoLabelColorInput.value = getValidLabelColorValue(definition && definition.color, todoLabelColorInput.value || "#4f8cff");
+            }
+            syncTodoEditorTransientDraft();
+            addEditorLabelFromInput();
+          }
+        };
+      }
+      if (todoFlagColorSaveBtn) {
+        todoFlagColorSaveBtn.onclick = function() {
+          var todoFlagNameInputEl = document.getElementById("todo-flag-name-input");
+          var todoFlagColorInputEl = document.getElementById("todo-flag-color-input");
+          var activeFlagName = getActiveTodoFlagEditorName();
+          emitWebviewDebug("todoFlagSaveButtonClick", {
+            disabled: !!todoFlagColorSaveBtn.disabled,
+            inputValue: activeFlagName,
+            hasNameInput: !!todoFlagNameInputEl,
+            hasColorInput: !!todoFlagColorInputEl
+          });
+          if (!todoFlagNameInputEl || !todoFlagColorInputEl) {
+            emitWebviewDebug("todoFlagSaveIgnored", { reason: "missingInputs" });
+            return;
+          }
+          var name = activeFlagName;
+          if (!name) {
+            emitWebviewDebug("todoFlagSaveIgnored", { reason: "emptyFlag" });
+            return;
+          }
+          var normalized = normalizeTodoLabel ? normalizeTodoLabel(name) : name;
+          var previousName = editingFlagOriginalName || (currentTodoFlag && normalizeTodoLabelKey(currentTodoFlag) !== normalizeTodoLabelKey(normalized) ? currentTodoFlag : void 0);
+          emitWebviewDebug("todoFlagSaveAccepted", {
+            flag: normalized,
+            color: todoFlagColorInputEl.value,
+            editingExisting: !!previousName
+          });
+          vscode.postMessage({
+            type: "saveTodoFlagDefinition",
+            data: {
+              name: normalized,
+              previousName,
+              color: todoFlagColorInputEl.value
+            }
+          });
+          var prevName = previousName;
+          if (prevName && normalizeTodoLabelKey(prevName) !== normalizeTodoLabelKey(normalized)) {
+            if (normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+              currentTodoFlag = normalized;
+              syncTodoFlagDraft();
+              syncFlagEditor();
+            }
+          }
+          if (!prevName || normalizeTodoLabelKey(currentTodoFlag) === normalizeTodoLabelKey(prevName)) {
+            currentTodoFlag = normalized;
+            syncTodoFlagDraft();
+          }
+          editingFlagOriginalName = "";
+          todoFlagNameInputEl.value = normalized;
+          syncTodoEditorTransientDraft();
+          syncFlagEditor();
+        };
+      }
+      if (todoFlagAddBtn) {
+        todoFlagAddBtn.onclick = function() {
+          emitWebviewDebug("todoFlagAddButtonClick", {
+            disabled: !!todoFlagAddBtn.disabled,
+            inputValue: todoFlagNameInput ? String(todoFlagNameInput.value || "") : ""
+          });
+          addFlagFromInput();
+        };
+      }
+      if (todoFlagNameInput) {
+        todoFlagNameInput.oninput = function() {
+          if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+          rememberPendingTodoEditorColor(
+            pendingTodoFlagEditorState,
+            getActiveTodoFlagEditorName(),
+            todoFlagColorInput ? todoFlagColorInput.value : ""
+          );
+          syncTodoEditorTransientDraft();
+        };
+        todoFlagNameInput.onkeydown = function(event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addFlagFromInput();
+          }
+        };
+      }
+      if (todoFlagColorInput) {
+        todoFlagColorInput.oninput = function() {
+          if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+          rememberPendingTodoEditorColor(
+            pendingTodoFlagEditorState,
+            getActiveTodoFlagEditorName(),
+            todoFlagColorInput.value
+          );
+          syncTodoEditorTransientDraft();
+        };
+        todoFlagColorInput.onchange = function() {
+          if (todoFlagColorSaveBtn) todoFlagColorSaveBtn.disabled = !getActiveTodoFlagEditorName();
+          rememberPendingTodoEditorColor(
+            pendingTodoFlagEditorState,
+            getActiveTodoFlagEditorName(),
+            todoFlagColorInput.value
+          );
+          syncTodoEditorTransientDraft();
+        };
+      }
+    }
+    function getEditorTabLabelNode(tabName) {
+      return document.querySelector('[data-tab-label="' + tabName + '"]');
+    }
+    function getEditorTabSymbolNode(tabName) {
+      return document.querySelector('[data-tab-symbol="' + tabName + '"]');
+    }
+    function getEditorTabButton(tabName) {
+      return document.querySelector('.tab-button[data-tab="' + tabName + '"]');
+    }
+    function getTaskByIdLocal(taskId) {
+      if (!taskId) {
+        return null;
+      }
+      var taskListArray = Array.isArray(tasks) ? tasks : [];
+      for (var i = 0; i < taskListArray.length; i += 1) {
+        if (taskListArray[i] && taskListArray[i].id === taskId) {
+          return taskListArray[i];
+        }
+      }
+      return null;
+    }
+    function normalizeTaskLabelsValue(raw) {
+      return parseLabels(raw || "").join(",");
+    }
+    function getCurrentTaskEditorState() {
+      var taskNameEl = document.getElementById("task-name");
+      var promptTextEl2 = document.getElementById("prompt-text");
+      var checkedInputs = getCheckedTaskEditorInputs();
+      var oneTimeEl = document.getElementById("one-time");
+      var manualSessionEl = document.getElementById("manual-session");
+      var promptSourceValue = checkedInputs.promptSource ? String(checkedInputs.promptSource.value || "inline") : "inline";
+      var promptPathValue = templateSelect ? String(templateSelect.value || "") : "";
+      if (promptSourceValue !== "inline" && !promptPathValue && pendingTemplatePath) {
+        promptPathValue = pendingTemplatePath;
+      }
+      var agentValue = agentSelect ? String(agentSelect.value || "") : "";
+      if (!agentValue && pendingAgentValue) {
+        agentValue = pendingAgentValue;
+      }
+      var modelValue = modelSelect ? String(modelSelect.value || "") : "";
+      if (!modelValue && pendingModelValue) {
+        modelValue = pendingModelValue;
+      }
+      var oneTime = !!(oneTimeEl && oneTimeEl.checked);
+      var manualSession = !oneTime && !!(manualSessionEl && manualSessionEl.checked);
+      return {
+        name: taskNameEl ? String(taskNameEl.value || "") : "",
+        prompt: promptTextEl2 ? String(promptTextEl2.value || "") : "",
+        cronExpression: cronExpression ? String(cronExpression.value || "") : "",
+        oneTimeDelaySeconds: getOneTimeDelaySecondsFromInputs(),
+        labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
+        agent: agentValue,
+        model: modelValue,
+        scope: checkedInputs.scope ? String(checkedInputs.scope.value || "workspace") : "workspace",
+        promptSource: promptSourceValue,
+        promptPath: promptPathValue,
+        oneTime,
+        manualSession,
+        chatSession: oneTime ? "" : chatSessionSelect ? String(chatSessionSelect.value || "") : "",
+        jitterSeconds: jitterSecondsInput ? Number(jitterSecondsInput.value || 0) : 0
+      };
+    }
+    function getSavedTaskEditorState(task) {
+      if (!task) {
+        return null;
+      }
+      return {
+        name: String(task.name || ""),
+        prompt: typeof task.prompt === "string" ? task.prompt : "",
+        cronExpression: String(task.cronExpression || ""),
+        oneTimeDelaySeconds: deriveTaskOneTimeDelaySeconds(task),
+        labels: normalizeTaskLabelsValue(toLabelString(task.labels)),
+        agent: String(task.agent || ""),
+        model: String(task.model || ""),
+        scope: String(task.scope || "workspace"),
+        promptSource: String(task.promptSource || "inline"),
+        promptPath: String(task.promptPath || ""),
+        oneTime: task.oneTime === true,
+        manualSession: task.oneTime === true ? false : task.manualSession === true,
+        chatSession: task.oneTime === true ? "" : String(task.chatSession || defaultChatSession || "new"),
+        jitterSeconds: Number(task.jitterSeconds != null ? task.jitterSeconds : defaultJitterSeconds)
+      };
+    }
+    function getCurrentTodoEditorState() {
+      return {
+        title: todoTitleInput ? String(todoTitleInput.value || "") : "",
+        description: todoDescriptionInput ? String(todoDescriptionInput.value || "") : "",
+        dueAt: todoDueInput ? String(todoDueInput.value || "") : "",
+        priority: todoPriorityInput ? String(todoPriorityInput.value || "none") : "none",
+        sectionId: todoSectionInput ? String(todoSectionInput.value || "") : "",
+        taskId: todoLinkedTaskSelect ? String(todoLinkedTaskSelect.value || "") : "",
+        labels: dedupeStringList(currentTodoLabels).map(normalizeTodoLabelKey).join(","),
+        flag: normalizeTodoLabelKey(currentTodoFlag || "")
+      };
+    }
+    function getSavedTodoEditorState(card) {
+      if (!card) {
+        return null;
+      }
+      return {
+        title: String(card.title || ""),
+        description: String(card.description || ""),
+        dueAt: toLocalDateTimeInput(card.dueAt),
+        priority: String(card.priority || "none"),
+        sectionId: String(card.sectionId || ""),
+        taskId: String(card.taskId || ""),
+        labels: dedupeStringList(card.labels || []).map(normalizeTodoLabelKey).join(","),
+        flag: normalizeTodoLabelKey((card.flags || [])[0] || "")
+      };
+    }
+    function getCurrentJobEditorState() {
+      return {
+        name: jobsNameInput ? String(jobsNameInput.value || "") : "",
+        cronExpression: jobsCronInput ? String(jobsCronInput.value || "") : "",
+        folderId: jobsFolderSelect ? String(jobsFolderSelect.value || "") : ""
+      };
+    }
+    function getSavedJobEditorState(job) {
+      if (!job) {
+        return null;
+      }
+      return {
+        name: String(job.name || ""),
+        cronExpression: String(job.cronExpression || ""),
+        folderId: String(job.folderId || "")
+      };
+    }
+    function areEditorStatesEqual(left, right) {
+      if (!left || !right) {
+        return left === right;
+      }
+      var leftKeys = Object.keys(left);
+      var rightKeys = Object.keys(right);
+      if (leftKeys.length !== rightKeys.length) {
+        return false;
+      }
+      for (var i = 0; i < leftKeys.length; i += 1) {
+        var key = leftKeys[i];
+        if (left[key] !== right[key]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    function isTaskEditorDirty() {
+      if (!editingTaskId) {
+        return false;
+      }
+      return !areEditorStatesEqual(
+        getCurrentTaskEditorState(),
+        getSavedTaskEditorState(getTaskByIdLocal(editingTaskId))
+      );
+    }
+    function isTodoEditorDirty() {
+      if (!selectedTodoId) {
+        return false;
+      }
+      var selectedTodo = cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.find(function(card) {
+        return card && card.id === selectedTodoId;
+      }) : null;
+      return !areEditorStatesEqual(
+        getCurrentTodoEditorState(),
+        getSavedTodoEditorState(selectedTodo)
+      );
+    }
+    function isJobsEditorDirty() {
+      if (isCreatingJob || !selectedJobId) {
+        return false;
+      }
+      return !areEditorStatesEqual(
+        getCurrentJobEditorState(),
+        getSavedJobEditorState(getJobById(selectedJobId))
+      );
+    }
+    function setEditorTabState(tabName, options) {
+      var button = getEditorTabButton(tabName);
+      var symbolNode = getEditorTabSymbolNode(tabName);
+      var labelNode = getEditorTabLabelNode(tabName);
+      if (symbolNode) {
+        symbolNode.textContent = options.symbol || EDITOR_CREATE_SYMBOL;
+      }
+      if (labelNode) {
+        labelNode.textContent = "";
+        if (labelNode.classList) {
+          labelNode.classList.toggle("is-dirty", options.dirty === true);
+        }
+      }
+      if (button) {
+        var title = options.title || "";
+        if (options.dirty) {
+          title = title + " \u2022 " + (strings.tabUnsavedChanges || strings.researchUnsavedChanges || "Unsaved changes");
+        }
+        button.title = title;
+        button.setAttribute("aria-label", title || tabName);
+      }
+    }
+    function syncEditorTabLabels() {
+      setEditorTabState("create", {
+        symbol: editingTaskId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+        dirty: isTaskEditorDirty(),
+        title: editingTaskId ? strings.tabTaskEditorEdit || strings.tabEdit || "Edit Task" : strings.tabTaskEditorCreate || strings.tabTaskEditor || "Create Task"
+      });
+      setEditorTabState("todo-edit", {
+        symbol: selectedTodoId ? EDITOR_EDIT_SYMBOL : EDITOR_CREATE_SYMBOL,
+        dirty: isTodoEditorDirty(),
+        title: selectedTodoId ? strings.tabTodoEditorEdit || strings.boardDetailTitleEdit || "Edit Todo" : strings.tabTodoEditorCreate || strings.tabTodoEditor || "Create Todo"
+      });
+      setEditorTabState("jobs-edit", {
+        symbol: isCreatingJob || !selectedJobId ? EDITOR_CREATE_SYMBOL : EDITOR_EDIT_SYMBOL,
+        dirty: isJobsEditorDirty(),
+        title: isCreatingJob || !selectedJobId ? strings.tabJobsEditorCreate || strings.tabJobsEditor || "Create Job" : strings.tabJobsEditorEdit || "Edit Job"
+      });
+    }
+    function setEditingMode(taskId) {
+      editingTaskId = taskId || null;
+      if (editTaskIdInput) editTaskIdInput.value = editingTaskId || "";
+      syncEditorTabLabels();
+      var isEditingTask = !!editingTaskId;
+      setTaskSubmitButtonText(isEditingTask);
+      setNewTaskButtonVisibility(isEditingTask);
+    }
+    function openTodoEditor(todoId) {
+      clearCatalogDeleteState();
+      closeTodoDeleteModal();
+      resetTodoCompletionInlineConfirm();
+      clearPendingTodoEditorColors();
+      selectedTodoId = todoId || null;
+      if (todoDetailId) {
+        todoDetailId.value = selectedTodoId || "";
+      }
+      if (!selectedTodoId) {
+        resetTodoDraft("open-create");
+        currentTodoLabels = [];
+        selectedTodoLabelName = "";
+        currentTodoFlag = "";
+        emitWebviewDebug("openTodoEditor", { mode: "create" });
+      } else {
+        emitWebviewDebug("openTodoEditor", { mode: "edit", todoId: selectedTodoId });
+      }
+      renderCockpitBoard();
+      switchTab("todo-edit");
+    }
+    function resetTodoEditor() {
+      clearCatalogDeleteState();
+      closeTodoDeleteModal();
+      resetTodoCompletionInlineConfirm();
+      clearPendingTodoEditorColors();
+      selectedTodoId = null;
+      if (todoDetailId) {
+        todoDetailId.value = "";
+      }
+      resetTodoDraft("reset-editor");
+      currentTodoLabels = [];
+      selectedTodoLabelName = "";
+      currentTodoFlag = "";
+      syncEditorTabLabels();
+      renderCockpitBoard();
+    }
+    function ensureTodoDeleteModal() {
+      if (todoDeleteModalRoot && document.body.contains(todoDeleteModalRoot)) {
+        return todoDeleteModalRoot;
+      }
+      todoDeleteModalRoot = document.createElement("div");
+      todoDeleteModalRoot.className = "cockpit-inline-modal";
+      todoDeleteModalRoot.setAttribute("hidden", "hidden");
+      todoDeleteModalRoot.innerHTML = '<div class="cockpit-inline-modal-card" role="dialog" aria-modal="true" aria-labelledby="todo-delete-modal-title"><div class="cockpit-inline-modal-title" id="todo-delete-modal-title"></div><div class="note" data-todo-delete-modal-message></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-todo-delete-cancel>' + escapeHtml(strings.boardDeleteTodoCancel || "Cancel") + '</button><button type="button" class="btn-secondary" data-todo-delete-reject>' + escapeHtml(strings.boardDeleteTodoReject || "Archive as Rejected") + '</button><button type="button" class="btn-danger" data-todo-delete-permanent>' + escapeHtml(strings.boardDeleteTodoPermanent || "Delete Permanently") + "</button></div></div>";
+      todoDeleteModalRoot.onclick = function(event) {
+        if (event.target === todoDeleteModalRoot) {
+          closeTodoDeleteModal();
+          return;
+        }
+        var cancelBtn = getClosestEventTarget(event, "[data-todo-delete-cancel]");
+        if (cancelBtn) {
+          closeTodoDeleteModal();
+          return;
+        }
+        var rejectBtn = getClosestEventTarget(event, "[data-todo-delete-reject]");
+        if (rejectBtn) {
+          submitTodoDeleteChoice("reject");
+          return;
+        }
+        var permanentBtn = getClosestEventTarget(event, "[data-todo-delete-permanent]");
+        if (permanentBtn) {
+          submitTodoDeleteChoice("permanent");
+        }
+      };
+      document.body.appendChild(todoDeleteModalRoot);
+      return todoDeleteModalRoot;
+    }
+    function closeTodoDeleteModal() {
+      pendingTodoDeleteId = "";
+      if (!todoDeleteModalRoot) {
+        return;
+      }
+      todoDeleteModalRoot.classList.remove("is-open");
+      todoDeleteModalRoot.setAttribute("hidden", "hidden");
+    }
+    function ensureTodoCommentModal() {
+      if (todoCommentModalRoot && document.body.contains(todoCommentModalRoot)) {
+        return todoCommentModalRoot;
+      }
+      todoCommentModalRoot = document.createElement("div");
+      todoCommentModalRoot.className = "cockpit-inline-modal";
+      todoCommentModalRoot.setAttribute("hidden", "hidden");
+      todoCommentModalRoot.innerHTML = '<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title"><div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div><div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div><div class="todo-comment-modal-body" id="todo-comment-modal-body"></div><div class="cockpit-inline-modal-actions"><button type="button" class="btn-secondary" data-comment-modal-close="1">' + escapeHtml(strings.boardCancelAction || "Cancel") + "</button></div></div>";
+      todoCommentModalRoot.onclick = function(event) {
+        if (event.target === todoCommentModalRoot) {
+          closeTodoCommentModal();
+          return;
+        }
+        var closeBtn = getClosestEventTarget(event, "[data-comment-modal-close]");
+        if (closeBtn) {
+          closeTodoCommentModal();
+        }
+      };
+      document.body.appendChild(todoCommentModalRoot);
+      return todoCommentModalRoot;
+    }
+    function closeTodoCommentModal() {
+      if (!todoCommentModalRoot) {
+        return;
+      }
+      todoCommentModalRoot.classList.remove("is-open");
+      todoCommentModalRoot.setAttribute("hidden", "hidden");
+    }
+    function openTodoCommentModal(comment) {
+      if (!comment) {
+        return;
+      }
+      var modal = ensureTodoCommentModal();
+      var titleEl = modal.querySelector("#todo-comment-modal-title");
+      var metaEl = modal.querySelector("#todo-comment-modal-meta");
+      var bodyEl = modal.querySelector("#todo-comment-modal-body");
+      var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
+      var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
+      if (titleEl) {
+        titleEl.textContent = strings.boardCommentModalTitle || "Comment Detail";
+      }
+      if (metaEl) {
+        metaEl.innerHTML = "<span><strong>" + escapeHtml(sourceLabel) + "</strong></span><span>" + escapeHtml(comment.author || "system") + "</span><span>" + escapeHtml(formatTodoDate(displayDate)) + "</span>";
+      }
+      if (bodyEl) {
+        bodyEl.textContent = comment.body || "";
+      }
+      modal.removeAttribute("hidden");
+      modal.classList.add("is-open");
+    }
+    function openTodoDeleteModal(todoId, options) {
+      if (!todoId) {
+        return;
+      }
+      var permanentOnly = !!(options && options.permanentOnly);
+      var todo = cockpitBoard && Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.find(function(card) {
+        return card && card.id === todoId;
+      }) : null;
+      var modal = ensureTodoDeleteModal();
+      pendingTodoDeleteId = todoId;
+      var titleEl = modal.querySelector("#todo-delete-modal-title");
+      var messageEl = modal.querySelector("[data-todo-delete-modal-message]");
+      var rejectBtn = modal.querySelector("[data-todo-delete-reject]");
+      if (titleEl) {
+        titleEl.textContent = permanentOnly ? strings.boardDeleteTodoPermanent || "Delete Permanently" : strings.boardDeleteTodoTitle || "Delete Todo";
+      }
+      if (messageEl) {
+        var promptText = permanentOnly ? strings.boardDeleteTodoPermanentPrompt || "Delete this archived todo permanently? This cannot be undone." : strings.boardDeleteTodoPrompt || "Choose whether this todo should be rejected into the archive or removed permanently.";
+        messageEl.textContent = todo && todo.title ? '"' + String(todo.title || "") + '". ' + promptText : promptText;
+      }
+      if (rejectBtn) {
+        rejectBtn.hidden = permanentOnly;
+      }
+      modal.removeAttribute("hidden");
+      modal.classList.add("is-open");
+      setTimeout(function() {
+        var defaultButton = modal.querySelector(permanentOnly ? "[data-todo-delete-permanent]" : "[data-todo-delete-reject]");
+        if (defaultButton && typeof defaultButton.focus === "function") {
+          defaultButton.focus();
+        }
+      }, 0);
+    }
+    function submitTodoDeleteChoice(choice) {
+      if (!pendingTodoDeleteId) {
+        closeTodoDeleteModal();
+        return;
+      }
+      var todoId = pendingTodoDeleteId;
+      closeTodoDeleteModal();
+      if (selectedTodoId === todoId) {
+        selectedTodoId = null;
+        currentTodoLabels = [];
+        selectedTodoLabelName = "";
+        currentTodoFlag = "";
+        renderCockpitBoard();
+      }
+      vscode.postMessage({
+        type: choice === "permanent" ? "purgeTodo" : "rejectTodo",
+        todoId
+      });
+    }
+    function openJobEditor(jobId) {
+      isCreatingJob = false;
+      if (typeof jobId === "string") {
+        selectedJobId = jobId;
+      } else if (!selectedJobId) {
+        var visibleJobs = getVisibleJobs();
+        selectedJobId = visibleJobs.length ? String(visibleJobs[0].id || "") : "";
+      }
+      persistTaskFilter();
+      renderJobsTab();
+      switchTab("jobs-edit");
+    }
+    function resetJobEditor() {
+      isCreatingJob = true;
+      selectedJobId = "";
+      persistTaskFilter();
+      renderJobsTab();
+      switchTab("jobs-edit");
+    }
+    function submitJobEditor() {
+      var jobName = jobsNameInput ? String(jobsNameInput.value || "").trim() : "";
+      var cronExpressionValue = jobsCronInput ? String(jobsCronInput.value || "").trim() : "";
+      if (!jobName || !cronExpressionValue) {
+        emitWebviewDebug("jobSaveBlocked", {
+          isCreatingJob,
+          hasName: !!jobName,
+          hasCron: !!cronExpressionValue
+        });
+        return;
+      }
+      if (isCreatingJob || !selectedJobId) {
+        emitWebviewDebug("jobCreateSubmit", {
+          name: jobName,
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : ""
+        });
+        vscode.postMessage({
+          type: "createJob",
+          data: {
+            name: jobName,
+            cronExpression: cronExpressionValue,
+            folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : void 0
+          }
+        });
+        return;
+      }
+      vscode.postMessage({
+        type: "updateJob",
+        jobId: selectedJobId,
+        data: {
+          name: jobsNameInput ? jobsNameInput.value : "",
+          cronExpression: jobsCronInput ? jobsCronInput.value : "",
+          folderId: jobsFolderSelect && jobsFolderSelect.value ? jobsFolderSelect.value : void 0
+        }
+      });
+    }
+    function submitWebviewForm(form) {
+      if (!form) {
+        return false;
+      }
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+        return true;
+      }
+      return form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    }
+    function isSaveShortcutEvent(event) {
+      return !!event && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && String(event.key || "").toLowerCase() === "s";
+    }
+    function handleGlobalSaveShortcut(event) {
+      if (!isSaveShortcutEvent(event)) {
+        return;
+      }
+      if (isTabActive("create")) {
+        event.preventDefault();
+        if (!pendingSubmit) {
+          submitWebviewForm(taskForm);
+        }
+        return;
+      }
+      if (isTabActive("todo-edit")) {
+        event.preventDefault();
+        if (!todoSaveBtn || !todoSaveBtn.disabled) {
+          submitWebviewForm(todoDetailForm);
+        }
+      }
+    }
+    function isTabActive(tabName) {
+      var targetContent = document.getElementById(tabName + "-tab");
+      return !!(targetContent && targetContent.classList.contains("active"));
+    }
+    function switchTab(tabName) {
+      if (!isPersistedTabName(tabName)) {
+        tabName = "help";
+      }
+      var shouldRefreshStorageStatus = tabName === "settings" && activeTabName !== "settings";
+      if (activeTabName) {
+        captureTabScrollPosition(activeTabName);
+      }
+      activateSchedulerTab(document, tabName);
+      activeTabName = tabName;
+      if (jobsToggleSidebarBtn) {
+        jobsToggleSidebarBtn.style.display = "";
+      }
+      if (jobsShowSidebarBtn) {
+        jobsShowSidebarBtn.style.display = tabName === "jobs" && jobsSidebarHidden ? "inline-flex" : "none";
+      }
+      if (tabName === "list") {
+        refreshTaskCountdowns();
+      }
+      persistTaskFilter();
+      restoreTabScrollPosition(tabName);
+      updateBoardAutoCollapseFromScroll(true);
+      scheduleBoardStickyMetrics();
+      if (shouldRefreshStorageStatus) {
+        vscode.postMessage({ type: "refreshStorageStatus" });
+      }
+      maybePlayInitialHelpWarp(tabName);
+    }
+    function getInitialTabName() {
+      if (isPersistedTabName(activeTabName)) {
+        return activeTabName;
+      }
+      var tabName = typeof initialData.initialTab === "string" ? initialData.initialTab : "help";
+      return isPersistedTabName(tabName) ? tabName : "help";
+    }
+    bindSelectValueChange(agentSelect, function(control) {
+      pendingAgentValue = control ? String(control.value || "") : "";
+      emitWebviewDebug("taskAgentChanged", { value: pendingAgentValue });
+    });
+    bindSelectValueChange(modelSelect, function(control) {
+      pendingModelValue = control ? String(control.value || "") : "";
+      emitWebviewDebug("taskModelChanged", { value: pendingModelValue });
+    });
+    bindSelectValueChange(templateSelect, function(control) {
+      pendingTemplatePath = control ? control.value : "";
+    });
+    var oneTimeToggle = document.getElementById("one-time");
+    bindGenericChange(oneTimeToggle, function() {
+      syncRecurringChatSessionUi();
+    });
+    var manualSessionToggle = document.getElementById("manual-session");
+    bindGenericChange(manualSessionToggle, function() {
+      syncRecurringChatSessionUi();
+    });
+    [oneTimeDelayHours, oneTimeDelayMinutes, oneTimeDelaySeconds].forEach(function(control) {
+      bindGenericChange(control, function() {
+        updateOneTimeDelayPreview();
+        syncEditorTabLabels();
+      });
+    });
+    bindTaskFilterBar(taskFilterBar, {
+      syncTaskFilterButtons,
+      isValidTaskFilter,
+      setActiveTaskFilter: function(value) {
+        activeTaskFilter = value;
+      },
+      persistTaskFilter,
+      renderTaskList: function() {
+        renderTaskList(tasks);
+      }
+    });
+    bindSelectValueChange(taskLabelFilter, function(control) {
+      activeLabelFilter = control.value || "";
+      restoredLabelFilterWasExplicit = false;
+      persistTaskFilter();
+      renderTaskList(tasks);
+    });
+    bindPromptSourceDelegation(document, applyPromptSource);
+    bindCronPresetPair(cronPreset, cronExpression, function() {
+      updateCronPreview();
+    });
+    bindCronPresetPair(jobsCronPreset, jobsCronInput, function() {
+      updateJobsCronPreview();
+      syncEditorTabLabels();
+    });
+    bindSelectValueChange(friendlyFrequency, function() {
+      refreshFriendlyCronFromBuilder();
+    });
+    bindSelectValueChange(jobsFriendlyFrequency, function() {
+      refreshJobsFriendlyCronFromBuilder();
+    });
+    bindInputFeedbackClear(
+      [
+        githubIntegrationEnabledInput,
+        githubIntegrationOwnerInput,
+        githubIntegrationRepoInput,
+        githubIntegrationApiBaseUrlInput,
+        githubIntegrationAutomationPromptTemplateInput
+      ],
+      clearGitHubIntegrationFeedback
+    );
+    bindClickAction(githubIntegrationSaveBtn, function() {
+      submitGitHubIntegrationForm();
+    });
+    bindClickAction(githubIntegrationRefreshBtn, function() {
+      requestGitHubIntegrationRefresh();
+    });
+    bindInputFeedbackClear(
+      [
+        telegramEnabledInput,
+        telegramBotTokenInput,
+        telegramChatIdInput,
+        telegramMessagePrefixInput
+      ],
+      clearTelegramFeedback
+    );
+    bindClickAction(telegramSaveBtn, function() {
+      submitTelegramForm("saveTelegramNotification");
+    });
+    bindClickAction(telegramTestBtn, function() {
+      submitTelegramForm("testTelegramNotification");
+    });
+    bindClickAction(executionDefaultsSaveBtn, function() {
+      vscode.postMessage({
+        type: "saveExecutionDefaults",
+        data: collectExecutionDefaultsFormData()
+      });
+    });
+    bindClickAction(reviewDefaultsSaveBtn, function() {
+      vscode.postMessage({
+        type: "saveReviewDefaults",
+        data: collectReviewDefaultsFormData()
+      });
+    });
+    bindClickAction(settingsStorageSaveBtn, function() {
+      vscode.postMessage({
+        type: "setStorageSettings",
+        data: collectStorageSettingsFormData()
+      });
+    });
+    bindSelectChange(approvalModeSelect, function(control) {
+      vscode.postMessage({
+        type: "setApprovalMode",
+        approvalMode: control.value
+      });
+      if (approvalModeNoteEl) {
+        approvalModeNoteEl.style.display = "";
+        setTimeout(function() {
+          approvalModeNoteEl.style.display = "none";
+        }, 3e3);
+      }
+    });
+    bindSelectChange(settingsLogLevelSelect, function(control) {
+      currentLogLevel = control.value || "info";
+      debugTools.setLogLevel(currentLogLevel);
+      renderLoggingControls();
+      vscode.postMessage({
+        type: "setLogLevel",
+        logLevel: currentLogLevel
+      });
+    });
+    bindClickAction(settingsOpenLogFolderBtn, function() {
+      vscode.postMessage({ type: "openLogFolder" });
+    });
+    bindDocumentValueDelegates(document, "change", {
+      "friendly-frequency": function() {
+        refreshFriendlyCronFromBuilder();
+      },
+      "jobs-friendly-frequency": function() {
+        refreshJobsFriendlyCronFromBuilder();
+      }
+    });
+    bindDocumentValueDelegates(document, "input", {
+      "friendly-frequency": function() {
+        refreshFriendlyCronFromBuilder();
+      },
+      "jobs-friendly-frequency": function() {
+        refreshJobsFriendlyCronFromBuilder();
+      },
+      "one-time-delay-hours": function() {
+        updateOneTimeDelayPreview();
+      },
+      "one-time-delay-minutes": function() {
+        updateOneTimeDelayPreview();
+      },
+      "one-time-delay-seconds": function() {
+        updateOneTimeDelayPreview();
+      }
+    });
+    document.addEventListener("click", function(event) {
+      var target = event && event.target && event.target.nodeType === 3 ? event.target.parentElement : event.target;
+      if (!target || typeof target.closest !== "function") {
+        return;
+      }
+      var presetButton = target.closest(".one-time-delay-preset");
+      if (!presetButton) {
+        return;
+      }
+      event.preventDefault();
+      setOneTimeDelayInputs(presetButton.getAttribute("data-seconds"));
+      updateOneTimeDelayPreview();
+      syncEditorTabLabels();
+    });
+    bindFriendlyCronBuilderAutoUpdate({
+      controls: [friendlyInterval, friendlyMinute, friendlyHour, friendlyDow, friendlyDom],
+      onRefresh: refreshFriendlyCronFromBuilder
+    });
+    bindFriendlyCronBuilderAutoUpdate({
+      controls: [jobsFriendlyInterval, jobsFriendlyMinute, jobsFriendlyHour, jobsFriendlyDow, jobsFriendlyDom],
+      onRefresh: refreshJobsFriendlyCronFromBuilder
+    });
+    bindOpenCronGuruButton(openGuruBtn, function() {
+      return cronExpression ? cronExpression.value : "";
+    }, window);
+    bindOpenCronGuruButton(jobsOpenGuruBtn, function() {
+      return jobsCronInput ? jobsCronInput.value : "";
+    }, window);
+    bindInlineTaskQuickUpdate(document, vscode);
+    bindTemplateSelectionLoader(templateSelect, document, vscode);
+    function handleTaskFormSubmit(e) {
+      e.preventDefault();
+      hideGlobalError();
+      var formErr = clearTaskFormError();
+      var runFirstEl = document.getElementById("run-first");
+      var editorState = getCurrentTaskEditorState();
+      var taskData = buildTaskSubmissionData({
+        editorState,
+        parseLabels,
+        editingTaskId,
+        editingTaskEnabled,
+        runFirstInOneMinute: runFirstEl?.checked ?? false
+      });
+      if (!validateTaskSubmission({
+        taskData,
+        promptSourceValue: editorState.promptSource,
+        formErr,
+        strings,
+        editingTaskId,
+        getTaskByIdLocal
+      })) {
+        return;
+      }
+      startPendingTaskSubmit();
+      postTaskSubmission(vscode, editingTaskId, taskData);
+    }
+    if (taskForm) {
+      taskForm.addEventListener("submit", handleTaskFormSubmit);
+    }
+    bindTaskTestButton(testBtn, {
+      document,
+      agentSelect,
+      modelSelect,
+      vscode
+    });
+    bindRefreshButton(refreshBtn, vscode);
+    bindAutoShowStartupButton(autoShowStartupBtn, vscode);
+    bindRestoreHistoryButton(restoreHistoryBtn, {
+      cockpitHistorySelect,
+      cockpitHistory,
+      strings,
+      formatHistoryLabel,
+      window,
+      vscode
+    });
+    function handleResearchToolbarAction(actionId) {
+      if (actionId === "research-new-btn") {
+        isCreatingResearchProfile = true;
+        selectedResearchId = "";
+        selectedResearchRunId = activeResearchRun && activeResearchRun.id ? activeResearchRun.id : selectedResearchRunId;
+        resetResearchForm(null);
+        renderResearchTab();
+        if (researchNameInput && typeof researchNameInput.focus === "function") {
+          researchNameInput.focus();
+        }
+        return true;
+      }
+      if (actionId === "research-load-autoagent-example-btn") {
+        resetResearchForm(getAutoAgentResearchExampleProfile());
+        researchFormDirty = true;
+        renderResearchTab();
+        if (researchNameInput && typeof researchNameInput.focus === "function") {
+          researchNameInput.focus();
+        }
+        return true;
+      }
+      return false;
+    }
+    function handleResearchAction(actionId) {
+      if (handleResearchToolbarAction(actionId)) {
+        return true;
+      }
+      if (actionId === "research-save-btn") {
+        var data = collectResearchFormData();
+        var errorMessage = validateResearchFormData(data);
+        if (errorMessage) {
+          showResearchFormError(errorMessage);
+          return true;
+        }
+        clearResearchFormError();
+        if (selectedResearchId) {
+          vscode.postMessage({
+            type: "updateResearchProfile",
+            researchId: selectedResearchId,
+            data
+          });
+        } else {
+          vscode.postMessage({
+            type: "createResearchProfile",
+            data
+          });
+        }
+        return true;
+      }
+      if (actionId === "research-duplicate-btn") {
+        if (!selectedResearchId) return true;
+        vscode.postMessage({
+          type: "duplicateResearchProfile",
+          researchId: selectedResearchId
+        });
+        return true;
+      }
+      if (actionId === "research-delete-btn") {
+        if (!selectedResearchId) return true;
+        vscode.postMessage({
+          type: "deleteResearchProfile",
+          researchId: selectedResearchId
+        });
+        return true;
+      }
+      if (actionId === "research-start-btn") {
+        if (!selectedResearchId) return true;
+        vscode.postMessage({
+          type: "startResearchRun",
+          researchId: selectedResearchId
+        });
+        return true;
+      }
+      if (actionId === "research-stop-btn") {
+        vscode.postMessage({ type: "stopResearchRun" });
+        return true;
+      }
+      return false;
+    }
+    function selectResearchProfile(researchId) {
+      selectedResearchId = researchId || "";
+      isCreatingResearchProfile = !selectedResearchId;
+      var profile = getSelectedResearchProfile();
+      resetResearchForm(profile || null);
+      renderResearchTab();
+      return !!profile;
+    }
+    function selectResearchRun(runId) {
+      selectedResearchRunId = runId || "";
+      persistTaskFilter();
+      renderResearchTab();
+    }
+    var jobsEmptyNewBtn = document.getElementById("jobs-empty-new-btn");
+    bindJobToolbarButtons({
+      jobsNewFolderBtn,
+      jobsRenameFolderBtn,
+      jobsDeleteFolderBtn,
+      jobsNewJobBtn,
+      jobsEmptyNewBtn,
+      jobsBackBtn,
+      jobsOpenEditorBtn,
+      jobsSaveBtn,
+      jobsSaveDeckBtn,
+      jobsDuplicateBtn,
+      jobsPauseBtn,
+      jobsCompileBtn,
+      jobsStatusPill,
+      jobsToggleSidebarBtn,
+      jobsShowSidebarBtn,
+      jobsDeleteBtn,
+      jobsAttachBtn,
+      jobsExistingTaskSelect,
+      jobsExistingWindowInput,
+      jobsCreateStepBtn,
+      jobsStepNameInput,
+      jobsStepPromptInput,
+      jobsStepWindowInput,
+      jobsStepAgentSelect,
+      jobsStepModelSelect,
+      jobsStepLabelsInput,
+      jobsCreatePauseBtn,
+      jobsPauseNameInput,
+      defaultPauseTitle: strings.jobsPauseDefaultTitle || "Manual review",
+      getSelectedJobFolderId: function() {
+        return selectedJobFolderId;
+      },
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      setCreatingJob: function(value) {
+        isCreatingJob = value;
+      },
+      syncEditorTabLabels,
+      switchTab,
+      openJobEditor,
+      submitJobEditor,
+      toggleJobsSidebar: function() {
+        jobsSidebarHidden = !jobsSidebarHidden;
+        applyJobsSidebarState();
+        persistTaskFilter();
+      },
+      showJobsSidebar: function() {
+        jobsSidebarHidden = false;
+        applyJobsSidebarState();
+        persistTaskFilter();
+      },
+      getJobById,
+      parseLabels,
+      vscode
+    });
+    document.addEventListener("click", function handleBoardClick(e) {
+      var target = e && e.target;
+      var researchActionButton = getClosestEventTarget(
+        e,
+        "#research-new-btn, #research-load-autoagent-example-btn, #research-save-btn, #research-duplicate-btn, #research-delete-btn, #research-start-btn, #research-stop-btn"
+      );
+      if (researchActionButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (handleResearchAction(researchActionButton.id || "")) {
+          return;
+        }
+      }
+      if (handleSchedulerDetailClick(e, {
+        getClosestEventTarget,
+        researchProfileList,
+        researchRunList,
+        selectResearchProfile,
+        selectResearchRun,
+        jobsFolderList,
+        jobsList,
+        setSelectedJobFolderId: function(value) {
+          selectedJobFolderId = value;
+        },
+        setSelectedJobId: function(value) {
+          selectedJobId = value;
+        },
+        getSelectedJobId: function() {
+          return selectedJobId;
+        },
+        persistTaskFilter,
+        renderJobsTab,
+        openJobEditor,
+        editTask: typeof window.editTask === "function" ? window.editTask : void 0,
+        runTask: typeof window.runTask === "function" ? window.runTask : void 0,
+        getJobById,
+        vscode
+      })) {
+        return;
+      }
+    });
+    bindJobNodeWindowChange(document, {
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      vscode
+    });
+    bindJobDragAndDrop(document, {
+      jobsList,
+      getDraggedJobId: function() {
+        return draggedJobId;
+      },
+      setDraggedJobId: function(value) {
+        draggedJobId = value;
+      },
+      getDraggedJobNodeId: function() {
+        return draggedJobNodeId;
+      },
+      setDraggedJobNodeId: function(value) {
+        draggedJobNodeId = value;
+      },
+      getSelectedJobId: function() {
+        return selectedJobId;
+      },
+      getJobById,
+      vscode
+    });
+    bindTemplateRefreshButton(templateRefreshBtn, {
+      templateSelect,
+      document,
+      vscode
+    });
+    bindClickAction(insertSkillBtn, function() {
+      insertSelectedSkillReference();
+    });
+    if (skillSelect && typeof skillSelect.addEventListener === "function") {
+      skillSelect.addEventListener("change", function() {
+        updateSkillDetailsNote();
+      });
+    }
+    bindUtilityActionButtons(vscode, {
+      setupMcp: setupMcpBtn,
+      setupCodex: setupCodexBtn,
+      setupCodexSkills: setupCodexSkillsBtn,
+      syncBundledSkills: syncBundledSkillsBtn,
+      stageBundledAgents: stageBundledAgentsBtn,
+      syncBundledAgents: syncBundledAgentsBtn,
+      openCopilotSettings: openCopilotSettingsBtn,
+      openExtensionSettings: openExtensionSettingsBtn,
+      refreshStorageStatus: refreshStorageStatusBtn,
+      importStorageFromJson: importStorageFromJsonBtn,
+      exportStorageToJson: exportStorageToJsonBtn
+    });
+    bindLanguageSelectors(
+      helpLanguageSelect,
+      settingsLanguageSelect,
+      vscode,
+      typeof initialData.languageSetting === "string" && initialData.languageSetting ? initialData.languageSetting : "auto"
+    );
+    var btnIntroTutorial = document.getElementById("btn-intro-tutorial");
+    if (btnIntroTutorial) {
+      btnIntroTutorial.addEventListener("click", function() {
+        vscode.postMessage({ type: "introTutorial" });
+      });
+    }
+    var btnPlanIntegration = document.getElementById("btn-plan-integration");
+    if (btnPlanIntegration) {
+      btnPlanIntegration.addEventListener("click", function() {
+        vscode.postMessage({ type: "planIntegration" });
+      });
+    }
+    if (helpIntroRocket) {
+      helpIntroRocket.addEventListener("click", function() {
+        triggerHelpWarpAnimation({ animateRocket: true });
+      });
+    }
+    [
+      "btn-help-switch-settings",
+      "btn-help-switch-board",
+      "btn-help-switch-create",
+      "btn-help-switch-list",
+      "btn-help-switch-jobs",
+      "btn-help-switch-research"
+    ].forEach(function(id) {
+      var btn = document.getElementById(id);
+      if (btn) {
+        btn.addEventListener("click", function() {
+          var targetTabMap = {
+            "btn-help-switch-settings": "settings",
+            "btn-help-switch-board": "board",
+            "btn-help-switch-create": "create",
+            "btn-help-switch-list": "list",
+            "btn-help-switch-jobs": "jobs",
+            "btn-help-switch-research": "research"
+          };
+          switchTab(targetTabMap[id]);
+        });
+      }
+    });
+    if (document.getElementById("help-tab") && document.getElementById("help-tab").classList.contains("active")) {
+      window.requestAnimationFrame(function() {
+        maybePlayInitialHelpWarp("help");
+      });
+    }
+    function resolveActionTarget(node) {
+      var current = node && node.nodeType === 3 ? node.parentElement : node;
+      while (current && current !== document.body) {
+        var hasAction = current.hasAttribute && current.hasAttribute("data-action");
+        var hasIdentifier = hasAction && (current.hasAttribute("data-id") || current.hasAttribute("data-task-id") || current.hasAttribute("data-job-id") || current.hasAttribute("data-profile-id"));
+        if (hasIdentifier) {
+          return current;
+        }
+        current = current.parentElement;
+      }
+      return null;
+    }
+    function normalizeWorkspacePathValue(rawPath) {
+      if (!rawPath) return "";
+      var normalized = String(rawPath).replace(/\\/g, "/");
+      if (normalized === "/") return "/";
+      normalized = normalized.replace(/\/+$/, "");
+      if (!normalized) return "/";
+      return caseInsensitivePaths ? normalized.toLowerCase() : normalized;
+    }
+    function getPathLeafName(rawPath) {
+      if (!rawPath) return "";
+      var normalized = String(rawPath).replace(/[/\\]+$/, "");
+      var segments = normalized.split(/[/\\]+/);
+      return segments.length ? segments[segments.length - 1] || "" : normalized;
+    }
+    function getTaskNextRunPresentation(task) {
+      var nextRunDate = task && task.nextRun ? new Date(task.nextRun) : null;
+      var hasNextRun = nextRunDate && !isNaN(nextRunDate.getTime());
+      return {
+        millis: hasNextRun ? nextRunDate.getTime() : 0,
+        text: hasNextRun ? nextRunDate.toLocaleString(locale) : strings.labelNever
+      };
+    }
+    function getTaskScopePresentation(task) {
+      var scopeValue = task && task.scope ? task.scope : "workspace";
+      var workspacePath = scopeValue === "workspace" ? task.workspacePath || "" : "";
+      var workspaceName = workspacePath ? getPathLeafName(workspacePath) : "";
+      var inCurrentWorkspace = scopeValue !== "workspace" ? true : !!workspacePath && (workspacePaths || []).some(function(candidatePath) {
+        return normalizeWorkspacePathValue(candidatePath) === normalizeWorkspacePathValue(workspacePath);
+      });
+      var scopeLabel = scopeValue === "global" ? strings.labelScopeGlobal || "" : strings.labelScopeWorkspace || "";
+      var scopeText = scopeValue === "global" ? "\u{1F310} " + escapeHtml(scopeLabel) : "\u{1F4C1} " + escapeHtml(scopeLabel) + (workspaceName ? " \u2022 " + escapeHtml(workspaceName) : "");
+      if (scopeValue === "workspace") {
+        var workspaceBadgeText = inCurrentWorkspace ? strings.labelThisWorkspaceShort || "" : strings.labelOtherWorkspaceShort || "";
+        scopeText += " \u2022 " + escapeHtml(workspaceBadgeText);
+      }
+      return {
+        inThisWorkspace: inCurrentWorkspace,
+        scopeInfo: scopeText,
+        scopeValue
+      };
+    }
+    function appendTaskActionIcon(markup, options) {
+      return markup + '<button class="' + options.className + '" data-action="' + options.action + '" data-id="' + options.taskId + '" title="' + escapeAttr(options.title) + '">' + options.icon + "</button>";
+    }
+    function renderEmptyTaskState() {
+      return '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + "</div>";
+    }
+    function renderTaskSectionShell(sectionKey, title, countMarkup, bodyMarkup) {
+      var isCollapsed = taskSectionCollapseState[sectionKey] === true;
+      var toggleTitle = isCollapsed ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section";
+      return '<div class="task-section' + (isCollapsed ? " is-collapsed" : "") + '" data-task-section="' + escapeAttr(sectionKey) + '"><div class="task-section-title"><button type="button" class="task-section-toggle" data-task-section-toggle="' + escapeAttr(sectionKey) + '" aria-expanded="' + (isCollapsed ? "false" : "true") + '" title="' + escapeAttr(toggleTitle) + '">&#9660;</button><span class="cell">' + escapeHtml(title) + "</span>" + countMarkup + '</div><div class="task-section-body"><div class="task-section-body-inner">' + bodyMarkup + "</div></div></div>";
+    }
+    function getTaskActionHandlers() {
+      var actionEntries = [
+        ["toggle", window.toggleTask],
+        ["run", window.runTask],
+        ["edit", window.editTask],
+        ["copy", window.copyPrompt],
+        ["duplicate", window.duplicateTask],
+        ["move", window.moveTaskToCurrentWorkspace],
+        ["delete", window.deleteTask]
+      ];
+      return actionEntries.reduce(function(handlers, entry) {
+        handlers[entry[0]] = entry[1];
+        return handlers;
+      }, {});
+    }
+    function getTaskStatusPresentation(task) {
+      var enabled = task.enabled || false;
+      return {
+        enabled,
+        statusClass: enabled ? "enabled" : "disabled",
+        statusText: enabled ? strings.labelEnabled : strings.labelDisabled,
+        toggleIcon: enabled ? "\u23F8\uFE0F" : "\u25B6\uFE0F",
+        toggleTitle: enabled ? strings.actionDisable : strings.actionEnable
+      };
+    }
+    function renderTaskLabelBadges(task) {
+      return getEffectiveLabels(task).map(function(label) {
+        return '<span class="task-badge label">' + escapeHtml(label) + "</span>";
+      }).join("");
+    }
+    function renderTaskErrorMarkup(lastErrorText, lastErrorAt) {
+      if (!lastErrorText) {
+        return "";
+      }
+      return '<div class="task-prompt" style="color: var(--vscode-errorForeground);">Last error' + (lastErrorAt ? " (" + escapeHtml(lastErrorAt) + ")" : "") + ": " + escapeHtml(lastErrorText) + "</div>";
+    }
+    function showSuccessToast(messageText) {
+      var toast = document.getElementById("success-toast");
+      if (!toast) {
+        return;
+      }
+      var prefix = strings.webviewSuccessPrefix || "\u2714 ";
+      toast.textContent = prefix + messageText;
+      updateToastVisibility(toast, "block", "1");
+      scheduleToastVisibility(toast, "0", 3e3);
+      scheduleToastHide(toast, 3500);
+    }
+    function setSubmitIdleState() {
+      pendingSubmit = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+      }
+    }
+    function updateToastVisibility(toast, display, opacity) {
+      toast.style.display = display;
+      toast.style.opacity = opacity;
+    }
+    function scheduleToastVisibility(toast, opacity, delayMs) {
+      setTimeout(function() {
+        toast.style.opacity = opacity;
+      }, delayMs);
+    }
+    function scheduleToastHide(toast, delayMs) {
+      setTimeout(function() {
+        updateToastVisibility(toast, "none", "1");
+      }, delayMs);
+    }
+    function scrollSelectorIntoView(selector, focusWhenPresent) {
+      var element = selector ? document.querySelector(selector) : null;
+      if (!element) {
+        return;
+      }
+      if (typeof element.scrollIntoView === "function") {
+        element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+      if (focusWhenPresent && typeof element.focus === "function") {
+        element.focus();
+      }
+    }
+    function getPromptTemplateSourceValue() {
+      var sourceElement = document.querySelector('input[name="prompt-source"]:checked');
+      return sourceElement ? sourceElement.value : "inline";
+    }
+    function getCheckedTaskEditorInputs() {
+      return {
+        promptSource: document.querySelector('input[name="prompt-source"]:checked'),
+        scope: document.querySelector('input[name="scope"]:checked')
+      };
+    }
+    function renderOneTimeBadge(task, taskIdEscaped) {
+      if (task.oneTime !== true) {
+        return "";
+      }
+      return '<span class="task-badge clickable" data-action="toggle" data-id="' + taskIdEscaped + '">' + escapeHtml(strings.labelOneTime || "One-time") + "</span>";
+    }
+    function renderManualSessionBadge(task) {
+      if (task.oneTime === true || task.manualSession !== true) {
+        return "";
+      }
+      var label = strings.labelManualSession || "Manual session";
+      return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(label) + "</span>";
+    }
+    function renderChatSessionBadge(task) {
+      if (task.oneTime === true) {
+        return "";
+      }
+      var label = strings.labelChatSession || "Recurring chat session";
+      var badgeText = task.chatSession === "continue" ? strings.labelChatSessionBadgeContinue || "Chat: Continue" : strings.labelChatSessionBadgeNew || "Chat: New";
+      return '<span class="task-badge" title="' + escapeAttr(label) + '">' + escapeHtml(badgeText) + "</span>";
+    }
+    function sortVisibleSectionsForRecurringTasks() {
+      if (filters.showRecurringTasks !== true) {
+        return;
+      }
+      visibleSections.sort(function(left, right) {
+        var leftRecurring = isRecurringTodoSectionId(left.id);
+        var rightRecurring = isRecurringTodoSectionId(right.id);
+        if (leftRecurring === rightRecurring) {
+          return 0;
+        }
+        return leftRecurring ? -1 : 1;
+      });
+    }
+    function buildTaskActionMarkup(taskIdEscaped, toggleTitle, toggleIcon, scopeValue, inThisWorkspace) {
+      var actionsHtml = buildBaseTaskActionsMarkup({
+        taskId: taskIdEscaped,
+        toggleTitle,
+        toggleIcon,
+        strings,
+        escapeAttr
+      });
+      if (scopeValue === "workspace" && !inThisWorkspace) {
+        actionsHtml = appendTaskActionIcon(actionsHtml, {
+          className: "btn-secondary btn-icon",
+          action: "move",
+          taskId: taskIdEscaped,
+          title: strings.actionMoveToCurrentWorkspace || "",
+          icon: "\u{1F4CC}"
+        });
+        sortVisibleSectionsForRecurringTasks();
+      }
+      if (scopeValue === "global" || inThisWorkspace) {
+        actionsHtml = appendTaskActionIcon(actionsHtml, {
+          className: "btn-danger btn-icon",
+          action: "delete",
+          taskId: taskIdEscaped,
+          title: strings.actionDelete,
+          icon: "\u{1F5D1}\uFE0F"
+        });
+      }
+      return actionsHtml;
+    }
+    function setPromptTextValue(content) {
+      var promptTextEl2 = document.getElementById("prompt-text");
+      if (promptTextEl2) {
+        promptTextEl2.value = content;
+      }
+    }
+    function setTaskSubmitButtonText(editing) {
+      if (!submitBtn) {
+        return;
+      }
+      var label = editing ? strings.actionSave : strings.actionCreate;
+      if (label) {
+        submitBtn.textContent = label;
+      }
+    }
+    function setNewTaskButtonVisibility(isVisible) {
+      if (newTaskBtn) {
+        newTaskBtn.style.display = isVisible ? "inline-flex" : "none";
+      }
+    }
+    function normalizeIncomingTaskList(nextTasks) {
+      if (Array.isArray(nextTasks)) {
+        tasks = nextTasks.filter(Boolean);
+      }
+      return Array.isArray(tasks) ? tasks.filter(Boolean) : [];
+    }
+    function updateConnectedTaskListElement() {
+      if (!taskList || !taskList.isConnected) {
+        taskList = document.getElementById("task-list");
+      }
+      return taskList;
+    }
+    function filterTaskItemsByLabel(taskItems, labelFilter) {
+      if (!labelFilter) {
+        return taskItems;
+      }
+      return taskItems.filter(function(task) {
+        return getEffectiveLabels(task).indexOf(labelFilter) !== -1;
+      });
+    }
+    function filterTaskItemsByActiveLabel(taskItems) {
+      return filterTaskItemsByLabel(taskItems, activeLabelFilter);
+    }
+    function hasVisibleTasksForFilter(taskItems, filterValue) {
+      if (!Array.isArray(taskItems) || taskItems.length === 0) {
+        return false;
+      }
+      return taskItems.some(function(task) {
+        if (!task || !task.id) {
+          return false;
+        }
+        if (filterValue === "manual") {
+          return task.manualSession === true;
+        }
+        if (filterValue === "recurring") {
+          return task.oneTime !== true && !task.jobId && task.manualSession !== true;
+        }
+        if (filterValue === "one-time") {
+          return task.oneTime === true;
+        }
+        return true;
+      });
+    }
+    function recoverTaskFilterIfRestoredViewIsEmpty(taskItems) {
+      if (!restoredTaskFilterWasExplicit || activeTaskFilter === "all") {
+        return taskItems;
+      }
+      if (!Array.isArray(taskItems) || taskItems.length === 0) {
+        return taskItems;
+      }
+      if (hasVisibleTasksForFilter(taskItems, activeTaskFilter)) {
+        return taskItems;
+      }
+      activeTaskFilter = "all";
+      restoredTaskFilterWasExplicit = false;
+      syncTaskFilterButtons();
+      persistTaskFilter();
+      return taskItems;
+    }
+    function recoverLabelFilterIfRestoredViewIsEmpty(taskItems) {
+      var filteredTaskItems;
+      if (!activeLabelFilter) {
+        return taskItems;
+      }
+      filteredTaskItems = filterTaskItemsByLabel(taskItems, activeLabelFilter);
+      if (!restoredLabelFilterWasExplicit) {
+        return filteredTaskItems;
+      }
+      if (filteredTaskItems.length > 0 || getReadyTodoDraftCandidates(activeLabelFilter).length > 0) {
+        return filteredTaskItems;
+      }
+      if ((!Array.isArray(taskItems) || taskItems.length === 0) && getReadyTodoDraftCandidates("").length === 0) {
+        return filteredTaskItems;
+      }
+      activeLabelFilter = "";
+      restoredLabelFilterWasExplicit = false;
+      if (taskLabelFilter) {
+        taskLabelFilter.value = "";
+      }
+      persistTaskFilter();
+      return taskItems;
+    }
+    function getTaskPromptPreview(promptText) {
+      return promptText.length > 100 ? `${promptText.substring(0, 100)}\u2026` : promptText;
+    }
+    function getTaskCardClassName(enabled, scopeValue, inThisWorkspace) {
+      var classNames = ["task-card"];
+      if (!enabled) {
+        classNames.push("disabled");
+      }
+      if (scopeValue === "workspace" && !inThisWorkspace) {
+        classNames.push("other-workspace");
+      }
+      return classNames.join(" ");
+    }
+    function renderTaskStatusMarkup(taskIdEscaped, statusClass, statusText) {
+      var statusParts = [
+        '<span class="task-status ',
+        statusClass,
+        '" data-action="toggle" data-id="',
+        taskIdEscaped,
+        '">',
+        escapeHtml(statusText),
+        "</span>"
+      ];
+      return statusParts.join("");
+    }
+    function renderTaskHeaderBadgesMarkup(options) {
+      var badgesHtml = options.manualSessionBadgeHtml + options.chatSessionBadgeHtml + options.oneTimeBadgeHtml;
+      if (!badgesHtml) {
+        return "";
+      }
+      return '<div class="task-badges task-badges-inline">' + badgesHtml + "</div>";
+    }
+    function renderTaskHeaderMarkup(options) {
+      return '<div class="task-header" role="group"><div class="task-header-main"><div class="task-title-row"><span class="task-name clickable" role="button" data-action="toggle" data-id="' + options.taskId + '">' + options.taskName + "</span>" + renderTaskStatusMarkup(
+        options.taskId,
+        options.statusClass,
+        options.statusText
+      ) + "</div>" + renderTaskHeaderBadgesMarkup(options) + "</div></div>";
+    }
+    function renderTaskMetaPill(className, contentHtml) {
+      return '<span class="task-meta-pill ' + className + '">' + contentHtml + "</span>";
+    }
+    function renderTaskTimingMarkup(enabled, cronSummary, nextRunPresentation, scopeInfo) {
+      var countdownMarkup = '<span class="task-next-run-countdown" data-enabled="' + (enabled ? "true" : "false") + '" data-next-run-ms="' + escapeAttr(nextRunPresentation.millis > 0 ? String(nextRunPresentation.millis) : "") + '"></span>';
+      var nextRunMarkup = renderTaskMetaPill(
+        "task-meta-pill-next-run",
+        escapeHtml(strings.labelNextRun) + /* next-run label */
+        ': <span class="task-next-run-label">' + escapeHtml(nextRunPresentation.text) + "</span>" + countdownMarkup
+      );
+      return '<div class="task-meta-strip">' + renderTaskMetaPill(
+        "task-meta-pill-cron",
+        "\u23F0 " + escapeHtml(cronSummary)
+      ) + nextRunMarkup + renderTaskScopeMarkup(scopeInfo) + "</div>";
+    }
+    function renderTaskScopeMarkup(scopeInfo) {
+      return renderTaskMetaPill("task-meta-pill-scope", scopeInfo);
+    }
+    function renderTaskPromptMarkup(promptPreview) {
+      if (!promptPreview) {
+        return "";
+      }
+      return '<div class="task-prompt">' + escapeHtml(promptPreview) + "</div>";
+    }
+    function renderTaskCardMarkup(options) {
+      return '<div class="' + getTaskCardClassName(
+        options.enabled,
+        options.scopeValue,
+        options.inThisWorkspace
+      ) + '" data-id="' + options.taskId + '"><div class="task-card-top">' + renderTaskHeaderMarkup(options) + renderTaskTimingMarkup(
+        options.enabled,
+        options.cronSummary,
+        options.nextRunPresentation,
+        options.scopeInfo
+      ) + '<div class="task-info task-info-compact"><span>Cron: ' + options.cronText + "</span></div></div>" + (options.labelBadgesHtml ? '<div class="task-badges task-badges-labels">' + options.labelBadgesHtml + "</div>" : "") + renderTaskPromptMarkup(options.promptPreview) + renderTaskErrorMarkup(options.lastErrorText, options.lastErrorAt) + '<div class="task-card-footer">' + options.configRow + '<div class="task-actions" role="toolbar">' + options.actionsHtml + "</div></div></div>";
+    }
+    function switchToListView(successMessage) {
+      setSubmitIdleState();
+      hideGlobalError();
+      resetForm();
+      switchTab("list");
+      if (successMessage) {
+        showSuccessToast(successMessage);
+      }
+    }
+    function focusJobView(folderId, jobId) {
+      selectedJobFolderId = typeof folderId === "string" ? folderId : "";
+      isCreatingJob = true;
+      selectedJobId = "";
+      persistTaskFilter();
+      renderJobsTab();
+      switchTab("jobs");
+      setTimeout(function() {
+        scrollSelectorIntoView(
+          jobId ? '[data-job-id="' + jobId + '"]' : "",
+          false
+        );
+      }, 50);
+    }
+    function focusResearchProfileView(researchId) {
+      switchTab("research");
+      if (researchId) {
+        selectResearchProfile(researchId);
+      } else {
+        isCreatingResearchProfile = true;
+        selectedResearchId = "";
+        resetResearchForm(null);
+        renderResearchTab();
+      }
+      setTimeout(function() {
+        scrollSelectorIntoView(
+          researchId ? '[data-research-id="' + researchId + '"]' : "#research-name",
+          !researchId
+        );
+      }, 50);
+    }
+    function focusTaskView(taskId) {
+      switchTab("list");
+      setTimeout(function() {
+        scrollTaskCardIntoView(taskId);
+      }, 100);
+    }
+    function focusReadyTodoDraftView(todoId) {
+      switchTab("list");
+      setTimeout(function() {
+        scrollSelectorIntoView(
+          todoId ? '[data-ready-todo-id="' + todoId + '"]' : '[data-task-section="todo-draft"]',
+          false
+        );
+      }, 100);
+    }
+    function focusResearchRunView(runId) {
+      switchTab("research");
+      if (runId) {
+        selectResearchRun(runId);
+      }
+      setTimeout(function() {
+        scrollSelectorIntoView(runId ? '[data-run-id="' + runId + '"]' : "", false);
+      }, 50);
+    }
+    function syncPromptTemplateOptions(templates) {
+      promptTemplates = Array.isArray(templates) ? templates : [];
+      pendingTemplatePath = syncPromptTemplatesFromMessage({
+        promptTemplates,
+        pendingTemplatePath,
+        templateSelect,
+        templateSelectGroup,
+        currentSource: getPromptTemplateSourceValue(),
+        strings,
+        escapeHtml,
+        escapeAttr
+      });
+    }
+    function showWebviewClientError(error) {
+      var prefix = strings.webviewClientErrorPrefix || "";
+      var rawError = error && error.message ? error.message : error;
+      var singleLineError = String(rawError).split(/\r?\n/)[0];
+      showGlobalError(prefix + sanitizeAbsolutePaths(singleLineError));
+      setSubmitIdleState();
+    }
+    document.addEventListener("click", function handleListClick(e) {
+      var collapseTarget = e && e.target && e.target.nodeType === 3 ? e.target.parentElement : e.target;
+      while (collapseTarget && collapseTarget !== document.body) {
+        if (collapseTarget.getAttribute && collapseTarget.getAttribute("data-task-section-toggle")) {
+          break;
+        }
+        collapseTarget = collapseTarget.parentElement;
+      }
+      if (collapseTarget && collapseTarget !== document.body) {
+        if (!taskList || !taskList.isConnected) {
+          taskList = document.getElementById("task-list");
+        }
+        if (taskList && taskList.contains(collapseTarget)) {
+          var sectionKey = collapseTarget.getAttribute("data-task-section-toggle");
+          if (isTaskSectionKey(sectionKey)) {
+            e.preventDefault();
+            taskSectionCollapseState[sectionKey] = !(taskSectionCollapseState[sectionKey] === true);
+            persistTaskFilter();
+            renderTaskList(tasks);
+            return;
+          }
+        }
+      }
+      var readyTodoCreateTarget = getClosestEventTarget(e, "[data-ready-todo-create]");
+      if (readyTodoCreateTarget) {
+        if (!taskList || !taskList.isConnected) {
+          taskList = document.getElementById("task-list");
+        }
+        if (taskList && taskList.contains(readyTodoCreateTarget)) {
+          e.preventDefault();
+          var readyTodoId = readyTodoCreateTarget.getAttribute("data-ready-todo-create");
+          if (readyTodoId && !hasPendingReadyTodoDraftCreate(readyTodoId)) {
+            startPendingReadyTodoDraftCreate(readyTodoId);
+            vscode.postMessage({ type: "createTaskFromTodo", todoId: readyTodoId });
+          }
+          return;
+        }
+      }
+      if (handleTaskListClick({
+        event: e,
+        taskList,
+        getTaskList: function() {
+          taskList = document.getElementById("task-list");
+          return taskList;
+        },
+        getClosestEventTarget,
+        resolveActionTarget,
+        openTodoEditor,
+        actionHandlers: getTaskActionHandlers()
+      })) {
+        return;
+      }
+    });
+    function renderTaskList(nextTasks) {
+      var taskItems = normalizeIncomingTaskList(nextTasks);
+      taskList = updateConnectedTaskListElement();
+      if (!taskList) return;
+      taskItems = sortTasksByNextRun(taskItems);
+      taskItems = recoverTaskFilterIfRestoredViewIsEmpty(taskItems);
+      taskItems = recoverLabelFilterIfRestoredViewIsEmpty(taskItems);
+      var renderedTasks = "";
+      function renderTaskCard(task) {
+        if (!task || !task.id) {
+          return "";
+        }
+        var statusState = getTaskStatusPresentation(task);
+        var enabled = statusState.enabled;
+        var statusClass = statusState.statusClass;
+        var statusText = statusState.statusText;
+        var toggleIcon = statusState.toggleIcon;
+        var toggleTitle = statusState.toggleTitle;
+        var nextRunPresentation = getTaskNextRunPresentation(task);
+        var promptText = typeof task.prompt === "string" ? task.prompt : "";
+        var promptPreview = getTaskPromptPreview(promptText);
+        var lastErrorText = typeof task.lastError === "string" ? task.lastError : "";
+        var lastErrorAtDate = task.lastErrorAt ? new Date(task.lastErrorAt) : null;
+        var lastErrorAt = lastErrorAtDate && !isNaN(lastErrorAtDate.getTime()) ? lastErrorAtDate.toLocaleString(locale) : "";
+        var cronText = escapeHtml(task.cronExpression || "");
+        var cronSummary = getCronSummary(task.cronExpression || "");
+        var taskName = escapeHtml(task.name || "");
+        var scopeState = getTaskScopePresentation(task);
+        var scopeValue = scopeState.scopeValue;
+        var inThisWorkspace = scopeState.inThisWorkspace;
+        var scopeInfo = scopeState.scopeInfo;
+        var taskIdEscaped = escapeAttr(task.id || "");
+        var oneTimeBadgeHtml = renderOneTimeBadge(task, taskIdEscaped);
+        var manualSessionBadgeHtml = renderManualSessionBadge(task);
+        var chatSessionBadgeHtml = renderChatSessionBadge(task);
+        var labelBadgesHtml = renderTaskLabelBadges(task);
+        var configRow = buildTaskConfigRowMarkup({
+          task,
+          taskId: taskIdEscaped,
+          agents,
+          models,
+          executionDefaults,
+          strings,
+          escapeAttr,
+          escapeHtml,
+          formatModelLabel
+        });
+        var actionsHtml = buildTaskActionMarkup(
+          taskIdEscaped,
+          toggleTitle,
+          toggleIcon,
+          scopeValue,
+          inThisWorkspace
+        );
+        return renderTaskCardMarkup({
+          actionsHtml,
+          chatSessionBadgeHtml,
+          configRow,
+          cronSummary,
+          cronText,
+          enabled,
+          inThisWorkspace,
+          labelBadgesHtml,
+          lastErrorAt,
+          lastErrorText,
+          manualSessionBadgeHtml,
+          nextRunPresentation,
+          oneTimeBadgeHtml,
+          promptPreview,
+          scopeInfo,
+          scopeValue,
+          statusClass,
+          statusText,
+          taskId: taskIdEscaped,
+          taskName
+        });
+      }
+      function renderTaskSection(sectionKey, title, items) {
+        var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
+        if (!listHtml) {
+          listHtml = renderEmptyTaskState();
+        }
+        return renderTaskSectionShell(
+          sectionKey,
+          title,
+          "<span>" + String(items.length) + "</span>",
+          listHtml
+        );
+      }
+      function renderTaskSectionContent(sectionKey, title, contentHtml, itemCount) {
+        return renderTaskSectionShell(
+          sectionKey,
+          title,
+          '<span class="task-section-count">' + String(itemCount) + "</span>",
+          contentHtml
+        );
+      }
+      function renderTaskSubsection(title, items) {
+        var listHtml = items.map(renderTaskCard).filter(Boolean).join("");
+        if (!listHtml) {
+          listHtml = renderEmptyTaskState();
+        }
+        return '<div class="task-subsection"><div class="task-subsection-title"><span class="task-subsection-name">' + escapeHtml(title) + '</span><span class="task-subsection-count">' + String(items.length) + '</span></div><div class="task-subsection-body">' + listHtml + "</div></div>";
+      }
+      function isJobTask(task) {
+        return !!(task && task.jobId);
+      }
+      function renderReadyTodoDraftCandidateCard(todo) {
+        if (!todo) {
+          return "";
+        }
+        var title = escapeHtml(todo.title || "Untitled Todo");
+        var description = getTodoDescriptionPreview(todo.description || "") || (strings.boardDescriptionPreviewEmpty || "No description yet.");
+        var priority = escapeHtml(getTodoPriorityLabel(todo.priority || "none"));
+        var dueText = todo.dueAt ? renderTaskMetaPill(
+          "task-meta-pill-due",
+          escapeHtml(strings.boardDueLabel || "Due") + ": " + escapeHtml(formatTodoDate(todo.dueAt))
+        ) : "";
+        var labelBadgesHtml = Array.isArray(todo.labels) ? todo.labels.slice(0, 6).map(function(label) {
+          return '<span class="task-badge label">' + escapeHtml(label) + "</span>";
+        }).join("") : "";
+        return '<div class="task-card todo-draft-candidate" data-ready-todo-id="' + escapeAttr(todo.id || "") + '"><div class="task-card-top"><div class="task-header" role="banner"><div class="task-header-main"><div class="task-title-row"><span class="task-name">' + title + '</span><span class="task-status enabled">' + escapeHtml(strings.boardFlagPresetReady || "Ready") + '</span></div></div><div class="task-badges task-badges-inline"><span class="task-badge">Ready Todo</span></div></div><div class="task-meta-strip">' + renderTaskMetaPill(
+          "task-meta-pill-workflow",
+          escapeHtml(strings.boardWorkflowLabel || "Workflow") + ": " + escapeHtml(strings.boardFlagPresetReady || "Ready")
+        ) + renderTaskMetaPill("task-meta-pill-priority", "Priority: " + priority) + dueText + "</div></div>" + (labelBadgesHtml ? '<div class="task-badges task-badges-labels">' + labelBadgesHtml + "</div>" : "") + renderTaskPromptMarkup(description) + '<div class="task-card-footer"><div class="task-actions" aria-label="actions"><button class="btn-secondary" data-ready-todo-open="' + escapeAttr(todo.id || "") + '">Open Todo</button><button class="btn-primary" data-ready-todo-create="' + escapeAttr(todo.id || "") + '">Create Draft</button></div></div></div>';
+      }
+      var manualSessionTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = isOneTimeTask(task);
+        return !isOneTime && !isJobTask(task) && task.manualSession === true;
+      });
+      var jobTasks = taskItems.filter(function(task) {
+        return !!task && isJobTask(task);
+      });
+      var recurringTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = isOneTimeTask(task);
+        return !isOneTime && !isJobTask(task) && task.manualSession !== true;
+      });
+      var todoDraftTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = isOneTimeTask(task);
+        return isOneTime && !isJobTask(task) && isTodoTaskDraft(task) && task.enabled === false;
+      });
+      var readyTodoDraftCandidates = getReadyTodoDraftCandidates();
+      var oneTimeTasks = taskItems.filter(function(task) {
+        if (!task) return false;
+        var isOneTime = isOneTimeTask(task);
+        return isOneTime && !isJobTask(task) && (!isTodoTaskDraft(task) || task.enabled !== false);
+      });
+      var jobSectionHtml = "";
+      if (jobTasks.length > 0) {
+        var jobGroupsById = /* @__PURE__ */ Object.create(null);
+        jobTasks.forEach(function(task) {
+          var jobId = String(task.jobId || "");
+          if (!jobId) {
+            return;
+          }
+          if (!jobGroupsById[jobId]) {
+            var job = getJobById(jobId);
+            jobGroupsById[jobId] = {
+              title: job && job.name ? String(job.name) : jobId,
+              items: []
+            };
+          }
+          jobGroupsById[jobId].items.push(task);
+        });
+        var jobGroupEntries = Object.keys(jobGroupsById).map(function(jobId) {
+          return {
+            id: jobId,
+            title: jobGroupsById[jobId].title,
+            items: jobGroupsById[jobId].items
+          };
+        }).sort(function(left, right) {
+          return left.title.localeCompare(right.title);
+        });
+        jobSectionHtml = renderTaskSectionContent(
+          "jobs",
+          strings.labelJobTasks || "Jobs",
+          jobGroupEntries.map(function(entry) {
+            return renderTaskSubsection(entry.title, entry.items);
+          }).join(""),
+          jobTasks.length
+        );
+      } else {
+        jobSectionHtml = renderTaskSectionContent(
+          "jobs",
+          strings.labelJobTasks || "Jobs",
+          '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + "</div>",
+          0
+        );
+      }
+      var leftColumnHtml = "";
+      var rightColumnHtml = "";
+      if (activeTaskFilter === "all" || activeTaskFilter === "manual") {
+        leftColumnHtml += renderTaskSection(
+          "manual",
+          strings.labelManualSessions || "Manual Sessions",
+          manualSessionTasks
+        );
+      }
+      if (activeTaskFilter === "all") {
+        leftColumnHtml += jobSectionHtml;
+      }
+      if (activeTaskFilter === "all" || activeTaskFilter === "recurring") {
+        leftColumnHtml += renderTaskSection(
+          "recurring",
+          strings.labelRecurringTasks || "Recurring Tasks",
+          recurringTasks
+        );
+      }
+      if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
+        var readyTodoNoticeHtml = readyTodoDraftCandidates.length > 0 ? '<div class="note" style="margin-bottom:8px;">' + escapeHtml(String(readyTodoDraftCandidates.length) + " ready todos are waiting for task draft creation.") + "</div>" : "";
+        var readyTodoCardsHtml = readyTodoDraftCandidates.map(renderReadyTodoDraftCandidateCard).filter(Boolean).join("");
+        var existingTodoDraftsHtml = todoDraftTasks.map(function(task) {
+          return renderTaskCard(task).replace(
+            'class="task-card',
+            'class="task-card todo-draft-compact'
+          );
+        }).filter(Boolean).join("");
+        var todoDraftGridHtml = readyTodoCardsHtml || existingTodoDraftsHtml ? '<div class="todo-draft-grid">' + readyTodoCardsHtml + existingTodoDraftsHtml + "</div>" : "";
+        var todoDraftSectionHtml = readyTodoNoticeHtml + todoDraftGridHtml;
+        if (!todoDraftSectionHtml) {
+          todoDraftSectionHtml = '<div class="empty-state">' + escapeHtml(strings.noTasksFound) + "</div>";
+        }
+        rightColumnHtml += renderTaskSectionContent(
+          "todo-draft",
+          strings.labelTodoTaskDrafts || "Todo Task Drafts",
+          todoDraftSectionHtml,
+          readyTodoDraftCandidates.length + todoDraftTasks.length
+        );
+      }
+      if (activeTaskFilter === "all" || activeTaskFilter === "one-time") {
+        rightColumnHtml += renderTaskSection(
+          "one-time",
+          strings.labelOneTimeTasks || "One-time Tasks",
+          oneTimeTasks
+        );
+      }
+      var containerClass = "task-sections";
+      var containerStyle = "";
+      if (activeTaskFilter !== "all") {
+        containerClass += " filtered";
+        containerStyle = ' style="display:grid;grid-template-columns:1fr;"';
+      }
+      var sectionHtml = activeTaskFilter === "all" ? '<div class="task-sections-column task-sections-column-primary">' + leftColumnHtml + '</div><div class="task-sections-column task-sections-column-secondary">' + rightColumnHtml + "</div>" : leftColumnHtml + rightColumnHtml;
+      renderedTasks = [
+        '<div class="',
+        containerClass,
+        '"',
+        containerStyle,
+        ">",
+        sectionHtml,
+        "</div>"
+      ].join("");
+      if (renderedTasks === lastRenderedTasksHtml) {
+        return;
+      }
+      if (isInlineTaskSelectActive()) {
+        pendingTaskListRender = true;
+        return;
+      }
+      pendingTaskListRender = false;
+      lastRenderedTasksHtml = renderedTasks;
+      taskList.innerHTML = renderedTasks;
+      refreshTaskCountdowns();
+    }
+    function replayPendingTaskListRender() {
+      if (!pendingTaskListRender || isInlineTaskSelectActive()) {
+        return;
+      }
+      pendingTaskListRender = false;
+      renderTaskList(tasks);
+    }
+    function postTaskInlineChange(taskId, field, value) {
+      if (!taskId) {
+        return;
+      }
+      var data = {};
+      data[field] = value;
+      vscode.postMessage({
+        type: "updateTask",
+        taskId,
+        data
+      });
+    }
+    if (taskList) {
+      taskList.addEventListener("change", function(event) {
+        var target = event && event.target;
+        if (!target || !target.classList) {
+          return;
+        }
+        if (target.classList.contains("task-agent-select")) {
+          postTaskInlineChange(
+            target.getAttribute("data-id") || "",
+            "agent",
+            target.value || ""
+          );
+          return;
+        }
+        if (target.classList.contains("task-model-select")) {
+          postTaskInlineChange(
+            target.getAttribute("data-id") || "",
+            "model",
+            target.value || ""
+          );
+        }
+      });
+      taskList.addEventListener("focusout", function(event) {
+        var target = event && event.target;
+        if (!target || !target.classList) {
+          return;
+        }
+        if (!target.classList.contains("task-agent-select") && !target.classList.contains("task-model-select")) {
+          return;
+        }
+        setTimeout(function() {
+          replayPendingTaskListRender();
+        }, 0);
+      });
+    }
+    var htmlEscapeNode = null;
+    function escapeHtml(text) {
+      if (text == null) return "";
+      if (!htmlEscapeNode) {
+        htmlEscapeNode = document.createElement("div");
+      }
+      htmlEscapeNode.textContent = String(text);
+      return htmlEscapeNode.innerHTML;
+    }
+    function escapeAttr(text) {
+      var normalized = typeof text === "string" ? text : String(text || "");
+      var replacements = [
+        [/&/g, "&amp;"],
+        [/"/g, "&quot;"],
+        [/'/g, "&#39;"],
+        [/</g, "&lt;"],
+        [/>/g, "&gt;"]
+      ];
+      return replacements.reduce(function(value, replacement) {
+        return value.replace(replacement[0], replacement[1]);
+      }, normalized);
+    }
+    function isInlineTaskSelectActive() {
+      var active = document.activeElement;
+      if (!active || !active.classList) return false;
+      return active.classList.contains("task-agent-select") || active.classList.contains("task-model-select");
+    }
+    function getCronSummary(expression) {
+      return summarizeCronExpression(expression, strings);
+    }
+    function setCronPreviewText(previewElement, expressionValue) {
+      if (!previewElement) return;
+      previewElement.textContent = getCronSummary(expressionValue || "");
+    }
+    function updateCronPreview() {
+      if (!cronExpression) return;
+      setCronPreviewText(cronPreviewText, cronExpression.value);
+    }
+    function updateJobsCronPreview() {
+      if (!jobsCronInput) return;
+      setCronPreviewText(jobsCronPreviewText, jobsCronInput.value);
+      updateJobsCadenceMetric();
+    }
+    function updateFriendlyVisibility() {
+      syncFriendlyFieldVisibility(
+        friendlyBuilder,
+        friendlyFrequency ? friendlyFrequency.value : ""
+      );
+    }
+    function updateJobsFriendlyVisibility() {
+      syncFriendlyFieldVisibility(
+        jobsFriendlyBuilder,
+        jobsFriendlyFrequency ? jobsFriendlyFrequency.value : ""
+      );
+    }
+    function clearFriendlyBuilderControls(options) {
+      if (!options) {
+        return;
+      }
+      if (options.frequency) options.frequency.value = "";
+      if (options.interval) options.interval.value = "";
+      if (options.minute) options.minute.value = "";
+      if (options.hour) options.hour.value = "";
+      if (options.dow) options.dow.value = "";
+      if (options.dom) options.dom.value = "";
+      if (typeof options.updateVisibility === "function") {
+        options.updateVisibility();
+      }
+    }
+    function syncFriendlyBuilderFromCronExpression(options) {
+      if (!options) {
+        return false;
+      }
+      var parsed = parseFriendlyCronExpression(options.expression);
+      if (!parsed) {
+        clearFriendlyBuilderControls(options);
+        return false;
+      }
+      if (options.frequency) options.frequency.value = parsed.frequency || "";
+      if (options.interval) {
+        options.interval.value = parsed.interval == null ? "" : String(parsed.interval);
+      }
+      if (options.minute) {
+        options.minute.value = parsed.minute == null ? "" : String(parsed.minute);
+      }
+      if (options.hour) {
+        options.hour.value = parsed.hour == null ? "" : String(parsed.hour);
+      }
+      if (options.dow) {
+        options.dow.value = parsed.dow == null ? "" : String(parsed.dow);
+      }
+      if (options.dom) {
+        options.dom.value = parsed.dom == null ? "" : String(parsed.dom);
+      }
+      if (typeof options.updateVisibility === "function") {
+        options.updateVisibility();
+      }
+      return true;
+    }
+    function bindFriendlyCronBuilderAutoUpdate(options) {
+      if (!options || typeof options.onRefresh !== "function" || !options.controls) {
+        return;
+      }
+      options.controls.forEach(function(control) {
+        if (!control || typeof control.addEventListener !== "function") {
+          return;
+        }
+        control.addEventListener("change", options.onRefresh);
+        control.addEventListener("input", options.onRefresh);
+      });
+    }
+    function refreshFriendlyCronFromBuilder() {
+      updateFriendlyVisibility();
+      generateCronFromFriendly();
+    }
+    function refreshJobsFriendlyCronFromBuilder() {
+      updateJobsFriendlyVisibility();
+      generateJobsCronFromFriendly();
+      syncEditorTabLabels();
+    }
+    function generateCronFromFriendly() {
+      if (!friendlyFrequency || !cronExpression) return;
+      applyFriendlyCronResult({
+        frequency: friendlyFrequency.value,
+        interval: friendlyInterval ? friendlyInterval.value : "",
+        minute: friendlyMinute ? friendlyMinute.value : "",
+        hour: friendlyHour ? friendlyHour.value : "",
+        dow: friendlyDow ? friendlyDow.value : "",
+        dom: friendlyDom ? friendlyDom.value : "",
+        cronInput: cronExpression,
+        cronPresetInput: cronPreset,
+        onUpdate: updateCronPreview
+      });
+    }
+    function generateJobsCronFromFriendly() {
+      if (!jobsFriendlyFrequency || !jobsCronInput) return;
+      applyFriendlyCronResult({
+        frequency: jobsFriendlyFrequency.value,
+        interval: jobsFriendlyInterval ? jobsFriendlyInterval.value : "",
+        minute: jobsFriendlyMinute ? jobsFriendlyMinute.value : "",
+        hour: jobsFriendlyHour ? jobsFriendlyHour.value : "",
+        dow: jobsFriendlyDow ? jobsFriendlyDow.value : "",
+        dom: jobsFriendlyDom ? jobsFriendlyDom.value : "",
+        cronInput: jobsCronInput,
+        cronPresetInput: jobsCronPreset,
+        onUpdate: updateJobsCronPreview
+      });
+    }
+    function applyFriendlyCronResult(options) {
+      var expr = buildFriendlyCronExpression(options.frequency, {
+        interval: options.interval,
+        minute: options.minute,
+        hour: options.hour,
+        dow: options.dow,
+        dom: options.dom
+      });
+      if (!expr) {
+        return;
+      }
+      options.cronInput.value = expr;
+      if (options.cronPresetInput) {
+        options.cronPresetInput.value = "";
+      }
+      options.onUpdate();
+    }
+    function resetTaskFormSessionState() {
+      [pendingAgentValue, pendingModelValue, pendingTemplatePath] = ["", "", ""];
+      editingTaskEnabled = true;
+    }
+    function resetTaskFormToggles() {
+      var runFirstEl = document.getElementById("run-first");
+      if (runFirstEl) runFirstEl.checked = false;
+      var oneTimeEl = document.getElementById("one-time");
+      if (oneTimeEl) oneTimeEl.checked = false;
+      var manualSessionEl = document.getElementById("manual-session");
+      if (manualSessionEl) manualSessionEl.checked = false;
+    }
+    function focusTaskNameField() {
+      focusElementById("task-name");
+    }
+    function refreshTaskEditorDerivedState() {
+      [syncRecurringChatSessionUi, updateFriendlyVisibility, updateCronPreview, updateOneTimeDelayPreview].forEach(function(refreshFn) {
+        refreshFn();
+      });
+    }
+    function resetForm() {
+      if (taskForm) taskForm.reset();
+      resetTaskFormBaseState();
+      resetTaskFormToggles();
+      if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
+      if (agentSelect) agentSelect.value = executionDefaults.agent || "";
+      if (modelSelect) modelSelect.value = executionDefaults.model || "";
+      refreshTaskEditorDerivedState();
+    }
+    function getTaskExecutionOptionContext() {
+      return {
+        executionDefaults,
+        escapeAttr,
+        escapeHtml,
+        strings
+      };
+    }
+    function populateAgentDropdown2() {
+      populateAgentDropdown(Object.assign({
+        agentSelect,
+        agents
+      }, getTaskExecutionOptionContext()));
+    }
+    function populateModelDropdown2() {
+      populateModelDropdown(Object.assign({
+        formatModelLabel,
+        modelSelect,
+        models
+      }, getTaskExecutionOptionContext()));
+    }
+    function syncSharedAgentAndModelSelectors() {
+      renderExecutionDefaultsControls();
+      renderReviewDefaultsControls();
+      syncJobsStepSelectors();
+      syncResearchSelectors();
+    }
+    function getTaskArrayForEditing() {
+      return Array.isArray(tasks) ? tasks : [];
+    }
+    function findTaskById(taskId) {
+      return getTaskArrayForEditing().find(function(task) {
+        return task && task.id === taskId;
+      });
+    }
+    function restoreTaskSelectValue(selectElement, pendingValue) {
+      if (!selectElement) {
+        return pendingValue;
+      }
+      if (pendingValue && !selectHasOptionValue(selectElement, pendingValue)) {
+        selectElement.value = "";
+        return pendingValue;
+      }
+      return restorePendingSelectValue(selectElement, pendingValue);
+    }
+    function getExecutionSelectCurrentValue(selectElement, pendingValue) {
+      return pendingValue || (selectElement ? selectElement.value : "");
+    }
+    function refreshExecutionSelectTargets(options) {
+      var currentValue = getExecutionSelectCurrentValue(
+        options.selectElement,
+        options.pendingValue
+      );
+      return refreshExecutionTargets({
+        eventName: options.eventName,
+        debugData: options.createDebugData(currentValue),
+        assignItems: options.assignItems,
+        updateOptions: options.updateOptions,
+        selectElement: options.selectElement,
+        currentValue,
+        pendingValue: options.pendingValue
+      });
+    }
+    function initializeTaskEditorState() {
+      populateAgentDropdown2();
+      populateModelDropdown2();
+      var selectedPromptSource = document.querySelector('input[name="prompt-source"]:checked');
+      if (selectedPromptSource) {
+        applyPromptSource(selectedPromptSource.value);
+      }
+      if (chatSessionSelect && !chatSessionSelect.value) {
+        chatSessionSelect.value = defaultChatSession;
+      }
+      syncRecurringChatSessionUi();
+      updateFriendlyVisibility();
+      updateCronPreview();
+      updateSkillOptions();
+      syncTaskLabelFilterOptions();
+      syncJobsStepSelectors();
+      syncJobsFolderSelect("");
+      syncJobsExistingTaskSelect();
+      renderJobsTab();
+      syncEditorTabLabels();
+    }
+    function openCreateTaskTab() {
+      resetForm();
+      switchTab("create");
+      focusTaskNameField();
+    }
+    function startCreateTaskFlow() {
+      hideGlobalError();
+      setSubmitIdleState();
+      openCreateTaskTab();
+      setTimeout(function() {
+        focusTaskNameField();
+      }, 0);
+    }
+    function clearTaskFormError() {
+      var formErr = document.getElementById("form-error");
+      if (formErr) formErr.style.display = "none";
+      return formErr;
+    }
+    function startPendingTaskSubmit() {
+      pendingSubmit = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+      }
+    }
+    function setRadioValue(groupName, selectedValue) {
+      var radio = document.querySelector(
+        'input[name="' + groupName + '"][value="' + selectedValue + '"]'
+      );
+      if (radio) {
+        radio.checked = true;
+      }
+    }
+    function getTaskChatSessionValue(task) {
+      if (task.chatSession === "continue") {
+        return "continue";
+      }
+      if (task.chatSession === "new") {
+        return "new";
+      }
+      return defaultChatSession;
+    }
+    function syncGlobalErrorMessage(text) {
+      if (!text) {
+        return;
+      }
+      showGlobalError(text);
+      setSubmitIdleState();
+    }
+    function editTaskFromHost(taskId) {
+      if (taskId && typeof window.editTask === "function") {
+        window.editTask(taskId);
+      }
+    }
+    function focusElementById(elementId) {
+      var element = document.getElementById(elementId);
+      if (element && typeof element.focus === "function") {
+        element.focus();
+      }
+    }
+    function resetTaskFormFieldValues() {
+      applyPromptSource("inline");
+      if (jitterSecondsInput) {
+        jitterSecondsInput.value = String(defaultJitterSeconds);
+      }
+      setOneTimeDelayInputs(0);
+      if (taskLabelsInput) {
+        taskLabelsInput.value = "";
+      }
+      syncFriendlyBuilderFromCronExpression({
+        expression: cronExpression ? cronExpression.value : "",
+        frequency: friendlyFrequency,
+        interval: friendlyInterval,
+        minute: friendlyMinute,
+        hour: friendlyHour,
+        dow: friendlyDow,
+        dom: friendlyDom,
+        updateVisibility: updateFriendlyVisibility
+      });
+    }
+    function resetTaskFormBaseState() {
+      setEditingMode(null);
+      resetTaskFormSessionState();
+      resetTaskFormFieldValues();
+    }
+    function getHostMessage(event) {
+      return event.data;
+    }
+    function populateTaskEditor(task, taskId) {
+      var nameInput = document.getElementById("task-name");
+      var promptInput = document.getElementById("prompt-text");
+      var promptSourceValue = task.promptSource || "inline";
+      setEditingMode(taskId);
+      if (nameInput) nameInput.value = task.name || "";
+      if (taskLabelsInput) taskLabelsInput.value = toLabelString(task.labels);
+      if (promptInput) {
+        promptInput.value = typeof task.prompt === "string" ? task.prompt : "";
+      }
+      if (cronExpression) {
+        cronExpression.value = task.cronExpression || "";
+      }
+      if (cronPreset) {
+        cronPreset.value = "";
+      }
+      syncFriendlyBuilderFromCronExpression({
+        expression: task.cronExpression || "",
+        frequency: friendlyFrequency,
+        interval: friendlyInterval,
+        minute: friendlyMinute,
+        hour: friendlyHour,
+        dow: friendlyDow,
+        dom: friendlyDom,
+        updateVisibility: updateFriendlyVisibility
+      });
+      updateCronPreview();
+      pendingAgentValue = restoreTaskSelectValue(agentSelect, task.agent || "");
+      pendingModelValue = restoreTaskSelectValue(modelSelect, task.model || "");
+      editingTaskEnabled = task.enabled !== false;
+      setRadioValue("scope", task.scope || "workspace");
+      setRadioValue("prompt-source", promptSourceValue);
+      applyPromptSource(promptSourceValue, true);
+      pendingTemplatePath = task.promptPath || "";
+      if (templateSelect) {
+        pendingTemplatePath = restoreTaskSelectValue(templateSelect, pendingTemplatePath);
+      }
+      if (jitterSecondsInput) {
+        jitterSecondsInput.value = String(task.jitterSeconds ?? defaultJitterSeconds);
+      }
+      setOneTimeDelayInputs(deriveTaskOneTimeDelaySeconds(task));
+      var runFirstEl = document.getElementById("run-first");
+      if (runFirstEl) runFirstEl.checked = false;
+      var oneTimeEl = document.getElementById("one-time");
+      if (oneTimeEl) oneTimeEl.checked = task.oneTime === true;
+      var manualSessionEl = document.getElementById("manual-session");
+      if (manualSessionEl) {
+        manualSessionEl.checked = task.oneTime === true ? false : task.manualSession === true;
+      }
+      if (chatSessionSelect) {
+        chatSessionSelect.value = getTaskChatSessionValue(task);
+      }
+      refreshTaskEditorDerivedState();
+      switchTab("create");
+    }
+    function postTaskMessage(type, taskId) {
+      vscode.postMessage({ type, taskId });
+    }
+    function restoreUpdatedTaskSelector(selectElement, currentValue, pendingValueRef) {
+      if (!selectElement || !currentValue) {
+        return pendingValueRef;
+      }
+      return restorePendingSelectValue(selectElement, currentValue);
+    }
+    function refreshExecutionTargets(options) {
+      emitWebviewDebug(options.eventName, options.debugData);
+      options.assignItems();
+      options.updateOptions();
+      renderExecutionDefaultsControls();
+      renderReviewDefaultsControls();
+      syncJobsStepSelectors();
+      syncResearchSelectors();
+      options.pendingValue = restoreUpdatedTaskSelector(
+        options.selectElement,
+        options.currentValue,
+        options.pendingValue
+      );
+      renderTaskList(tasks);
+      return options.pendingValue;
+    }
+    function scrollTaskCardIntoView(taskId) {
+      var selector = '.task-card[data-id="' + taskId + '"]';
+      var card = document.querySelector(selector);
+      if (card && typeof card.scrollIntoView === "function") {
+        card.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+    function updateTemplateOptions(source, selectedPath) {
+      updatePromptTemplateOptions({
+        templateSelect,
+        promptTemplates,
+        source,
+        selectedPath,
+        strings,
+        escapeHtml,
+        escapeAttr
+      });
+    }
+    function applyPromptSource(source, keepSelection) {
+      applyPromptSourceUi({
+        source,
+        keepSelection,
+        templateSelect,
+        promptTextEl,
+        templateSelectGroup,
+        promptGroup,
+        promptTemplates,
+        strings,
+        escapeHtml,
+        escapeAttr,
+        warnMissingTemplateGroup: function() {
+          console.warn(
+            "[CopilotCockpit] Template select container not found; template picking is disabled."
+          );
+        }
+      });
+    }
+    function getSelectedSkill() {
+      if (!skillSelect) {
+        return void 0;
+      }
+      var selectedPath = skillSelect.value || "";
+      if (!selectedPath) {
+        return void 0;
+      }
+      return (Array.isArray(skills) ? skills : []).find(function(skill) {
+        return skill && skill.path === selectedPath;
+      });
+    }
+    function getSkillTypeLabel(skill) {
+      if (!skill || skill.skillType !== "support") {
+        return strings.skillTypeOperational || "Operational";
+      }
+      return strings.skillTypeSupport || "Support";
+    }
+    function formatSkillMetadataList(values) {
+      return Array.isArray(values) && values.length > 0 ? values.join(", ") : strings.skillMetadataNone || "none";
+    }
+    function buildSkillOptionLabel(skill) {
+      if (!skill) {
+        return "";
+      }
+      var reference = skill.reference || skill.name || "";
+      return getSkillTypeLabel(skill) + ": " + reference;
+    }
+    function buildSkillDetailsText(skill) {
+      if (!skill) {
+        return strings.skillMetadataEmptyState || "";
+      }
+      var template = strings.skillMetadataSummaryTemplate || "Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";
+      return template.replace("{type}", getSkillTypeLabel(skill)).replace("{summary}", skill.promptSummary || skill.reference || skill.name || (strings.skillMetadataNone || "none")).replace("{tools}", formatSkillMetadataList(skill.toolNamespaces)).replace("{readyFlags}", formatSkillMetadataList(skill.readyWorkflowFlags)).replace("{closeoutFlags}", formatSkillMetadataList(skill.closeoutWorkflowFlags)).replace(
+        "{approval}",
+        skill.approvalSensitive ? strings.skillApprovalSensitive || "Approval-sensitive" : strings.skillApprovalRoutine || "Routine"
+      );
+    }
+    function updateSkillDetailsNote() {
+      if (!skillDetailsNote) {
+        return;
+      }
+      skillDetailsNote.textContent = buildSkillDetailsText(getSelectedSkill());
+    }
+    function updateSkillOptions() {
+      if (!skillSelect) return;
+      var items = Array.isArray(skills) ? skills : [];
+      var placeholder = strings.placeholderSelectSkill || "Select a skill";
+      var previousValue = skillSelect.value || "";
+      skillSelect.innerHTML = '<option value="">' + escapeHtml(placeholder) + "</option>" + items.map(function(skill) {
+        return '<option value="' + escapeAttr(skill.path || "") + '">' + escapeHtml(buildSkillOptionLabel(skill)) + "</option>";
+      }).join("");
+      skillSelect.value = items.some(function(skill) {
+        return skill && skill.path === previousValue;
+      }) ? previousValue : "";
+      updateSkillDetailsNote();
+    }
+    function insertSelectedSkillReference() {
+      if (!skillSelect || !promptGroup) return;
+      var selectedSkill = getSelectedSkill();
+      if (!selectedSkill) return;
+      var sourceRadio = document.querySelector('input[name="prompt-source"][value="inline"]');
+      if (sourceRadio) {
+        sourceRadio.checked = true;
+      }
+      applyPromptSource("inline", false);
+      var promptTextEl2 = document.getElementById("prompt-text");
+      if (!promptTextEl2) return;
+      var template = strings.skillSentenceTemplate || "Use {skill} to know how things must be done.";
+      var sentence = template.replace("{skill}", selectedSkill.reference || selectedSkill.name || "skill");
+      var current = promptTextEl2.value || "";
+      promptTextEl2.value = current.trim() ? current.replace(/\s*$/, "\n\n") + sentence : sentence;
+      if (typeof promptTextEl2.focus === "function") {
+        promptTextEl2.focus();
+      }
+    }
+    function updateSimpleSelect(selectEl, items, placeholder, selectedValue, getValue, getLabel) {
+      if (!selectEl) return;
+      var optionItems = Array.isArray(items) ? items : [];
+      var normalizedSelectedValue = selectedValue || "";
+      var hasSelectedOption = !normalizedSelectedValue;
+      var html = '<option value="">' + escapeHtml(placeholder || "") + "</option>" + optionItems.map(function(item) {
+        var value = getValue(item);
+        var label = getLabel(item);
+        if (value === normalizedSelectedValue) {
+          hasSelectedOption = true;
+        }
+        return '<option value="' + escapeAttr(value) + '">' + escapeHtml(label) + "</option>";
+      }).join("");
+      if (normalizedSelectedValue && !hasSelectedOption) {
+        html += '<option value="' + escapeAttr(normalizedSelectedValue) + '" selected>' + escapeHtml(normalizedSelectedValue) + "</option>";
+      }
+      selectEl.innerHTML = html;
+      selectEl.value = normalizedSelectedValue;
+      if (selectEl.value !== normalizedSelectedValue) {
+        selectEl.value = "";
+      }
+    }
+    function syncJobsFolderSelect(selectedValue) {
+      updateSimpleSelect(
+        jobsFolderSelect,
+        Array.isArray(jobFolders) ? jobFolders.slice().sort(function(a, b) {
+          return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+        }) : [],
+        strings.jobsRootFolder || "All jobs",
+        selectedValue || "",
+        function(folder) {
+          return folder && folder.id ? folder.id : "";
+        },
+        function(folder) {
+          var depth = getFolderDepth(folder);
+          var prefix = new Array(depth + 1).join("  ");
+          return prefix + (folder && folder.name ? folder.name : "");
+        }
+      );
+    }
+    function syncJobsStepSelectors() {
+      updateSimpleSelect(
+        jobsStepAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        jobsStepAgentSelect ? jobsStepAgentSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        jobsStepModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        jobsStepModelSelect ? jobsStepModelSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+    }
+    function syncJobsExistingTaskSelect() {
+      var standaloneTasks = getStandaloneTasks();
+      updateSimpleSelect(
+        jobsExistingTaskSelect,
+        standaloneTasks,
+        strings.jobsNoStandaloneTasks || "No standalone tasks available",
+        jobsExistingTaskSelect ? jobsExistingTaskSelect.value : "",
+        function(task) {
+          return task && task.id ? task.id : "";
+        },
+        function(task) {
+          if (!task || !task.name) {
+            return "";
+          }
+          if (!task.jobId) {
+            return task.name;
+          }
+          var job = getJobById(task.jobId);
+          return job && job.name ? task.name + " \xB7 " + job.name : task.name;
+        }
+      );
+      if (jobsAttachBtn) {
+        jobsAttachBtn.disabled = standaloneTasks.length === 0;
+      }
+    }
+    function ensureValidResearchSelection() {
+      var profiles = Array.isArray(researchProfiles) ? researchProfiles : [];
+      if (isCreatingResearchProfile) {
+        if (researchEditIdInput) {
+          researchEditIdInput.value = "";
+        }
+        return;
+      }
+      var hasSelected = profiles.some(function(profile) {
+        return profile && profile.id === selectedResearchId;
+      });
+      if (!hasSelected) {
+        selectedResearchId = profiles.length > 0 && profiles[0] ? profiles[0].id : "";
+      }
+      if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+    }
+    function clearResearchFormError() {
+      if (!researchFormError) {
+        return;
+      }
+      researchFormError.textContent = "";
+      researchFormError.style.display = "none";
+    }
+    function showResearchFormError(message) {
+      if (!researchFormError) {
+        return;
+      }
+      researchFormError.textContent = String(message || "");
+      researchFormError.style.display = message ? "block" : "none";
+    }
+    function formatResearchDate(value) {
+      if (!value) {
+        return "-";
+      }
+      var date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return String(value);
+      }
+      return date.toLocaleString(locale);
+    }
+    function formatResearchDuration(startedAt, finishedAt) {
+      if (!startedAt) {
+        return "-";
+      }
+      var start = new Date(startedAt).getTime();
+      if (!isFinite(start)) {
+        return "-";
+      }
+      var end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+      if (!isFinite(end) || end < start) {
+        return "-";
+      }
+      var totalSeconds = Math.max(0, Math.floor((end - start) / 1e3));
+      return formatCountdown(totalSeconds);
+    }
+    function formatOutcomeLabel(outcome) {
+      return String(outcome || "").replace(/-/g, " ");
+    }
+    function getResearchRunById(runId) {
+      return (Array.isArray(recentResearchRuns) ? recentResearchRuns : []).find(function(run) {
+        return run && run.id === runId;
+      });
+    }
+    function ensureValidResearchRunSelection() {
+      var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+      var activeId = activeResearchRun && activeResearchRun.id ? activeResearchRun.id : "";
+      var hasSelected = runs.some(function(run) {
+        return run && run.id === selectedResearchRunId;
+      });
+      if (hasSelected) {
+        return;
+      }
+      if (activeId) {
+        selectedResearchRunId = activeId;
+        return;
+      }
+      selectedResearchRunId = runs.length > 0 && runs[0] ? runs[0].id : "";
+    }
+    function getDisplayedResearchRun() {
+      ensureValidResearchRunSelection();
+      return getResearchRunById(selectedResearchRunId) || null;
+    }
+    function parseResearchEditablePaths(raw) {
+      return String(raw || "").split(/\r?\n/).map(function(line) {
+        return String(line || "").trim();
+      }).filter(function(line) {
+        return line.length > 0;
+      });
+    }
+    function getSelectedResearchProfile() {
+      return (Array.isArray(researchProfiles) ? researchProfiles : []).find(function(profile) {
+        return profile && profile.id === selectedResearchId;
+      });
+    }
+    function formatResearchStatus(status) {
+      if (status === "running") return strings.researchStatusRunning || "Running";
+      if (status === "stopping") return strings.researchStatusStopping || "Stopping";
+      if (status === "completed") return strings.researchStatusCompleted || "Completed";
+      if (status === "failed") return strings.researchStatusFailed || "Failed";
+      if (status === "stopped") return strings.researchStatusStopped || "Stopped";
+      return strings.researchStatusIdle || "Idle";
+    }
+    function getAutoAgentResearchExampleProfile() {
+      return {
+        name: strings.researchAutoAgentExampleName || "AutoAgent Harbor Example",
+        instructions: strings.researchAutoAgentExampleInstructions || "Use this preset inside the autoagent repo to improve the Harbor agent harness score by editing agent.py while refining the experiment directive in program.md. Start with one representative task, keep the editable surface small, and make sure the benchmark command prints a final numeric score or reward line that matches the regex before you run the loop.",
+        editablePaths: ["agent.py", "program.md"],
+        benchmarkCommand: 'uv run harbor run -p tasks/ --task-name "<task-name>" -l 1 -n 1 --agent-import-path agent:AutoAgent -o jobs --job-name latest',
+        metricPattern: "(?:score|reward)\\s*[:=]\\s*([0-9.]+)",
+        metricDirection: "maximize",
+        maxIterations: 8,
+        maxMinutes: 90,
+        maxConsecutiveFailures: 3,
+        benchmarkTimeoutSeconds: 900,
+        editWaitSeconds: 45,
+        agent: "",
+        model: ""
+      };
+    }
+    function resetResearchForm(profile) {
+      var value = profile || null;
+      selectedResearchId = value && value.id ? value.id : "";
+      loadedResearchProfileId = selectedResearchId || "";
+      researchFormDirty = false;
+      isCreatingResearchProfile = !selectedResearchId;
+      clearResearchFormError();
+      if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+      if (researchNameInput) {
+        researchNameInput.value = value && value.name ? value.name : "";
+      }
+      if (researchInstructionsInput) {
+        researchInstructionsInput.value = value && value.instructions ? value.instructions : "";
+      }
+      if (researchEditablePathsInput) {
+        researchEditablePathsInput.value = value && Array.isArray(value.editablePaths) ? value.editablePaths.join("\n") : "";
+      }
+      if (researchBenchmarkInput) {
+        researchBenchmarkInput.value = value && value.benchmarkCommand ? value.benchmarkCommand : "";
+      }
+      if (researchMetricPatternInput) {
+        researchMetricPatternInput.value = value && value.metricPattern ? value.metricPattern : "";
+      }
+      if (researchMetricDirectionSelect) {
+        researchMetricDirectionSelect.value = value && value.metricDirection === "minimize" ? "minimize" : "maximize";
+      }
+      if (researchMaxIterationsInput) {
+        researchMaxIterationsInput.value = String(value && value.maxIterations !== void 0 ? value.maxIterations : 3);
+      }
+      if (researchMaxMinutesInput) {
+        researchMaxMinutesInput.value = String(value && value.maxMinutes !== void 0 ? value.maxMinutes : 15);
+      }
+      if (researchMaxFailuresInput) {
+        researchMaxFailuresInput.value = String(value && value.maxConsecutiveFailures !== void 0 ? value.maxConsecutiveFailures : 2);
+      }
+      if (researchBenchmarkTimeoutInput) {
+        researchBenchmarkTimeoutInput.value = String(value && value.benchmarkTimeoutSeconds !== void 0 ? value.benchmarkTimeoutSeconds : 180);
+      }
+      if (researchEditWaitInput) {
+        researchEditWaitInput.value = String(value && value.editWaitSeconds !== void 0 ? value.editWaitSeconds : 20);
+      }
+      if (researchAgentSelect) {
+        researchAgentSelect.value = value && value.agent ? value.agent : "";
+      }
+      if (researchModelSelect) {
+        researchModelSelect.value = value && value.model ? value.model : "";
+      }
+      persistTaskFilter();
+    }
+    function collectResearchFormData() {
+      return {
+        name: researchNameInput ? researchNameInput.value : "",
+        instructions: researchInstructionsInput ? researchInstructionsInput.value : "",
+        editablePaths: parseResearchEditablePaths(
+          researchEditablePathsInput ? researchEditablePathsInput.value : ""
+        ),
+        benchmarkCommand: researchBenchmarkInput ? researchBenchmarkInput.value : "",
+        metricPattern: researchMetricPatternInput ? researchMetricPatternInput.value : "",
+        metricDirection: researchMetricDirectionSelect && researchMetricDirectionSelect.value === "minimize" ? "minimize" : "maximize",
+        maxIterations: researchMaxIterationsInput ? Number(researchMaxIterationsInput.value || 0) : 0,
+        maxMinutes: researchMaxMinutesInput ? Number(researchMaxMinutesInput.value || 0) : 0,
+        maxConsecutiveFailures: researchMaxFailuresInput ? Number(researchMaxFailuresInput.value || 0) : 0,
+        benchmarkTimeoutSeconds: researchBenchmarkTimeoutInput ? Number(researchBenchmarkTimeoutInput.value || 0) : 0,
+        editWaitSeconds: researchEditWaitInput ? Number(researchEditWaitInput.value || 0) : 0,
+        agent: researchAgentSelect ? researchAgentSelect.value : "",
+        model: researchModelSelect ? researchModelSelect.value : ""
+      };
+    }
+    function validateResearchFormData(data) {
+      if (!String(data.name || "").trim()) {
+        return strings.researchProfileNameRequired || "Research profile name is required.";
+      }
+      if (!String(data.benchmarkCommand || "").trim()) {
+        return strings.researchBenchmarkRequired || "Benchmark command is required.";
+      }
+      if (!String(data.metricPattern || "").trim()) {
+        return strings.researchMetricRequired || "Metric regex is required.";
+      }
+      if (!Array.isArray(data.editablePaths) || data.editablePaths.length === 0) {
+        return strings.researchEditableRequired || "Add at least one editable file path.";
+      }
+      return "";
+    }
+    function syncResearchSelectors() {
+      updateSimpleSelect(
+        researchAgentSelect,
+        agents,
+        strings.placeholderSelectAgent || "Select agent",
+        researchAgentSelect ? researchAgentSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+      updateSimpleSelect(
+        researchModelSelect,
+        models,
+        strings.placeholderSelectModel || "Select model",
+        researchModelSelect ? researchModelSelect.value : "",
+        function(item) {
+          return item && item.id ? item.id : "";
+        },
+        function(item) {
+          return item && item.name ? item.name : "";
+        }
+      );
+    }
+    function renderResearchProfiles() {
+      ensureValidResearchSelection();
+      if (!researchProfileList) {
+        return;
+      }
+      var profiles = Array.isArray(researchProfiles) ? researchProfiles.slice() : [];
+      profiles.sort(function(a, b) {
+        return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+      });
+      if (profiles.length === 0) {
+        researchProfileList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyProfiles || "No research profiles yet.") + "</div>";
+        if (!researchFormDirty && !isCreatingResearchProfile) {
+          resetResearchForm(null);
+        }
+        return;
+      }
+      researchProfileList.innerHTML = profiles.map(function(profile) {
+        var isActive = profile && profile.id === selectedResearchId;
+        return '<div class="research-card' + (isActive ? " active" : "") + '" data-research-id="' + escapeAttr(profile.id || "") + '"><div class="research-card-header"><strong>' + escapeHtml(profile.name || "") + '</strong><span class="jobs-pill">' + escapeHtml(profile.metricDirection === "minimize" ? strings.researchDirectionMinimize || "Minimize" : strings.researchDirectionMaximize || "Maximize") + '</span></div><div class="research-meta">' + escapeHtml(profile.benchmarkCommand || "") + '</div><div class="research-chip-row"><span class="research-chip">' + escapeHtml((strings.researchEditableCount || "Editable files") + ": " + String((profile.editablePaths || []).length)) + '</span><span class="research-chip">' + escapeHtml((strings.researchBudgetShort || "Budget") + ": " + String(profile.maxIterations || 0) + " / " + String(profile.maxMinutes || 0) + "m") + '</span><span class="research-chip">' + escapeHtml((strings.researchMetricPatternShort || "Metric") + ": " + String(profile.metricPattern || "")) + "</span></div></div>";
+      }).join("");
+    }
+    function renderResearchRuns() {
+      if (!researchRunList) {
+        return;
+      }
+      var runs = Array.isArray(recentResearchRuns) ? recentResearchRuns : [];
+      if (runs.length === 0) {
+        researchRunList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.researchEmptyRuns || "No research runs yet.") + "</div>";
+        return;
+      }
+      researchRunList.innerHTML = runs.map(function(run) {
+        var lastAttempt = Array.isArray(run.attempts) && run.attempts.length > 0 ? run.attempts[run.attempts.length - 1] : null;
+        var isActive = run && run.id === selectedResearchRunId;
+        return '<div class="research-run-card' + (isActive ? " active" : "") + '" data-run-id="' + escapeAttr(run.id || "") + '"><div class="research-run-card-header"><strong>' + escapeHtml(run.profileName || "") + '</strong><span class="jobs-pill">' + escapeHtml(formatResearchStatus(run.status)) + '</span></div><div class="research-run-meta">' + escapeHtml("Best: " + (run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet")) + "\n" + escapeHtml("Duration: " + formatResearchDuration(run.startedAt, run.finishedAt)) + "\n" + escapeHtml("Attempts: " + String(Array.isArray(run.attempts) ? run.attempts.length : 0)) + (lastAttempt ? "\n" + escapeHtml("Last: " + (lastAttempt.summary || lastAttempt.outcome || "")) : "") + "</div></div>";
+      }).join("");
+    }
+    function renderResearchActiveRun() {
+      if (!researchActiveEmpty || !researchActiveDetails) {
+        return;
+      }
+      var run = getDisplayedResearchRun();
+      if (researchRunTitle) {
+        researchRunTitle.textContent = strings.researchActiveRunTitle || "Run details";
+      }
+      if (!run) {
+        researchActiveEmpty.style.display = "block";
+        researchActiveDetails.style.display = "none";
+        researchActiveEmpty.textContent = strings.researchNoRunSelected || "Select a recent run to inspect its attempts.";
+        if (researchAttemptList) {
+          researchAttemptList.innerHTML = "";
+        }
+        return;
+      }
+      researchActiveEmpty.style.display = "none";
+      researchActiveDetails.style.display = "block";
+      var attempts = Array.isArray(run.attempts) ? run.attempts : [];
+      var lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
+      if (researchActiveStatus) {
+        researchActiveStatus.textContent = formatResearchStatus(run.status);
+      }
+      if (researchActiveBest) {
+        researchActiveBest.textContent = run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet";
+      }
+      if (researchActiveAttempts) {
+        researchActiveAttempts.textContent = String(attempts.length);
+      }
+      if (researchActiveLastOutcome) {
+        researchActiveLastOutcome.textContent = lastAttempt ? String(lastAttempt.outcome || "-") : "-";
+      }
+      if (researchActiveMeta) {
+        researchActiveMeta.textContent = [
+          run.profileName || "",
+          (strings.researchStartedAt || "Started") + ": " + formatResearchDate(run.startedAt),
+          (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(run.finishedAt),
+          (strings.researchDuration || "Duration") + ": " + formatResearchDuration(run.startedAt, run.finishedAt),
+          (strings.researchBaselineScore || "Baseline score") + ": " + (run.baselineScore !== void 0 ? String(run.baselineScore) : strings.researchNoScore || "No score yet"),
+          (strings.researchBestScore || "Best score") + ": " + (run.bestScore !== void 0 ? String(run.bestScore) : strings.researchNoScore || "No score yet"),
+          (strings.researchCompletedIterations || "Completed iterations") + ": " + String(run.completedIterations || 0),
+          run.stopReason ? (strings.researchStopReason || "Stop reason") + ": " + run.stopReason : ""
+        ].filter(Boolean).join("\n");
+      }
+      if (researchAttemptList) {
+        researchAttemptList.innerHTML = attempts.map(function(attempt) {
+          var title = attempt.iteration === 0 ? strings.researchBaselineLabel || "Baseline" : (strings.researchIterationLabel || "Iteration") + " " + attempt.iteration;
+          var metaLines = [
+            attempt.summary || "",
+            (strings.researchStartedAt || "Started") + ": " + formatResearchDate(attempt.startedAt),
+            attempt.finishedAt ? (strings.researchFinishedAt || "Finished") + ": " + formatResearchDate(attempt.finishedAt) : "",
+            attempt.score !== void 0 ? "Score: " + String(attempt.score) : "",
+            attempt.bestScoreAfter !== void 0 ? (strings.researchBestScore || "Best score") + ": " + String(attempt.bestScoreAfter) : "",
+            attempt.exitCode !== void 0 ? (strings.researchExitCode || "Exit code") + ": " + String(attempt.exitCode) : ""
+          ].filter(Boolean);
+          var pathLines = [];
+          if (Array.isArray(attempt.changedPaths) && attempt.changedPaths.length > 0) {
+            pathLines.push(
+              (strings.researchChangedFiles || "Changed files") + ": " + attempt.changedPaths.join(", ")
+            );
+          }
+          if (Array.isArray(attempt.policyViolationPaths) && attempt.policyViolationPaths.length > 0) {
+            pathLines.push(
+              (strings.researchViolationFiles || "Policy violation files") + ": " + attempt.policyViolationPaths.join(", ")
+            );
+          }
+          if (attempt.snapshot && attempt.snapshot.label) {
+            pathLines.push(
+              (strings.researchSnapshot || "Snapshot") + ": " + attempt.snapshot.label
+            );
+          }
+          return '<div class="research-attempt-card"><div class="research-attempt-card-header"><strong>' + escapeHtml(title) + '</strong><span class="jobs-pill">' + escapeHtml(formatOutcomeLabel(attempt.outcome || "")) + '</span></div><div class="research-attempt-meta">' + escapeHtml(metaLines.join("\n")) + "</div>" + (pathLines.length > 0 ? '<div class="research-attempt-paths">' + escapeHtml(pathLines.join("\n")) + "</div>" : "") + (attempt.output ? '<div class="research-output"><details><summary>' + escapeHtml(strings.researchBenchmarkOutput || "Benchmark output") + "</summary><pre>" + escapeHtml(attempt.output) + "</pre></details></div>" : "") + "</div>";
+        }).join("");
+      }
+    }
+    function renderResearchTab() {
+      renderResearchProfiles();
+      renderResearchRuns();
+      renderResearchActiveRun();
+      var selected = getSelectedResearchProfile();
+      if (!researchFormDirty) {
+        resetResearchForm(selected || null);
+      } else if (researchEditIdInput) {
+        researchEditIdInput.value = selectedResearchId || "";
+      }
+      if (researchSaveBtn) {
+        researchSaveBtn.textContent = isCreatingResearchProfile ? strings.researchCreateProfile || strings.researchSaveProfile || "Create Profile" : strings.researchSaveProfile || "Save Profile";
+      }
+      if (researchDuplicateBtn) {
+        researchDuplicateBtn.disabled = !selectedResearchId;
+      }
+      if (researchDeleteBtn) {
+        researchDeleteBtn.disabled = !selectedResearchId;
+      }
+      if (researchStartBtn) {
+        researchStartBtn.disabled = !selectedResearchId || activeResearchRun && activeResearchRun.status === "running";
+      }
+      if (researchStopBtn) {
+        researchStopBtn.disabled = !(activeResearchRun && (activeResearchRun.status === "running" || activeResearchRun.status === "stopping"));
+      }
+      persistTaskFilter();
+    }
+    function submitTelegramForm(messageType) {
+      clearTelegramFeedback();
+      var data = collectTelegramFormData();
+      var validationError = validateTelegramFormData(data);
+      if (validationError) {
+        showTelegramFeedback(validationError, true);
+        return;
+      }
+      vscode.postMessage({ type: messageType, data });
+      showTelegramFeedback(
+        messageType === "saveTelegramNotification" ? strings.telegramStatusSaved || "Saving Telegram settings..." : strings.telegramTest || "Sending test message...",
+        false
+      );
+    }
+    function markResearchFormDirty() {
+      researchFormDirty = true;
+      clearResearchFormError();
+    }
+    function hookResearchFormDirtyTracking() {
+      [
+        researchNameInput,
+        researchInstructionsInput,
+        researchEditablePathsInput,
+        researchBenchmarkInput,
+        researchMetricPatternInput,
+        researchMetricDirectionSelect,
+        researchMaxIterationsInput,
+        researchMaxMinutesInput,
+        researchMaxFailuresInput,
+        researchBenchmarkTimeoutInput,
+        researchEditWaitInput,
+        researchAgentSelect,
+        researchModelSelect
+      ].forEach(function(element) {
+        if (!element || typeof element.addEventListener !== "function") {
+          return;
+        }
+        element.addEventListener("input", markResearchFormDirty);
+        element.addEventListener("change", markResearchFormDirty);
+      });
+    }
+    function hookEditorTabDirtyTracking() {
+      var selector = [
+        "#task-name",
+        "#prompt-text",
+        "#cron-expression",
+        "#task-labels",
+        "#agent-select",
+        "#model-select",
+        "#template-select",
+        "#jitter-seconds",
+        "#one-time-delay-hours",
+        "#one-time-delay-minutes",
+        "#one-time-delay-seconds",
+        "#chat-session",
+        "#run-first",
+        "#one-time",
+        'input[name="scope"]',
+        'input[name="prompt-source"]',
+        "#todo-title-input",
+        "#todo-description-input",
+        "#todo-due-input",
+        "#todo-priority-input",
+        "#todo-section-input",
+        "#todo-linked-task-select",
+        "#todo-labels-input",
+        "#todo-label-color-input",
+        "#todo-flag-name-input",
+        "#todo-flag-color-input",
+        "#jobs-name-input",
+        "#jobs-cron-input",
+        "#jobs-folder-select"
+      ].join(", ");
+      ["input", "change"].forEach(function(eventName) {
+        document.addEventListener(eventName, function(event) {
+          var target = event && event.target;
+          if (!target || typeof target.matches !== "function") {
+            return;
+          }
+          if (target.matches(selector)) {
+            syncEditorTabLabels();
+          }
+        });
+      });
+    }
+    function renderJobsTab() {
+      ensureValidJobSelection();
+      persistTaskFilter();
+      syncEditorTabLabels();
+      var jobsOverviewStats = document.getElementById("jobs-overview-stats");
+      var jobsOverviewSelection = document.getElementById("jobs-overview-selection");
+      var visibleJobs = getVisibleJobs();
+      if (jobsCurrentFolderBanner) {
+        var selectedFolder = getSelectedJobFolder();
+        var isArchive = isArchiveFolder(selectedFolder);
+        var currentFolderName = selectedJobFolderId ? (selectedFolder || {}).name || (strings.jobsRootFolder || "All jobs") : strings.jobsRootFolder || "All jobs";
+        jobsCurrentFolderBanner.innerHTML = '<div><span class="jobs-current-folder-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</span><strong class="jobs-current-folder-name">' + escapeHtml(isArchive ? strings.jobsArchiveFolderBadge || currentFolderName : currentFolderName) + '</strong><div class="jobs-folder-path">' + escapeHtml(getFolderPath(selectedJobFolderId)) + '</div></div><span class="jobs-pill' + (isArchive ? " is-inactive" : "") + '">' + escapeHtml(strings.jobsCurrentFolderBadge || "Current") + "</span>";
+      }
+      if (jobsRenameFolderBtn) jobsRenameFolderBtn.disabled = !selectedJobFolderId;
+      if (jobsDeleteFolderBtn) jobsDeleteFolderBtn.disabled = !selectedJobFolderId;
+      if (jobsFolderList) {
+        var folderItems = (Array.isArray(jobFolders) ? jobFolders.slice() : []).sort(function(a, b) {
+          var archiveDiff = (isArchiveFolder(a) ? 1 : 0) - (isArchiveFolder(b) ? 1 : 0);
+          if (archiveDiff !== 0) return archiveDiff;
+          var depthDiff = getFolderDepth(a) - getFolderDepth(b);
+          if (depthDiff !== 0) return depthDiff;
+          return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+        });
+        var rootClass = selectedJobFolderId ? "jobs-folder-item" : "jobs-folder-item active";
+        var folderHtml = '<div class="' + rootClass + '" data-job-folder=""><div class="jobs-folder-item-header"><span>' + escapeHtml(strings.jobsRootFolder || "All jobs") + '</span><span class="jobs-pill">' + String((Array.isArray(jobs) ? jobs : []).filter(function(job) {
+          return job && !(job.folderId || "");
+        }).length) + "</span></div></div>";
+        folderHtml += folderItems.map(function(folder) {
+          var depth = getFolderDepth(folder);
+          var isActive = folder && folder.id === selectedJobFolderId;
+          var archiveClass = isArchiveFolder(folder) ? " is-archive" : "";
+          var count = (Array.isArray(jobs) ? jobs : []).filter(function(job) {
+            return job && job.folderId === folder.id;
+          }).length;
+          var indent = new Array(depth + 1).join('<span class="jobs-folder-indent"></span>');
+          var folderPath = getFolderPath(folder.id);
+          return '<div class="jobs-folder-item' + (isActive ? " active" : "") + archiveClass + '" data-job-folder="' + escapeAttr(folder.id || "") + '"><div class="jobs-folder-item-header"><span>' + indent + escapeHtml(folder.name || "") + '</span><span class="jobs-pill">' + String(count) + "</span></div>" + (isArchiveFolder(folder) ? '<div class="jobs-folder-path"><span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchiveFolderBadge || "Archived jobs") + "</span></div>" : '<div class="jobs-folder-path">' + escapeHtml(folderPath) + "</div>") + "</div>";
+        }).join("");
+        jobsFolderList.innerHTML = folderHtml || '<div class="jobs-empty">' + escapeHtml(strings.jobsNoFolders || "No folders yet.") + "</div>";
+      }
+      if (jobsList) {
+        if (visibleJobs.length === 0) {
+          jobsList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsNoJobs || "No jobs in this folder yet.") + "</div>";
+        } else {
+          jobsList.innerHTML = visibleJobs.map(function(job) {
+            var scheduleSummary = getCronSummary(job.cronExpression || "");
+            var scheduleLabel = scheduleSummary !== (strings.labelFriendlyFallback || "") ? scheduleSummary : job.cronExpression || "";
+            var statusClass = "";
+            if (job && job.runtime && job.runtime.waitingPause) {
+              statusClass = " is-waiting";
+            } else if (job && (job.paused || job.archived)) {
+              statusClass = " is-inactive";
+            }
+            return '<div class="jobs-list-item' + (job.id === selectedJobId ? " active" : "") + '" data-job-id="' + escapeAttr(job.id || "") + '" draggable="true"><div class="jobs-list-item-header"><strong>' + escapeHtml(job.name || "") + '</strong><span class="jobs-pill' + statusClass + '">' + escapeHtml(getJobStatusText(job)) + '</span></div><div class="jobs-list-item-meta-row" title="' + escapeAttr(job.cronExpression || "") + '"><div class="jobs-list-item-meta">' + escapeHtml(scheduleLabel) + " \u2022 " + String(Array.isArray(job.nodes) ? job.nodes.length : 0) + ' items</div><div style="display:flex;align-items:center;gap:8px;">' + (job.archived ? '<span class="jobs-pill is-inactive">' + escapeHtml(strings.jobsArchivedBadge || "Archived") + "</span>" : "") + '<button type="button" class="btn-secondary" data-job-open-editor="' + escapeAttr(job.id || "") + '">' + escapeHtml(strings.jobsOpenEditor || "Open editor") + "</button></div></div></div>";
+          }).join("");
+        }
+      }
+      var selectedJob = getJobById(selectedJobId);
+      if (jobsOverviewStats) {
+        var activeJobsCount = visibleJobs.filter(function(job) {
+          return job && !job.paused && !job.archived;
+        }).length;
+        var visibleNodeCount = visibleJobs.reduce(function(total, job) {
+          return total + (Array.isArray(job && job.nodes) ? job.nodes.length : 0);
+        }, 0);
+        var folderCount = 1 + (Array.isArray(jobFolders) ? jobFolders.filter(function(folder) {
+          return folder && !isArchiveFolder(folder);
+        }).length : 0);
+        jobsOverviewStats.innerHTML = [
+          { label: strings.jobsTitle || "Jobs", value: String(visibleJobs.length) },
+          { label: strings.jobsRunning || "Active", value: String(activeJobsCount) },
+          { label: strings.jobsFoldersTitle || "Folders", value: String(folderCount) },
+          { label: strings.jobsWorkflowTaskCount || "Task steps", value: String(visibleNodeCount) }
+        ].map(function(item) {
+          return '<div class="jobs-overview-stat"><div class="jobs-overview-stat-label">' + escapeHtml(item.label) + '</div><div class="jobs-overview-stat-value">' + escapeHtml(item.value) + "</div></div>";
+        }).join("");
+      }
+      if (jobsOverviewSelection) {
+        var selectedFolderForOverview = getSelectedJobFolder();
+        var currentFolderName = selectedJobFolderId ? (selectedFolderForOverview || {}).name || (strings.jobsRootFolder || "All jobs") : strings.jobsRootFolder || "All jobs";
+        var currentFolderPath = getFolderPath(selectedJobFolderId);
+        if (selectedJob) {
+          var selectedJobSummary = getCronSummary(selectedJob.cronExpression || "");
+          var selectedJobNodes = Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+          jobsOverviewSelection.innerHTML = '<div class="jobs-overview-selection-card"><div class="jobs-overview-selection-header"><div><div class="jobs-overview-selection-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</div><strong class="jobs-overview-selection-title" title="' + escapeAttr(selectedJob.name || "") + '">' + escapeHtml(selectedJob.name || "") + '</strong></div><span class="jobs-pill' + (selectedJob.paused || selectedJob.archived ? " is-inactive" : "") + '">' + escapeHtml(getJobStatusText(selectedJob)) + '</span></div><div class="jobs-overview-selection-meta"><span>' + escapeHtml(currentFolderName) + "</span><span>" + escapeHtml(selectedJobSummary !== (strings.labelFriendlyFallback || "") ? selectedJobSummary : selectedJob.cronExpression || "-") + "</span><span>" + escapeHtml(String(selectedJobNodes.length) + " items") + '</span></div><div class="jobs-overview-selection-note">' + escapeHtml(currentFolderPath || (strings.jobsSelectJob || "Select a job to edit its workflow.")) + "</div></div>";
+        } else {
+          jobsOverviewSelection.innerHTML = '<div class="jobs-overview-selection-card jobs-overview-selection-empty"><div class="jobs-overview-selection-label">' + escapeHtml(strings.jobsCurrentFolderLabel || "Current folder") + '</div><strong class="jobs-overview-selection-title">' + escapeHtml(currentFolderName) + '</strong><div class="jobs-overview-selection-note">' + escapeHtml(currentFolderPath || (strings.jobsRootFolder || "All jobs")) + '</div><div class="jobs-overview-selection-meta"><span>' + escapeHtml(strings.jobsSelectJob || "Select a job to edit its workflow.") + "</span></div></div>";
+        }
+      }
+      var isJobCreateMode = !selectedJob && isCreatingJob;
+      applyJobsSidebarState();
+      if (jobsOpenEditorBtn) {
+        jobsOpenEditorBtn.disabled = !selectedJob;
+      }
+      if (!selectedJob && !isJobCreateMode) {
+        if (jobsWorkflowMetrics) jobsWorkflowMetrics.innerHTML = "";
+        if (jobsEmptyState) jobsEmptyState.style.display = "block";
+        if (jobsDetails) jobsDetails.style.display = "none";
+        return;
+      }
+      if (selectedJob) {
+        isCreatingJob = false;
+      }
+      syncEditorTabLabels();
+      if (jobsEmptyState) jobsEmptyState.style.display = "none";
+      if (jobsDetails) jobsDetails.style.display = "block";
+      var selectedNodes = selectedJob && Array.isArray(selectedJob.nodes) ? selectedJob.nodes : [];
+      var selectedWaitingPause = getWaitingPauseState(selectedJob);
+      var approvedPauseIds = getApprovedPauseIds(selectedJob);
+      var pauseCount = selectedNodes.filter(function(node) {
+        return isPauseNode(node);
+      }).length;
+      var taskCount = Math.max(0, selectedNodes.length - pauseCount);
+      var cadenceText = getJobsCadenceText(selectedJob ? selectedJob.cronExpression || "" : "");
+      if (jobsWorkflowMetrics) {
+        jobsWorkflowMetrics.innerHTML = [
+          {
+            label: strings.jobsWorkflowStatus || "Status",
+            value: selectedJob ? getJobStatusText(selectedJob) : strings.jobsCreateJob || "New Job",
+            tone: selectedWaitingPause ? "is-waiting" : selectedJob && (selectedJob.paused || selectedJob.archived) ? "is-muted" : "is-accent"
+          },
+          {
+            label: strings.jobsWorkflowCadence || "Cadence",
+            value: selectedJob ? cadenceText : strings.jobsEditorScheduleNote || "Define a schedule before saving.",
+            tone: "is-accent",
+            valueAttr: selectedJob ? ' data-jobs-workflow-cadence="1"' : ""
+          },
+          {
+            label: strings.jobsWorkflowTaskCount || "Task steps",
+            value: String(taskCount),
+            tone: ""
+          },
+          {
+            label: strings.jobsWorkflowPauseCount || "Pause checkpoints",
+            value: String(pauseCount),
+            tone: pauseCount > 0 ? "is-accent" : ""
+          }
+        ].map(function(metric) {
+          return '<div class="jobs-workflow-metric' + (String(metric.value || "").length > 18 ? " is-compact" : "") + (metric.tone ? " " + metric.tone : "") + '" title="' + escapeAttr(metric.value) + '"><div class="jobs-workflow-metric-label">' + escapeHtml(metric.label) + '</div><div class="jobs-workflow-metric-value"' + (metric.valueAttr || "") + ">" + escapeHtml(metric.value) + "</div></div>";
+        }).join("");
+      }
+      if (jobsNameInput) jobsNameInput.value = selectedJob ? selectedJob.name || "" : "";
+      if (jobsCronInput) jobsCronInput.value = selectedJob ? selectedJob.cronExpression || "" : "0 9 * * 1-5";
+      if (jobsCronPreset) jobsCronPreset.value = "";
+      syncFriendlyBuilderFromCronExpression({
+        expression: jobsCronInput ? jobsCronInput.value : "",
+        frequency: jobsFriendlyFrequency,
+        interval: jobsFriendlyInterval,
+        minute: jobsFriendlyMinute,
+        hour: jobsFriendlyHour,
+        dow: jobsFriendlyDow,
+        dom: jobsFriendlyDom,
+        updateVisibility: updateJobsFriendlyVisibility
+      });
+      syncJobsFolderSelect(selectedJob ? selectedJob.folderId || "" : selectedJobFolderId || "");
+      if (jobsStatusPill) {
+        jobsStatusPill.textContent = selectedJob ? getJobStatusText(selectedJob) : strings.jobsRunning || "Running";
+        if (jobsStatusPill.classList) {
+          jobsStatusPill.classList.toggle("is-inactive", !!(selectedJob && (selectedJob.paused || selectedJob.archived)));
+          jobsStatusPill.classList.toggle("is-waiting", !!selectedWaitingPause);
+        }
+        jobsStatusPill.disabled = !selectedJob;
+      }
+      if (jobsPauseBtn) {
+        jobsPauseBtn.textContent = selectedJob && selectedJob.paused ? strings.jobsResume || "Resume Job" : strings.jobsPause || "Pause Job";
+        jobsPauseBtn.disabled = !selectedJob;
+      }
+      if (jobsCompileBtn) {
+        jobsCompileBtn.disabled = !selectedJob || selectedNodes.length === 0;
+      }
+      if (jobsDuplicateBtn) {
+        jobsDuplicateBtn.disabled = !selectedJob;
+      }
+      if (jobsDeleteBtn) {
+        jobsDeleteBtn.disabled = !selectedJob;
+      }
+      if (jobsSaveBtn) {
+        jobsSaveBtn.textContent = selectedJob ? strings.jobsSave || "Save Job" : strings.jobsCreateJob || "New Job";
+      }
+      if (jobsTimelineInline) {
+        var timelineHtml = selectedNodes.map(function(node, index) {
+          var taskName = "";
+          if (isPauseNode(node)) {
+            taskName = (strings.jobsPausePrefix || "Pause") + ": " + (node.title || (strings.jobsPauseDefaultTitle || "Manual review"));
+          } else {
+            var task = getTaskById(node.taskId);
+            taskName = task && task.name ? task.name : (strings.jobsStepPrefix || "Step") + " " + String(index + 1);
+          }
+          return '<span class="jobs-timeline-node" title="' + escapeAttr(taskName) + '">' + escapeHtml(taskName) + "</span>" + (index < selectedNodes.length - 1 ? '<span class="jobs-timeline-arrow">\u2192</span>' : "");
+        }).join("");
+        jobsTimelineInline.innerHTML = selectedJob ? timelineHtml || escapeHtml(strings.jobsTimelineEmpty || "No steps yet") : escapeHtml(strings.jobsTimelineEmpty || "No steps yet");
+      }
+      syncJobsExistingTaskSelect();
+      syncJobsStepSelectors();
+      updateJobsCronPreview();
+      updateJobsFriendlyVisibility();
+      if (jobsStepList) {
+        if (!selectedJob) {
+          jobsStepList.innerHTML = '<div class="jobs-empty">' + escapeHtml(strings.jobsCreateJob || "Create Job") + ": " + escapeHtml(strings.jobsSave || "Save Job") + "</div>";
+          return;
+        }
+        var stepCards = selectedNodes.map(function(node, index) {
+          if (isPauseNode(node)) {
+            var isWaiting = !!selectedWaitingPause && selectedWaitingPause.nodeId === node.id;
+            var isApproved = approvedPauseIds.indexOf(node.id) >= 0;
+            var pauseStatusText = isWaiting ? strings.jobsPauseWaiting || "Waiting for approval" : isApproved ? strings.jobsPauseApproved || "Approved" : strings.jobsPauseDefaultTitle || "Manual review";
+            return '<div class="jobs-step-card jobs-pause-card' + (isWaiting ? " is-waiting" : "") + '" draggable="true" data-job-node-id="' + escapeAttr(node.id || "") + '"><div class="jobs-step-header"><strong title="' + escapeAttr(node.title || "") + '">' + String(index + 1) + ". " + escapeHtml(node.title || (strings.jobsPauseDefaultTitle || "Manual review")) + '</strong><span class="jobs-pill' + (isWaiting ? " is-waiting" : "") + '">' + escapeHtml(pauseStatusText) + '</span></div><div class="jobs-pause-copy">' + escapeHtml(strings.jobsPauseHelpText || "This checkpoint blocks downstream steps until you approve the previous result.") + '</div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseEdit || "Edit") + '</button><button type="button" class="btn-danger" data-job-action="delete-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseDelete || "Delete") + "</button>" + (isWaiting ? '<button type="button" class="btn-primary" data-job-action="approve-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseApprove || "Approve") + '</button><button type="button" class="btn-secondary" data-job-action="reject-pause" data-job-node-id="' + escapeAttr(node.id || "") + '">' + escapeHtml(strings.jobsPauseReject || "Reject and edit previous step") + "</button>" : "") + "</div></div>";
+          }
+          var task = getTaskById(node.taskId);
+          var taskName = task && task.name ? task.name : "Missing task";
+          var taskPrompt = task && task.prompt ? String(task.prompt) : "";
+          var preview = taskPrompt.length > 120 ? taskPrompt.slice(0, 120) + "..." : taskPrompt;
+          var nextRunText = task && task.nextRun ? new Date(task.nextRun).toLocaleString(locale) : strings.labelNever || "Never";
+          return '<div class="jobs-step-card" draggable="true" data-job-node-id="' + escapeAttr(node.id || "") + '"><div class="jobs-step-header"><strong title="' + escapeAttr(taskName) + '">' + String(index + 1) + ". " + escapeHtml(taskName) + '</strong><span class="jobs-pill">' + escapeHtml(String(node.windowMinutes || 30) + "m") + '</span></div><div class="jobs-step-meta">' + escapeHtml(strings.labelNextRun || "Next run") + ": " + escapeHtml(nextRunText) + '</div><div class="jobs-step-summary" title="' + escapeAttr(taskPrompt || preview) + '">' + escapeHtml(preview || "-") + '</div><div class="jobs-inline-form"><div class="form-group"><input type="number" class="job-node-window-input" data-job-node-window-id="' + escapeAttr(node.id || "") + '" min="1" max="1440" value="' + escapeAttr(String(node.windowMinutes || 30)) + '"></div></div><div class="jobs-step-toolbar"><button type="button" class="btn-secondary" data-job-action="edit-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionEdit || "Edit") + '</button><button type="button" class="btn-secondary" data-job-action="run-task" data-job-task-id="' + escapeAttr(node.taskId || "") + '">' + escapeHtml(strings.actionRun || "Run") + '</button><button type="button" class="btn-danger" data-job-action="detach-node" data-job-node-id="' + escapeAttr(node.id || "") + '">Delete</button></div></div>';
+        }).join("");
+        jobsStepList.innerHTML = stepCards || '<div class="jobs-empty">' + escapeHtml(strings.jobsEmptySteps || "This job has no steps yet.") + "</div>";
+      }
+    }
+    initializeTaskEditorState();
+    window.runTask = function runTask(id) {
+      vscode.postMessage({ type: "runTask", taskId: id });
+    };
+    window.editTask = function editTask(id) {
+      var task = findTaskById(id);
+      if (!task) return;
+      populateTaskEditor(task, id);
+    };
+    if (newTaskBtn) {
+      newTaskBtn.addEventListener("click", function handleNewTask() {
+        openCreateTaskTab();
+      });
+    }
+    window.copyPrompt = function copyPrompt(id) {
+      postTaskMessage("copyTask", id);
+    };
+    window.duplicateTask = function duplicateTask(id) {
+      postTaskMessage("duplicateTask", id);
+    };
+    window.moveTaskToCurrentWorkspace = function moveTask(id) {
+      postTaskMessage("moveTaskToCurrentWorkspace", id);
+    };
+    window.toggleTask = function toggleTask(id) {
+      postTaskMessage("toggleTask", id);
+    };
+    window.deleteTask = function deleteTask(id) {
+      var task = findTaskById(id);
+      if (!task) {
+        return;
+      }
+      postTaskMessage("deleteTask", id);
+    };
+    window.addEventListener("message", function handleMessage(event) {
+      var message = getHostMessage(event);
+      var messageType = message && message.type;
+      try {
+        switch (messageType) {
+          case "updateTasks":
+            tasks = Array.isArray(message.tasks) ? message.tasks : [];
+            reconcilePendingReadyTodoDraftCreates();
+            emitWebviewDebug("updateTasks", {
+              taskCount: tasks.length,
+              selectedTodoId: selectedTodoId || "",
+              isCreatingJob
+            });
+            syncTaskLabelFilterOptions();
+            syncJobsExistingTaskSelect();
+            renderTaskList(message.tasks);
+            renderJobsTab();
+            syncTodoLinkedTaskOptions(selectedTodoId ? "" : todoLinkedTaskSelect ? todoLinkedTaskSelect.value : "");
+            break;
+          case "updateJobs":
+            jobs = Array.isArray(message.jobs) ? message.jobs : [];
+            syncTaskLabelFilterOptions();
+            renderTaskList(tasks);
+            renderJobsTab();
+            break;
+          case "updateJobFolders":
+            jobFolders = Array.isArray(message.jobFolders) ? message.jobFolders : [];
+            renderJobsTab();
+            break;
+          case "updateCockpitBoard":
+            cockpitBoard = message.cockpitBoard || {
+              version: 4,
+              sections: [],
+              cards: [],
+              filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
+              updatedAt: ""
+            };
+            if (pendingTodoFilters) {
+              var incomingFilters = normalizeTodoFilters(cockpitBoard.filters);
+              if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {
+                pendingTodoFilters = null;
+              } else {
+                cockpitBoard = Object.assign({}, cockpitBoard, {
+                  filters: normalizeTodoFilters(Object.assign({}, incomingFilters, pendingTodoFilters))
+                });
+              }
+            }
+            reconcilePendingGridTodoCompletions(cockpitBoard.cards);
+            reconcilePendingReadyTodoDraftCreates();
+            emitWebviewDebug("updateCockpitBoard", {
+              sectionCount: Array.isArray(cockpitBoard.sections) ? cockpitBoard.sections.length : 0,
+              cardCount: Array.isArray(cockpitBoard.cards) ? cockpitBoard.cards.length : 0,
+              selectedTodoId: selectedTodoId || "",
+              draftTitleLength: currentTodoDraft.title.length
+            });
+            if (pendingTodoDeleteId && !cockpitBoard.cards.some(function(card) {
+              return card && card.id === pendingTodoDeleteId;
+            })) {
+              closeTodoDeleteModal();
+            }
+            if (pendingBoardDeleteTodoId && !cockpitBoard.cards.some(function(card) {
+              return card && card.id === pendingBoardDeleteTodoId;
+            })) {
+              pendingBoardDeleteTodoId = "";
+              pendingBoardDeletePermanentOnly = false;
+            }
+            clearCatalogDeleteState();
+            syncTaskLabelFilterOptions();
+            renderTaskList(tasks);
+            requestCockpitBoardRender();
+            reconcileTodoEditorCatalogState();
+            syncFlagEditor();
+            syncTodoLabelEditor();
+            scheduleBoardStickyMetrics();
+            break;
+          case "updateResearchState":
+            researchProfiles = Array.isArray(message.profiles) ? message.profiles : [];
+            activeResearchRun = message.activeRun || null;
+            recentResearchRuns = Array.isArray(message.recentRuns) ? message.recentRuns : [];
+            if (activeResearchRun && (!selectedResearchRunId || selectedResearchRunId === activeResearchRun.id)) {
+              selectedResearchRunId = activeResearchRun.id;
+            } else {
+              ensureValidResearchRunSelection();
+            }
+            if (!selectedResearchId) {
+              ensureValidResearchSelection();
+            }
+            renderResearchTab();
+            break;
+          case "updateGitHubIntegration":
+            githubIntegration = message.githubIntegration || createEmptyGitHubIntegrationState();
+            renderGitHubIntegrationTab();
+            renderCockpitBoard();
+            break;
+          case "updateTelegramNotification":
+            telegramNotification = message.telegramNotification || {
+              enabled: false,
+              hasBotToken: false,
+              hookConfigured: false
+            };
+            renderTelegramTab();
+            break;
+          case "updateLogLevel":
+            currentLogLevel = typeof message.logLevel === "string" && message.logLevel ? message.logLevel : "info";
+            debugTools.setLogLevel(currentLogLevel);
+            renderLoggingControls();
+            break;
+          case "updateStorageSettings":
+            storageSettings = normalizeStorageSettings(message.storageSettings, storageSettings);
+            renderStorageSettingsControls();
+            showStorageStatusRefreshNote();
+            break;
+          case "updateApprovalMode":
+            if (approvalModeSelect && message.approvalMode) {
+              approvalModeSelect.value = message.approvalMode;
+            }
+            break;
+          case "updateExecutionDefaults":
+            executionDefaults = message.executionDefaults || {
+              agent: "agent",
+              model: ""
+            };
+            emitWebviewDebug("updateExecutionDefaults", {
+              agent: executionDefaults.agent || "",
+              model: executionDefaults.model || "",
+              editingTaskId: editingTaskId || "",
+              pendingAgentValue,
+              pendingModelValue
+            });
+            renderExecutionDefaultsControls();
+            if (!editingTaskId) {
+              if (agentSelect && !pendingAgentValue && !agentSelect.value) {
+                agentSelect.value = executionDefaults.agent || "";
+              }
+              if (modelSelect && !pendingModelValue && !modelSelect.value) {
+                modelSelect.value = executionDefaults.model || "";
+              }
+            }
+            renderTaskList(tasks);
+            break;
+          case "updateReviewDefaults":
+            reviewDefaults = message.reviewDefaults || {
+              needsBotReviewCommentTemplate: "",
+              needsBotReviewPromptTemplate: "",
+              needsBotReviewAgent: "agent",
+              needsBotReviewModel: "",
+              needsBotReviewChatSession: "new",
+              readyPromptTemplate: ""
+            };
+            renderReviewDefaultsControls();
+            break;
+          case "updateAgents":
+            pendingAgentValue = refreshExecutionSelectTargets({
+              eventName: "updateAgents",
+              selectElement: agentSelect,
+              pendingValue: pendingAgentValue,
+              createDebugData: function(currentValue) {
+                return {
+                  currentAgentValue: currentValue,
+                  agentCount: Array.isArray(message.agents) ? message.agents.length : 0
+                };
+              },
+              assignItems: function() {
+                agents = Array.isArray(message.agents) ? message.agents : [];
+              },
+              updateOptions: populateAgentDropdown2
+            });
+            syncSharedAgentAndModelSelectors();
+            break;
+          case "updateModels":
+            pendingModelValue = refreshExecutionSelectTargets({
+              eventName: "updateModels",
+              selectElement: modelSelect,
+              pendingValue: pendingModelValue,
+              createDebugData: function(currentValue) {
+                return {
+                  currentModelValue: currentValue,
+                  modelCount: Array.isArray(message.models) ? message.models.length : 0
+                };
+              },
+              assignItems: function() {
+                models = Array.isArray(message.models) ? message.models : [];
+              },
+              updateOptions: populateModelDropdown2
+            });
+            syncSharedAgentAndModelSelectors();
+            break;
+          case "updatePromptTemplates":
+            syncPromptTemplateOptions(message.templates);
+            break;
+          case "updateSkills":
+            skills = Array.isArray(message.skills) ? message.skills : [];
+            updateSkillOptions();
+            break;
+          case "updateAutoShowOnStartup":
+            autoShowOnStartup = !!message.enabled;
+            syncAutoShowOnStartupUi();
+            break;
+          case "updateScheduleHistory":
+            cockpitHistory = Array.isArray(message.entries) ? message.entries : [];
+            syncScheduleHistoryOptions();
+            break;
+          case "promptTemplateLoaded":
+            setPromptTextValue(message.content);
+            break;
+          case "switchToList":
+            switchToListView(message.successMessage);
+            break;
+          case "switchToTab":
+            if (message.tab) {
+              switchTab(message.tab);
+            }
+            break;
+          case "focusTask":
+            focusTaskView(message.taskId);
+            break;
+          case "focusReadyTodoDraft":
+            focusReadyTodoDraftView(message.todoId);
+            break;
+          case "focusJob":
+            focusJobView(message.folderId, message.jobId || "");
+            break;
+          case "focusResearchProfile":
+            focusResearchProfileView(message.researchId);
+            break;
+          case "focusResearchRun":
+            focusResearchRunView(message.runId);
+            break;
+          case "editTask":
+            editTaskFromHost(message.taskId);
+            break;
+          case "startCreateTask":
+            startCreateTaskFlow();
+            break;
+          case "startCreateTodo":
+            emitWebviewDebug("startCreateTodo", { reason: "host" });
+            resetTodoEditor();
+            break;
+          case "startCreateJob":
+            emitWebviewDebug("startCreateJob", { reason: "host" });
+            resetJobEditor();
+            break;
+          case "showError":
+            syncGlobalErrorMessage(message.text);
+            break;
+          case "todoFileUploadResult":
+            if (message.ok && message.insertedText) {
+              appendTextToTodoDescription(String(message.insertedText || ""));
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesSuccess || ""),
+                "success"
+              );
+            } else if (!message.cancelled) {
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesError || ""),
+                "error"
+              );
+            } else {
+              setTodoUploadNote(
+                String(message.message || strings.boardUploadFilesHint || ""),
+                "neutral"
+              );
+            }
+            break;
+        }
+      } catch (e) {
+        showWebviewClientError(e);
+      }
+    });
+    renderTaskList(tasks);
+    switchTab(getInitialTabName());
+    window.addEventListener("scroll", function() {
+      if (activeTabName) {
+        captureTabScrollPosition(activeTabName);
+        persistTaskFilter();
+      }
+      updateBoardAutoCollapseFromScroll(false);
+    }, { passive: true });
+    window.addEventListener("resize", scheduleBoardStickyMetrics);
+    document.addEventListener("keydown", function(event) {
+      handleGlobalSaveShortcut(event);
+      if (event.key === "Escape") {
+        closeTodoDeleteModal();
+        closeTodoCommentModal();
+      }
+    });
+    scheduleBoardStickyMetrics();
+    setInterval(function() {
+      if (isTabActive("list")) {
+        refreshTaskCountdowns();
+      }
+    }, 1e3);
+    vscode.postMessage({ type: "webviewReady" });
+  })();
+})();

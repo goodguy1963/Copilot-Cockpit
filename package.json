@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "One VS Code system for AI planning and triage, execution and scheduling, and optional control-plane integration",
-  "version": "2.0.32",
+  "version": "2.0.36",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -135,6 +135,30 @@
         "title": "%command.syncBundledSkills%",
         "category": "%extension.title%",
         "icon": "$(sync)"
+      },
+      {
+        "command": "copilotCockpit.enableExternalAgentAccess",
+        "title": "%command.enableExternalAgentAccess%",
+        "category": "%extension.title%",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "copilotCockpit.disableExternalAgentAccess",
+        "title": "%command.disableExternalAgentAccess%",
+        "category": "%extension.title%",
+        "icon": "$(shield-notification)"
+      },
+      {
+        "command": "copilotCockpit.rotateExternalAgentKey",
+        "title": "%command.rotateExternalAgentKey%",
+        "category": "%extension.title%",
+        "icon": "$(key)"
+      },
+      {
+        "command": "copilotCockpit.copyExternalAgentSetupInfo",
+        "title": "%command.copyExternalAgentSetupInfo%",
+        "category": "%extension.title%",
+        "icon": "$(copy)"
       }
     ],
     "configuration": {
@@ -352,6 +376,12 @@
           "default": true,
           "scope": "resource",
           "description": "%config.sqliteJsonMirror%"
+        },
+        "copilotCockpit.autoIgnorePrivateFiles": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%config.autoIgnorePrivateFiles%"
         },
         "copilotCockpit.searchProvider": {
           "type": "string",

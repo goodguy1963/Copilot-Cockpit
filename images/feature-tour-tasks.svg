@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title>Illustrative Tasks surface mockup</title>
+  <desc>Illustrative SVG mockup of the Tasks surfaces, combining the Task List and Create or Edit Task views to show recurring versus one-time execution, optional agent and model overrides, and workspace defaults.</desc>
+  <defs>
+    <linearGradient id="window-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22262b"/>
+      <stop offset="100%" stop-color="#171a1f"/>
+    </linearGradient>
+    <linearGradient id="card-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2f36"/>
+      <stop offset="100%" stop-color="#23272d"/>
+    </linearGradient>
+    <linearGradient id="panel-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#20242a"/>
+      <stop offset="100%" stop-color="#1b1f24"/>
+    </linearGradient>
+    <linearGradient id="field-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b1f24"/>
+      <stop offset="100%" stop-color="#171b20"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <style>
+    .ui { font-family: "Segoe UI", Arial, sans-serif; }
+    .title { fill: #f3f3f3; font-size: 28px; font-weight: 600; }
+    .subtitle { fill: #b8bcc4; font-size: 14px; }
+    .nav { fill: #d0d3d8; font-size: 18px; }
+    .nav-muted { fill: #8a8f98; font-size: 18px; }
+    .tiny { fill: #8f96a0; font-size: 12px; }
+    .card-title { fill: #ffffff; font-size: 24px; font-weight: 600; }
+    .card-copy { fill: #b7bbc2; font-size: 14px; }
+    .section { fill: #f3f4f6; font-size: 19px; font-weight: 600; }
+    .label { fill: #9aa0aa; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .value { fill: #eef2f6; font-size: 16px; }
+    .item-title { fill: #f4f6f8; font-size: 16px; font-weight: 600; }
+    .meta { fill: #9aa0aa; font-size: 13px; }
+    .copy { fill: #c9ced6; font-size: 13px; }
+    .button-text { fill: #ffffff; font-size: 13px; font-weight: 600; }
+    .pill { font-size: 12px; font-weight: 700; }
+  </style>
+
+  <rect width="1600" height="980" fill="#0f1115"/>
+  <g class="ui">
+    <rect x="40" y="40" width="1520" height="900" rx="28" fill="url(#window-bg)" stroke="#343942" filter="url(#shadow)"/>
+    <rect x="40" y="40" width="1520" height="48" rx="28" fill="#2b3038"/>
+    <rect x="40" y="88" width="1520" height="852" fill="#1d1f23"/>
+    <rect x="40" y="88" width="248" height="852" fill="#252526"/>
+
+    <circle cx="74" cy="64" r="6" fill="#ea4c46"/>
+    <circle cx="94" cy="64" r="6" fill="#f0b94b"/>
+    <circle cx="114" cy="64" r="6" fill="#5cc95c"/>
+    <text x="140" y="69" fill="#cfd2d7" font-size="17" font-weight="600">source-scheduler</text>
+    <text x="1410" y="69" fill="#8f96a0" font-size="14">Tasks surfaces</text>
+
+    <text x="72" y="132" class="tiny">Copilot Cockpit</text>
+    <rect x="58" y="170" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="199" class="nav-muted">Todo Cockpit</text>
+    <rect x="58" y="228" width="212" height="46" rx="12" fill="#0e639c" stroke="#1177bb"/>
+    <rect x="58" y="228" width="5" height="46" rx="3" fill="#67b7ff"/>
+    <text x="84" y="257" class="nav">Tasks</text>
+    <rect x="58" y="286" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="315" class="nav-muted">Jobs</text>
+    <rect x="58" y="344" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="373" class="nav-muted">Research</text>
+    <rect x="58" y="402" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="431" class="nav-muted">Settings</text>
+    <rect x="58" y="460" width="212" height="46" rx="12" fill="#2d3138"/>
+    <text x="84" y="489" class="nav-muted">How To Use</text>
+
+    <text x="332" y="138" class="tiny">One executable unit</text>
+    <text x="332" y="176" class="title">Tasks</text>
+    <text x="332" y="202" class="subtitle">Task List keeps scheduled work visible, while Create or Edit Task controls the prompt, schedule, scope, and runtime choice for one run or a recurring loop.</text>
+
+    <rect x="332" y="228" width="170" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="356" y="254" class="label">Recurring</text>
+    <text x="356" y="286" fill="#eef2f6" font-size="28" font-weight="700">12</text>
+
+    <rect x="520" y="228" width="170" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="544" y="254" class="label">One-time</text>
+    <text x="544" y="286" fill="#eef2f6" font-size="28" font-weight="700">4</text>
+
+    <rect x="708" y="228" width="206" height="72" rx="18" fill="#20242a" stroke="#343942"/>
+    <text x="732" y="254" class="label">Todo Task Drafts</text>
+    <text x="732" y="286" fill="#eef2f6" font-size="28" font-weight="700">3</text>
+
+    <rect x="934" y="228" width="590" height="72" rx="18" fill="#173f34" stroke="#256050"/>
+    <text x="962" y="258" fill="#d6f4e6" font-size="14" font-weight="600">Blank agent and model fields inherit the workspace defaults from Settings.</text>
+    <text x="962" y="282" fill="#b6decd" font-size="13">Set them only when a task needs a fixed agent, fixed model, or a different execution cost profile.</text>
+
+    <rect x="332" y="328" width="420" height="582" rx="22" fill="url(#card-bg)" stroke="#3a4048"/>
+    <text x="364" y="374" class="card-title">Task List</text>
+    <text x="364" y="400" class="card-copy">Recurring tasks, one-time tasks, and Todo drafts stay separated so scheduled work does not disappear into chat history.</text>
+
+    <rect x="364" y="424" width="90" height="30" rx="10" fill="#0e639c"/>
+    <text x="388" y="444" class="button-text">All Tasks</text>
+    <rect x="464" y="424" width="92" height="30" rx="10" fill="#31363e"/>
+    <text x="487" y="444" class="button-text">Recurring</text>
+    <rect x="566" y="424" width="92" height="30" rx="10" fill="#31363e"/>
+    <text x="594" y="444" class="button-text">One-Time</text>
+    <rect x="668" y="424" width="52" height="30" rx="10" fill="#31363e"/>
+    <text x="685" y="444" class="button-text">Label</text>
+
+    <rect x="364" y="474" width="356" height="126" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="388" y="506" class="item-title">Daily release watch</text>
+    <text x="388" y="530" class="meta">Recurring task | weekdays 09:00 | workspace scope</text>
+    <rect x="388" y="544" width="84" height="22" rx="11" fill="#1f5a46"/>
+    <text x="409" y="559" fill="#d6f4e6" class="pill">ACTIVE</text>
+    <rect x="482" y="544" width="112" height="22" rx="11" fill="#2f3948"/>
+    <text x="506" y="559" fill="#dbe7f5" class="pill">security</text>
+    <text x="388" y="586" class="copy">Prompt keeps shipping and trust issues visible before the next deploy window.</text>
+
+    <rect x="364" y="620" width="356" height="126" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="388" y="652" class="item-title">PR response draft</text>
+    <text x="388" y="676" class="meta">One-time task draft | delay 90 minutes | linked Todo stays ready</text>
+    <rect x="388" y="690" width="86" height="22" rx="11" fill="#5c3b20"/>
+    <text x="412" y="705" fill="#ffe0b9" class="pill">DRAFT</text>
+    <rect x="484" y="690" width="116" height="22" rx="11" fill="#2f3948"/>
+    <text x="510" y="705" fill="#dbe7f5" class="pill">needs-review</text>
+    <text x="388" y="732" class="copy">After one successful linked run, the source Todo should move to FINAL-USER-CHECK.</text>
+
+    <rect x="364" y="766" width="356" height="116" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="388" y="798" class="item-title">Knowledge and shipping packager</text>
+    <text x="388" y="822" class="meta">Recurring task | Fri 16:00 | manual session off</text>
+    <text x="388" y="852" class="copy">Overdue tasks are reviewed on startup instead of running silently after VS Code restarts.</text>
+
+    <rect x="778" y="328" width="746" height="596" rx="22" fill="url(#card-bg)" stroke="#3a4048"/>
+    <text x="812" y="374" class="card-title">Create / Edit Task</text>
+    <text x="812" y="400" class="card-copy">Configure the prompt, schedule, and runtime behavior in one compact editor.</text>
+
+    <text x="812" y="438" class="section">Prompt</text>
+    <text x="812" y="466" class="label">Task Name</text>
+    <rect x="812" y="476" width="284" height="44" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="834" y="504" class="value">Release readiness review</text>
+    <text x="1118" y="466" class="label">Labels</text>
+    <rect x="1118" y="476" width="374" height="44" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="1140" y="504" class="value">release, docs, security</text>
+
+    <text x="812" y="552" class="label">Prompt</text>
+    <rect x="812" y="562" width="680" height="108" rx="14" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="834" y="592" fill="#f2f4f7" font-size="16">Review the next release for delivery risk, security drift, and docs gaps.</text>
+    <text x="834" y="618" fill="#d9dde3" font-size="15">Summarize blockers, then suggest one direct next task when approval is still needed.</text>
+    <text x="834" y="644" fill="#d9dde3" font-size="15">Keep the result concise enough to route back into Todo Cockpit for the next review step.</text>
+
+    <text x="812" y="706" class="section">Schedule</text>
+    <rect x="812" y="726" width="318" height="98" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="836" y="756" class="item-title">Recurring schedule</text>
+    <text x="836" y="780" class="meta">Preset: Weekdays</text>
+    <text x="836" y="802" class="copy">Cron: 0 9 * * 1-5</text>
+
+    <rect x="1146" y="726" width="346" height="98" rx="18" fill="url(#panel-bg)" stroke="#343942"/>
+    <text x="1170" y="756" class="item-title">One-Time delay</text>
+    <text x="1170" y="780" class="meta">Delay builder: 0h 30m 0s</text>
+    <text x="1170" y="802" class="copy">Next run: 2026-04-27 14:30</text>
+
+    <text x="812" y="858" class="section">Runtime and options</text>
+    <text x="812" y="884" class="label">Agent</text>
+    <rect x="812" y="890" width="210" height="34" rx="12" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="834" y="912" class="value">Leave blank</text>
+    <text x="1042" y="884" class="label">Model</text>
+    <rect x="1042" y="890" width="210" height="34" rx="12" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="1064" y="912" class="value">Leave blank</text>
+    <text x="1272" y="884" class="label">Scope</text>
+    <rect x="1272" y="890" width="220" height="34" rx="12" fill="url(#field-bg)" stroke="#3b4149"/>
+    <text x="1294" y="912" class="value">Workspace</text>
+  </g>
+</svg>

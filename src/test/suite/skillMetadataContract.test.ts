@@ -21,26 +21,37 @@ suite("Skill Metadata Contract Tests", () => {
       {
         relativePath: ".github/skills/cockpit-scheduler-agent/SKILL.md",
         type: "operational",
+        requiresTodoWorkflowContract: true,
         readyFlag: "ON-SCHEDULE-LIST",
       },
       {
         relativePath: ".github/skills/cockpit-scheduler-router/SKILL.md",
         type: "operational",
+        requiresTodoWorkflowContract: true,
         readyFlag: "ON-SCHEDULE-LIST",
       },
       {
         relativePath: ".github/skills/cockpit-todo-agent/SKILL.md",
         type: "operational",
+        requiresTodoWorkflowContract: true,
         readyFlag: "ready",
+      },
+      {
+        relativePath: ".github/skills/prefab-ui/SKILL.md",
+        type: "operational",
+        requiresTodoWorkflowContract: false,
+        readyFlag: "",
       },
       {
         relativePath: ".github/skills/copilot-scheduler-intro/SKILL.md",
         type: "support",
+        requiresTodoWorkflowContract: false,
         readyFlag: "",
       },
       {
         relativePath: ".github/skills/copilot-scheduler-setup/SKILL.md",
         type: "support",
+        requiresTodoWorkflowContract: false,
         readyFlag: "",
       },
     ] as const;
@@ -56,10 +67,16 @@ suite("Skill Metadata Contract Tests", () => {
 
       if (expectation.type === "operational") {
         assert.strictEqual(metadata?.approvalSensitive, true);
-        assert.ok(metadata?.workflowIntents.includes("needs-bot-review"));
-        assert.ok(metadata?.workflowIntents.includes("ready"));
-        assert.ok(metadata?.closeoutWorkflowFlags.includes("needs-user-review"));
-        assert.ok(metadata?.closeoutWorkflowFlags.includes("FINAL-USER-CHECK"));
+        if (expectation.requiresTodoWorkflowContract) {
+          assert.ok(metadata?.workflowIntents.includes("needs-bot-review"));
+          assert.ok(metadata?.workflowIntents.includes("ready"));
+          assert.ok(metadata?.closeoutWorkflowFlags.includes("needs-user-review"));
+          assert.ok(metadata?.closeoutWorkflowFlags.includes("FINAL-USER-CHECK"));
+        } else {
+          assert.strictEqual(metadata?.workflowIntents.length, 0);
+          assert.strictEqual(metadata?.readyWorkflowFlags.length, 0);
+          assert.strictEqual(metadata?.closeoutWorkflowFlags.length, 0);
+        }
         assert.ok(
           expectation.readyFlag.length === 0 || metadata?.readyWorkflowFlags.includes(expectation.readyFlag),
         );

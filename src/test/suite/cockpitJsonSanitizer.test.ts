@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import {
+  REDACTED_GITHUB_TOKEN,
   getActiveSchedulerReadPath,
   getPrivateSchedulerConfigPath,
   readSchedulerConfig,
@@ -119,6 +120,15 @@ suite("Scheduler Json Sanitizer Tests", () => {
       writeSchedulerConfig(workspaceRoot, {
         tasks: [],
         cockpitBoard: board,
+        githubIntegration: {
+          enabled: true,
+          owner: "octocat",
+          repo: "hello-world",
+          token: "github_pat_1234567890abcdefghijklmnopqrstuvwxyz",
+          automationPromptTemplate: "Review {{github_item}}",
+          syncStatus: "ready",
+          updatedAt: "2026-03-27T10:00:00.000Z",
+        },
         telegramNotification: {
           enabled: true,
           botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
@@ -135,10 +145,14 @@ suite("Scheduler Json Sanitizer Tests", () => {
 
       assert.ok(!publicContent.includes("cockpitBoard"));
       assert.ok(!publicContent.includes("Ship cockpit board"));
+      assert.ok(publicContent.includes(REDACTED_GITHUB_TOKEN));
+      assert.ok(!publicContent.includes("github_pat_1234567890abcdefghijklmnopqrstuvwxyz"));
       assert.ok(privateContent.includes("cockpitBoard"));
       assert.ok(privateContent.includes("Ship cockpit board"));
+      assert.ok(privateContent.includes("github_pat_1234567890abcdefghijklmnopqrstuvwxyz"));
       assert.strictEqual(roundTripped.cockpitBoard?.sections.length, board.sections.length);
       assert.strictEqual(roundTripped.cockpitBoard?.cards[0]?.title, "Ship cockpit board");
+      assert.strictEqual(roundTripped.githubIntegration?.token, "github_pat_1234567890abcdefghijklmnopqrstuvwxyz");
       assert.strictEqual(roundTripped.telegramNotification?.botToken, "123456:abcdefghijklmnopqrstuvwxyzABCDE");
     } finally {
       cleanup(workspaceRoot);
@@ -258,6 +272,14 @@ suite("Scheduler Json Sanitizer Tests", () => {
         privateConfigPath,
         JSON.stringify({
           cockpitBoard: privateBoard,
+          githubIntegration: {
+            enabled: true,
+            owner: "octocat",
+            repo: "hello-world",
+            token: "github_pat_1234567890abcdefghijklmnopqrstuvwxyz",
+            syncStatus: "ready",
+            updatedAt: "2026-04-02T10:00:00.000Z",
+          },
           telegramNotification: {
             enabled: true,
             botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
@@ -273,6 +295,10 @@ suite("Scheduler Json Sanitizer Tests", () => {
       const config = readSchedulerConfig(workspaceRoot);
       assert.deepStrictEqual(config.tasks, []);
       assert.strictEqual(config.cockpitBoard?.cards[0]?.id, "card-private");
+      assert.strictEqual(
+        config.githubIntegration?.token,
+        "github_pat_1234567890abcdefghijklmnopqrstuvwxyz",
+      );
       assert.strictEqual(
         config.telegramNotification?.botToken,
         "123456:abcdefghijklmnopqrstuvwxyzABCDE",

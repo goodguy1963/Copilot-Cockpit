@@ -1146,6 +1146,7 @@ suite("Scheduler MCP Server Tests", () => {
 
   test("one-time tasks do not keep a task-level chat session", async () => {
     const server = createServerContext();
+    const startedAt = Date.now();
 
     const response = await handleSchedulerToolCall(
       "scheduler_add_task",
@@ -1155,15 +1156,138 @@ suite("Scheduler MCP Server Tests", () => {
         cron: "0 * * * *",
         prompt: "prompt",
         oneTime: true,
+        oneTimeDelaySeconds: 300,
         chatSession: "continue",
       },
       server.context as any,
     );
 
     const payload = parseJsonText(response);
+    const nextRunMs = new Date(payload.task.nextRun).getTime();
     assert.strictEqual(payload.task.oneTime, true);
+    assert.strictEqual(payload.task.oneTimeDelaySeconds, 300);
     assert.strictEqual(payload.task.chatSession, undefined);
+    assert.ok(Number.isFinite(nextRunMs));
+    assert.ok(nextRunMs >= startedAt + 299000);
     assert.strictEqual(server.getConfig().tasks[0].chatSession, undefined);
+  });
+
+  test("one-time task creation rejects missing delay", async () => {
+    const server = createServerContext();
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_add_task",
+      {
+        id: "task-one-time-invalid",
+        name: "Invalid one-time",
+        cron: "0 * * * *",
+        prompt: "prompt",
+        oneTime: true,
+      },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Field 'oneTimeDelaySeconds' must be a positive number when oneTime is true.",
+    );
+  });
+
+  test("one-time task updates reject invalid effective delay state", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-one-time-invalid-existing",
+          name: "Invalid stored one-time",
+          cron: "0 * * * *",
+          prompt: "prompt",
+          enabled: true,
+          oneTime: true,
+          createdAt: "2026-03-23T00:00:00.000Z",
+          updatedAt: "2026-03-23T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_update_task",
+      {
+        id: "task-one-time-invalid-existing",
+        prompt: "updated prompt",
+      },
+      server.context as any,
+    );
+
+    assertErrorResponse(response);
+    assert.strictEqual(
+      readText(response),
+      "Field 'oneTimeDelaySeconds' must be a positive number when oneTime is true.",
+    );
+  });
+
+  test("one-time task updates preserve nextRun when timing fields do not change", async () => {
+    const existingNextRun = "2026-03-23T00:10:00.000Z";
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-one-time-preserve-next-run",
+          name: "Preserve next run",
+          cron: "0 * * * *",
+          prompt: "prompt",
+          enabled: true,
+          oneTime: true,
+          oneTimeDelaySeconds: 600,
+          nextRun: existingNextRun,
+          createdAt: "2026-03-23T00:00:00.000Z",
+          updatedAt: "2026-03-23T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_update_task",
+      {
+        id: "task-one-time-preserve-next-run",
+        prompt: "updated prompt",
+      },
+      server.context as any,
+    );
+
+    const payload = parseJsonText(response);
+    assert.strictEqual(payload.task.nextRun, existingNextRun);
+    assert.strictEqual(server.getConfig().tasks[0].nextRun, existingNextRun);
+  });
+
+  test("one-time task updates backfill missing nextRun from createdAt and delay", async () => {
+    const server = createServerContext({
+      tasks: [
+        {
+          id: "task-one-time-backfill-next-run",
+          name: "Backfill next run",
+          cron: "0 * * * *",
+          prompt: "prompt",
+          enabled: true,
+          oneTime: true,
+          oneTimeDelaySeconds: 1800,
+          createdAt: "2026-03-23T00:00:00.000Z",
+          updatedAt: "2026-03-23T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const response = await handleSchedulerToolCall(
+      "scheduler_update_task",
+      {
+        id: "task-one-time-backfill-next-run",
+        prompt: "updated prompt",
+      },
+      server.context as any,
+    );
+
+    const payload = parseJsonText(response);
+    assert.strictEqual(payload.task.nextRun, "2026-03-23T00:30:00.000Z");
+    assert.strictEqual(server.getConfig().tasks[0].nextRun, "2026-03-23T00:30:00.000Z");
   });
 
   test("server tool flow links a one-time task to a todo and clears the stale link on closeout before finalize", async () => {
@@ -1211,6 +1335,7 @@ suite("Scheduler MCP Server Tests", () => {
           cron: "0 9 * * 1",
           prompt: "Send the approved migration note.",
           oneTime: true,
+          oneTimeDelaySeconds: 3600,
           chatSession: "continue",
         },
         serverContext as any,

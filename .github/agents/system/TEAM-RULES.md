@@ -71,6 +71,7 @@ Every meaningful handoff should include:
 - Put ad hoc command captures, test logs, diffs, and other scratch outputs in `output_sessions/`, not the repository root.
 - Record reusable shared patterns in `.github/agents/system/knowledge/` and repo-specific durable memory in `.github/repo-knowledge/` when available.
 - Update adjacent agent docs and `.github/agents/system/` docs when a roster or workflow change would otherwise leave the starter pack inconsistent.
+- When an MCP-backed skill changes scope or is renamed, update adjacent routing, discovery docs, and regression tests in the same change so stale discovery text does not survive.
 
 ## Todo Layers
 

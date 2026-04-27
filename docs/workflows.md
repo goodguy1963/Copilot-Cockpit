@@ -9,8 +9,19 @@ The default path is: start with a `Todo`, use `Research` when context is missing
 - Repo-local planning, intake, communication, approval, and handoff surface.
 - A `Todo` is a planning artifact, not an execution artifact.
 - Cards support comments, due dates, labels, flags, task links, archive review, drag and drop, and filters.
+- Optional GitHub inbox rows can be imported into Todo Cockpit as plain Todo intake or as immediate `needs-bot-review` handoffs.
+- GitHub-sourced cards persist source metadata so repeat imports reuse and refresh the same Todo instead of creating duplicates.
 - Built-in workflow flags include `new`, `needs-bot-review`, `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
 - Saving a todo into `ready` can create or reopen its linked task draft so execution prep stays adjacent to the approval step.
+
+## GitHub Triage Loop
+
+1. Refresh the GitHub inbox manually when you want current GitHub items.
+2. Use `Create Todo` for normal backlog intake or `Create Todo + Review` when the item should immediately enter `needs-bot-review`.
+3. Review and refine the card in `Todo Cockpit`.
+4. Move approved GitHub-sourced work into `ready` so the task draft keeps the GitHub context and pull-request preflight guidance.
+
+For the exact setup and current limitations, see [GitHub Integration](./github-integration.md).
 
 ## Tasks
 

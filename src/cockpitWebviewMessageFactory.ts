@@ -1,5 +1,6 @@
 import type {
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ResearchProfile,
@@ -28,6 +29,15 @@ export function createUpdateJobFoldersMessage(
   jobFolders: JobFolder[],
 ): SchedulerWebviewMessage {
   return { type: "updateJobFolders", jobFolders };
+}
+
+export function createUpdateGitHubIntegrationMessage(
+  githubIntegration: GitHubIntegrationView,
+): SchedulerWebviewMessage {
+  return {
+    type: "updateGitHubIntegration",
+    githubIntegration,
+  };
 }
 
 export function createUpdateTelegramNotificationMessage(

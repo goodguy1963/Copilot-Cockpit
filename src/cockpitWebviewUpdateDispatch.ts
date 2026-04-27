@@ -3,6 +3,7 @@ import { createUpdateCockpitBoardMessage } from "./cockpitWebviewCockpitBridge";
 import {
   createShowErrorMessage,
   createUpdateExecutionDefaultsMessage,
+  createUpdateGitHubIntegrationMessage,
   createUpdateJobFoldersMessage,
   createUpdateJobsMessage,
   createUpdateResearchStateMessage,
@@ -16,6 +17,7 @@ import { postSchedulerCatalogMessages } from "./cockpitWebviewState";
 import type {
   CockpitBoard,
   ExecutionDefaultsView,
+  GitHubIntegrationView,
   JobDefinition,
   JobFolder,
   ResearchProfile,
@@ -67,6 +69,15 @@ export function dispatchCockpitBoardUpdate(
 ): void {
   state.cockpitBoard = cockpitBoard;
   postMessage(createUpdateCockpitBoardMessage(cockpitBoard));
+}
+
+export function dispatchGitHubIntegrationUpdate(
+  state: SchedulerWebviewRuntimeState,
+  githubIntegration: GitHubIntegrationView,
+  postMessage: PostMessage,
+): void {
+  state.githubIntegration = githubIntegration;
+  postMessage(createUpdateGitHubIntegrationMessage(githubIntegration));
 }
 
 export function dispatchTelegramNotificationUpdate(
