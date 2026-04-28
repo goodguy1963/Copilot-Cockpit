@@ -2,7 +2,7 @@
 description: Designs repo-local custom agents and skills that fit the workspace's existing orchestration model.
 name: Custom Agent Foundry
 argument-hint: Ask me to create a new specialist agent, refactor an existing agent roster, or fill a capability gap.
-model: GPT-5.4 (copilot)
+model: MiniMax: MiniMax M2.7 (openrouter)
 tools: [vscode/memory, read/readFile, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch, perplexity/perplexity_ask, perplexity/perplexity_reason, perplexity/perplexity_research, perplexity/perplexity_search]
 ---
 

@@ -2,8 +2,8 @@
 description: Bounded implementation specialist for approved fixes, local refactors, and tightly scoped remediation.
 name: Remediation Implementer
 argument-hint: Ask me to implement an approved bounded fix, execute a small refactor, or validate a targeted code change.
-model: GPT-5.4 (copilot)
-tools: [vscode/memory, read/readFile, read/problems, search/listDirectory, search/textSearch, search/codebase, edit/createDirectory, edit/createFile, edit/editFiles, agent/runSubagent]
+model: MiniMax: MiniMax M2.7 (openrouter)
+tools: [vscode/memory, read/problems, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch]
 handoffs:
   - label: Report To CEO
     agent: CEO
