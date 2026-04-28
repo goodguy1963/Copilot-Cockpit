@@ -1104,6 +1104,103 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     }
   });
 
+  test("sqlite reload keeps the recent launch burst guard across repeated hydration failures for automatic due-task execution until workspace hydration recovers", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-burst-guard-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-sqlite-burst-guard-storage-"),
+    );
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+    let executeCount = 0;
+    let failHydration = true;
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const evaluateAndRunDueTasks = (manager as unknown as {
+        evaluateAndRunDueTasks: () => Promise<void>;
+      }).evaluateAndRunDueTasks.bind(manager);
+      const hasRecentTaskLaunch = (manager as unknown as {
+        hasRecentTaskLaunch: (taskId: string, nowMs?: number) => boolean;
+      }).hasRecentTaskLaunch.bind(manager);
+      const originalHydrateWorkspaceTasksFromSqlite = (manager as unknown as {
+        hydrateWorkspaceTasksFromSqlite: (workspaceRoot: string) => Promise<void>;
+      }).hydrateWorkspaceTasksFromSqlite.bind(manager);
+      (manager as unknown as {
+        hydrateWorkspaceTasksFromSqlite: (workspaceRoot: string) => Promise<void>;
+      }).hydrateWorkspaceTasksFromSqlite = async (currentWorkspaceRoot: string) => {
+        if (failHydration) {
+          throw new Error("disk I/O error");
+        }
+        await originalHydrateWorkspaceTasksFromSqlite(currentWorkspaceRoot);
+      };
+      const task = await manager.createTask({
+        name: "SQLite burst guard task",
+        cronExpression: "0 * * * *",
+        prompt: "sqlite prompt",
+        enabled: true,
+        scope: "workspace",
+      });
+      const liveTask = manager.getTask(task.id);
+      assert.ok(liveTask);
+      liveTask!.nextRun = new Date(Date.now() - 60_000);
+
+      manager.setOnExecuteCallback(async () => {
+        executeCount += 1;
+      });
+
+      await evaluateAndRunDueTasks();
+      assert.strictEqual(executeCount, 1);
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(new Date()).map((currentTask) => currentTask.id),
+        [],
+      );
+
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      const persistedState = JSON.parse(
+        fs.readFileSync(schedulerJsonPath, "utf8"),
+      ) as {
+        tasks: Array<{ id: string; nextRun?: string }>;
+      };
+      const staleMirrorTask = persistedState.tasks.find((entry) => entry.id === task.id);
+      assert.ok(staleMirrorTask);
+      const staleNextRunIso = new Date(Date.now() - 60_000).toISOString();
+      staleMirrorTask!.nextRun = staleNextRunIso;
+      fs.writeFileSync(schedulerJsonPath, JSON.stringify(persistedState, null, 2), "utf8");
+
+      manager.reloadTasks();
+      await manager.waitForSqliteWorkspaceHydration();
+
+      assert.strictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
+
+      await evaluateAndRunDueTasks();
+
+      assert.strictEqual(hasRecentTaskLaunch(task.id), true);
+      assert.strictEqual(executeCount, 1);
+
+      manager.reloadTasks();
+      await manager.waitForSqliteWorkspaceHydration();
+
+      assert.strictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
+      await evaluateAndRunDueTasks();
+      assert.strictEqual(hasRecentTaskLaunch(task.id), true);
+      assert.strictEqual(executeCount, 1);
+
+      failHydration = false;
+      manager.reloadTasks();
+      await manager.waitForSqliteWorkspaceHydration();
+
+      assert.ok(manager.getTask(task.id));
+      await evaluateAndRunDueTasks();
+      assert.strictEqual(executeCount, 1);
+    } finally {
+      restoreMode();
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
   test("hydrates jobs and folders from sqlite when sqlite mode is enabled", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-jobs-workspace-"),

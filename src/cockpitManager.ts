@@ -619,6 +619,12 @@ export class ScheduleManager {
    * Hydrate the task list from persisted global state
    */
   private restorePersistedTasks(): void {
+    const preserveRecentLaunchesDuringSqliteJsonReload =
+      this.isWorkspaceSqliteModeEnabled();
+    const currentRecentLaunchTaskIds =
+      preserveRecentLaunchesDuringSqliteJsonReload
+        ? new Set(this.recentTaskLaunchTimes.keys())
+      : undefined;
     const savedTasks = this.extensionCtx.globalState.get<ScheduledTask[]>(
       TASK_STORAGE.stateKey,
       [],
@@ -734,7 +740,13 @@ export class ScheduleManager {
         loadedTaskIds.has(id),
       ),
     );
-    this.retainRecentTaskLaunches(loadedTaskIds);
+    if (currentRecentLaunchTaskIds) {
+      this.retainRecentTaskLaunches(
+        new Set([...loadedTaskIds, ...currentRecentLaunchTaskIds]),
+      );
+    } else {
+      this.retainRecentTaskLaunches(loadedTaskIds);
+    }
 
     // Persist only when mutations occurred
     if (pendingWrite) {

@@ -81,6 +81,51 @@ function sanitizeBundledAgentContent(relativePath, content) {
   return content;
 }
 
+function assertBundledAgentsPayloadSafe(rootPath) {
+  if (!fs.existsSync(rootPath)) {
+    return;
+  }
+
+  const leakedLegacyPaths = [...LEGACY_BUNDLED_AGENT_RELATIVE_PATHS].filter((relativePath) =>
+    fs.existsSync(path.join(rootPath, relativePath)),
+  );
+  if (leakedLegacyPaths.length > 0) {
+    throw new Error(
+      [
+        "Packaged bundled agents still contain legacy skipped files:",
+        ...leakedLegacyPaths.map((relativePath) => `- ${toPosixPath(relativePath)}`),
+      ].join("\n"),
+    );
+  }
+
+  const repoKnowledgeTemplateRoot = path.join(
+    rootPath,
+    BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH,
+  );
+  if (fs.existsSync(repoKnowledgeTemplateRoot)) {
+    const leakedTemplateFiles = collectRelativeFiles(repoKnowledgeTemplateRoot).map((relativePath) =>
+      toPosixPath(
+        path.join(
+          BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH,
+          relativePath,
+        ),
+      ),
+    );
+    throw new Error(
+      [
+        "Packaged bundled agents still contain the repo-knowledge template agents subtree:",
+        ...(leakedTemplateFiles.length > 0
+          ? leakedTemplateFiles.map((relativePath) => `- ${relativePath}`)
+          : [
+              `- ${toPosixPath(
+                BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH,
+              )}`,
+            ]),
+      ].join("\n"),
+    );
+  }
+}
+
 function copyBundledFiles(sourceRoot, targetRoot, options = {}) {
   const skipRelativePaths = options.skipRelativePaths ?? new Set();
   let copiedCount = 0;
@@ -161,6 +206,7 @@ module.exports = {
   LIVE_BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
   PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
   PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+  assertBundledAgentsPayloadSafe,
   collectRelativeFiles,
   copyBundledFiles,
   prepareBundledAgents,

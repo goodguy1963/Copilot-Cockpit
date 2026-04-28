@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "One VS Code system for AI planning and triage, execution and scheduling, and optional control-plane integration",
-  "version": "2.0.36",
+  "version": "2.0.38",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
