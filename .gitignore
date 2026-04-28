@@ -6,7 +6,6 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
-/images/early version.mp4
 .vscode-test/
 
 /archive/

@@ -6,6 +6,7 @@ Use this folder for the detailed reference that used to live in the top-level RE
 
 - [Getting Started](./getting-started.md)
 - [Feature Tour](./feature-tour.md)
+- [Media Reference](./media-reference.md)
 - [GitHub Integration](./github-integration.md)
 - [Agent Workflow](./agent-workflow.md)
 - [Workflows](./workflows.md)
@@ -17,6 +18,7 @@ Use this folder for the detailed reference that used to live in the top-level RE
 
 - If you want to install and open the extension quickly, start with [Getting Started](./getting-started.md).
 - If you want a visual mental model for the tabs and product surface, go to [Feature Tour](./feature-tour.md).
+- If you want to verify which visuals are live footage, which are illustrative mockups, and where retired media now lives, go to [Media Reference](./media-reference.md).
 - If you want to connect GitHub inbox triage to Todo Cockpit, go to [GitHub Integration](./github-integration.md).
 - If you want to understand the optional starter-agent orchestration layer, go to [Agent Workflow](./agent-workflow.md).
 - If you want to understand Todo Cockpit, Tasks, Jobs, and Research, go to [Workflows](./workflows.md).
