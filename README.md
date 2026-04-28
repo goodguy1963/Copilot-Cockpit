@@ -34,6 +34,8 @@ The workflow is explicit on purpose. A `Todo` is the planning artifact. A `Task`
 
 That structure keeps the LLM as the native execution chat surface while Copilot Cockpit provides the approval, scheduling, and control layer around it. The goal is not less automation. The goal is accountable automation that can move from intake to execution without losing review, context, or ownership.
 
+**The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.**
+
 ## 🎬 Demo
 
 [![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)

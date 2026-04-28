@@ -1,5 +1,16 @@
 # Release Notes
 
+## 2026-04-29
+
+### Refreshed Product Tagline
+
+- Updated `package.json` and `README.md` to the new tagline: **"The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting."**
+
+### CEO Agent — Terminal Prohibition
+
+- Clarified that `CEO` must never use the terminal, run tasks, or execute code directly. Any missing tool or execution surface is a mandatory routing signal to a suitable specialist — not a reason to improvise.
+- Strengthened non-goals and decision rules to reinforce that `CEO` delegates all execution work and does not attempt terminal commands, script execution, or direct file edits.
+
 ## 2026-04-27
 
 ### GitHub Inbox Integration For Todo Cockpit
