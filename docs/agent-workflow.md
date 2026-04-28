@@ -51,6 +51,7 @@ The bundled system documentation defines the following pattern:
 - `CEO` is the orchestration and decision layer.
 - Specialists execute within a narrow domain and return with validation.
 - Shared docs under `.github/agents/system/` hold reusable process and architecture guidance.
+- Repo-specific research, implementation, and testing memory lives under `.github/repo-knowledge/`.
 - `Todo Cockpit` is the durable approval and backlog surface.
 - Session-local tracking can exist, but long-lived approval state belongs on the board.
 
@@ -85,7 +86,7 @@ This is why the optional workflow can outperform a simple one-agent loop. The sp
 
 Bundled-agent sync is manual by design.
 
-- Missing bundled files can be created in `.github/agents`.
+- Missing bundled files can be created in `.github/agents` and `.github/repo-knowledge`.
 - Previously managed files update only when the local copy still matches the last managed version.
 - Customized workspace copies are skipped and reported.
 

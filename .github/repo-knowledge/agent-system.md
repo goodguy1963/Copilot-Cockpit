@@ -5,6 +5,7 @@
 - Shared starter-pack rules live in `.github/agents/system/knowledge/`.
 - Repo-specific durable memory lives in `.github/repo-knowledge/`.
 - Keep repo-specific knowledge outside `.github/agents/` because this repository ships bundled starter agents from that tree.
+- Bundled starter-agent packaging now maps the neutral scaffold at `.github/agents/system/repo-knowledge-template/` into shipped/staged/live `.github/repo-knowledge/` paths.
 - The daily `Knowledge and Shipping Packager` task is a staging extractor, not a direct publisher.
 
 ## Current Write-Back Workflow

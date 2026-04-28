@@ -2,24 +2,43 @@ const fs = require("fs");
 const path = require("path");
 
 const LIVE_BUNDLED_AGENTS_RELATIVE_PATH = path.join(".github", "agents");
+const LIVE_BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH = path.join(
+  ".github",
+  "agents",
+  "system",
+  "repo-knowledge-template",
+);
+const BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH = path.join(
+  "system",
+  "repo-knowledge-template",
+);
 const PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH = path.join(
   "out",
   "bundled-agents",
   ".github",
   "agents",
 );
-
-const FORBIDDEN_BUNDLED_AGENT_TEXT = [
-  ".github/repo-knowledge/",
-  "repo-specific durable",
-  "repo-local durable",
-];
+const PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH = path.join(
+  "out",
+  "bundled-agents",
+  ".github",
+  "repo-knowledge",
+);
 const LEGACY_BUNDLED_AGENT_RELATIVE_PATHS = new Set([
   "prefab.agent.md",
 ]);
 
 function toPosixPath(value) {
   return String(value || "").split(path.sep).join("/");
+}
+
+function isRepoKnowledgeTemplateAgentsRelativePath(relativePath) {
+  const normalizedRelativePath = path.normalize(String(relativePath || ""));
+  const normalizedTemplatePath = path.normalize(
+    BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH,
+  );
+  return normalizedRelativePath === normalizedTemplatePath
+    || normalizedRelativePath.startsWith(`${normalizedTemplatePath}${path.sep}`);
 }
 
 function collectRelativeFiles(rootPath) {
@@ -47,6 +66,9 @@ function collectRelativeFiles(rootPath) {
       if (LEGACY_BUNDLED_AGENT_RELATIVE_PATHS.has(relativePath)) {
         continue;
       }
+      if (isRepoKnowledgeTemplateAgentsRelativePath(relativePath)) {
+        continue;
+      }
 
       files.push(relativePath);
     }
@@ -55,56 +77,58 @@ function collectRelativeFiles(rootPath) {
   return files.sort((left, right) => left.localeCompare(right));
 }
 
-function sanitizeMarkdown(content) {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const sanitizedLines = lines.filter((line) => {
-    const normalized = line.toLowerCase();
-    return !FORBIDDEN_BUNDLED_AGENT_TEXT.some((entry) => normalized.includes(entry));
-  });
-
-  return `${sanitizedLines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
-}
-
 function sanitizeBundledAgentContent(relativePath, content) {
-  if (path.extname(relativePath).toLowerCase() !== ".md") {
-    return content;
-  }
-
-  return sanitizeMarkdown(content);
+  return content;
 }
 
-function assertBundledAgentsPayloadSafe(rootPath) {
-  for (const relativePath of collectRelativeFiles(rootPath)) {
-    const absolutePath = path.join(rootPath, relativePath);
-    const content = fs.readFileSync(absolutePath, "utf8").toLowerCase();
-    for (const forbiddenText of FORBIDDEN_BUNDLED_AGENT_TEXT) {
-      if (content.includes(forbiddenText)) {
-        throw new Error(
-          `Sanitized bundled agents still contain forbidden text '${forbiddenText}' in ${toPosixPath(relativePath)}.`,
-        );
-      }
+function copyBundledFiles(sourceRoot, targetRoot, options = {}) {
+  const skipRelativePaths = options.skipRelativePaths ?? new Set();
+  let copiedCount = 0;
+
+  for (const relativePath of collectRelativeFiles(sourceRoot)) {
+    if (skipRelativePaths.has(relativePath)) {
+      continue;
     }
+
+    const sourcePath = path.join(sourceRoot, relativePath);
+    const targetPath = path.join(targetRoot, relativePath);
+    const content = fs.readFileSync(sourcePath, "utf8");
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    fs.writeFileSync(targetPath, sanitizeBundledAgentContent(relativePath, content), "utf8");
+    copiedCount += 1;
   }
+
+  return copiedCount;
 }
 
 function prepareBundledAgents(workspaceRoot) {
   const liveRoot = path.join(workspaceRoot, LIVE_BUNDLED_AGENTS_RELATIVE_PATH);
-  const packagedRoot = path.join(workspaceRoot, PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH);
+  const repoKnowledgeTemplateRoot = path.join(
+    workspaceRoot,
+    LIVE_BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
+  );
+  const packagedAgentsRoot = path.join(workspaceRoot, PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH);
+  const packagedRepoKnowledgeRoot = path.join(
+    workspaceRoot,
+    PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+  );
+  const packagedRoot = path.join(workspaceRoot, "out", "bundled-agents");
 
   fs.rmSync(packagedRoot, { recursive: true, force: true });
-  if (!fs.existsSync(liveRoot)) {
+  if (!fs.existsSync(liveRoot) && !fs.existsSync(repoKnowledgeTemplateRoot)) {
     return { liveRoot, packagedRoot, fileCount: 0 };
   }
 
-  for (const relativePath of collectRelativeFiles(liveRoot)) {
-    const sourcePath = path.join(liveRoot, relativePath);
-    const targetPath = path.join(packagedRoot, relativePath);
-    const content = fs.readFileSync(sourcePath, "utf8");
-    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-    fs.writeFileSync(targetPath, sanitizeBundledAgentContent(relativePath, content), "utf8");
+  if (fs.existsSync(liveRoot)) {
+    copyBundledFiles(liveRoot, packagedAgentsRoot, {
+      skipRelativePaths: LEGACY_BUNDLED_AGENT_RELATIVE_PATHS,
+    });
   }
 
-  assertBundledAgentsPayloadSafe(packagedRoot);
+  if (fs.existsSync(repoKnowledgeTemplateRoot)) {
+    copyBundledFiles(repoKnowledgeTemplateRoot, packagedRepoKnowledgeRoot);
+  }
+
   return {
     liveRoot,
     packagedRoot,
@@ -133,11 +157,12 @@ if (require.main === module) {
 }
 
 module.exports = {
-  FORBIDDEN_BUNDLED_AGENT_TEXT,
   LIVE_BUNDLED_AGENTS_RELATIVE_PATH,
+  LIVE_BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
   PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
-  assertBundledAgentsPayloadSafe,
+  PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
   collectRelativeFiles,
+  copyBundledFiles,
   prepareBundledAgents,
   sanitizeBundledAgentContent,
 };

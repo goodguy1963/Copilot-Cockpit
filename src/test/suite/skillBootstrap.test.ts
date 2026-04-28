@@ -4,6 +4,8 @@ import * as path from "path";
 import * as os from "os";
 import {
   BUNDLED_AGENTS_RELATIVE_PATH,
+  BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+  BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
   BUNDLED_SKILLS_RELATIVE_PATH,
   type BundledSkillSyncState,
   CODEX_AGENTS_RELATIVE_PATH,
@@ -12,11 +14,14 @@ import {
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
   PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+  PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
   resolveBundledAgentsSource,
+  resolveBundledRepoKnowledgeSource,
   SCHEDULER_SKILL_RELATIVE_PATH,
   stageBundledAgentsForWorkspaceRoots,
   STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
   STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+  STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
   syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
@@ -38,6 +43,12 @@ function cleanupDirs(...dirs: string[]): void {
 }
 
 suite("Skill Bootstrap Tests", () => {
+  const repoKnowledgeTemplateAgentsSubtreeRelativePath = path.join(
+    BUNDLED_AGENTS_RELATIVE_PATH,
+    "system",
+    "repo-knowledge-template",
+  );
+
   test("creates the scheduler skill in each workspace root when missing", async () => {
     const extensionRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-extension-root-"),
@@ -476,13 +487,17 @@ suite("Skill Bootstrap Tests", () => {
     );
 
     try {
-      const bundledFiles = [
+      const bundledAgentFiles = [
         path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md"),
         path.join(BUNDLED_AGENTS_RELATIVE_PATH, "README.md"),
         path.join(BUNDLED_AGENTS_RELATIVE_PATH, "knowledge", "planning.md"),
       ];
+      const bundledRepoKnowledgeFiles = [
+        path.join(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, "README.md"),
+        path.join(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, "testing.md"),
+      ];
 
-      for (const relativePath of bundledFiles) {
+      for (const relativePath of [...bundledAgentFiles, ...bundledRepoKnowledgeFiles]) {
         const absolutePath = path.join(extensionRoot, relativePath);
         fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
         fs.writeFileSync(absolutePath, `content:${relativePath}\n`, "utf8");
@@ -501,17 +516,46 @@ suite("Skill Bootstrap Tests", () => {
         [workspaceRoot],
       );
 
-      assert.strictEqual(result.createdPaths.length, bundledFiles.length);
+      assert.strictEqual(
+        result.createdPaths.length,
+        bundledAgentFiles.length + bundledRepoKnowledgeFiles.length,
+      );
       assert.strictEqual(result.updatedPaths.length, 0);
       assert.strictEqual(result.skippedPaths.length, 0);
 
-      for (const relativePath of bundledFiles) {
+      for (const relativePath of bundledAgentFiles) {
         const targetPath = path.join(workspaceRoot, relativePath);
         assert.strictEqual(
           fs.readFileSync(targetPath, "utf8"),
           `content:${relativePath}\n`,
         );
         assert.ok(result.nextState[workspaceRoot]?.[relativePath]);
+      }
+
+      for (const relativePath of bundledRepoKnowledgeFiles) {
+        const targetRelativePath = path.join(
+          BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+          path.relative(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, relativePath),
+        );
+        const targetPath = path.join(workspaceRoot, targetRelativePath);
+        assert.strictEqual(
+          fs.readFileSync(targetPath, "utf8"),
+          `content:${relativePath}\n`,
+        );
+        assert.ok(result.nextState[workspaceRoot]?.[targetRelativePath]);
+      }
+
+      for (const relativePath of bundledRepoKnowledgeFiles) {
+        const incorrectLiveTemplatePath = path.join(
+          workspaceRoot,
+          repoKnowledgeTemplateAgentsSubtreeRelativePath,
+          path.relative(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, relativePath),
+        );
+        assert.strictEqual(fs.existsSync(incorrectLiveTemplatePath), false);
+        assert.strictEqual(
+          result.nextState[workspaceRoot]?.[path.relative(workspaceRoot, incorrectLiveTemplatePath)],
+          undefined,
+        );
       }
 
       assert.strictEqual(
@@ -532,12 +576,16 @@ suite("Skill Bootstrap Tests", () => {
     );
 
     try {
-      const bundledFiles = [
+      const bundledAgentFiles = [
         path.join(BUNDLED_AGENTS_RELATIVE_PATH, "ceo.agent.md"),
         path.join(BUNDLED_AGENTS_RELATIVE_PATH, "team", "planner.agent.md"),
       ];
+      const bundledRepoKnowledgeFiles = [
+        path.join(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, "README.md"),
+        path.join(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, "research.md"),
+      ];
 
-      for (const relativePath of bundledFiles) {
+      for (const relativePath of [...bundledAgentFiles, ...bundledRepoKnowledgeFiles]) {
         const absolutePath = path.join(extensionRoot, relativePath);
         fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
         fs.writeFileSync(absolutePath, `content:${relativePath}\n`, "utf8");
@@ -565,14 +613,17 @@ suite("Skill Bootstrap Tests", () => {
       );
 
       assert.strictEqual(result.stagedRoots.length, 1);
-      assert.strictEqual(result.stagedPaths.length, bundledFiles.length);
+      assert.strictEqual(
+        result.stagedPaths.length,
+        bundledAgentFiles.length + bundledRepoKnowledgeFiles.length,
+      );
       assert.strictEqual(
         fs.readFileSync(liveAgentPath, "utf8"),
         "workspace-live-agent\n",
       );
       assert.strictEqual(fs.existsSync(staleStagePath), false);
 
-      for (const relativePath of bundledFiles) {
+      for (const relativePath of bundledAgentFiles) {
         const stagedPath = path.join(
           workspaceRoot,
           STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
@@ -584,24 +635,69 @@ suite("Skill Bootstrap Tests", () => {
         );
       }
 
+      for (const relativePath of bundledRepoKnowledgeFiles) {
+        const stagedPath = path.join(
+          workspaceRoot,
+          STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+          path.relative(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, relativePath),
+        );
+        assert.strictEqual(
+          fs.readFileSync(stagedPath, "utf8"),
+          `content:${relativePath}\n`,
+        );
+      }
+
+      for (const relativePath of bundledRepoKnowledgeFiles) {
+        const incorrectStagedTemplatePath = path.join(
+          workspaceRoot,
+          STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+          "system",
+          "repo-knowledge-template",
+          path.relative(BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH, relativePath),
+        );
+        assert.strictEqual(fs.existsSync(incorrectStagedTemplatePath), false);
+      }
+
       const manifestPath = path.join(
         workspaceRoot,
         STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
       );
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
         liveAgentsRelativePath: string;
+        liveRepoKnowledgeRelativePath: string;
         stagedAgentsRelativePath: string;
-        files: Array<{ sourceRelativePath: string }>;
+        stagedRepoKnowledgeRelativePath: string;
+        files: Array<{
+          sourceRelativePath: string;
+          stagedRelativePath: string;
+          liveRelativePath: string;
+        }>;
       };
 
       assert.strictEqual(manifest.liveAgentsRelativePath, BUNDLED_AGENTS_RELATIVE_PATH);
       assert.strictEqual(
+        manifest.liveRepoKnowledgeRelativePath,
+        BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+      );
+      assert.strictEqual(
         manifest.stagedAgentsRelativePath,
         STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
       );
+      assert.strictEqual(
+        manifest.stagedRepoKnowledgeRelativePath,
+        STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+      );
       assert.deepStrictEqual(
         manifest.files.map((entry) => entry.sourceRelativePath),
-        bundledFiles,
+        [...bundledAgentFiles, ...bundledRepoKnowledgeFiles].sort((left, right) => left.localeCompare(right)),
+      );
+      assert.strictEqual(
+        manifest.files.some((entry) => entry.stagedRelativePath.startsWith(repoKnowledgeTemplateAgentsSubtreeRelativePath)),
+        false,
+      );
+      assert.strictEqual(
+        manifest.files.some((entry) => entry.liveRelativePath.startsWith(repoKnowledgeTemplateAgentsSubtreeRelativePath)),
+        false,
       );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
@@ -622,24 +718,68 @@ suite("Skill Bootstrap Tests", () => {
         PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
         "ceo.agent.md",
       );
+      const liveRepoKnowledgeRelativePath = path.join(
+        BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
+        "README.md",
+      );
+      const packagedRepoKnowledgeRelativePath = path.join(
+        PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+        "README.md",
+      );
+      const incorrectPackagedTemplateRelativePath = path.join(
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "system",
+        "repo-knowledge-template",
+        "README.md",
+      );
 
       fs.mkdirSync(path.dirname(path.join(extensionRoot, liveRelativePath)), { recursive: true });
       fs.writeFileSync(path.join(extensionRoot, liveRelativePath), "live-tree\n", "utf8");
       fs.mkdirSync(path.dirname(path.join(extensionRoot, packagedRelativePath)), { recursive: true });
       fs.writeFileSync(path.join(extensionRoot, packagedRelativePath), "packaged-tree\n", "utf8");
+      fs.mkdirSync(path.dirname(path.join(extensionRoot, liveRepoKnowledgeRelativePath)), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, liveRepoKnowledgeRelativePath), "live-repo-knowledge\n", "utf8");
+      fs.mkdirSync(path.dirname(path.join(extensionRoot, packagedRepoKnowledgeRelativePath)), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, packagedRepoKnowledgeRelativePath), "packaged-repo-knowledge\n", "utf8");
+      fs.mkdirSync(path.dirname(path.join(extensionRoot, incorrectPackagedTemplateRelativePath)), { recursive: true });
+      fs.writeFileSync(path.join(extensionRoot, incorrectPackagedTemplateRelativePath), "incorrect-packaged-template\n", "utf8");
 
       const resolved = resolveBundledAgentsSource(extensionRoot);
       assert.strictEqual(resolved.relativePath, PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH);
+      const resolvedRepoKnowledge = resolveBundledRepoKnowledgeSource(extensionRoot);
+      assert.strictEqual(
+        resolvedRepoKnowledge?.relativePath,
+        PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+      );
 
       const syncResult = await syncBundledAgentsForWorkspaceRoots(
         extensionRoot,
         [workspaceRoot],
       );
 
-      assert.strictEqual(syncResult.createdPaths.length, 1);
+      assert.strictEqual(syncResult.createdPaths.length, 2);
       assert.strictEqual(
         fs.readFileSync(path.join(workspaceRoot, liveRelativePath), "utf8"),
         "packaged-tree\n",
+      );
+      assert.strictEqual(
+        fs.readFileSync(
+          path.join(workspaceRoot, BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH, "README.md"),
+          "utf8",
+        ),
+        "packaged-repo-knowledge\n",
+      );
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            BUNDLED_AGENTS_RELATIVE_PATH,
+            "system",
+            "repo-knowledge-template",
+            "README.md",
+          ),
+        ),
+        false,
       );
 
       await stageBundledAgentsForWorkspaceRoots(extensionRoot, [workspaceRoot]);
@@ -650,10 +790,36 @@ suite("Skill Bootstrap Tests", () => {
       );
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as {
         sourceAgentsRelativePath: string;
+        sourceRepoKnowledgeRelativePath?: string;
+        files: Array<{ stagedRelativePath: string; liveRelativePath: string }>;
       };
       assert.strictEqual(
         manifest.sourceAgentsRelativePath,
         PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+      );
+      assert.strictEqual(
+        manifest.sourceRepoKnowledgeRelativePath,
+        PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+      );
+      assert.strictEqual(
+        manifest.files.some((entry) => entry.stagedRelativePath.includes("repo-knowledge-template")),
+        false,
+      );
+      assert.strictEqual(
+        manifest.files.some((entry) => entry.liveRelativePath.includes("repo-knowledge-template")),
+        false,
+      );
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+            "system",
+            "repo-knowledge-template",
+            "README.md",
+          ),
+        ),
+        false,
       );
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);

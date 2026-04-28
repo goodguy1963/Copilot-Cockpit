@@ -4,8 +4,8 @@ import * as os from "os";
 import * as path from "path";
 
 const bundledAgentsPackager = require("../../../scripts/prepare-bundled-agents.js") as {
-  FORBIDDEN_BUNDLED_AGENT_TEXT: string[];
   PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH: string;
+  PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH: string;
   prepareBundledAgents: (workspaceRoot: string) => {
     fileCount: number;
   };
@@ -76,7 +76,7 @@ suite("Bundled Agents Packaging Contract Tests", () => {
     assert.strictEqual(readme.includes("(images/TEAM.png)"), false);
   });
 
-  test("prepareBundledAgents strips repo-local knowledge references from markdown payloads", () => {
+  test("prepareBundledAgents keeps repo-knowledge references in docs and ships only the neutral scaffold", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-bundled-agents-package-"),
     );
@@ -102,6 +102,36 @@ suite("Bundled Agents Packaging Contract Tests", () => {
         "utf8",
       );
 
+      const liveRepoKnowledgePath = path.join(
+        workspaceRoot,
+        ".github",
+        "repo-knowledge",
+        "agent-system.md",
+      );
+      fs.mkdirSync(path.dirname(liveRepoKnowledgePath), { recursive: true });
+      fs.writeFileSync(liveRepoKnowledgePath, "live repo-specific knowledge\n", "utf8");
+
+      const repoKnowledgeTemplatePath = path.join(
+        workspaceRoot,
+        ".github",
+        "agents",
+        "system",
+        "repo-knowledge-template",
+        "README.md",
+      );
+      fs.mkdirSync(path.dirname(repoKnowledgeTemplatePath), { recursive: true });
+      fs.writeFileSync(repoKnowledgeTemplatePath, "neutral repo scaffold\n", "utf8");
+
+      const repoKnowledgeTestingTemplatePath = path.join(
+        workspaceRoot,
+        ".github",
+        "agents",
+        "system",
+        "repo-knowledge-template",
+        "testing.md",
+      );
+      fs.writeFileSync(repoKnowledgeTestingTemplatePath, "neutral testing scaffold\n", "utf8");
+
       const legacyPrefabAgentPath = path.join(
         workspaceRoot,
         ".github",
@@ -111,15 +141,27 @@ suite("Bundled Agents Packaging Contract Tests", () => {
       fs.writeFileSync(legacyPrefabAgentPath, "legacy prefab agent\n", "utf8");
 
       const result = bundledAgentsPackager.prepareBundledAgents(workspaceRoot);
-      assert.strictEqual(result.fileCount, 1);
+      assert.strictEqual(result.fileCount, 3);
 
       const packagedPath = path.join(
         workspaceRoot,
         bundledAgentsPackager.PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
         "ceo.agent.md",
       );
+      const packagedRepoKnowledgePath = path.join(
+        workspaceRoot,
+        bundledAgentsPackager.PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+        "README.md",
+      );
+      const packagedRepoKnowledgeTestingPath = path.join(
+        workspaceRoot,
+        bundledAgentsPackager.PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+        "testing.md",
+      );
       const packagedContent = fs.readFileSync(packagedPath, "utf8").toLowerCase();
       assert.ok(packagedContent.includes("shared starter-pack guidance"));
+      assert.ok(packagedContent.includes(".github/repo-knowledge/readme.md"));
+      assert.ok(packagedContent.includes("repo-specific durable memory"));
       assert.strictEqual(
         fs.existsSync(
           path.join(
@@ -130,9 +172,48 @@ suite("Bundled Agents Packaging Contract Tests", () => {
         ),
         false,
       );
-      for (const forbiddenText of bundledAgentsPackager.FORBIDDEN_BUNDLED_AGENT_TEXT) {
-        assert.strictEqual(packagedContent.includes(forbiddenText), false);
-      }
+      assert.strictEqual(
+        fs.readFileSync(packagedRepoKnowledgePath, "utf8"),
+        "neutral repo scaffold\n",
+      );
+      assert.strictEqual(
+        fs.readFileSync(packagedRepoKnowledgeTestingPath, "utf8"),
+        "neutral testing scaffold\n",
+      );
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            bundledAgentsPackager.PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+            "system",
+            "repo-knowledge-template",
+            "README.md",
+          ),
+        ),
+        false,
+      );
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            bundledAgentsPackager.PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+            "system",
+            "repo-knowledge-template",
+            "testing.md",
+          ),
+        ),
+        false,
+      );
+      assert.strictEqual(
+        fs.existsSync(
+          path.join(
+            workspaceRoot,
+            bundledAgentsPackager.PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+            "agent-system.md",
+          ),
+        ),
+        false,
+      );
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

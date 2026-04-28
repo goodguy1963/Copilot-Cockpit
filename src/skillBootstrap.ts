@@ -16,6 +16,17 @@ export const BUNDLED_AGENTS_RELATIVE_PATH = path.join(
   "agents",
 );
 
+export const BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH = path.join(
+  ".github",
+  "repo-knowledge",
+);
+
+export const BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH = path.join(
+  BUNDLED_AGENTS_RELATIVE_PATH,
+  "system",
+  "repo-knowledge-template",
+);
+
 export const PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH = path.join(
   "out",
   "bundled-agents",
@@ -24,6 +35,11 @@ export const PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH = path.join(
 export const PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH = path.join(
   PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH,
   BUNDLED_AGENTS_RELATIVE_PATH,
+);
+
+export const PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH = path.join(
+  PACKAGED_BUNDLED_AGENTS_ROOT_RELATIVE_PATH,
+  BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
 );
 
 export const BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH = path.join(
@@ -35,6 +51,11 @@ export const BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH = path.join(
 export const STAGED_BUNDLED_AGENTS_RELATIVE_PATH = path.join(
   BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH,
   BUNDLED_AGENTS_RELATIVE_PATH,
+);
+
+export const STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH = path.join(
+  BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH,
+  BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
 );
 
 export const STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH = path.join(
@@ -87,12 +108,18 @@ export interface StagedBundledAgentsManifest {
   workspaceRoot: string;
   sourceAgentsAbsolutePath: string;
   sourceAgentsRelativePath: string;
+  sourceRepoKnowledgeAbsolutePath?: string;
+  sourceRepoKnowledgeRelativePath?: string;
   liveAgentsAbsolutePath: string;
   liveAgentsRelativePath: string;
+  liveRepoKnowledgeAbsolutePath: string;
+  liveRepoKnowledgeRelativePath: string;
   stagedRootAbsolutePath: string;
   stagedRootRelativePath: string;
   stagedAgentsAbsolutePath: string;
   stagedAgentsRelativePath: string;
+  stagedRepoKnowledgeAbsolutePath: string;
+  stagedRepoKnowledgeRelativePath: string;
   manifestAbsolutePath: string;
   manifestRelativePath: string;
   files: StagedBundledAgentsManifestEntry[];
@@ -107,6 +134,11 @@ export interface StagedBundledAgentsResult {
 interface BundledAgentsSource {
   absolutePath: string;
   relativePath: string;
+}
+
+interface BundledAgentSystemSources {
+  bundledAgentsSource: BundledAgentsSource;
+  bundledRepoKnowledgeSource?: BundledAgentsSource;
 }
 
 interface ParsedBundledAgentMetadata {
@@ -130,6 +162,10 @@ const LEGACY_BUNDLED_SKILL_RELATIVE_PATHS = new Set([
   path.join(BUNDLED_SKILLS_RELATIVE_PATH, "prefab-mcp", "SKILL.md"),
 ]);
 const LEGACY_CUSTOM_AGENT_FILE_NAMES = new Set(["prefab.agent.md"]);
+const BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH = path.join(
+  "system",
+  "repo-knowledge-template",
+);
 
 function isLegacyBundledSkillRelativePath(relativePath: string): boolean {
   return LEGACY_BUNDLED_SKILL_RELATIVE_PATHS.has(path.normalize(relativePath));
@@ -137,6 +173,15 @@ function isLegacyBundledSkillRelativePath(relativePath: string): boolean {
 
 function isLegacyCustomAgentRelativePath(relativePath: string): boolean {
   return LEGACY_CUSTOM_AGENT_FILE_NAMES.has(path.normalize(relativePath));
+}
+
+function isBundledRepoKnowledgeTemplateAgentRelativePath(relativePath: string): boolean {
+  const normalizedRelativePath = path.normalize(relativePath);
+  const normalizedTemplatePath = path.normalize(
+    BUNDLED_REPO_KNOWLEDGE_TEMPLATE_AGENTS_SUBTREE_RELATIVE_PATH,
+  );
+  return normalizedRelativePath === normalizedTemplatePath
+    || normalizedRelativePath.startsWith(`${normalizedTemplatePath}${path.sep}`);
 }
 
 function mapBundledSkillPathToCodex(relativePath: string): string {
@@ -575,6 +620,34 @@ export function resolveBundledAgentsSource(extensionRoot: string): BundledAgents
   };
 }
 
+export function resolveBundledRepoKnowledgeSource(
+  extensionRoot: string,
+): BundledAgentsSource | undefined {
+  const packagedAbsolutePath = path.join(
+    extensionRoot,
+    PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+  );
+  if (fs.existsSync(packagedAbsolutePath)) {
+    return {
+      absolutePath: packagedAbsolutePath,
+      relativePath: PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+    };
+  }
+
+  const templateAbsolutePath = path.join(
+    extensionRoot,
+    BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
+  );
+  if (fs.existsSync(templateAbsolutePath)) {
+    return {
+      absolutePath: templateAbsolutePath,
+      relativePath: BUNDLED_REPO_KNOWLEDGE_TEMPLATE_RELATIVE_PATH,
+    };
+  }
+
+  return undefined;
+}
+
 interface BundledAgentSourceEntry {
   liveRelativePath: string;
   sourceAbsolutePath: string;
@@ -584,15 +657,22 @@ interface BundledAgentSourceEntry {
 
 async function collectBundledAgentSourceEntries(
   extensionRoot: string,
-): Promise<{ bundledAgentsSource: BundledAgentsSource; entries: BundledAgentSourceEntry[] }> {
+): Promise<BundledAgentSystemSources & { entries: BundledAgentSourceEntry[] }> {
   const bundledAgentsSource = resolveBundledAgentsSource(extensionRoot);
-  const sourceRelativePaths = (await collectRelativeFilePaths(
+  const bundledRepoKnowledgeSource = resolveBundledRepoKnowledgeSource(extensionRoot);
+  const agentSourceRelativePaths = (await collectRelativeFilePaths(
     bundledAgentsSource.absolutePath,
-  )).filter((sourceRelativePath) => !isLegacyCustomAgentRelativePath(sourceRelativePath));
+  )).filter((sourceRelativePath) => {
+    return !isLegacyCustomAgentRelativePath(sourceRelativePath)
+      && !isBundledRepoKnowledgeTemplateAgentRelativePath(sourceRelativePath);
+  });
 
-  return {
-    bundledAgentsSource,
-    entries: sourceRelativePaths.map((sourceRelativePath) => ({
+  const repoKnowledgeRelativePaths = bundledRepoKnowledgeSource
+    ? await collectRelativeFilePaths(bundledRepoKnowledgeSource.absolutePath)
+    : [];
+
+  const entries = [
+    ...agentSourceRelativePaths.map((sourceRelativePath) => ({
       liveRelativePath: path.join(BUNDLED_AGENTS_RELATIVE_PATH, sourceRelativePath),
       sourceAbsolutePath: path.join(
         bundledAgentsSource.absolutePath,
@@ -607,11 +687,35 @@ async function collectBundledAgentSourceEntries(
         sourceRelativePath,
       ),
     })),
+    ...repoKnowledgeRelativePaths.map((sourceRelativePath) => ({
+      liveRelativePath: path.join(
+        BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+        sourceRelativePath,
+      ),
+      sourceAbsolutePath: path.join(
+        bundledRepoKnowledgeSource!.absolutePath,
+        sourceRelativePath,
+      ),
+      sourceRelativePath: path.join(
+        bundledRepoKnowledgeSource!.relativePath,
+        sourceRelativePath,
+      ),
+      stagedRelativePath: path.join(
+        STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+        sourceRelativePath,
+      ),
+    })),
+  ].sort((left, right) => left.sourceRelativePath.localeCompare(right.sourceRelativePath));
+
+  return {
+    bundledAgentsSource,
+    bundledRepoKnowledgeSource,
+    entries,
   };
 }
 
 function buildStagedBundledAgentsManifest(
-  bundledAgentsSource: BundledAgentsSource,
+  sources: BundledAgentSystemSources,
   workspaceRoot: string,
   bundledRelativePaths: BundledAgentSourceEntry[],
 ): StagedBundledAgentsManifest {
@@ -623,6 +727,10 @@ function buildStagedBundledAgentsManifest(
     workspaceRoot,
     STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
   );
+  const stagedRepoKnowledgeAbsolutePath = path.join(
+    workspaceRoot,
+    STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+  );
   const manifestAbsolutePath = path.join(
     workspaceRoot,
     STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
@@ -631,14 +739,23 @@ function buildStagedBundledAgentsManifest(
   return {
     manifestVersion: 1,
     workspaceRoot,
-    sourceAgentsAbsolutePath: bundledAgentsSource.absolutePath,
-    sourceAgentsRelativePath: bundledAgentsSource.relativePath,
+    sourceAgentsAbsolutePath: sources.bundledAgentsSource.absolutePath,
+    sourceAgentsRelativePath: sources.bundledAgentsSource.relativePath,
+    sourceRepoKnowledgeAbsolutePath: sources.bundledRepoKnowledgeSource?.absolutePath,
+    sourceRepoKnowledgeRelativePath: sources.bundledRepoKnowledgeSource?.relativePath,
     liveAgentsAbsolutePath: path.join(workspaceRoot, BUNDLED_AGENTS_RELATIVE_PATH),
     liveAgentsRelativePath: BUNDLED_AGENTS_RELATIVE_PATH,
+    liveRepoKnowledgeAbsolutePath: path.join(
+      workspaceRoot,
+      BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
+    ),
+    liveRepoKnowledgeRelativePath: BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
     stagedRootAbsolutePath,
     stagedRootRelativePath: BUNDLED_AGENTS_STAGE_SUPPORT_RELATIVE_PATH,
     stagedAgentsAbsolutePath,
     stagedAgentsRelativePath: STAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+    stagedRepoKnowledgeAbsolutePath,
+    stagedRepoKnowledgeRelativePath: STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
     manifestAbsolutePath,
     manifestRelativePath: STAGED_BUNDLED_AGENTS_MANIFEST_RELATIVE_PATH,
     files: bundledRelativePaths.map((entry) => ({
@@ -689,7 +806,7 @@ export async function stageBundledAgentsForWorkspaceRoots(
     return result;
   }
 
-  const { bundledAgentsSource, entries } = await collectBundledAgentSourceEntries(
+  const { bundledAgentsSource, bundledRepoKnowledgeSource, entries } = await collectBundledAgentSourceEntries(
     extensionRoot,
   );
   if (entries.length === 0) {
@@ -719,7 +836,7 @@ export async function stageBundledAgentsForWorkspaceRoots(
     }
 
     const manifest = buildStagedBundledAgentsManifest(
-      bundledAgentsSource,
+      { bundledAgentsSource, bundledRepoKnowledgeSource },
       workspaceRoot,
       entries,
     );
