@@ -13,6 +13,39 @@ import { getCompatibleConfigurationValue, updateCompatibleConfigurationValue } f
 
 const UPDATE_TRACK_SETTING_KEY = "updateTrack";
 
+function parseVersionParts(version: string): number[] | undefined {
+  const normalizedVersion = String(version ?? "").trim().replace(/^v/, "").split("-")[0] ?? "";
+  if (!/^\d+(\.\d+)*$/.test(normalizedVersion)) {
+    return undefined;
+  }
+
+  return normalizedVersion.split(".").map((value) => Number.parseInt(value, 10));
+}
+
+function compareVersionParts(left: number[], right: number[]): number {
+  const maxLength = Math.max(left.length, right.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const leftValue = left[index] ?? 0;
+    const rightValue = right[index] ?? 0;
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+  }
+
+  return 0;
+}
+
+function isNewerVersion(candidateVersion: string, currentVersion: string): boolean {
+  const candidateParts = parseVersionParts(candidateVersion);
+  const currentParts = parseVersionParts(currentVersion);
+  if (!candidateParts || !currentParts) {
+    return false;
+  }
+
+  return compareVersionParts(candidateParts, currentParts) > 0;
+}
+
 type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
 type LaunchHelpChatFn = (prompt: string) => Promise<void>;
@@ -20,8 +53,7 @@ type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefine
 
 const cockpitExtensionId = "local-dev.copilot-cockpit";
 const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
-const copilotExtensionId = "github.copilot";
-const copilotExtensionSettingsQuery = `@ext:${copilotExtensionId}`;
+const copilotSettingsQuery = "@feature:chat";
 
 /** Handles settings/help messages that are routed out of the main webview controller. */
 
@@ -29,6 +61,7 @@ export interface SettingsHandlerContext {
   postMessage: PostMessageFn;
   launchHelpChat: LaunchHelpChatFn;
   backupGithubFolder: BackupGithubFolderFn;
+  openExternalUrl?: (url: string) => Promise<boolean>;
   updateStorageSettings?: (settings: StorageSettingsView) => void;
   updateCockpitBoard?: (board: unknown) => void;
   getCurrentStorageSettings?: () => StorageSettingsView;
@@ -166,6 +199,7 @@ export async function handleSettingsWebviewMessage(
         mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",
         lastMcpSupportUpdateAt: current?.lastMcpSupportUpdateAt ?? "",
         lastBundledSkillsSyncAt: current?.lastBundledSkillsSyncAt ?? "",
+        bundledSkillsStatus: current?.bundledSkillsStatus ?? "workspace-required",
         lastBundledAgentsSyncAt: current?.lastBundledAgentsSyncAt ?? "",
       };
       if (updatedBoard && ctx.updateCockpitBoard) {
@@ -195,7 +229,7 @@ export async function handleSettingsWebviewMessage(
     case "openCopilotSettings": {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        copilotExtensionSettingsQuery,
+        copilotSettingsQuery,
       );
       return true;
     }
@@ -266,22 +300,40 @@ export async function handleSettingsWebviewMessage(
       if (!extCtx) {
         return true;
       }
-      const track = getCompatibleConfigurationValue<string>(UPDATE_TRACK_SETTING_KEY, "stable");
+      const configuredTrack = getCompatibleConfigurationValue<string>(UPDATE_TRACK_SETTING_KEY, "stable");
+      const track = configuredTrack === "edge" ? "edge" : "stable";
       const [stable, edge] = await Promise.all([
         fetchLatestReleaseInfo(extCtx, "stable"),
         fetchLatestReleaseInfo(extCtx, "edge"),
       ]);
       const currentVersion = extCtx.extension.packageJSON?.version ?? "";
+      const latestStableVersion = stable?.version?.replace(/^v/, "") ?? "";
+      const latestEdgeVersion = edge?.version?.replace(/^v/, "") ?? "";
+      const stableHasNewVersion = isNewerVersion(latestStableVersion, currentVersion);
+      const edgeHasNewVersion = isNewerVersion(latestEdgeVersion, currentVersion);
       const versionUpdate: VersionUpdateView = {
         currentVersion,
-        latestStableVersion: stable?.version.replace(/^v/, "") ?? "",
-        latestEdgeVersion: edge?.version.replace(/^v/, "") ?? "",
+        latestStableVersion,
+        latestEdgeVersion,
         lastCheckedAt: new Date().toISOString(),
-        track: track as "stable" | "edge",
-        downloadUrl: stable?.htmlUrl ?? "",
-        hasNewVersion: stable ? stable.version.replace(/^v/, "") > currentVersion : false,
+        track,
+        stableDownloadUrl: stable?.htmlUrl ?? "",
+        edgeDownloadUrl: edge?.htmlUrl ?? "",
+        stableHasNewVersion,
+        edgeHasNewVersion,
+        hasNewVersion: track === "edge" ? edgeHasNewVersion : stableHasNewVersion,
       };
       ctx.postMessage({ type: "updateVersionInfo", versionUpdate });
+      return true;
+    }
+    case "openReleasePage": {
+      const releaseUrl = typeof message.url === "string" ? message.url.trim() : "";
+      if (!releaseUrl) {
+        return true;
+      }
+      const openExternalUrl = ctx.openExternalUrl
+        ?? ((url: string) => vscode.env.openExternal(vscode.Uri.parse(url)));
+      await openExternalUrl(releaseUrl);
       return true;
     }
     case "setUpdateTrack": {

@@ -11,7 +11,10 @@ export interface VersionUpdateView {
   latestEdgeVersion: string;
   lastCheckedAt: string;
   track: "stable" | "edge";
-  downloadUrl: string;
+  stableDownloadUrl: string;
+  edgeDownloadUrl: string;
+  stableHasNewVersion: boolean;
+  edgeHasNewVersion: boolean;
   hasNewVersion: boolean;
 }
 
@@ -1153,6 +1156,14 @@ export interface StorageSettingsView {
   /** Last time bundled skills were updated for this workspace */
   lastBundledSkillsSyncAt: string;
 
+  /** Current bundled skills drift status for the active workspace */
+  bundledSkillsStatus:
+    | "up-to-date"
+    | "update-available"
+    | "customized"
+    | "missing"
+    | "workspace-required";
+
   /** Last time bundled starter agents were synced for this workspace */
   lastBundledAgentsSyncAt: string;
 }
@@ -2010,6 +2021,7 @@ type NotificationAndSettingsMessage =
   | { type: "setStorageSettings"; data: StorageSettingsView }
   | { type: "setApprovalMode"; approvalMode: ApprovalMode }
   | { type: "checkForUpdates" }
+  | { type: "openReleasePage"; track: "stable" | "edge"; url?: string }
   | { type: "setUpdateTrack"; track: string }
   | { type: "openChatPermissionPicker" };
 

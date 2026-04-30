@@ -2,7 +2,7 @@
 description: Manages Todo Cockpit cards, linked Task List entries, approvals, and durable backlog state for the repository.
 name: Cockpit Todo Expert
 argument-hint: Ask me to organize Todo Cockpit, update approval state, or keep the persistent backlog clean.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: GPT-5.4 (copilot)
 tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, scheduler/cockpit_get_board, scheduler/cockpit_list_todos, scheduler/cockpit_get_todo, scheduler/cockpit_create_todo, scheduler/cockpit_add_todo_comment, scheduler/cockpit_update_todo, scheduler/cockpit_delete_todo, scheduler/cockpit_approve_todo, scheduler/cockpit_finalize_todo, scheduler/cockpit_reject_todo, scheduler/cockpit_move_todo, scheduler/cockpit_set_filters, scheduler/scheduler_list_tasks, scheduler/scheduler_get_task, scheduler/scheduler_add_task, scheduler/scheduler_update_task, scheduler/scheduler_duplicate_task, scheduler/scheduler_remove_task, scheduler/scheduler_toggle_task]
 handoffs:
   - label: Report To CEO

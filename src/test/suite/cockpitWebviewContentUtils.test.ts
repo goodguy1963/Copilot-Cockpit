@@ -1,6 +1,9 @@
 import * as assert from "assert";
 import {
+  buildFriendlyCronBuilderMarkup,
+  buildPromptSourceRadioGroupMarkup,
   buildSchedulerWebviewInitialData,
+  buildTaskScopeRadioGroupMarkup,
   escapeHtml,
   escapeHtmlAttr,
   formatModelLabel,
@@ -40,6 +43,26 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     const escaped = escapeHtml("A&B<tag>");
 
     assert.strictEqual(escaped, "A&amp;B&lt;tag&gt;");
+  });
+
+  test("escape helpers tolerate missing localized strings", () => {
+    assert.doesNotThrow(() => {
+      assert.strictEqual(escapeHtmlAttr(undefined as unknown as string), "");
+      assert.strictEqual(escapeHtml(undefined as unknown as string), "");
+    });
+  });
+
+  test("markup builders tolerate missing localized strings without replace crashes", () => {
+    assert.doesNotThrow(() => {
+      const strings = Object.create(null) as Record<string, unknown>;
+      const promptMarkup = buildPromptSourceRadioGroupMarkup(strings);
+      const cronMarkup = buildFriendlyCronBuilderMarkup(strings, "settings");
+      const scopeMarkup = buildTaskScopeRadioGroupMarkup(strings, "workspace");
+
+      assert.ok(promptMarkup.includes('name="prompt-source"'));
+      assert.ok(cronMarkup.includes('id="settings-builder"'));
+      assert.ok(scopeMarkup.includes('name="scope"'));
+    });
   });
 
   test("getModelSourceLabel detects OpenRouter and Copilot sources from normalized metadata", () => {

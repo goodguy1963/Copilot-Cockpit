@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import * as vscode from "vscode";
 import * as extensionCompat from "../../extensionCompat";
+import * as githubReleases from "../../githubReleases";
 import {
   handleSettingsWebviewMessage,
   getResourceScopedSettingsTarget,
@@ -83,6 +84,7 @@ suite("Scheduler webview settings handler behavior", () => {
             mcpSetupStatus: "configured",
             lastMcpSupportUpdateAt: "",
             lastBundledSkillsSyncAt: "",
+            bundledSkillsStatus: "workspace-required",
             lastBundledAgentsSyncAt: "",
           },
         },
@@ -135,6 +137,7 @@ suite("Scheduler webview settings handler behavior", () => {
             mcpSetupStatus: "workspace-required",
             lastMcpSupportUpdateAt: "",
             lastBundledSkillsSyncAt: "",
+            bundledSkillsStatus: "workspace-required",
             lastBundledAgentsSyncAt: "",
           },
         },
@@ -257,7 +260,7 @@ suite("Scheduler webview settings handler behavior", () => {
     }
   });
 
-  test("opens Copilot settings from the settings webview action", async () => {
+  test("opens Copilot settings to the chat feature filter", async () => {
     const originalExecute = vscode.commands.executeCommand;
     const executeCalls: unknown[][] = [];
 
@@ -279,13 +282,124 @@ suite("Scheduler webview settings handler behavior", () => {
 
       assert.strictEqual(handled, true);
       assert.deepStrictEqual(executeCalls, [
-        ["workbench.action.openSettings", "@ext:github.copilot"],
+        ["workbench.action.openSettings", "@feature:chat"],
       ]);
     } finally {
       (vscode.commands as typeof vscode.commands & {
         executeCommand: typeof vscode.commands.executeCommand;
       }).executeCommand = originalExecute;
     }
+  });
+
+  test("checkForUpdates posts current, stable, and edge version info when release lookup succeeds", async () => {
+    const originalFetchLatestReleaseInfo = githubReleases.fetchLatestReleaseInfo;
+    const originalGetCompatibleConfigurationValue = extensionCompat.getCompatibleConfigurationValue;
+    const postedMessages: Array<Record<string, unknown>> = [];
+
+    try {
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = (async (_context, track) => {
+        if (track === "stable") {
+          return {
+            tagName: "v2.0.60",
+            version: "2.0.60",
+            htmlUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.60",
+            isDraft: false,
+            isPrerelease: false,
+            publishedAt: "2026-04-30T00:00:00.000Z",
+          };
+        }
+
+        return {
+          tagName: "v2.0.61-edge.1",
+          version: "2.0.61-edge.1",
+          htmlUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.61-edge.1",
+          isDraft: false,
+          isPrerelease: true,
+          publishedAt: "2026-04-30T00:00:00.000Z",
+        };
+      }) as typeof githubReleases.fetchLatestReleaseInfo;
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = ((key: string, fallback?: unknown) => {
+        if (key === "updateTrack") {
+          return "edge";
+        }
+        return fallback;
+      }) as typeof extensionCompat.getCompatibleConfigurationValue;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "checkForUpdates" },
+        {
+          postMessage: (message) => postedMessages.push(message),
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+          extensionContext: {
+            extension: {
+              packageJSON: {
+                version: "2.0.54",
+              },
+            },
+          } as unknown as vscode.ExtensionContext,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(postedMessages.length, 1);
+      assert.deepStrictEqual(postedMessages[0], {
+        type: "updateVersionInfo",
+        versionUpdate: {
+          currentVersion: "2.0.54",
+          latestStableVersion: "2.0.60",
+          latestEdgeVersion: "2.0.61-edge.1",
+          lastCheckedAt: String((postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt),
+          track: "edge",
+          stableDownloadUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.60",
+          edgeDownloadUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.61-edge.1",
+          stableHasNewVersion: true,
+          edgeHasNewVersion: true,
+          hasNewVersion: true,
+        },
+      });
+      assert.ok(
+        typeof (postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt === "string"
+          && (postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt.length > 0,
+      );
+    } finally {
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = originalFetchLatestReleaseInfo;
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = originalGetCompatibleConfigurationValue;
+    }
+  });
+
+  test("openReleasePage routes the selected release URL through the extension host", async () => {
+    const openedUrls: string[] = [];
+
+    const handled = await handleSettingsWebviewMessage(
+      {
+        type: "openReleasePage",
+        track: "stable",
+        url: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.60",
+      },
+      {
+        postMessage: () => {},
+        launchHelpChat: async () => {},
+        backupGithubFolder: async () => undefined,
+        openExternalUrl: async (url) => {
+          openedUrls.push(url);
+          return true;
+        },
+      },
+    );
+
+    assert.strictEqual(handled, true);
+    assert.deepStrictEqual(openedUrls, [
+      "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.60",
+    ]);
   });
 
   test("openChatPermissionPicker dispatches the native permission picker command", async () => {

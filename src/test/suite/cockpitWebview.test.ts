@@ -7,6 +7,8 @@ import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../cockpitWebview";
 import * as cockpitWebviewPanelLifecycle from "../../cockpitWebviewPanelLifecycle";
 import { getResourceScopedSettingsTarget } from "../../cockpitWebviewSettingsHandler";
+import { buildSchedulerWorkspaceTabsMarkup } from "../../cockpitWebviewWorkspaceTabsMarkup";
+import { buildSchedulerWebviewStrings } from "../../cockpitWebviewStrings";
 import { overrideWorkspaceFolders } from "./helpers/vscodeTestHarness";
 
 type WebviewPanelLike = { // test-mock
@@ -262,6 +264,13 @@ type QueuedUpdateCase = {
 };
 
 suite("SchedulerWebview Message Queue Behavior", () => {
+  test("default storage settings include bundled skills status", async () => {
+    const stateModule = await import("../../cockpitWebviewState");
+    const defaults = stateModule.createDefaultStorageSettings();
+
+    assert.strictEqual(defaults.bundledSkillsStatus, "workspace-required");
+  });
+
   function loadBoardInteractionModule() {
     const scriptPath = resolveWorkspacePath(
       "../../../media/cockpitWebviewBoardInteractions.js",
@@ -308,6 +317,62 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     assert.doesNotThrow(() => {
       new vm.Script(scriptSource, { filename: scriptPath });
     });
+  });
+
+  test("buildSkillDetailsText uses a fallback template when skillMetadataSummaryTemplate is undefined", () => {
+    // Regression: buildSkillDetailsText must not throw "Cannot read properties of undefined (reading 'replace')"
+    // when strings.skillMetadataSummaryTemplate is absent. Both source and generated scripts must guard with ||.
+    const sourceScript = readSchedulerWebviewScriptSource();
+    const generatedScript = readGeneratedSchedulerWebviewScriptSource();
+    const fallbackLiteral = "Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";
+
+    // The buildSkillDetailsText function must use the || fallback so .replace() is never called on undefined.
+    assert.ok(
+      sourceScript.includes('strings.skillMetadataSummaryTemplate || "' + fallbackLiteral + '"'),
+      "expected source buildSkillDetailsText to guard skillMetadataSummaryTemplate with || fallback",
+    );
+    assert.ok(
+      generatedScript.includes('strings.skillMetadataSummaryTemplate || "' + fallbackLiteral + '"'),
+      "expected generated buildSkillDetailsText to guard skillMetadataSummaryTemplate with || fallback",
+    );
+  });
+
+  test("settings update UI exposes separate stable and edge actions and removes the legacy single-button path", () => {
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const sourceScript = readSchedulerWebviewScriptSource();
+    const generatedScript = readGeneratedSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(templateSource, [
+      'id="settings-download-stable-btn"',
+      'id="settings-download-edge-btn"',
+    ], "settings updates template");
+    expectSourceToExcludeSnippets(templateSource, [
+      'id="settings-download-latest-btn"',
+    ], "settings updates template");
+
+    expectSourceToIncludeSnippets(sourceScript, [
+      'settingsDownloadStableBtn',
+      'settingsDownloadEdgeBtn',
+      'view.stableDownloadUrl',
+      'view.edgeDownloadUrl',
+      'type: "openReleasePage"',
+      'view.track === "edge"',
+      'strings.settingsUpdateUnavailable',
+    ], "settings updates runtime");
+    expectSourceToExcludeSnippets(sourceScript, [
+      'settingsDownloadLatestBtn',
+      'view.downloadUrl',
+      'window.open(view.stableDownloadUrl',
+      'window.open(view.edgeDownloadUrl',
+    ], "settings updates runtime");
+
+    expectSourceToIncludeSnippets(generatedScript, [
+      'settingsDownloadStableBtn',
+      'settingsDownloadEdgeBtn',
+      'stableDownloadUrl',
+      'edgeDownloadUrl',
+      'openReleasePage',
+    ], "generated settings updates runtime");
   });
 
   test("todo editor click handlers use normalized event target lookups", () => {
@@ -390,6 +455,71 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     );
   });
 
+  test("settings tab restores approval mode dropdown with yolo option", () => {
+    const strings = buildSchedulerWebviewStrings("en");
+    const markup = buildSchedulerWorkspaceTabsMarkup({
+      strings,
+      allPresets: [],
+      configuredLanguage: "en",
+      configuredApprovalMode: "yolo",
+      helpIntroTitleText: "Help",
+    });
+
+    assert.ok(markup.includes('id="settings-approval-mode-select"'));
+    assert.ok(markup.includes('option value="default"'));
+    assert.ok(markup.includes('option value="auto-approve"'));
+    assert.ok(markup.includes('option value="autopilot"'));
+    assert.ok(markup.includes('option value="yolo" selected'));
+    assert.ok(markup.includes("YOLO (Legacy)"));
+    assert.ok(markup.includes(`${strings.approvalModeActiveLabel} ${strings.approvalModeYolo}`));
+    assert.strictEqual(markup.includes('id="open-permission-picker-btn"'), false);
+  });
+
+  test("settings tab release updates section renders payload-backed labels", () => {
+    const strings = buildSchedulerWebviewStrings("en");
+    const markup = buildSchedulerWorkspaceTabsMarkup({
+      strings,
+      allPresets: [],
+      configuredLanguage: "en",
+      configuredApprovalMode: "default",
+      helpIntroTitleText: "Help",
+    });
+
+    assert.ok(markup.includes(strings.settingsUpdatesTitle));
+    assert.ok(markup.includes(strings.settingsUpdatesBody));
+    assert.ok(markup.includes(strings.settingsUpdateTrackLabel));
+    assert.ok(markup.includes(strings.settingsCurrentVersion));
+    assert.ok(markup.includes(strings.settingsLatestStable));
+    assert.ok(markup.includes(strings.settingsLatestEdge));
+    assert.ok(markup.includes(strings.settingsCheckUpdates));
+    assert.ok(markup.includes(strings.settingsDownloadStable));
+    assert.ok(markup.includes(strings.settingsDownloadEdge));
+  });
+
+  test("settings diagnostics renders bundled skills status wiring", () => {
+    const strings = buildSchedulerWebviewStrings("en");
+    const markup = buildSchedulerWorkspaceTabsMarkup({
+      strings,
+      allPresets: [],
+      configuredLanguage: "en",
+      configuredApprovalMode: "default",
+      helpIntroTitleText: "Help",
+    });
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    assert.ok(markup.includes(strings.settingsStorageSkillsStatusLabel));
+    assert.ok(markup.includes('id="settings-skills-status-value"'));
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
+        'settingsSkillsStatusValue: document.getElementById("settings-skills-status-value")',
+        'function getBundledSkillsStatusLabel(status) {',
+        'settingsSkillsStatusValue.textContent = getBundledSkillsStatusLabel(storageSettings.bundledSkillsStatus);',
+      ],
+      "bundled skills status",
+    );
+  });
+
   test("GitHub inbox markup and actions are wired into the board tab", () => {
     const templateSource = readSchedulerWebviewTemplateSource();
     const scriptSource = readSchedulerWebviewScriptSource();
@@ -455,6 +585,37 @@ suite("SchedulerWebview Message Queue Behavior", () => {
         'storageSettings.researchProvider === "google-grounded"',
       ],
       "split provider selector script plumbing",
+    );
+  });
+
+  test("approval mode select is wired through the existing settings update path", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(
+      scriptSource,
+      [
+        'approvalModeSelect: document.getElementById("settings-approval-mode-select")',
+        'approvalModeNote: document.getElementById("settings-approval-mode-note")',
+        'function getApprovalModeLabel(approvalMode) {',
+        'function buildApprovalModeNoteText(approvalMode) {',
+        'strings.approvalModeActiveLabel || "Active mode:"',
+        'function renderApprovalModeControls() {',
+        'approvalModeNoteEl.textContent = buildApprovalModeNoteText(nextApprovalMode);',
+        'bindSelectChange(approvalModeSelect, function (control) {',
+        'type: "setApprovalMode", approvalMode: nextApprovalMode',
+        'case "updateApprovalMode":',
+        'renderApprovalModeControls();',
+      ],
+      "approval mode settings plumbing",
+    );
+    expectSourceToExcludeSnippets(
+      scriptSource,
+      [
+        'bindClickAction(openPermissionPickerBtn, function () {',
+        'type: "openChatPermissionPicker"',
+        'approvalModeNoteEl.textContent = strings.approvalModeSaved || "Approval mode updated.";',
+      ],
+      "legacy approval picker button flow",
     );
   });
 
@@ -1358,6 +1519,7 @@ test("todo comments style human form input separately and todo saves reset to cr
         mcpSetupStatus: "configured",
         lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
         lastBundledSkillsSyncAt: "2026-04-04T10:01:00.000Z",
+        bundledSkillsStatus: "customized",
         lastBundledAgentsSyncAt: "2026-04-04T10:02:00.000Z",
       }],
       messageType: "updateStorageSettings",
@@ -1368,12 +1530,14 @@ test("todo comments style human form input separately and todo saves reset to cr
               sqliteJsonMirror?: boolean;
               autoIgnorePrivateFiles?: boolean;
               disabledSystemFlagKeys?: string[];
+              bundledSkillsStatus?: string;
             }
           | undefined;
         assert.strictEqual(storageSettings?.mode, "sqlite");
         assert.strictEqual(storageSettings?.sqliteJsonMirror, false);
         assert.strictEqual(storageSettings?.autoIgnorePrivateFiles, false);
         assert.deepStrictEqual(storageSettings?.disabledSystemFlagKeys, ["ready"]);
+        assert.strictEqual(storageSettings?.bundledSkillsStatus, "customized");
       },
     },
     {
@@ -4173,6 +4337,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       }) as typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
 
       await SchedulerWebview.show(
+        {} as vscode.ExtensionContext,
         vscode.Uri.file(resolveWorkspacePath("../../../README.md")),
         [],
         [],

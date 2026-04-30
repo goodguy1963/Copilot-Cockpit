@@ -74,6 +74,19 @@ function normalizeMcpSetupStatus(value, previousValue) {
   }
 }
 
+function normalizeBundledSkillsStatus(value, previousValue) {
+  switch (value) {
+    case "up-to-date":
+    case "update-available":
+    case "customized":
+    case "missing":
+    case "workspace-required":
+      return value;
+    default:
+      return previousValue || "workspace-required";
+  }
+}
+
 export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
   return function normalizeStorageSettings(value, previousValue) {
     var disabledSystemFlagKeys = Array.isArray(value && value.disabledSystemFlagKeys)
@@ -135,6 +148,10 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
         value && typeof value.lastBundledSkillsSyncAt === "string"
           ? value.lastBundledSkillsSyncAt
           : (previousValue && previousValue.lastBundledSkillsSyncAt) || "",
+      bundledSkillsStatus: normalizeBundledSkillsStatus(
+        value && value.bundledSkillsStatus,
+        previousValue && previousValue.bundledSkillsStatus,
+      ),
       lastBundledAgentsSyncAt:
         value && typeof value.lastBundledAgentsSyncAt === "string"
           ? value.lastBundledAgentsSyncAt

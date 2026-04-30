@@ -46,6 +46,7 @@ export function serializeForWebview(value: unknown): string {
 }
 
 export function escapeHtmlAttr(str: string): string {
+  const input = String(str ?? "");
   const replacements: Array<[pattern: RegExp, replacement: string]> = [
     [/&/g, "&amp;"],
     [/"/g, "&quot;"],
@@ -56,11 +57,12 @@ export function escapeHtmlAttr(str: string): string {
 
   return replacements.reduce(
     (escaped, [pattern, replacement]) => escaped.replace(pattern, replacement),
-    str,
+    input,
   );
 }
 
 export function escapeHtml(str: string): string {
+  const input = String(str ?? "");
   return ["&", "<", ">"].reduce((escaped, char) => {
     switch (char) {
       case "&":
@@ -70,7 +72,7 @@ export function escapeHtml(str: string): string {
       default:
         return escaped.replace(/>/g, "&gt;");
     }
-  }, str);
+  }, input);
 }
 
 export function getModelSourceLabel(model: ModelInfo): string {

@@ -536,7 +536,10 @@ async function checkForExtensionUpdateOnStartup(context: vscode.ExtensionContext
   if (!latestStable || !currentVersion) {
     return;
   }
-  const latestVer = latestStable.version.replace(/^v/, "");
+  const latestVer = latestStable.version?.replace(/^v/, "") ?? "";
+  if (!latestVer) {
+    return;
+  }
   if (latestVer > currentVersion) {
     const choice = await vscode.window.showInformationMessage(
       `A new version ${latestVer} is available. You have ${currentVersion}.`,
@@ -564,6 +567,54 @@ function logExtensionErrorWithSanitizedDetails(
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? "");
+}
+
+type WorkspaceSqliteActivationBootstrapDeps = {
+  bootstrapWorkspaceSqliteStorage: (
+    workspaceRoot: string,
+    mirroredJsonEnabled: boolean,
+  ) => Promise<unknown>;
+  bootstrapGlobalSqliteStorage: (globalStorageRoot: string) => Promise<unknown>;
+  scheduleCockpitBoardSqliteHydration: (immediate?: boolean) => void;
+  notifyError: (message: string) => void;
+  logExtensionErrorWithSanitizedDetails: (
+    prefix: string,
+    error: unknown,
+  ) => void;
+};
+
+async function bootstrapSqliteStorageForWorkspaceActivation(
+  context: Pick<vscode.ExtensionContext, "globalStorageUri">,
+  options: {
+    workspaceRoot: string;
+    mirroredJsonEnabled: boolean;
+  },
+  deps: WorkspaceSqliteActivationBootstrapDeps = {
+    bootstrapWorkspaceSqliteStorage,
+    bootstrapGlobalSqliteStorage,
+    scheduleCockpitBoardSqliteHydration,
+    notifyError,
+    logExtensionErrorWithSanitizedDetails,
+  },
+): Promise<void> {
+  try {
+    await deps.bootstrapWorkspaceSqliteStorage(
+      options.workspaceRoot,
+      options.mirroredJsonEnabled,
+    );
+    await deps.bootstrapGlobalSqliteStorage(context.globalStorageUri.fsPath);
+    deps.scheduleCockpitBoardSqliteHydration(true);
+  } catch (error) {
+    const safeErrorMessage =
+      redactPathsForLog(toErrorMessage(error)) || messages.webviewUnknown();
+    deps.logExtensionErrorWithSanitizedDetails(
+      "[CopilotCockpit] SQLite bootstrap during workspace activation failed. Continuing to open the UI.",
+      error,
+    );
+    deps.notifyError(
+      `SQLite storage bootstrap failed. Opening the UI anyway: ${safeErrorMessage}`,
+    );
+  }
 }
 
 function normalizeApprovalMode(value: string): ApprovalMode {
@@ -935,6 +986,61 @@ function getCurrentMcpSetupStatus(): StorageSettingsView["mcpSetupStatus"] {
   ).status;
 }
 
+function resolveBundledSkillsStatus(
+  preview: Pick<BundledSkillSyncResult, "createdPaths" | "updatedPaths" | "skippedPaths">,
+  workspaceRoot: string | undefined,
+): StorageSettingsView["bundledSkillsStatus"] {
+  if (!workspaceRoot) {
+    return "workspace-required";
+  }
+
+  if (preview.skippedPaths.length > 0) {
+    return "customized";
+  }
+
+  if (preview.createdPaths.length > 0) {
+    return "missing";
+  }
+
+  if (preview.updatedPaths.length > 0) {
+    return "update-available";
+  }
+
+  return "up-to-date";
+}
+
+async function getCurrentBundledSkillsStatus(
+  workspaceRoot: string | undefined,
+): Promise<StorageSettingsView["bundledSkillsStatus"]> {
+  if (!workspaceRoot || !extensionContext) {
+    return "workspace-required";
+  }
+
+  const preview = await previewBundledSkillSyncForWorkspaceRoots(
+    extensionContext.extensionUri.fsPath,
+    [workspaceRoot],
+    extensionContext.globalState.get<BundledSkillSyncState>(
+      BUNDLED_SKILL_SYNC_STATE_KEY,
+      {},
+    ),
+  );
+
+  return resolveBundledSkillsStatus(preview, workspaceRoot);
+}
+
+function refreshStorageSettingsView(): void {
+  void getCurrentStorageSettings()
+    .then((storageSettings) => {
+      SchedulerWebview.updateStorageSettings(storageSettings);
+    })
+    .catch((error) => {
+      logError(
+        "[CopilotScheduler] Failed to refresh storage settings status:",
+        redactPathsForLog(toErrorMessage(error)),
+      );
+    });
+}
+
 export function notifyInfo(message: string, timeoutMs = 4000): void {
   notifyInfoWithUi({
     message,
@@ -1180,7 +1286,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
   SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
-  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+  refreshStorageSettingsView();
   SchedulerWebview.updateResearchState(
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
@@ -1202,6 +1308,7 @@ async function showSchedulerWebview(
 ): Promise<void> {
   const tasks = scheduler.getAllTasks();
   await SchedulerWebview.show( // local-diverge-631
+    context,
     context.extensionUri,
     tasks,
     scheduler.getAllJobs(),
@@ -1211,7 +1318,7 @@ async function showSchedulerWebview(
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
     getCurrentReviewDefaults(),
-    getCurrentStorageSettings(),
+    await getCurrentStorageSettings(),
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
     researchManager.getRecentRuns(),
@@ -1747,19 +1854,18 @@ async function initializeCurrentWorkspaceForCockpit(
   await ensureSchedulerSkillOnStartup(context, [workspaceRoot]);
 
   if (isWorkspaceSqliteModeEnabled(workspaceRoot)) {
-    await bootstrapWorkspaceSqliteStorage(
+    await bootstrapSqliteStorageForWorkspaceActivation(context, {
       workspaceRoot,
-      getSchedulerSetting<boolean>(
-        "sqliteJsonMirror",
-        true,
-        vscode.Uri.file(workspaceRoot),
-      ) !== false,
-    );
-    await bootstrapGlobalSqliteStorage(context.globalStorageUri.fsPath);
-    scheduleCockpitBoardSqliteHydration(true);
+      mirroredJsonEnabled:
+        getSchedulerSetting<boolean>(
+          "sqliteJsonMirror",
+          true,
+          vscode.Uri.file(workspaceRoot),
+        ) !== false,
+    });
   }
 
-  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+  refreshStorageSettingsView();
   return true;
 }
 
@@ -1889,11 +1995,12 @@ function getCurrentReviewDefaults(): ReviewDefaultsView {
   };
 }
 
-function getCurrentStorageSettings(): StorageSettingsView {
+async function getCurrentStorageSettings(): Promise<StorageSettingsView> {
   const folderUri = getPrimaryWorkspaceFolderUri();
   const workspaceRoot = folderUri?.fsPath;
   const board = getCurrentCockpitBoard();
   const providerSettings = getCurrentProviderSettings(folderUri);
+  const bundledSkillsStatus = await getCurrentBundledSkillsStatus(workspaceRoot);
   return {
     mode: getSchedulerSetting<string>("storageMode", "sqlite", folderUri) === "sqlite"
       ? "sqlite"
@@ -1919,6 +2026,7 @@ function getCurrentStorageSettings(): StorageSettingsView {
       LAST_BUNDLED_SKILLS_SYNC_MAP_KEY,
       workspaceRoot,
     ),
+    bundledSkillsStatus,
     lastBundledAgentsSyncAt: getWorkspaceTimestamp(
       LAST_BUNDLED_AGENTS_SYNC_MAP_KEY,
       workspaceRoot,
@@ -2016,7 +2124,7 @@ async function importStorageFromJson(): Promise<void> {
     throw new Error(messages.noWorkspaceOpen());
   }
 
-  const storageSettings = getCurrentStorageSettings();
+  const storageSettings = await getCurrentStorageSettings();
   await bootstrapWorkspaceSqliteStorage(
     workspaceRoot,
     storageSettings.sqliteJsonMirror,
@@ -2099,7 +2207,7 @@ async function setupWorkspaceMcpConfig(
       [workspaceRoot],
     );
     hasPromptedForMcpSetupThisSession = true;
-    SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+    refreshStorageSettingsView();
     notifyInfo(messages.mcpSetupCompleted(result.configPath));
     await notifyCustomSubAgentSetupRequirement();
     return true;
@@ -2226,7 +2334,7 @@ async function repairWorkspaceSupportFiles(
       void SchedulerWebview.reloadCachesAndSync(true).catch(() => {});
     }
 
-    SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+    refreshStorageSettingsView();
 
     notifyInfo(
       messages.workspaceSupportRepairCompleted(
@@ -2514,27 +2622,49 @@ async function runStartupSequence(
   }
 }
 
+type SyncApprovalModeOptions = {
+  applyToCurrentSession: boolean;
+};
+
+type SyncApprovalModeDeps = {
+  setApprovalBootstrapMode: (mode: ApprovalMode) => void;
+  syncNativeApprovalMode: (mode: ApprovalMode) => Promise<void>;
+};
+
+function shouldSyncApprovalModeForCurrentSession(mode: ApprovalMode): boolean {
+  return mode !== "auto-approve";
+}
+
+async function syncApprovalModeForMode(
+  mode: ApprovalMode,
+  options: SyncApprovalModeOptions,
+  deps: SyncApprovalModeDeps = {
+    setApprovalBootstrapMode: (nextMode) => {
+      CopilotExecutor.setApprovalBootstrapMode(nextMode);
+    },
+    syncNativeApprovalMode: (nextMode) => CopilotExecutor.syncNativeApprovalMode(nextMode),
+  },
+): Promise<void> {
+  deps.setApprovalBootstrapMode(mode);
+
+  if (!options.applyToCurrentSession || !shouldSyncApprovalModeForCurrentSession(mode)) {
+    return;
+  }
+
+  await deps.syncNativeApprovalMode(mode);
+}
+
+async function syncApprovalModeFromConfigurationChange(): Promise<void> {
+  const mode = normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default"));
+  await syncApprovalModeForMode(mode, { applyToCurrentSession: true });
+}
+
 /**
  * Sync the VS Code chat approval settings to match the configured approval mode.
  */
 async function syncApprovalMode(): Promise<void> {
   const mode = normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default"));
-
-  // Only manage internal CopilotExecutor bootstrap state; do not write to
-  // chat.tools.autoApprove / chat.autopilot.enabled so we do not fight the
-  // native permission picker owned by VS Code.
-  switch (mode) {
-    case "auto-approve":
-    case "autopilot":
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      return;
-    case "yolo":
-      CopilotExecutor.setApprovalBootstrapMode("yolo");
-      return;
-    default:
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      return;
-  }
+  await syncApprovalModeForMode(mode, { applyToCurrentSession: false });
 }
 
 /**
@@ -2802,7 +2932,7 @@ export function activate(context: vscode.ExtensionContext): void {
       SchedulerWebview.updateAutoShowOnStartup(isAutoShowOnStartupEnabled());
     }
     if (affectsCompatibleConfiguration(e, "approvalMode")) {
-      void syncApprovalMode();
+      void syncApprovalModeFromConfigurationChange();
       SchedulerWebview.updateApprovalMode(normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default")));
     }
     if (
@@ -2843,7 +2973,7 @@ export function activate(context: vscode.ExtensionContext): void {
       || searchProviderChanged
       || researchProviderChanged
     ) {
-      SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+      refreshStorageSettingsView();
       if (autoIgnorePrivateFilesChanged) {
         const workspaceRootsWithAutoIgnoreEnabled = collectWorkspacePaths().filter(
           (workspaceRoot) => getSchedulerSetting<boolean>(
@@ -3220,6 +3350,7 @@ async function handleWebviewMoveTaskAction(taskId: string): Promise<void> {
 }
 
 export const __testOnly = {
+  bootstrapSqliteStorageForWorkspaceActivation,
   buildCustomSubAgentSettingUri,
   buildDefaultNeedsBotReviewPromptTemplate,
   createUiRefreshQueue,
@@ -3237,11 +3368,13 @@ export const __testOnly = {
   isCockpitWorkspaceActivated,
   normalizeSearchProvider,
   resolveProviderSettings,
+  resolveBundledSkillsStatus,
   resolveTaskExecutionChatSession,
   resolvePromptText, // prompt-resolution
   redactPathsForLog,
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
+  syncApprovalModeForMode,
   shouldSuppressSqliteWorkForExtensionContext,
   waitForSqliteStartupHydration,
 };
@@ -3767,7 +3900,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
       }
 
       case "refreshStorageStatus": {
-        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+        refreshStorageSettingsView();
         break;
       }
 
@@ -3799,7 +3932,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         await SchedulerWebview.reloadCachesAndSync(true);
-        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+        refreshStorageSettingsView();
 
         if (
           syncResult.createdPaths.length === 0
@@ -4144,7 +4277,7 @@ function registerSyncBundledSkillsCommand(
         ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
         const syncResult = await syncBundledSkills(context, workspaceRoots);
         await SchedulerWebview.reloadCachesAndSync(true);
-        SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+        refreshStorageSettingsView();
 
         if (
           syncResult.createdPaths.length === 0 &&

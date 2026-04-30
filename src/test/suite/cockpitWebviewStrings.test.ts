@@ -34,4 +34,24 @@ suite("SchedulerWebviewStrings Tests", () => {
       assert.ok(value.length > 0, `Expected ${key} to be non-empty`);
     }
   });
+
+  test("exposes release update strings in the webview payload", () => {
+    const strings = buildSchedulerWebviewStrings("en");
+
+    assert.strictEqual(strings.settingsUpdatesTitle, messages.settingsUpdatesTitle());
+    assert.strictEqual(strings.settingsUpdatesBody, messages.settingsUpdatesBody());
+    assert.strictEqual(strings.settingsUpdateTrackLabel, messages.settingsUpdateTrackLabel());
+    assert.strictEqual(strings.settingsUpdateTrackStable, messages.settingsUpdateTrackStable());
+    assert.strictEqual(strings.settingsUpdateTrackEdge, messages.settingsUpdateTrackEdge());
+    assert.strictEqual(strings.settingsCurrentVersion, messages.settingsCurrentVersion());
+    assert.strictEqual(strings.settingsLatestStable, messages.settingsLatestStable());
+    assert.strictEqual(strings.settingsLatestEdge, messages.settingsLatestEdge());
+    assert.strictEqual(strings.settingsCheckUpdates, messages.settingsCheckUpdates());
+    assert.strictEqual(strings.settingsCheckingForUpdates, messages.settingsCheckingForUpdates());
+    assert.strictEqual(strings.settingsUpdateAvailable, messages.settingsUpdateAvailable());
+    assert.strictEqual(strings.settingsUpToDate, messages.settingsUpToDate());
+    assert.strictEqual(strings.settingsUpdateUnavailable, messages.settingsUpdateUnavailable());
+    assert.strictEqual(strings.settingsDownloadStable, messages.settingsDownloadStable());
+    assert.strictEqual(strings.settingsDownloadEdge, messages.settingsDownloadEdge());
+  });
 });

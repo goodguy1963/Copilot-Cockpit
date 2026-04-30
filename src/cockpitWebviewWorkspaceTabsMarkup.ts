@@ -13,6 +13,29 @@ function renderSectionTitleWithHelp(
   return `<div class="section-title-with-help${className}" title="${help}"><div class="section-title"${idAttr} title="${help}">${escapeHtml(label)}</div><span class="section-title-help-trigger" aria-hidden="true" title="${help}">?</span></div>`;
 }
 
+function getApprovalModeLabel(
+  strings: ReturnType<typeof buildSchedulerWebviewStrings>,
+  approvalMode: string,
+): string {
+  switch (approvalMode) {
+    case "auto-approve":
+      return strings.approvalModeAutoApprove;
+    case "autopilot":
+      return strings.approvalModeAutopilot;
+    case "yolo":
+      return strings.approvalModeYolo;
+    default:
+      return strings.approvalModeDefault;
+  }
+}
+
+function buildApprovalModeNoteText(
+  strings: ReturnType<typeof buildSchedulerWebviewStrings>,
+  approvalMode: string,
+): string {
+  return `${strings.approvalModeActiveLabel} ${getApprovalModeLabel(strings, approvalMode)}`;
+}
+
 export function buildSchedulerWorkspaceTabsMarkup(options: {
   strings: ReturnType<typeof buildSchedulerWebviewStrings>;
   allPresets: Array<{ expression: string; name: string }>;
@@ -29,6 +52,17 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
   } = options;
   const jobsCronPresetOptions = allPresets
     .map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`)
+    .join("");
+  const approvalModeOptions = [
+    { value: "default", label: strings.approvalModeDefault },
+    { value: "auto-approve", label: strings.approvalModeAutoApprove },
+    { value: "autopilot", label: strings.approvalModeAutopilot },
+    { value: "yolo", label: strings.approvalModeYolo },
+  ]
+    .map((option) => {
+      const selected = configuredApprovalMode === option.value ? ' selected' : "";
+      return `<option value="${escapeHtmlAttr(option.value)}"${selected}>${escapeHtml(option.label)}</option>`;
+    })
     .join("");
   const boardTitleHelp = `${strings.boardDescription}\n\n${strings.boardPrivacyNote}`;
 
@@ -505,8 +539,10 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <p class="note">${escapeHtml(strings.approvalModeDescription)}</p>
         </div>
         <div class="form-group" style="margin-top:8px;">
-          <button type="button" class="btn-primary" id="open-permission-picker-btn">${escapeHtml(strings.approvalModeOpenNative)}</button>
+          <label for="settings-approval-mode-select">${escapeHtml(strings.approvalModeTitle)}</label>
+          <select id="settings-approval-mode-select">${approvalModeOptions}</select>
         </div>
+        <p class="note" id="settings-approval-mode-note">${escapeHtml(buildApprovalModeNoteText(strings, configuredApprovalMode))}</p>
       </section>
       <section class="telegram-card settings-card settings-card-support settings-card-span-full">
         <div class="settings-card-header">
@@ -538,6 +574,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="settings-metric"><strong>🧪 ${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
           <div class="settings-metric"><strong>🔌 ${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
           <div class="settings-metric"><strong>🕒 ${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
+          <div class="settings-metric"><strong>📚 ${escapeHtml(strings.settingsStorageSkillsStatusLabel)}</strong> <span id="settings-skills-status-value">-</span></div>
           <div class="settings-metric"><strong>📚 ${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>
           <div class="settings-metric"><strong>🤖 ${escapeHtml(strings.settingsStorageLastAgentsUpdateLabel)}</strong> <span id="settings-agents-updated-value">-</span></div>
         </div>
@@ -725,7 +762,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
         <div class="button-group" style="margin-top:8px;">
           <button type="button" class="btn-primary" id="settings-check-updates-btn">${escapeHtml(strings.settingsCheckUpdates)}</button>
-          <button type="button" class="btn-secondary" id="settings-download-latest-btn" style="display:none;">${escapeHtml(strings.settingsDownloadLatest)}</button>
+          <button type="button" class="btn-secondary" id="settings-download-stable-btn" style="display:none;">${escapeHtml(strings.settingsDownloadStable)}</button>
+          <button type="button" class="btn-secondary" id="settings-download-edge-btn" style="display:none;">${escapeHtml(strings.settingsDownloadEdge)}</button>
         </div>
       </section>
       <section class="telegram-card settings-card settings-card-github" style="grid-column:span 2;">

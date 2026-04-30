@@ -3,7 +3,9 @@ import * as assert from "assert";
 import type { ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
+import * as skillBootstrap from "../../skillBootstrap";
 import {
+  createMockContext,
   createTempDir,
   overrideWorkspaceFolders,
 } from "./helpers/vscodeTestHarness";
@@ -84,6 +86,20 @@ type StartupSqliteHydrationDepsForTest = {
   waitForTaskHydration: () => Promise<void>;
   getBoardHydrationPromise: () => Promise<void> | undefined;
   timeoutMs?: number;
+};
+
+type WorkspaceSqliteActivationBootstrapDepsForTest = {
+  bootstrapWorkspaceSqliteStorage: (
+    workspaceRoot: string,
+    mirroredJsonEnabled: boolean,
+  ) => Promise<unknown>;
+  bootstrapGlobalSqliteStorage: (globalStorageRoot: string) => Promise<unknown>;
+  scheduleCockpitBoardSqliteHydration: (immediate?: boolean) => void;
+  notifyError: (message: string) => void;
+  logExtensionErrorWithSanitizedDetails: (
+    prefix: string,
+    error: unknown,
+  ) => void;
 };
 
 type RepairStateEntry = {
@@ -443,6 +459,50 @@ suite("Extension Integration Tests", () => {
       "copilotCockpit.readyPromptTemplate",
       runtimeDefaults.readyPromptTemplate,
     );
+  });
+
+  test("approval mode sync routes configured changes into the native chat sync target", async () => {
+    const testOnly = await getTestOnlyExports();
+    const bootstrapModes: string[] = [];
+    const nativeSyncModes: string[] = [];
+
+    await testOnly.syncApprovalModeForMode(
+      "autopilot",
+      { applyToCurrentSession: true },
+      {
+        setApprovalBootstrapMode: (mode: string) => {
+          bootstrapModes.push(mode);
+        },
+        syncNativeApprovalMode: async (mode: string) => {
+          nativeSyncModes.push(mode);
+        },
+      },
+    );
+
+    assert.deepStrictEqual(bootstrapModes, ["autopilot"]);
+    assert.deepStrictEqual(nativeSyncModes, ["autopilot"]);
+  });
+
+  test("auto-approve configuration sync defers native session changes while preserving future bootstrap", async () => {
+    const testOnly = await getTestOnlyExports();
+    const bootstrapModes: string[] = [];
+    const nativeSyncModes: string[] = [];
+
+    await testOnly.syncApprovalModeForMode(
+      "auto-approve",
+      { applyToCurrentSession: true },
+      {
+        setApprovalBootstrapMode: (mode: string) => {
+          bootstrapModes.push(mode);
+        },
+        syncNativeApprovalMode: async (mode: string) => {
+          nativeSyncModes.push(mode);
+        },
+      },
+    );
+
+    assert.deepStrictEqual(bootstrapModes, ["auto-approve"]);
+    assert.deepStrictEqual(nativeSyncModes, []);
   });
 
   test("provider-aware review prompt helpers stay aligned with the default wording", async () => {
@@ -903,6 +963,71 @@ suite("Extension Integration Tests", () => {
     ]);
   });
 
+  test("workspace activation tolerates sqlite bootstrap I/O failure and notifies", async () => {
+    const testOnly = await getTestOnlyExports();
+    const bootstrapForActivation = testOnly.bootstrapSqliteStorageForWorkspaceActivation as
+      | ((
+        context: Pick<vscode.ExtensionContext, "globalStorageUri">,
+        options: {
+          workspaceRoot: string;
+          mirroredJsonEnabled: boolean;
+        },
+        deps?: WorkspaceSqliteActivationBootstrapDepsForTest,
+      ) => Promise<void>)
+      | undefined;
+
+    assert.ok(typeof bootstrapForActivation === "function");
+
+    const context = createMockContext(createTempDir("copilot-cockpit-sqlite-activation-"));
+    const notifications: string[] = [];
+    const loggedErrors: Array<{ prefix: string; error: string }> = [];
+    let hydrationCalls = 0;
+    let globalBootstrapCalls = 0;
+
+    await assert.doesNotReject(async () =>
+      bootstrapForActivation!(
+        context,
+        {
+          workspaceRoot: "F:/sqlite-activation-workspace",
+          mirroredJsonEnabled: true,
+        },
+        {
+          bootstrapWorkspaceSqliteStorage: async () => {
+            throw new Error("disk I/O error at C:\\Users\\sabin\\sqlite\\copilot-cockpit.db");
+          },
+          bootstrapGlobalSqliteStorage: async () => {
+            globalBootstrapCalls += 1;
+          },
+          scheduleCockpitBoardSqliteHydration: () => {
+            hydrationCalls += 1;
+          },
+          notifyError: (message) => {
+            notifications.push(message);
+          },
+          logExtensionErrorWithSanitizedDetails: (prefix, error) => {
+            loggedErrors.push({
+              prefix,
+              error: error instanceof Error ? error.message : String(error ?? ""),
+            });
+          },
+        },
+      ));
+
+    assert.strictEqual(globalBootstrapCalls, 0);
+    assert.strictEqual(hydrationCalls, 0);
+    assert.strictEqual(loggedErrors.length, 1);
+    assert.match(
+      loggedErrors[0]?.prefix ?? "",
+      /SQLite bootstrap during workspace activation failed/,
+    );
+    assert.strictEqual(notifications.length, 1);
+    assert.match(notifications[0] ?? "", /SQLite storage bootstrap failed/);
+    assert.ok(
+      !(notifications[0] ?? "").includes("C:\\Users\\sabin\\sqlite"),
+      `Expected sanitized notification, got: ${notifications[0]}`,
+    );
+  });
+
   for (const [name, task, expectedChatSession] of [
     [
       "one-time tasks default task execution chat session to new",
@@ -1021,6 +1146,68 @@ suite("Extension Integration Tests", () => {
       );
     });
   }
+
+  test("resolveBundledSkillsStatus prioritizes customized and missing drift states", async () => {
+    const testOnly = await getTestOnlyExports();
+    const resolveStatus = testOnly.resolveBundledSkillsStatus as
+      | ((
+        preview: {
+          createdPaths: string[];
+          updatedPaths: string[];
+          skippedPaths: string[];
+        },
+        workspaceRoot: string | undefined,
+      ) => string)
+      | undefined;
+
+    assert.strictEqual(typeof resolveStatus, "function");
+    assert.strictEqual(resolveStatus!({ createdPaths: [], updatedPaths: [], skippedPaths: [] }, undefined), "workspace-required");
+    assert.strictEqual(resolveStatus!({ createdPaths: [], updatedPaths: [], skippedPaths: ["skip"] }, "c:/repo"), "customized");
+    assert.strictEqual(resolveStatus!({ createdPaths: ["create"], updatedPaths: ["update"], skippedPaths: [] }, "c:/repo"), "missing");
+    assert.strictEqual(resolveStatus!({ createdPaths: [], updatedPaths: ["update"], skippedPaths: [] }, "c:/repo"), "update-available");
+    assert.strictEqual(resolveStatus!({ createdPaths: [], updatedPaths: [], skippedPaths: [] }, "c:/repo"), "up-to-date");
+  });
+
+  test("getCurrentStorageSettings includes bundled skills drift status for the active workspace", async () => {
+    const extension = getExtensionEntry();
+    assert.ok(extension);
+    await extension!.activate();
+
+    const workspaceRoot = createTempDir("copilot-cockpit-bundled-skills-status-");
+    const restoreWorkspace = overrideWorkspaceFolders(workspaceRoot);
+    const mutableSkillBootstrap = skillBootstrap as typeof skillBootstrap & {
+      previewBundledSkillSyncForWorkspaceRoots: typeof skillBootstrap.previewBundledSkillSyncForWorkspaceRoots;
+    };
+    const originalPreview = mutableSkillBootstrap.previewBundledSkillSyncForWorkspaceRoots;
+
+    try {
+      mutableSkillBootstrap.previewBundledSkillSyncForWorkspaceRoots = (async () => ({
+        createdPaths: [],
+        updatedPaths: [path.join(workspaceRoot, ".github", "skills", "demo", "SKILL.md")],
+        skippedPaths: [],
+        unchangedPaths: [],
+        nextState: {},
+      })) as typeof skillBootstrap.previewBundledSkillSyncForWorkspaceRoots;
+
+      const testOnly = await getTestOnlyExports();
+      const getCurrentStorageSettings = testOnly.getCurrentStorageSettings as
+        | (() => Promise<{
+          bundledSkillsStatus?: string;
+          lastBundledSkillsSyncAt?: string;
+        }>)
+        | undefined;
+
+      assert.strictEqual(typeof getCurrentStorageSettings, "function");
+
+      const storageSettings = await getCurrentStorageSettings!();
+      assert.strictEqual(storageSettings.bundledSkillsStatus, "update-available");
+      assert.strictEqual(storageSettings.lastBundledSkillsSyncAt, "");
+    } finally {
+      mutableSkillBootstrap.previewBundledSkillSyncForWorkspaceRoots = originalPreview;
+      restoreWorkspace();
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 
   test("error details sanitization hides local filesystem paths but keeps filenames", async () => {
     const testOnly = await getTestOnlyExports();

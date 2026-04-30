@@ -33,6 +33,24 @@ function buildAliasedMessageValueMap(
 
 const tabMessageKeys = ["tabCreate", "tabEdit", "tabList", "tabHowTo"] as const satisfies readonly NoArgMessageKey[];
 
+const settingsUpdateMessageKeys = [
+  "settingsUpdatesTitle",
+  "settingsUpdatesBody",
+  "settingsCheckUpdates",
+  "settingsCheckingForUpdates",
+  "settingsLatestStable",
+  "settingsLatestEdge",
+  "settingsCurrentVersion",
+  "settingsUpToDate",
+  "settingsUpdateAvailable",
+  "settingsUpdateUnavailable",
+  "settingsDownloadStable",
+  "settingsDownloadEdge",
+  "settingsUpdateTrackLabel",
+  "settingsUpdateTrackStable",
+  "settingsUpdateTrackEdge",
+] as const satisfies readonly NoArgMessageKey[];
+
 const schedulerEditorMessageKeys = [
   "labelPromptType",
   "labelPromptInline",
@@ -95,6 +113,12 @@ const schedulerEditorMessageKeys = [
   "settingsStatusMetricsTitle",
   "settingsRefreshStatus",
   "settingsStatusUpdated",
+  "settingsStorageSkillsStatusLabel",
+  "settingsStorageSkillsStatusUpToDate",
+  "settingsStorageSkillsStatusUpdateAvailable",
+  "settingsStorageSkillsStatusCustomized",
+  "settingsStorageSkillsStatusMissing",
+  "settingsStorageSkillsStatusWorkspaceRequired",
   "actionCopyPrompt",
   "actionDuplicate",
   "actionMoveToCurrentWorkspace",
@@ -489,8 +513,10 @@ export function buildSchedulerWebviewStrings(
     approvalModeAutoApprove: localize("Bypass Approvals", "承認をバイパス", "Genehmigungen umgehen"),
     approvalModeAutopilot: localize("Autopilot", "Autopilot", "Autopilot"),
     approvalModeYolo: localize("YOLO (Legacy)", "YOLO（レガシー）", "YOLO (Legacy)"),
+    approvalModeActiveLabel: localize("Active mode:", "現在のモード:", "Aktiver Modus:"),
     approvalModeSaved: localize("Approval mode updated.", "承認モードを更新しました。", "Genehmigungsmodus aktualisiert."),
     approvalModeOpenNative: localize("Open Permission Picker", "許可ピッカーを開く", "Berechtigungsauswahl öffnen"),
+    ...buildMessageValueMap(settingsUpdateMessageKeys),
     reviewDefaultsTitle: localize("Todo Workflow Prompts", "Todo ワークフロープロンプト", "Todo-Workflow-Prompts"),
     reviewDefaultsDescription: localize(
       "Configure the repo-local handoff text and prompt templates for needs-bot-review and ready Todo workflows. If the workflow suggests bundled agents, keep that sync as a separate manual Settings action so existing repo-local agent systems stay user-owned and untouched.",
@@ -588,6 +614,12 @@ export function buildSchedulerWebviewStrings(
     settingsStorageMcpStatusInvalid: localize("Invalid", "無効", "Ungültig"),
     settingsStorageMcpStatusWorkspaceRequired: localize("Open a workspace to inspect", "確認するにはワークスペースを開いてください", "Öffnen Sie einen Workspace, um den Status zu prüfen"),
     settingsStorageLastMcpUpdateLabel: localize("Last MCP support update", "前回の MCP サポート更新", "Letzte MCP-Support-Aktualisierung"),
+    settingsStorageSkillsStatusLabel: localize("Bundled skills status", "bundled skills の状態", "Status der gebündelten Skills"),
+    settingsStorageSkillsStatusUpToDate: localize("Up to date", "最新", "Aktuell"),
+    settingsStorageSkillsStatusUpdateAvailable: localize("Update available", "更新あり", "Update verfügbar"),
+    settingsStorageSkillsStatusCustomized: localize("Customized", "カスタマイズ済み", "Angepasst"),
+    settingsStorageSkillsStatusMissing: localize("Missing", "不足", "Fehlt"),
+    settingsStorageSkillsStatusWorkspaceRequired: localize("Open a workspace to inspect", "確認するにはワークスペースを開いてください", "Öffnen Sie einen Workspace, um den Status zu prüfen"),
     settingsStorageLastSkillsUpdateLabel: localize("Last bundled skills update", "前回の bundled skills 更新", "Letzte Aktualisierung der bundled skills"),
     settingsStorageNeverUpdated: localize("Never", "なし", "Nie"),
     settingsStorageImportJsonToDb: localize("Import JSON Mirrors Into SQLite", "JSON ミラーを SQLite へ取り込む", "JSON-Mirror in SQLite importieren"),

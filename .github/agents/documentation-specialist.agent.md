@@ -2,7 +2,7 @@
 description: Documentation specialist for README, guides, and reusable knowledge alignment.
 name: Documentation Specialist
 argument-hint: Ask me to update docs, align README and guides with the codebase, or keep knowledge files concise and current.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: GPT-5.4 (copilot)
 tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, search/codebase, edit/createDirectory, edit/createFile, edit/editFiles, agent/runSubagent]
 handoffs:
   - label: Report To CEO

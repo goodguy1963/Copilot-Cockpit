@@ -36,6 +36,7 @@ export type SchedulerWebviewCatalogState = {
 };
 
 export type SchedulerWebviewRuntimeState = {
+  extensionContext: vscode.ExtensionContext | undefined;
   extensionUri: vscode.Uri | undefined;
   tasks: ScheduledTask[];
   jobs: JobDefinition[];
@@ -58,6 +59,7 @@ export type SchedulerWebviewRuntimeState = {
 };
 
 type AssignSchedulerWebviewRuntimeStateParams = {
+  extensionContext: vscode.ExtensionContext;
   extensionUri: vscode.Uri;
   tasks: ScheduledTask[];
   jobs: JobDefinition[];
@@ -86,6 +88,7 @@ export function createSchedulerWebviewCatalogState(): SchedulerWebviewCatalogSta
 
 export function createSchedulerWebviewRuntimeState(): SchedulerWebviewRuntimeState {
   return {
+    extensionContext: undefined,
     extensionUri: undefined,
     tasks: [],
     jobs: [],
@@ -110,6 +113,7 @@ export function assignSchedulerWebviewRuntimeState(
   state: SchedulerWebviewRuntimeState,
   params: AssignSchedulerWebviewRuntimeStateParams,
 ): void {
+  state.extensionContext = params.extensionContext;
   state.extensionUri = params.extensionUri;
   state.tasks = params.tasks;
   state.jobs = params.jobs;

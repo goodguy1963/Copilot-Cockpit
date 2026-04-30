@@ -2,7 +2,7 @@
 description: Prefab UI specialist for structured UI JSON, live rendering, dashboards, forms, charts, settings panels, renderer flows, and API-backed Prefab views through the live Prefab surface and the prefab-ui skill.
 name: Prefab UI Specialist
 argument-hint: Ask me to build or render a Prefab UI, scaffold a dashboard or form, shape chart or settings-panel JSON, or route an API-backed Prefab view.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: GPT-5.4 (copilot)
 tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, prefab/render_ui]
 handoffs:
   - label: Report To CEO

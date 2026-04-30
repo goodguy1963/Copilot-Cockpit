@@ -315,7 +315,101 @@ suite("CopilotExecutor Test Suite", () => {
       mutableCommands.executeCommand = originalExecuteCommand;
       mutableWindow.showWarningMessage = originalShowWarningMessage;
       (CopilotExecutor as any).recentPromptExecutionStarts = [];
-      CopilotExecutor.setApprovalBootstrapMode("off");
+      CopilotExecutor.setApprovalBootstrapMode("default");
+    }
+  });
+
+  test("fresh chat autopilot bootstrap drives the native chat approval surface before the real prompt", async () => {
+    const executor = new CopilotExecutor() as any;
+
+    const originalExecuteCommand = vscode.commands.executeCommand;
+    const originalShowWarningMessage = vscode.window.showWarningMessage;
+    const commandCalls: Array<{ id: string; args: unknown[] }> = [];
+    let warningShown = false;
+
+    executor.delay = async () => {};
+    (CopilotExecutor as any).recentPromptExecutionStarts = [];
+    CopilotExecutor.setApprovalBootstrapMode("autopilot");
+
+    try {
+      mutableCommands.executeCommand = (async (id: string, ...args: unknown[]) => {
+        commandCalls.push({ id, args });
+
+        if (
+          id === "workbench.action.chat.newChat"
+          || id === "workbench.panel.chat.view.copilot.focus"
+          || id === "workbench.action.chat.open"
+          || id === "workbench.action.chat.submit"
+          || id === "type"
+        ) {
+          return undefined;
+        }
+
+        throw new Error(`Unexpected command: ${id}`);
+      }) as typeof vscode.commands.executeCommand;
+
+      mutableWindow.showWarningMessage = (async () => {
+        warningShown = true;
+        return undefined;
+      }) as typeof vscode.window.showWarningMessage;
+
+      await executor.executePrompt("Ship it", {
+        agent: "agent",
+        model: "gpt-4o",
+        chatSession: "new",
+      });
+
+      assert.strictEqual(warningShown, false);
+      assert.deepStrictEqual(
+        commandCalls.map((call) => call.id),
+        [
+          "workbench.action.chat.newChat",
+          "workbench.panel.chat.view.copilot.focus",
+          "type",
+          "workbench.action.chat.submit",
+          "workbench.action.chat.open",
+          "workbench.action.chat.submit",
+        ],
+      );
+
+      assert.deepStrictEqual(commandCalls[2]?.args[0], { text: "/autopilot" });
+      assert.deepStrictEqual(commandCalls[4]?.args[0], {
+        query: "Ship it",
+        isPartialQuery: false,
+        mode: "agent",
+        modelSelector: { id: "gpt-4o" },
+      });
+    } finally {
+      mutableCommands.executeCommand = originalExecuteCommand;
+      mutableWindow.showWarningMessage = originalShowWarningMessage;
+      (CopilotExecutor as any).recentPromptExecutionStarts = [];
+      CopilotExecutor.setApprovalBootstrapMode("default");
+    }
+  });
+
+  test("explicit native default approval sync creates a fresh chat without sending a slash command", async () => {
+    const originalExecuteCommand = vscode.commands.executeCommand;
+    const commandCalls: Array<{ id: string; args: unknown[] }> = [];
+
+    try {
+      mutableCommands.executeCommand = (async (id: string, ...args: unknown[]) => {
+        commandCalls.push({ id, args });
+
+        if (id === "workbench.action.chat.newChat") {
+          return undefined;
+        }
+
+        throw new Error(`Unexpected command: ${id}`);
+      }) as typeof vscode.commands.executeCommand;
+
+      await CopilotExecutor.syncNativeApprovalMode("default");
+
+      assert.deepStrictEqual(
+        commandCalls.map((call) => call.id),
+        ["workbench.action.chat.newChat"],
+      );
+    } finally {
+      mutableCommands.executeCommand = originalExecuteCommand;
     }
   });
 

@@ -624,7 +624,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     defaultModelSelect,
     executionDefaultsSaveBtn,
     executionDefaultsNote,
-    openPermissionPickerBtn,
+    approvalModeSelect,
+    approvalModeNote,
     needsBotReviewCommentTemplateInput,
     needsBotReviewPromptTemplateInput,
     needsBotReviewAgentSelect,
@@ -649,6 +650,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsVersionValue,
     settingsMcpStatusValue,
     settingsMcpUpdatedValue,
+    settingsSkillsStatusValue,
     settingsSkillsUpdatedValue,
     settingsAgentsUpdatedValue,
     settingsLogLevelSelect,
@@ -661,7 +663,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsUpdateStatusRow,
     settingsUpdateStatusText,
     settingsCheckUpdatesBtn,
-    settingsDownloadLatestBtn,
+    settingsDownloadStableBtn,
+    settingsDownloadEdgeBtn,
     boardAddSectionBtn,
     boardSectionInlineForm,
     boardSectionNameInput,
@@ -1168,6 +1171,21 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         return strings.settingsStorageMcpStatusInvalid || "Invalid";
       default:
         return strings.settingsStorageMcpStatusWorkspaceRequired || "Open a workspace to inspect";
+    }
+  }
+
+  function getBundledSkillsStatusLabel(status) {
+    switch (status) {
+      case "up-to-date":
+        return strings.settingsStorageSkillsStatusUpToDate || "Up to date";
+      case "update-available":
+        return strings.settingsStorageSkillsStatusUpdateAvailable || "Update available";
+      case "customized":
+        return strings.settingsStorageSkillsStatusCustomized || "Customized";
+      case "missing":
+        return strings.settingsStorageSkillsStatusMissing || "Missing";
+      default:
+        return strings.settingsStorageSkillsStatusWorkspaceRequired || "Open a workspace to inspect";
     }
   }
 
@@ -1860,6 +1878,48 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
   }
 
+  function getApprovalModeLabel(approvalMode) {
+    switch (approvalMode) {
+      case "auto-approve":
+        return strings.approvalModeAutoApprove || "Bypass Approvals";
+      case "autopilot":
+        return strings.approvalModeAutopilot || "Autopilot";
+      case "yolo":
+        return strings.approvalModeYolo || "YOLO (Legacy)";
+      default:
+        return strings.approvalModeDefault || "Default Approvals";
+    }
+  }
+
+  function buildApprovalModeNoteText(approvalMode) {
+    return (strings.approvalModeActiveLabel || "Active mode:")
+      + " "
+      + getApprovalModeLabel(approvalMode);
+  }
+
+  function renderApprovalModeControls() {
+    var approvalModeSelectEl = approvalModeSelect || document.getElementById("settings-approval-mode-select");
+    var approvalModeNoteEl = approvalModeNote || document.getElementById("settings-approval-mode-note");
+    var nextApprovalMode = approvalModeSelectEl && selectHasOptionValue(approvalModeSelectEl, initialData.approvalMode)
+      ? initialData.approvalMode
+      : approvalModeSelectEl && approvalModeSelectEl.value
+        ? approvalModeSelectEl.value
+        : "default";
+
+    if (approvalModeSelectEl) {
+      if (!selectHasOptionValue(approvalModeSelectEl, nextApprovalMode)) {
+        nextApprovalMode = "default";
+      }
+      approvalModeSelectEl.value = nextApprovalMode;
+    }
+
+    initialData.approvalMode = nextApprovalMode;
+
+    if (approvalModeNoteEl) {
+      approvalModeNoteEl.textContent = buildApprovalModeNoteText(nextApprovalMode);
+    }
+  }
+
   function renderReviewDefaultsControls() {
     if (needsBotReviewCommentTemplateInput) {
       needsBotReviewCommentTemplateInput.value = reviewDefaults
@@ -1984,6 +2044,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (settingsMcpUpdatedValue) {
       settingsMcpUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastMcpSupportUpdateAt);
     }
+    if (settingsSkillsStatusValue) {
+      settingsSkillsStatusValue.textContent = getBundledSkillsStatusLabel(storageSettings.bundledSkillsStatus);
+    }
     if (settingsSkillsUpdatedValue) {
       settingsSkillsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledSkillsSyncAt);
     }
@@ -2019,41 +2082,65 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   }
 
   function renderVersionUpdateInfo(view) {
+    var selectedTrack = view && view.track === "edge" ? "edge" : "stable";
+    var selectedVersion = selectedTrack === "edge"
+      ? view && view.latestEdgeVersion
+      : view && view.latestStableVersion;
+    var selectedHasNewVersion = selectedTrack === "edge"
+      ? !!(view && view.edgeHasNewVersion)
+      : !!(view && view.stableHasNewVersion);
     if (!view) {
       if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = "-";
       if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = "-";
       if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = "-";
       if (refs.settingsUpdateStatusRow) refs.settingsUpdateStatusRow.style.display = "none";
-      if (refs.settingsDownloadLatestBtn) refs.settingsDownloadLatestBtn.style.display = "none";
+      if (refs.settingsDownloadStableBtn) refs.settingsDownloadStableBtn.style.display = "none";
+      if (refs.settingsDownloadEdgeBtn) refs.settingsDownloadEdgeBtn.style.display = "none";
       return;
     }
     if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = view.currentVersion || "-";
     if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = view.latestStableVersion || "-";
     if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";
-    if (refs.settingsUpdateStatusRow) {
-      if (view.hasNewVersion) {
-        refs.settingsUpdateStatusRow.style.display = "";
-        if (refs.settingsUpdateStatusText) {
-          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateAvailable
-            ? strings.settingsUpdateAvailable + " (" + view.latestStableVersion + ")"
-            : "Update available (" + view.latestStableVersion + ")";
-          refs.settingsUpdateStatusText.style.color = "#4caf50";
-        }
-        if (refs.settingsDownloadLatestBtn) {
-          refs.settingsDownloadLatestBtn.style.display = "";
-          bindClickAction(refs.settingsDownloadLatestBtn, function () {
-            if (view.downloadUrl) {
-              window.open(view.downloadUrl, "_blank");
-            }
+    if (refs.settingsDownloadStableBtn) {
+      refs.settingsDownloadStableBtn.style.display = view.stableDownloadUrl ? "" : "none";
+      refs.settingsDownloadStableBtn.onclick = view.stableDownloadUrl
+        ? function () {
+          vscode.postMessage({
+            type: "openReleasePage",
+            track: "stable",
+            url: view.stableDownloadUrl,
           });
         }
-      } else {
-        refs.settingsUpdateStatusRow.style.display = "";
-        if (refs.settingsUpdateStatusText) {
+        : null;
+    }
+    if (refs.settingsDownloadEdgeBtn) {
+      refs.settingsDownloadEdgeBtn.style.display = view.edgeDownloadUrl ? "" : "none";
+      refs.settingsDownloadEdgeBtn.onclick = view.edgeDownloadUrl
+        ? function () {
+          vscode.postMessage({
+            type: "openReleasePage",
+            track: "edge",
+            url: view.edgeDownloadUrl,
+          });
+        }
+        : null;
+    }
+    if (refs.settingsUpdateStatusRow) {
+      refs.settingsUpdateStatusRow.style.display = "";
+      if (refs.settingsUpdateStatusText) {
+        if (!selectedVersion) {
+          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateUnavailable
+            || "Unable to determine update status right now.";
+          refs.settingsUpdateStatusText.style.color = "";
+        } else if (selectedHasNewVersion) {
+          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateAvailable
+            ? strings.settingsUpdateAvailable + " (" + selectedVersion + ")"
+            : "Update available (" + selectedVersion + ")";
+          refs.settingsUpdateStatusText.style.color = "#4caf50";
+        } else {
           refs.settingsUpdateStatusText.textContent = strings.settingsUpToDate || "You are up to date!";
           refs.settingsUpdateStatusText.style.color = "";
         }
-        if (refs.settingsDownloadLatestBtn) refs.settingsDownloadLatestBtn.style.display = "none";
       }
     }
   }
@@ -2788,6 +2875,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   runStartupRenderStep("renderCockpitBoard", renderCockpitBoard);
   runStartupRenderStep("renderExecutionDefaultsControls", renderExecutionDefaultsControls);
   runStartupRenderStep("renderReviewDefaultsControls", renderReviewDefaultsControls);
+  runStartupRenderStep("renderApprovalModeControls", renderApprovalModeControls);
   runStartupRenderStep("renderStorageSettingsControls", renderStorageSettingsControls);
   runStartupRenderStep("renderLoggingControls", renderLoggingControls);
 
@@ -6241,8 +6329,11 @@ syncTodoLabelSuggestions();
       data: collectStorageSettingsFormData(),
     });
   });
-  bindClickAction(openPermissionPickerBtn, function () {
-    vscode.postMessage({ type: "openChatPermissionPicker" });
+  bindSelectChange(approvalModeSelect, function (control) {
+    var nextApprovalMode = control && control.value ? String(control.value) : "default";
+    initialData.approvalMode = nextApprovalMode;
+    renderApprovalModeControls();
+    vscode.postMessage({ type: "setApprovalMode", approvalMode: nextApprovalMode });
   });
   bindSelectChange(settingsLogLevelSelect, function (control) {
     currentLogLevel = control.value || "info";
@@ -8422,8 +8513,7 @@ syncTodoLabelSuggestions();
       return strings.skillMetadataEmptyState || "";
     }
 
-    var template = strings.skillMetadataSummaryTemplate
-      || "Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";
+    var template = strings.skillMetadataSummaryTemplate || "Type: {type}. Focus: {summary}. Tools: {tools}. Ready flags: {readyFlags}. Closeout flags: {closeoutFlags}. Approval: {approval}.";
     return template
       .replace("{type}", getSkillTypeLabel(skill))
       .replace("{summary}", skill.promptSummary || skill.reference || skill.name || (strings.skillMetadataNone || "none"))
@@ -9770,6 +9860,12 @@ syncTodoLabelSuggestions();
             }
           }
           renderTaskList(tasks);
+          break;
+        case "updateApprovalMode":
+          initialData.approvalMode = typeof message.approvalMode === "string"
+            ? message.approvalMode
+            : "default";
+          renderApprovalModeControls();
           break;
         case "updateReviewDefaults":
           reviewDefaults = message.reviewDefaults || {

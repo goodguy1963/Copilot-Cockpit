@@ -2,7 +2,7 @@
 description: Strategic orchestrator that keeps session to-dos, Todo Cockpit, and Task List routing aligned without conflating them.
 name: CEO
 argument-hint: Ask me to coordinate work, review a direction, route to specialists, or evolve the repo's agent system.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: GPT-5.4 (copilot)
 tools: [vscode/memory, execute/runNotebookCell, execute/executionSubagent, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, read/readFile, agent/runSubagent, search/codebase, search/listDirectory, search/textSearch, scheduler/cockpit_get_board, tavily/tavily_crawl, tavily/tavily_extract, tavily/tavily_map, tavily/tavily_research, tavily/tavily_search, prefab/render_ui, todo]
 handoffs:
   - label: Plan Work

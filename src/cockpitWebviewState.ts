@@ -117,6 +117,7 @@ export function createDefaultStorageSettings(): StorageSettingsView {
     mcpSetupStatus: "workspace-required",
     lastMcpSupportUpdateAt: "",
     lastBundledSkillsSyncAt: "",
+    bundledSkillsStatus: "workspace-required",
     lastBundledAgentsSyncAt: "",
   };
 }

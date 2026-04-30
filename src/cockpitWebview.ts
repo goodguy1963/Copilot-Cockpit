@@ -226,6 +226,8 @@ export class SchedulerWebview {
   private static set onTaskActionCallback(value: ((action: TaskAction) => void) | undefined) { this.writeRuntimeState("onTaskActionCallback", value); }
   private static get onTestPromptCallback(): ((prompt: string, agent?: string, model?: string) => void) | undefined { return this.readRuntimeState("onTestPromptCallback"); }
   private static set onTestPromptCallback(value: ((prompt: string, agent?: string, model?: string) => void) | undefined) { this.writeRuntimeState("onTestPromptCallback", value); }
+  private static get extensionContext(): vscode.ExtensionContext | undefined { return this.readRuntimeState("extensionContext") as vscode.ExtensionContext | undefined; }
+  private static set extensionContext(value: vscode.ExtensionContext | undefined) { this.writeRuntimeState("extensionContext", value); }
   private static get extensionUri(): vscode.Uri { return this.readRuntimeState("extensionUri") as vscode.Uri; }
   private static set extensionUri(value: vscode.Uri) { this.writeRuntimeState("extensionUri", value); }
   private static get currentTasks(): ScheduledTask[] { return this.readRuntimeState("tasks"); }
@@ -306,7 +308,7 @@ export class SchedulerWebview {
   }
 
   static async show( /* present-panel */
-    extensionUri: vscode.Uri, tasks: ScheduledTask[], jobs: JobDefinition[], jobFolders: JobFolder[],
+    extensionContext: vscode.ExtensionContext, extensionUri: vscode.Uri, tasks: ScheduledTask[], jobs: JobDefinition[], jobFolders: JobFolder[],
     cockpitBoard: CockpitBoard, githubIntegration: GitHubIntegrationView,
     telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView, reviewDefaults: ReviewDefaultsView,
@@ -315,6 +317,7 @@ export class SchedulerWebview {
     onTaskAction: (action: TaskAction) => void, onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
   ): Promise<void> {
     assignSchedulerWebviewRuntimeState(this.runtimeState, {
+      extensionContext,
       extensionUri,
       tasks,
       jobs,
@@ -711,6 +714,7 @@ export class SchedulerWebview {
       updateStorageSettings: (settings) => this.updateStorageSettings(settings),
       updateCockpitBoard: (board) => this.updateCockpitBoard(board as any),
       getCurrentStorageSettings: () => this.currentStorageSettings,
+      extensionContext: this.extensionContext,
     })) {
       return;
     }
