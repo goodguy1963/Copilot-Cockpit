@@ -17,6 +17,7 @@ import type {
   StorageSettingsView,
   TaskAction,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
 import {
   createDefaultExecutionDefaults,
@@ -45,6 +46,7 @@ export type SchedulerWebviewRuntimeState = {
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
   storageSettings: StorageSettingsView;
+  versionInfo: VersionUpdateView | null;
   researchProfiles: ResearchProfile[];
   activeResearchRun: ResearchRun | undefined;
   recentResearchRuns: ResearchRun[];
@@ -94,6 +96,7 @@ export function createSchedulerWebviewRuntimeState(): SchedulerWebviewRuntimeSta
     executionDefaults: createDefaultExecutionDefaults(),
     reviewDefaults: createDefaultReviewDefaults(),
     storageSettings: createDefaultStorageSettings(),
+    versionInfo: null,
     researchProfiles: [],
     activeResearchRun: undefined,
     recentResearchRuns: [],

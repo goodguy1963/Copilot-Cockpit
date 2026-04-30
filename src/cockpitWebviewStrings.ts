@@ -490,6 +490,7 @@ export function buildSchedulerWebviewStrings(
     approvalModeAutopilot: localize("Autopilot", "Autopilot", "Autopilot"),
     approvalModeYolo: localize("YOLO (Legacy)", "YOLO（レガシー）", "YOLO (Legacy)"),
     approvalModeSaved: localize("Approval mode updated.", "承認モードを更新しました。", "Genehmigungsmodus aktualisiert."),
+    approvalModeOpenNative: localize("Open Permission Picker", "許可ピッカーを開く", "Berechtigungsauswahl öffnen"),
     reviewDefaultsTitle: localize("Todo Workflow Prompts", "Todo ワークフロープロンプト", "Todo-Workflow-Prompts"),
     reviewDefaultsDescription: localize(
       "Configure the repo-local handoff text and prompt templates for needs-bot-review and ready Todo workflows. If the workflow suggests bundled agents, keep that sync as a separate manual Settings action so existing repo-local agent systems stay user-owned and untouched.",

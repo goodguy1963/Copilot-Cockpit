@@ -163,6 +163,8 @@ import {
   warnStaleRuntimeSqliteSuppressed as warnStaleRuntimeSqliteSuppressedWithUi,
 } from "./extensionUiFlows";
 import { shouldSuppressSqliteWorkForExtensionContext } from "./staleExtensionRuntime";
+import { fetchLatestReleaseInfo } from "./githubReleases";
+import type { VersionUpdateView } from "./types";
 import type {
   AddCockpitTodoCommentInput,
   ApprovalMode,
@@ -197,6 +199,7 @@ const EXTERNAL_AGENT_HEARTBEAT_INTERVAL_MS = 2000;
 const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
 const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
 const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
+const HAS_SHOWN_UPDATE_NOTIFICATION_KEY = "hasShownUpdateNotification";
 
 function getSearchProviderPromptLabel(searchProvider: SearchProvider): string {
   switch (searchProvider) {
@@ -520,6 +523,31 @@ async function maybeShowDisclaimerOnce(task: ScheduledTask): Promise<void> {
     task,
     cockpitManager: scheduler,
   });
+}
+
+async function checkForExtensionUpdateOnStartup(context: vscode.ExtensionContext): Promise<void> {
+  const hasShown = context.globalState.get<boolean>(HAS_SHOWN_UPDATE_NOTIFICATION_KEY, false);
+  if (hasShown) {
+    return;
+  }
+  const track = getCompatibleConfigurationValue<string>("updateTrack", "stable");
+  const latestStable = await fetchLatestReleaseInfo(context, "stable");
+  const currentVersion = context.extension.packageJSON?.version ?? "";
+  if (!latestStable || !currentVersion) {
+    return;
+  }
+  const latestVer = latestStable.version.replace(/^v/, "");
+  if (latestVer > currentVersion) {
+    const choice = await vscode.window.showInformationMessage(
+      `A new version ${latestVer} is available. You have ${currentVersion}.`,
+      "Download Update",
+      "Dismiss",
+    );
+    if (choice === "Download Update") {
+      void vscode.env.openExternal(vscode.Uri.parse(latestStable.htmlUrl));
+    }
+    await context.globalState.update(HAS_SHOWN_UPDATE_NOTIFICATION_KEY, true);
+  }
 }
 
 function logExtensionErrorWithSanitizedDetails(
@@ -2491,48 +2519,21 @@ async function runStartupSequence(
  */
 async function syncApprovalMode(): Promise<void> {
   const mode = normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default"));
-  const chatToolsConfig = vscode.workspace.getConfiguration("chat.tools");
-  const chatConfig = vscode.workspace.getConfiguration("chat");
 
-  const updateNativeApprovalSettings = async (
-    autoApprove: boolean,
-    autopilotEnabled: boolean,
-  ): Promise<void> => {
-    await chatToolsConfig.update("autoApprove", autoApprove, vscode.ConfigurationTarget.Global);
-    await chatConfig.update("autopilot.enabled", autopilotEnabled, vscode.ConfigurationTarget.Global);
-  };
-
+  // Only manage internal CopilotExecutor bootstrap state; do not write to
+  // chat.tools.autoApprove / chat.autopilot.enabled so we do not fight the
+  // native permission picker owned by VS Code.
   switch (mode) {
     case "auto-approve":
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      try {
-        await updateNativeApprovalSettings(true, false);
-      } catch (error) {
-        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
-        CopilotExecutor.setApprovalBootstrapMode("yolo");
-      }
-      return;
     case "autopilot":
       CopilotExecutor.setApprovalBootstrapMode("off");
-      try {
-        await updateNativeApprovalSettings(true, true);
-      } catch (error) {
-        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
-        CopilotExecutor.setApprovalBootstrapMode("yolo");
-      }
       return;
     case "yolo":
       CopilotExecutor.setApprovalBootstrapMode("yolo");
-      break;
+      return;
     default:
       CopilotExecutor.setApprovalBootstrapMode("off");
-      break;
-  }
-
-  try {
-    await updateNativeApprovalSettings(false, false);
-  } catch (error) {
-    logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
+      return;
   }
 }
 
@@ -2736,6 +2737,13 @@ export function activate(context: vscode.ExtensionContext): void {
       redactPathsForLog(
         toErrorMessage(error),
       ),
+    ),
+  );
+
+  void checkForExtensionUpdateOnStartup(context).catch((error) =>
+    logError(
+      "[CopilotScheduler] Extension update check failed:",
+      redactPathsForLog(toErrorMessage(error)),
     ),
   );
 

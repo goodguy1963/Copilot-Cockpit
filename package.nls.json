@@ -84,5 +84,10 @@
   "config.approvalMode.autopilot": "Full autonomy — tools and edits proceed without approval (Autopilot)",
   "config.approvalMode.yolo": "Bootstrap fresh chats into legacy YOLO mode before running the real prompt",
   "config.reportIssue": "🐛 Found a problem? [Open an issue on GitHub](https://github.com/nicobrinkkemper/copilot-cockpit/issues)",
+  "command.checkForUpdatesNow": "Check for Extension Updates",
+  "command.downloadLatestRelease": "Download Latest Release",
+  "config.updateTrack": "Release Update Channel",
+  "config.updateTrack.stable": "Stable releases only",
+  "config.updateTrack.edge": "Edge/preview releases",
   "view.tasks": "Cockpit Tasks"
 }

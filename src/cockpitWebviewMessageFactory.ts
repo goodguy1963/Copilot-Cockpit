@@ -10,6 +10,7 @@ import type {
   ScheduledTask,
   StorageSettingsView,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
 import type { SchedulerWebviewMessage } from "./cockpitWebviewSupport";
 
@@ -73,6 +74,15 @@ export function createUpdateStorageSettingsMessage(
   return {
     type: "updateStorageSettings",
     storageSettings,
+  };
+}
+
+export function createUpdateVersionInfoMessage(
+  versionUpdate: VersionUpdateView,
+): SchedulerWebviewMessage {
+  return {
+    type: "updateVersionInfo",
+    versionUpdate,
   };
 }
 

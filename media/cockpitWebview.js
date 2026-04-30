@@ -103,6 +103,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var initialData = bootstrapData.initialData;
   var strings = bootstrapData.strings;
   var currentLogLevel = bootstrapData.currentLogLevel;
+  var versionUpdateView = null;
   var currentLogDirectory = bootstrapData.currentLogDirectory;
   var storageStatusRefreshNoteTimer = null;
 
@@ -623,8 +624,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     defaultModelSelect,
     executionDefaultsSaveBtn,
     executionDefaultsNote,
-    approvalModeSelect,
-    approvalModeNote: approvalModeNoteEl,
+    openPermissionPickerBtn,
     needsBotReviewCommentTemplateInput,
     needsBotReviewPromptTemplateInput,
     needsBotReviewAgentSelect,
@@ -654,6 +654,14 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsLogLevelSelect,
     settingsLogDirectoryInput,
     settingsOpenLogFolderBtn,
+    settingsUpdateTrackSelect,
+    settingsCurrentVersionValue,
+    settingsLatestStableValue,
+    settingsLatestEdgeValue,
+    settingsUpdateStatusRow,
+    settingsUpdateStatusText,
+    settingsCheckUpdatesBtn,
+    settingsDownloadLatestBtn,
     boardAddSectionBtn,
     boardSectionInlineForm,
     boardSectionNameInput,
@@ -2007,6 +2015,46 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (settingsLogDirectoryInput) {
       settingsLogDirectoryInput.value = currentLogDirectory || "";
       settingsLogDirectoryInput.title = currentLogDirectory || "";
+    }
+  }
+
+  function renderVersionUpdateInfo(view) {
+    if (!view) {
+      if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = "-";
+      if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = "-";
+      if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = "-";
+      if (refs.settingsUpdateStatusRow) refs.settingsUpdateStatusRow.style.display = "none";
+      if (refs.settingsDownloadLatestBtn) refs.settingsDownloadLatestBtn.style.display = "none";
+      return;
+    }
+    if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = view.currentVersion || "-";
+    if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = view.latestStableVersion || "-";
+    if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";
+    if (refs.settingsUpdateStatusRow) {
+      if (view.hasNewVersion) {
+        refs.settingsUpdateStatusRow.style.display = "";
+        if (refs.settingsUpdateStatusText) {
+          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateAvailable
+            ? strings.settingsUpdateAvailable + " (" + view.latestStableVersion + ")"
+            : "Update available (" + view.latestStableVersion + ")";
+          refs.settingsUpdateStatusText.style.color = "#4caf50";
+        }
+        if (refs.settingsDownloadLatestBtn) {
+          refs.settingsDownloadLatestBtn.style.display = "";
+          bindClickAction(refs.settingsDownloadLatestBtn, function () {
+            if (view.downloadUrl) {
+              window.open(view.downloadUrl, "_blank");
+            }
+          });
+        }
+      } else {
+        refs.settingsUpdateStatusRow.style.display = "";
+        if (refs.settingsUpdateStatusText) {
+          refs.settingsUpdateStatusText.textContent = strings.settingsUpToDate || "You are up to date!";
+          refs.settingsUpdateStatusText.style.color = "";
+        }
+        if (refs.settingsDownloadLatestBtn) refs.settingsDownloadLatestBtn.style.display = "none";
+      }
     }
   }
 
@@ -6193,15 +6241,8 @@ syncTodoLabelSuggestions();
       data: collectStorageSettingsFormData(),
     });
   });
-  bindSelectChange(approvalModeSelect, function (control) {
-    vscode.postMessage({
-      type: "setApprovalMode",
-      approvalMode: control.value,
-    });
-    if (approvalModeNoteEl) {
-      approvalModeNoteEl.style.display = "";
-      setTimeout(function () { approvalModeNoteEl.style.display = "none"; }, 3000);
-    }
+  bindClickAction(openPermissionPickerBtn, function () {
+    vscode.postMessage({ type: "openChatPermissionPicker" });
   });
   bindSelectChange(settingsLogLevelSelect, function (control) {
     currentLogLevel = control.value || "info";
@@ -6214,6 +6255,12 @@ syncTodoLabelSuggestions();
   });
   bindClickAction(settingsOpenLogFolderBtn, function () {
     vscode.postMessage({ type: "openLogFolder" });
+  });
+  bindClickAction(settingsCheckUpdatesBtn, function () {
+    vscode.postMessage({ type: "checkForUpdates" });
+  });
+  bindSelectChange(settingsUpdateTrackSelect, function (control) {
+    vscode.postMessage({ type: "setUpdateTrack", track: control.value });
   });
 
   // Certain environments skip native select events; a delegated listener keeps state consistent.
@@ -9689,15 +9736,17 @@ syncTodoLabelSuggestions();
           debugTools.setLogLevel(currentLogLevel);
           renderLoggingControls();
           break;
+        case "updateVersionInfo":
+          versionUpdateView = message.versionUpdate || null;
+          renderVersionUpdateInfo(versionUpdateView);
+          if (versionUpdateView && refs.settingsUpdateTrackSelect) {
+            refs.settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";
+          }
+          break;
         case "updateStorageSettings":
           storageSettings = normalizeStorageSettings(message.storageSettings, storageSettings);
           renderStorageSettingsControls();
           showStorageStatusRefreshNote();
-          break;
-        case "updateApprovalMode":
-          if (approvalModeSelect && message.approvalMode) {
-            approvalModeSelect.value = message.approvalMode;
-          }
           break;
         case "updateExecutionDefaults":
           executionDefaults = message.executionDefaults || {

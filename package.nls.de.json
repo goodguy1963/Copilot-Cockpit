@@ -84,5 +84,10 @@
   "config.approvalMode.autopilot": "Volle Autonomie — Tools und Änderungen ohne Genehmigung (Autopilot)",
   "config.approvalMode.yolo": "Startet neue Chats zuerst im Legacy-YOLO-Modus, bevor der eigentliche Prompt läuft",
   "config.reportIssue": "🐛 Einen Fehler gefunden? [Auf GitHub melden](https://github.com/aktsmm/vscode-copilot-scheduler/issues)",
+  "command.checkForUpdatesNow": "Nach Erweiterungsupdates suchen",
+  "command.downloadLatestRelease": "Neueste Version herunterladen",
+  "config.updateTrack": "Release-Update-Kanal",
+  "config.updateTrack.stable": "Nur Stable-Versionen",
+  "config.updateTrack.edge": "Edge-/Vorschauversionen",
   "view.tasks": "Geplante Aufgaben"
 }

@@ -12,6 +12,7 @@ import {
   createUpdateStorageSettingsMessage,
   createUpdateTasksMessage,
   createUpdateTelegramNotificationMessage,
+  createUpdateVersionInfoMessage,
 } from "./cockpitWebviewMessageFactory";
 import { postSchedulerCatalogMessages } from "./cockpitWebviewState";
 import type {
@@ -27,6 +28,7 @@ import type {
   ScheduledTask,
   StorageSettingsView,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
 import type {
   SchedulerWebviewCatalogState,
@@ -138,6 +140,15 @@ export function dispatchScheduleHistoryUpdate(
   postMessage(createUpdateScheduleHistoryMessage(entries));
 }
 
+export function dispatchVersionInfoUpdate(
+  state: SchedulerWebviewRuntimeState,
+  versionUpdate: VersionUpdateView,
+  postMessage: PostMessage,
+): void {
+  state.versionInfo = versionUpdate;
+  postMessage(createUpdateVersionInfoMessage(versionUpdate));
+}
+
 export function dispatchWebviewError(
   errorMessage: string,
   postMessage: PostMessage,
@@ -158,3 +169,4 @@ export function dispatchCachedCatalogMessages(
     skillReferences: catalogState.skillReferences,
   });
 }
+

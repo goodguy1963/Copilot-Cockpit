@@ -505,15 +505,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <p class="note">${escapeHtml(strings.approvalModeDescription)}</p>
         </div>
         <div class="form-group" style="margin-top:8px;">
-          <label for="settings-approval-mode-select">${escapeHtml(strings.approvalModeTitle)}</label>
-          <select id="settings-approval-mode-select">
-            <option value="default" ${configuredApprovalMode === "default" ? "selected" : ""}>${escapeHtml(strings.approvalModeDefault)}</option>
-            <option value="auto-approve" ${configuredApprovalMode === "auto-approve" ? "selected" : ""}>${escapeHtml(strings.approvalModeAutoApprove)}</option>
-            <option value="autopilot" ${configuredApprovalMode === "autopilot" ? "selected" : ""}>${escapeHtml(strings.approvalModeAutopilot)}</option>
-            <option value="yolo" ${configuredApprovalMode === "yolo" ? "selected" : ""}>${escapeHtml(strings.approvalModeYolo)}</option>
-          </select>
+          <button type="button" class="btn-primary" id="open-permission-picker-btn">${escapeHtml(strings.approvalModeOpenNative)}</button>
         </div>
-        <p class="note" id="settings-approval-mode-note" style="display:none;">${escapeHtml(strings.approvalModeSaved)}</p>
       </section>
       <section class="telegram-card settings-card settings-card-support settings-card-span-full">
         <div class="settings-card-header">
@@ -699,6 +692,40 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
         <div class="button-group">
           <button type="button" class="btn-secondary" id="settings-open-log-folder-btn">${escapeHtml(strings.settingsLoggingOpenFolder)}</button>
+        </div>
+      </section>
+      <section class="telegram-card settings-card settings-card-updates">
+        <div class="settings-card-header">
+          <div class="section-title">🚀 ${escapeHtml(strings.settingsUpdatesTitle)}</div>
+          <p class="note">${escapeHtml(strings.settingsUpdatesBody)}</p>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label for="settings-update-track-select">${escapeHtml(strings.settingsUpdateTrackLabel)}</label>
+          <select id="settings-update-track-select">
+            <option value="stable">${escapeHtml(strings.settingsUpdateTrackStable)}</option>
+            <option value="edge">${escapeHtml(strings.settingsUpdateTrackEdge)}</option>
+          </select>
+        </div>
+        <div class="settings-update-info" style="margin-top:8px;">
+          <div class="form-group">
+            <span class="note">${escapeHtml(strings.settingsCurrentVersion)}: </span>
+            <strong id="settings-current-version-value">-</strong>
+          </div>
+          <div class="form-group">
+            <span class="note">${escapeHtml(strings.settingsLatestStable)}: </span>
+            <strong id="settings-latest-stable-value">-</strong>
+          </div>
+          <div class="form-group">
+            <span class="note">${escapeHtml(strings.settingsLatestEdge)}: </span>
+            <strong id="settings-latest-edge-value">-</strong>
+          </div>
+          <div class="form-group" id="settings-update-status-row" style="display:none;">
+            <span id="settings-update-status-text"></span>
+          </div>
+        </div>
+        <div class="button-group" style="margin-top:8px;">
+          <button type="button" class="btn-primary" id="settings-check-updates-btn">${escapeHtml(strings.settingsCheckUpdates)}</button>
+          <button type="button" class="btn-secondary" id="settings-download-latest-btn" style="display:none;">${escapeHtml(strings.settingsDownloadLatest)}</button>
         </div>
       </section>
       <section class="telegram-card settings-card settings-card-github" style="grid-column:span 2;">

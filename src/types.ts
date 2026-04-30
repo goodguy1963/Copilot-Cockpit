@@ -5,6 +5,16 @@ export type TaskScope =
 
 export type PromptSource = "inline" | "local" | "global";
 
+export interface VersionUpdateView {
+  currentVersion: string;
+  latestStableVersion: string;
+  latestEdgeVersion: string;
+  lastCheckedAt: string;
+  track: "stable" | "edge";
+  downloadUrl: string;
+  hasNewVersion: boolean;
+}
+
 export type LogLevel = "none" | "error" | "info" | "debug";
 
 export type CockpitDeterministicStateMode =
@@ -1998,7 +2008,10 @@ type NotificationAndSettingsMessage =
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
   | { type: "setStorageSettings"; data: StorageSettingsView }
-  | { type: "setApprovalMode"; approvalMode: ApprovalMode };
+  | { type: "setApprovalMode"; approvalMode: ApprovalMode }
+  | { type: "checkForUpdates" }
+  | { type: "setUpdateTrack"; track: string }
+  | { type: "openChatPermissionPicker" };
 
 type TodoBoardMessage =
   | { type: "createTodo"; data: CreateCockpitTodoInput }

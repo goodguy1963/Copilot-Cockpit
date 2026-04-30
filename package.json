@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.",
-  "version": "2.0.40",
+  "version": "2.0.43",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -159,6 +159,18 @@
         "title": "%command.copyExternalAgentSetupInfo%",
         "category": "%extension.title%",
         "icon": "$(copy)"
+      },
+      {
+        "command": "copilotCockpit.checkForUpdatesNow",
+        "title": "%command.checkForUpdatesNow%",
+        "category": "%extension.title%",
+        "icon": "$(update)"
+      },
+      {
+        "command": "copilotCockpit.downloadLatestRelease",
+        "title": "%command.downloadLatestRelease%",
+        "category": "%extension.title%",
+        "icon": "$(download)"
       }
     ],
     "configuration": {
@@ -456,6 +468,20 @@
             "%config.approvalMode.yolo%"
           ],
           "description": "%config.approvalMode%"
+        },
+        "copilotCockpit.updateTrack": {
+          "type": "string",
+          "default": "stable",
+          "scope": "resource",
+          "enum": [
+            "stable",
+            "edge"
+          ],
+          "enumDescriptions": [
+            "Track stable releases only.",
+            "Track edge/preview releases."
+          ],
+          "description": "Which release track to track: stable releases or edge/preview releases."
         },
         "copilotCockpit.reportIssue": {
           "type": "null",

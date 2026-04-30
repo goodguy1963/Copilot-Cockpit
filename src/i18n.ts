@@ -594,6 +594,23 @@ export const messages = {
   cockpitHistorySnapshotNotFound: () =>
     t("The selected backup version was not found", "選択したバックアップが見つかりません"),
 
+  // ==================== Updates ====================
+  ...buildStaticMessageMap({
+    settingsUpdatesTitle: ["Release Updates", "リリース更新", "Release-Updates"],
+    settingsUpdatesBody: ["Check for new releases on GitHub.", "GitHub で新しいリリースを確認します。", "Prüfen Sie neue Releases auf GitHub."],
+    settingsCheckUpdates: ["Check for Updates", "更新を確認", "Nach Updates suchen"],
+    settingsCheckingForUpdates: ["Checking for updates...", "更新を確認中...", "Suche nach Updates..."],
+    settingsLatestStable: ["Latest stable", "最新の安定版", "Neueste Stable"],
+    settingsLatestEdge: ["Latest edge", "最新のエッジ版", "Neueste Edge"],
+    settingsCurrentVersion: ["Current version", "現在のバージョン", "Aktuelle Version"],
+    settingsUpToDate: ["You are up to date!", "最新版です！", "Sie sind auf dem neuesten Stand!"],
+    settingsUpdateAvailable: ["Update available", "更新があります", "Update verfügbar"],
+    settingsDownloadLatest: ["Download Latest", "最新版をダウンロード", "Neueste herunterladen"],
+    settingsUpdateTrackLabel: ["Update track", "更新トラック", "Update-Track"],
+    settingsUpdateTrackStable: ["Stable", "安定版", "Stable"],
+    settingsUpdateTrackEdge: ["Edge", "エッジ版", "Edge"],
+  }),
+
   // ==================== Clipboard ====================
   ...buildStaticMessageMap({ promptCopied: schedulerUiMessageEntries.promptCopied }),
 

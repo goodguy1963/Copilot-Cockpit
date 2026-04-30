@@ -288,6 +288,37 @@ suite("Scheduler webview settings handler behavior", () => {
     }
   });
 
+  test("openChatPermissionPicker dispatches the native permission picker command", async () => {
+    const originalExecute = vscode.commands.executeCommand;
+    const executeCalls: unknown[][] = [];
+
+    try {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = (async (...args: unknown[]) => {
+        executeCalls.push(args);
+      }) as typeof vscode.commands.executeCommand;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "openChatPermissionPicker" },
+        {
+          postMessage: () => {},
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(executeCalls, [
+        ["workbench.action.chat.openPermissionPicker"],
+      ]);
+    } finally {
+      (vscode.commands as typeof vscode.commands & {
+        executeCommand: typeof vscode.commands.executeCommand;
+      }).executeCommand = originalExecute;
+    }
+  });
+
   test("planIntegration launches a safe planning prompt without backing up when skipped", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-plan-skip-"));
     const restoreWorkspace = setWorkspaceFoldersForTest(workspaceRoot);

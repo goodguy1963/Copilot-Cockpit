@@ -84,5 +84,10 @@
   "config.approvalMode.autopilot": "フル自律 — ツールと編集は承認なしで実行（Autopilot）",
   "config.approvalMode.yolo": "実際のプロンプトを送る前に、新しいチャットをレガシー YOLO モードで起動します",
   "config.reportIssue": "🐛 問題を発見しましたか？ [GitHub で Issue を作成](https://github.com/nicobrinkkemper/copilot-cockpit/issues)",
+  "command.checkForUpdatesNow": "拡張機能の更新を確認",
+  "command.downloadLatestRelease": "最新リリースをダウンロード",
+  "config.updateTrack": "リリース更新チャンネル",
+  "config.updateTrack.stable": "安定版のみ",
+  "config.updateTrack.edge": "エッジ/プレビュー版",
   "view.tasks": "Cockpit タスク"
 }

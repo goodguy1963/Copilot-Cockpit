@@ -5,10 +5,13 @@ import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
 import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "./privateConfigIgnore";
 import { resolveProviderSettings } from "./providerSettings";
-import type { ApprovalMode, StorageSettingsView, WebviewToExtensionMessage } from "./types";
+import { fetchLatestReleaseInfo } from "./githubReleases";
+import type { ApprovalMode, StorageSettingsView, VersionUpdateView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
-import { updateCompatibleConfigurationValue } from "./extensionCompat";
+import { getCompatibleConfigurationValue, updateCompatibleConfigurationValue } from "./extensionCompat";
+
+const UPDATE_TRACK_SETTING_KEY = "updateTrack";
 
 type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
@@ -29,6 +32,11 @@ export interface SettingsHandlerContext {
   updateStorageSettings?: (settings: StorageSettingsView) => void;
   updateCockpitBoard?: (board: unknown) => void;
   getCurrentStorageSettings?: () => StorageSettingsView;
+  extensionContext?: vscode.ExtensionContext;
+  schedulerWebview?: {
+    activePanel?: vscode.WebviewPanel;
+    extensionUri?: vscode.Uri;
+  };
 }
 
 export function getResourceScopedSettingsTarget(): vscode.ConfigurationTarget {
@@ -191,6 +199,10 @@ export async function handleSettingsWebviewMessage(
       );
       return true;
     }
+    case "openChatPermissionPicker": {
+      await vscode.commands.executeCommand("workbench.action.chat.openPermissionPicker");
+      return true;
+    }
     case "introTutorial": {
       await ctx.launchHelpChat(
         "Please use the copilot-scheduler-intro skill to give me a guided tour of how this plugin works.",
@@ -246,6 +258,40 @@ export async function handleSettingsWebviewMessage(
           : "No upfront .github backup was created. Planning can continue. Before any implementation changes, create or use a .github backup first when available.";
       await ctx.launchHelpChat(
         `Please use the copilot-scheduler-setup skill to evaluate this workspace and plan a structured scheduler integration. Start by summarizing the current repo-local agent-system surfaces, ask 2-3 concrete setup questions plus one Todo Cockpit approval/workflow question, and wait for my answer before proposing a final plan. Treat any existing repo-local agent systems as user-owned. Do not install or sync bundled agents until I explicitly approve it. If I later approve implementation, create or use a .github backup first when available and then carry out the agreed setup safely. Workspace root: ${root}. ${backupInstruction}`,
+      );
+      return true;
+    }
+    case "checkForUpdates": {
+      const extCtx = ctx.extensionContext;
+      if (!extCtx) {
+        return true;
+      }
+      const track = getCompatibleConfigurationValue<string>(UPDATE_TRACK_SETTING_KEY, "stable");
+      const [stable, edge] = await Promise.all([
+        fetchLatestReleaseInfo(extCtx, "stable"),
+        fetchLatestReleaseInfo(extCtx, "edge"),
+      ]);
+      const currentVersion = extCtx.extension.packageJSON?.version ?? "";
+      const versionUpdate: VersionUpdateView = {
+        currentVersion,
+        latestStableVersion: stable?.version.replace(/^v/, "") ?? "",
+        latestEdgeVersion: edge?.version.replace(/^v/, "") ?? "",
+        lastCheckedAt: new Date().toISOString(),
+        track: track as "stable" | "edge",
+        downloadUrl: stable?.htmlUrl ?? "",
+        hasNewVersion: stable ? stable.version.replace(/^v/, "") > currentVersion : false,
+      };
+      ctx.postMessage({ type: "updateVersionInfo", versionUpdate });
+      return true;
+    }
+    case "setUpdateTrack": {
+      const newTrack = typeof message.track === "string" ? message.track : "stable";
+      const validTracks = ["stable", "edge"];
+      const safeTrack = validTracks.includes(newTrack) ? newTrack : "stable";
+      await updateCompatibleConfigurationValue(
+        UPDATE_TRACK_SETTING_KEY,
+        safeTrack,
+        vscode.ConfigurationTarget.Global,
       );
       return true;
     }

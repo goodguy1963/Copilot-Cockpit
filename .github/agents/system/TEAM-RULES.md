@@ -31,7 +31,7 @@ These starter agents follow the same operating rules across repositories.
 
 - Start from the nearest controlling code path, workflow, or durable state boundary.
 - Prefer one falsifiable local hypothesis and one cheap discriminating check before widening scope.
-- After code changes, run the narrowest meaningful validation step first, then widen only when that passes.
+- After code changes, run the narrowest meaningful validation step first — actually execute the relevant test/typecheck command and report concrete pass/fail results. Do not substitute a suggested command or a static logic review for executable validation.
 - Do not close work while the touched slice still has unresolved build, type, lint, or behavior failures.
 
 ## Handoff Standard
