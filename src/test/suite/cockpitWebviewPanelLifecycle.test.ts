@@ -66,4 +66,22 @@ suite("cockpitWebviewPanelLifecycle", () => {
 
     assert.strictEqual(result.success, true);
   });
+
+  test("parser accepts update settings actions routed through the settings handler", () => {
+    const payloads = [
+      { type: "checkForUpdates" },
+      {
+        type: "openReleasePage",
+        track: "stable",
+        url: "https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/v2.0.60",
+      },
+      { type: "setUpdateTrack", track: "edge" },
+      { type: "openWorkspaceMcpConfig" },
+    ] satisfies WebviewToExtensionMessage[];
+
+    for (const payload of payloads) {
+      const result = parseIncomingWebviewMessage(payload);
+      assert.strictEqual(result.success, true, JSON.stringify(result));
+    }
+  });
 });

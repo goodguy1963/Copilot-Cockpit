@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.",
-  "version": "2.0.57",
+  "version": "2.0.75",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -280,25 +280,29 @@
           "type": "string",
           "default": "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.",
           "scope": "resource",
-          "description": "%config.needsBotReviewCommentTemplate%"
+          "description": "%config.needsBotReviewCommentTemplate%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.needsBotReviewPromptTemplate": {
           "type": "string",
           "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.\nReturn a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:\nReview Summary:\n- 1-2 bullets on the request and current repo state\nRisks / Gaps:\n- bullets for missing context, risks, or unclear assumptions\nRecommendation:\n- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead\nUse real line breaks. Do not emit JSON or escaped newline sequences such as \\n.\nWhen the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
           "scope": "resource",
-          "description": "%config.needsBotReviewPromptTemplate%"
+          "description": "%config.needsBotReviewPromptTemplate%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.needsBotReviewAgent": {
           "type": "string",
           "default": "agent",
           "scope": "resource",
-          "description": "%config.needsBotReviewAgent%"
+          "description": "%config.needsBotReviewAgent%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.needsBotReviewModel": {
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "%config.needsBotReviewModel%"
+          "description": "%config.needsBotReviewModel%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.needsBotReviewChatSession": {
           "type": "string",
@@ -312,13 +316,15 @@
             "%config.chatSession.new%",
             "%config.chatSession.continue%"
           ],
-          "description": "%config.needsBotReviewChatSession%"
+          "description": "%config.needsBotReviewChatSession%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.readyPromptTemplate": {
           "type": "string",
           "default": "You are handling a Todo that is now ready for implementation.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nAnalyze this Todo using the Todo Cockpit skill and implement what the user decided in the last comment or the latest bot recommendation.\nIf there is no recent user comment, proceed with the bot's recommendation.\nAdd one compact Todo comment covering implementation changes, validation, and any remaining follow-up before or as you update the Todo to the correct workflow state.\nCheck the cockpit-todo-agent and cockpit-scheduler-router skills to determine the correct post-implementation state, and tell the user whether that guidance was found.\nIf the expected post-implementation state is not documented in the skills, add it there so the next editable default flag in settings has clear guidance.",
           "scope": "resource",
-          "description": "%config.readyPromptTemplate%"
+          "description": "%config.readyPromptTemplate%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.defaultScope": {
           "type": "string",
@@ -407,7 +413,8 @@
             "%config.searchProvider.builtIn%",
             "%config.searchProvider.tavily%"
           ],
-          "description": "%config.searchProvider%"
+          "description": "%config.searchProvider%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.researchProvider": {
           "type": "string",
@@ -425,7 +432,8 @@
             "%config.researchProvider.tavily%",
             "%config.researchProvider.googleGrounded%"
           ],
-          "description": "%config.researchProvider%"
+          "description": "%config.researchProvider%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.deterministicCockpitStateMode": {
           "type": "string",
@@ -478,10 +486,11 @@
             "edge"
           ],
           "enumDescriptions": [
-            "Track stable releases only.",
-            "Track edge/preview releases."
+            "%config.updateTrack.stable%",
+            "%config.updateTrack.edge%"
           ],
-          "description": "Which release track to track: stable releases or edge/preview releases."
+          "description": "%config.updateTrack%",
+          "deprecationMessage": "%config.compatibilitySettingsDeprecation%"
         },
         "copilotCockpit.reportIssue": {
           "type": "null",

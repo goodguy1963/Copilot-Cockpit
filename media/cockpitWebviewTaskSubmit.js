@@ -108,6 +108,7 @@ export function buildTaskSubmissionData(options) {
     labels: parsedLabels,
     agent: editorState.agent || "",
     model: editorState.model || "",
+    approvalMode: editorState.approvalMode || "",
     scope: editorState.scope || "workspace",
     promptSource: editorState.promptSource || "inline",
     promptPath: editorState.promptPath || "",

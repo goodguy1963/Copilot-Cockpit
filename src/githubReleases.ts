@@ -13,6 +13,8 @@ export interface GitHubReleaseInfo {
   isDraft: boolean;
   isPrerelease: boolean;
   publishedAt: string;
+  updatedAt: string;
+  displayDate: string;
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {
@@ -110,6 +112,33 @@ interface GitHubRelease {
   draft: boolean;
   prerelease: boolean;
   published_at: string;
+  updated_at?: string;
+}
+
+function toReleaseInfo(
+  release: GitHubRelease | undefined,
+  track: "stable" | "edge",
+): GitHubReleaseInfo | null {
+  if (!release) {
+    return null;
+  }
+
+  const publishedAt = normalizeOptionalString(release.published_at) ?? "";
+  const updatedAt = normalizeOptionalString(release.updated_at) ?? "";
+  const displayDate = track === "edge"
+    ? updatedAt || publishedAt
+    : publishedAt || updatedAt;
+
+  return {
+    tagName: normalizeOptionalString(release.tag_name) ?? "",
+    version: normalizeOptionalString(release.tag_name)?.replace(/^v/u, "") ?? "",
+    htmlUrl: normalizeOptionalString(release.html_url) ?? "",
+    isDraft: Boolean(release.draft),
+    isPrerelease: Boolean(release.prerelease),
+    publishedAt,
+    updatedAt,
+    displayDate,
+  };
 }
 
 type FetchLatestReleaseInfoDeps = {
@@ -141,46 +170,27 @@ export async function fetchLatestReleaseInfo(
         `https://api.github.com/repos/${owner}/${repoName}/releases/latest`,
       );
       const release = await requestJsonImpl<GitHubRelease>(url, token);
-      return {
-        tagName: normalizeOptionalString(release.tag_name) ?? "",
-        version: normalizeOptionalString(release.tag_name)?.replace(/^v/u, "") ?? "",
-        htmlUrl: normalizeOptionalString(release.html_url) ?? "",
-        isDraft: Boolean(release.draft),
-        isPrerelease: Boolean(release.prerelease),
-        publishedAt: normalizeOptionalString(release.published_at) ?? "",
-      };
+      return toReleaseInfo(release, "stable");
     }
 
-    // Edge: fetch last 30 releases and find first prerelease
+    try {
+      const edgeUrl = new URL(
+        `https://api.github.com/repos/${owner}/${repoName}/releases/tags/edge`,
+      );
+      const edgeRelease = await requestJsonImpl<GitHubRelease>(edgeUrl, token);
+      const edgeReleaseInfo = toReleaseInfo(edgeRelease, "edge");
+      if (edgeReleaseInfo) {
+        return edgeReleaseInfo;
+      }
+    } catch {
+      // Fallback below retains compatibility if the dedicated rolling edge release is absent.
+    }
+
     const url = new URL(
       `https://api.github.com/repos/${owner}/${repoName}/releases?per_page=30`,
     );
     const releases = await requestJsonImpl<GitHubRelease[]>(url, token);
-    const firstPrerelease = releases.find((r) => r.prerelease);
-    if (!firstPrerelease) {
-      // No prerelease found, return latest stable as fallback
-      const latest = releases[0];
-      if (!latest) {
-        return null;
-      }
-      return {
-        tagName: normalizeOptionalString(latest.tag_name) ?? "",
-        version: normalizeOptionalString(latest.tag_name)?.replace(/^v/u, "") ?? "",
-        htmlUrl: normalizeOptionalString(latest.html_url) ?? "",
-        isDraft: Boolean(latest.draft),
-        isPrerelease: Boolean(latest.prerelease),
-        publishedAt: normalizeOptionalString(latest.published_at) ?? "",
-      };
-    }
-    return {
-      tagName: normalizeOptionalString(firstPrerelease.tag_name) ?? "",
-      version:
-        normalizeOptionalString(firstPrerelease.tag_name)?.replace(/^v/u, "") ?? "",
-      htmlUrl: normalizeOptionalString(firstPrerelease.html_url) ?? "",
-      isDraft: Boolean(firstPrerelease.draft),
-      isPrerelease: Boolean(firstPrerelease.prerelease),
-      publishedAt: normalizeOptionalString(firstPrerelease.published_at) ?? "",
-    };
+    return toReleaseInfo(releases.find((r) => r.prerelease) ?? releases[0], "edge");
   } catch (error) {
     logError("[GitHubReleases] Failed to fetch release info:", error);
     return null;

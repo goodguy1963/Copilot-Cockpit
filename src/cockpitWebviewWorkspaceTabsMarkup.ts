@@ -41,6 +41,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
   allPresets: Array<{ expression: string; name: string }>;
   configuredLanguage: string;
   configuredApprovalMode: string;
+  configuredUpdateTrack: "stable" | "edge";
   helpIntroTitleText: string;
 }): string {
   const {
@@ -48,6 +49,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
     allPresets,
     configuredLanguage,
     configuredApprovalMode,
+    configuredUpdateTrack,
     helpIntroTitleText,
   } = options;
   const jobsCronPresetOptions = allPresets
@@ -543,6 +545,10 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <select id="settings-approval-mode-select">${approvalModeOptions}</select>
         </div>
         <p class="note" id="settings-approval-mode-note">${escapeHtml(buildApprovalModeNoteText(strings, configuredApprovalMode))}</p>
+        <div class="button-group" style="margin-top:10px;">
+          <button type="button" class="btn-secondary" id="open-permission-picker-btn">${escapeHtml(strings.approvalModeOpenNative)}</button>
+        </div>
+        <p class="note">${escapeHtml(strings.approvalModeNativeNote)}</p>
       </section>
       <section class="telegram-card settings-card settings-card-support settings-card-span-full">
         <div class="settings-card-header">
@@ -586,38 +592,45 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
 
         <div class="settings-review-grid">
-          <div class="form-group settings-review-field settings-review-field-comment">
-            <label for="needs-bot-review-comment-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
-            <textarea class="settings-prompt-textarea is-comment" id="needs-bot-review-comment-template-input" rows="7" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+          <div class="settings-review-field-wide" style="display:grid;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--vscode-panel-border) 86%,transparent);border-radius:12px;background:color-mix(in srgb,var(--vscode-editorWidget-background) 80%,transparent);">
+            <div class="settings-card-header" style="margin-bottom:0;">
+              <div class="section-title">${escapeHtml(strings.reviewDefaultsNeedsBotReviewClusterTitle)}</div>
+              <p class="note">${escapeHtml(strings.reviewDefaultsNeedsBotReviewClusterBody)}</p>
+            </div>
+            <div class="settings-review-grid">
+              <div class="form-group settings-review-field settings-review-field-comment">
+                <label for="needs-bot-review-comment-template-input">${escapeHtml(strings.reviewDefaultsSpotReviewLabel)}</label>
+                <textarea class="settings-prompt-textarea is-comment" id="needs-bot-review-comment-template-input" rows="7" placeholder="${escapeHtmlAttr(strings.reviewDefaultsSpotReviewPlaceholder)}"></textarea>
+              </div>
+
+              <div class="form-group settings-review-field settings-review-field-bot-prompt">
+                <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+                <textarea class="settings-prompt-textarea is-workflow" id="needs-bot-review-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
+              </div>
+
+              <div class="settings-review-controls settings-review-field-wide" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+                <div class="form-group">
+                  <label for="needs-bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
+                  <select id="needs-bot-review-agent-select"></select>
+                </div>
+
+                <div class="form-group">
+                  <label for="needs-bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
+                  <select id="needs-bot-review-model-select"></select>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="form-group settings-review-field settings-review-field-bot-prompt settings-review-field-wide">
-            <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
-            <textarea class="settings-prompt-textarea is-workflow" id="needs-bot-review-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
-          </div>
-
-          <div class="form-group settings-review-field settings-review-field-ready-prompt settings-review-field-wide">
-            <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
-            <textarea class="settings-prompt-textarea is-workflow" id="ready-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
-          </div>
-
-          <div class="settings-review-controls settings-review-field-wide">
-            <div class="form-group">
-              <label for="needs-bot-review-agent-select">${escapeHtml(strings.reviewDefaultsBotAgentLabel)}</label>
-              <select id="needs-bot-review-agent-select"></select>
+          <div class="settings-review-field-wide" style="display:grid;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--vscode-panel-border) 86%,transparent);border-radius:12px;background:color-mix(in srgb,var(--vscode-editorWidget-background) 74%,transparent);">
+            <div class="settings-card-header" style="margin-bottom:0;">
+              <div class="section-title">${escapeHtml(strings.reviewDefaultsReadyClusterTitle)}</div>
+              <p class="note">${escapeHtml(strings.reviewDefaultsReadyClusterBody)}</p>
             </div>
 
-            <div class="form-group">
-              <label for="needs-bot-review-model-select">${escapeHtml(strings.reviewDefaultsBotModelLabel)}</label>
-              <select id="needs-bot-review-model-select"></select>
-            </div>
-
-            <div class="form-group">
-              <label for="needs-bot-review-chat-session-select">${escapeHtml(strings.reviewDefaultsBotChatSessionLabel)}</label>
-              <select id="needs-bot-review-chat-session-select">
-                <option value="new">${escapeHtml(strings.labelChatSessionNew)}</option>
-                <option value="continue">${escapeHtml(strings.labelChatSessionContinue)}</option>
-              </select>
+            <div class="form-group settings-review-field settings-review-field-ready-prompt settings-review-field-wide">
+              <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
+              <textarea class="settings-prompt-textarea is-workflow" id="ready-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
             </div>
           </div>
         </div>
@@ -659,6 +672,12 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </select>
           <p class="note">${escapeHtml(strings.settingsResearchProviderBody)}</p>
           <p class="note">${escapeHtml(strings.settingsResearchProviderHint)}</p>
+        </div>
+
+        <div class="note" id="settings-provider-precedence-note">${escapeHtml(strings.settingsProviderPrecedenceNote)}</div>
+        <div class="note" id="settings-provider-mcp-note">${escapeHtml(strings.settingsProviderMcpNotice)}</div>
+        <div class="button-group" style="justify-content:flex-start;margin-top:-2px;">
+          <button type="button" class="btn-secondary settings-action-button is-open" id="open-workspace-mcp-config-btn">${escapeHtml(strings.actionOpenWorkspaceMcpConfig)}</button>
         </div>
 
         <div class="form-group">
@@ -739,8 +758,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <div class="form-group" style="margin-top:8px;">
           <label for="settings-update-track-select">${escapeHtml(strings.settingsUpdateTrackLabel)}</label>
           <select id="settings-update-track-select">
-            <option value="stable">${escapeHtml(strings.settingsUpdateTrackStable)}</option>
-            <option value="edge">${escapeHtml(strings.settingsUpdateTrackEdge)}</option>
+            <option value="stable"${configuredUpdateTrack === "stable" ? " selected" : ""}>${escapeHtml(strings.settingsUpdateTrackStable)}</option>
+            <option value="edge"${configuredUpdateTrack === "edge" ? " selected" : ""}>${escapeHtml(strings.settingsUpdateTrackEdge)}</option>
           </select>
         </div>
         <div class="settings-update-info" style="margin-top:8px;">
@@ -751,10 +770,16 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="form-group">
             <span class="note">${escapeHtml(strings.settingsLatestStable)}: </span>
             <strong id="settings-latest-stable-value">-</strong>
+            <div class="note" style="margin-top:4px;">
+              ${escapeHtml(strings.settingsBuildDate)}: <span id="settings-latest-stable-published-at-value">-</span>
+            </div>
           </div>
           <div class="form-group">
             <span class="note">${escapeHtml(strings.settingsLatestEdge)}: </span>
             <strong id="settings-latest-edge-value">-</strong>
+            <div class="note" style="margin-top:4px;">
+              ${escapeHtml(strings.settingsBuildDate)}: <span id="settings-latest-edge-published-at-value">-</span>
+            </div>
           </div>
           <div class="form-group" id="settings-update-status-row" style="display:none;">
             <span id="settings-update-status-text"></span>

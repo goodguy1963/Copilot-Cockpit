@@ -672,6 +672,7 @@ const TASK_FIELD_KEYS = [
     "description",
     "agent",
     "model",
+    "approvalMode",
     "manualSession",
     "chatSession",
     "promptSource",

@@ -40,10 +40,14 @@ export function resolveProviderSettings(options: {
   researchProvider?: unknown;
   hasExplicitResearchProvider?: boolean;
 }): ResolvedProviderSettings {
+  const researchProvider = options.hasExplicitResearchProvider
+    ? normalizeResearchProvider(options.researchProvider)
+    : resolveLegacyResearchProvider(options.searchProvider);
+
   return {
-    searchProvider: normalizeSearchProvider(options.searchProvider),
-    researchProvider: options.hasExplicitResearchProvider
-      ? normalizeResearchProvider(options.researchProvider)
-      : resolveLegacyResearchProvider(options.searchProvider),
+    searchProvider: researchProvider === "none"
+      ? normalizeSearchProvider(options.searchProvider)
+      : "built-in",
+    researchProvider,
   };
 }

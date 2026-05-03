@@ -5,46 +5,14 @@ import { notifyError } from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
 import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "./privateConfigIgnore";
 import { resolveProviderSettings } from "./providerSettings";
-import { fetchLatestReleaseInfo } from "./githubReleases";
 import type { ApprovalMode, StorageSettingsView, VersionUpdateView, WebviewToExtensionMessage } from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { getCompatibleConfigurationValue, updateCompatibleConfigurationValue } from "./extensionCompat";
+import { fetchVersionUpdateView } from "./versionUpdates";
+import { getWorkspaceMcpConfigPath } from "./mcpConfigManager";
 
 const UPDATE_TRACK_SETTING_KEY = "updateTrack";
-
-function parseVersionParts(version: string): number[] | undefined {
-  const normalizedVersion = String(version ?? "").trim().replace(/^v/, "").split("-")[0] ?? "";
-  if (!/^\d+(\.\d+)*$/.test(normalizedVersion)) {
-    return undefined;
-  }
-
-  return normalizedVersion.split(".").map((value) => Number.parseInt(value, 10));
-}
-
-function compareVersionParts(left: number[], right: number[]): number {
-  const maxLength = Math.max(left.length, right.length);
-
-  for (let index = 0; index < maxLength; index += 1) {
-    const leftValue = left[index] ?? 0;
-    const rightValue = right[index] ?? 0;
-    if (leftValue !== rightValue) {
-      return leftValue - rightValue;
-    }
-  }
-
-  return 0;
-}
-
-function isNewerVersion(candidateVersion: string, currentVersion: string): boolean {
-  const candidateParts = parseVersionParts(candidateVersion);
-  const currentParts = parseVersionParts(currentVersion);
-  if (!candidateParts || !currentParts) {
-    return false;
-  }
-
-  return compareVersionParts(candidateParts, currentParts) > 0;
-}
 
 type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
@@ -53,7 +21,25 @@ type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefine
 
 const cockpitExtensionId = "local-dev.copilot-cockpit";
 const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
-const copilotSettingsQuery = "@feature:chat";
+const chatFeatureSettingsQuery = "@feature:chat";
+const chatPermissionsSettingKey = "chat.permissions.default";
+
+type NativeChatPermissionsValue = "default" | "autoApprove" | "autopilot";
+
+function toNativeChatPermissionsValue(
+  approvalMode: ApprovalMode,
+): NativeChatPermissionsValue {
+  switch (approvalMode) {
+    case "auto-approve":
+    case "yolo":
+      return "autoApprove";
+    case "autopilot":
+      return "autopilot";
+    case "default":
+    default:
+      return "default";
+  }
+}
 
 /** Handles settings/help messages that are routed out of the main webview controller. */
 
@@ -61,7 +47,8 @@ export interface SettingsHandlerContext {
   postMessage: PostMessageFn;
   launchHelpChat: LaunchHelpChatFn;
   backupGithubFolder: BackupGithubFolderFn;
-  openExternalUrl?: (url: string) => Promise<boolean>;
+  openExternalUrl?: (url: string) => Thenable<boolean>;
+  openExternalUri?: (uri: vscode.Uri) => Thenable<boolean>;
   updateStorageSettings?: (settings: StorageSettingsView) => void;
   updateCockpitBoard?: (board: unknown) => void;
   getCurrentStorageSettings?: () => StorageSettingsView;
@@ -78,6 +65,61 @@ export function getResourceScopedSettingsTarget(): vscode.ConfigurationTarget {
     : vscode.ConfigurationTarget.Global;
 }
 
+function buildVsCodeSettingUri(
+  settingKey: string,
+  uriScheme = vscode.env.uriScheme,
+): vscode.Uri {
+  return vscode.Uri.parse(`${uriScheme}://settings/${settingKey}`);
+}
+
+const MINIMAL_WORKSPACE_MCP_CONFIG = [
+  "{",
+  '  "servers": {}',
+  "}",
+  "",
+].join("\n");
+
+async function ensureWorkspaceMcpConfigFile(workspaceRoot: string): Promise<string> {
+  const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+  const configDir = path.dirname(configPath);
+
+  if (!fs.existsSync(configDir)) {
+    await fs.promises.mkdir(configDir, { recursive: true });
+  }
+
+  if (!fs.existsSync(configPath)) {
+    await fs.promises.writeFile(configPath, MINIMAL_WORKSPACE_MCP_CONFIG, "utf8");
+  }
+
+  return configPath;
+}
+
+async function openWorkspaceMcpConfigFile(workspaceRoot: string): Promise<void> {
+  const configPath = await ensureWorkspaceMcpConfigFile(workspaceRoot);
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(configPath));
+  await vscode.window.showTextDocument(document);
+}
+
+async function openVsCodeSetting(
+  settingKey: string,
+  ctx: Pick<SettingsHandlerContext, "openExternalUri">,
+): Promise<void> {
+  try {
+    const openExternalUri = ctx.openExternalUri ?? ((uri: vscode.Uri) => vscode.env.openExternal(uri));
+    const opened = await openExternalUri(buildVsCodeSettingUri(settingKey));
+    if (opened) {
+      return;
+    }
+  } catch {
+    // Fall back to the command-based settings search below.
+  }
+
+  await vscode.commands.executeCommand(
+    "workbench.action.openSettings",
+    settingKey,
+  );
+}
+
 /**
  * Handle settings / help messages.
  * Returns `true` if the message was handled, `false` otherwise.
@@ -86,9 +128,10 @@ export async function handleSettingsWebviewMessage(
   message: WebviewToExtensionMessage,
   ctx: SettingsHandlerContext,
 ): Promise<boolean> {
+  const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
+
   switch (message.type) {
     case "setLanguage": {
-      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
       const target = getResourceScopedSettingsTarget();
       await updateCompatibleConfigurationValue(
         "language",
@@ -99,7 +142,6 @@ export async function handleSettingsWebviewMessage(
       return true;
     }
     case "setLogLevel": {
-      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
       const target = getResourceScopedSettingsTarget();
       await updateCompatibleConfigurationValue(
         "logLevel",
@@ -121,15 +163,20 @@ export async function handleSettingsWebviewMessage(
       const safeMode = validModes.includes(approvalMode as ApprovalMode)
         ? approvalMode as ApprovalMode
         : "default";
+      const nativeApprovalMode = toNativeChatPermissionsValue(safeMode);
       await updateCompatibleConfigurationValue(
         "approvalMode",
         safeMode,
         vscode.ConfigurationTarget.Global,
       );
+      await vscode.workspace.getConfiguration().update(
+        chatPermissionsSettingKey,
+        nativeApprovalMode,
+        vscode.ConfigurationTarget.Global,
+      );
       return true;
     }
     case "setStorageSettings": {
-      const scope = vscode.workspace.workspaceFolders?.[0]?.uri;
       const target = getResourceScopedSettingsTarget();
       const requested = message.data as Partial<StorageSettingsView> | undefined;
       const mode = requested?.mode === "json" ? "json" : "sqlite";
@@ -229,12 +276,27 @@ export async function handleSettingsWebviewMessage(
     case "openCopilotSettings": {
       await vscode.commands.executeCommand(
         "workbench.action.openSettings",
-        copilotSettingsQuery,
+        chatFeatureSettingsQuery,
       );
       return true;
     }
+    case "openWorkspaceMcpConfig": {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!workspaceRoot) {
+        vscode.window.showErrorMessage("Please open a workspace folder first.");
+        return true;
+      }
+
+      try {
+        await openWorkspaceMcpConfigFile(workspaceRoot);
+      } catch (error) {
+        logError("[SchedulerWebview] Failed to open workspace MCP config.", error);
+        notifyError("Failed to open workspace MCP config.");
+      }
+      return true;
+    }
     case "openChatPermissionPicker": {
-      await vscode.commands.executeCommand("workbench.action.chat.openPermissionPicker");
+      await openVsCodeSetting(chatPermissionsSettingKey, ctx);
       return true;
     }
     case "introTutorial": {
@@ -300,29 +362,15 @@ export async function handleSettingsWebviewMessage(
       if (!extCtx) {
         return true;
       }
-      const configuredTrack = getCompatibleConfigurationValue<string>(UPDATE_TRACK_SETTING_KEY, "stable");
-      const track = configuredTrack === "edge" ? "edge" : "stable";
-      const [stable, edge] = await Promise.all([
-        fetchLatestReleaseInfo(extCtx, "stable"),
-        fetchLatestReleaseInfo(extCtx, "edge"),
-      ]);
-      const currentVersion = extCtx.extension.packageJSON?.version ?? "";
-      const latestStableVersion = stable?.version?.replace(/^v/, "") ?? "";
-      const latestEdgeVersion = edge?.version?.replace(/^v/, "") ?? "";
-      const stableHasNewVersion = isNewerVersion(latestStableVersion, currentVersion);
-      const edgeHasNewVersion = isNewerVersion(latestEdgeVersion, currentVersion);
-      const versionUpdate: VersionUpdateView = {
-        currentVersion,
-        latestStableVersion,
-        latestEdgeVersion,
-        lastCheckedAt: new Date().toISOString(),
-        track,
-        stableDownloadUrl: stable?.htmlUrl ?? "",
-        edgeDownloadUrl: edge?.htmlUrl ?? "",
-        stableHasNewVersion,
-        edgeHasNewVersion,
-        hasNewVersion: track === "edge" ? edgeHasNewVersion : stableHasNewVersion,
-      };
+      const track = getCompatibleConfigurationValue<string>(
+        UPDATE_TRACK_SETTING_KEY,
+        "stable",
+        scope,
+      );
+      const versionUpdate: VersionUpdateView = await fetchVersionUpdateView(
+        extCtx,
+        track as "stable" | "edge",
+      );
       ctx.postMessage({ type: "updateVersionInfo", versionUpdate });
       return true;
     }
@@ -331,9 +379,11 @@ export async function handleSettingsWebviewMessage(
       if (!releaseUrl) {
         return true;
       }
-      const openExternalUrl = ctx.openExternalUrl
-        ?? ((url: string) => vscode.env.openExternal(vscode.Uri.parse(url)));
-      await openExternalUrl(releaseUrl);
+      if (ctx.openExternalUrl) {
+        await ctx.openExternalUrl(releaseUrl);
+      } else {
+        await vscode.env.openExternal(vscode.Uri.parse(releaseUrl));
+      }
       return true;
     }
     case "setUpdateTrack": {
@@ -343,7 +393,8 @@ export async function handleSettingsWebviewMessage(
       await updateCompatibleConfigurationValue(
         UPDATE_TRACK_SETTING_KEY,
         safeTrack,
-        vscode.ConfigurationTarget.Global,
+        getResourceScopedSettingsTarget(),
+        scope,
       );
       return true;
     }

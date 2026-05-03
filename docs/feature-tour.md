@@ -24,7 +24,9 @@ This page mixes one live demo reference with illustrative SVG mockups for the ta
 
 Current overview reference for `S1`:
 
-[![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197)
+
+Direct video link: [Watch the intro video](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197).
 
 This intro video remains the current broad product overview for the docs. The tab-specific visuals below are illustrative SVG mockups for documentation, not live screenshots.
 

@@ -1,5 +1,12 @@
 import { logDebug } from "./logger";
-import type { ChatSessionBehavior } from "./types";
+import type { ApprovalMode, ChatSessionBehavior } from "./types";
+
+const scheduledTaskApprovalModes: readonly ApprovalMode[] = [
+  "default",
+  "auto-approve",
+  "autopilot",
+  "yolo",
+];
 
 export function clampScheduleJitterSeconds(value: unknown): number {
   const parsedValue = typeof value === "number" ? value : Number(value);
@@ -61,6 +68,14 @@ export function normalizeScheduledTaskLabels(labels: unknown): string[] | undefi
 
   return normalizedValues.length > 0
     ? Array.from(new Set(normalizedValues))
+    : undefined;
+}
+
+export function normalizeScheduledTaskApprovalMode(
+  approvalMode: unknown,
+): ApprovalMode | undefined {
+  return scheduledTaskApprovalModes.includes(approvalMode as ApprovalMode)
+    ? approvalMode as ApprovalMode
     : undefined;
 }
 

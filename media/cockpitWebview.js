@@ -410,6 +410,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     oneTimeDelayPreviewText,
     agentSelect,
     modelSelect,
+    taskApprovalModeSelect,
     chatSessionGroup,
     chatSessionSelect,
     templateSelect,
@@ -625,6 +626,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     executionDefaultsSaveBtn,
     executionDefaultsNote,
     approvalModeSelect,
+    openPermissionPickerBtn,
     approvalModeNote,
     needsBotReviewCommentTemplateInput,
     needsBotReviewPromptTemplateInput,
@@ -659,7 +661,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsUpdateTrackSelect,
     settingsCurrentVersionValue,
     settingsLatestStableValue,
+    settingsLatestStablePublishedAtValue,
     settingsLatestEdgeValue,
+    settingsLatestEdgePublishedAtValue,
     settingsUpdateStatusRow,
     settingsUpdateStatusText,
     settingsCheckUpdatesBtn,
@@ -1157,6 +1161,30 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       return String(value);
     }
     return date.toLocaleString(locale);
+  }
+
+  function formatReleaseBuildDate(value) {
+    if (!value) {
+      return "-";
+    }
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleDateString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  function formatCurrentVersionLabel(view) {
+    var versionLabel = view && view.currentVersion ? view.currentVersion : "-";
+    if (!view || !view.currentVersionIsLocalAhead || !view.currentVersionLocalDate) {
+      return versionLabel;
+    }
+    return versionLabel + " [" + (strings.settingsLocalBuildLabel || "local") + " "
+      + formatReleaseBuildDate(view.currentVersionLocalDate) + "]";
   }
 
   function getMcpSetupStatusLabel(status) {
@@ -1768,7 +1796,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   }
 
   function collectReviewDefaultsFormData() {
-    return {
+    var reviewDefaultsData = {
       needsBotReviewCommentTemplate: needsBotReviewCommentTemplateInput
         ? String(needsBotReviewCommentTemplateInput.value || "")
         : "",
@@ -1781,14 +1809,18 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       needsBotReviewModel: needsBotReviewModelSelect
         ? String(needsBotReviewModelSelect.value || "")
         : "",
-      needsBotReviewChatSession: needsBotReviewChatSessionSelect
-        && needsBotReviewChatSessionSelect.value === "continue"
-        ? "continue"
-        : "new",
       readyPromptTemplate: readyPromptTemplateInput
         ? String(readyPromptTemplateInput.value || "")
         : "",
     };
+
+    if (needsBotReviewChatSessionSelect) {
+      reviewDefaultsData.needsBotReviewChatSession = needsBotReviewChatSessionSelect.value === "continue"
+        ? "continue"
+        : "new";
+    }
+
+    return reviewDefaultsData;
   }
 
   function collectStorageSettingsFormData() {
@@ -1892,7 +1924,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   }
 
   function buildApprovalModeNoteText(approvalMode) {
-    return (strings.approvalModeActiveLabel || "Active mode:")
+    return (strings.approvalModeActiveLabel || "Configured compatibility mode:")
       + " "
       + getApprovalModeLabel(approvalMode);
   }
@@ -2090,20 +2122,24 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       ? !!(view && view.edgeHasNewVersion)
       : !!(view && view.stableHasNewVersion);
     if (!view) {
-      if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = "-";
-      if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = "-";
-      if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = "-";
-      if (refs.settingsUpdateStatusRow) refs.settingsUpdateStatusRow.style.display = "none";
-      if (refs.settingsDownloadStableBtn) refs.settingsDownloadStableBtn.style.display = "none";
-      if (refs.settingsDownloadEdgeBtn) refs.settingsDownloadEdgeBtn.style.display = "none";
+      if (settingsCurrentVersionValue) settingsCurrentVersionValue.textContent = "-";
+      if (settingsLatestStableValue) settingsLatestStableValue.textContent = "-";
+      if (settingsLatestStablePublishedAtValue) settingsLatestStablePublishedAtValue.textContent = "-";
+      if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = "-";
+      if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = "-";
+      if (settingsUpdateStatusRow) settingsUpdateStatusRow.style.display = "none";
+      if (settingsDownloadStableBtn) settingsDownloadStableBtn.style.display = "none";
+      if (settingsDownloadEdgeBtn) settingsDownloadEdgeBtn.style.display = "none";
       return;
     }
-    if (refs.settingsCurrentVersionValue) refs.settingsCurrentVersionValue.textContent = view.currentVersion || "-";
-    if (refs.settingsLatestStableValue) refs.settingsLatestStableValue.textContent = view.latestStableVersion || "-";
-    if (refs.settingsLatestEdgeValue) refs.settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";
-    if (refs.settingsDownloadStableBtn) {
-      refs.settingsDownloadStableBtn.style.display = view.stableDownloadUrl ? "" : "none";
-      refs.settingsDownloadStableBtn.onclick = view.stableDownloadUrl
+    if (settingsCurrentVersionValue) settingsCurrentVersionValue.textContent = formatCurrentVersionLabel(view);
+    if (settingsLatestStableValue) settingsLatestStableValue.textContent = view.latestStableVersion || "-";
+    if (settingsLatestStablePublishedAtValue) settingsLatestStablePublishedAtValue.textContent = formatReleaseBuildDate(view.latestStableDisplayDate || view.latestStablePublishedAt);
+    if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";
+    if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = formatReleaseBuildDate(view.latestEdgeDisplayDate || view.latestEdgePublishedAt);
+    if (settingsDownloadStableBtn) {
+      settingsDownloadStableBtn.style.display = view.stableDownloadUrl ? "" : "none";
+      settingsDownloadStableBtn.onclick = view.stableDownloadUrl
         ? function () {
           vscode.postMessage({
             type: "openReleasePage",
@@ -2113,9 +2149,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         }
         : null;
     }
-    if (refs.settingsDownloadEdgeBtn) {
-      refs.settingsDownloadEdgeBtn.style.display = view.edgeDownloadUrl ? "" : "none";
-      refs.settingsDownloadEdgeBtn.onclick = view.edgeDownloadUrl
+    if (settingsDownloadEdgeBtn) {
+      settingsDownloadEdgeBtn.style.display = view.edgeDownloadUrl ? "" : "none";
+      settingsDownloadEdgeBtn.onclick = view.edgeDownloadUrl
         ? function () {
           vscode.postMessage({
             type: "openReleasePage",
@@ -2125,21 +2161,21 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         }
         : null;
     }
-    if (refs.settingsUpdateStatusRow) {
-      refs.settingsUpdateStatusRow.style.display = "";
-      if (refs.settingsUpdateStatusText) {
+    if (settingsUpdateStatusRow) {
+      settingsUpdateStatusRow.style.display = "";
+      if (settingsUpdateStatusText) {
         if (!selectedVersion) {
-          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateUnavailable
+          settingsUpdateStatusText.textContent = strings.settingsUpdateUnavailable
             || "Unable to determine update status right now.";
-          refs.settingsUpdateStatusText.style.color = "";
+          settingsUpdateStatusText.style.color = "";
         } else if (selectedHasNewVersion) {
-          refs.settingsUpdateStatusText.textContent = strings.settingsUpdateAvailable
+          settingsUpdateStatusText.textContent = strings.settingsUpdateAvailable
             ? strings.settingsUpdateAvailable + " (" + selectedVersion + ")"
             : "Update available (" + selectedVersion + ")";
-          refs.settingsUpdateStatusText.style.color = "#4caf50";
+          settingsUpdateStatusText.style.color = "#4caf50";
         } else {
-          refs.settingsUpdateStatusText.textContent = strings.settingsUpToDate || "You are up to date!";
-          refs.settingsUpdateStatusText.style.color = "";
+          settingsUpdateStatusText.textContent = strings.settingsUpToDate || "You are up to date!";
+          settingsUpdateStatusText.style.color = "";
         }
       }
     }
@@ -5658,6 +5694,7 @@ syncTodoLabelSuggestions();
     if (!modelValue && pendingModelValue) {
       modelValue = pendingModelValue;
     }
+    var approvalModeValue = taskApprovalModeSelect ? String(taskApprovalModeSelect.value || "") : "";
     var oneTime = !!(oneTimeEl && oneTimeEl.checked);
     var manualSession = !oneTime && !!(manualSessionEl && manualSessionEl.checked);
     return {
@@ -5668,6 +5705,7 @@ syncTodoLabelSuggestions();
       labels: normalizeTaskLabelsValue(taskLabelsInput ? taskLabelsInput.value : ""),
       agent: agentValue,
       model: modelValue,
+      approvalMode: approvalModeValue,
       scope: checkedInputs.scope ? String(checkedInputs.scope.value || "workspace") : "workspace",
       promptSource: promptSourceValue,
       promptPath: promptPathValue,
@@ -5690,6 +5728,7 @@ syncTodoLabelSuggestions();
       labels: normalizeTaskLabelsValue(toLabelString(task.labels)),
       agent: String(task.agent || ""),
       model: String(task.model || ""),
+      approvalMode: String(task.approvalMode || ""),
       scope: String(task.scope || "workspace"),
       promptSource: String(task.promptSource || "inline"),
       promptPath: String(task.promptPath || ""),
@@ -6335,6 +6374,9 @@ syncTodoLabelSuggestions();
     renderApprovalModeControls();
     vscode.postMessage({ type: "setApprovalMode", approvalMode: nextApprovalMode });
   });
+  bindClickAction(openPermissionPickerBtn, function () {
+    vscode.postMessage({ type: "openChatPermissionPicker" });
+  });
   bindSelectChange(settingsLogLevelSelect, function (control) {
     currentLogLevel = control.value || "info";
     debugTools.setLogLevel(currentLogLevel);
@@ -6738,6 +6780,7 @@ syncTodoLabelSuggestions();
     syncBundledAgents: syncBundledAgentsBtn,
     openCopilotSettings: openCopilotSettingsBtn,
     openExtensionSettings: openExtensionSettingsBtn,
+    openWorkspaceMcpConfig: openWorkspaceMcpConfigBtn,
     refreshStorageStatus: refreshStorageStatusBtn,
     importStorageFromJson: importStorageFromJsonBtn,
     exportStorageToJson: exportStorageToJsonBtn,
@@ -8145,6 +8188,7 @@ syncTodoLabelSuggestions();
     if (chatSessionSelect) chatSessionSelect.value = defaultChatSession;
     if (agentSelect) agentSelect.value = executionDefaults.agent || "";
     if (modelSelect) modelSelect.value = executionDefaults.model || "";
+    if (taskApprovalModeSelect) taskApprovalModeSelect.value = "";
     refreshTaskEditorDerivedState();
   }
 
@@ -8373,6 +8417,9 @@ syncTodoLabelSuggestions();
     pendingAgentValue = restoreTaskSelectValue(agentSelect, task.agent || "");
     pendingModelValue = restoreTaskSelectValue(modelSelect, task.model || "");
     editingTaskEnabled = task.enabled !== false;
+    if (taskApprovalModeSelect) {
+      taskApprovalModeSelect.value = task.approvalMode || "";
+    }
     setRadioValue("scope", task.scope || "workspace");
     setRadioValue("prompt-source", promptSourceValue);
 
@@ -9829,8 +9876,8 @@ syncTodoLabelSuggestions();
         case "updateVersionInfo":
           versionUpdateView = message.versionUpdate || null;
           renderVersionUpdateInfo(versionUpdateView);
-          if (versionUpdateView && refs.settingsUpdateTrackSelect) {
-            refs.settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";
+          if (versionUpdateView && settingsUpdateTrackSelect) {
+            settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";
           }
           break;
         case "updateStorageSettings":

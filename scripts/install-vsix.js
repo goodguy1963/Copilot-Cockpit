@@ -41,7 +41,7 @@ for (const executable of executables) {
   const result =
     process.platform === "win32"
       ? spawnSync(
-          `${executable} --install-extension "${vsixPath}" --force`,
+          `"${executable}" --install-extension "${vsixPath}" --force`,
           {
             stdio: "inherit",
             shell: true,

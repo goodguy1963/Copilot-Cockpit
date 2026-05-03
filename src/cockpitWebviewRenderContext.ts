@@ -56,6 +56,7 @@ export function createSchedulerWebviewRenderContext(options: {
   uiLanguage: string;
   configuredLanguage: string;
   configuredApprovalMode: string;
+  configuredUpdateTrack: "stable" | "edge";
   allPresets: ReturnType<typeof getCronPresets>;
   strings: ReturnType<typeof buildSchedulerWebviewStrings>;
   initialData: ReturnType<typeof buildSchedulerWebviewInitialData>;
@@ -73,6 +74,13 @@ export function createSchedulerWebviewRenderContext(options: {
     "approvalMode",
     "default",
   );
+  const configuredUpdateTrack = getCompatibleConfigurationValue<string>(
+    "updateTrack",
+    "stable",
+    vscode.workspace.workspaceFolders?.[0]?.uri,
+  ) === "edge"
+    ? "edge"
+    : "stable";
   const allPresets = getCronPresets();
   const defaultScope = getCompatibleConfigurationValue<TaskScope>(
     "defaultScope",
@@ -161,6 +169,7 @@ export function createSchedulerWebviewRenderContext(options: {
     initialData,
     initialAgents,
     initialModels,
+    configuredUpdateTrack,
     defaultScope,
     defaultJitterSeconds,
     helpIntroTitleText,

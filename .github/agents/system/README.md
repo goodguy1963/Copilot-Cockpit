@@ -39,7 +39,7 @@ Source-of-truth rules:
 Recommended pattern:
 
 1. Let `CEO` coordinate the request.
-2. Use `Planner` for architecture and sequencing.
+2. Use `Planner` for architecture, sequencing, and evidence-heavy external research (deep dives, competitive analysis, market research).
 3. Use `Remediation Implementer` for approved bounded code changes.
 4. Use `Documentation Specialist` when docs or knowledge need alignment.
 5. Use `Cockpit Todo Expert` for persistent board updates, Task List todo coordination, and approval routing.

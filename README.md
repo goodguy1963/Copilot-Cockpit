@@ -38,7 +38,9 @@ That structure keeps the LLM as the native execution chat surface while Copilot 
 
 ## 🎬 Demo
 
-[![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197)
+
+Direct video link: [Watch the intro video](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197).
 
 Use the feature tour below for the slower tab-by-tab explanation.
 
@@ -215,12 +217,12 @@ If you want the optional integration layers, the practical order is:
 1. Get the core `Todo` -> `Research` -> `Task` or `Job` loop working first.
 2. Use `Set Up MCP` to create or repair `.vscode/mcp.json` and activate the repo-local scheduler MCP server for this workspace.
 3. Add any separate third-party MCP servers you want, such as Tavily, Perplexity, or [Prefab by Max Health Inc.](https://github.com/Max-Health-Inc/prefab), to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
-4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI and wire-format work through the shipped contract instead of keeping it as a repo-only extra.
-5. Add the optional agent layer only if you want a specialist or orchestrator setup on top of the core workflow.
+4. Optionally, but recommended if you want the full repo-local Copilot guidance layer, use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills`. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI and wire-format work through the shipped contract instead of keeping it as a repo-only extra.
+5. Add the optional bundled-agent layer only if you want a specialist or orchestrator setup on top of the core workflow: use `Stage Bundled Agents` for a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, or `Sync Bundled Agents` for the live install path into `.github/agents`.
 
-`Sync Bundled Skills` is optional, but it is a good next step once the core loop is working because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
+`Sync Bundled Skills` remains optional, but it is the recommended next step once the core loop is working if you want the full shipped guidance layer, because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
 
-For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. When the Prefab by Max Health Inc. MCP server is part of your workspace setup, that shipped agent path also includes `Prefab UI Specialist` as the focused router for Prefab by Max Health Inc. UI, renderer, and API-backed view work. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
+For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. When the Prefab by Max Health Inc. MCP server is part of your workspace setup, that shipped agent path also includes `Prefab UI Specialist` as the focused router for Prefab by Max Health Inc. UI, renderer, and API-backed view work. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten rather than being force-synced.
 
 If you want the live bundled-agent workflow, enable custom subagents in GitHub Copilot settings with `chat.customAgentInSubagent.enabled` before relying on that layer.
 
@@ -289,7 +291,13 @@ npm run install:vsix:insiders
 npm run install:vsix:both
 ```
 
-After installation, the extension creates or repairs repo-local support files for the current workspace.
+After you install and open the extension in a workspace, start with the core workflow in the cockpit UI. If you want the full repo-local MCP, skills, and bundled-agent system, the recommended setup order is:
+
+1. Run `Set Up MCP` to create or repair `.vscode/mcp.json` for the workspace scheduler server.
+2. Optionally, but recommended when you want the full repo-local guidance layer, run `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills`.
+3. Choose the bundled-agent path that fits your repo: `Stage Bundled Agents` writes a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, while `Sync Bundled Agents` installs the live starter-pack files into `.github/agents`.
+
+Those setup steps are manual by design. Copilot Cockpit does not auto-sync or blindly overwrite an existing repo-local skills or agent system.
 
 ## 🗂️ Key Files
 

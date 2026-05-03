@@ -47,6 +47,18 @@ export function buildSchedulerTaskEditorMarkup(options: {
         .join("")
     }`
     : `<option value="">${escapeHtml(strings.placeholderNoModels)}</option>`;
+  const approvalModeOptions = [
+    { value: "", label: strings.taskApprovalModeInherit },
+    { value: "default", label: strings.approvalModeDefault },
+    { value: "auto-approve", label: strings.approvalModeAutoApprove },
+    { value: "autopilot", label: strings.approvalModeAutopilot },
+    { value: "yolo", label: strings.approvalModeYolo },
+  ]
+    .map(
+      (option) =>
+        `<option value="${escapeHtmlAttr(option.value)}">${escapeHtml(option.label)}</option>`,
+    )
+    .join("");
   const taskNameFieldMarkup = `<div class="form-group" style="margin:0;"><label for="task-name">${escapeHtml(strings.labelTaskName)}</label><input type="text" id="task-name" placeholder="${escapeHtmlAttr(strings.placeholderTaskName)}" required></div>`;
   const templateSelectMarkup = `<div class="form-group" id="template-select-group" style="display: none; margin:0;"><label for="template-select">${escapeHtml(strings.labelPrompt)}</label><div class="template-row"><select id="template-select"><option value="">${escapeHtml(strings.placeholderSelectTemplate)}</option></select><button type="button" class="btn-secondary" id="template-refresh-btn">${escapeHtml(strings.actionRefresh)}</button></div></div>`;
   const cronPresetOptions = allPresets
@@ -119,6 +131,14 @@ export function buildSchedulerTaskEditorMarkup(options: {
                 <select id="model-select">
                   ${modelOptions}
                 </select><p class="note">${escapeHtml(strings.labelModelNote)}</p></div></div>
+
+            <div class="form-group" style="margin:0;">
+              <label for="approval-mode-select">${escapeHtml(strings.approvalModeTitle)}</label>
+              <select id="approval-mode-select">
+                ${approvalModeOptions}
+              </select>
+              <p class="note">${escapeHtml(strings.taskApprovalModeNote)}</p>
+            </div>
           </section>
 
           <section class="task-editor-card is-wide">

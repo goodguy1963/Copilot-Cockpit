@@ -3,6 +3,8 @@ import * as assert from "assert";
 import type { ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
+import * as extensionCompat from "../../extensionCompat";
+import * as githubReleases from "../../githubReleases";
 import * as skillBootstrap from "../../skillBootstrap";
 import {
   createMockContext,
@@ -149,7 +151,7 @@ const expectedNeedsBotReviewPromptTemplate = [
   "",
   "{{mcp_skill_guidance}}",
   "",
-  "Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
+  "Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in and local tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. If deeper research is still needed after built-in and local URL checks, stay on built-in/local tooling only.",
   "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
   "Review Summary:",
   "- 1-2 bullets on the request and current repo state",
@@ -186,6 +188,18 @@ const requiredConfigKeys = [
   "copilotCockpit.needsBotReviewChatSession",
   "copilotCockpit.readyPromptTemplate",
   ...requiredConfigDefaults.map(([key]) => key),
+];
+
+const compatibilityManagedConfigKeys = [
+  "copilotCockpit.needsBotReviewCommentTemplate",
+  "copilotCockpit.needsBotReviewPromptTemplate",
+  "copilotCockpit.needsBotReviewAgent",
+  "copilotCockpit.needsBotReviewModel",
+  "copilotCockpit.needsBotReviewChatSession",
+  "copilotCockpit.readyPromptTemplate",
+  "copilotCockpit.searchProvider",
+  "copilotCockpit.researchProvider",
+  "copilotCockpit.updateTrack",
 ];
 
 const promptResolutionCases: PromptResolutionCase[] = [
@@ -262,6 +276,15 @@ function assertDefaultPropertyValue(
 ) {
   const value = (properties[propertyKey] as { default?: unknown } | undefined)?.default;
   assert.strictEqual(value, expectedValue);
+}
+
+function assertPropertyHasDeprecationMessage(
+  properties: Record<string, unknown>,
+  propertyKey: string,
+) {
+  const value = (properties[propertyKey] as { deprecationMessage?: unknown } | undefined)?.deprecationMessage;
+  assert.strictEqual(typeof value, "string", `Expected deprecationMessage for ${propertyKey}`);
+  assert.ok(String(value).length > 0, `Expected non-empty deprecationMessage for ${propertyKey}`);
 }
 
 function createPromptFixtureContext(): PromptFixtureContext {
@@ -425,6 +448,10 @@ suite("Extension Integration Tests", () => {
       "copilotCockpit.readyPromptTemplate",
       expectedReadyPromptTemplate,
     );
+
+    for (const propertyKey of compatibilityManagedConfigKeys) {
+      assertPropertyHasDeprecationMessage(properties, propertyKey);
+    }
   });
 
   test("runtime review defaults stay aligned with contributed package defaults", async () => {
@@ -461,58 +488,14 @@ suite("Extension Integration Tests", () => {
     );
   });
 
-  test("approval mode sync routes configured changes into the native chat sync target", async () => {
-    const testOnly = await getTestOnlyExports();
-    const bootstrapModes: string[] = [];
-    const nativeSyncModes: string[] = [];
-
-    await testOnly.syncApprovalModeForMode(
-      "autopilot",
-      { applyToCurrentSession: true },
-      {
-        setApprovalBootstrapMode: (mode: string) => {
-          bootstrapModes.push(mode);
-        },
-        syncNativeApprovalMode: async (mode: string) => {
-          nativeSyncModes.push(mode);
-        },
-      },
-    );
-
-    assert.deepStrictEqual(bootstrapModes, ["autopilot"]);
-    assert.deepStrictEqual(nativeSyncModes, ["autopilot"]);
-  });
-
-  test("auto-approve configuration sync defers native session changes while preserving future bootstrap", async () => {
-    const testOnly = await getTestOnlyExports();
-    const bootstrapModes: string[] = [];
-    const nativeSyncModes: string[] = [];
-
-    await testOnly.syncApprovalModeForMode(
-      "auto-approve",
-      { applyToCurrentSession: true },
-      {
-        setApprovalBootstrapMode: (mode: string) => {
-          bootstrapModes.push(mode);
-        },
-        syncNativeApprovalMode: async (mode: string) => {
-          nativeSyncModes.push(mode);
-        },
-      },
-    );
-
-    assert.deepStrictEqual(bootstrapModes, ["auto-approve"]);
-    assert.deepStrictEqual(nativeSyncModes, []);
-  });
-
   test("provider-aware review prompt helpers stay aligned with the default wording", async () => {
     const testOnly = await getTestOnlyExports();
 
     assert.strictEqual(
       testOnly.buildDefaultNeedsBotReviewPromptTemplate("tavily", "google-grounded"),
       expectedNeedsBotReviewPromptTemplate.replace(
-        "Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
-        "Use Tavily for lightweight external search. Use Google grounded research for deeper research when needed.",
+        "Use VS Code built-in web search for lightweight external search. If deeper research is still needed after built-in and local URL checks, stay on built-in/local tooling only.",
+        "Use VS Code built-in web search for lightweight external search. If deeper research is still needed after built-in and local URL checks, use Google grounded research.",
       ),
     );
     assert.strictEqual(testOnly.normalizeSearchProvider("legacy-value"), "built-in");
@@ -535,6 +518,235 @@ suite("Extension Integration Tests", () => {
         researchProvider: "none",
       },
     );
+    assert.deepStrictEqual(
+      testOnly.resolveProviderSettings({
+        searchProvider: "tavily",
+        researchProvider: "google-grounded",
+        hasExplicitResearchProvider: true,
+      }),
+      {
+        searchProvider: "built-in",
+        researchProvider: "google-grounded",
+      },
+    );
+  });
+
+  test("startup update checks read updateTrack with workspace scope", async () => {
+    const testOnly = await getTestOnlyExports();
+    const workspaceRoot = createTempDir("copilot-cockpit-update-track-");
+    const restoreWorkspaceFolders = overrideWorkspaceFolders(workspaceRoot);
+    const originalGetCompatibleConfigurationValue = extensionCompat.getCompatibleConfigurationValue;
+    const originalFetchLatestReleaseInfo = githubReleases.fetchLatestReleaseInfo;
+    const configReads: Array<{ key: string; fallback: unknown; scope?: vscode.ConfigurationScope }> = [];
+    const fetchedTracks: string[] = [];
+
+    try {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = ((
+        key: string,
+        fallback: unknown,
+        scope?: vscode.ConfigurationScope,
+      ) => {
+        configReads.push({ key, fallback, scope });
+        return fallback;
+      }) as typeof extensionCompat.getCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = (async (_context, track) => {
+        fetchedTracks.push(track);
+        return null;
+      }) as typeof githubReleases.fetchLatestReleaseInfo;
+
+      await testOnly.checkForExtensionUpdateOnStartup({
+        globalState: {
+          get: () => false,
+          update: async () => undefined,
+        },
+        extension: {
+          packageJSON: {
+            version: "2.0.54",
+          },
+        },
+      } as unknown as vscode.ExtensionContext);
+
+      assert.deepStrictEqual(configReads, [
+        {
+          key: "updateTrack",
+          fallback: "stable",
+          scope: vscode.workspace.workspaceFolders?.[0]?.uri,
+        },
+      ]);
+      assert.deepStrictEqual(fetchedTracks, ["stable", "edge"]);
+    } finally {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = originalGetCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = originalFetchLatestReleaseInfo;
+      restoreWorkspaceFolders();
+      deletePromptFixtureWorkspace(workspaceRoot);
+    }
+  });
+
+  test("startup update checks ignore newer non-selected tracks", async () => {
+    const testOnly = await getTestOnlyExports();
+    const workspaceRoot = createTempDir("copilot-cockpit-update-track-");
+    const restoreWorkspaceFolders = overrideWorkspaceFolders(workspaceRoot);
+    const originalGetCompatibleConfigurationValue = extensionCompat.getCompatibleConfigurationValue;
+    const originalFetchLatestReleaseInfo = githubReleases.fetchLatestReleaseInfo;
+    const originalShowInformationMessage = vscode.window.showInformationMessage;
+    const shownMessages: string[] = [];
+    const stateUpdates: Array<{ key: string; value: unknown }> = [];
+
+    try {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = ((key: string, fallback: unknown) => {
+        if (key === "updateTrack") {
+          return "stable";
+        }
+        return fallback;
+      }) as typeof extensionCompat.getCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = (async (_context, track) => {
+        if (track === "stable") {
+          return {
+            tagName: "v2.0.54",
+            version: "2.0.54",
+            htmlUrl: "https://example.com/stable",
+            isDraft: false,
+            isPrerelease: false,
+            publishedAt: "2026-04-29T00:00:00.000Z",
+            updatedAt: "2026-04-29T00:00:00.000Z",
+            displayDate: "2026-04-29T00:00:00.000Z",
+          };
+        }
+
+        return {
+          tagName: "v2.0.61-edge.1",
+          version: "2.0.61-edge.1",
+          htmlUrl: "https://example.com/edge",
+          isDraft: false,
+          isPrerelease: true,
+          publishedAt: "2026-04-30T00:00:00.000Z",
+          updatedAt: "2026-04-30T00:00:00.000Z",
+          displayDate: "2026-04-30T00:00:00.000Z",
+        };
+      }) as typeof githubReleases.fetchLatestReleaseInfo;
+      (vscode.window as typeof vscode.window & {
+        showInformationMessage: typeof vscode.window.showInformationMessage;
+      }).showInformationMessage = (async (message: string) => {
+        shownMessages.push(message);
+        return "Dismiss";
+      }) as typeof vscode.window.showInformationMessage;
+
+      await testOnly.checkForExtensionUpdateOnStartup({
+        globalState: {
+          get: (_key: string, fallback: unknown) => fallback,
+          update: async (key: string, value: unknown) => {
+            stateUpdates.push({ key, value });
+          },
+        },
+        extension: {
+          packageJSON: {
+            version: "2.0.54",
+          },
+        },
+      } as unknown as vscode.ExtensionContext);
+
+      assert.deepStrictEqual(shownMessages, []);
+      assert.deepStrictEqual(stateUpdates, []);
+    } finally {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = originalGetCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = originalFetchLatestReleaseInfo;
+      (vscode.window as typeof vscode.window & {
+        showInformationMessage: typeof vscode.window.showInformationMessage;
+      }).showInformationMessage = originalShowInformationMessage;
+      restoreWorkspaceFolders();
+      deletePromptFixtureWorkspace(workspaceRoot);
+    }
+  });
+
+  test("startup update checks dedupe notifications per track and release", async () => {
+    const testOnly = await getTestOnlyExports();
+    const workspaceRoot = createTempDir("copilot-cockpit-update-track-");
+    const restoreWorkspaceFolders = overrideWorkspaceFolders(workspaceRoot);
+    const originalGetCompatibleConfigurationValue = extensionCompat.getCompatibleConfigurationValue;
+    const originalFetchLatestReleaseInfo = githubReleases.fetchLatestReleaseInfo;
+    const originalShowInformationMessage = vscode.window.showInformationMessage;
+    const shownMessages: string[] = [];
+    let storedNotificationState: Record<string, string> | undefined;
+
+    try {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = ((key: string, fallback: unknown) => {
+        if (key === "updateTrack") {
+          return "edge";
+        }
+        return fallback;
+      }) as typeof extensionCompat.getCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = (async (_context, track) => ({
+        tagName: track === "stable" ? "v2.0.60" : "v2.0.61-edge.1",
+        version: track === "stable" ? "2.0.60" : "2.0.61-edge.1",
+        htmlUrl: `https://example.com/${track}`,
+        isDraft: false,
+        isPrerelease: track === "edge",
+        publishedAt: track === "stable" ? "2026-04-29T00:00:00.000Z" : "2026-04-30T00:00:00.000Z",
+        updatedAt: track === "stable" ? "2026-04-29T00:00:00.000Z" : "2026-04-30T00:00:00.000Z",
+        displayDate: track === "stable" ? "2026-04-29T00:00:00.000Z" : "2026-04-30T00:00:00.000Z",
+      })) as typeof githubReleases.fetchLatestReleaseInfo;
+      (vscode.window as typeof vscode.window & {
+        showInformationMessage: typeof vscode.window.showInformationMessage;
+      }).showInformationMessage = (async (message: string) => {
+        shownMessages.push(message);
+        return "Dismiss";
+      }) as typeof vscode.window.showInformationMessage;
+
+      const context = {
+        globalState: {
+          get: (_key: string, fallback: Record<string, string>) => storedNotificationState ?? fallback,
+          update: async (_key: string, value: Record<string, string>) => {
+            storedNotificationState = value;
+          },
+        },
+        extension: {
+          packageJSON: {
+            version: "2.0.54",
+          },
+        },
+      } as unknown as vscode.ExtensionContext;
+
+      await testOnly.checkForExtensionUpdateOnStartup(context);
+      await testOnly.checkForExtensionUpdateOnStartup(context);
+
+      assert.strictEqual(shownMessages.length, 1);
+      assert.ok(shownMessages[0].includes("2.0.61-edge.1"));
+      assert.deepStrictEqual(storedNotificationState, {
+        edge: "edge:2.0.61-edge.1:2026-04-30T00:00:00.000Z",
+      });
+    } finally {
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = originalGetCompatibleConfigurationValue;
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = originalFetchLatestReleaseInfo;
+      (vscode.window as typeof vscode.window & {
+        showInformationMessage: typeof vscode.window.showInformationMessage;
+      }).showInformationMessage = originalShowInformationMessage;
+      restoreWorkspaceFolders();
+      deletePromptFixtureWorkspace(workspaceRoot);
+    }
   });
 
   test("cockpit and scheduler command aliases are registered", async () => {

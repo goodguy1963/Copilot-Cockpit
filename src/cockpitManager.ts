@@ -90,6 +90,7 @@ import {
 import {
   applyScheduleJitter,
   clampScheduleJitterSeconds,
+  normalizeScheduledTaskApprovalMode,
   normalizeScheduledTaskChatSession,
   normalizeScheduledTaskLabels,
   normalizeScheduledTaskManualSession,
@@ -696,6 +697,12 @@ export class ScheduleManager {
         pendingWrite = true;
       }
 
+      const normalizedApprovalMode = normalizeScheduledTaskApprovalMode(task.approvalMode);
+      if (task.approvalMode !== normalizedApprovalMode) {
+        task.approvalMode = normalizedApprovalMode;
+        pendingWrite = true;
+      }
+
       if (task.jobId && !this.jobs.has(task.jobId)) {
         task.jobId = undefined;
         task.jobNodeId = undefined;
@@ -910,6 +917,7 @@ export class ScheduleManager {
             ? new Date(t.promptBackupUpdatedAt)
             : undefined,
           jitterSeconds: t.jitterSeconds,
+          approvalMode: normalizeScheduledTaskApprovalMode(t.approvalMode),
           chatSession: normalizeScheduledTaskChatSession(
             t.chatSession,
             t.oneTime === true,
@@ -1150,6 +1158,7 @@ export class ScheduleManager {
           description: t.description,
           agent: t.agent,
           model: t.model,
+          approvalMode: t.approvalMode,
           manualSession: t.manualSession,
           chatSession: t.chatSession,
           promptSource: t.promptSource,
@@ -1384,6 +1393,7 @@ export class ScheduleManager {
     const sessionState = {
       manualSession: normalizeScheduledTaskManualSession(input.manualSession, oneTime),
       chatSession: normalizeScheduledTaskChatSession(input.chatSession, oneTime),
+      approvalMode: normalizeScheduledTaskApprovalMode(input.approvalMode),
       labels: normalizeScheduledTaskLabels(input.labels),
     };
 
@@ -1436,6 +1446,7 @@ export class ScheduleManager {
       clampJitterSeconds: clampScheduleJitterSeconds,
       normalizeTaskManualSession: normalizeScheduledTaskManualSession,
       normalizeTaskChatSession: normalizeScheduledTaskChatSession,
+      normalizeTaskApprovalMode: normalizeScheduledTaskApprovalMode,
       normalizeLabels: normalizeScheduledTaskLabels,
     };
     return taskUpdateContext;
@@ -2734,6 +2745,7 @@ export class ScheduleManager {
         enabled: task.enabled,
         agent: task.agent,
         model: task.model,
+        approvalMode: task.approvalMode,
         scope: task.scope,
         oneTime: false,
         chatSession: task.oneTime === true ? undefined : task.chatSession,

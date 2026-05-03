@@ -218,6 +218,7 @@ export function createDuplicateTaskInput(
     prompt: original.prompt,
     enabled: false,
     agent: original.agent, model: original.model,
+    approvalMode: original.approvalMode,
     scope: original.scope,
     oneTime: original.oneTime,
     oneTimeDelaySeconds: original.oneTime === true ? original.oneTimeDelaySeconds : undefined,
@@ -243,12 +244,16 @@ export function applyTaskUpdatesToTask(params: {
     chatSession: unknown,
     oneTime: boolean,
   ) => ScheduledTask["chatSession"];
+  normalizeTaskApprovalMode: (
+    approvalMode: unknown,
+  ) => ScheduledTask["approvalMode"];
   normalizeLabels: (labels: unknown) => string[] | undefined;
 }): { cronChanged: boolean } {
   const {
     clampJitterSeconds,
     getPrimaryWorkspaceRoot,
     normalizeLabels,
+    normalizeTaskApprovalMode,
     normalizeTaskChatSession,
     normalizeTaskManualSession,
     task,
@@ -264,6 +269,9 @@ export function applyTaskUpdatesToTask(params: {
   if (updates.enabled !== undefined) task.enabled = updates.enabled;
   if (updates.agent !== undefined) task.agent = updates.agent;
   if (updates.model !== undefined) task.model = updates.model;
+  if (updates.approvalMode !== undefined) {
+    task.approvalMode = normalizeTaskApprovalMode(updates.approvalMode);
+  }
 
   const nextScope = updates.scope;
   if (nextScope !== undefined) {

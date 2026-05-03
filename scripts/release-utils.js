@@ -168,16 +168,82 @@ function getDefaultVsixPath(workspaceRoot, packageName, version) {
   );
 }
 
+function resolveWindowsInstallRoot(command) {
+  const localAppData = process.env.LOCALAPPDATA;
+  if (!localAppData) {
+    return undefined;
+  }
+
+  if (command === "code-insiders") {
+    return path.join(localAppData, "Programs", "Microsoft VS Code Insiders");
+  }
+
+  if (command === "code") {
+    return path.join(localAppData, "Programs", "Microsoft VS Code");
+  }
+
+  return undefined;
+}
+
+function launcherTargetsExistingCli(launcherPath) {
+  if (!fs.existsSync(launcherPath)) {
+    return false;
+  }
+
+  if (path.extname(launcherPath).toLowerCase() !== ".cmd") {
+    return true;
+  }
+
+  try {
+    const contents = fs.readFileSync(launcherPath, "utf8");
+    const cliMatch = contents.match(/%~dp0\.\.\\([^"\r\n]+resources\\app\\out\\cli\.js)/i);
+    if (!cliMatch) {
+      return true;
+    }
+
+    return fs.existsSync(
+      path.resolve(path.dirname(launcherPath), "..", cliMatch[1]),
+    );
+  } catch {
+    return true;
+  }
+}
+
+function resolvePreferredInstallExecutable(command) {
+  if (process.platform !== "win32") {
+    return command;
+  }
+
+  const installRoot = resolveWindowsInstallRoot(command);
+  if (!installRoot) {
+    return command;
+  }
+
+  const binDir = path.join(installRoot, "bin");
+  const candidateNames = command === "code-insiders"
+    ? ["new_code-insiders.cmd", "code-insiders.cmd", "new_code-insiders", "code-insiders"]
+    : ["new_code.cmd", "code.cmd", "new_code", "code"];
+
+  for (const candidateName of candidateNames) {
+    const candidatePath = path.join(binDir, candidateName);
+    if (launcherTargetsExistingCli(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return command;
+}
+
 function getInstallExecutables(channel) {
   const normalized = String(channel || "stable").trim().toLowerCase();
   if (normalized === "both") {
-    return ["code", "code-insiders"];
+    return ["code", "code-insiders"].map(resolvePreferredInstallExecutable);
   }
   if (normalized === "insiders") {
-    return ["code-insiders"];
+    return [resolvePreferredInstallExecutable("code-insiders")];
   }
   if (normalized === "stable") {
-    return ["code"];
+    return [resolvePreferredInstallExecutable("code")];
   }
   throw new Error(
     `Unknown VSIX install channel '${channel}'. Expected stable, insiders, or both.`,

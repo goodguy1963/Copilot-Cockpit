@@ -22,6 +22,7 @@ import type { // local-diverge-5
   TaskAction,
   TaskScope,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
 import { CopilotExecutor } from "./copilotExecutor";
 import type { WebviewToExtensionMessage } from "./types";
@@ -133,6 +134,7 @@ import {
   dispatchStorageSettingsUpdate,
   dispatchTaskUpdate,
   dispatchTelegramNotificationUpdate,
+  dispatchVersionInfoUpdate,
   dispatchWebviewError,
 } from "./cockpitWebviewUpdateDispatch";
 import {
@@ -248,6 +250,8 @@ export class SchedulerWebview {
   private static set currentReviewDefaults(value: ReviewDefaultsView) { this.writeRuntimeState("reviewDefaults", value); }
   private static get currentStorageSettings(): StorageSettingsView { return this.readRuntimeState("storageSettings"); }
   private static set currentStorageSettings(value: StorageSettingsView) { this.writeRuntimeState("storageSettings", value); }
+  private static get currentVersionInfo(): VersionUpdateView | null { return this.readRuntimeState("versionInfo"); }
+  private static set currentVersionInfo(value: VersionUpdateView | null) { this.writeRuntimeState("versionInfo", value); }
   private static get currentResearchProfiles(): ResearchProfile[] { return this.readRuntimeState("researchProfiles"); }
   private static set currentResearchProfiles(value: ResearchProfile[]) { this.writeRuntimeState("researchProfiles", value); }
   private static get currentActiveResearchRun(): ResearchRun | undefined { return this.readRuntimeState("activeResearchRun"); }
@@ -414,6 +418,9 @@ export class SchedulerWebview {
           this.updateResearchState(profiles, activeRun, recentRuns),
         postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
       });
+      if (this.currentVersionInfo) {
+        this.updateVersionInfo(this.currentVersionInfo);
+      }
     } else {
       await ensureCatalogsForFreshPanel();
 
@@ -444,6 +451,10 @@ export class SchedulerWebview {
           this.clearReadyFlag();
         },
       });
+
+      if (this.currentVersionInfo) {
+        this.updateVersionInfo(this.currentVersionInfo);
+      }
 
       refreshInBackground();
     }
@@ -512,6 +523,12 @@ export class SchedulerWebview {
     storageSettings: StorageSettingsView,
   ): void {
     dispatchStorageSettingsUpdate(this.runtimeState, storageSettings, (message) =>
+      this.postMessage(message),
+    );
+  }
+
+  static updateVersionInfo(versionUpdate: VersionUpdateView): void {
+    dispatchVersionInfoUpdate(this.runtimeState, versionUpdate, (message) =>
       this.postMessage(message),
     );
   }
@@ -827,6 +844,7 @@ export class SchedulerWebview {
       uiLanguage,
       configuredLanguage,
       configuredApprovalMode,
+      configuredUpdateTrack,
       allPresets,
       strings,
       initialData,
@@ -1235,6 +1253,7 @@ ${buildSchedulerWebviewExtendedStyles()}
     allPresets,
     configuredLanguage,
     configuredApprovalMode,
+    configuredUpdateTrack,
     helpIntroTitleText,
   })}
 `;

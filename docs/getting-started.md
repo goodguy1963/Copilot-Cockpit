@@ -80,7 +80,9 @@ npm run install:vsix:both
 
 ## Demo
 
-[![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](../images/DEMO%20v2.gif)](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197)
+
+Direct video link: [Watch the intro video](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197).
 
 Use [Feature Tour](./feature-tour.md) for the slower tab-by-tab explanation.
 

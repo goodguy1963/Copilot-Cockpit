@@ -247,6 +247,68 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     }
   });
 
+  test("persists approvalMode on create and duplicate for workspace tasks", async () => {
+    const workspaceRoot = createTempDir("copilot-scheduler-approval-mode-workspace-");
+    const storageRoot = createTempDir("copilot-scheduler-approval-mode-storage-");
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Approval override",
+        cronExpression: "0 * * * *",
+        prompt: "prompt",
+        enabled: false,
+        scope: "workspace",
+        approvalMode: "yolo",
+      });
+      const duplicate = await manager.duplicateTask(task.id);
+
+      assert.strictEqual(task.approvalMode, "yolo");
+      assert.strictEqual(duplicate?.approvalMode, "yolo");
+
+      const workspaceJson = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      ) as {
+        tasks: Array<{ id: string; approvalMode?: string }>;
+      };
+
+      const originalJson = workspaceJson.tasks.find((entry) => entry.id === task.id);
+      const duplicateJson = workspaceJson.tasks.find((entry) => entry.id === duplicate?.id);
+
+      assert.strictEqual(originalJson?.approvalMode, "yolo");
+      assert.strictEqual(duplicateJson?.approvalMode, "yolo");
+    } finally {
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot);
+    }
+  });
+
+  test("normalizes empty approvalMode updates back to inherited behavior", async () => {
+    const storageRoot = createTempDir("copilot-scheduler-approval-mode-update-");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Approval override",
+        cronExpression: "0 * * * *",
+        prompt: "prompt",
+        enabled: false,
+        scope: "global",
+        approvalMode: "autopilot",
+      });
+
+      const updated = await manager.updateTask(task.id, {
+        approvalMode: "" as any,
+      });
+
+      assert.strictEqual(updated?.approvalMode, undefined);
+      assert.strictEqual(manager.getTask(task.id)?.approvalMode, undefined);
+    } finally {
+      removeTestPath(storageRoot);
+    }
+  });
+
   test("persists manualSession separately from recurring and clears it for one-time tasks", async () => {
     const workspaceRoot = createTempDir("copilot-scheduler-manual-session-workspace-");
     const storageRoot = createTempDir("copilot-scheduler-manual-session-storage-");

@@ -8,7 +8,11 @@ export type PromptSource = "inline" | "local" | "global";
 export interface VersionUpdateView {
   currentVersion: string;
   latestStableVersion: string;
+  latestStablePublishedAt: string;
+  latestStableDisplayDate: string;
   latestEdgeVersion: string;
+  latestEdgePublishedAt: string;
+  latestEdgeDisplayDate: string;
   lastCheckedAt: string;
   track: "stable" | "edge";
   stableDownloadUrl: string;
@@ -16,6 +20,8 @@ export interface VersionUpdateView {
   stableHasNewVersion: boolean;
   edgeHasNewVersion: boolean;
   hasNewVersion: boolean;
+  currentVersionIsLocalAhead: boolean;
+  currentVersionLocalDate: string;
 }
 
 export type LogLevel = "none" | "error" | "info" | "debug";
@@ -1448,6 +1454,9 @@ interface TaskCopilotSelection {
 
   /** Copilot mode or agent identifier (@workspace, agent, ask, edit, etc.). */
   agent?: string;
+
+  /** Optional per-task approval mode override for fresh chat starts. */
+  approvalMode?: ApprovalMode;
 }
 
 interface TaskPromptConfiguration {
@@ -1918,6 +1927,9 @@ export interface ExecuteOptions {
 
   /** Agent to use */
   agent?: string;
+
+  /** Per-run approval mode override for fresh chat starts. */
+  approvalMode?: ApprovalMode;
 }
 
 type TaskEditorMessage =
@@ -2023,6 +2035,7 @@ type NotificationAndSettingsMessage =
   | { type: "checkForUpdates" }
   | { type: "openReleasePage"; track: "stable" | "edge"; url?: string }
   | { type: "setUpdateTrack"; track: string }
+  | { type: "openWorkspaceMcpConfig" }
   | { type: "openChatPermissionPicker" };
 
 type TodoBoardMessage =

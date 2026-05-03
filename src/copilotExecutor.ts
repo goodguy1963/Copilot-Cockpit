@@ -53,7 +53,7 @@ type PreparedExecution = {
   mustStartFresh: boolean;
 };
 
-type ApprovalBootstrapMode = "default" | "auto-approve" | "autopilot" | "yolo";
+type ApprovalBootstrapMode = NonNullable<ExecuteOptions["approvalMode"]>;
 
 type HourlySessionBucket = {
   hourStartIso: string;
@@ -522,7 +522,9 @@ export class CopilotExecutor {
     try {
       if (execution.mustStartFresh) {
         selectedModel = await this.ensureFreshChat(selectedModel);
-        await this.bootstrapFreshChatApprovalMode();
+        await this.bootstrapFreshChatApprovalMode(
+          options?.approvalMode ?? CopilotExecutor.approvalBootstrapMode,
+        );
       }
 
       if (selectedModel) {

@@ -295,6 +295,26 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     };
   }
 
+  function loadTaskSubmitModule() {
+    const scriptPath = resolveWorkspacePath(
+      "../../../media/cockpitWebviewTaskSubmit.js",
+    );
+    const scriptSource = fs
+      .readFileSync(scriptPath, "utf8")
+      .replace(/^export\s+/gm, "");
+    const context = vm.createContext({ result: undefined });
+    const moduleScript = new vm.Script(
+      `${scriptSource}\nresult = { buildTaskSubmissionData, postTaskSubmission, validateTaskSubmission };`,
+      { filename: scriptPath },
+    );
+    moduleScript.runInContext(context);
+    return context.result as {
+      buildTaskSubmissionData: (options: Record<string, unknown>) => Record<string, unknown>;
+      postTaskSubmission: (...args: unknown[]) => void;
+      validateTaskSubmission: (options: Record<string, unknown>) => boolean;
+    };
+  }
+
   function createListenerTarget<T extends Record<string, unknown>>(base: T): T & {
     addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => void;
     listeners: Record<string, (event: Record<string, unknown>) => void>;
@@ -375,6 +395,59 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     ], "generated settings updates runtime");
   });
 
+  test("settings update version runtime uses destructured DOM refs instead of a refs object", () => {
+    const sourceScript = readSchedulerWebviewScriptSource();
+    const generatedScript = readGeneratedSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(sourceScript, [
+      'if (settingsCurrentVersionValue) settingsCurrentVersionValue.textContent = formatCurrentVersionLabel(view);',
+      'if (settingsLatestStableValue) settingsLatestStableValue.textContent = view.latestStableVersion || "-";',
+      'if (settingsLatestStablePublishedAtValue) settingsLatestStablePublishedAtValue.textContent = formatReleaseBuildDate(view.latestStableDisplayDate || view.latestStablePublishedAt);',
+      'if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";',
+      'if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = formatReleaseBuildDate(view.latestEdgeDisplayDate || view.latestEdgePublishedAt);',
+      'return versionLabel + " [" + (strings.settingsLocalBuildLabel || "local") + " "',
+      'if (versionUpdateView && settingsUpdateTrackSelect) {',
+      'settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";',
+    ], "settings update version runtime");
+
+    expectSourceToExcludeSnippets(sourceScript, [
+      'refs.settingsCurrentVersionValue',
+      'refs.settingsLatestStableValue',
+      'refs.settingsLatestStablePublishedAtValue',
+      'refs.settingsLatestEdgeValue',
+      'refs.settingsLatestEdgePublishedAtValue',
+      'refs.settingsUpdateStatusRow',
+      'refs.settingsDownloadStableBtn',
+      'refs.settingsDownloadEdgeBtn',
+      'refs.settingsUpdateStatusText',
+      'refs.settingsUpdateTrackSelect',
+    ], "settings update version runtime");
+
+    expectSourceToIncludeSnippets(generatedScript, [
+      'if (settingsCurrentVersionValue) settingsCurrentVersionValue.textContent = formatCurrentVersionLabel(view);',
+      'if (settingsLatestStableValue) settingsLatestStableValue.textContent = view.latestStableVersion || "-";',
+      'if (settingsLatestStablePublishedAtValue) settingsLatestStablePublishedAtValue.textContent = formatReleaseBuildDate(view.latestStableDisplayDate || view.latestStablePublishedAt);',
+      'if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";',
+      'if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = formatReleaseBuildDate(view.latestEdgeDisplayDate || view.latestEdgePublishedAt);',
+      'return versionLabel + " [" + (strings.settingsLocalBuildLabel || "local") + " "',
+      'if (versionUpdateView && settingsUpdateTrackSelect) {',
+      'settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";',
+    ], "generated settings update version runtime");
+
+    expectSourceToExcludeSnippets(generatedScript, [
+      'refs.settingsCurrentVersionValue',
+      'refs.settingsLatestStableValue',
+      'refs.settingsLatestStablePublishedAtValue',
+      'refs.settingsLatestEdgeValue',
+      'refs.settingsLatestEdgePublishedAtValue',
+      'refs.settingsUpdateStatusRow',
+      'refs.settingsDownloadStableBtn',
+      'refs.settingsDownloadEdgeBtn',
+      'refs.settingsUpdateStatusText',
+      'refs.settingsUpdateTrackSelect',
+    ], "generated settings update version runtime");
+  });
+
   test("todo editor click handlers use normalized event target lookups", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
     const selectors = [
@@ -433,6 +506,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
 
   test("settings tab includes editable spot-review defaults plumbing", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
+    const templateSource = readSchedulerWebviewTemplateSource();
 
     expectSourceToIncludeSnippets(
       scriptSource,
@@ -442,6 +516,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'needsBotReviewAgentSelect: document.getElementById("needs-bot-review-agent-select")',
       'needsBotReviewModelSelect: document.getElementById("needs-bot-review-model-select")',
       'needsBotReviewChatSessionSelect: document.getElementById("needs-bot-review-chat-session-select")',
+      'if (needsBotReviewChatSessionSelect) {',
       'readyPromptTemplateInput: document.getElementById("ready-prompt-template-input")',
       'githubIntegrationRefreshBtn: document.getElementById("github-integration-refresh-btn")',
       'githubBoardInboxRoot: document.getElementById("github-board-inbox-root")',
@@ -453,6 +528,21 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       ],
       "review defaults",
     );
+    expectSourceToIncludeSnippets(
+      templateSource,
+      [
+        'reviewDefaultsNeedsBotReviewClusterTitle',
+        'reviewDefaultsReadyClusterTitle',
+      ],
+      "review defaults regrouped markup",
+    );
+    expectSourceToExcludeSnippets(
+      templateSource,
+      [
+        'id="needs-bot-review-chat-session-select"',
+      ],
+      "review defaults primary UI",
+    );
   });
 
   test("settings tab restores approval mode dropdown with yolo option", () => {
@@ -462,6 +552,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       allPresets: [],
       configuredLanguage: "en",
       configuredApprovalMode: "yolo",
+      configuredUpdateTrack: "stable",
       helpIntroTitleText: "Help",
     });
 
@@ -472,7 +563,8 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     assert.ok(markup.includes('option value="yolo" selected'));
     assert.ok(markup.includes("YOLO (Legacy)"));
     assert.ok(markup.includes(`${strings.approvalModeActiveLabel} ${strings.approvalModeYolo}`));
-    assert.strictEqual(markup.includes('id="open-permission-picker-btn"'), false);
+    assert.ok(markup.includes('id="open-permission-picker-btn"'));
+    assert.ok(markup.includes(strings.approvalModeNativeNote));
   });
 
   test("settings tab release updates section renders payload-backed labels", () => {
@@ -482,6 +574,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       allPresets: [],
       configuredLanguage: "en",
       configuredApprovalMode: "default",
+      configuredUpdateTrack: "edge",
       helpIntroTitleText: "Help",
     });
 
@@ -491,9 +584,13 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     assert.ok(markup.includes(strings.settingsCurrentVersion));
     assert.ok(markup.includes(strings.settingsLatestStable));
     assert.ok(markup.includes(strings.settingsLatestEdge));
+    assert.ok(markup.includes(strings.settingsBuildDate));
     assert.ok(markup.includes(strings.settingsCheckUpdates));
     assert.ok(markup.includes(strings.settingsDownloadStable));
     assert.ok(markup.includes(strings.settingsDownloadEdge));
+    assert.ok(markup.includes('id="settings-latest-edge-published-at-value"'));
+    assert.ok(markup.includes('option value="edge" selected'));
+    assert.strictEqual(markup.includes('option value="stable" selected'), false);
   });
 
   test("settings diagnostics renders bundled skills status wiring", () => {
@@ -503,6 +600,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       allPresets: [],
       configuredLanguage: "en",
       configuredApprovalMode: "default",
+      configuredUpdateTrack: "stable",
       helpIntroTitleText: "Help",
     });
     const scriptSource = readSchedulerWebviewScriptSource();
@@ -553,6 +651,7 @@ suite("SchedulerWebview Message Queue Behavior", () => {
   test("settings tab exposes split search and research provider selectors", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
     const templateSource = readSchedulerWebviewTemplateSource();
+    const stringsSource = readSchedulerWebviewStringsSource();
 
     expectSourceToIncludeSnippets(
       templateSource,
@@ -565,6 +664,9 @@ suite("SchedulerWebview Message Queue Behavior", () => {
         'option value="perplexity"',
         'option value="tavily"',
         'option value="google-grounded"',
+        'id="settings-provider-precedence-note"',
+        'id="settings-provider-mcp-note"',
+        'id="open-workspace-mcp-config-btn"',
       ],
       "split provider selector markup",
     );
@@ -580,11 +682,27 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       scriptSource,
       [
         'settingsResearchProviderSelect: document.getElementById("settings-research-provider-select")',
+        'openWorkspaceMcpConfigBtn: document.getElementById("open-workspace-mcp-config-btn")',
         'researchProvider:',
         'settingsResearchProviderSelect.value === "google-grounded"',
         'storageSettings.researchProvider === "google-grounded"',
+        'openWorkspaceMcpConfig: openWorkspaceMcpConfigBtn',
       ],
       "split provider selector script plumbing",
+    );
+    expectSourceToIncludeSnippets(
+      stringsSource,
+      [
+        'Choose which lightweight search source the default needs-bot-review planning prompt should mention for quick external lookups.',
+        'This changes prompt guidance for that Todo review workflow only; built-in and local URL checks still happen first.',
+        'Choose which deeper research provider the default needs-bot-review planning prompt should mention after built-in and local URL checks.',
+        'This only changes the generated review prompt guidance for that Todo workflow; it does not switch the general extension runtime by itself.',
+        'None keeps the needs-bot-review prompt on built-in/local tooling only.',
+        'Only one external provider is active in the default needs-bot-review guidance.',
+        'External providers require API keys in .vscode/mcp.json.',
+        'Open .vscode/mcp.json',
+      ],
+      "clarified provider setting copy",
     );
   });
 
@@ -595,13 +713,16 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       scriptSource,
       [
         'approvalModeSelect: document.getElementById("settings-approval-mode-select")',
+        'openPermissionPickerBtn: document.getElementById("open-permission-picker-btn")',
         'approvalModeNote: document.getElementById("settings-approval-mode-note")',
         'function getApprovalModeLabel(approvalMode) {',
         'function buildApprovalModeNoteText(approvalMode) {',
-        'strings.approvalModeActiveLabel || "Active mode:"',
+        'strings.approvalModeActiveLabel || "Configured compatibility mode:"',
         'function renderApprovalModeControls() {',
         'approvalModeNoteEl.textContent = buildApprovalModeNoteText(nextApprovalMode);',
         'bindSelectChange(approvalModeSelect, function (control) {',
+        'bindClickAction(openPermissionPickerBtn, function () {',
+        'type: "openChatPermissionPicker"',
         'type: "setApprovalMode", approvalMode: nextApprovalMode',
         'case "updateApprovalMode":',
         'renderApprovalModeControls();',
@@ -611,11 +732,9 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     expectSourceToExcludeSnippets(
       scriptSource,
       [
-        'bindClickAction(openPermissionPickerBtn, function () {',
-        'type: "openChatPermissionPicker"',
         'approvalModeNoteEl.textContent = strings.approvalModeSaved || "Approval mode updated.";',
       ],
-      "legacy approval picker button flow",
+      "legacy approval save note flow",
     );
   });
 
@@ -931,6 +1050,80 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'formatHumanDuration(totalSeconds)',
       'data-seconds',
     ], "one-time delay runtime");
+  });
+
+  test("task editor serializes approval mode overrides and restores the inherit state", () => {
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const taskSubmitModule = loadTaskSubmitModule();
+
+    expectSourceToIncludeSnippets(templateSource, [
+      'id="approval-mode-select"',
+      'strings.approvalModeTitle',
+      'strings.taskApprovalModeInherit',
+      'strings.taskApprovalModeNote',
+      '{ value: "", label: strings.taskApprovalModeInherit }',
+      '{ value: "auto-approve", label: strings.approvalModeAutoApprove }',
+      '{ value: "autopilot", label: strings.approvalModeAutopilot }',
+      '{ value: "yolo", label: strings.approvalModeYolo }',
+    ], "task approval mode template");
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'taskApprovalModeSelect: document.getElementById("approval-mode-select")',
+      'var approvalModeValue = taskApprovalModeSelect ? String(taskApprovalModeSelect.value || "") : "";',
+      'approvalMode: approvalModeValue,',
+      'approvalMode: String(task.approvalMode || "")',
+      'if (taskApprovalModeSelect) taskApprovalModeSelect.value = "";',
+      'if (taskApprovalModeSelect) {',
+      'taskApprovalModeSelect.value = task.approvalMode || "";',
+    ], "task approval mode runtime");
+
+    const inheritedData = taskSubmitModule.buildTaskSubmissionData({
+      editorState: {
+        name: "Task",
+        prompt: "Prompt",
+        cronExpression: "0 * * * *",
+        labels: "one,two",
+        agent: "agent",
+        model: "gpt-4o",
+        approvalMode: "",
+        scope: "workspace",
+        promptSource: "inline",
+        promptPath: "",
+        oneTime: false,
+        manualSession: false,
+        chatSession: "new",
+        jitterSeconds: 0,
+      },
+      parseLabels: (value: string) => value.split(",").filter(Boolean),
+      editingTaskEnabled: true,
+      runFirstInOneMinute: false,
+    });
+
+    const explicitData = taskSubmitModule.buildTaskSubmissionData({
+      editorState: {
+        name: "Task",
+        prompt: "Prompt",
+        cronExpression: "0 * * * *",
+        labels: "",
+        agent: "agent",
+        model: "gpt-4o",
+        approvalMode: "autopilot",
+        scope: "workspace",
+        promptSource: "inline",
+        promptPath: "",
+        oneTime: false,
+        manualSession: false,
+        chatSession: "new",
+        jitterSeconds: 0,
+      },
+      parseLabels: () => [],
+      editingTaskEnabled: true,
+      runFirstInOneMinute: false,
+    });
+
+    assert.strictEqual(inheritedData.approvalMode, "");
+    assert.strictEqual(explicitData.approvalMode, "autopilot");
   });
 
   test("task list recovers restored label filters that would otherwise hide all tasks and ready todo drafts", () => {
@@ -4280,6 +4473,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
   test("fresh show uses refreshed agent and model catalogs before initial panel render", async () => {
     const wv = SchedulerWebview as unknown as RefreshableSchedulerWebviewInternals & {
       show?: typeof SchedulerWebview.show;
+      runtimeState?: { versionInfo?: unknown };
     };
     const panelLifecycle = cockpitWebviewPanelLifecycle as typeof cockpitWebviewPanelLifecycle & {
       createFreshSchedulerPanel: typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
@@ -4359,6 +4553,126 @@ suite("SchedulerWebview Jobs Request Tests", () => {
     } finally {
       panelLifecycle.createFreshSchedulerPanel = originalCreateFreshSchedulerPanel;
       Object.assign(wv, originalState);
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+        wv.pendingMessageFlushTimer = undefined;
+      }
+    }
+  });
+
+  test("fresh show replays cached version info into the webview queue", async () => {
+    const wv = SchedulerWebview as unknown as RefreshableSchedulerWebviewInternals & {
+      show?: typeof SchedulerWebview.show;
+      runtimeState?: { versionInfo?: unknown };
+      pendingMessages?: Array<Record<string, unknown>>;
+    };
+    const panelLifecycle = cockpitWebviewPanelLifecycle as typeof cockpitWebviewPanelLifecycle & {
+      createFreshSchedulerPanel: typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+    };
+
+    const originalState = {
+      activePanel: wv.activePanel,
+      agentListCache: wv.agentListCache,
+      modelListCache: wv.modelListCache,
+      templateCache: wv.templateCache,
+      cachedSkillReferences: wv.cachedSkillReferences,
+      refreshAgentsAndModelsCache: wv.refreshAgentsAndModelsCache,
+      refreshPromptTemplatesCache: wv.refreshPromptTemplatesCache,
+      refreshSkillReferencesCache: wv.refreshSkillReferencesCache,
+      pendingMessages: wv.pendingMessages,
+      pendingMessageFlushTimer: wv.pendingMessageFlushTimer,
+      webviewReady: wv.webviewReady,
+      versionInfo: wv.runtimeState?.versionInfo,
+    };
+    const originalCreateFreshSchedulerPanel = panelLifecycle.createFreshSchedulerPanel;
+    const versionUpdate = {
+      currentVersion: "2.0.54",
+      latestStableVersion: "2.0.60",
+      latestStablePublishedAt: "2026-04-29T00:00:00.000Z",
+      latestStableDisplayDate: "2026-04-29T00:00:00.000Z",
+      latestEdgeVersion: "2.0.61-edge.1",
+      latestEdgePublishedAt: "2026-04-30T00:00:00.000Z",
+      latestEdgeDisplayDate: "2026-04-30T00:00:00.000Z",
+      lastCheckedAt: "2026-04-30T01:00:00.000Z",
+      track: "edge" as const,
+      stableDownloadUrl: "https://example.com/stable",
+      edgeDownloadUrl: "https://example.com/edge",
+      stableHasNewVersion: true,
+      edgeHasNewVersion: true,
+      hasNewVersion: true,
+      currentVersionIsLocalAhead: false,
+      currentVersionLocalDate: "",
+    };
+
+    try {
+      wv.activePanel = undefined;
+      wv.agentListCache = [];
+      wv.modelListCache = [];
+      wv.templateCache = [];
+      wv.cachedSkillReferences = [];
+      wv.pendingMessages = [];
+      wv.webviewReady = false;
+      if (wv.runtimeState) {
+        wv.runtimeState.versionInfo = undefined;
+      }
+      if (wv.pendingMessageFlushTimer) {
+        clearTimeout(wv.pendingMessageFlushTimer);
+        wv.pendingMessageFlushTimer = undefined;
+      }
+
+      wv.refreshAgentsAndModelsCache = async () => {};
+      wv.refreshPromptTemplatesCache = async () => {};
+      wv.refreshSkillReferencesCache = async () => {};
+
+      panelLifecycle.createFreshSchedulerPanel = ((options) => ({
+        webview: {
+          postMessage: async () => true,
+        },
+        dispose: () => options.onDidDispose(),
+      }) as unknown as vscode.WebviewPanel) as typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+
+      SchedulerWebview.updateVersionInfo(versionUpdate);
+
+      await SchedulerWebview.show(
+        {} as vscode.ExtensionContext,
+        vscode.Uri.file(resolveWorkspacePath("../../../README.md")),
+        [],
+        [],
+        [],
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        [],
+        undefined,
+        [],
+        () => {},
+      );
+
+      assert.deepStrictEqual(wv.pendingMessages?.find((message) => (message as { type?: string }).type === "updateVersionInfo"), {
+        type: "updateVersionInfo",
+        versionUpdate,
+      });
+    } finally {
+      panelLifecycle.createFreshSchedulerPanel = originalCreateFreshSchedulerPanel;
+      if (wv.runtimeState) {
+        wv.runtimeState.versionInfo = originalState.versionInfo;
+      }
+      Object.assign(wv, {
+        activePanel: originalState.activePanel,
+        agentListCache: originalState.agentListCache,
+        modelListCache: originalState.modelListCache,
+        templateCache: originalState.templateCache,
+        cachedSkillReferences: originalState.cachedSkillReferences,
+        refreshAgentsAndModelsCache: originalState.refreshAgentsAndModelsCache,
+        refreshPromptTemplatesCache: originalState.refreshPromptTemplatesCache,
+        refreshSkillReferencesCache: originalState.refreshSkillReferencesCache,
+        pendingMessages: originalState.pendingMessages,
+        pendingMessageFlushTimer: originalState.pendingMessageFlushTimer,
+        webviewReady: originalState.webviewReady,
+      });
       if (wv.pendingMessageFlushTimer) {
         clearTimeout(wv.pendingMessageFlushTimer);
         wv.pendingMessageFlushTimer = undefined;

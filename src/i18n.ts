@@ -608,6 +608,8 @@ export const messages = {
     settingsCheckingForUpdates: ["Checking for updates...", "更新を確認中...", "Suche nach Updates..."],
     settingsLatestStable: ["Latest stable", "最新の安定版", "Neueste Stable"],
     settingsLatestEdge: ["Latest edge", "最新のエッジ版", "Neueste Edge"],
+    settingsBuildDate: ["Build date", "ビルド日", "Build-Datum"],
+    settingsLocalBuildLabel: ["local", "ローカル", "lokal"],
     settingsCurrentVersion: ["Current version", "現在のバージョン", "Aktuelle Version"],
     settingsUpToDate: ["You are up to date!", "最新版です！", "Sie sind auf dem neuesten Stand!"],
     settingsUpdateAvailable: ["Update available", "更新があります", "Update verfügbar"],

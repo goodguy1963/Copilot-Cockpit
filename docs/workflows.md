@@ -13,6 +13,7 @@ The default path is: start with a `Todo`, use `Research` when context is missing
 - GitHub-sourced cards persist source metadata so repeat imports reuse and refresh the same Todo instead of creating duplicates.
 - Built-in workflow flags include `new`, `needs-bot-review`, `needs-user-review`, `ready`, `ON-SCHEDULE-LIST`, and `FINAL-USER-CHECK`.
 - Saving a todo into `ready` can create or reopen its linked task draft so execution prep stays adjacent to the approval step.
+- The Settings tab `Search provider` and `Research provider` options only change the default guidance generated for the `needs-bot-review` prompt; built-in/local URL checks still happen first. See [GitHub Integration](./github-integration.md).
 
 ## GitHub Triage Loop
 

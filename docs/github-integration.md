@@ -121,6 +121,14 @@ When a GitHub-sourced Todo enters `needs-bot-review`, the launched review prompt
 - The saved GitHub automation prompt as an explicit GitHub-specific instruction block.
 - Pull-request branch and security preflight when the source item is a pull request.
 
+The Settings tab `Search provider` and `Research provider` fields apply here. They do not change the extension's general runtime or switch a global fetch backend by themselves. Instead, they change the default generated guidance inside the `needs-bot-review` planning prompt:
+
+- `Search provider` tells the prompt which lightweight external search option to mention for quick lookups.
+- `Research provider` tells the prompt which deeper follow-up research option to mention only after built-in and local URL checks have already run first.
+- `None` for `Research provider` keeps that deeper-research guidance on built-in and local tooling only.
+
+In other words, the workflow still starts with built-in/local URL inspection, and these settings only change what the default review prompt recommends if more external search or grounding is needed after that.
+
 ### Pull Request Security-First Preflight
 
 For pull-request sourced handoffs, Copilot Cockpit adds a dedicated preflight block before implementation work:

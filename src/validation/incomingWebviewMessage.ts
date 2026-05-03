@@ -125,6 +125,10 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("saveReviewDefaults"), data: reviewDefaultsInputSchema }).passthrough(),
   z.object({ type: z.literal("setStorageSettings"), data: storageSettingsInputSchema }).passthrough(),
   z.object({ type: z.literal("setApprovalMode"), approvalMode: z.enum(["default", "auto-approve", "autopilot", "yolo"]) }).passthrough(),
+  z.object({ type: z.literal("checkForUpdates") }).passthrough(),
+  z.object({ type: z.literal("openReleasePage"), track: z.enum(["stable", "edge"]), url: optionalStringSchema }).passthrough(),
+  z.object({ type: z.literal("setUpdateTrack"), track: z.string() }).passthrough(),
+  z.object({ type: z.literal("openWorkspaceMcpConfig") }).passthrough(),
   z.object({ type: z.literal("openChatPermissionPicker") }).passthrough(),
 
   z.object({ type: z.literal("createTodo"), data: createTodoInputSchema }).passthrough(),
