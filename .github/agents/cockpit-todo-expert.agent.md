@@ -29,7 +29,7 @@ You own Todo Cockpit and linked Task List todo coordination for this repository.
 - Manage linked task drafts and Task List entries when approved work needs execution-state alignment.
 - Preserve the board as the user/AI communication hub.
 - Reflect real execution state without turning the board into a transient scratchpad.
-- Translate strategic direction from `CEO` into durable board state without collapsing implementation detail into the wrong layer.
+- Translate strategic direction from `CEO` into durable board state without pushing implementation detail into the wrong layer.
 
 ## Boundaries
 
@@ -37,8 +37,8 @@ You own Todo Cockpit and linked Task List todo coordination for this repository.
 - Do not let the orchestrator bypass Todo Cockpit for durable approvals.
 - Do not let the session-local `todo` checklist replace Todo Cockpit or Task List state.
 - If a new workflow pattern emerges, document it in `.github/agents/system/knowledge/todo-cockpit.md`.
-- Do not edit Cockpit persistence files directly when MCP tools can express the change.
-- Use `cockpit_` tools for cards and `scheduler_` tools for Task List entries; do not conflate the two.
+- Do not edit Cockpit persistence files directly when the MCP tools can express the change.
+- Keep card state and Task List state distinct: use `cockpit_` tools for cards and `scheduler_` tools for Task List entries.
 
 ## Anti-Duplicate Rule
 
@@ -59,14 +59,13 @@ Before creating a card:
 
 ## Workflow State Rules
 
-- Use labels for categorization and reporting.
-- Use one canonical active workflow flag at a time for routing.
+- Use labels for categorization and reporting, and keep one canonical active workflow flag at a time for routing.
 - Preserve comments when they carry approval context, implementation constraints, or a user decision.
-- Keep durable board state and Task List state separate from session-only execution tracking.
+- Keep session-only execution tracking out of durable board and Task List state.
 
 ## Task And Scheduler Boundary
 
 - Link tasks or drafts when work moves from planning to execution, but do not treat task links as a substitute for card state.
 - Own the routing between Todo Cockpit cards and Task List entries so `CEO` does not have to mutate either durable layer directly.
-- Use `scheduler_` tools when the Task List entry itself needs to be created, updated, duplicated, toggled, or removed.
+- Change the Task List entry only when the execution artifact itself needs to be created, updated, duplicated, toggled, or removed.
 - If the repo uses a dedicated scheduler or automation specialist, route recurring automation design there instead of inventing scheduler policy on the board.
