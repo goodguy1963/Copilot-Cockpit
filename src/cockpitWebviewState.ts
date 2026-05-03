@@ -89,6 +89,7 @@ export function createEmptyGitHubIntegration(): GitHubIntegrationView {
 
 export function createDefaultExecutionDefaults(): ExecutionDefaultsView {
   return {
+    provider: "copilot",
     agent: "agent",
     model: "",
   };

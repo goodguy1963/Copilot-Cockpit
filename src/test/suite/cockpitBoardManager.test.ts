@@ -21,6 +21,7 @@ import {
   ensureTaskTodosInBoard,
   finalizeTodoInBoard,
   getCockpitBoard,
+  moveTodoInBoard,
   renameCockpitSection,
   restoreArchivedTodoInBoard,
   saveCockpitFlagDefinition,
@@ -852,6 +853,127 @@ suite("Cockpit Board Manager Tests", () => {
       result.board.cards.find((card) => card.taskId === recurringTask.id)?.flags,
       ["ON-SCHEDULE-LIST"],
     );
+  });
+
+  test("reconciliation restores a moved recurring task card back to Recurring Tasks", () => {
+    const recurringTask: ScheduledTask = {
+      id: "task-recurring-move",
+      name: "Daily sync",
+      description: "Run daily",
+      cronExpression: "0 9 * * *",
+      prompt: "Do the daily sync",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: false,
+      labels: ["ops"],
+      createdAt: new Date("2026-04-05T10:00:00.000Z"),
+      updatedAt: new Date("2026-04-05T10:00:00.000Z"),
+    };
+    const seededBoard = ensureTaskTodosInBoard(
+      createDefaultCockpitBoard("2026-04-05T10:00:00.000Z"),
+      [recurringTask],
+    ).board;
+    const recurringCard = seededBoard.cards.find((card) => card.taskId === recurringTask.id);
+
+    assert.ok(recurringCard);
+    assert.strictEqual(recurringCard?.sectionId, DEFAULT_RECURRING_TASKS_SECTION_ID);
+
+    const staleBoard = normalizeCockpitBoard({
+      ...seededBoard,
+      cards: seededBoard.cards.map((card) => (card.id === recurringCard!.id
+        ? {
+            ...card,
+            sectionId: "unsorted",
+            updatedAt: "2026-04-05T10:01:00.000Z",
+          }
+        : card)),
+    });
+    assert.strictEqual(
+      staleBoard.cards.find((card) => card.id === recurringCard!.id)?.sectionId,
+      "unsorted",
+    );
+
+    const refreshed = ensureTaskTodosInBoard(staleBoard, [{
+      ...recurringTask,
+      updatedAt: new Date("2026-04-05T10:05:00.000Z"),
+    }]);
+
+    assert.strictEqual(
+      refreshed.board.cards.find((card) => card.id === recurringCard!.id)?.sectionId,
+      DEFAULT_RECURRING_TASKS_SECTION_ID,
+    );
+  });
+
+  test("moveTodoInBoard blocks recurring task-linked cards from leaving Recurring Tasks", () => {
+    const recurringTask: ScheduledTask = {
+      id: "task-recurring-pinned",
+      name: "Pinned recurring task",
+      description: "Run daily",
+      cronExpression: "0 9 * * *",
+      prompt: "Do the daily sync",
+      enabled: true,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: false,
+      labels: ["ops"],
+      createdAt: new Date("2026-04-05T10:00:00.000Z"),
+      updatedAt: new Date("2026-04-05T10:00:00.000Z"),
+    };
+    const seededBoard = ensureTaskTodosInBoard(
+      createDefaultCockpitBoard("2026-04-05T10:00:00.000Z"),
+      [recurringTask],
+    ).board;
+    const recurringCard = seededBoard.cards.find((card) => card.taskId === recurringTask.id);
+
+    assert.ok(recurringCard);
+
+    const moved = moveTodoInBoard(seededBoard, recurringCard!.id, "unsorted", 0);
+
+    assert.strictEqual(
+      moved.board.cards.find((card) => card.id === recurringCard!.id)?.sectionId,
+      DEFAULT_RECURRING_TASKS_SECTION_ID,
+    );
+  });
+
+  test("reconciliation preserves a moved one-time linked card outside Recurring Tasks", () => {
+    const board = createDefaultCockpitBoard("2026-04-05T10:00:00.000Z");
+    board.cards.push({
+      id: "todo-one-time-move",
+      title: "One-time draft",
+      sectionId: "needs-user-review",
+      order: 0,
+      priority: "medium",
+      status: "active",
+      labels: [],
+      flags: ["ready"],
+      comments: [],
+      taskId: "task-one-time-move",
+      archived: false,
+      createdAt: "2026-04-05T10:00:00.000Z",
+      updatedAt: "2026-04-05T10:00:00.000Z",
+    });
+
+    const moved = moveTodoInBoard(board, "todo-one-time-move", "unsorted", 0);
+    const refreshed = ensureTaskTodosInBoard(moved.board, [{
+      id: "task-one-time-move",
+      name: "One-time draft",
+      description: "Run once",
+      cronExpression: "0 11 * * *",
+      prompt: "Do the one-shot task",
+      enabled: false,
+      scope: "workspace",
+      promptSource: "inline",
+      oneTime: true,
+      labels: ["draft"],
+      createdAt: new Date("2026-04-05T10:00:00.000Z"),
+      updatedAt: new Date("2026-04-05T10:05:00.000Z"),
+    }]);
+
+    const card = refreshed.board.cards.find((entry) => entry.id === "todo-one-time-move");
+    assert.ok(card);
+    assert.strictEqual(card?.sectionId, "unsorted");
+    assert.deepStrictEqual(card?.flags, ["ready"]);
   });
 
   test("normalization removes legacy linked scheduled task flags from existing cards and the flag catalog", () => {

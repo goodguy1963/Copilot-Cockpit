@@ -49,6 +49,12 @@ export type SchedulerCodexWriteResult = {
   updated: boolean;
 };
 
+export type SchedulerOpenCodeWriteResult = {
+  configPath: string;
+  createdFile: boolean;
+  updated: boolean;
+};
+
 type WorkspaceMcpLauncherState = {
   extensionIdPrefix?: string;
   preferredExtensionDir: string;
@@ -64,6 +70,8 @@ const MCP_SUPPORT_DIR_PARTS = [
 ] as const;
 
 const CODEX_CONFIG_DIR_PARTS = [".codex"] as const;
+
+const OPENCODE_CONFIG_FILE_NAMES = ["opencode.json", "opencode.jsonc"] as const;
 
 function stripBom(text: string): string {
   return text.replace(/^\uFEFF/, "");
@@ -97,6 +105,77 @@ export function getWorkspaceMcpConfigPath(workspaceRoot: string): string {
 
 export function getWorkspaceCodexConfigPath(workspaceRoot: string): string {
   return path.join(workspaceRoot, ...CODEX_CONFIG_DIR_PARTS, "config.toml");
+}
+
+export function getWorkspaceOpenCodeConfigPath(workspaceRoot: string): string {
+  for (const fileName of OPENCODE_CONFIG_FILE_NAMES) {
+    const candidatePath = path.join(workspaceRoot, fileName);
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+  return path.join(workspaceRoot, OPENCODE_CONFIG_FILE_NAMES[0]);
+}
+
+function stripJsonComments(content: string): string {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index];
+    const next = content[index + 1];
+
+    if (inString) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      while (index < content.length && content[index] !== "\n") {
+        index += 1;
+      }
+      output += "\n";
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      index += 2;
+      while (index < content.length && !(content[index] === "*" && content[index + 1] === "/")) {
+        index += 1;
+      }
+      index += 1;
+      continue;
+    }
+
+    output += char;
+  }
+  return output;
+}
+
+function stripTrailingJsonCommas(content: string): string {
+  return content.replace(/,\s*([}\]])/g, "$1");
+}
+
+function parseOpenCodeConfig(content: string): Record<string, unknown> {
+  const sanitized = stripTrailingJsonCommas(stripJsonComments(stripBom(content)));
+  const parsed = sanitized.trim() ? JSON.parse(sanitized) as unknown : {};
+  if (!isPlainObject(parsed)) {
+    throw new Error("OpenCode config must be a JSON object.");
+  }
+  return parsed;
 }
 
 function createNodeResolutionRuntime(): NodeResolutionRuntime {
@@ -325,6 +404,21 @@ function buildSchedulerCodexServerTable(workspaceRoot: string): string {
     "enabled = true",
     "startup_timeout_sec = 30",
   ].join("\n");
+}
+
+function buildSchedulerOpenCodeServerEntry(workspaceRoot: string): Record<string, unknown> {
+  const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
+  const nodeLaunch = resolveNodeLaunchCommand();
+  const command = nodeLaunch.argsPrefix.length > 0
+    ? [nodeLaunch.command, ...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
+    : [nodeLaunch.command, launcherPath];
+  return {
+    type: "local",
+    command,
+    enabled: true,
+    timeout: 30000,
+    ...(nodeLaunch.env ? { environment: nodeLaunch.env } : {}),
+  };
 }
 
 function upsertNamedTomlTable(options: {
@@ -606,6 +700,47 @@ export function upsertSchedulerCodexConfig(
     configPath,
     createdFile,
     createdDirectory,
+    updated,
+  };
+}
+
+export function upsertSchedulerOpenCodeConfig(
+  workspaceRoot: string,
+  extensionRoot: string,
+): SchedulerOpenCodeWriteResult {
+  const configPath = getWorkspaceOpenCodeConfigPath(workspaceRoot);
+  ensureWorkspaceMcpSupportFiles(workspaceRoot, extensionRoot);
+
+  const createdFile = !fs.existsSync(configPath);
+  let existing: Record<string, unknown> = {};
+  if (!createdFile) {
+    const raw = stripBom(fs.readFileSync(configPath, "utf8"));
+    existing = parseOpenCodeConfig(raw);
+  }
+
+  const existingMcp = isPlainObject(existing.mcp) ? existing.mcp : {};
+  const nextConfig = {
+    ...existing,
+    $schema: typeof existing.$schema === "string" ? existing.$schema : "https://opencode.ai/config.json",
+    mcp: {
+      ...existingMcp,
+      scheduler: buildSchedulerOpenCodeServerEntry(workspaceRoot),
+    },
+  };
+
+  const nextContent = `${JSON.stringify(nextConfig, null, 4)}\n`;
+  const currentContent = createdFile
+    ? undefined
+    : stripBom(fs.readFileSync(configPath, "utf8"));
+  const updated = currentContent !== nextContent;
+
+  if (updated) {
+    fs.writeFileSync(configPath, nextContent, "utf8");
+  }
+
+  return {
+    configPath,
+    createdFile,
     updated,
   };
 }

@@ -339,6 +339,31 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     });
   });
 
+  test("recurring linked todo rendering emits reorder-only drag scope metadata", () => {
+    const sourceScript = readSchedulerWebviewScriptSource();
+    const boardRenderingSource = readBoardRenderingSource();
+
+    expectSourceToIncludeSnippets(sourceScript, [
+      'function getTodoDragScope(card)',
+      'strings.boardReorderRecurringTodo || \'Reorder within Recurring Tasks\'',
+      "data-todo-drag-scope=\"' + escapeAttr(dragScope) + '\"",
+    ], "scheduler webview runtime");
+    expectSourceToIncludeSnippets(boardRenderingSource, [
+      "data-todo-drag-scope=\"' + helpers.escapeAttr(helpers.getTodoDragScope(card)) + '\"",
+    ], "board rendering");
+  });
+
+  test("todo drag/drop runtime includes optimistic local board move wiring", () => {
+    const sourceScript = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(sourceScript, [
+      "function optimisticallyMoveTodo(move)",
+      "requestCockpitBoardRender();",
+      "optimisticallyMoveTodo: optimisticallyMoveTodo,",
+      "options.optimisticallyMoveTodo({",
+    ], "scheduler webview runtime");
+  });
+
   test("buildSkillDetailsText uses a fallback template when skillMetadataSummaryTemplate is undefined", () => {
     // Regression: buildSkillDetailsText must not throw "Cannot read properties of undefined (reading 'replace')"
     // when strings.skillMetadataSummaryTemplate is absent. Both source and generated scripts must guard with ||.
@@ -406,6 +431,9 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";',
       'if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = formatReleaseBuildDate(view.latestEdgeDisplayDate || view.latestEdgePublishedAt);',
       'return versionLabel + " [" + (strings.settingsLocalBuildLabel || "local") + " "',
+      'versionUpdateView = initialData && initialData.versionInfo ? initialData.versionInfo : null;',
+      'setSettingsUpdateCheckPending(true);',
+      'runStartupRenderStep("renderVersionUpdateInfo", function () {',
       'if (versionUpdateView && settingsUpdateTrackSelect) {',
       'settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";',
     ], "settings update version runtime");
@@ -430,6 +458,9 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'if (settingsLatestEdgeValue) settingsLatestEdgeValue.textContent = view.latestEdgeVersion || "-";',
       'if (settingsLatestEdgePublishedAtValue) settingsLatestEdgePublishedAtValue.textContent = formatReleaseBuildDate(view.latestEdgeDisplayDate || view.latestEdgePublishedAt);',
       'return versionLabel + " [" + (strings.settingsLocalBuildLabel || "local") + " "',
+      'versionUpdateView = initialData && initialData.versionInfo ? initialData.versionInfo : null;',
+      'setSettingsUpdateCheckPending(true);',
+      'runStartupRenderStep("renderVersionUpdateInfo", function () {',
       'if (versionUpdateView && settingsUpdateTrackSelect) {',
       'settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";',
     ], "generated settings update version runtime");
@@ -1560,7 +1591,7 @@ test("todo comments style human form input separately and todo saves reset to cr
         (wv.postMessage as (message: unknown) => void)({ type: "updateTasks", tasks: [2] });
         (wv.postMessage as (message: unknown) => void)({
           type: "updateExecutionDefaults",
-          executionDefaults: { agent: "agent", model: "gpt" },
+          executionDefaults: { provider: "copilot", agent: "agent", model: "gpt" },
         });
 
         const queued = (wv.pendingMessages ?? []) as Array<{
@@ -1583,6 +1614,74 @@ test("todo comments style human form input separately and todo saves reset to cr
           )?.tasks,
           [2],
         );
+        assert.strictEqual((wv.pendingMessages ?? []).length, 0);
+        assert.strictEqual(wv.pendingMessageFlushTimer, undefined);
+      },
+    );
+  });
+
+  test("Posts cockpit board updates immediately while ready so live Todo moves rerender without reopen", () => {
+    withPostedWebviewMessages(
+      { ready: true, resetBatchState: true },
+      ({ sent, wv }) => {
+        assert.ok(typeof wv.updateCockpitBoard === "function");
+
+        wv.updateCockpitBoard?.({
+          version: 4,
+          sections: [
+            { id: "section-a", title: "Todo", order: 0 },
+            { id: "section-b", title: "Doing", order: 1 },
+          ],
+          cards: [
+            { id: "todo-1", title: "Moved", sectionId: "section-b", order: 0 },
+          ],
+          labelCatalog: [],
+          archives: { completedSuccessfully: [], rejected: [] },
+          filters: {
+            labels: [],
+            priorities: [],
+            statuses: [],
+            archiveOutcomes: [],
+            flags: [],
+            sortBy: "manual",
+            sortDirection: "asc",
+            viewMode: "board",
+            showArchived: false,
+            showRecurringTasks: false,
+            hideCardDetails: false,
+          },
+          updatedAt: "2026-05-03T00:00:00.000Z",
+        } as never);
+
+        assert.deepStrictEqual(sent, [{
+          type: "updateCockpitBoard",
+          cockpitBoard: {
+            version: 4,
+            sections: [
+              { id: "section-a", title: "Todo", order: 0 },
+              { id: "section-b", title: "Doing", order: 1 },
+            ],
+            cards: [
+              { id: "todo-1", title: "Moved", sectionId: "section-b", order: 0 },
+            ],
+            labelCatalog: [],
+            archives: { completedSuccessfully: [], rejected: [] },
+            filters: {
+              labels: [],
+              priorities: [],
+              statuses: [],
+              archiveOutcomes: [],
+              flags: [],
+              sortBy: "manual",
+              sortDirection: "asc",
+              viewMode: "board",
+              showArchived: false,
+              showRecurringTasks: false,
+              hideCardDetails: false,
+            },
+            updatedAt: "2026-05-03T00:00:00.000Z",
+          },
+        }]);
         assert.strictEqual((wv.pendingMessages ?? []).length, 0);
         assert.strictEqual(wv.pendingMessageFlushTimer, undefined);
       },
@@ -1690,12 +1789,13 @@ test("todo comments style human form input separately and todo saves reset to cr
     {
       name: "Queues execution default updates until ready",
       method: "updateExecutionDefaults",
-      args: [{ agent: "agent", model: "gpt-test" }],
+      args: [{ provider: "opencode", agent: "agent", model: "gpt-test" }],
       messageType: "updateExecutionDefaults",
       verify: (message) => {
         const executionDefaults = message.executionDefaults as
-          | { agent?: string; model?: string }
+          | { provider?: string; agent?: string; model?: string }
           | undefined;
+        assert.strictEqual(executionDefaults?.provider, "opencode");
         assert.strictEqual(executionDefaults?.agent, "agent");
         assert.strictEqual(executionDefaults?.model, "gpt-test");
       },
@@ -2737,6 +2837,445 @@ test("todo comments style human form input separately and todo saves reset to cr
     assert.deepStrictEqual(pointerCaptureCalls, ["set:7", "release:7"]);
   });
 
+  test("board interaction binding keeps recurring linked todo drags inside the same section", () => {
+    const helpers = loadBoardInteractionModule();
+    const postedMessages: Array<Record<string, unknown>> = [];
+    const windowListeners: Record<string, (event: Record<string, unknown>) => void> = {};
+    let draggingTodoId: string | null = null;
+    let isBoardDragging = false;
+    let pointTarget: unknown = null;
+    const sourceSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "recurring-tasks";
+        if (name === "data-card-count") return "2";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => (selector === "[data-section-id]" ? sourceSection : null),
+    };
+    const targetSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "unsorted";
+        if (name === "data-card-count") return "1";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => (selector === "[data-section-id]" ? targetSection : null),
+    };
+    const dropCard = {
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-2";
+        if (name === "data-order") return "0";
+        if (name === "data-section-id") return "unsorted";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return dropCard;
+        if (selector === "[data-section-id]") return targetSection;
+        return null;
+      },
+    };
+    const draggedCard = createListenerTarget({
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-1";
+        if (name === "data-section-id") return "recurring-tasks";
+        if (name === "data-todo-drag-scope") return "section";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const dragHandle = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-drag-handle" ? "todo-1" : ""),
+      setPointerCapture: () => undefined,
+      releasePointerCapture: () => undefined,
+      closest: (selector: string) => {
+        if (selector === "[data-todo-drag-handle]") return dragHandle;
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === dragHandle || value === draggedCard || value === dropCard || value === sourceSection || value === targetSection,
+      querySelectorAll: (selector: string) => {
+        if (selector === "[data-section-id]") return [sourceSection, targetSection];
+        if (selector === "[data-todo-id]") return [draggedCard, dropCard];
+        return [];
+      },
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {
+        elementFromPoint: () => pointTarget,
+        body: {
+          classList: { toggle: () => undefined },
+          style: { userSelect: "", webkitUserSelect: "", cursor: "" },
+        },
+        addEventListener: () => undefined,
+      },
+      window: {
+        addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => {
+          windowListeners[name] = handler;
+        },
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          postedMessages.push(message);
+        },
+      },
+      renderCockpitBoard: () => undefined,
+      openTodoEditor: () => undefined,
+      openTodoDeleteModal: () => undefined,
+      handleSectionCollapse: () => undefined,
+      handleSectionRename: () => undefined,
+      handleSectionDelete: () => undefined,
+      handleTodoCompletion: () => undefined,
+      setSelectedTodoId: () => undefined,
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => draggingTodoId,
+      setDraggingTodoId: (value: string | null) => {
+        draggingTodoId = value;
+      },
+      setIsBoardDragging: (value: boolean) => {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => {
+        draggingTodoId = null;
+        isBoardDragging = false;
+      },
+      isArchiveTodoSectionId: () => false,
+    });
+
+    draggedCard.listeners.pointerdown({
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 7,
+      target: dragHandle,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    pointTarget = dropCard;
+    windowListeners.pointermove({ pointerId: 7, clientX: 24, clientY: 24 });
+    windowListeners.pointerup({ pointerId: 7, clientX: 24, clientY: 24 });
+
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), []);
+    assert.strictEqual(draggingTodoId, null);
+    assert.strictEqual(isBoardDragging, false);
+  });
+
+  test("board interaction binding optimistically updates local todo state before host persistence completes", () => {
+    const helpers = loadBoardInteractionModule();
+    const postedMessages: Array<Record<string, unknown>> = [];
+    const lifecycleEvents: string[] = [];
+    const windowListeners: Record<string, (event: Record<string, unknown>) => void> = {};
+    let draggingTodoId: string | null = null;
+    let isBoardDragging = false;
+    let pointTarget: unknown = null;
+    const localBoard = {
+      todoSectionId: "section-a",
+      requestedRender: false,
+    };
+    const targetSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "section-b";
+        if (name === "data-card-count") return "2";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => (selector === "[data-section-id]" ? targetSection : null),
+    };
+    const dropCard = {
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-2";
+        if (name === "data-order") return "1";
+        if (name === "data-section-id") return "section-b";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return dropCard;
+        if (selector === "[data-section-id]") return targetSection;
+        return null;
+      },
+    };
+    const sourceSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "section-a";
+        if (name === "data-card-count") return "1";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => (selector === "[data-section-id]" ? sourceSection : null),
+    };
+    const draggedCard = createListenerTarget({
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-1";
+        if (name === "data-section-id") return localBoard.todoSectionId;
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const dragHandle = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-drag-handle" ? "todo-1" : ""),
+      setPointerCapture: () => undefined,
+      releasePointerCapture: () => undefined,
+      closest: (selector: string) => {
+        if (selector === "[data-todo-drag-handle]") return dragHandle;
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === dragHandle || value === draggedCard || value === dropCard || value === sourceSection || value === targetSection,
+      querySelectorAll: (selector: string) => {
+        if (selector === "[data-section-id]") return [sourceSection, targetSection];
+        if (selector === "[data-todo-id]") return [draggedCard, dropCard];
+        return [];
+      },
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {
+        elementFromPoint: () => pointTarget,
+        body: {
+          classList: { toggle: () => undefined },
+          style: { userSelect: "", webkitUserSelect: "", cursor: "" },
+        },
+        addEventListener: () => undefined,
+      },
+      window: {
+        addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => {
+          windowListeners[name] = handler;
+        },
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          lifecycleEvents.push(`post:${String(message.type || "")}:${localBoard.todoSectionId}`);
+          postedMessages.push(message);
+        },
+      },
+      renderCockpitBoard: () => undefined,
+      openTodoEditor: () => undefined,
+      openTodoDeleteModal: () => undefined,
+      handleSectionCollapse: () => undefined,
+      handleSectionRename: () => undefined,
+      handleSectionDelete: () => undefined,
+      handleTodoCompletion: () => undefined,
+      setSelectedTodoId: () => undefined,
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => draggingTodoId,
+      setDraggingTodoId: (value: string | null) => {
+        draggingTodoId = value;
+      },
+      optimisticallyMoveTodo: ({ sectionId }: { sectionId?: unknown }) => {
+        localBoard.todoSectionId = String(sectionId || "");
+        localBoard.requestedRender = true;
+        lifecycleEvents.push(`optimistic:${localBoard.todoSectionId}`);
+      },
+      setIsBoardDragging: (value: boolean) => {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => {
+        lifecycleEvents.push(`finish:${localBoard.todoSectionId}:${localBoard.requestedRender}`);
+        draggingTodoId = null;
+        isBoardDragging = false;
+      },
+      isArchiveTodoSectionId: () => false,
+    });
+
+    draggedCard.listeners.pointerdown({
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 7,
+      target: dragHandle,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    pointTarget = dropCard;
+    windowListeners.pointermove({ pointerId: 7, clientX: 20, clientY: 30 });
+    windowListeners.pointerup({ pointerId: 7, clientX: 20, clientY: 30 });
+
+    assert.strictEqual(localBoard.todoSectionId, "section-b");
+    assert.strictEqual(localBoard.requestedRender, true);
+    assert.deepStrictEqual(lifecycleEvents, [
+      "optimistic:section-b",
+      "post:moveTodo:section-b",
+      "finish:section-b:true",
+    ]);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [{
+      type: "moveTodo",
+      todoId: "todo-1",
+      sectionId: "section-b",
+      targetIndex: 0,
+    }]);
+    assert.strictEqual(draggingTodoId, null);
+    assert.strictEqual(isBoardDragging, false);
+  });
+
+  test("board interaction binding allows reorder-only recurring linked todo drops within the same section", () => {
+    const helpers = loadBoardInteractionModule();
+    const postedMessages: Array<Record<string, unknown>> = [];
+    const windowListeners: Record<string, (event: Record<string, unknown>) => void> = {};
+    let draggingTodoId: string | null = null;
+    let isBoardDragging = false;
+    let pointTarget: unknown = null;
+    const section = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "recurring-tasks";
+        if (name === "data-card-count") return "2";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => (selector === "[data-section-id]" ? section : null),
+    };
+    const targetCard = {
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-2";
+        if (name === "data-order") return "1";
+        if (name === "data-section-id") return "recurring-tasks";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return targetCard;
+        if (selector === "[data-section-id]") return section;
+        return null;
+      },
+    };
+    const draggedCard = createListenerTarget({
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-1";
+        if (name === "data-section-id") return "recurring-tasks";
+        if (name === "data-todo-drag-scope") return "section";
+        return "";
+      },
+      classList: { add: () => undefined, remove: () => undefined },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return section;
+        return null;
+      },
+    });
+    const dragHandle = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-drag-handle" ? "todo-1" : ""),
+      setPointerCapture: () => undefined,
+      releasePointerCapture: () => undefined,
+      closest: (selector: string) => {
+        if (selector === "[data-todo-drag-handle]") return dragHandle;
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return section;
+        return null;
+      },
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === dragHandle || value === draggedCard || value === targetCard || value === section,
+      querySelectorAll: (selector: string) => {
+        if (selector === "[data-section-id]") return [section];
+        if (selector === "[data-todo-id]") return [draggedCard, targetCard];
+        return [];
+      },
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {
+        elementFromPoint: () => pointTarget,
+        body: {
+          classList: { toggle: () => undefined },
+          style: { userSelect: "", webkitUserSelect: "", cursor: "" },
+        },
+        addEventListener: () => undefined,
+      },
+      window: {
+        addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => {
+          windowListeners[name] = handler;
+        },
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          postedMessages.push(message);
+        },
+      },
+      renderCockpitBoard: () => undefined,
+      openTodoEditor: () => undefined,
+      openTodoDeleteModal: () => undefined,
+      handleSectionCollapse: () => undefined,
+      handleSectionRename: () => undefined,
+      handleSectionDelete: () => undefined,
+      handleTodoCompletion: () => undefined,
+      setSelectedTodoId: () => undefined,
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => draggingTodoId,
+      setDraggingTodoId: (value: string | null) => {
+        draggingTodoId = value;
+      },
+      setIsBoardDragging: (value: boolean) => {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => {
+        draggingTodoId = null;
+        isBoardDragging = false;
+      },
+      isArchiveTodoSectionId: () => false,
+    });
+
+    draggedCard.listeners.pointerdown({
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 7,
+      target: dragHandle,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    pointTarget = targetCard;
+    windowListeners.pointermove({ pointerId: 7, clientX: 24, clientY: 24 });
+    windowListeners.pointerup({ pointerId: 7, clientX: 24, clientY: 24 });
+
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [{
+      type: "moveTodo",
+      todoId: "todo-1",
+      sectionId: "recurring-tasks",
+      targetIndex: 0,
+    }]);
+    assert.strictEqual(draggingTodoId, null);
+    assert.strictEqual(isBoardDragging, false);
+  });
+
   test("board interaction binding completes todo drop on lost pointer capture using the last drag target", () => {
     const helpers = loadBoardInteractionModule();
     const postedMessages: Array<Record<string, unknown>> = [];
@@ -3271,6 +3810,164 @@ test("todo comments style human form input separately and todo saves reset to cr
       type: "moveTodo",
       todoId: "todo-1",
       sectionId: "section-a",
+      targetIndex: 0,
+    }]);
+    assert.strictEqual(draggingTodoId, null);
+    assert.strictEqual(isBoardDragging, false);
+  });
+
+  test("board interaction binding ignores the dragged todo when final hit testing resolves pointer-up", () => {
+    const helpers = loadBoardInteractionModule();
+    const postedMessages: Array<Record<string, unknown>> = [];
+    const windowListeners: Record<string, (event: Record<string, unknown>) => void> = {};
+    let draggingTodoId: string | null = null;
+    let isBoardDragging = false;
+    let pointTarget: unknown = null;
+    const targetSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "section-b";
+        if (name === "data-card-count") return "3";
+        return "";
+      },
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => (selector === "[data-section-id]" ? targetSection : null),
+    };
+    const targetCard = {
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-2";
+        if (name === "data-order") return "2";
+        if (name === "data-section-id") return "section-b";
+        return "";
+      },
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return targetCard;
+        if (selector === "[data-section-id]") return targetSection;
+        return null;
+      },
+    };
+    const draggedCard = createListenerTarget({
+      getAttribute: (name: string) => {
+        if (name === "data-todo-id") return "todo-1";
+        if (name === "data-section-id") return "section-a";
+        if (name === "data-order") return "0";
+        return "";
+      },
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => {
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const sourceSection = {
+      getAttribute: (name: string) => {
+        if (name === "data-section-id") return "section-a";
+        if (name === "data-card-count") return "1";
+        return "";
+      },
+      classList: {
+        add: () => undefined,
+        remove: () => undefined,
+      },
+      closest: (selector: string) => (selector === "[data-section-id]" ? sourceSection : null),
+    };
+    const dragHandle = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-drag-handle" ? "todo-1" : ""),
+      setPointerCapture: () => undefined,
+      releasePointerCapture: () => undefined,
+      closest: (selector: string) => {
+        if (selector === "[data-todo-drag-handle]") return dragHandle;
+        if (selector === "[data-todo-id]") return draggedCard;
+        if (selector === "[data-section-id]") return sourceSection;
+        return null;
+      },
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === dragHandle || value === draggedCard || value === targetCard || value === sourceSection || value === targetSection,
+      querySelectorAll: (selector: string) => {
+        if (selector === "[data-section-id]") return [sourceSection, targetSection];
+        if (selector === "[data-todo-id]") return [draggedCard, targetCard];
+        return [];
+      },
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {
+        elementFromPoint: () => pointTarget,
+        body: {
+          classList: { toggle: () => undefined },
+          style: { userSelect: "", webkitUserSelect: "", cursor: "" },
+        },
+        addEventListener: () => undefined,
+      },
+      window: {
+        addEventListener: (name: string, handler: (event: Record<string, unknown>) => void) => {
+          windowListeners[name] = handler;
+        },
+      },
+      vscode: {
+        postMessage: (message: Record<string, unknown>) => {
+          postedMessages.push(message);
+        },
+      },
+      renderCockpitBoard: () => undefined,
+      openTodoEditor: () => undefined,
+      openTodoDeleteModal: () => undefined,
+      handleSectionCollapse: () => undefined,
+      handleSectionRename: () => undefined,
+      handleSectionDelete: () => undefined,
+      handleTodoCompletion: () => undefined,
+      setSelectedTodoId: () => undefined,
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => draggingTodoId,
+      setDraggingTodoId: (value: string | null) => {
+        draggingTodoId = value;
+      },
+      setIsBoardDragging: (value: boolean) => {
+        isBoardDragging = value;
+      },
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => {
+        draggingTodoId = null;
+        isBoardDragging = false;
+      },
+      isArchiveTodoSectionId: () => false,
+    });
+
+    draggedCard.listeners.pointerdown({
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 7,
+      target: dragHandle,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    pointTarget = targetCard;
+    windowListeners.pointermove({ pointerId: 7, clientX: 24, clientY: 24 });
+    pointTarget = draggedCard;
+    windowListeners.pointerup({ pointerId: 7, clientX: 24, clientY: 24 });
+
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(postedMessages)), [{
+      type: "moveTodo",
+      todoId: "todo-1",
+      sectionId: "section-b",
       targetIndex: 0,
     }]);
     assert.strictEqual(draggingTodoId, null);
@@ -4314,6 +5011,8 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       await wv.handleMessage!({ type: "setupMcp" });
       await wv.handleMessage!({ type: "setupCodex" });
       await wv.handleMessage!({ type: "setupCodexSkills" });
+      await wv.handleMessage!({ type: "setupOpenCode" });
+      await wv.handleMessage!({ type: "setupOpenCodeAssets" });
       await wv.handleMessage!({ type: "syncBundledSkills" });
       await wv.handleMessage!({ type: "syncBundledAgents" });
       await wv.handleMessage!({ type: "stageBundledAgents" });
@@ -4342,7 +5041,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       });
       await wv.handleMessage!({
         type: "saveExecutionDefaults",
-        data: { agent: "agent", model: "gpt-4o" },
+        data: { provider: "opencode", agent: "agent", model: "gpt-4o" },
       });
 
       assert.deepStrictEqual(actions, [
@@ -4365,6 +5064,14 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         },
         {
           action: "setupCodexSkills",
+          taskId: "__settings__",
+        },
+        {
+          action: "setupOpenCode",
+          taskId: "__settings__",
+        },
+        {
+          action: "setupOpenCodeAssets",
           taskId: "__settings__",
         },
         {
@@ -4415,7 +5122,7 @@ suite("SchedulerWebview Jobs Request Tests", () => {
         {
           action: "saveExecutionDefaults",
           taskId: "__settings__",
-          executionDefaults: { agent: "agent", model: "gpt-4o" },
+          executionDefaults: { provider: "opencode", agent: "agent", model: "gpt-4o" },
         },
       ]);
     } finally {
@@ -4684,6 +5391,11 @@ suite("SchedulerWebview Jobs Request Tests", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
     expectSourceToIncludeSnippets(scriptSource, [
+      'var providerValue = taskExecutionProviderSelect ? String(taskExecutionProviderSelect.value || "") : "";',
+      'provider: providerValue === "codex" || providerValue === "opencode" ? providerValue : "copilot",',
+      'executionDefaults.provider === "codex" || executionDefaults.provider === "opencode"',
+      'setupOpenCode: setupOpenCodeBtn,',
+      'setupOpenCodeAssets: setupOpenCodeAssetsBtn,',
       'function syncSharedAgentAndModelSelectors() {',
       'renderExecutionDefaultsControls();',
       'renderReviewDefaultsControls();',
@@ -4914,6 +5626,86 @@ suite("Board Render State Tests", () => {
     );
     assert.strictEqual(state.isBoardDragging, false);
     assert.strictEqual(finishRenderCalled, true, "pending render should flush on drag finish");
+  });
+
+  test("deferred cockpit board updates rerender the moved board after the real drag finish path", () => {
+    const { createBoardRenderState, requestBoardRender, finishBoardDrag } =
+      loadBoardStateModule();
+    const boardRenderState = createBoardRenderState();
+    const pendingCallbacks: (() => void)[] = [];
+    const renderedSectionIds: string[][] = [];
+    const baseBoard = {
+      sections: [
+        { id: "section-a", title: "Todo", order: 0 },
+        { id: "section-b", title: "Doing", order: 1 },
+      ],
+      cards: [
+        { id: "todo-1", title: "Moved", sectionId: "section-a", order: 0 },
+      ],
+    };
+    let cockpitBoard = baseBoard;
+    let draggingTodoId: string | null = "todo-1";
+    let draggingSectionId: string | null = null;
+    let lastDragOverSectionId: string | null = "section-b";
+    let isBoardDragging = true;
+    const fakeRaf = (callback: () => void) => {
+      pendingCallbacks.push(callback);
+      return pendingCallbacks.length;
+    };
+    const renderCockpitBoard = () => {
+      renderedSectionIds.push(cockpitBoard.cards.map((card) => card.sectionId));
+    };
+    const requestCockpitBoardRender = () => {
+      boardRenderState.draggingTodoId = draggingTodoId;
+      boardRenderState.isBoardDragging = isBoardDragging;
+      requestBoardRender(boardRenderState, fakeRaf, () => {
+        renderCockpitBoard();
+      });
+      draggingTodoId = boardRenderState.draggingTodoId as string | null;
+      isBoardDragging = !!boardRenderState.isBoardDragging;
+    };
+    const finishBoardDragState = () => {
+      boardRenderState.draggingTodoId = draggingTodoId;
+      boardRenderState.isBoardDragging = isBoardDragging;
+      finishBoardDrag(
+        boardRenderState,
+        () => {
+          draggingSectionId = null;
+          lastDragOverSectionId = null;
+        },
+        () => {
+          draggingTodoId = boardRenderState.draggingTodoId as string | null;
+          isBoardDragging = !!boardRenderState.isBoardDragging;
+          requestCockpitBoardRender();
+        },
+      );
+      draggingTodoId = boardRenderState.draggingTodoId as string | null;
+      isBoardDragging = !!boardRenderState.isBoardDragging;
+    };
+
+    cockpitBoard = {
+      ...baseBoard,
+      cards: [{ id: "todo-1", title: "Moved", sectionId: "section-b", order: 0 }],
+    };
+
+    requestCockpitBoardRender();
+
+    assert.deepStrictEqual(renderedSectionIds, [], "drag-active updates should defer rendering");
+    assert.strictEqual(boardRenderState.pendingBoardRender, true, "deferred board render should be queued");
+    assert.strictEqual(pendingCallbacks.length, 0, "no animation frame should be scheduled during drag");
+
+    finishBoardDragState();
+
+    assert.strictEqual(isBoardDragging, false, "drag state should clear on finish");
+    assert.strictEqual(draggingTodoId, null, "todo drag identity should clear on finish");
+    assert.strictEqual(draggingSectionId, null, "section drag state should reset on finish");
+    assert.strictEqual(lastDragOverSectionId, null, "drag hover state should reset on finish");
+    assert.strictEqual(boardRenderState.pendingBoardRender, false, "pending render should be flushed");
+    assert.strictEqual(pendingCallbacks.length, 1, "flush should schedule one render frame");
+
+    pendingCallbacks[0]();
+
+    assert.deepStrictEqual(renderedSectionIds, [["section-b"]], "flushed render should use the moved board data");
   });
 });
 

@@ -60,6 +60,7 @@ const sectionDirectionSchema = z.enum(["left", "right"]);
 const languageSchema = z.enum(["auto", "en", "ja", "de"]);
 const logLevelSchema: z.ZodType<LogLevel> = z.enum(["none", "error", "info", "debug"]);
 const templateSourceSchema = z.enum(["local", "global"]);
+const taskExecutionProviderSchema = z.enum(["copilot", "codex", "opencode"]);
 
 const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("duplicateTask"), taskId: nonEmptyStringSchema }).passthrough(),
@@ -103,6 +104,8 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("setupMcp") }).passthrough(),
   z.object({ type: z.literal("setupCodex") }).passthrough(),
   z.object({ type: z.literal("setupCodexSkills") }).passthrough(),
+  z.object({ type: z.literal("setupOpenCode") }).passthrough(),
+  z.object({ type: z.literal("setupOpenCodeAssets") }).passthrough(),
   z.object({ type: z.literal("refreshStorageStatus") }).passthrough(),
   z.object({ type: z.literal("syncBundledSkills") }).passthrough(),
   z.object({ type: z.literal("stageBundledAgents") }).passthrough(),
@@ -121,7 +124,10 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("refreshGitHubIntegration") }).passthrough(),
   z.object({ type: z.literal("saveTelegramNotification"), data: telegramNotificationInputSchema }).passthrough(),
   z.object({ type: z.literal("testTelegramNotification"), data: telegramNotificationInputSchema }).passthrough(),
-  z.object({ type: z.literal("saveExecutionDefaults"), data: executionDefaultsInputSchema }).passthrough(),
+  z.object({
+    type: z.literal("saveExecutionDefaults"),
+    data: executionDefaultsInputSchema.and(z.object({ provider: taskExecutionProviderSchema.optional() }).passthrough()),
+  }).passthrough(),
   z.object({ type: z.literal("saveReviewDefaults"), data: reviewDefaultsInputSchema }).passthrough(),
   z.object({ type: z.literal("setStorageSettings"), data: storageSettingsInputSchema }).passthrough(),
   z.object({ type: z.literal("setApprovalMode"), approvalMode: z.enum(["default", "auto-approve", "autopilot", "yolo"]) }).passthrough(),

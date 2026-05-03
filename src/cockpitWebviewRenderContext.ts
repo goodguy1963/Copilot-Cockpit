@@ -28,7 +28,56 @@ import type {
   StorageSettingsView,
   TaskScope,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
+
+type WebviewScriptAsset = {
+  relativeDir: readonly string[];
+  fileName: string;
+};
+
+const WEBVIEW_SCRIPT_CACHE_ASSETS: readonly WebviewScriptAsset[] = [
+  {
+    relativeDir: ["media", "generated"],
+    fileName: "cockpitWebview.loader.js",
+  },
+  {
+    relativeDir: ["media", "generated"],
+    fileName: "cockpitWebview.js",
+  },
+  {
+    relativeDir: ["media"],
+    fileName: "cockpitWebview.js",
+  },
+  {
+    relativeDir: ["media"],
+    fileName: "cockpitWebviewBoardState.js",
+  },
+  {
+    relativeDir: ["media"],
+    fileName: "cockpitWebviewBoardInteractions.js",
+  },
+];
+
+function buildWebviewScriptCacheToken(extensionUri: vscode.Uri): string {
+  const tokenParts: string[] = [];
+
+  for (const asset of WEBVIEW_SCRIPT_CACHE_ASSETS) {
+    try {
+      const scriptPath = vscode.Uri.joinPath(
+        extensionUri,
+        ...asset.relativeDir,
+        asset.fileName,
+      );
+      const scriptStats = fs.statSync(scriptPath.fsPath);
+      tokenParts.push(`${asset.fileName}:${scriptStats.mtimeMs}-${scriptStats.size}`);
+    } catch {
+      // Skip unreadable files and fall back to any remaining bundled assets.
+    }
+  }
+
+  return tokenParts.length > 0 ? tokenParts.join("|") : "static";
+}
 
 export function createSchedulerWebviewRenderContext(options: {
   extensionUri: vscode.Uri;
@@ -45,6 +94,7 @@ export function createSchedulerWebviewRenderContext(options: {
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
+  currentVersionInfo: VersionUpdateView | null;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
   currentRecentResearchRuns: ResearchRun[];
@@ -114,6 +164,7 @@ export function createSchedulerWebviewRenderContext(options: {
     currentExecutionDefaults: options.currentExecutionDefaults,
     currentReviewDefaults: options.currentReviewDefaults,
     currentStorageSettings: options.currentStorageSettings,
+    currentVersionInfo: options.currentVersionInfo,
     currentResearchProfiles: options.currentResearchProfiles,
     currentActiveResearchRun: options.currentActiveResearchRun,
     currentRecentResearchRuns: options.currentRecentResearchRuns,
@@ -148,13 +199,7 @@ export function createSchedulerWebviewRenderContext(options: {
     "generated",
     "cockpitWebview.loader.js",
   );
-  let scriptCacheToken = "static";
-  try {
-    const scriptStats = fs.statSync(scriptPath.fsPath);
-    scriptCacheToken = `${scriptStats.mtimeMs}-${scriptStats.size}`;
-  } catch {
-    // Fall back to a stable token if the bundled file isn't readable.
-  }
+  const scriptCacheToken = buildWebviewScriptCacheToken(options.extensionUri);
   const scriptUri = options.webview.asWebviewUri(scriptPath).with({
     query: `v=${encodeURIComponent(scriptCacheToken)}`,
   });
@@ -192,6 +237,7 @@ export function createSchedulerWebviewCurrentRenderContext(options: {
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
+  currentVersionInfo: VersionUpdateView | null;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
   currentRecentResearchRuns: ResearchRun[];
@@ -201,3 +247,7 @@ export function createSchedulerWebviewCurrentRenderContext(options: {
 }) {
   return createSchedulerWebviewRenderContext(options);
 }
+
+export const __testOnly = {
+  buildWebviewScriptCacheToken,
+};

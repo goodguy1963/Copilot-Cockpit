@@ -70,6 +70,16 @@ export const CODEX_SKILLS_RELATIVE_PATH = path.join(
 
 export const CODEX_AGENTS_RELATIVE_PATH = "AGENTS.md";
 
+export const OPENCODE_SKILLS_RELATIVE_PATH = path.join(
+  ".opencode",
+  "skills",
+);
+
+export const OPENCODE_AGENTS_RELATIVE_PATH = path.join(
+  ".opencode",
+  "agents",
+);
+
 export const COCKPIT_SCHEDULER_SKILL_RELATIVE_PATH = path.join(
   ".github",
   "skills",
@@ -191,6 +201,20 @@ function mapBundledSkillPathToCodex(relativePath: string): string {
   );
 }
 
+function mapBundledSkillPathToOpenCode(relativePath: string): string {
+  return path.join(
+    OPENCODE_SKILLS_RELATIVE_PATH,
+    path.relative(BUNDLED_SKILLS_RELATIVE_PATH, relativePath),
+  );
+}
+
+function mapBundledAgentPathToOpenCode(relativePath: string): string {
+  return path.join(
+    OPENCODE_AGENTS_RELATIVE_PATH,
+    `${path.basename(relativePath, ".agent.md")}.md`,
+  );
+}
+
 function formatManagedSkillLine(
   label: string,
   skillMetadata: ParsedSkillMetadata[],
@@ -299,6 +323,9 @@ function buildManagedCodexAgentsBlock(extensionRoot: string): string {
     "",
     "- Repo-local Codex skills for this project live under `.agents/skills`.",
     "- Repo-local Codex MCP config for this project lives in `.codex/config.toml`.",
+    "- Repo-local OpenCode skills for this project live under `.opencode/skills`.",
+    "- Repo-local OpenCode agents for this project live under `.opencode/agents`.",
+    "- Repo-local OpenCode MCP config for this project lives in `opencode.json`.",
     operationalLine,
     supportLine,
     customAgentLine,
@@ -346,6 +373,25 @@ function upsertManagedCodexAgentsDoc(
     changed: true,
     created: false,
   };
+}
+
+function convertBundledAgentToOpenCodeAgent(content: string): string {
+  const normalized = content.replace(/\r\n/g, "\n");
+  const frontmatterMatch = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(normalized);
+  const values = parseSimpleFrontmatterValues(normalized);
+  const description = values.get("description") || "Copilot Cockpit bundled agent.";
+  const body = frontmatterMatch
+    ? normalized.slice(frontmatterMatch[0].length).trimStart()
+    : normalized.trimStart();
+  return [
+    "---",
+    `description: ${description}`,
+    "mode: subagent",
+    "---",
+    "",
+    body.trimEnd(),
+    "",
+  ].join("\n");
 }
 
 async function collectBundledSkillSyncResult(
@@ -1069,6 +1115,158 @@ export async function syncBundledCodexSkillsForWorkspaceRoots(
     const nextAgents = upsertManagedCodexAgentsDoc(extensionRoot, currentAgentsContent);
     if (nextAgents.changed) {
       await fs.promises.mkdir(path.dirname(agentsPath), { recursive: true });
+      await fs.promises.writeFile(agentsPath, nextAgents.content, "utf8");
+      if (nextAgents.created) {
+        result.createdPaths.push(agentsPath);
+      } else {
+        result.updatedPaths.push(agentsPath);
+      }
+    } else {
+      result.unchangedPaths.push(agentsPath);
+    }
+
+    if (Object.keys(nextWorkspaceState).length > 0) {
+      result.nextState[workspaceRoot] = nextWorkspaceState;
+    } else {
+      delete result.nextState[workspaceRoot];
+    }
+  }
+
+  return result;
+}
+
+export async function syncBundledOpenCodeAssetsForWorkspaceRoots(
+  extensionRoot: string,
+  workspaceRoots: string[],
+  syncState: BundledSkillSyncState = {},
+): Promise<BundledSkillSyncResult> {
+  const normalizedState = normalizeSyncState(syncState);
+  const result: BundledSkillSyncResult = {
+    createdPaths: [],
+    updatedPaths: [],
+    skippedPaths: [],
+    unchangedPaths: [],
+    nextState: { ...normalizedState },
+  };
+
+  if (!extensionRoot || workspaceRoots.length === 0) {
+    return result;
+  }
+
+  const bundledSkillRelativePaths = await collectBundledRelativeFilePaths(
+    extensionRoot,
+    BUNDLED_SKILLS_RELATIVE_PATH,
+  );
+  const bundledAgentsSource = resolveBundledAgentsSource(extensionRoot);
+  const bundledAgentRelativePaths = (await collectRelativeFilePaths(
+    bundledAgentsSource.absolutePath,
+  )).filter((sourceRelativePath) => {
+    return sourceRelativePath.toLowerCase().endsWith(".agent.md")
+      && !isLegacyCustomAgentRelativePath(sourceRelativePath)
+      && !isBundledRepoKnowledgeTemplateAgentRelativePath(sourceRelativePath);
+  });
+
+  const contentBySourcePath = new Map<string, string>();
+
+  for (const workspaceRoot of workspaceRoots) {
+    if (!workspaceRoot) {
+      continue;
+    }
+
+    const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
+    const nextWorkspaceState: Record<string, string> = {};
+
+    const syncOneFile = async (targetRelativePath: string, content: string): Promise<void> => {
+      const contentHash = createContentHash(content);
+      const targetPath = path.join(workspaceRoot, targetRelativePath);
+      const previousManagedHash = previousWorkspaceState[targetRelativePath];
+
+      let currentContent: string | undefined;
+      try {
+        currentContent = await fs.promises.readFile(targetPath, "utf8");
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        if (code && code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (currentContent === undefined) {
+        await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+        await fs.promises.writeFile(targetPath, content, "utf8");
+        result.createdPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = contentHash;
+        return;
+      }
+
+      const currentHash = createContentHash(currentContent);
+      if (currentHash === contentHash) {
+        result.unchangedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = contentHash;
+        return;
+      }
+
+      if (previousManagedHash && currentHash === previousManagedHash) {
+        await fs.promises.writeFile(targetPath, content, "utf8");
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = contentHash;
+        return;
+      }
+
+      if (!isBundledSkillCustomizationProtected(currentContent)) {
+        await fs.promises.writeFile(targetPath, content, "utf8");
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[targetRelativePath] = contentHash;
+        return;
+      }
+
+      result.skippedPaths.push(targetPath);
+      if (previousManagedHash) {
+        nextWorkspaceState[targetRelativePath] = previousManagedHash;
+      }
+    };
+
+    for (const relativePath of bundledSkillRelativePaths) {
+      let bundledContent = contentBySourcePath.get(relativePath);
+      if (bundledContent === undefined) {
+        bundledContent = await fs.promises.readFile(
+          path.join(extensionRoot, relativePath),
+          "utf8",
+        );
+        contentBySourcePath.set(relativePath, bundledContent);
+      }
+      await syncOneFile(mapBundledSkillPathToOpenCode(relativePath), bundledContent);
+    }
+
+    for (const sourceRelativePath of bundledAgentRelativePaths) {
+      const sourceAbsolutePath = path.join(bundledAgentsSource.absolutePath, sourceRelativePath);
+      let bundledContent = contentBySourcePath.get(sourceAbsolutePath);
+      if (bundledContent === undefined) {
+        bundledContent = convertBundledAgentToOpenCodeAgent(
+          await fs.promises.readFile(sourceAbsolutePath, "utf8"),
+        );
+        contentBySourcePath.set(sourceAbsolutePath, bundledContent);
+      }
+      await syncOneFile(mapBundledAgentPathToOpenCode(sourceRelativePath), bundledContent);
+    }
+
+    const agentsPath = path.join(workspaceRoot, CODEX_AGENTS_RELATIVE_PATH);
+    let currentAgentsContent: string | undefined;
+    try {
+      currentAgentsContent = await fs.promises.readFile(agentsPath, "utf8");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error
+        ? String((error as { code?: unknown }).code)
+        : "";
+      if (code && code !== "ENOENT") {
+        throw error;
+      }
+    }
+
+    const nextAgents = upsertManagedCodexAgentsDoc(extensionRoot, currentAgentsContent);
+    if (nextAgents.changed) {
       await fs.promises.writeFile(agentsPath, nextAgents.content, "utf8");
       if (nextAgents.created) {
         result.createdPaths.push(agentsPath);

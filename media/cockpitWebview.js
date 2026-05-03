@@ -106,6 +106,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var versionUpdateView = null;
   var currentLogDirectory = bootstrapData.currentLogDirectory;
   var storageStatusRefreshNoteTimer = null;
+  versionUpdateView = initialData && initialData.versionInfo ? initialData.versionInfo : null;
 
   function refreshTaskCountdowns() {
     if (!taskList || !taskList.isConnected) {
@@ -410,6 +411,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     oneTimeDelayPreviewText,
     agentSelect,
     modelSelect,
+    taskExecutionProviderSelect,
     taskApprovalModeSelect,
     chatSessionGroup,
     chatSessionSelect,
@@ -422,6 +424,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     setupMcpBtn,
     setupCodexBtn,
     setupCodexSkillsBtn,
+    setupOpenCodeBtn,
+    setupOpenCodeAssetsBtn,
     syncBundledSkillsBtn,
     stageBundledAgentsBtn,
     syncBundledAgentsBtn,
@@ -1789,7 +1793,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   }
 
   function collectExecutionDefaultsFormData() {
+    var providerValue = taskExecutionProviderSelect ? String(taskExecutionProviderSelect.value || "") : "";
     return {
+      provider: providerValue === "codex" || providerValue === "opencode" ? providerValue : "copilot",
       agent: defaultAgentSelect ? String(defaultAgentSelect.value || "") : "",
       model: defaultModelSelect ? String(defaultModelSelect.value || "") : "",
     };
@@ -1872,7 +1878,15 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   function renderExecutionDefaultsControls() {
     var agentSelectEl = defaultAgentSelect || document.getElementById("default-agent-select");
     var modelSelectEl = defaultModelSelect || document.getElementById("default-model-select");
+    var providerSelectEl = taskExecutionProviderSelect || document.getElementById("task-execution-provider-select");
     var executionDefaultsNoteEl = executionDefaultsNote || document.getElementById("execution-defaults-note");
+    var nextProvider = executionDefaults && (
+      executionDefaults.provider === "codex" || executionDefaults.provider === "opencode"
+    ) ? executionDefaults.provider : "copilot";
+
+    if (providerSelectEl) {
+      providerSelectEl.value = nextProvider;
+    }
 
     updateSimpleSelect(
       agentSelectEl,
@@ -2110,6 +2124,28 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (settingsLogDirectoryInput) {
       settingsLogDirectoryInput.value = currentLogDirectory || "";
       settingsLogDirectoryInput.title = currentLogDirectory || "";
+    }
+  }
+
+  function setSettingsUpdateCheckPending(isPending) {
+    if (settingsCheckUpdatesBtn) {
+      var defaultLabel = settingsCheckUpdatesBtn.getAttribute("data-default-label")
+        || settingsCheckUpdatesBtn.textContent
+        || strings.settingsCheckUpdates
+        || "Check for Updates";
+      settingsCheckUpdatesBtn.setAttribute("data-default-label", defaultLabel);
+      settingsCheckUpdatesBtn.disabled = !!isPending;
+      settingsCheckUpdatesBtn.textContent = isPending
+        ? (strings.settingsCheckingForUpdates || "Checking for updates...")
+        : defaultLabel;
+    }
+    if (isPending && settingsUpdateStatusRow) {
+      settingsUpdateStatusRow.style.display = "";
+      if (settingsUpdateStatusText) {
+        settingsUpdateStatusText.textContent = strings.settingsCheckingForUpdates
+          || "Checking for updates...";
+        settingsUpdateStatusText.style.color = "";
+      }
     }
   }
 
@@ -2914,6 +2950,12 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   runStartupRenderStep("renderApprovalModeControls", renderApprovalModeControls);
   runStartupRenderStep("renderStorageSettingsControls", renderStorageSettingsControls);
   runStartupRenderStep("renderLoggingControls", renderLoggingControls);
+  runStartupRenderStep("renderVersionUpdateInfo", function () {
+    renderVersionUpdateInfo(versionUpdateView);
+    if (versionUpdateView && settingsUpdateTrackSelect) {
+      settingsUpdateTrackSelect.value = versionUpdateView.track || "stable";
+    }
+  });
 
   function parseTagList(text) {
     if (!text) return [];
@@ -3015,6 +3057,28 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     return cockpitBoard && Array.isArray(cockpitBoard.cards)
       ? cockpitBoard.cards.slice()
       : [];
+  }
+
+  function isPinnedRecurringTaskTodo(card) {
+    if (!card || card.archived || !card.taskId) {
+      return false;
+    }
+    if (card.taskSnapshot && card.taskSnapshot.oneTime === true) {
+      return false;
+    }
+    if (isRecurringTodoSectionId(card.sectionId)) {
+      return true;
+    }
+    return Array.isArray(card.labels)
+      && card.labels.some(function (label) {
+        return normalizeTodoLabelKey(label) === 'recurring-task';
+      });
+  }
+
+  function getTodoDragScope(card) {
+    return isPinnedRecurringTaskTodo(card)
+      ? 'section'
+      : 'board';
   }
 
 
@@ -3693,6 +3757,7 @@ syncTodoLabelSuggestions();
       setDraggingTodoId: function (value) {
         draggingTodoId = value;
       },
+      optimisticallyMoveTodo: optimisticallyMoveTodo,
       setIsBoardDragging: function (value) {
         isBoardDragging = value;
       },
@@ -4492,7 +4557,11 @@ syncTodoLabelSuggestions();
     if (!card || card.archived) {
       return '';
     }
-    return '<span class="cockpit-drag-handle" data-todo-drag-handle="' + escapeAttr(card.id) + '" data-no-drag="1" title="' + escapeAttr(strings.boardReorderTodo || 'Drag todo') + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
+    var dragScope = getTodoDragScope(card);
+    var dragTitle = dragScope === 'section'
+      ? (strings.boardReorderRecurringTodo || 'Reorder within Recurring Tasks')
+      : (strings.boardReorderTodo || 'Drag todo');
+    return '<span class="cockpit-drag-handle" data-todo-drag-handle="' + escapeAttr(card.id) + '" data-todo-drag-scope="' + escapeAttr(dragScope) + '" data-no-drag="1" title="' + escapeAttr(dragTitle) + '" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:0 4px;cursor:grab;color:var(--vscode-descriptionForeground);user-select:none;line-height:1;font-weight:700;">::</span>';
   }
 
   function renderSectionDragHandle(section, isArchiveSection) {
@@ -4593,6 +4662,99 @@ syncTodoLabelSuggestions();
       }
       return result * direction;
     });
+  }
+
+  function optimisticallyMoveTodo(move) {
+    var todoId = move && move.todoId ? String(move.todoId) : "";
+    var targetSectionId = move && move.sectionId ? String(move.sectionId) : "";
+    var targetIndex = move && typeof move.targetIndex === "number"
+      ? move.targetIndex
+      : Number(move && move.targetIndex);
+    if (!todoId || !targetSectionId || !cockpitBoard || !Array.isArray(cockpitBoard.cards)) {
+      return false;
+    }
+
+    var movedCard = findTodoById(todoId);
+    if (!movedCard || movedCard.archived) {
+      return false;
+    }
+
+    var sourceSectionId = String(movedCard.sectionId || "");
+    if (isArchiveTodoSectionId(targetSectionId)) {
+      return false;
+    }
+    if (getTodoDragScope(movedCard) === "section" && sourceSectionId && sourceSectionId !== targetSectionId) {
+      return false;
+    }
+
+    var normalizedTargetIndex = Number.isFinite(targetIndex) ? targetIndex : 0;
+    var manualSortFilters = { sortBy: "manual", sortDirection: "asc" };
+    var allCards = cockpitBoard.cards.slice();
+    var remainingCards = allCards.filter(function (card) {
+      return card && card.id !== todoId;
+    });
+    var sourceSectionCards = sortTodoCards(
+      remainingCards.filter(function (card) {
+        return card && !card.archived && String(card.sectionId || "") === sourceSectionId;
+      }),
+      manualSortFilters,
+    );
+    var targetSectionCards = sourceSectionId === targetSectionId
+      ? sourceSectionCards.slice()
+      : sortTodoCards(
+        remainingCards.filter(function (card) {
+          return card && !card.archived && String(card.sectionId || "") === targetSectionId;
+        }),
+        manualSortFilters,
+      );
+    var boundedTargetIndex = Math.max(0, Math.min(normalizedTargetIndex, targetSectionCards.length));
+    targetSectionCards.splice(
+      boundedTargetIndex,
+      0,
+      Object.assign({}, movedCard, { sectionId: targetSectionId }),
+    );
+
+    var updatesById = {};
+    targetSectionCards.forEach(function (card, index) {
+      if (card && card.id) {
+        updatesById[card.id] = { sectionId: targetSectionId, order: index };
+      }
+    });
+    if (sourceSectionId !== targetSectionId) {
+      sourceSectionCards.forEach(function (card, index) {
+        if (card && card.id) {
+          updatesById[card.id] = { sectionId: sourceSectionId, order: index };
+        }
+      });
+    }
+
+    var didChange = false;
+    var nextCards = allCards.map(function (card) {
+      if (!card || !updatesById[card.id]) {
+        return card;
+      }
+      var nextState = updatesById[card.id];
+      var nextSectionId = nextState.sectionId;
+      var nextOrder = nextState.order;
+      if (String(card.sectionId || "") === nextSectionId && Number(card.order || 0) === nextOrder) {
+        return card;
+      }
+      didChange = true;
+      return Object.assign({}, card, {
+        sectionId: nextSectionId,
+        order: nextOrder,
+      });
+    });
+
+    if (!didChange) {
+      return false;
+    }
+
+    cockpitBoard = Object.assign({}, cockpitBoard, {
+      cards: nextCards,
+    });
+    requestCockpitBoardRender();
+    return true;
   }
 
   function renderTodoFilterControls(filters, sections, cards) {
@@ -5023,6 +5185,7 @@ syncTodoLabelSuggestions();
         renderSectionDragHandle: renderSectionDragHandle,
         renderTodoCompletionCheckbox: renderTodoCompletionButton,
         renderTodoDragHandle: renderTodoDragHandle,
+        getTodoDragScope: getTodoDragScope,
         renderFlagChip: renderFlagChip,
         renderLabelChip: renderLabelChip,
         getTodoPriorityLabel: getTodoPriorityLabel,
@@ -6390,6 +6553,7 @@ syncTodoLabelSuggestions();
     vscode.postMessage({ type: "openLogFolder" });
   });
   bindClickAction(settingsCheckUpdatesBtn, function () {
+    setSettingsUpdateCheckPending(true);
     vscode.postMessage({ type: "checkForUpdates" });
   });
   bindSelectChange(settingsUpdateTrackSelect, function (control) {
@@ -6775,6 +6939,8 @@ syncTodoLabelSuggestions();
     setupMcp: setupMcpBtn,
     setupCodex: setupCodexBtn,
     setupCodexSkills: setupCodexSkillsBtn,
+    setupOpenCode: setupOpenCodeBtn,
+    setupOpenCodeAssets: setupOpenCodeAssetsBtn,
     syncBundledSkills: syncBundledSkillsBtn,
     stageBundledAgents: stageBundledAgentsBtn,
     syncBundledAgents: syncBundledAgentsBtn,
@@ -9874,6 +10040,7 @@ syncTodoLabelSuggestions();
           renderLoggingControls();
           break;
         case "updateVersionInfo":
+          setSettingsUpdateCheckPending(false);
           versionUpdateView = message.versionUpdate || null;
           renderVersionUpdateInfo(versionUpdateView);
           if (versionUpdateView && settingsUpdateTrackSelect) {
@@ -9887,10 +10054,12 @@ syncTodoLabelSuggestions();
           break;
         case "updateExecutionDefaults":
           executionDefaults = message.executionDefaults || {
+            provider: "copilot",
             agent: "agent",
             model: "",
           };
           emitWebviewDebug("updateExecutionDefaults", {
+            provider: executionDefaults.provider || "copilot",
             agent: executionDefaults.agent || "",
             model: executionDefaults.model || "",
             editingTaskId: editingTaskId || "",

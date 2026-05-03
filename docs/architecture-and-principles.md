@@ -23,7 +23,7 @@ Copilot Cockpit is a local orchestration layer for AI work inside VS Code. It tr
 
 Copilot Cockpit is built upon [vscode-copilot-scheduler by aktsmm](https://github.com/aktsmm/vscode-copilot-scheduler). The current workflow style is also influenced by the AK TM style of agent-oriented task management and disciplined handoff.
 
-It is also intentionally built on top of the Visual Studio Code and GitHub Copilot ecosystem rather than outside it. The extension relies on the editor runtime, the native chat surface, repo-local customization patterns, and MCP-oriented tooling so that model improvements and chat-surface improvements from the platform can flow into the cockpit over time.
+It is also intentionally built on top of the Visual Studio Code and GitHub Copilot ecosystem rather than outside it. The extension relies on the editor runtime, the native chat surface, repo-local customization patterns, external CLI integrations where appropriate, and MCP-oriented tooling so that model improvements and chat-surface improvements from the platform can flow into the cockpit over time.
 
 Boundary handling follows the same split:
 
@@ -33,8 +33,9 @@ Boundary handling follows the same split:
 
 The architectural split is deliberate:
 
-- VS Code and Copilot provide the execution surface.
-- Connected model providers provide the underlying reasoning and generation capability.
+- VS Code and Copilot provide the native chat execution surface.
+- Codex and OpenCode can be used as external CLI execution surfaces for scheduled tasks.
+- Connected model providers provide the underlying reasoning and generation capability, whether they are reached through Copilot or configured externally in Codex/OpenCode.
 - Copilot Cockpit provides the workflow structure, review checkpoints, persistence, and controlled handoff around that surface.
 
 ## Fork Notes

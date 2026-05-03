@@ -1267,6 +1267,18 @@ export const messages = {
       "Codex にスキルを追加",
       "Skills zu Codex hinzufügen",
     ),
+  openCodeSetupAction: () =>
+    t(
+      "Add MCP To OpenCode",
+      "OpenCode に MCP を追加",
+      "MCP zu OpenCode hinzufügen",
+    ),
+  openCodeAssetsSetupAction: () =>
+    t(
+      "Add Agents To OpenCode",
+      "OpenCode にエージェントを追加",
+      "Agenten zu OpenCode hinzufügen",
+    ),
   mcpSetupCompleted: (configPath: string) =>
     t(
       `Scheduler MCP config updated: ${configPath}`,
@@ -1284,6 +1296,18 @@ export const messages = {
       `Scheduler の Codex スキル同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
       `Scheduler-Codex-Skills synchronisiert. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
     ),
+  openCodeSetupCompleted: (configPath: string) =>
+    t(
+      `Scheduler OpenCode MCP config updated: ${configPath}`,
+      `Scheduler の OpenCode MCP 設定を更新しました: ${configPath}`,
+      `Scheduler-OpenCode-MCP-Konfiguration aktualisiert: ${configPath}`,
+    ),
+  openCodeAssetsSetupCompleted: (created: number, updated: number, skipped: number) =>
+    t(
+      `Scheduler OpenCode agents and skills synced. Created ${created}, updated ${updated}, skipped ${skipped} customized files.`,
+      `Scheduler の OpenCode エージェントとスキル同期が完了しました。作成 ${created} 件、更新 ${updated} 件、スキップ ${skipped} 件です。`,
+      `Scheduler-OpenCode-Agenten und -Skills synchronisiert. Erstellt: ${created}, aktualisiert: ${updated}, übersprungen: ${skipped} angepasste Dateien.`,
+    ),
   mcpSetupFailed: (reason: string) =>
     t(
       `Failed to update .vscode/mcp.json: ${reason}`,
@@ -1300,6 +1324,18 @@ export const messages = {
       `Failed to sync Codex skills: ${reason}`,
       `Codex スキルの同期に失敗しました: ${reason}`,
       `Synchronisierung der Codex-Skills fehlgeschlagen: ${reason}`,
+    ),
+  openCodeSetupFailed: (reason: string) =>
+    t(
+      `Failed to update opencode.json: ${reason}`,
+      `opencode.json の更新に失敗しました: ${reason}`,
+      `Aktualisierung von opencode.json fehlgeschlagen: ${reason}`,
+    ),
+  openCodeAssetsSetupFailed: (reason: string) =>
+    t(
+      `Failed to sync OpenCode agents and skills: ${reason}`,
+      `OpenCode エージェントとスキルの同期に失敗しました: ${reason}`,
+      `Synchronisierung der OpenCode-Agenten und -Skills fehlgeschlagen: ${reason}`,
     ),
   readyTodoDraftActionSingle: () =>
     t("Open Draft", "下書きを開く", "Entwurf öffnen"),

@@ -32,6 +32,7 @@ Use this directory for durable, repo-specific memory that should help future wor
 ## Current Files
 
 - `agent-system.md`: repo-specific knowledge about the agent system, memory surfaces, and write-back workflow in this repository.
+- `webview-runtime.md`: repo-specific webview/runtime lessons, especially where host persistence and immediate browser-state updates can diverge.
 
 ## Writing Rules
 

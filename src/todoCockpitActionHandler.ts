@@ -989,6 +989,10 @@ export async function handleTodoCockpitAction(
     return false;
   }
 
+  const refreshCockpitUi = () => {
+    deps.refreshSchedulerUiState(true);
+  };
+
   switch (action.action) {
     case "createTodo": {
       const workspaceRoot = deps.getPrimaryWorkspaceRootPath();
@@ -1032,7 +1036,7 @@ export async function handleTodoCockpitAction(
         if (revealFilters) {
           setCockpitBoardFilters(workspaceRoot, revealFilters);
         }
-        deps.refreshSchedulerUiState();
+        refreshCockpitUi();
         SchedulerWebview.startCreateTodo();
         SchedulerWebview.switchToTab("board");
         deps.notifyInfo(
@@ -1059,7 +1063,7 @@ export async function handleTodoCockpitAction(
       if (revealFilters) {
         setCockpitBoardFilters(workspaceRoot, revealFilters);
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(
@@ -1101,7 +1105,7 @@ export async function handleTodoCockpitAction(
         && getTodoWorkflowFlag(result.todo) === COCKPIT_READY_FLAG;
       if (transitionedToReady) {
         const draftTask = await ensureReadyTodoTaskDraft(workspaceRoot, result.todo, deps);
-        deps.refreshSchedulerUiState();
+        refreshCockpitUi();
         SchedulerWebview.editTask(draftTask.taskId);
         const notificationMessage = draftTask.created
           ? `Updated Todo Cockpit item and created task draft: ${draftTask.taskName}`
@@ -1116,7 +1120,7 @@ export async function handleTodoCockpitAction(
         deps.notifyInfo(notificationMessage);
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(
@@ -1163,7 +1167,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo("Todo Cockpit item rejected and archived.");
       return true;
@@ -1179,7 +1183,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo("Todo Cockpit item permanently deleted.");
       return true;
@@ -1195,7 +1199,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(`Approved Todo Cockpit item: ${result.todo.title}`);
       return true;
@@ -1211,7 +1215,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(`Rejected Todo Cockpit item: ${result.todo.title}`);
       return true;
@@ -1243,7 +1247,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(
         restoreRequested
@@ -1265,7 +1269,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(`Completed Todo Cockpit item: ${result.todo.title}`);
       return true;
@@ -1286,7 +1290,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1300,7 +1304,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError(result.validationError);
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1315,7 +1319,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError(result.validationError);
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1326,7 +1330,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       deleteCockpitSection(workspaceRoot, action.sectionId);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1337,7 +1341,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       moveCockpitSection(workspaceRoot, action.sectionId, action.sectionDirection);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1348,7 +1352,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       reorderCockpitSection(workspaceRoot, action.sectionId, action.targetIndex);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1366,7 +1370,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1384,7 +1388,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1405,7 +1409,7 @@ export async function handleTodoCockpitAction(
         filterUpdates,
       );
       void persistedBoard;
-      deps.refreshSchedulerUiState(true);
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1423,7 +1427,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit label could not be saved.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1434,7 +1438,7 @@ export async function handleTodoCockpitAction(
       }
       deleteCockpitTodoLabelDefinition(workspaceRoot, action.todoLabelData.name);
       await deps.removeLabelFromAllTasks(action.todoLabelData.name);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1451,7 +1455,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit flag could not be saved.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1465,7 +1469,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       deleteCockpitFlagDefinition(workspaceRoot, action.todoFlagData.name);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       return true;
     }
 
@@ -1491,7 +1495,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.switchToTab("board");
       return true;
     }
@@ -1512,7 +1516,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       const draftTask = await ensureReadyTodoTaskDraft(workspaceRoot, todo, deps);
-      deps.refreshSchedulerUiState();
+      refreshCockpitUi();
       SchedulerWebview.editTask(draftTask.taskId);
       deps.notifyInfo(
         draftTask.created

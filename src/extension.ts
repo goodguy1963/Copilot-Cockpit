@@ -3,6 +3,8 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { ScheduleManager } from "./cockpitManager"; // local-diverge-3
 import { CopilotExecutor } from "./copilotExecutor";
+import { CodexExecutor } from "./codexExecutor";
+import { OpenCodeExecutor } from "./openCodeExecutor";
 import { ResearchManager } from "./researchManager";
 import {
   ScheduledTaskTreeProvider,
@@ -64,6 +66,7 @@ import {
   stageBundledAgentsForWorkspaceRoots,
   syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
+  syncBundledOpenCodeAssetsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "./skillBootstrap";
 import {
@@ -112,6 +115,7 @@ import {
   getSchedulerMcpSetupState,
   upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
+  upsertSchedulerOpenCodeConfig,
 } from "./mcpConfigManager";
 import {
   ExternalAgentAccessManager,
@@ -187,6 +191,7 @@ import type {
   ReviewDefaultsView,
   PromptSource,
   UpdateCockpitBoardFiltersInput,
+  TaskExecutionProvider,
 } from "./types";
 
 type NotificationMode = "sound" | "silentToast" | "silentStatus";
@@ -194,6 +199,7 @@ type NotificationMode = "sound" | "silentToast" | "silentStatus";
 const BUNDLED_SKILL_SYNC_STATE_KEY = "bundledSkillSyncState";
 const BUNDLED_AGENT_SYNC_STATE_KEY = "bundledAgentSyncState";
 const CODEX_SKILL_SYNC_STATE_KEY = "codexSkillSyncState";
+const OPENCODE_ASSET_SYNC_STATE_KEY = "openCodeAssetSyncState";
 const COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY = "cockpitWorkspaceActivationByRoot";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
@@ -1050,6 +1056,26 @@ async function syncCodexSkills(
   return syncResult;
 }
 
+async function syncOpenCodeAssets(
+  context: vscode.ExtensionContext,
+  workspaceRoots: string[],
+): Promise<BundledSkillSyncResult> {
+  const syncState = context.globalState.get<BundledSkillSyncState>(
+    OPENCODE_ASSET_SYNC_STATE_KEY,
+    {},
+  );
+  const syncResult = await syncBundledOpenCodeAssetsForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+    syncState,
+  );
+  await context.globalState.update(
+    OPENCODE_ASSET_SYNC_STATE_KEY,
+    syncResult.nextState,
+  );
+  return syncResult;
+}
+
 async function updateWorkspaceTimestampMap(
   context: vscode.ExtensionContext,
   key: string,
@@ -1149,6 +1175,8 @@ async function notifyCustomSubAgentSetupRequirement(): Promise<void> {
 // Global instances
 let scheduler: ScheduleManager;
 let copilotExecutor: CopilotExecutor; // local-diverge-452
+let codexExecutor: CodexExecutor;
+let openCodeExecutor: OpenCodeExecutor;
 let researchManager: ResearchManager;
 let taskTreeView: ScheduledTaskTreeProvider;
 let promptRefreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -1417,6 +1445,50 @@ function setCurrentCockpitBoard(
   currentCockpitBoard = normalizeCockpitBoard(board);
 }
 
+function getCockpitBoardUpdatedAtTime(board: CockpitBoard | undefined): number | undefined {
+  if (!board || typeof board.updatedAt !== "string" || !board.updatedAt.trim()) {
+    return undefined;
+  }
+
+  const parsedTime = Date.parse(board.updatedAt);
+  return Number.isFinite(parsedTime) ? parsedTime : undefined;
+}
+
+function resolveCockpitBoardForSqliteHydration(options: {
+  workspaceRoot: string;
+  currentBoardWorkspaceRoot?: string;
+  currentBoard?: CockpitBoard;
+  hydratedBoard: CockpitBoard;
+}): CockpitBoard {
+  const {
+    workspaceRoot,
+    currentBoardWorkspaceRoot,
+    currentBoard,
+    hydratedBoard,
+  } = options;
+
+  if (!currentBoard || currentBoardWorkspaceRoot !== workspaceRoot) {
+    return hydratedBoard;
+  }
+
+  const currentUpdatedAtTime = getCockpitBoardUpdatedAtTime(currentBoard);
+  const hydratedUpdatedAtTime = getCockpitBoardUpdatedAtTime(hydratedBoard);
+
+  if (currentUpdatedAtTime === undefined && hydratedUpdatedAtTime === undefined) {
+    return hydratedBoard;
+  }
+  if (currentUpdatedAtTime === undefined) {
+    return hydratedBoard;
+  }
+  if (hydratedUpdatedAtTime === undefined) {
+    return currentBoard;
+  }
+
+  return currentUpdatedAtTime >= hydratedUpdatedAtTime
+    ? currentBoard
+    : hydratedBoard;
+}
+
 async function syncCockpitBoardToSqliteIfNeeded(
   workspaceRoot: string,
   board: CockpitBoard,
@@ -1523,7 +1595,17 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
           : createDefaultCockpitBoard(),
         scheduler?.getAllTasks?.() ?? [],
       ).board;
-      setCurrentCockpitBoard(workspaceRoot, hydratedBoard);
+      const nextBoard = resolveCockpitBoardForSqliteHydration({
+        workspaceRoot,
+        currentBoardWorkspaceRoot: currentCockpitBoardWorkspaceRoot,
+        currentBoard: currentCockpitBoard,
+        hydratedBoard,
+      });
+      if (nextBoard === currentCockpitBoard && currentCockpitBoardWorkspaceRoot === workspaceRoot) {
+        return;
+      }
+
+      setCurrentCockpitBoard(workspaceRoot, nextBoard);
       refreshSchedulerUiState(immediate);
     })
     .catch((error) =>
@@ -1999,7 +2081,15 @@ function getExecutionDefaultsTarget(): vscode.ConfigurationTarget {
 
 function getCurrentExecutionDefaults(): ExecutionDefaultsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
+  const configuredProvider = getSchedulerSetting<TaskExecutionProvider>(
+    "taskExecutionProvider",
+    "copilot",
+    folderUri,
+  );
   return {
+    provider: configuredProvider === "codex" || configuredProvider === "opencode"
+      ? configuredProvider
+      : "copilot",
     agent: getSchedulerSetting<string>("defaultAgent", "agent", folderUri).trim(),
     model: getSchedulerSetting<string>("defaultModel", "", folderUri).trim(),
   };
@@ -2097,7 +2187,11 @@ async function saveExecutionDefaults(
   const nextModel = typeof input.model === "string"
     ? input.model.trim()
     : getSchedulerSetting<string>("defaultModel", "", folderUri).trim();
+  const nextProvider = input.provider === "codex" || input.provider === "opencode"
+    ? input.provider
+    : "copilot";
 
+  await updateSchedulerSetting("taskExecutionProvider", nextProvider, target, folderUri);
   await updateSchedulerSetting("defaultAgent", nextAgent, target, folderUri);
   await updateSchedulerSetting("defaultModel", nextModel, target, folderUri);
 
@@ -2338,6 +2432,73 @@ async function setupWorkspaceCodexSkills(
       redactPathsForLog(errorMessage),
     );
     notifyError(messages.codexSkillsSetupFailed(redactPathsForLog(errorMessage)));
+    return false;
+  }
+}
+
+async function setupWorkspaceOpenCodeConfig(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, [workspaceRoot])) {
+    return false;
+  }
+
+  try {
+    const result = upsertSchedulerOpenCodeConfig(
+      workspaceRoot,
+      context.extensionUri.fsPath,
+    );
+    notifyInfo(messages.openCodeSetupCompleted(result.configPath));
+    return true;
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logError(
+      "[CopilotScheduler] Failed to update workspace OpenCode config:",
+      redactPathsForLog(errorMessage),
+    );
+    notifyError(messages.openCodeSetupFailed(redactPathsForLog(errorMessage)));
+    return false;
+  }
+}
+
+async function setupWorkspaceOpenCodeAssets(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoots = getResolvedWorkspaceRoots(
+    (vscode.workspace.workspaceFolders ?? []).map((folder) => folder.uri.fsPath),
+  );
+  if (workspaceRoots.length === 0) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, workspaceRoots)) {
+    return false;
+  }
+
+  try {
+    const result = await syncOpenCodeAssets(context, workspaceRoots);
+    notifyInfo(
+      messages.openCodeAssetsSetupCompleted(
+        result.createdPaths.length,
+        result.updatedPaths.length,
+        result.skippedPaths.length,
+      ),
+    );
+    return true;
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logError(
+      "[CopilotScheduler] Failed to sync workspace OpenCode assets:",
+      redactPathsForLog(errorMessage),
+    );
+    notifyError(messages.openCodeAssetsSetupFailed(redactPathsForLog(errorMessage)));
     return false;
   }
 }
@@ -2721,6 +2882,8 @@ export function activate(context: vscode.ExtensionContext): void {
   scheduler = new ScheduleManager(context);
   CopilotExecutor.configure(context);
   copilotExecutor = new CopilotExecutor(); // local-diverge-1339
+  codexExecutor = new CodexExecutor();
+  openCodeExecutor = new OpenCodeExecutor();
   researchManager = new ResearchManager(context, copilotExecutor);
   const initialWorkspaceRoot = getPrimaryWorkspaceRootPath();
   if (initialWorkspaceRoot) {
@@ -2958,6 +3121,7 @@ export function activate(context: vscode.ExtensionContext): void {
       SchedulerWebview.updateApprovalMode(normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default")));
     }
     if (
+      affectsCompatibleConfiguration(e, "taskExecutionProvider") ||
       affectsCompatibleConfiguration(e, "defaultAgent") ||
       affectsCompatibleConfiguration(e, "defaultModel")
     ) {
@@ -3087,6 +3251,24 @@ async function runScheduledTask(task: ScheduledTask): Promise<void> {
   try {
     // Resolve prompt text
     const promptText = await resolvePromptText(task); // resolve
+
+    const executionDefaults = getCurrentExecutionDefaults();
+    if (executionDefaults.provider === "codex") {
+      await codexExecutor.executePrompt(promptText, {
+        cwd: task.workspacePath || getPrimaryWorkspaceRootPath(),
+        model: task.model?.trim() || executionDefaults.model,
+      });
+      return;
+    }
+
+    if (executionDefaults.provider === "opencode") {
+      await openCodeExecutor.executePrompt(promptText, {
+        cwd: task.workspacePath || getPrimaryWorkspaceRootPath(),
+        model: task.model?.trim() || executionDefaults.model,
+        agent: task.agent?.trim() || executionDefaults.agent,
+      });
+      return;
+    }
 
     // Execute the prompt
     await copilotExecutor.executePrompt(promptText, {
@@ -3392,6 +3574,7 @@ export const __testOnly = {
   getWorkspaceStorageWatchFileNames,
   isCockpitWorkspaceActivated,
   normalizeSearchProvider,
+  resolveCockpitBoardForSqliteHydration,
   resolveBundledSkillsStatus,
   resolveProviderSettings,
   resolveTaskExecutionChatSession,
@@ -3924,6 +4107,24 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "setupOpenCode": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupWorkspaceOpenCodeConfig(extensionContext);
+        break;
+      }
+
+      case "setupOpenCodeAssets": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupWorkspaceOpenCodeAssets(extensionContext);
+        break;
+      }
+
       case "refreshStorageStatus": {
         SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
         break;
@@ -4123,7 +4324,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           action.executionDefaults ?? {},
         );
         SchedulerWebview.updateExecutionDefaults(defaults);
-        notifyInfo("Default agent and model updated.");
+        notifyInfo("Default execution provider, agent, and model updated.");
         SchedulerWebview.switchToTab("settings");
         break;
       }

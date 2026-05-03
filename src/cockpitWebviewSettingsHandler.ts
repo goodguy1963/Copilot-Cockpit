@@ -9,7 +9,7 @@ import type { ApprovalMode, StorageSettingsView, VersionUpdateView, WebviewToExt
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { getCompatibleConfigurationValue, updateCompatibleConfigurationValue } from "./extensionCompat";
-import { fetchVersionUpdateView } from "./versionUpdates";
+import { buildVersionUpdateView, fetchVersionUpdateView } from "./versionUpdates";
 import { getWorkspaceMcpConfigPath } from "./mcpConfigManager";
 
 const UPDATE_TRACK_SETTING_KEY = "updateTrack";
@@ -358,19 +358,35 @@ export async function handleSettingsWebviewMessage(
       return true;
     }
     case "checkForUpdates": {
-      const extCtx = ctx.extensionContext;
-      if (!extCtx) {
-        return true;
-      }
       const track = getCompatibleConfigurationValue<string>(
         UPDATE_TRACK_SETTING_KEY,
         "stable",
         scope,
-      );
-      const versionUpdate: VersionUpdateView = await fetchVersionUpdateView(
-        extCtx,
-        track as "stable" | "edge",
-      );
+      ) === "edge"
+        ? "edge"
+        : "stable";
+      const extCtx = ctx.extensionContext;
+      let versionUpdate: VersionUpdateView;
+      if (!extCtx) {
+        versionUpdate = buildVersionUpdateView({
+          currentVersion: "",
+          stable: null,
+          edge: null,
+          track,
+        });
+      } else {
+        try {
+          versionUpdate = await fetchVersionUpdateView(extCtx, track);
+        } catch (error) {
+          logError("[SettingsHandler] Failed to fetch version update info.", error);
+          versionUpdate = buildVersionUpdateView({
+            currentVersion: extCtx.extension.packageJSON?.version ?? "",
+            stable: null,
+            edge: null,
+            track,
+          });
+        }
+      }
       ctx.postMessage({ type: "updateVersionInfo", versionUpdate });
       return true;
     }

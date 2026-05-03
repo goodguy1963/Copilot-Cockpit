@@ -17,6 +17,7 @@ import type {
   StorageSettingsView,
   LogLevel,
   TelegramNotificationView,
+  VersionUpdateView,
 } from "./types";
 
 export function getWebviewNonce(): string {
@@ -118,6 +119,7 @@ type BuildSchedulerWebviewInitialDataParams = {
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
+  currentVersionInfo: VersionUpdateView | null;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
   currentRecentResearchRuns: ResearchRun[];
@@ -150,6 +152,7 @@ export function buildSchedulerWebviewInitialData(
     executionDefaults: params.currentExecutionDefaults,
     reviewDefaults: params.currentReviewDefaults,
     storageSettings: params.currentStorageSettings,
+    versionInfo: params.currentVersionInfo,
     researchProfiles: params.currentResearchProfiles,
     activeResearchRun: params.currentActiveResearchRun,
     recentResearchRuns: params.currentRecentResearchRuns,

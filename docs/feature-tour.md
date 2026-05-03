@@ -139,9 +139,24 @@ Screenshot slot: `S6` for the full Settings overview.
 Caption: Keep control at the workspace level.
 
 - Configure repo-local defaults.
-- Set up integrations such as MCP and execution preferences.
+- Choose the scheduled task execution provider: native `GitHub Copilot Chat`, external `OpenAI Codex CLI`, or external `OpenCode CLI`.
+- Set up integrations such as MCP and provider-specific repo-local support files.
 - Choose how the cockpit stores and restores its state.
 - Save repo-local GitHub settings, check VS Code connection status, and refresh the cached GitHub inbox without exposing the runtime access token to the webview.
+
+The execution-defaults form is shared, but provider behavior is conditional:
+
+- `Copilot` uses the shared default model and default agent through the VS Code chat path.
+- `Codex` uses the shared default model only.
+- `OpenCode` uses the shared default model and default agent.
+
+Settings also expose practical setup actions rather than vague enablement toggles:
+
+- `Set Up MCP` updates `.vscode/mcp.json` for the workspace scheduler server.
+- `Add MCP To Codex` updates `.codex/config.toml`.
+- `Add Skills To Codex` syncs `.agents/skills` and refreshes `AGENTS.md`.
+- `Add MCP To OpenCode` updates `opencode.json` or `opencode.jsonc`.
+- `Add Agents To OpenCode` syncs `.opencode/skills`, `.opencode/agents`, and refreshes `AGENTS.md`.
 
 ![Illustrative GitHub Integration settings mockup](../images/github-integration-settings.svg)
 
@@ -150,6 +165,8 @@ Illustrative SVG mockup of the GitHub Integration card in Settings with repo-loc
 Settings are also where the system becomes project-specific over time, because defaults, tooling, storage mode, and execution preferences can evolve with the repo instead of resetting on every session.
 
 If you want the detailed GitHub setup and workflow, go to [GitHub Integration](./github-integration.md).
+
+If you want the full execution-provider and setup reference, go to [Integrations](./integrations.md).
 
 Best for: shaping how the extension behaves in the current repo.
 

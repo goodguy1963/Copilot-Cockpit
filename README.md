@@ -36,6 +36,30 @@ That structure keeps the LLM as the native execution chat surface while Copilot 
 
 **The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.**
 
+## Execution Providers
+
+Copilot Cockpit now supports three scheduled execution providers from one shared workspace settings surface:
+
+- `GitHub Copilot Chat` through the native VS Code chat execution path.
+- `OpenAI Codex CLI` through local `codex exec --json -` execution.
+- `OpenCode CLI` through local `opencode run --format json <prompt>` execution.
+
+These providers do not all behave the same way, and that is intentional.
+
+- `Copilot` is the native VS Code chat surface. Cockpit can use the shared workspace `defaultModel` and `defaultAgent` through the editor's chat/customization flow.
+- `Codex` is an external CLI integration. Cockpit only forwards the shared workspace `defaultModel` when it is non-empty. It does not use Cockpit `defaultAgent`.
+- `OpenCode` is an external CLI integration. Cockpit forwards the shared workspace `defaultModel` and `defaultAgent` when they are non-empty.
+
+Cockpit does not host models for any of these providers. For Copilot, model availability depends on your VS Code and Copilot environment. For Codex and OpenCode, provider accounts, authentication, and model availability are configured in Codex/OpenCode themselves, outside Cockpit.
+
+That means the shared defaults are best understood as provider-conditional hints:
+
+- `defaultModel` is shared across all three providers, but only forwarded where the active provider supports it.
+- `defaultAgent` is shared in the same Settings form, but only used by Copilot and OpenCode.
+- `taskExecutionProvider` decides which runtime path scheduled tasks use.
+
+If you want the deep setup matrix, file locations, and button-by-button behavior, see [docs/integrations.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/integrations.md).
+
 ## 🎬 Demo
 
 [![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)](https://youtu.be/yiJCmwmxEFc?si=TFf5vLOhTtcSASg3&t=197)
@@ -72,6 +96,8 @@ In other words:
 - Copilot Cockpit provides the workflow harness that makes those capabilities operational for real project work.
 
 This is why the project can stay useful as the surrounding platform improves. The cockpit does not need to outgrow the editor. It needs to make the editor's AI surfaces safer, clearer, and more repeatable.
+
+The important boundary is that only GitHub Copilot runs through the native VS Code chat surface. Codex and OpenCode support are external CLI-based integrations used for scheduled execution and repo-local setup. Cockpit can prepare repo-local MCP, skills, and agent guidance for them, but it does not drive a Codex or OpenCode chat sidebar inside VS Code.
 
 ```mermaid
 flowchart LR
@@ -212,6 +238,14 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
 6. Open `Settings` to configure repo-local defaults and optional integrations such as the GitHub inbox flow. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
+In the same `Settings` tab you can also choose the scheduled task execution provider:
+
+- `GitHub Copilot Chat` for the native VS Code chat path.
+- `OpenAI Codex CLI` for external Codex execution.
+- `OpenCode CLI` for external OpenCode execution.
+
+If you select `Codex` or `OpenCode`, install and authenticate those tools separately first. Cockpit does not install them, sign you in, or configure their upstream model providers for you.
+
 If you want the optional integration layers, the practical order is:
 
 1. Get the core `Todo` -> `Research` -> `Task` or `Job` loop working first.
@@ -220,7 +254,16 @@ If you want the optional integration layers, the practical order is:
 4. Optionally, but recommended if you want the full repo-local Copilot guidance layer, use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills`. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI and wire-format work through the shipped contract instead of keeping it as a repo-only extra.
 5. Add the optional bundled-agent layer only if you want a specialist or orchestrator setup on top of the core workflow: use `Stage Bundled Agents` for a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, or `Sync Bundled Agents` for the live install path into `.github/agents`.
 
-`Sync Bundled Skills` remains optional, but it is the recommended next step once the core loop is working if you want the full shipped guidance layer, because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
+`Sync Bundled Skills` remains optional, but it is the recommended next step once the core loop is working if you want the full shipped guidance layer, because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model.
+
+If you also use Codex or OpenCode, the provider-specific Settings actions are separate from the Copilot path:
+
+- `Add MCP To Codex` creates or updates `.codex/config.toml` with the scheduler MCP entry.
+- `Add Skills To Codex` syncs bundled skills into `.agents/skills` and refreshes the managed Copilot Cockpit guidance block in `AGENTS.md`.
+- `Add MCP To OpenCode` creates or updates `opencode.json`, or updates `opencode.jsonc` when that file already exists, with the scheduler MCP entry.
+- `Add Agents To OpenCode` syncs bundled skills into `.opencode/skills`, converts bundled agents into `.opencode/agents`, and refreshes the same managed guidance block in `AGENTS.md`.
+
+Those actions set up repo-local integration files only. They do not install the Codex or OpenCode CLIs, they do not authenticate those tools, and they do not choose remote providers or hosted models on your behalf.
 
 For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. When the Prefab by Max Health Inc. MCP server is part of your workspace setup, that shipped agent path also includes `Prefab UI Specialist` as the focused router for Prefab by Max Health Inc. UI, renderer, and API-backed view work. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten rather than being force-synced.
 
@@ -253,7 +296,7 @@ Detailed documentation lives under [docs/index.md](https://github.com/goodguy196
 These extend the core workflow. They are optional and should not be mandatory for onboarding.
 
 - `MCP` gives AI agents a controlled tool surface to use the plugin inside the workspace.
-- Support for Copilot-first workflows, with experimental Codex integration for repo-local coordination.
+- Support for native Copilot execution plus external Codex and OpenCode CLI-based scheduled execution, with provider-specific repo-local setup from `Settings`.
 - Bundled starter agents can be staged under `.vscode/copilot-cockpit-support/bundled-agents` for comparison/reference or synced into `.github/agents` as a small default orchestration layer: `CEO`, `Planner`, `Remediation Implementer`, `Documentation Specialist`, `Custom Agent Foundry`, and `Cockpit Todo Expert`, plus `Prefab UI Specialist` when the Prefab by Max Health Inc. MCP server is configured for UI, renderer, or API-backed view work. The pattern is optional, keeps the top-level orchestrator cleaner, and is described in [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 - Specialized agents, skills, prompts, hooks, memories, and tool connections can be maintained as part of the same controlled workflow.
 - External systems such as email handling, web data collection, price checks, or other connected tools can feed into scheduled work when exposed through MCP or related integration layers.
@@ -301,12 +344,12 @@ Those setup steps are manual by design. Copilot Cockpit does not auto-sync or bl
 
 ## 🗂️ Key Files
 
-| Purpose | Copilot / Native Path | Codex Path |
-| --- | --- | --- |
-| MCP config | `.vscode/mcp.json` | `.codex/config.toml` |
-| Skills | `.github/skills` | `.agents/skills` |
-| Instructions | prompt and skill references in the repo | `AGENTS.md` |
-| Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry |
+| Purpose | Copilot / Native Path | Codex Path | OpenCode Path |
+| --- | --- | --- | --- |
+| MCP config | `.vscode/mcp.json` | `.codex/config.toml` | `opencode.json` or `opencode.jsonc` |
+| Skills | `.github/skills` | `.agents/skills` | `.opencode/skills` |
+| Agents / instructions | `.github/agents` when synced | `AGENTS.md` | `.opencode/agents` plus `AGENTS.md` |
+| Stable MCP launcher | `.vscode/copilot-cockpit-support/mcp/launcher.js` | uses the repo-local Codex config entry | uses the repo-local OpenCode config entry |
 
 ## 🤝 Supported Models
 
@@ -316,9 +359,10 @@ Bring your own LLM via:
 | --- | --- | --- |
 | [GitHub Copilot in VS Code](https://github.com/features/copilot/plans) | Primary | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
 | [OpenRouter.ai](https://openrouter.ai/) | Supported | Full planning, task scheduling, task execution, jobs, research, and MCP-driven workflows |
-| ChatGPT Codex in VS Code | Experimental | Repo-local MCP, repo-local skills, todo coordination, and task-draft coordination |
+| OpenAI Codex CLI | Supported external integration | Scheduled task execution through `codex exec --json -`, repo-local MCP in `.codex/config.toml`, bundled skills in `.agents/skills`, and shared guidance in `AGENTS.md` |
+| OpenCode CLI | Supported external integration | Scheduled task execution through `opencode run --format json <prompt>`, repo-local MCP in `opencode.json` or `opencode.jsonc`, bundled skills in `.opencode/skills`, converted agents in `.opencode/agents`, and shared guidance in `AGENTS.md` |
 
-Model availability is determined by the chat providers and integrations available in your VS Code environment. Copilot Cockpit does not bundle its own frontier models. It orchestrates the models and agents that your VS Code chat setup makes available.
+Model availability is determined by the chat providers and integrations available in your VS Code environment or in your external Codex/OpenCode setup. Copilot Cockpit does not bundle its own frontier models. It orchestrates the models and agents that your chosen execution surface makes available.
 
 ## Native Execution Harness
 
@@ -333,9 +377,7 @@ The plugin already contains a concrete harness around VS Code chat and Copilot i
 
 That means Copilot Cockpit is deeper than a UI wrapper. It already uses VS Code chat as the execution harness, MCP as the structured tool harness, and repo-local skills as the behavior harness.
 
-### 🚧 Codex Limitation
-
-Codex support is currently limited. It can help create and coordinate todos and task drafts, but scheduled task execution does not run through Codex today. Tasks run through Copilot Chat in VS Code. Scheduling tasks directly through the Codex VS Code extension is not implemented yet.
+When `Task execution provider` is switched to `Codex` or `OpenCode`, scheduled task execution uses those external CLIs instead of the native VS Code chat harness. The provider-specific forwarding rules still apply: Codex gets the shared default model only, while OpenCode gets the shared default model and shared default agent when those values are non-empty.
 
 ## 📝 Notes
 

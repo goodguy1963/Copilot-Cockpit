@@ -339,6 +339,17 @@ function getBoardTarget(eventOrTarget) {
   return getEventTargetElement(eventOrTarget);
 }
 
+function getTodoDragScope(card) {
+  if (!card || typeof card.getAttribute !== "function") {
+    return "board";
+  }
+  return card.getAttribute("data-todo-drag-scope") || "board";
+}
+
+function isSectionScopedTodoCard(card) {
+  return getTodoDragScope(card) === "section";
+}
+
 function isTargetInsideBoard(options, target) {
   var boardColumns = getBoardColumns(options);
   var element = getBoardTarget(target);
@@ -372,6 +383,17 @@ function getPointerPointTarget(options, event) {
     }
   }
   return getBoardTarget(event);
+}
+
+function isTodoSelfPointTarget(session, pointTarget) {
+  var draggedElement = session && session.kind === "todo" ? session.draggedElement : null;
+  if (!draggedElement || !pointTarget) {
+    return false;
+  }
+  if (pointTarget === draggedElement) {
+    return true;
+  }
+  return typeof draggedElement.contains === "function" && draggedElement.contains(pointTarget);
 }
 
 function getTodoDropTargetIndex(boardColumns, section, targetCard, draggingTodoId) {
@@ -440,6 +462,10 @@ function updateSectionDragState(options, boardColumns, pointTarget) {
 function updateTodoDragState(options, boardColumns, pointTarget) {
   var section = getClosestEventTarget(pointTarget, "[data-section-id]");
   var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
+  var draggedCard = pointerDragSession ? pointerDragSession.draggedElement : null;
+  var sourceSectionId = draggedCard && draggedCard.getAttribute
+    ? draggedCard.getAttribute("data-section-id") || ""
+    : "";
   clearBoardDragClasses(boardColumns);
   if (pointerDragSession && pointerDragSession.draggedElement) {
     pointerDragSession.draggedElement.classList.add("todo-dragging");
@@ -449,6 +475,9 @@ function updateTodoDragState(options, boardColumns, pointTarget) {
   }
   var sectionId = section.getAttribute("data-section-id");
   if (!sectionId || options.isArchiveTodoSectionId(sectionId)) {
+    return;
+  }
+  if (isSectionScopedTodoCard(draggedCard) && sourceSectionId && sectionId !== sourceSectionId) {
     return;
   }
   if (targetCard && targetCard.getAttribute("data-todo-id") !== options.getDraggingTodoId()) {
@@ -487,7 +516,9 @@ function updatePointerDragSession(event) {
     return;
   }
   var pointTarget = getPointerPointTarget(options, event);
-  if (pointTarget) {
+  if (isTodoSelfPointTarget(pointerDragSession, pointTarget)) {
+    pointTarget = pointerDragSession.lastPointTarget || null;
+  } else if (pointTarget) {
     pointerDragSession.lastPointTarget = pointTarget;
   }
   if (pointerDragSession.kind === "section") {
@@ -522,6 +553,9 @@ function finishPointerDragSession(event, cancelled) {
   }
   var boardColumns = getBoardColumns(options);
   var pointTarget = cancelled ? null : getPointerPointTarget(options, event);
+  if (!cancelled && isTodoSelfPointTarget(session, pointTarget)) {
+    pointTarget = session.lastPointTarget || null;
+  }
   if (!cancelled && (!pointTarget || typeof pointTarget.closest !== "function")) {
     pointTarget = session.lastPointTarget || null;
   }
@@ -551,17 +585,35 @@ function finishPointerDragSession(event, cancelled) {
   if (!cancelled && boardColumns && session.kind === "todo") {
     var section = getClosestEventTarget(pointTarget, "[data-section-id]");
     var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
-    if (section && options.getDraggingTodoId() && !options.isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
+    var dropSectionId = section && section.getAttribute
+      ? section.getAttribute("data-section-id")
+      : "";
+    var sourceSectionId = session.draggedElement && session.draggedElement.getAttribute
+      ? session.draggedElement.getAttribute("data-section-id") || ""
+      : "";
+    if (
+      section
+      && options.getDraggingTodoId()
+      && !options.isArchiveTodoSectionId(dropSectionId)
+      && (!isSectionScopedTodoCard(session.draggedElement) || !sourceSectionId || dropSectionId === sourceSectionId)
+    ) {
       var targetIndex = getTodoDropTargetIndex(
         boardColumns,
         section,
         targetCard,
         options.getDraggingTodoId(),
       );
+      if (typeof options.optimisticallyMoveTodo === "function") {
+        options.optimisticallyMoveTodo({
+          todoId: options.getDraggingTodoId(),
+          sectionId: dropSectionId,
+          targetIndex: targetIndex,
+        });
+      }
       options.vscode.postMessage({
         type: "moveTodo",
         todoId: options.getDraggingTodoId(),
-        sectionId: section.getAttribute("data-section-id"),
+        sectionId: dropSectionId,
         targetIndex: targetIndex,
       });
     }
@@ -840,6 +892,9 @@ function handleBoardPointerDown(event) {
     return;
   }
   var sectionId = card.getAttribute ? card.getAttribute("data-section-id") : "";
+  if (!todoHandle && isSectionScopedTodoCard(card)) {
+    return;
+  }
   if (!todoHandle && (isTodoInteractiveTarget(target) || options.isArchiveTodoSectionId(sectionId || ""))) {
     return;
   }

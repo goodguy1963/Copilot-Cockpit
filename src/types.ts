@@ -37,6 +37,8 @@ export type CockpitDeterministicStateMode =
  */
 export type ChatSessionBehavior = "new" | "continue";
 
+export type TaskExecutionProvider = "copilot" | "codex" | "opencode";
+
 export type ApprovalMode =
   | "default"
   | "auto-approve"
@@ -1093,6 +1095,9 @@ export interface SaveTelegramNotificationInput {
  * Workspace-level default execution settings used when a task leaves agent/model empty.
  */
 export interface ExecutionDefaultsView {
+  /** Provider used when scheduled tasks execute */
+  provider: TaskExecutionProvider;
+
   /** Default agent identifier */
   agent: string;
 
@@ -1781,6 +1786,8 @@ type TaskActionName =
   | "setupMcp"
   | "setupCodex"
   | "setupCodexSkills"
+  | "setupOpenCode"
+  | "setupOpenCodeAssets"
   | "refreshStorageStatus"
   | "syncBundledSkills"
   | "stageBundledAgents"
@@ -2004,6 +2011,8 @@ type SchedulerControlMessage =
   | { type: "setupMcp" }
   | { type: "setupCodex" }
   | { type: "setupCodexSkills" }
+  | { type: "setupOpenCode" }
+  | { type: "setupOpenCodeAssets" }
   | { type: "refreshStorageStatus" }
   | { type: "syncBundledSkills" }
   | { type: "stageBundledAgents" }

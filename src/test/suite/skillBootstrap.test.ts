@@ -13,6 +13,8 @@ import {
   COCKPIT_TODO_SKILL_RELATIVE_PATH,
   ensureCockpitTodoSkillForWorkspaceRoots,
   ensureSchedulerSkillForWorkspaceRoots,
+  OPENCODE_AGENTS_RELATIVE_PATH,
+  OPENCODE_SKILLS_RELATIVE_PATH,
   PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
   PACKAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
   resolveBundledAgentsSource,
@@ -24,6 +26,7 @@ import {
   STAGED_BUNDLED_REPO_KNOWLEDGE_RELATIVE_PATH,
   syncBundledAgentsForWorkspaceRoots,
   syncBundledCodexSkillsForWorkspaceRoots,
+  syncBundledOpenCodeAssetsForWorkspaceRoots,
   syncBundledSkillsForWorkspaceRoots,
 } from "../../skillBootstrap";
 
@@ -467,12 +470,100 @@ suite("Skill Bootstrap Tests", () => {
       const agentsContent = fs.readFileSync(agentsPath, "utf8");
       assert.ok(agentsContent.includes(".agents/skills"));
       assert.ok(agentsContent.includes(".codex/config.toml"));
+      assert.ok(agentsContent.includes(".opencode/skills"));
+      assert.ok(agentsContent.includes(".opencode/agents"));
+      assert.ok(agentsContent.includes("opencode.json"));
       assert.ok(agentsContent.includes("Operational skills: cockpit-scheduler-agent (orchestrate scheduled work and MCP-backed workflow routing), prefab-ui (use the live Prefab surface for UI JSON, wire-format rendering, and API-backed view work)."));
       assert.ok(agentsContent.includes("Support skills: copilot-scheduler-intro (onboard new contributors before they change scheduler state)."));
       assert.ok(agentsContent.includes("Repo-local custom agents: `Prefab UI Specialist` in `.github/agents/prefab-ui.agent.md` routes Prefab UI and renderer requests through the existing prefab-ui skill and the live Prefab surface."));
       assert.strictEqual(agentsContent.includes("Prefab Specialist"), false);
       assert.strictEqual(agentsContent.includes("prefab.agent.md"), false);
       assert.ok(agentsContent.includes("cannot start a new session"));
+    } finally {
+      cleanupDirs(extensionRoot, workspaceRoot);
+    }
+  });
+
+  test("syncs bundled skills and agents into repo-local OpenCode paths", async () => {
+    const extensionRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-extension-root-opencode-"),
+    );
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-workspace-opencode-"),
+    );
+
+    try {
+      const schedulerRelativePath = path.join(
+        BUNDLED_SKILLS_RELATIVE_PATH,
+        "cockpit-scheduler-agent",
+        "SKILL.md",
+      );
+      const schedulerSkillPath = path.join(extensionRoot, schedulerRelativePath);
+      fs.mkdirSync(path.dirname(schedulerSkillPath), { recursive: true });
+      fs.writeFileSync(
+        schedulerSkillPath,
+        "---\nname: cockpit-scheduler-agent\ncopilotCockpitSkillType: operational\n---\n\nopencode skill\n",
+        "utf8",
+      );
+
+      const plannerAgentPath = path.join(
+        extensionRoot,
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "planner.agent.md",
+      );
+      fs.mkdirSync(path.dirname(plannerAgentPath), { recursive: true });
+      fs.writeFileSync(
+        plannerAgentPath,
+        "---\nname: Planner\ndescription: Plans implementation work.\ntools: [search/codebase]\n---\n\n# Planner\n\nPlan carefully.\n",
+        "utf8",
+      );
+
+      const legacyAgentPath = path.join(
+        extensionRoot,
+        PACKAGED_BUNDLED_AGENTS_RELATIVE_PATH,
+        "prefab.agent.md",
+      );
+      fs.writeFileSync(legacyAgentPath, "legacy\n", "utf8");
+
+      const result = await syncBundledOpenCodeAssetsForWorkspaceRoots(
+        extensionRoot,
+        [workspaceRoot],
+      );
+
+      const openCodeSkillPath = path.join(
+        workspaceRoot,
+        OPENCODE_SKILLS_RELATIVE_PATH,
+        "cockpit-scheduler-agent",
+        "SKILL.md",
+      );
+      const openCodeAgentPath = path.join(
+        workspaceRoot,
+        OPENCODE_AGENTS_RELATIVE_PATH,
+        "planner.md",
+      );
+      const legacyOpenCodeAgentPath = path.join(
+        workspaceRoot,
+        OPENCODE_AGENTS_RELATIVE_PATH,
+        "prefab.md",
+      );
+      const agentsPath = path.join(workspaceRoot, CODEX_AGENTS_RELATIVE_PATH);
+
+      assert.ok(result.createdPaths.includes(openCodeSkillPath));
+      assert.ok(result.createdPaths.includes(openCodeAgentPath));
+      assert.ok(result.createdPaths.includes(agentsPath));
+      assert.strictEqual(fs.existsSync(legacyOpenCodeAgentPath), false);
+      assert.strictEqual(fs.readFileSync(openCodeSkillPath, "utf8").includes("opencode skill"), true);
+
+      const openCodeAgentContent = fs.readFileSync(openCodeAgentPath, "utf8");
+      assert.ok(openCodeAgentContent.includes("description: Plans implementation work."));
+      assert.ok(openCodeAgentContent.includes("mode: subagent"));
+      assert.strictEqual(openCodeAgentContent.includes("tools: [search/codebase]"), false);
+      assert.ok(openCodeAgentContent.includes("# Planner"));
+
+      const agentsContent = fs.readFileSync(agentsPath, "utf8");
+      assert.ok(agentsContent.includes(".opencode/skills"));
+      assert.ok(agentsContent.includes(".opencode/agents"));
+      assert.ok(agentsContent.includes("opencode.json"));
     } finally {
       cleanupDirs(extensionRoot, workspaceRoot);
     }

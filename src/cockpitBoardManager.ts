@@ -1050,6 +1050,22 @@ function moveRecurringCardOutOfRecurringSection(
   resequenceCards(board, unsortedSectionId);
 }
 
+function isPinnedRecurringTaskLinkedTodoCard(
+  card: Pick<CockpitTodoCard, "archived" | "labels" | "sectionId" | "taskId" | "taskSnapshot">,
+): boolean {
+  if (card.archived || !card.taskId || card.taskSnapshot?.oneTime === true) {
+    return false;
+  }
+
+  if (isRecurringTasksSectionId(card.sectionId)) {
+    return true;
+  }
+
+  return normalizeStringList(card.labels).some(
+    (label) => normalizeLabelKey(label) === "recurring-task",
+  );
+}
+
 export function getCockpitBoard(workspaceRoot: string): CockpitBoard {
   const hookedBoard = cockpitBoardPersistenceHooks.loadBoard?.(workspaceRoot);
   if (hookedBoard) {
@@ -1347,6 +1363,9 @@ export function moveTodoInBoard(
 
   const previousSectionId = todo.sectionId;
   const nextSectionId = getSectionOrFallback(nextBoard, sectionId);
+  if (isPinnedRecurringTaskLinkedTodoCard(todo) && nextSectionId !== previousSectionId) {
+    return { board: nextBoard, todo };
+  }
   const remainingCards = nextBoard.cards
     .filter((card) => card.id !== todoId && card.sectionId === nextSectionId)
     .sort((left, right) => (left.order || 0) - (right.order || 0));

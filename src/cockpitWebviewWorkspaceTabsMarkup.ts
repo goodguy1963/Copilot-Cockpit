@@ -521,6 +521,15 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
 
         <div class="form-group" style="margin-top:8px;">
+          <label for="task-execution-provider-select">${escapeHtml(strings.executionDefaultsProvider)}</label>
+          <select id="task-execution-provider-select">
+            <option value="copilot">${escapeHtml(strings.executionDefaultsProviderCopilot)}</option>
+            <option value="codex">${escapeHtml(strings.executionDefaultsProviderCodex)}</option>
+            <option value="opencode">${escapeHtml(strings.executionDefaultsProviderOpenCode)}</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-top:8px;">
           <label for="default-agent-select">${escapeHtml(strings.executionDefaultsAgent)}</label>
           <select id="default-agent-select"></select>
         </div>
@@ -563,6 +572,8 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionSyncBundledAgentsTitle)}">${escapeHtml(strings.actionSyncBundledAgents)}</button>
             <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
             <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-opencode-btn">${escapeHtml(strings.actionSetupOpenCode)}</button>
+            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-opencode-assets-btn">${escapeHtml(strings.actionSetupOpenCodeAssets)}</button>
           </div>
           <div class="settings-action-group settings-action-group-secondary">
             <button type="button" class="btn-secondary settings-action-button is-open" id="open-copilot-settings-btn">${escapeHtml(strings.actionOpenCopilotSettings)}</button>

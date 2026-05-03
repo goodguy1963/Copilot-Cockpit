@@ -135,6 +135,24 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     const skills = [{ id: "skill-1", name: "Skill" }] as any[];
     const workspacePaths = ["f:/workspace"];
     const cockpitHistory = [{ id: "snapshot-1" }] as any[];
+    const versionInfo = {
+      currentVersion: "2.0.54",
+      latestStableVersion: "2.0.60",
+      latestStablePublishedAt: "2026-04-30T00:00:00.000Z",
+      latestStableDisplayDate: "2026-04-30T00:00:00.000Z",
+      latestEdgeVersion: "2.0.61-edge.1",
+      latestEdgePublishedAt: "2026-04-30T01:00:00.000Z",
+      latestEdgeDisplayDate: "2026-04-30T01:00:00.000Z",
+      lastCheckedAt: "2026-04-30T02:00:00.000Z",
+      track: "edge",
+      stableDownloadUrl: "https://example.com/stable",
+      edgeDownloadUrl: "https://example.com/edge",
+      stableHasNewVersion: true,
+      edgeHasNewVersion: true,
+      hasNewVersion: true,
+      currentVersionIsLocalAhead: false,
+      currentVersionLocalDate: "",
+    } as const;
     const strings = { title: "Scheduler" };
 
     const payload = buildSchedulerWebviewInitialData({
@@ -147,6 +165,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
       currentExecutionDefaults: executionDefaults,
       currentReviewDefaults: reviewDefaults,
       currentStorageSettings: storageSettings,
+      currentVersionInfo: versionInfo,
       currentResearchProfiles: researchProfiles as any,
       currentActiveResearchRun: activeResearchRun,
       currentRecentResearchRuns: recentResearchRuns as any,
@@ -175,6 +194,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     assert.deepStrictEqual(payload.executionDefaults, executionDefaults);
     assert.deepStrictEqual(payload.reviewDefaults, reviewDefaults);
     assert.deepStrictEqual(payload.storageSettings, storageSettings);
+    assert.deepStrictEqual(payload.versionInfo, versionInfo);
     assert.deepStrictEqual(payload.researchProfiles, researchProfiles);
     assert.deepStrictEqual(payload.activeResearchRun, activeResearchRun);
     assert.deepStrictEqual(payload.recentResearchRuns, recentResearchRuns);

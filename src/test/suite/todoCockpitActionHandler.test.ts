@@ -268,6 +268,8 @@ suite("Todo Cockpit Action Handler", () => {
         switchedTabs.push(tab);
       };
 
+      const refreshCalls: boolean[] = [];
+
       const handled = await handleTodoCockpitAction(
         {
           action: "addTodoComment",
@@ -275,11 +277,24 @@ suite("Todo Cockpit Action Handler", () => {
           todoId: created.todo.id,
           todoCommentData: { body: "Keep editor open", author: "user", source: "human-form" },
         },
-        createDeps(workspaceRoot),
+        {
+          ...createDeps(workspaceRoot),
+          refreshSchedulerUiState: (immediate?: boolean) => {
+            refreshCalls.push(immediate === true);
+          },
+        },
       );
 
       assert.strictEqual(handled, true);
       assert.deepStrictEqual(switchedTabs, []);
+      assert.deepStrictEqual(refreshCalls, [true]);
+
+      const updatedTodo = readSchedulerConfig(workspaceRoot).cockpitBoard?.cards.find(
+        (card) => card.id === created.todo.id,
+      );
+      assert.ok(
+        updatedTodo?.comments?.some((comment) => comment.body === "Keep editor open"),
+      );
     } finally {
       webview.switchToTab = originalSwitchToTab;
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -1159,6 +1174,81 @@ suite("Todo Cockpit Action Handler", () => {
       );
     } finally {
       webview.switchToTab = originalSwitchToTab;
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("moveTodo triggers one immediate scheduler refresh after persisting the move", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const seededBoard = createDefaultCockpitBoard();
+    const created = createCockpitTodo(workspaceRoot, {
+      title: "Move me",
+      sectionId: seededBoard.sections[0]?.id ?? "",
+      priority: "medium",
+    });
+    const refreshCalls: boolean[] = [];
+
+    try {
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "moveTodo",
+          taskId: "",
+          todoId: created.todo.id,
+          targetSectionId: seededBoard.sections[1]?.id ?? "",
+          targetOrder: 0,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          refreshSchedulerUiState: (immediate?: boolean) => {
+            refreshCalls.push(immediate === true);
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(refreshCalls, [true]);
+
+      const movedTodo = readSchedulerConfig(workspaceRoot).cockpitBoard?.cards.find(
+        (card) => card.id === created.todo.id,
+      );
+      assert.strictEqual(movedTodo?.sectionId, seededBoard.sections[1]?.id ?? "");
+      assert.strictEqual(movedTodo?.order, 0);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("reorderCockpitSection triggers one immediate scheduler refresh after persisting the new order", async () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const seededBoard = createDefaultCockpitBoard();
+    const refreshCalls: boolean[] = [];
+
+    try {
+      const targetSection = seededBoard.sections[1];
+      assert.ok(targetSection);
+
+      const handled = await handleTodoCockpitAction(
+        {
+          action: "reorderCockpitSection",
+          taskId: "",
+          sectionId: targetSection?.id,
+          targetIndex: 0,
+        },
+        {
+          ...createDeps(workspaceRoot),
+          refreshSchedulerUiState: (immediate?: boolean) => {
+            refreshCalls.push(immediate === true);
+          },
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.deepStrictEqual(refreshCalls, [true]);
+
+      const reorderedSections = readSchedulerConfig(workspaceRoot).cockpitBoard?.sections ?? [];
+      assert.strictEqual(reorderedSections[0]?.id, targetSection?.id);
+      assert.strictEqual(reorderedSections[0]?.order, 0);
+    } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });

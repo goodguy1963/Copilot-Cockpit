@@ -647,6 +647,80 @@ suite("Scheduler webview settings handler behavior", () => {
     }
   });
 
+  test("checkForUpdates posts an unavailable state when release lookup throws", async () => {
+    const originalFetchLatestReleaseInfo = githubReleases.fetchLatestReleaseInfo;
+    const originalGetCompatibleConfigurationValue = extensionCompat.getCompatibleConfigurationValue;
+    const postedMessages: Array<Record<string, unknown>> = [];
+
+    try {
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = (async () => {
+        throw new Error("network down");
+      }) as typeof githubReleases.fetchLatestReleaseInfo;
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = (
+        (key: string, fallback?: unknown) => key === "updateTrack" ? "stable" : fallback
+      ) as typeof extensionCompat.getCompatibleConfigurationValue;
+
+      const handled = await handleSettingsWebviewMessage(
+        { type: "checkForUpdates" },
+        {
+          postMessage: (message) => postedMessages.push(message),
+          launchHelpChat: async () => {},
+          backupGithubFolder: async () => undefined,
+          extensionContext: {
+            extension: {
+              packageJSON: {
+                version: "2.0.54",
+              },
+            },
+          } as unknown as vscode.ExtensionContext,
+        },
+      );
+
+      assert.strictEqual(handled, true);
+      assert.strictEqual(postedMessages.length, 1);
+      assert.deepStrictEqual(postedMessages[0], {
+        type: "updateVersionInfo",
+        versionUpdate: {
+          currentVersion: "2.0.54",
+          latestStableVersion: "",
+          latestStablePublishedAt: "",
+          latestStableDisplayDate: "",
+          latestEdgeVersion: "",
+          latestEdgePublishedAt: "",
+          latestEdgeDisplayDate: "",
+          lastCheckedAt: String((postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt),
+          track: "stable",
+          stableDownloadUrl: "",
+          edgeDownloadUrl: "",
+          stableHasNewVersion: false,
+          edgeHasNewVersion: false,
+          hasNewVersion: false,
+          currentVersionIsLocalAhead: true,
+          currentVersionLocalDate: String((postedMessages[0].versionUpdate as { currentVersionLocalDate: string }).currentVersionLocalDate),
+        },
+      });
+      assert.ok(
+        typeof (postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt === "string"
+          && (postedMessages[0].versionUpdate as { lastCheckedAt: string }).lastCheckedAt.length > 0,
+      );
+      assert.ok(
+        typeof (postedMessages[0].versionUpdate as { currentVersionLocalDate: string }).currentVersionLocalDate === "string"
+          && (postedMessages[0].versionUpdate as { currentVersionLocalDate: string }).currentVersionLocalDate.length > 0,
+      );
+    } finally {
+      (githubReleases as typeof githubReleases & {
+        fetchLatestReleaseInfo: typeof githubReleases.fetchLatestReleaseInfo;
+      }).fetchLatestReleaseInfo = originalFetchLatestReleaseInfo;
+      (extensionCompat as typeof extensionCompat & {
+        getCompatibleConfigurationValue: typeof extensionCompat.getCompatibleConfigurationValue;
+      }).getCompatibleConfigurationValue = originalGetCompatibleConfigurationValue;
+    }
+  });
+
   test("openReleasePage routes the selected release URL through the extension host", async () => {
     const openedUrls: string[] = [];
 

@@ -15,7 +15,8 @@ The recommended path is: start with a `Todo`, use `Research` when context is mis
 3. Capture or refine work in `Todo Cockpit`. A `Todo` is the planning artifact and intake surface.
 4. Use `Research` if the work still needs exploratory context, outside evidence, or benchmarked iteration.
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated or scheduled run.
-6. Open `Settings` to configure repo-local defaults and integrations. Use the top-bar `Plan Integration` button only when you want optional control-plane extensions such as MCP, skills, starter agents, or the GitHub inbox flow.
+6. Open `Settings` to configure repo-local defaults and integrations. This is also where you choose the scheduled task execution provider: `GitHub Copilot Chat`, `OpenAI Codex CLI`, or `OpenCode CLI`.
+7. Use the top-bar `Plan Integration` button only when you want optional control-plane extensions such as MCP, skills, starter agents, or the GitHub inbox flow.
 
 ## Optional: Enable GitHub Inbox Triage
 
@@ -40,8 +41,17 @@ The GitHub inbox is repo-local, uses cached manual refreshes, and resolves crede
 
 - Add `MCP`, repo-local skills, or starter agents after the default path is working.
 - Treat those capabilities as control-plane extensions, not as mandatory setup for first use.
+- If you want scheduled execution through `Codex` or `OpenCode`, install and authenticate those tools separately first, then use the provider-specific `Settings` actions to write repo-local MCP, skills, and agent guidance files.
+
+The execution-provider rule of thumb is simple:
+
+- Use `GitHub Copilot Chat` when you want the native VS Code chat path.
+- Use `Codex` when you want external CLI execution and only need Cockpit to forward a shared default model.
+- Use `OpenCode` when you want external CLI execution and want Cockpit to forward both a shared default model and a shared default agent.
 
 If you want the tab-by-tab walkthrough, continue to [Feature Tour](./feature-tour.md).
+
+If you want the detailed setup matrix, file locations, and exact behavior of `Set Up MCP`, `Add MCP To Codex`, `Add Skills To Codex`, `Add MCP To OpenCode`, and `Add Agents To OpenCode`, go to [Integrations](./integrations.md).
 
 ## Start With One Real Loop
 

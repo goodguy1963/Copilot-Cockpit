@@ -2,11 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.",
-<<<<<<< HEAD
-  "version": "2.0.76",
-=======
-  "version": "2.0.77",
->>>>>>> 4e3dff2760797aa01a1fe2ced6c6a87f46673c88
+  "version": "2.0.89",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -267,6 +263,22 @@
             "%config.chatSession.continue%"
           ],
           "description": "%config.chatSession%"
+        },
+        "copilotCockpit.taskExecutionProvider": {
+          "type": "string",
+          "default": "copilot",
+          "scope": "resource",
+          "enum": [
+            "copilot",
+            "codex",
+            "opencode"
+          ],
+          "enumDescriptions": [
+            "%config.taskExecutionProvider.copilot%",
+            "%config.taskExecutionProvider.codex%",
+            "%config.taskExecutionProvider.opencode%"
+          ],
+          "description": "%config.taskExecutionProvider%"
         },
         "copilotCockpit.defaultAgent": {
           "type": "string",

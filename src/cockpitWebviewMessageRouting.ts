@@ -76,6 +76,8 @@ export async function handleSchedulerWebviewCoreMessage(
     case "setupMcp":
     case "setupCodex":
     case "setupCodexSkills":
+    case "setupOpenCode":
+    case "setupOpenCodeAssets":
     case "syncBundledSkills":
     case "stageBundledAgents":
     case "syncBundledAgents":

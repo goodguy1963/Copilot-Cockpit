@@ -7,11 +7,13 @@ import {
   buildNodeShellExecutionCommand,
   buildSchedulerMcpServerEntry,
   getSchedulerMcpSetupState,
+  getWorkspaceOpenCodeConfigPath,
   getWorkspaceMcpConfigPath,
   getWorkspaceMcpLauncherPath,
   getWorkspaceMcpLauncherStatePath,
   resolveNodeLaunchCommand,
   upsertSchedulerMcpConfig,
+  upsertSchedulerOpenCodeConfig,
 } from "../../mcpConfigManager";
 
 function expectSetupState(
@@ -113,6 +115,73 @@ suite("MCP Config Manager Tests", () => {
         saved.servers?.scheduler?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("creates OpenCode project config with scheduler MCP server", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-opencode-create-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
+
+    try {
+      const result = upsertSchedulerOpenCodeConfig(workspaceRoot, extensionRoot);
+      assert.strictEqual(result.createdFile, true);
+
+      const configPath = getWorkspaceOpenCodeConfigPath(workspaceRoot);
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        $schema?: string;
+        mcp?: Record<string, { type?: string; command?: string[]; enabled?: boolean; timeout?: number }>;
+      };
+
+      assert.strictEqual(saved.$schema, "https://opencode.ai/config.json");
+      assert.strictEqual(saved.mcp?.scheduler?.type, "local");
+      assert.strictEqual(saved.mcp?.scheduler?.enabled, true);
+      assert.strictEqual(saved.mcp?.scheduler?.timeout, 30000);
+      assert.ok(saved.mcp?.scheduler?.command?.includes(getWorkspaceMcpLauncherPath(workspaceRoot)));
+      assert.strictEqual(fs.existsSync(getWorkspaceMcpLauncherPath(workspaceRoot)), true);
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("merges scheduler server into existing OpenCode config without dropping settings", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-opencode-merge-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
+    const configPath = getWorkspaceOpenCodeConfigPath(workspaceRoot);
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        theme: "opencode",
+        mcp: {
+          existing: {
+            type: "remote",
+            url: "https://example.test/mcp",
+          },
+        },
+      }, null, 4),
+      "utf8",
+    );
+
+    try {
+      upsertSchedulerOpenCodeConfig(workspaceRoot, extensionRoot);
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        theme?: string;
+        mcp?: Record<string, { type?: string; url?: string; command?: string[] }>;
+      };
+
+      assert.strictEqual(saved.theme, "opencode");
+      assert.strictEqual(saved.mcp?.existing?.url, "https://example.test/mcp");
+      assert.strictEqual(saved.mcp?.scheduler?.type, "local");
+      assert.ok(saved.mcp?.scheduler?.command?.includes(getWorkspaceMcpLauncherPath(workspaceRoot)));
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

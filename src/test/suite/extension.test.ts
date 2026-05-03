@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as assert from "assert";
+import type { CockpitBoard } from "../../types";
 import type { ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
@@ -330,6 +331,51 @@ function buildTaskExecutionFixture(
     ...task,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+}
+
+function createCockpitBoardFixture(overrides?: Partial<CockpitBoard>): CockpitBoard {
+  return {
+    version: 4,
+    sections: [
+      { id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-05-03T09:00:00.000Z", updatedAt: "2026-05-03T09:00:00.000Z" },
+      { id: "features", title: "Features", order: 1, createdAt: "2026-05-03T09:00:00.000Z", updatedAt: "2026-05-03T09:00:00.000Z" },
+    ],
+    cards: [
+      {
+        id: "todo-1",
+        title: "Move me",
+        description: "",
+        sectionId: "unsorted",
+        order: 0,
+        priority: "none",
+        labels: [],
+        flags: [],
+        comments: [],
+        createdAt: "2026-05-03T09:00:00.000Z",
+        updatedAt: "2026-05-03T09:00:00.000Z",
+        status: "active",
+      },
+    ],
+    deletedCardIds: [],
+    deletedLabelCatalogKeys: [],
+    deletedFlagCatalogKeys: [],
+    disabledSystemFlagKeys: [],
+    filters: {
+      labels: [],
+      priorities: [],
+      statuses: [],
+      archiveOutcomes: [],
+      flags: [],
+      sortBy: "manual",
+      sortDirection: "asc",
+      viewMode: "board",
+      showArchived: false,
+      showRecurringTasks: false,
+      hideCardDetails: false,
+    },
+    updatedAt: "2026-05-03T09:00:00.000Z",
+    ...overrides,
   };
 }
 
@@ -1037,6 +1083,80 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(taskWaitCalls, 1);
     assert.strictEqual(boardWaitCalls, 0);
     assert.ok(elapsedMs < 500, `Expected timeout-bound completion, got ${elapsedMs}ms`);
+  });
+
+  test("sqlite board hydration keeps a newer in-memory board over stale hydrated state", async () => {
+    const testOnly = await getTestOnlyExports();
+    const resolveHydratedBoard = (testOnly as { resolveCockpitBoardForSqliteHydration?: unknown })
+      .resolveCockpitBoardForSqliteHydration as
+      | ((options: {
+        workspaceRoot: string;
+        currentBoardWorkspaceRoot?: string;
+        currentBoard?: CockpitBoard;
+        hydratedBoard: CockpitBoard;
+      }) => CockpitBoard)
+      | undefined;
+
+    assert.ok(typeof resolveHydratedBoard === "function");
+
+    const currentBoard = createCockpitBoardFixture({
+      cards: [{
+        ...createCockpitBoardFixture().cards[0],
+        sectionId: "features",
+        updatedAt: "2026-05-03T12:00:00.000Z",
+      }],
+      updatedAt: "2026-05-03T12:00:00.000Z",
+    });
+    const hydratedBoard = createCockpitBoardFixture({
+      updatedAt: "2026-05-03T11:00:00.000Z",
+    });
+
+    const resolvedBoard = resolveHydratedBoard!({
+      workspaceRoot: "F:/sqlite-workspace",
+      currentBoardWorkspaceRoot: "F:/sqlite-workspace",
+      currentBoard,
+      hydratedBoard,
+    });
+
+    assert.strictEqual(resolvedBoard.updatedAt, currentBoard.updatedAt);
+    assert.strictEqual(resolvedBoard.cards[0]?.sectionId, "features");
+  });
+
+  test("sqlite board hydration accepts newer hydrated state when current board is older", async () => {
+    const testOnly = await getTestOnlyExports();
+    const resolveHydratedBoard = (testOnly as { resolveCockpitBoardForSqliteHydration?: unknown })
+      .resolveCockpitBoardForSqliteHydration as
+      | ((options: {
+        workspaceRoot: string;
+        currentBoardWorkspaceRoot?: string;
+        currentBoard?: CockpitBoard;
+        hydratedBoard: CockpitBoard;
+      }) => CockpitBoard)
+      | undefined;
+
+    assert.ok(typeof resolveHydratedBoard === "function");
+
+    const currentBoard = createCockpitBoardFixture({
+      updatedAt: "2026-05-03T10:00:00.000Z",
+    });
+    const hydratedBoard = createCockpitBoardFixture({
+      cards: [{
+        ...createCockpitBoardFixture().cards[0],
+        sectionId: "features",
+        updatedAt: "2026-05-03T11:00:00.000Z",
+      }],
+      updatedAt: "2026-05-03T11:00:00.000Z",
+    });
+
+    const resolvedBoard = resolveHydratedBoard!({
+      workspaceRoot: "F:/sqlite-workspace",
+      currentBoardWorkspaceRoot: "F:/sqlite-workspace",
+      currentBoard,
+      hydratedBoard,
+    });
+
+    assert.strictEqual(resolvedBoard.updatedAt, hydratedBoard.updatedAt);
+    assert.strictEqual(resolvedBoard.cards[0]?.sectionId, "features");
   });
 
   test("stale runtime guard detects a newer installed version and suppresses sqlite work", async () => {
