@@ -32,6 +32,23 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
     .join("");
   const boardTitleHelp = `${strings.boardDescription}\n\n${strings.boardPrivacyNote}`;
 
+  // Minimalist SVG icons for help sections — Feather-style line art, 24×24 viewBox, currentColor
+  const helpIcons: Record<string, string> = {
+    globe: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    clipboard: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><polyline points="9 14 11 16 15 12"/></svg>`,
+    plusCircle: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
+    list: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
+    grid: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`,
+    search: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    database: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+    clock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    messageSquare: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    lightbulb: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>`,
+    zap: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    terminal: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+    network: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+  };
+
   return `
   <div id="board-tab" class="tab-content">
     <div class="board-header-row">
@@ -864,7 +881,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <p class="help-intro-body">${escapeHtml(strings.helpIntroBody)}</p>
       </div>
       <section class="help-section">
-        <h3>${escapeHtml(strings.helpLanguageTitle)}</h3>
+        <h3><span class="help-section-icon">${helpIcons.globe}</span>${escapeHtml(strings.helpLanguageTitle)}</h3>
         <p>${escapeHtml(strings.helpLanguageBody)}</p>
         <div class="form-group" style="margin:0;max-width:320px;">
           <label for="help-language-select">${escapeHtml(strings.helpLanguageLabel)}</label>
@@ -881,14 +898,14 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
       </section>
       <div class="help-grid">
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpTodoTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.clipboard}</span>${escapeHtml(strings.helpTodoTitle)}</h3>
           <p>${escapeHtml(strings.helpTodoBody)}</p>
           <div class="form-actions" style="margin-top:0.5rem">
             <button class="btn primary" id="btn-help-switch-board">${escapeHtml(strings.helpSwitchTabTodoBtn)}</button>
           </div>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpCreateTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.plusCircle}</span>${escapeHtml(strings.helpCreateTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpCreateItemName)}</li>
             <li>${escapeHtml(strings.helpCreateItemTemplates)}</li>
@@ -901,7 +918,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpListTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.list}</span>${escapeHtml(strings.helpListTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpListItemSections)}</li>
             <li>${escapeHtml(strings.helpListItemActions)}</li>
@@ -912,7 +929,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpJobsTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.grid}</span>${escapeHtml(strings.helpJobsTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpJobsItemBoard)}</li>
             <li>${escapeHtml(strings.helpJobsItemPause)}</li>
@@ -926,7 +943,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpResearchTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.search}</span>${escapeHtml(strings.helpResearchTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpResearchItemProfiles)}</li>
             <li>${escapeHtml(strings.helpResearchItemBounds)}</li>
@@ -937,7 +954,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpStorageTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.database}</span>${escapeHtml(strings.helpStorageTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpStorageItemRepo)}</li>
             <li>${escapeHtml(strings.helpStorageItemBackups)}</li>
@@ -946,7 +963,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpOverdueTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.clock}</span>${escapeHtml(strings.helpOverdueTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpOverdueItemReview)}</li>
             <li>${escapeHtml(strings.helpOverdueItemRecurring)}</li>
@@ -954,7 +971,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpSessionTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.messageSquare}</span>${escapeHtml(strings.helpSessionTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpSessionItemPerTask)}</li>
             <li>${escapeHtml(strings.helpSessionItemNewChat)}</li>
@@ -963,7 +980,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section">
-          <h3>${escapeHtml(strings.helpTipsTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.lightbulb}</span>${escapeHtml(strings.helpTipsTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpTipsItem1)}</li>
             <li>${escapeHtml(strings.helpTipsItem2)}</li>
@@ -971,7 +988,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section is-featured">
-          <h3>${escapeHtml(strings.helpCopilotHarnessTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.zap}</span>${escapeHtml(strings.helpCopilotHarnessTitle)}</h3>
           <p>${escapeHtml(strings.helpCopilotHarnessBody)}</p>
           <div class="help-flow-diagram" role="img" aria-label="${escapeHtmlAttr(strings.helpCopilotHarnessTitle)}">
             <span class="help-flow-node">${escapeHtml(strings.helpCopilotHarnessNodeVsCode)}</span>
@@ -989,7 +1006,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section is-featured">
-          <h3>${escapeHtml(strings.helpMcpTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.terminal}</span>${escapeHtml(strings.helpMcpTitle)}</h3>
           <ul>
             <li>${escapeHtml(strings.helpMcpItemEmbedded)}</li>
             <li>${escapeHtml(strings.helpMcpItemConfig)}</li>
@@ -1001,7 +1018,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </ul>
         </section>
         <section class="help-section is-featured">
-          <h3>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>
+          <h3><span class="help-section-icon">${helpIcons.network}</span>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>
           <p>${escapeHtml(strings.helpAgentEcosystemBody)}</p>
           <div class="button-group" style="margin-top:8px;">
             <button type="button" class="btn-secondary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>

@@ -4,7 +4,7 @@ Use this page as the current media baseline for public-facing docs in this repos
 
 ## Live Product Footage
 
-- `images/DEMO v2.gif` is the current live product demo asset used in the README and getting-started guide.
+- `images/DEMO v21.gif` is the current live product demo asset used in the README and getting-started guide.
 - The linked YouTube demo shows the extension running in VS Code.
 
 ## Illustrative Mockups

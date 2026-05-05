@@ -46,7 +46,7 @@ suite("Bundled Agents Packaging Contract Tests", () => {
     for (const forbiddenEntry of [
       "!images/copilot-cockpit-demo.gif",
       "!images/DEMO.gif",
-      "!images/DEMO v2.gif",
+      "!images/DEMO v21.gif",
     ]) {
       assert.strictEqual(
         vscodeIgnore.includes(forbiddenEntry),

@@ -929,13 +929,21 @@ ${buildSchedulerWebviewSharedStyles()}
     }
 
     .help-panel {
+      --help-accent: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 55%, var(--vscode-foreground) 45%);
+      --help-accent-dim: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 12%, transparent);
+      --help-card-bg: color-mix(in srgb, var(--vscode-editorWidget-background) 66%, var(--vscode-editor-background) 34%);
+      --help-card-hover: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 5%, var(--vscode-editorWidget-background) 95%);
+      --help-muted: color-mix(in srgb, var(--vscode-descriptionForeground) 92%, var(--vscode-foreground) 8%);
+      --help-icon: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 52%, var(--vscode-descriptionForeground) 48%);
       position: relative;
       display: grid;
-      gap: 0.625rem;
+      gap: 10px;
       isolation: isolate;
-      overflow: hidden; /* clip */
-      padding: 6px;
-      border-radius: 16px;
+      overflow: hidden;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--vscode-editor-background);
     }
 
     .help-panel > :not(.help-warp-layer) {
@@ -949,9 +957,9 @@ ${buildSchedulerWebviewSharedStyles()}
       z-index: 0;
       pointer-events: none;
       opacity: 0;
-      overflow: hidden; /* truncate */
-      border-radius: 16px;
-      transition: opacity 0.6s ease;
+      overflow: hidden;
+      border-radius: 12px;
+      transition: opacity 0.8s ease;
     }
 
     .help-warp-layer::before {
@@ -959,10 +967,10 @@ ${buildSchedulerWebviewSharedStyles()}
       position: absolute;
       inset: -15% -12%;
       background:
-        radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--vscode-focusBorder) 34%, transparent) 0%, transparent 36%),
-        radial-gradient(circle at 30% 52%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 30%, transparent) 0%, transparent 22%),
-        linear-gradient(110deg, transparent 0%, color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) 38%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 18%, transparent) 52%, transparent 78%);
-      filter: blur(22px);
+        radial-gradient(circle at 18% 50%, var(--help-accent-dim) 0%, transparent 36%),
+        radial-gradient(circle at 30% 52%, var(--help-accent-dim) 0%, transparent 22%),
+        linear-gradient(110deg, transparent 0%, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 4%, transparent) 38%, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 6%, transparent) 52%, transparent 78%);
+      filter: blur(24px);
       opacity: 0;
       transform: scale(1.08);
     }
@@ -972,11 +980,11 @@ ${buildSchedulerWebviewSharedStyles()}
       position: absolute;
       inset: 0;
       background-image:
-        radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 70%, transparent) 0 1px, transparent 1.8px),
-        radial-gradient(circle at 22% 71%, color-mix(in srgb, var(--vscode-focusBorder) 72%, transparent) 0 1px, transparent 1.8px),
-        radial-gradient(circle at 78% 36%, color-mix(in srgb, white 65%, transparent) 0 1px, transparent 1.7px),
-        radial-gradient(circle at 64% 82%, color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 55%, transparent) 0 1px, transparent 1.7px),
-        radial-gradient(circle at 90% 14%, color-mix(in srgb, white 58%, transparent) 0 1px, transparent 1.8px);
+        radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 35%, transparent) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 22% 71%, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 28%, transparent) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 78% 36%, color-mix(in srgb, white 38%, transparent) 0 1px, transparent 1.7px),
+        radial-gradient(circle at 64% 82%, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 22%, transparent) 0 1px, transparent 1.7px),
+        radial-gradient(circle at 90% 14%, color-mix(in srgb, white 32%, transparent) 0 1px, transparent 1.8px);
       opacity: 0;
     }
 
@@ -985,11 +993,11 @@ ${buildSchedulerWebviewSharedStyles()}
     }
 
     .help-warp-layer.is-active::before {
-      animation: helpWarpGlow 10s ease-out forwards;
+      animation: helpWarpGlow 12s ease-out forwards;
     }
 
     .help-warp-layer.is-active::after {
-      animation: helpWarpStars 10s linear forwards;
+      animation: helpWarpStars 12s linear forwards;
     }
 
     .help-warp-layer.is-fading {
@@ -1007,13 +1015,13 @@ ${buildSchedulerWebviewSharedStyles()}
       background: linear-gradient(
         90deg,
         transparent 0%,
-        color-mix(in srgb, white 14%, transparent) 12%,
-        color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 65%, white 35%) 55%,
+        color-mix(in srgb, white 10%, transparent) 12%,
+        color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 30%, white 30%) 55%,
         transparent 100%
       );
       box-shadow:
-        0 0 8px color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 28%, transparent),
-        0 0 18px color-mix(in srgb, var(--vscode-focusBorder) 20%, transparent);
+        0 0 6px color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 14%, transparent),
+        0 0 12px color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 8%, transparent);
       filter: blur(0.25px);
       transform-origin: left center;
       transform: translate3d(-12vw, 0, 0) scaleX(0.22) rotate(var(--warp-rotate, 0deg));
@@ -1021,48 +1029,43 @@ ${buildSchedulerWebviewSharedStyles()}
     }
 
     .help-intro {
-      border: 1px solid var(--vscode-panel-border); /* edge */
-      border-radius: 8px;
-      padding: 10px 14px 12px 14px;
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--vscode-editorWidget-background) 86%, var(--vscode-editor-background) 14%) 0%,
-        var(--vscode-editor-background) 100%);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: var(--help-card-bg);
     }
 
     .help-intro-title {
-      margin: 0 0 4px 0;
+      margin: 0 0 6px 0;
       display: flex;
       align-items: center;
-      gap: 10px; // local-diverge-991
-      font-size: 0.875rem;
+      gap: 10px;
+      font-size: 0.9375rem;
       font-weight: 700;
-      line-height: 1.2;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
     }
 
     .help-intro-rocket {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 34px;
-      height: 34px;
+      width: 36px;
+      height: 36px;
       padding: 0;
-      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 45%, var(--vscode-panel-border));
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 999px;
-      background:
-        radial-gradient(circle at 30% 30%, color-mix(in srgb, white 34%, transparent) 0%, transparent 52%),
-        linear-gradient(135deg, color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent), color-mix(in srgb, var(--vscode-editorInfo-foreground, #5cc8ff) 24%, transparent));
+      background: var(--help-card-bg);
       color: var(--vscode-foreground);
       cursor: pointer;
-      box-shadow: 0 0 0 1px color-mix(in srgb, white 4%, transparent), 0 10px 24px color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
-      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
       flex: 0 0 auto;
     }
 
     .help-intro-rocket:hover {
       transform: translateY(-1px) scale(1.04);
-      box-shadow: 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 12px 26px color-mix(in srgb, var(--vscode-focusBorder) 24%, transparent);
-      border-color: color-mix(in srgb, var(--vscode-focusBorder) 70%, white 30%);
+      box-shadow: 0 2px 12px color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 18%, transparent);
+      border-color: var(--help-accent);
     }
 
     .help-intro-rocket:focus-visible {
@@ -1086,14 +1089,14 @@ ${buildSchedulerWebviewSharedStyles()}
     }
 
     .help-intro-title-text {
-      min-width: 0px; /* flex-fix */
+      min-width: 0px;
     }
 
     .help-intro-body {
       margin: 0;
-      color: var(--vscode-descriptionForeground);
-      font-size: 0.6875rem;
-      line-height: 1.45;
+      color: var(--help-muted);
+      font-size: 0.75rem;
+      line-height: 1.55;
     }
 
     .help-grid {
@@ -1104,41 +1107,72 @@ ${buildSchedulerWebviewSharedStyles()}
     }
 
     .help-section {
-      border: 1px solid var(--vscode-panel-border); /* outline */
+      border: 1px solid var(--vscode-panel-border);
       border-radius: 8px;
-      padding: 10px 12px;
-      background-color: var(--vscode-editor-background);
+      padding: 12px 14px;
+      background: var(--help-card-bg);
       display: grid;
-      gap: 7px;
+      gap: 8px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      cursor: default;
+    }
+
+    .help-section:hover {
+      background: var(--help-card-hover);
+      border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 25%, var(--vscode-panel-border) 75%);
     }
 
     .help-section.is-featured {
       grid-column: 1 / -1;
-      background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-focusBorder) 12%);
+      border-left: 3px solid var(--help-accent);
     }
 
     .help-section h3 {
       margin: 0;
-      font-size: 12px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      letter-spacing: -0.01em;
+    }
+
+    .help-section-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      color: var(--help-icon);
+    }
+
+    .help-section-icon svg {
+      width: 16px;
+      height: 16px;
     }
 
     .help-section p {
       margin: 0;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.4;
-      font-size: 12px;
+      color: var(--help-muted);
+      line-height: 1.5;
+      font-size: 0.75rem;
     }
 
     .help-section ul {
       margin: 0;
-      padding-left: 18px;
-      color: var(--vscode-descriptionForeground);
-      line-height: 1.38;
-      font-size: 12px;
+      padding-left: 20px;
+      color: var(--help-muted);
+      line-height: 1.55;
+      font-size: 0.75rem;
     }
 
     .help-section li + li {
-      margin-top: 5px;
+      margin-top: 6px;
+    }
+
+    .help-section li::marker {
+      color: var(--help-icon);
     }
 
     .help-flow-diagram {
@@ -1146,28 +1180,28 @@ ${buildSchedulerWebviewSharedStyles()}
       flex-wrap: wrap;
       align-items: center;
       gap: 6px;
-      padding: 8px 10px;
+      padding: 10px 12px;
       border: 1px solid var(--vscode-panel-border);
       border-radius: 10px;
-      background: color-mix(in srgb, var(--vscode-editorWidget-background) 90%, transparent);
+      background: var(--vscode-editor-background);
     }
 
     .help-flow-node {
       display: inline-flex;
       align-items: center;
       min-height: 28px;
-      padding: 4px 9px;
+      padding: 4px 10px;
       border-radius: 999px;
-      border: 1px solid color-mix(in srgb, var(--vscode-focusBorder) 22%, var(--vscode-panel-border));
-      background: color-mix(in srgb, var(--vscode-editor-background) 88%, transparent);
+      border: 1px solid var(--vscode-panel-border);
+      background: var(--help-card-bg);
       color: var(--vscode-foreground);
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 0.6875rem;
+      font-weight: 600;
       line-height: 1.25;
     }
 
     .help-flow-arrow {
-      color: var(--vscode-descriptionForeground);
+      color: var(--help-accent);
       font-size: 14px;
       font-weight: 700;
       line-height: 1;
