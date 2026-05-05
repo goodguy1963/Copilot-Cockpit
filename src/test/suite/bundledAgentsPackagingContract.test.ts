@@ -62,7 +62,7 @@ suite("Bundled Agents Packaging Contract Tests", () => {
     assert.ok(readme.includes('<img src="images/icon.png" alt="Copilot Cockpit icon" width="128">'));
     assert.ok(
       readme.includes(
-        "(https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v2.gif)",
+        "(https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v21.gif)",
       ),
     );
     assert.ok(
@@ -72,7 +72,7 @@ suite("Bundled Agents Packaging Contract Tests", () => {
     );
     assert.strictEqual(/\]\(docs\//.test(readme), false);
     assert.strictEqual(readme.includes("images/copilot-cockpit-demo.gif"), false);
-    assert.strictEqual(readme.includes("(images/DEMO%20v2.gif)"), false);
+    assert.strictEqual(readme.includes("(images/DEMO%20v21.gif)"), false);
     assert.strictEqual(readme.includes("(images/TEAM.png)"), false);
   });
 
