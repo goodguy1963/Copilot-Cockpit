@@ -549,6 +549,34 @@ function normalizeApprovalMode(value: string): ApprovalMode {
   }
 }
 
+type ApprovalBootstrapModeValue = NonNullable<ApprovalMode>;
+
+type ApprovalModeSyncOptions = {
+  applyToCurrentSession?: boolean;
+};
+
+type ApprovalModeSyncDeps = {
+  setApprovalBootstrapMode: (mode: ApprovalBootstrapModeValue) => void;
+  syncNativeApprovalMode: (mode: ApprovalBootstrapModeValue) => Promise<void>;
+};
+
+async function syncApprovalModeForMode(
+  value: string,
+  options: ApprovalModeSyncOptions = {},
+  deps: ApprovalModeSyncDeps = CopilotExecutor,
+): Promise<void> {
+  const mode = normalizeApprovalMode(value);
+  deps.setApprovalBootstrapMode(mode);
+  if (options.applyToCurrentSession && mode !== "auto-approve") {
+    await deps.syncNativeApprovalMode(mode);
+  }
+}
+
+type ApprovalModeSettingReader = (
+  key: string,
+  defaultValue: string,
+) => string;
+
 function runPromptMaintenanceCycle(
   context: vscode.ExtensionContext,
   force: boolean,
@@ -2489,51 +2517,16 @@ async function runStartupSequence(
 /**
  * Sync the VS Code chat approval settings to match the configured approval mode.
  */
-async function syncApprovalMode(): Promise<void> {
-  const mode = normalizeApprovalMode(getSchedulerSetting<string>("approvalMode", "default"));
-  const chatToolsConfig = vscode.workspace.getConfiguration("chat.tools");
-  const chatConfig = vscode.workspace.getConfiguration("chat");
+async function syncApprovalMode(
+  settingReader: ApprovalModeSettingReader = getSchedulerSetting,
+  deps: ApprovalModeSyncDeps = CopilotExecutor,
+): Promise<void> {
+  const mode = settingReader("approvalMode", "default");
 
-  const updateNativeApprovalSettings = async (
-    autoApprove: boolean,
-    autopilotEnabled: boolean,
-  ): Promise<void> => {
-    await chatToolsConfig.update("autoApprove", autoApprove, vscode.ConfigurationTarget.Global);
-    await chatConfig.update("autopilot.enabled", autopilotEnabled, vscode.ConfigurationTarget.Global);
-  };
-
-  switch (mode) {
-    case "auto-approve":
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      try {
-        await updateNativeApprovalSettings(true, false);
-      } catch (error) {
-        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
-        CopilotExecutor.setApprovalBootstrapMode("yolo");
-      }
-      return;
-    case "autopilot":
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      try {
-        await updateNativeApprovalSettings(true, true);
-      } catch (error) {
-        logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
-        CopilotExecutor.setApprovalBootstrapMode("yolo");
-      }
-      return;
-    case "yolo":
-      CopilotExecutor.setApprovalBootstrapMode("yolo");
-      break;
-    default:
-      CopilotExecutor.setApprovalBootstrapMode("off");
-      break;
-  }
-
-  try {
-    await updateNativeApprovalSettings(false, false);
-  } catch (error) {
-    logExtensionErrorWithSanitizedDetails("[CopilotCockpit] Failed to sync approval mode:", error);
-  }
+  // Only manage internal CopilotExecutor bootstrap state here; native chat
+  // permission settings remain owned by VS Code unless an explicit current-
+  // session sync path requests them.
+  await syncApprovalModeForMode(mode, {}, deps);
 }
 
 /**
@@ -3235,6 +3228,8 @@ export const __testOnly = {
   ensureSchedulerSkillOnStartup,
   getCurrentStorageSettings,
   shouldSuppressSqliteWorkForExtensionContext,
+  syncApprovalMode,
+  syncApprovalModeForMode,
   waitForSqliteStartupHydration,
 };
 

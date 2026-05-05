@@ -705,6 +705,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <div class="settings-card-header">
           <div class="section-title">GitHub ${escapeHtml(strings.githubIntegrationTitle)}</div>
           <p class="note">${escapeHtml(strings.githubIntegrationDescription)}</p>
+          <p class="note" style="margin-top:4px;font-style:italic;opacity:0.8;">⚠️ ${escapeHtml(strings.githubIntegrationExperimentalNotice)}</p>
         </div>
         <div id="github-integration-feedback" class="telegram-feedback"></div>
 

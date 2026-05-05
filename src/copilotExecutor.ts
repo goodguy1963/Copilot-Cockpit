@@ -53,7 +53,7 @@ type PreparedExecution = {
   mustStartFresh: boolean;
 };
 
-type ApprovalBootstrapMode = "off" | "yolo";
+type ApprovalBootstrapMode = "default" | "auto-approve" | "autopilot" | "yolo";
 
 type HourlySessionBucket = {
   hourStartIso: string;
@@ -71,6 +71,21 @@ class HourlyChatSessionCapError extends Error {
   constructor() {
     super(messages.hourlySessionCapReached());
     this.name = "HourlyChatSessionCapError";
+  }
+}
+
+function getApprovalBootstrapCommand(
+  mode: ApprovalBootstrapMode,
+): string | undefined {
+  switch (mode) {
+    case "auto-approve":
+      return "/auto-approve";
+    case "autopilot":
+      return "/autopilot";
+    case "yolo":
+      return "/yolo";
+    default:
+      return undefined;
   }
 }
 
@@ -354,7 +369,7 @@ async function offerPromptCopy(query: string): Promise<void> {
 export class CopilotExecutor {
   private static extensionContext: vscode.ExtensionContext | undefined;
   private static recentPromptExecutionStarts: number[] = [];
-  private static approvalBootstrapMode: ApprovalBootstrapMode = "off";
+  private static approvalBootstrapMode: ApprovalBootstrapMode = "default";
 
   static configure(context?: vscode.ExtensionContext): void {
     CopilotExecutor.extensionContext = context;
@@ -362,6 +377,11 @@ export class CopilotExecutor {
 
   static setApprovalBootstrapMode(mode: ApprovalBootstrapMode): void {
     CopilotExecutor.approvalBootstrapMode = mode;
+  }
+
+  static async syncNativeApprovalMode(mode: ApprovalBootstrapMode): Promise<void> {
+    const executor = new CopilotExecutor();
+    await executor.bootstrapFreshChatApprovalMode(mode, true);
   }
 
   private prepareExecution(prompt: string, options?: ExecuteOptions): PreparedExecution {
@@ -439,8 +459,20 @@ export class CopilotExecutor {
     }
   }
 
-  private async bootstrapFreshChatApprovalMode(): Promise<void> {
-    if (CopilotExecutor.approvalBootstrapMode !== "yolo") {
+  private async bootstrapFreshChatApprovalMode(
+    mode: ApprovalBootstrapMode = CopilotExecutor.approvalBootstrapMode,
+    createFreshChat = false,
+  ): Promise<void> {
+    const approvalCommand = getApprovalBootstrapCommand(mode);
+
+    if (createFreshChat) {
+      const created = await this.tryCreateNewChatSession();
+      if (!created) {
+        throw new Error("Unable to create a fresh Copilot Chat session for approval sync");
+      }
+    }
+
+    if (!approvalCommand) {
       return;
     }
 
@@ -450,7 +482,7 @@ export class CopilotExecutor {
     }
 
     await this.delay(DELAY_AFTER_FOCUS_MS);
-    await vscode.commands.executeCommand(TYPE_COMMAND, { text: "/yolo" });
+    await vscode.commands.executeCommand(TYPE_COMMAND, { text: approvalCommand });
     await this.delay(DELAY_AFTER_TYPE_MS);
 
     const submitted = await this.executeFirstAvailableCommand(CHAT_SUBMIT_COMMANDS);

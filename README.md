@@ -109,7 +109,7 @@ These are the default path and the main product surface.
 
 `Todo Cockpit` is the planning and triage layer. A `Todo` stays a planning artifact: capture work, add comments, apply labels and workflow flags, and decide what should happen next.
 
-Optional GitHub inbox triage also lives here. The `Settings` tab can save repo-local GitHub repository settings plus a reusable automation prompt, then expose a cached GitHub inbox at the top of the board with `Issues`, `Pull Requests`, and `Security Alerts`. Refresh uses your existing VS Code GitHub sign-in, inbox rows can create a plain Todo or `Create Todo + Review`, and repeat imports reuse the existing GitHub-sourced card instead of creating duplicates. For setup, storage, and current limits, see [docs/github-integration.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/github-integration.md).
+Optional, **experimental** GitHub inbox triage also lives here. The `Settings` tab can save repo-local GitHub repository settings plus a reusable automation prompt, then expose a cached GitHub inbox at the top of the board with `Issues`, `Pull Requests`, and `Security Alerts`. Refresh uses your existing VS Code GitHub sign-in, inbox rows can create a plain Todo or `Create Todo + Review`, and repeat imports reuse the existing GitHub-sourced card instead of creating duplicates. For setup, storage, current limits, and the road to stable, see [docs/github-integration.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/github-integration.md).
 
 ### Tasks
 
@@ -132,6 +132,10 @@ Research is especially useful when work should pull in fresher outside knowledge
 ### Experimental and advanced playground capabilities
 
 These capabilities stay discoverable, but they are not required for the default path.
+
+- **GitHub Integration** (experimental): repo-local inbox triage for issues, pull requests, and security alerts. Read-only, manual refresh, no mutation support yet. See [docs/github-integration.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/github-integration.md).
+- **Telegram Notifications** (experimental): repo-local Stop hook that sends the last assistant reply to a Telegram bot.
+- **Codex integration** (experimental): repo-local MCP, skills, todo coordination, and task-draft coordination for ChatGPT Codex in VS Code.
 
 ### Model And Agent Choice
 

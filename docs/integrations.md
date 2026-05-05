@@ -57,7 +57,9 @@
 
 ## GitHub Inbox Integration
 
-- GitHub integration is an optional repo-local `Settings` tab feature for one repository in the current workspace.
+> ⚠️ **Experimental** — This integration is experimental and may change or be removed in future versions.
+
+- GitHub integration is an optional, **experimental** repo-local `Settings` tab feature for one repository in the current workspace.
 - Inbox sync uses direct GitHub REST API reads plus repo-local cached state. It does not depend on the GitHub Pull Requests and Issues extension.
 - GitHub.com refresh uses VS Code's built-in `github` authentication provider.
 - A non-default GitHub API base URL routes refresh through VS Code's built-in `github-enterprise` authentication provider.

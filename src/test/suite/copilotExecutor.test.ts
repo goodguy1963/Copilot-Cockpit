@@ -315,7 +315,7 @@ suite("CopilotExecutor Test Suite", () => {
       mutableCommands.executeCommand = originalExecuteCommand;
       mutableWindow.showWarningMessage = originalShowWarningMessage;
       (CopilotExecutor as any).recentPromptExecutionStarts = [];
-      CopilotExecutor.setApprovalBootstrapMode("off");
+      CopilotExecutor.setApprovalBootstrapMode("default");
     }
   });
 

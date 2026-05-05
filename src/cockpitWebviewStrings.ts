@@ -379,6 +379,11 @@ export function buildSchedulerWebviewStrings(
       "保存済み token を Webview に戻さずに、リポジトリローカルの GitHub リポジトリ設定、キャッシュされた Inbox 同期、再利用可能な自動化 prompt を構成します。",
       "Konfigurieren Sie repository-lokale GitHub-Repository-Einstellungen, gecachte Inbox-Synchronisierung und einen wiederverwendbaren Automatisierungs-prompt, ohne das gespeicherte token an das Webview zurückzugeben.",
     ),
+    githubIntegrationExperimentalNotice: localize(
+      "This feature is experimental and may change or be removed in future versions.",
+      "この機能は実験的であり、将来のバージョンで変更または削除される可能性があります。",
+      "Diese Funktion ist experimentell und kann sich in zukünftigen Versionen ändern oder entfernt werden.",
+    ),
     githubIntegrationEnable: localize("Enable GitHub integration", "GitHub 連携を有効化", "GitHub-Integration aktivieren"),
     githubIntegrationOwner: localize("Owner", "Owner", "Owner"),
     githubIntegrationOwnerPlaceholder: localize("octocat", "octocat", "octocat"),

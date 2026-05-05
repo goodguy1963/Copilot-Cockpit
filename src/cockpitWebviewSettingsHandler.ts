@@ -19,6 +19,24 @@ const cockpitExtensionId = "local-dev.copilot-cockpit";
 const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
 const copilotExtensionId = "github.copilot";
 const copilotExtensionSettingsQuery = `@ext:${copilotExtensionId}`;
+const chatPermissionsSettingKey = "chat.permissions.default";
+
+type NativeChatPermissionsValue = "default" | "autoApprove" | "autopilot";
+
+function toNativeChatPermissionsValue(
+  approvalMode: ApprovalMode,
+): NativeChatPermissionsValue {
+  switch (approvalMode) {
+    case "auto-approve":
+    case "yolo":
+      return "autoApprove";
+    case "autopilot":
+      return "autopilot";
+    case "default":
+    default:
+      return "default";
+  }
+}
 
 /** Handles settings/help messages that are routed out of the main webview controller. */
 
@@ -80,9 +98,15 @@ export async function handleSettingsWebviewMessage(
       const safeMode = validModes.includes(approvalMode as ApprovalMode)
         ? approvalMode as ApprovalMode
         : "default";
+      const nativeApprovalMode = toNativeChatPermissionsValue(safeMode);
       await updateCompatibleConfigurationValue(
         "approvalMode",
         safeMode,
+        vscode.ConfigurationTarget.Global,
+      );
+      await vscode.workspace.getConfiguration().update(
+        chatPermissionsSettingKey,
+        nativeApprovalMode,
         vscode.ConfigurationTarget.Global,
       );
       return true;

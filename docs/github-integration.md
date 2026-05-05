@@ -1,6 +1,8 @@
 # GitHub Integration
 
-Copilot Cockpit includes an optional repo-local GitHub integration for Todo Cockpit. It lets you save repository settings in the `Settings` tab, manually refresh a cached GitHub inbox, and turn GitHub items into Todo cards or review-oriented handoffs without exposing a runtime access token back to the webview.
+> ⚠️ **Experimental** — This feature is experimental and may change or be removed in future versions.
+
+Copilot Cockpit includes an optional, **experimental** repo-local GitHub integration for Todo Cockpit. It lets you save repository settings in the `Settings` tab, manually refresh a cached GitHub inbox, and turn GitHub items into Todo cards or review-oriented handoffs without exposing a runtime access token back to the webview.
 
 This feature is intentionally narrow today:
 
@@ -147,12 +149,41 @@ That keeps the downstream task draft aligned with the earlier GitHub-aware revie
 
 ## Current Limits
 
-- This is not a deep integration with the GitHub Pull Requests and Issues extension.
+This integration is **experimental and read-only**. The following capabilities are not yet implemented:
+
+### Not Yet Implemented
+
+- **Bidirectional sync**: You cannot create, update, or close GitHub issues, pull requests, or alerts from Copilot Cockpit. The integration is strictly read-only.
+- **Live push sync**: There is no webhook, event-driven, or polling-based automatic refresh. All inbox updates are manual.
+- **Deep GitHub extension integration**: This does not integrate with the GitHub Pull Requests and Issues extension. It operates independently through direct REST API calls.
+- **Issue/PR mutation**: You cannot comment on, assign, label, milestone, close, reopen, or merge GitHub items from within Cockpit.
+- **Discussions**: GitHub Discussions are not fetched or displayed.
+- **Workflow/actions visibility**: GitHub Actions workflow runs are not surfaced.
+- **Review integration**: Pull request reviews, review comments, and review status are not fetched.
+- **Notifications**: The GitHub notification inbox is not queried; only repository-scoped issues, PRs, and security alerts are fetched.
+
+### Current Constraints
+
 - Inbox sync is GitHub REST plus repo-local cached state.
-- The sync path is read-only.
-- Refresh is manual.
+- Each lane is capped at 50 items and 2 pages per refresh.
+- GitHub Enterprise refresh depends on VS Code's `github-enterprise` provider and a derivable server URI from `apiBaseUrl`.
 - There is no webhook or live push sync.
-- GitHub Enterprise refresh depends on VS Code's `github-enterprise` provider and a server URI that can be derived from the configured `apiBaseUrl` or is already configured in VS Code.
+- Rate limiting can cause partial or failed refreshes.
+- Only open issues and open pull requests are shown.
+- Security alerts cover code scanning alerts and Dependabot alerts only; secret scanning alerts are not included.
+
+## Road To Stable
+
+For this feature to graduate from experimental to stable, the following would be needed:
+
+1. **Bidirectional mutation support** — Create, update, and close issues/PRs from Todo Cockpit, with audit trail.
+2. **Auto-refresh or webhook sync** — Optional polling interval or webhook receiver for live inbox updates.
+3. **GitHub Pull Requests and Issues extension integration** — Optional deep linking or co-operation with the official extension.
+4. **Expanded item coverage** — Discussions, workflow runs, secret scanning alerts, and notification inbox.
+5. **Robust rate-limit handling** — Backoff, retry, and graceful degradation across all lanes.
+6. **GitHub Enterprise hardening** — Explicit server URI configuration fallback, better error messaging for misconfigured Enterprise endpoints.
+7. **PR review context** — Fetch review status, comments, and requested reviewers for richer triage.
+8. **Stable API contract** — Lock down the stored schema, webview messages, and automation prompt contract so they don't change under users.
 
 ## Recommended Operator Workflow
 
