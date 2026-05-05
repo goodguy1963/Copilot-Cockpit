@@ -27,10 +27,10 @@ Most AI tooling still reads like feature accumulation: a todo board here, a sche
 It connects three tightly linked layers:
 
 1. Planning and triage in `Todo Cockpit`
-2. Execution and scheduling through `Tasks` and `Jobs`
-3. Tool and control-plane integration through `Research`, `MCP`, and optional agent surfaces
+2. Execution, scheduling, and performance improvement through `Tasks`, `Jobs`, and `Research`
+3. Tool and control-plane integration through `MCP` and optional agent surfaces
 
-The workflow is explicit on purpose. A `Todo` is the planning artifact. A `Task` is one executable unit. A `Job` is an orchestrated or scheduled run built from steps. `Research` is an exploratory context-building artifact when the system still needs evidence before execution.
+The workflow is explicit on purpose. A `Todo` is the planning artifact — flag it **needs bot review** to trigger a focused investigation that returns findings as a comment. A `Task` is one executable unit. A `Job` is an orchestrated or scheduled run built from steps. `Research` is the performance and benchmarking workspace for iterative AI-driven improvement.
 
 That structure keeps the LLM as the native execution chat surface while Copilot Cockpit provides the approval, scheduling, and control layer around it. The goal is not less automation. The goal is accountable automation that can move from intake to execution without losing review, context, or ownership.
 
@@ -129,9 +129,9 @@ Think of `Jobs` as deeper agentic workflows inside VS Code: research, decision s
 
 ### Research
 
-`Research` is the exploratory context-building layer. Use it when the system is missing context, needs outside evidence, or should iterate against a benchmark before you decide on execution.
+`Research` is the performance and benchmarking workspace. Use it to harvest better performance through AI-driven code changes, iterate against measurable goals, and track improvement over time.
 
-Research is especially useful when work should pull in fresher outside knowledge first, through web search, Perplexity, scrapers, or other tooling, and then return that material for user review before implementation begins.
+The **needs bot review** flag on a Todo is a separate, lighter mechanism: flag a Todo for investigation, the agent returns findings as a comment on the card, and you decide what to do next — without launching a full Research session.
 
 ### Experimental and advanced playground capabilities
 
@@ -153,7 +153,7 @@ That also creates a control layer for cost: GitHub Copilot or OpenRouter can use
 
 ### How To Use
 
-`How To Use` is the built-in onboarding tab. Start there if you want the recommended path explained in order: `Todo` first, `Research` when context is missing, `Task` or `Job` for execution, then optional control-plane integration after the core loop is working.
+`How To Use` is the built-in onboarding tab. Start there if you want the recommended path explained in order: `Todo` first, flag **needs bot review** for investigation, `Task` or `Job` for execution, `Research` for performance benchmarking, then optional control-plane integration after the core loop is working.
 
 ## Common Workflows
 
@@ -163,7 +163,7 @@ Capture work in `Todo Cockpit`, discuss it, move it into `ready`, and only then 
 
 ### Research-First Collaboration
 
-Use `Research`, web search, or tool-assisted discovery to gather current information first. Review that output with the user, discuss changes, and only then convert the result into scheduled implementation work.
+Flag a Todo **needs bot review** to launch a focused investigation. The agent researches the issue and returns findings as a comment. Review that output with the user, discuss changes, and only then convert the result into scheduled implementation work.
 
 ### Scheduled Execution
 
@@ -193,9 +193,9 @@ Start with one recurring loop that produces useful work instead of toy output.
 - `Delivery Risk and Security Watch (Daily)` looks for shipping, trust, and operational blind spots.
 - `Knowledge and Shipping Packager (Daily)` stages reusable docs, memory candidates, and release material for later curation.
 - `Project Intelligence and Delivery Prep` runs those steps in sequence and stops at a review checkpoint before anything turns into real execution.
-- `Onboarding Example Coverage Research` starts with a Todo Cockpit intake item, uses Research to gather or benchmark onboarding evidence, and then promotes approved follow-up into Tasks or Jobs.
+- `Onboarding Example Coverage Research` starts with a Todo Cockpit intake item, uses the **needs bot review** flow to investigate onboarding gaps, and then promotes approved follow-up into Tasks or Jobs.
 
-Use that onboarding example when you want one concrete loop to demonstrate the product: start in Todo Cockpit, gather context with Research, promote approved work into Tasks or Jobs, and stop at a review checkpoint before autonomy expands.
+Use that onboarding example when you want one concrete loop to demonstrate the product: start in Todo Cockpit, flag **needs bot review** to investigate, promote approved work into Tasks or Jobs, and stop at a review checkpoint before autonomy expands.
 
 This is a good fit for a solo product, an internal tool, a small SaaS, or an actively maintained extension like this repo.
 
@@ -214,13 +214,13 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette. Or use the todo-list icon in the top right.
 2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same guided walkthrough.
 3. Capture or refine work in `Todo Cockpit` until the planning artifact is clear.
-4. Use `Research` if the work still needs exploratory context or outside evidence.
+4. Flag the Todo **needs bot review** if the work needs investigation before execution.
 5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
 6. Open `Settings` to configure repo-local defaults and optional integrations such as the GitHub inbox flow. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
 
 If you want the optional integration layers, the practical order is:
 
-1. Get the core `Todo` -> `Research` -> `Task` or `Job` loop working first.
+1. Get the core `Todo` -> flag **needs bot review** -> `Task` or `Job` loop working first.
 2. Use `Set Up MCP` to create or repair `.vscode/mcp.json` and activate the repo-local scheduler MCP server for this workspace.
 3. Add any separate third-party MCP servers you want, such as Tavily, Perplexity, or [Prefab by Max Health Inc.](https://github.com/Max-Health-Inc/prefab), to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
 4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI and wire-format work through the shipped contract instead of keeping it as a repo-only extra.
