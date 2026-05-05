@@ -196,7 +196,6 @@ const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
 const EXTERNAL_AGENT_HEARTBEAT_INTERVAL_MS = 2000;
 const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
 const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
-const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
 
 function getSearchProviderPromptLabel(searchProvider: SearchProvider): string {
   switch (searchProvider) {
@@ -231,20 +230,25 @@ function buildDefaultNeedsBotReviewPromptTemplate(
     "",
     "{{mcp_skill_guidance}}",
     "",
-    `Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use ${getSearchProviderPromptLabel(searchProvider)} for lightweight external search. Use ${getResearchProviderPromptLabel(researchProvider)} for deeper research when needed.`,
-    "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
-    "Review Summary:",
-    "- 1-2 bullets on the request and current repo state",
-    "Risks / Gaps:",
-    "- bullets for missing context, risks, or unclear assumptions",
+    `Research only what is needed to clarify the user's goal and the safest path forward. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use ${getSearchProviderPromptLabel(searchProvider)} for lightweight external search. Use ${getResearchProviderPromptLabel(researchProvider)} for deeper research only when the Todo actually needs outside evidence.`,
+    "Do not rewrite the Todo into a different request or pretend implementation is approved.",
+    "Return a longer clarification comment ready for direct Todo writeback. Use readable markdown because the Todo comment section now supports basic markdown such as #, ##, and ### headings, bullet and numbered lists, **bold**, *italic*, blockquotes, and inline `code`. Emojis are allowed when they improve scanning, but keep them sparse and purposeful.",
+    "Prefer a clearly structured response over a one-line reply.",
+    "Goal Clarification:",
+    "- 1-2 bullets restating the likely user goal and current repo state without expanding scope",
+    "Questions:",
+    "- 1-3 concise missing decisions or blockers the user should answer before implementation",
+    "Options:",
+    "- 2 compact implementation options or paths when a real choice exists; if there is only one sensible path, say that directly",
     "Recommendation:",
-    "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
+    "- one compact recommended next step for the user, such as answer the questions or choose option 1 or 2 before moving this Todo to ready",
     "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
     "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
   ].join("\n");
 }
 
 const DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE = buildDefaultNeedsBotReviewPromptTemplate("built-in", "none");
+const DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE = "Needs bot review: clarify the goal, surface the missing decisions, and give concise options before anything moves to ready.";
 const DEFAULT_READY_PROMPT_TEMPLATE = [
   "You are handling a Todo that is now ready for implementation.",
   "",
@@ -1179,6 +1183,7 @@ const schedulerUiRefreshQueue = createUiRefreshQueue(() => {
   SchedulerWebview.updateGitHubIntegration(getCurrentGitHubIntegrationView());
   SchedulerWebview.updateTelegramNotification(getCurrentTelegramNotificationView());
   SchedulerWebview.updateExecutionDefaults(getCurrentExecutionDefaults());
+  SchedulerWebview.updateRecommendedReviewDefaults(getRecommendedReviewDefaults());
   SchedulerWebview.updateReviewDefaults(getCurrentReviewDefaults());
   SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
   SchedulerWebview.updateResearchState(
@@ -1211,6 +1216,7 @@ async function showSchedulerWebview(
     getCurrentTelegramNotificationView(),
     getCurrentExecutionDefaults(),
     getCurrentReviewDefaults(),
+    getRecommendedReviewDefaults(),
     getCurrentStorageSettings(),
     researchManager.getAllProfiles(),
     researchManager.getActiveRun(),
@@ -1846,22 +1852,35 @@ function getCurrentExecutionDefaults(): ExecutionDefaultsView {
   };
 }
 
+function getRecommendedReviewDefaults(
+  folderUri = getPrimaryWorkspaceFolderUri(),
+): ReviewDefaultsView {
+  const providerSettings = getCurrentProviderSettings(folderUri);
+  return {
+    needsBotReviewCommentTemplate: DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
+    needsBotReviewPromptTemplate: buildDefaultNeedsBotReviewPromptTemplate(
+      providerSettings.searchProvider,
+      providerSettings.researchProvider,
+    ),
+    needsBotReviewAgent: "agent",
+    needsBotReviewModel: "",
+    needsBotReviewChatSession: "new",
+    readyPromptTemplate: DEFAULT_READY_PROMPT_TEMPLATE,
+  };
+}
+
 function getCurrentReviewDefaults(): ReviewDefaultsView {
   const folderUri = getPrimaryWorkspaceFolderUri();
-  const providerSettings = getCurrentProviderSettings(folderUri);
-  const defaultNeedsBotReviewPromptTemplate = buildDefaultNeedsBotReviewPromptTemplate(
-    providerSettings.searchProvider,
-    providerSettings.researchProvider,
-  );
+  const recommendedDefaults = getRecommendedReviewDefaults(folderUri);
   return {
     needsBotReviewCommentTemplate: getWorkspaceSettingWithFallback<string>(
       ["needsBotReviewCommentTemplate", "spotReviewTemplate"],
-      DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
+      recommendedDefaults.needsBotReviewCommentTemplate,
       folderUri,
     ).trim(),
     needsBotReviewPromptTemplate: getWorkspaceSettingWithFallback<string>(
       ["needsBotReviewPromptTemplate", "botReviewPromptTemplate"],
-      defaultNeedsBotReviewPromptTemplate,
+      recommendedDefaults.needsBotReviewPromptTemplate,
       folderUri,
     ),
     needsBotReviewAgent: getWorkspaceSettingWithFallback<string>(
@@ -1883,7 +1902,7 @@ function getCurrentReviewDefaults(): ReviewDefaultsView {
       : "new",
     readyPromptTemplate: getWorkspaceSettingWithFallback<string>(
       ["readyPromptTemplate"],
-      DEFAULT_READY_PROMPT_TEMPLATE,
+      recommendedDefaults.readyPromptTemplate,
       folderUri,
     ),
   };

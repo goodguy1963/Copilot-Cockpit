@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.",
-  "version": "2.1.1",
+  "version": "2.1.4",
   "publisher": "local-dev",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",
@@ -266,13 +266,13 @@
         },
         "copilotCockpit.needsBotReviewCommentTemplate": {
           "type": "string",
-          "default": "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.",
+          "default": "Needs bot review: clarify the goal, surface the missing decisions, and give concise options before anything moves to ready.",
           "scope": "resource",
           "description": "%config.needsBotReviewCommentTemplate%"
         },
         "copilotCockpit.needsBotReviewPromptTemplate": {
           "type": "string",
-          "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.\nReturn a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:\nReview Summary:\n- 1-2 bullets on the request and current repo state\nRisks / Gaps:\n- bullets for missing context, risks, or unclear assumptions\nRecommendation:\n- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead\nUse real line breaks. Do not emit JSON or escaped newline sequences such as \\n.\nWhen the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
+          "default": "You are handling a Todo that just entered needs-bot-review.\n\n{{todo_context}}\n\n{{mcp_skill_guidance}}\n\nResearch only what is needed to clarify the user's goal and the safest path forward. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research only when the Todo actually needs outside evidence.\nDo not rewrite the Todo into a different request or pretend implementation is approved.\nReturn a longer clarification comment ready for direct Todo writeback. Use readable markdown because the Todo comment section now supports basic markdown such as #, ##, and ### headings, bullet and numbered lists, **bold**, *italic*, blockquotes, and inline `code`. Emojis are allowed when they improve scanning, but keep them sparse and purposeful.\nPrefer a clearly structured response over a one-line reply.\nGoal Clarification:\n- 1-2 bullets restating the likely user goal and current repo state without expanding scope\nQuestions:\n- 1-3 concise missing decisions or blockers the user should answer before implementation\nOptions:\n- 2 compact implementation options or paths when a real choice exists; if there is only one sensible path, say that directly\nRecommendation:\n- one compact recommended next step for the user, such as answer the questions or choose option 1 or 2 before moving this Todo to ready\nUse real line breaks. Do not emit JSON or escaped newline sequences such as \\n.\nWhen the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
           "scope": "resource",
           "description": "%config.needsBotReviewPromptTemplate%"
         },

@@ -10,6 +10,7 @@ import type {
   PromptTemplate,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsStateView,
   ReviewDefaultsView,
   ScheduleHistoryEntry,
   ScheduledTask,
@@ -43,7 +44,7 @@ export type SchedulerWebviewRuntimeState = {
   githubIntegration: GitHubIntegrationView;
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
-  reviewDefaults: ReviewDefaultsView;
+  reviewDefaults: ReviewDefaultsStateView;
   storageSettings: StorageSettingsView;
   researchProfiles: ResearchProfile[];
   activeResearchRun: ResearchRun | undefined;
@@ -65,6 +66,7 @@ type AssignSchedulerWebviewRuntimeStateParams = {
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   storageSettings: StorageSettingsView;
   researchProfiles: ResearchProfile[];
   activeResearchRun: ResearchRun | undefined;
@@ -92,7 +94,10 @@ export function createSchedulerWebviewRuntimeState(): SchedulerWebviewRuntimeSta
     githubIntegration: createEmptyGitHubIntegration(),
     telegramNotification: createEmptyTelegramNotification(),
     executionDefaults: createDefaultExecutionDefaults(),
-    reviewDefaults: createDefaultReviewDefaults(),
+    reviewDefaults: {
+      current: createDefaultReviewDefaults(),
+      recommended: createDefaultReviewDefaults(),
+    },
     storageSettings: createDefaultStorageSettings(),
     researchProfiles: [],
     activeResearchRun: undefined,
@@ -115,7 +120,10 @@ export function assignSchedulerWebviewRuntimeState(
   state.githubIntegration = params.githubIntegration;
   state.telegramNotification = params.telegramNotification;
   state.executionDefaults = params.executionDefaults;
-  state.reviewDefaults = params.reviewDefaults;
+  state.reviewDefaults = {
+    current: params.reviewDefaults,
+    recommended: params.recommendedReviewDefaults,
+  };
   state.storageSettings = params.storageSettings;
   state.researchProfiles = params.researchProfiles;
   state.activeResearchRun = params.activeResearchRun;

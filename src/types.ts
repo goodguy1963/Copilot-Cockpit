@@ -1105,6 +1105,17 @@ export interface ReviewDefaultsView {
 }
 
 /**
+ * Current review defaults paired with the runtime-recommended defaults for Settings comparisons.
+ */
+export interface ReviewDefaultsStateView {
+  /** Current saved review defaults resolved from workspace settings with fallback defaults */
+  current: ReviewDefaultsView;
+
+  /** Runtime-recommended defaults based on the active provider configuration */
+  recommended: ReviewDefaultsView;
+}
+
+/**
  * Workspace storage backend settings exposed in the Settings tab.
  */
 export interface StorageSettingsView {

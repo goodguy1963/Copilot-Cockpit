@@ -123,6 +123,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
       currentTelegramNotification: telegramNotification,
       currentExecutionDefaults: executionDefaults,
       currentReviewDefaults: reviewDefaults,
+      recommendedReviewDefaults: reviewDefaults,
       currentStorageSettings: storageSettings,
       currentResearchProfiles: researchProfiles as any,
       currentActiveResearchRun: activeResearchRun,
@@ -150,7 +151,10 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     assert.deepStrictEqual(payload.githubIntegration, githubIntegration);
     assert.deepStrictEqual(payload.telegramNotification, telegramNotification);
     assert.deepStrictEqual(payload.executionDefaults, executionDefaults);
-    assert.deepStrictEqual(payload.reviewDefaults, reviewDefaults);
+    assert.deepStrictEqual(payload.reviewDefaults, {
+      current: reviewDefaults,
+      recommended: reviewDefaults,
+    });
     assert.deepStrictEqual(payload.storageSettings, storageSettings);
     assert.deepStrictEqual(payload.researchProfiles, researchProfiles);
     assert.deepStrictEqual(payload.activeResearchRun, activeResearchRun);

@@ -22,6 +22,7 @@ import type {
   JobFolder,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsStateView,
   ReviewDefaultsView,
   ScheduleHistoryEntry,
   ScheduledTask,
@@ -103,8 +104,12 @@ export function dispatchReviewDefaultsUpdate(
   reviewDefaults: ReviewDefaultsView,
   postMessage: PostMessage,
 ): void {
-  state.reviewDefaults = reviewDefaults;
-  postMessage(createUpdateReviewDefaultsMessage(reviewDefaults));
+  const nextReviewDefaults: ReviewDefaultsStateView = {
+    current: reviewDefaults,
+    recommended: state.reviewDefaults.recommended,
+  };
+  state.reviewDefaults = nextReviewDefaults;
+  postMessage(createUpdateReviewDefaultsMessage(nextReviewDefaults));
 }
 
 export function dispatchStorageSettingsUpdate(

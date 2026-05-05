@@ -227,7 +227,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var githubIntegration = initialCollections.githubIntegration;
   var telegramNotification = initialCollections.telegramNotification;
   var executionDefaults = initialCollections.executionDefaults;
-  var reviewDefaults = initialCollections.reviewDefaults;
+  var reviewDefaultsState = normalizeReviewDefaultsState(initialCollections.reviewDefaults);
+  var reviewDefaults = reviewDefaultsState.current;
+  var recommendedReviewDefaults = reviewDefaultsState.recommended;
   var normalizeStorageSettings = createStorageSettingsNormalizer(normalizeTodoLabelKey);
 
   var initialState = createInitialSchedulerWebviewState(
@@ -260,6 +262,9 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var boardRenderState = createBoardRenderState();
   var draggingTodoId = null;
   var isBoardDragging = false;
+  var activeTodoCommentModalTodoId = "";
+  var activeTodoCommentModalIndex = -1;
+  var focusLatestTodoCommentOnModalSync = false;
   function requestCockpitBoardRender() {
     boardRenderState.draggingTodoId = draggingTodoId;
     boardRenderState.isBoardDragging = isBoardDragging;
@@ -369,6 +374,33 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     currentTodoDraft.flagColor = todoFlagColorInput
       ? String(todoFlagColorInput.value || "")
       : (currentTodoDraft.flagColor || "#f59e0b");
+  }
+
+  function getTodoCommentDraftValue() {
+    return todoCommentInput ? String(todoCommentInput.value || "") : "";
+  }
+
+  function setTodoCommentDraftValue(value) {
+    if (!todoCommentInput) {
+      return;
+    }
+    todoCommentInput.value = String(value || "");
+  }
+
+  function getTodoCommentsForModal(todoId) {
+    var todo = todoId ? findTodoById(todoId) : null;
+    return todo && Array.isArray(todo.comments) ? todo.comments : [];
+  }
+
+  function clampTodoCommentModalIndex(todoId, preferredIndex) {
+    var comments = getTodoCommentsForModal(todoId);
+    if (!comments.length) {
+      return -1;
+    }
+    if (typeof preferredIndex !== "number" || isNaN(preferredIndex)) {
+      return comments.length - 1;
+    }
+    return Math.max(0, Math.min(comments.length - 1, preferredIndex));
   }
 
   function getActiveTodoEditorId() {
@@ -627,10 +659,14 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     approvalModeNote: approvalModeNoteEl,
     needsBotReviewCommentTemplateInput,
     needsBotReviewPromptTemplateInput,
+    needsBotReviewPromptStatus,
+    needsBotReviewPromptRecommendedBtn,
     needsBotReviewAgentSelect,
     needsBotReviewModelSelect,
     needsBotReviewChatSessionSelect,
     readyPromptTemplateInput,
+    readyPromptStatus,
+    readyPromptRecommendedBtn,
     reviewDefaultsSaveBtn,
     reviewDefaultsNote,
     settingsStorageModeSelect,
@@ -1760,6 +1796,97 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     };
   }
 
+  function createEmptyReviewDefaults() {
+    return {
+      needsBotReviewCommentTemplate: "",
+      needsBotReviewPromptTemplate: "",
+      needsBotReviewAgent: "agent",
+      needsBotReviewModel: "",
+      needsBotReviewChatSession: "new",
+      readyPromptTemplate: "",
+    };
+  }
+
+  function normalizeReviewDefaultsValue(value) {
+    var fallback = createEmptyReviewDefaults();
+    return {
+      needsBotReviewCommentTemplate:
+        value && typeof value.needsBotReviewCommentTemplate === "string"
+          ? value.needsBotReviewCommentTemplate
+          : fallback.needsBotReviewCommentTemplate,
+      needsBotReviewPromptTemplate:
+        value && typeof value.needsBotReviewPromptTemplate === "string"
+          ? value.needsBotReviewPromptTemplate
+          : fallback.needsBotReviewPromptTemplate,
+      needsBotReviewAgent:
+        value && typeof value.needsBotReviewAgent === "string"
+          ? value.needsBotReviewAgent
+          : fallback.needsBotReviewAgent,
+      needsBotReviewModel:
+        value && typeof value.needsBotReviewModel === "string"
+          ? value.needsBotReviewModel
+          : fallback.needsBotReviewModel,
+      needsBotReviewChatSession:
+        value && value.needsBotReviewChatSession === "continue"
+          ? "continue"
+          : fallback.needsBotReviewChatSession,
+      readyPromptTemplate:
+        value && typeof value.readyPromptTemplate === "string"
+          ? value.readyPromptTemplate
+          : fallback.readyPromptTemplate,
+    };
+  }
+
+  function normalizeReviewDefaultsState(value) {
+    var normalizedCurrent = normalizeReviewDefaultsValue(
+      value && typeof value === "object" && value.current
+        ? value.current
+        : value,
+    );
+    var normalizedRecommended = normalizeReviewDefaultsValue(
+      value && typeof value === "object" && value.recommended
+        ? value.recommended
+        : normalizedCurrent,
+    );
+    return {
+      current: normalizedCurrent,
+      recommended: normalizedRecommended,
+    };
+  }
+
+  function normalizeReviewTemplateText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim();
+  }
+
+  function updateReviewPromptStatus(statusElement, currentValue, recommendedValue) {
+    if (!statusElement) {
+      return;
+    }
+
+    var isRecommended = normalizeReviewTemplateText(currentValue)
+      === normalizeReviewTemplateText(recommendedValue);
+    statusElement.textContent = isRecommended
+      ? (strings.reviewDefaultsStatusRecommended || "Recommended")
+      : (strings.reviewDefaultsStatusCustomized || "Customized");
+    statusElement.setAttribute(
+      "data-state",
+      isRecommended ? "recommended" : "customized",
+    );
+  }
+
+  function renderReviewPromptRecommendationStatus() {
+    updateReviewPromptStatus(
+      needsBotReviewPromptStatus,
+      needsBotReviewPromptTemplateInput ? needsBotReviewPromptTemplateInput.value : "",
+      recommendedReviewDefaults.needsBotReviewPromptTemplate,
+    );
+    updateReviewPromptStatus(
+      readyPromptStatus,
+      readyPromptTemplateInput ? readyPromptTemplateInput.value : "",
+      recommendedReviewDefaults.readyPromptTemplate,
+    );
+  }
+
   function collectReviewDefaultsFormData() {
     return {
       needsBotReviewCommentTemplate: needsBotReviewCommentTemplateInput
@@ -1934,6 +2061,8 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       reviewDefaultsNote.textContent = strings.reviewDefaultsSaved
         || "The review comment text is inserted on review-state changes, and needs-bot-review launches the planning prompt immediately after save.";
     }
+
+    renderReviewPromptRecommendationStatus();
   }
 
   function renderStorageSettingsControls() {
@@ -3854,6 +3983,134 @@ syncTodoLabelSuggestions();
     }
   }
 
+  function sanitizeTodoCommentLinkUrl(url) {
+    var value = String(url || "").trim();
+    if (!value) {
+      return "";
+    }
+    return /^(https?:|mailto:)/i.test(value) ? value : "";
+  }
+
+  function renderTodoCommentInlineMarkdown(text) {
+    var html = escapeHtml(String(text || ""));
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (_match, label, url) {
+      var safeUrl = sanitizeTodoCommentLinkUrl(url);
+      if (!safeUrl) {
+        return label;
+      }
+      return '<a href="' + escapeAttr(safeUrl) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+    });
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    html = html.replace(/\*\*([^*][\s\S]*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_][\s\S]*?)__/g, '<strong>$1</strong>');
+    html = html.replace(/(^|[^*])\*([^*\n][\s\S]*?)\*(?!\*)/g, '$1<em>$2</em>');
+    html = html.replace(/(^|[^_])_([^_\n][\s\S]*?)_(?!_)/g, '$1<em>$2</em>');
+    return html;
+  }
+
+  function renderTodoCommentMarkdown(markdown) {
+    var text = String(markdown || "").replace(/\r\n?/g, "\n").trim();
+    if (!text) {
+      return "";
+    }
+    var lines = text.split("\n");
+    var htmlParts = [];
+    var paragraphLines = [];
+    var quoteLines = [];
+    var listType = "";
+    var listItems = [];
+
+    function flushParagraph() {
+      if (!paragraphLines.length) {
+        return;
+      }
+      htmlParts.push('<p>' + paragraphLines.map(renderTodoCommentInlineMarkdown).join('<br>') + '</p>');
+      paragraphLines = [];
+    }
+
+    function flushQuote() {
+      if (!quoteLines.length) {
+        return;
+      }
+      htmlParts.push('<blockquote><p>' + quoteLines.map(renderTodoCommentInlineMarkdown).join('<br>') + '</p></blockquote>');
+      quoteLines = [];
+    }
+
+    function flushList() {
+      if (!listItems.length || !listType) {
+        return;
+      }
+      htmlParts.push('<' + listType + '>' + listItems.map(function (item) {
+        return '<li>' + renderTodoCommentInlineMarkdown(item) + '</li>';
+      }).join('') + '</' + listType + '>');
+      listItems = [];
+      listType = "";
+    }
+
+    lines.forEach(function (line) {
+      var trimmed = line.trim();
+      var headingMatch;
+      var unorderedMatch;
+      var orderedMatch;
+      var quoteMatch;
+      if (!trimmed) {
+        flushParagraph();
+        flushQuote();
+        flushList();
+        return;
+      }
+      headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+      if (headingMatch) {
+        flushParagraph();
+        flushQuote();
+        flushList();
+        htmlParts.push('<h' + String(headingMatch[1].length) + '>' + renderTodoCommentInlineMarkdown(headingMatch[2]) + '</h' + String(headingMatch[1].length) + '>');
+        return;
+      }
+      quoteMatch = trimmed.match(/^>\s?(.*)$/);
+      if (quoteMatch) {
+        flushParagraph();
+        flushList();
+        quoteLines.push(quoteMatch[1]);
+        return;
+      }
+      unorderedMatch = trimmed.match(/^[-*]\s+(.+)$/);
+      if (unorderedMatch) {
+        flushParagraph();
+        flushQuote();
+        if (listType !== "ul") {
+          flushList();
+          listType = "ul";
+        }
+        listItems.push(unorderedMatch[1]);
+        return;
+      }
+      orderedMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+      if (orderedMatch) {
+        flushParagraph();
+        flushQuote();
+        if (listType !== "ol") {
+          flushList();
+          listType = "ol";
+        }
+        listItems.push(orderedMatch[1]);
+        return;
+      }
+      flushList();
+      flushQuote();
+      paragraphLines.push(trimmed);
+    });
+
+    flushParagraph();
+    flushQuote();
+    flushList();
+    return htmlParts.join('');
+  }
+
+  function renderTodoCommentBodyMarkup(commentBody) {
+    return renderTodoCommentMarkdown(commentBody) || '<p></p>';
+  }
+
   function renderTodoCommentEmptyMarkup(title, body) {
     return '<div class="todo-comment-empty-state">' +
       '<div class="todo-comment-empty-title">' + escapeHtml(title) + '</div>' +
@@ -3872,8 +4129,8 @@ syncTodoLabelSuggestions();
       '<span class="note">' + escapeHtml(strings.boardCommentPreviewPending || "Saved on create") + '</span>' +
       '</div>' +
       '</div>' +
-      '<div class="note todo-comment-author">user</div>' +
-      '<div class="todo-comment-body">' + escapeHtml(commentBody || "") + '</div>' +
+        '<div class="note todo-comment-author">user</div>' +
+        '<div class="todo-comment-body">' + renderTodoCommentBodyMarkup(commentBody || "") + '</div>' +
       '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentThreadCreateNote || "Preview of the kickoff note that will be saved on create.") + '</div>' +
       '</article>';
   }
@@ -3896,12 +4153,7 @@ syncTodoLabelSuggestions();
         ? " is-user-form"
         : "";
       var rawBody = String(comment.body || "");
-      var previewBody = source === "system-event"
-        ? rawBody.replace(/\s+/g, " ").trim()
-        : rawBody;
-      if (source === "system-event" && previewBody.length > 140) {
-        previewBody = previewBody.slice(0, 137) + "...";
-      }
+      var previewBody = rawBody;
       return '<article class="todo-comment-card' + toneClass + userFormClass + '" data-comment-index="' + escapeAttr(String(commentIndex)) + '" tabindex="0" role="button" aria-label="' + escapeAttr(strings.boardCommentOpenFull || "Open full comment") + '">' +
         '<div class="todo-comment-header">' +
         '<div class="todo-comment-heading">' +
@@ -3914,7 +4166,7 @@ syncTodoLabelSuggestions();
         '</div>' +
         '</div>' +
         '<div class="note todo-comment-author">' + escapeHtml(comment.author || "system") + '</div>' +
-        '<div class="todo-comment-body">' + escapeHtml(previewBody) + '</div>' +
+        '<div class="todo-comment-body">' + renderTodoCommentBodyMarkup(previewBody) + '</div>' +
         '<div class="todo-comment-expand-hint">' + escapeHtml(strings.boardCommentOpenFull || "Open full comment") + '</div>' +
         '</article>';
     }).join("");
@@ -4008,6 +4260,7 @@ syncTodoLabelSuggestions();
     }
     if (isEditingTodo) {
       todoCommentList.innerHTML = renderTodoCommentListMarkup(comments);
+      syncOpenTodoCommentModal();
       return;
     }
     todoCommentList.innerHTML = commentDraftValue
@@ -4016,6 +4269,7 @@ syncTodoLabelSuggestions();
         strings.boardCommentBadgeDraft || "Draft",
         strings.boardCommentThreadCreateEmpty || "Start typing to preview the kickoff comment."
       );
+    syncOpenTodoCommentModal();
   }
 
   function getTodoDescriptionPreview(description) {
@@ -5068,16 +5322,7 @@ syncTodoLabelSuggestions();
     }
     if (todoAddCommentBtn) {
       todoAddCommentBtn.onclick = function () {
-        if (!selectedTodoId || !todoCommentInput || !todoCommentInput.value.trim()) {
-          return;
-        }
-        vscode.postMessage({
-          type: "addTodoComment",
-          todoId: selectedTodoId,
-          data: { body: todoCommentInput.value.trim(), author: "user", source: "human-form" },
-        });
-        todoCommentInput.value = "";
-        renderTodoCommentSectionState(findTodoById(selectedTodoId));
+        submitTodoCommentDraftFromActiveComposer();
       };
     }
     if (todoCommentList) {
@@ -5106,7 +5351,7 @@ syncTodoLabelSuggestions();
         if (commentIndex < 0 || commentIndex >= comments.length) {
           return;
         }
-        openTodoCommentModal(comments[commentIndex]);
+        openTodoCommentModal(selectedTodoId, commentIndex);
       };
       todoCommentList.onkeydown = function (event) {
         if (event.key !== "Enter" && event.key !== " ") {
@@ -5840,7 +6085,26 @@ syncTodoLabelSuggestions();
       '<div class="cockpit-inline-modal-card comment-detail-modal" role="dialog" aria-modal="true" aria-labelledby="todo-comment-modal-title">' +
       '<div class="cockpit-inline-modal-title" id="todo-comment-modal-title"></div>' +
       '<div class="todo-comment-modal-meta" id="todo-comment-modal-meta"></div>' +
+      '<div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;">' +
       '<div class="todo-comment-modal-body" id="todo-comment-modal-body"></div>' +
+      '<div style="display:grid;gap:8px;align-items:start;justify-items:stretch;min-width:88px;">' +
+      '<button type="button" class="btn-secondary" data-comment-modal-nav="up" title="Newer comment">&#8593;</button>' +
+      '<div id="todo-comment-modal-indicator" class="note" style="text-align:center;line-height:1.4;"></div>' +
+      '<button type="button" class="btn-secondary" data-comment-modal-nav="down" title="Older comment">&#8595;</button>' +
+      '</div>' +
+      '</div>' +
+      '<div class="todo-comment-composer-shell" style="margin-top:2px;">' +
+      '<div class="todo-comment-composer-topline">' +
+      '<div class="todo-comment-composer-title">' + escapeHtml(strings.boardCommentComposerEditTitle || "Add to the thread") + '</div>' +
+      '<div class="note todo-comment-composer-note" id="todo-comment-modal-note">' + escapeHtml(strings.boardCommentEditHint || "Add a focused update without rewriting the full description.") + '</div>' +
+      '</div>' +
+      '<label class="todo-comment-input-label-row" for="todo-comment-modal-input"><span>' + escapeHtml(strings.boardAddComment || "Add Comment") + '</span></label>' +
+      '<textarea id="todo-comment-modal-input" class="todo-comment-textarea" rows="6"></textarea>' +
+      '<div class="todo-comment-composer-footer">' +
+      '<p class="note todo-comment-draft-status" id="todo-comment-modal-draft-status"></p>' +
+      '<button type="button" class="btn-secondary" id="todo-comment-modal-add-btn">' + escapeHtml(strings.boardAddComment || "Add Comment") + '</button>' +
+      '</div>' +
+      '</div>' +
       '<div class="cockpit-inline-modal-actions">' +
       '<button type="button" class="btn-secondary" data-comment-modal-close="1">' + escapeHtml(strings.boardCancelAction || "Cancel") + '</button>' +
       '</div>' +
@@ -5853,8 +6117,27 @@ syncTodoLabelSuggestions();
       var closeBtn = getClosestEventTarget(event, "[data-comment-modal-close]");
       if (closeBtn) {
         closeTodoCommentModal();
+        return;
+      }
+      var navBtn = getClosestEventTarget(event, "[data-comment-modal-nav]");
+      if (navBtn) {
+        var navDirection = navBtn.getAttribute("data-comment-modal-nav") || "";
+        navigateTodoCommentModal(navDirection === "up" ? 1 : -1);
+        return;
+      }
+      var addBtn = getClosestEventTarget(event, "#todo-comment-modal-add-btn");
+      if (addBtn) {
+        submitTodoCommentDraftFromActiveComposer();
       }
     };
+    var modalInput = todoCommentModalRoot.querySelector("#todo-comment-modal-input");
+    if (modalInput) {
+      modalInput.addEventListener("input", function () {
+        setTodoCommentDraftValue(modalInput.value || "");
+        renderTodoCommentSectionState(selectedTodoId ? findTodoById(selectedTodoId) : null);
+        renderTodoCommentModalComposerState();
+      });
+    }
     document.body.appendChild(todoCommentModalRoot);
     return todoCommentModalRoot;
   }
@@ -5865,16 +6148,79 @@ syncTodoLabelSuggestions();
     }
     todoCommentModalRoot.classList.remove("is-open");
     todoCommentModalRoot.setAttribute("hidden", "hidden");
+    activeTodoCommentModalTodoId = "";
+    activeTodoCommentModalIndex = -1;
+    focusLatestTodoCommentOnModalSync = false;
   }
 
-  function openTodoCommentModal(comment) {
-    if (!comment) {
+  function renderTodoCommentModalComposerState() {
+    if (!todoCommentModalRoot || !todoCommentModalRoot.classList.contains("is-open")) {
       return;
     }
     var modal = ensureTodoCommentModal();
+    var selectedTodo = activeTodoCommentModalTodoId ? findTodoById(activeTodoCommentModalTodoId) : null;
+    var isArchivedTodo = !!(selectedTodo && selectedTodo.archived);
+    var draftValue = getTodoCommentDraftValue();
+    var trimmedDraftValue = draftValue.trim();
+    var noteEl = modal.querySelector("#todo-comment-modal-note");
+    var inputEl = modal.querySelector("#todo-comment-modal-input");
+    var statusEl = modal.querySelector("#todo-comment-modal-draft-status");
+    var addBtn = modal.querySelector("#todo-comment-modal-add-btn");
+    if (noteEl) {
+      noteEl.textContent = isArchivedTodo
+        ? (strings.boardReadOnlyArchived || "Archived items are read-only in the editor. Use Restore on the board to reopen them.")
+        : (strings.boardCommentEditHint || "Add a focused update without rewriting the full description.");
+    }
+    if (inputEl && inputEl.value !== draftValue) {
+      inputEl.value = draftValue;
+    }
+    if (inputEl) {
+      inputEl.disabled = isArchivedTodo || !selectedTodo;
+      inputEl.placeholder = strings.boardCommentPlaceholder || "Add a comment with context, provenance, or approval notes...";
+    }
+    if (statusEl) {
+      statusEl.textContent = isArchivedTodo
+        ? (strings.boardReadOnlyArchived || "Archived items are read-only in the editor. Use Restore on the board to reopen them.")
+        : (trimmedDraftValue
+          ? (strings.boardCommentReadyToAdd || "Ready to append to the live thread.")
+          : (strings.boardCommentEditHint || "Add a focused update without rewriting the full description."));
+    }
+    if (addBtn) {
+      addBtn.disabled = isArchivedTodo || !selectedTodo || !trimmedDraftValue;
+    }
+  }
+
+  function syncOpenTodoCommentModal() {
+    if (!todoCommentModalRoot || !todoCommentModalRoot.classList.contains("is-open")) {
+      return;
+    }
+    if (!activeTodoCommentModalTodoId) {
+      closeTodoCommentModal();
+      return;
+    }
+    var selectedTodo = findTodoById(activeTodoCommentModalTodoId);
+    var comments = selectedTodo && Array.isArray(selectedTodo.comments) ? selectedTodo.comments : [];
+    if (!selectedTodo || !comments.length) {
+      closeTodoCommentModal();
+      return;
+    }
+    var modal = ensureTodoCommentModal();
+    if (focusLatestTodoCommentOnModalSync) {
+      activeTodoCommentModalIndex = comments.length - 1;
+      focusLatestTodoCommentOnModalSync = false;
+    }
+    activeTodoCommentModalIndex = clampTodoCommentModalIndex(activeTodoCommentModalTodoId, activeTodoCommentModalIndex);
+    var comment = comments[activeTodoCommentModalIndex];
+    if (!comment) {
+      closeTodoCommentModal();
+      return;
+    }
     var titleEl = modal.querySelector("#todo-comment-modal-title");
     var metaEl = modal.querySelector("#todo-comment-modal-meta");
     var bodyEl = modal.querySelector("#todo-comment-modal-body");
+    var indicatorEl = modal.querySelector("#todo-comment-modal-indicator");
+    var newerBtn = modal.querySelector('[data-comment-modal-nav="up"]');
+    var olderBtn = modal.querySelector('[data-comment-modal-nav="down"]');
     var sourceLabel = getTodoCommentSourceLabel(comment.source || "human-form");
     var displayDate = comment.updatedAt || comment.editedAt || comment.createdAt;
     if (titleEl) {
@@ -5887,10 +6233,62 @@ syncTodoLabelSuggestions();
         '<span>' + escapeHtml(formatTodoDate(displayDate)) + '</span>';
     }
     if (bodyEl) {
-      bodyEl.textContent = comment.body || "";
+      bodyEl.innerHTML = renderTodoCommentBodyMarkup(comment.body || "");
     }
+    if (indicatorEl) {
+      indicatorEl.textContent = String(activeTodoCommentModalIndex + 1) + " / " + String(comments.length);
+    }
+    if (newerBtn) {
+      newerBtn.disabled = activeTodoCommentModalIndex >= comments.length - 1;
+    }
+    if (olderBtn) {
+      olderBtn.disabled = activeTodoCommentModalIndex <= 0;
+    }
+    renderTodoCommentModalComposerState();
+  }
+
+  function navigateTodoCommentModal(indexDelta) {
+    if (!activeTodoCommentModalTodoId) {
+      return;
+    }
+    activeTodoCommentModalIndex = clampTodoCommentModalIndex(
+      activeTodoCommentModalTodoId,
+      activeTodoCommentModalIndex + indexDelta
+    );
+    syncOpenTodoCommentModal();
+  }
+
+  function openTodoCommentModal(todoId, commentIndex) {
+    if (!todoId) {
+      return;
+    }
+    activeTodoCommentModalTodoId = String(todoId);
+    activeTodoCommentModalIndex = clampTodoCommentModalIndex(todoId, commentIndex);
+    if (activeTodoCommentModalIndex < 0) {
+      return;
+    }
+    var modal = ensureTodoCommentModal();
     modal.removeAttribute("hidden");
     modal.classList.add("is-open");
+    syncOpenTodoCommentModal();
+  }
+
+  function submitTodoCommentDraftFromActiveComposer() {
+    var activeTodo = selectedTodoId ? findTodoById(selectedTodoId) : null;
+    var commentBody = getTodoCommentDraftValue().trim();
+    if (!selectedTodoId || !activeTodo || activeTodo.archived || !commentBody) {
+      renderTodoCommentModalComposerState();
+      return;
+    }
+    vscode.postMessage({
+      type: "addTodoComment",
+      todoId: selectedTodoId,
+      data: { body: commentBody, author: "user", source: "human-form" },
+    });
+    focusLatestTodoCommentOnModalSync = !!(todoCommentModalRoot && todoCommentModalRoot.classList.contains("is-open"));
+    setTodoCommentDraftValue("");
+    renderTodoCommentSectionState(findTodoById(selectedTodoId));
+    renderTodoCommentModalComposerState();
   }
 
   function openTodoDeleteModal(todoId, options) {
@@ -6209,6 +6607,34 @@ syncTodoLabelSuggestions();
     vscode.postMessage({
       type: "saveReviewDefaults",
       data: collectReviewDefaultsFormData(),
+    });
+  });
+  bindClickAction(needsBotReviewPromptRecommendedBtn, function () {
+    if (needsBotReviewPromptTemplateInput) {
+      needsBotReviewPromptTemplateInput.value = recommendedReviewDefaults.needsBotReviewPromptTemplate || "";
+    }
+    renderReviewPromptRecommendationStatus();
+    if (reviewDefaultsNote) {
+      reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedLoaded
+        || "Recommended prompt text loaded. Save to persist it.";
+    }
+  });
+  bindClickAction(readyPromptRecommendedBtn, function () {
+    if (readyPromptTemplateInput) {
+      readyPromptTemplateInput.value = recommendedReviewDefaults.readyPromptTemplate || "";
+    }
+    renderReviewPromptRecommendationStatus();
+    if (reviewDefaultsNote) {
+      reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedLoaded
+        || "Recommended prompt text loaded. Save to persist it.";
+    }
+  });
+  [needsBotReviewPromptTemplateInput, readyPromptTemplateInput].forEach(function (input) {
+    if (!input) {
+      return;
+    }
+    input.addEventListener("input", function () {
+      renderReviewPromptRecommendationStatus();
     });
   });
   bindClickAction(settingsStorageSaveBtn, function () {
@@ -9679,6 +10105,7 @@ syncTodoLabelSuggestions();
           syncFlagEditor();
           syncTodoLabelEditor();
           scheduleBoardStickyMetrics();
+          syncOpenTodoCommentModal();
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)
@@ -9756,14 +10183,9 @@ syncTodoLabelSuggestions();
           renderTaskList(tasks);
           break;
         case "updateReviewDefaults":
-          reviewDefaults = message.reviewDefaults || {
-            needsBotReviewCommentTemplate: "",
-            needsBotReviewPromptTemplate: "",
-            needsBotReviewAgent: "agent",
-            needsBotReviewModel: "",
-            needsBotReviewChatSession: "new",
-            readyPromptTemplate: "",
-          };
+          reviewDefaultsState = normalizeReviewDefaultsState(message.reviewDefaults);
+          reviewDefaults = reviewDefaultsState.current;
+          recommendedReviewDefaults = reviewDefaultsState.recommended;
           renderReviewDefaultsControls();
           break;
         case "updateAgents":

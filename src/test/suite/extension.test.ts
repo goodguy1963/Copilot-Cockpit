@@ -124,7 +124,7 @@ const requiredConfigDefaults = [
   ["copilotCockpit.legacyFallbackOnError", true],
 ] as const;
 
-const expectedNeedsBotReviewCommentTemplate = "Needs bot review: inspect the current context, call out risks or unclear assumptions, and propose the smallest safe next step.";
+const expectedNeedsBotReviewCommentTemplate = "Needs bot review: clarify the goal, surface the missing decisions, and give concise options before anything moves to ready.";
 
 const expectedNeedsBotReviewPromptTemplate = [
   "You are handling a Todo that just entered needs-bot-review.",
@@ -133,14 +133,18 @@ const expectedNeedsBotReviewPromptTemplate = [
   "",
   "{{mcp_skill_guidance}}",
   "",
-  "Research what is needed to review this item using available tools. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
-  "Return a plain-text review comment ready for direct Todo writeback with short titled sections and bullets:",
-  "Review Summary:",
-  "- 1-2 bullets on the request and current repo state",
-  "Risks / Gaps:",
-  "- bullets for missing context, risks, or unclear assumptions",
+  "Research only what is needed to clarify the user's goal and the safest path forward. If the user or request already includes a URL, inspect it with built-in tools first before using external research providers, especially Google grounded research, to minimize API calls. Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research only when the Todo actually needs outside evidence.",
+  "Do not rewrite the Todo into a different request or pretend implementation is approved.",
+  "Return a longer clarification comment ready for direct Todo writeback. Use readable markdown because the Todo comment section now supports basic markdown such as #, ##, and ### headings, bullet and numbered lists, **bold**, *italic*, blockquotes, and inline `code`. Emojis are allowed when they improve scanning, but keep them sparse and purposeful.",
+  "Prefer a clearly structured response over a one-line reply.",
+  "Goal Clarification:",
+  "- 1-2 bullets restating the likely user goal and current repo state without expanding scope",
+  "Questions:",
+  "- 1-3 concise missing decisions or blockers the user should answer before implementation",
+  "Options:",
+  "- 2 compact implementation options or paths when a real choice exists; if there is only one sensible path, say that directly",
   "Recommendation:",
-  "- one compact next step or blocking clarification; if the request is already clear, give two implementation options instead",
+  "- one compact recommended next step for the user, such as answer the questions or choose option 1 or 2 before moving this Todo to ready",
   "Use real line breaks. Do not emit JSON or escaped newline sequences such as \\n.",
   "When the review is complete, add that comment to this Todo using the cockpit MCP tools and set the flag to needs-user-review.",
 ].join("\n");
@@ -451,8 +455,8 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(
       testOnly.buildDefaultNeedsBotReviewPromptTemplate("tavily", "google-grounded"),
       expectedNeedsBotReviewPromptTemplate.replace(
-        "Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research when needed.",
-        "Use Tavily for lightweight external search. Use Google grounded research for deeper research when needed.",
+        "Use VS Code built-in web search for lightweight external search. Use no dedicated external research provider for deeper research only when the Todo actually needs outside evidence.",
+        "Use Tavily for lightweight external search. Use Google grounded research for deeper research only when the Todo actually needs outside evidence.",
       ),
     );
     assert.strictEqual(testOnly.normalizeSearchProvider("legacy-value"), "built-in");

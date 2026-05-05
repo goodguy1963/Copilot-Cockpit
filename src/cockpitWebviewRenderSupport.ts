@@ -26,6 +26,7 @@ type ReplayPanelStateParams = {
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   storageSettings: StorageSettingsView;
   researchProfiles: ResearchProfile[];
   activeResearchRun: ResearchRun | undefined;

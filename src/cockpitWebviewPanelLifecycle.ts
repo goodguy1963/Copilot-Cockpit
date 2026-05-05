@@ -74,6 +74,7 @@ export function replaySchedulerPanel(options: {
   telegramNotification: TelegramNotificationView;
   executionDefaults: ExecutionDefaultsView;
   reviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   storageSettings: StorageSettingsView;
   researchProfiles: ResearchProfile[];
   activeResearchRun: ResearchRun | undefined;
@@ -109,6 +110,7 @@ export function replaySchedulerPanel(options: {
     telegramNotification: options.telegramNotification,
     executionDefaults: options.executionDefaults,
     reviewDefaults: options.reviewDefaults,
+    recommendedReviewDefaults: options.recommendedReviewDefaults,
     storageSettings: options.storageSettings,
     researchProfiles: options.researchProfiles,
     activeResearchRun: options.activeResearchRun,

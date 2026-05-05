@@ -249,8 +249,22 @@ export class SchedulerWebview {
   private static set currentTelegramNotification(value: TelegramNotificationView) { this.writeRuntimeState("telegramNotification", value); }
   private static get currentExecutionDefaults(): ExecutionDefaultsView { return this.readRuntimeState("executionDefaults"); }
   private static set currentExecutionDefaults(value: ExecutionDefaultsView) { this.writeRuntimeState("executionDefaults", value); }
-  private static get currentReviewDefaults(): ReviewDefaultsView { return this.readRuntimeState("reviewDefaults"); }
-  private static set currentReviewDefaults(value: ReviewDefaultsView) { this.writeRuntimeState("reviewDefaults", value); }
+  private static get currentReviewDefaults(): ReviewDefaultsView { return this.readRuntimeState("reviewDefaults").current; }
+  private static set currentReviewDefaults(value: ReviewDefaultsView) {
+    this.writeRuntimeState("reviewDefaults", {
+      current: value,
+      recommended: this.recommendedReviewDefaults,
+    });
+  }
+  private static get recommendedReviewDefaults(): ReviewDefaultsView {
+    return this.readRuntimeState("reviewDefaults").recommended;
+  }
+  private static set recommendedReviewDefaults(value: ReviewDefaultsView) {
+    this.writeRuntimeState("reviewDefaults", {
+      current: this.currentReviewDefaults,
+      recommended: value,
+    });
+  }
   private static get currentStorageSettings(): StorageSettingsView { return this.readRuntimeState("storageSettings"); }
   private static set currentStorageSettings(value: StorageSettingsView) { this.writeRuntimeState("storageSettings", value); }
   private static get currentResearchProfiles(): ResearchProfile[] { return this.readRuntimeState("researchProfiles"); }
@@ -356,6 +370,7 @@ export class SchedulerWebview {
     cockpitBoard: CockpitBoard, githubIntegration: GitHubIntegrationView,
     telegramNotification: TelegramNotificationView,
     executionDefaults: ExecutionDefaultsView, reviewDefaults: ReviewDefaultsView,
+    recommendedReviewDefaults: ReviewDefaultsView,
     storageSettings: StorageSettingsView, researchProfiles: ResearchProfile[],
     activeResearchRun: ResearchRun | undefined, recentResearchRuns: ResearchRun[],
     onTaskAction: (action: TaskAction) => void, onTestPrompt?: (prompt: string, agent?: string, model?: string) => void,
@@ -370,6 +385,7 @@ export class SchedulerWebview {
       telegramNotification,
       executionDefaults,
       reviewDefaults,
+      recommendedReviewDefaults,
       storageSettings,
       researchProfiles,
       activeResearchRun,
@@ -456,6 +472,7 @@ export class SchedulerWebview {
         updateResearchState: (profiles, activeRun, recentRuns) =>
           this.updateResearchState(profiles, activeRun, recentRuns),
         postCachedCatalogMessages: () => this.postCachedCatalogMessages(),
+        recommendedReviewDefaults: this.recommendedReviewDefaults,
       });
     } else {
       await ensureCatalogsForFreshPanel();
@@ -550,6 +567,16 @@ export class SchedulerWebview {
     dispatchReviewDefaultsUpdate(this.runtimeState, reviewDefaults, (message) =>
       this.postMessage(message),
     );
+  }
+
+  static updateRecommendedReviewDefaults(
+    recommendedReviewDefaults: ReviewDefaultsView,
+  ): void {
+    this.recommendedReviewDefaults = recommendedReviewDefaults;
+    this.postMessage(createUpdateReviewDefaultsMessage({
+      current: this.currentReviewDefaults,
+      recommended: this.recommendedReviewDefaults,
+    }));
   }
 
   static updateStorageSettings(
@@ -864,6 +891,7 @@ export class SchedulerWebview {
       currentTelegramNotification: this.currentTelegramNotification,
       currentExecutionDefaults: this.currentExecutionDefaults,
       currentReviewDefaults: this.currentReviewDefaults,
+      recommendedReviewDefaults: this.recommendedReviewDefaults,
       currentStorageSettings: this.currentStorageSettings,
       currentResearchProfiles: this.currentResearchProfiles,
       currentActiveResearchRun: this.currentActiveResearchRun,

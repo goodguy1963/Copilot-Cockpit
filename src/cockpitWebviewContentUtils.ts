@@ -10,6 +10,7 @@ import type {
   PromptTemplate,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsStateView,
   ReviewDefaultsView,
   ScheduleHistoryEntry,
   ScheduledTask,
@@ -115,6 +116,7 @@ type BuildSchedulerWebviewInitialDataParams = {
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
@@ -146,7 +148,10 @@ export function buildSchedulerWebviewInitialData(
     githubIntegration: params.currentGitHubIntegration,
     telegramNotification: params.currentTelegramNotification,
     executionDefaults: params.currentExecutionDefaults,
-    reviewDefaults: params.currentReviewDefaults,
+    reviewDefaults: {
+      current: params.currentReviewDefaults,
+      recommended: params.recommendedReviewDefaults,
+    } satisfies ReviewDefaultsStateView,
     storageSettings: params.currentStorageSettings,
     researchProfiles: params.currentResearchProfiles,
     activeResearchRun: params.currentActiveResearchRun,

@@ -5,6 +5,7 @@ import type {
   JobFolder,
   ResearchProfile,
   ResearchRun,
+  ReviewDefaultsStateView,
   ReviewDefaultsView,
   ScheduleHistoryEntry,
   ScheduledTask,
@@ -59,7 +60,7 @@ export function createUpdateExecutionDefaultsMessage(
 }
 
 export function createUpdateReviewDefaultsMessage(
-  reviewDefaults: ReviewDefaultsView,
+  reviewDefaults: ReviewDefaultsStateView,
 ): SchedulerWebviewMessage {
   return {
     type: "updateReviewDefaults",

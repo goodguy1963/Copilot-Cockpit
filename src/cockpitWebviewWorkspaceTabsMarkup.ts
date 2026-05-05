@@ -562,13 +562,29 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
 
           <div class="form-group settings-review-field settings-review-field-bot-prompt settings-review-field-wide">
-            <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+            <div class="settings-review-field-toolbar">
+              <label for="needs-bot-review-prompt-template-input">${escapeHtml(strings.reviewDefaultsBotPromptLabel)}</label>
+              <div class="settings-review-field-actions">
+                <span class="settings-status-pill" id="needs-bot-review-prompt-status">${escapeHtml(strings.reviewDefaultsStatusRecommended)}</span>
+                <button type="button" class="btn-secondary" id="needs-bot-review-prompt-recommended-btn">${escapeHtml(strings.reviewDefaultsUseRecommended)}</button>
+              </div>
+            </div>
             <textarea class="settings-prompt-textarea is-workflow" id="needs-bot-review-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsBotPromptPlaceholder)}"></textarea>
+            <p class="note settings-review-help">${escapeHtml(strings.reviewDefaultsPromptGuidance)}</p>
+            <p class="note settings-review-help is-secondary">${escapeHtml(strings.reviewDefaultsPromptTokensInfo)}</p>
           </div>
 
           <div class="form-group settings-review-field settings-review-field-ready-prompt settings-review-field-wide">
-            <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
+            <div class="settings-review-field-toolbar">
+              <label for="ready-prompt-template-input">${escapeHtml(strings.reviewDefaultsReadyPromptLabel)}</label>
+              <div class="settings-review-field-actions">
+                <span class="settings-status-pill" id="ready-prompt-status">${escapeHtml(strings.reviewDefaultsStatusRecommended)}</span>
+                <button type="button" class="btn-secondary" id="ready-prompt-recommended-btn">${escapeHtml(strings.reviewDefaultsUseRecommended)}</button>
+              </div>
+            </div>
             <textarea class="settings-prompt-textarea is-workflow" id="ready-prompt-template-input" rows="14" placeholder="${escapeHtmlAttr(strings.reviewDefaultsReadyPromptPlaceholder)}"></textarea>
+            <p class="note settings-review-help">${escapeHtml(strings.reviewDefaultsPromptGuidance)}</p>
+            <p class="note settings-review-help is-secondary">${escapeHtml(strings.reviewDefaultsPromptTokensInfo)}</p>
           </div>
 
           <div class="settings-review-controls settings-review-field-wide">

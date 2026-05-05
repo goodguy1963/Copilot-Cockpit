@@ -503,6 +503,24 @@ export function buildSchedulerWebviewStrings(
     ),
     reviewDefaultsSpotReviewLabel: localize("Needs-bot-review comment text", "needs-bot-review 用コメントテキスト", "Kommentartext für needs-bot-review"),
     reviewDefaultsBotPromptLabel: localize("Needs-bot-review planning prompt", "needs-bot-review planning 用プロンプト", "Planungsprompt für needs-bot-review"),
+    reviewDefaultsStatusRecommended: localize("Recommended", "推奨", "Empfohlen"),
+    reviewDefaultsStatusCustomized: localize("Customized", "カスタマイズ済み", "Angepasst"),
+    reviewDefaultsUseRecommended: localize("Use recommended", "推奨を使う", "Empfohlenen Text verwenden"),
+    reviewDefaultsRecommendedLoaded: localize(
+      "Recommended prompt text loaded. Save to persist it.",
+      "推奨プロンプトを読み込みました。保存すると反映されます。",
+      "Empfohlener Prompttext geladen. Speichern Sie, um ihn dauerhaft zu uebernehmen.",
+    ),
+    reviewDefaultsPromptGuidance: localize(
+      "Prefer {{todo_context}} when the model should receive the full Todo handoff. Use {{mcp_skill_guidance}} to carry repo-specific MCP, tool, and skill-routing expectations in the same prompt.",
+      "モデルに Todo の完全な引き継ぎを渡したい場合は {{todo_context}} を優先してください。{{mcp_skill_guidance}} は、リポジトリ固有の MCP・tool・skill ルーティング方針を同じプロンプトに含めるために使います。",
+      "Verwenden Sie bevorzugt {{todo_context}}, wenn das Modell die vollstaendige Todo-Uebergabe erhalten soll. Nutzen Sie {{mcp_skill_guidance}}, um repository-spezifische MCP-, Tool- und Skill-Routing-Hinweise im selben Prompt mitzugeben.",
+    ),
+    reviewDefaultsPromptTokensInfo: localize(
+      "{{todo_context}} expands the complete Todo context block. {{mcp_skill_guidance}} expands the repo's MCP and skill guidance block. Keep them when you want full planning context; use granular placeholders only for tightly scoped templates.",
+      "{{todo_context}} は Todo の完全なコンテキストブロックに展開されます。{{mcp_skill_guidance}} はリポジトリの MCP / skill ガイダンスブロックに展開されます。完全な planning context が必要なら残し、個別プレースホルダーは狭い用途のテンプレートでのみ使ってください。",
+      "{{todo_context}} erweitert den vollstaendigen Todo-Kontextblock. {{mcp_skill_guidance}} erweitert den MCP- und Skill-Hinweisblock des Repositorys. Lassen Sie beide stehen, wenn vollstaendiger Planungskontext noetig ist; einzelne Platzhalter eignen sich nur fuer eng gefasste Vorlagen.",
+    ),
     reviewDefaultsBotPromptPlaceholder: localize(
       "Use {{todo_context}} and {{mcp_skill_guidance}} for the full handoff, or {{title}}, {{description}}, {{labels}}, {{recent_comments}}, and {{linked_task}} for individual fields. If the plan recommends bundled agents or skills, frame sync as a manual follow-up in Settings so repo-local agent systems are not overwritten.",
       "完全な引き継ぎには {{todo_context}} と {{mcp_skill_guidance}} を使い、個別項目には {{title}}、{{description}}、{{labels}}、{{recent_comments}}、{{linked_task}} を使えます。bundled agents や skills を勧める場合も、repo-local agent system を上書きしないよう、同期は Settings での手動フォローアップとして記載します。",

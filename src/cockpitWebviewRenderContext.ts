@@ -44,6 +44,7 @@ export function createSchedulerWebviewRenderContext(options: {
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
@@ -105,6 +106,7 @@ export function createSchedulerWebviewRenderContext(options: {
     currentTelegramNotification: options.currentTelegramNotification,
     currentExecutionDefaults: options.currentExecutionDefaults,
     currentReviewDefaults: options.currentReviewDefaults,
+    recommendedReviewDefaults: options.recommendedReviewDefaults,
     currentStorageSettings: options.currentStorageSettings,
     currentResearchProfiles: options.currentResearchProfiles,
     currentActiveResearchRun: options.currentActiveResearchRun,
@@ -182,6 +184,7 @@ export function createSchedulerWebviewCurrentRenderContext(options: {
   currentTelegramNotification: TelegramNotificationView;
   currentExecutionDefaults: ExecutionDefaultsView;
   currentReviewDefaults: ReviewDefaultsView;
+  recommendedReviewDefaults: ReviewDefaultsView;
   currentStorageSettings: StorageSettingsView;
   currentResearchProfiles: ResearchProfile[];
   currentActiveResearchRun: ResearchRun | undefined;
