@@ -52,12 +52,13 @@ For the step-by-step walkthrough, open [docs/feature-tour.md](https://github.com
 The recommended default path is simple:
 
 1. Start with a `Todo` in `Todo Cockpit` for intake, planning, and triage.
-2. Use `Research` only when context is missing or the direction still needs evidence.
-3. Promote approved work into a `Task` for one executable unit or a `Job` for an orchestrated run.
-4. Review the result before granting more autonomy or scheduling the next cycle.
-5. Add `MCP`, repo-local skills, or agent/control-plane features only when the core loop is already working.
+2. Flag a Todo **"needs bot review"** to launch a `Research` session — the agent investigates, returns findings as a comment, and you decide what to do next.
+3. Mark the Todo **"ready"** when you're satisfied — saving creates a draft `Task` that carries the research findings into a full execution session.
+4. Promote work into a `Task` for one-shot execution, or a `Job` for a multi-step orchestrated workflow that makes agentic automation more reliable step by step.
+5. Review results before granting more autonomy or scheduling the next cycle.
+6. Add `MCP`, repo-local skills, or agent/control-plane features only when the core loop is already working.
 
-This keeps the relationship collaborative: the workflow starts with planning, earns execution, and only then extends into higher-autonomy integrations.
+This keeps the relationship collaborative: the workflow starts with planning, earns execution through a review gate, and only then extends into higher-autonomy integrations.
 
 ## Built On VS Code And GitHub Copilot
 
