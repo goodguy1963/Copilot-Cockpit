@@ -25,7 +25,7 @@ import type { // local-diverge-5
 } from "./types";
 import { CopilotExecutor } from "./copilotExecutor";
 import type { WebviewToExtensionMessage } from "./types";
-import { getCurrentLanguage } from "./i18n";
+import { getCurrentLanguage, messages } from "./i18n";
 import {
   logError,
 } from "./logger";
@@ -150,10 +150,17 @@ import {
 type OutgoingWebviewMessage = SchedulerWebviewMessage;
 const TODO_INPUT_UPLOADS_FOLDER = "cockpit-input-uploads";
 
+type PendingTaskSyncDiagnostic = {
+  kind: "reveal" | "focus";
+  taskId?: string;
+  startedAt: string;
+};
+
 export class SchedulerWebview {
   private static activePanel: vscode.WebviewPanel | undefined;
   private static readonly catalogState = createSchedulerWebviewCatalogState();
   private static readonly runtimeState = createSchedulerWebviewRuntimeState();
+  private static pendingTaskSyncDiagnostic: PendingTaskSyncDiagnostic | undefined;
   private static readonly messageQueueState = createSchedulerWebviewQueueState({
     batchedMessageTypes: [
       "updateTasks",
@@ -265,6 +272,45 @@ export class SchedulerWebview {
 
   private static clearReadyFlag(): void {
     resetSchedulerWebviewQueueState(this.messageQueueState);
+    SchedulerWebview.pendingTaskSyncDiagnostic = undefined;
+  }
+
+  private static startTaskSyncDiagnostic(kind: PendingTaskSyncDiagnostic["kind"], taskId?: string): void {
+    SchedulerWebview.pendingTaskSyncDiagnostic = {
+      kind,
+      taskId,
+      startedAt: new Date().toISOString(),
+    };
+    logError(
+      `[task-sync] started ${kind} diagnostic${taskId ? ` for ${taskId}` : ""}`,
+    );
+  }
+
+  private static evaluatePendingTaskSyncDiagnostic(): void {
+    const diagnostic = SchedulerWebview.pendingTaskSyncDiagnostic;
+    if (!diagnostic) return;
+
+    SchedulerWebview.pendingTaskSyncDiagnostic = undefined;
+
+    logError(
+      `[task-sync] evaluating ${diagnostic.kind} diagnostic${diagnostic.taskId ? ` for ${diagnostic.taskId}` : ""} (started ${diagnostic.startedAt})`,
+    );
+
+    const currentTasks = this.runtimeState.tasks;
+    const satisfied =
+      diagnostic.kind === "reveal"
+        ? (Array.isArray(currentTasks) && currentTasks.length > 0)
+        : diagnostic.kind === "focus" && diagnostic.taskId
+          ? currentTasks.some((t) => t.id === diagnostic.taskId)
+          : true;
+
+    if (!satisfied) {
+      const message =
+        diagnostic.kind === "focus" && diagnostic.taskId
+          ? messages.taskListSyncFocusMissing(diagnostic.taskId)
+          : messages.taskListSyncEmptyAfterReveal();
+      SchedulerWebview.showError(message);
+    }
   }
 
   private static async launchHelpChat(prompt: string): Promise<void> {
@@ -451,6 +497,7 @@ export class SchedulerWebview {
    */
   static updateTasks(tasks: ScheduledTask[]): void { // sync
     dispatchTaskUpdate(this.runtimeState, tasks, (message) => this.postMessage(message));
+    SchedulerWebview.evaluatePendingTaskSyncDiagnostic();
   }
 
   static updateJobs(jobs: JobDefinition[]): void {
@@ -624,8 +671,15 @@ export class SchedulerWebview {
   /**
    * Navigate to the list tab, with an optional success notification
    */
-  static switchToList(successMessage?: string): void { // navigate
-    postSwitchToList((message) => this.postMessage(message), successMessage);
+  static switchToList(successMessage?: string, options?: { revealTasks?: boolean }): void { // navigate
+    if (options?.revealTasks) {
+      SchedulerWebview.startTaskSyncDiagnostic("reveal");
+    }
+    postSwitchToList((message) => this.postMessage(message), successMessage, options?.revealTasks);
+  }
+
+  static postSwitchToListAndRevealTasks(): void {
+    SchedulerWebview.switchToList(undefined, { revealTasks: true });
   }
 
   static switchToTab(tab: "create" | "list" | "jobs" | "board" | "research" | "settings" | "help"): void {

@@ -45,7 +45,7 @@ type SqlJsModule = {
   Database: new (data?: Uint8Array) => SqlJsDatabase;
 };
 
-type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync">;
+type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync" | "copyFileSync">;
 
 let sqliteAtomicWriteFs: SqliteAtomicWriteFs = fs;
 
@@ -337,21 +337,66 @@ function createSqliteSwapPath(databasePath: string, suffix: string): string {
   return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.${unique}.${suffix}`);
 }
 
+function isWindowsSqliteAtomicRenameFallbackError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error
+    ? String((error as NodeJS.ErrnoException).code ?? "")
+    : "";
+
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
+}
+
 function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
   sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const tempPath = createSqliteSwapPath(databasePath, "tmp");
   const backupPath = createSqliteSwapPath(databasePath, "bak");
   let movedExistingDatabase = false;
+  let usedWindowsCopyFallback = false;
 
   sqliteAtomicWriteFs.writeFileSync(tempPath, Buffer.from(db.export()));
 
   try {
     if (sqliteAtomicWriteFs.existsSync(databasePath)) {
-      sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
-      movedExistingDatabase = true;
+      try {
+        sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
+        movedExistingDatabase = true;
+      } catch (error) {
+        if (
+          process.platform === "win32"
+          && isWindowsSqliteAtomicRenameFallbackError(error)
+        ) {
+          sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
+          sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
+          usedWindowsCopyFallback = true;
+        } else {
+          throw error;
+        }
+      }
     }
 
-    sqliteAtomicWriteFs.renameSync(tempPath, databasePath);
+    if (!usedWindowsCopyFallback) {
+      try {
+        sqliteAtomicWriteFs.renameSync(tempPath, databasePath);
+      } catch (error) {
+        let commitError: unknown = error;
+
+        if (
+          process.platform === "win32"
+          && isWindowsSqliteAtomicRenameFallbackError(error)
+        ) {
+          try {
+            sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
+            sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
+            usedWindowsCopyFallback = true;
+          } catch (fallbackError) {
+            commitError = fallbackError;
+          }
+        }
+
+        if (sqliteAtomicWriteFs.existsSync(tempPath)) {
+          throw commitError;
+        }
+      }
+    }
 
     if (movedExistingDatabase && sqliteAtomicWriteFs.existsSync(backupPath)) {
       sqliteAtomicWriteFs.rmSync(backupPath, { force: true });

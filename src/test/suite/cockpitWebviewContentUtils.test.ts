@@ -164,7 +164,7 @@ suite("SchedulerWebviewContentUtils Tests", () => {
     assert.strictEqual(payload.defaultJitterSeconds, 45);
     assert.strictEqual(payload.defaultChatSession, "continue");
     assert.deepStrictEqual(payload.cockpitHistory, cockpitHistory);
-    assert.strictEqual(payload.initialTab, "help");
+    assert.strictEqual(payload.initialTab, "list");
     assert.strictEqual(payload.autoShowOnStartup, true);
     assert.strictEqual(payload.logLevel, "debug");
     assert.strictEqual(payload.logDirectory, "f:/workspace/.copilot-cockpit-logs");

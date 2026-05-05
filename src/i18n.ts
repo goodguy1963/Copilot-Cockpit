@@ -1047,6 +1047,16 @@ export const messages = {
       `Copilot Cockpit v${installedVersion} is installed, but this window is still running v${activeVersion}. Reload this window; sqlite sync and hydration are paused until then.`,
       `Copilot Cockpit v${installedVersion} はインストール済みですが、このウィンドウではまだ v${activeVersion} が実行中です。リロードするまで SQLite の同期と復元は停止されます。`,
     ),
+  taskListSyncFocusMissing: (taskId: string) =>
+    t(
+      `Task "${taskId}" was not found in the current task list. It may have been deleted or moved.`,
+      `タスク "${taskId}" は現在のタスクリストに見つかりませんでした。削除または移動された可能性があります。`,
+    ),
+  taskListSyncEmptyAfterReveal: () =>
+    t(
+      "No tasks found. The task list may still be loading. If this persists, try refreshing.",
+      "タスクが見つかりません。タスクリストがまだ読み込み中である可能性があります。問題が続く場合は、更新を試してください。",
+    ),
   // ==================== Date/Time ====================
   formatDateTime: (date: Date) => date.toLocaleString(getCurrentLocaleTag(), dateTimeFormatOptions),
 

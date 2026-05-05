@@ -100,10 +100,12 @@ export function createUpdateScheduleHistoryMessage(
 
 export function createSwitchToListMessage(
   successMessage?: string,
+  revealTasks?: boolean,
 ): SchedulerWebviewMessage {
   return {
     type: "switchToList",
     successMessage,
+    revealTasks,
   };
 }
 

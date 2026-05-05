@@ -668,4 +668,119 @@ suite("SQLite Bootstrap Tests", () => {
       cleanup(globalRoot);
     }
   });
+
+  test("falls back to copyFileSync when renameSync fails with EPERM on Windows during backup", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-windows-backup-");
+    const paths = getWorkspaceStoragePaths(workspaceRoot);
+    fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
+    fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+    fs.writeFileSync(paths.privateSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+
+    // Bootstrap first so an existing database triggers the backup-rename path
+    await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+      tasks: [{ id: "task-init", name: "Init", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+      deletedTaskIds: [],
+      jobs: [],
+      deletedJobIds: [],
+      jobFolders: [],
+      deletedJobFolderIds: [],
+    } as any);
+
+    const originalRenameSync = fs.renameSync;
+    const originalCopyFileSync = fs.copyFileSync;
+    const originalPlatform = process.platform;
+    let copyFileCalls: Array<{ src: string; dest: string }> = [];
+    let renameAttempts = 0;
+
+    try {
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+
+      setSqliteAtomicWriteFsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          renameAttempts++;
+          // Fail the backup rename (first call) with EPERM
+          if (renameAttempts === 1 && String(newPath).endsWith(".bak")) {
+            const err = new Error("EPERM: operation not permitted") as NodeJS.ErrnoException;
+            err.code = "EPERM";
+            throw err;
+          }
+          return originalRenameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+        copyFileSync: ((src: fs.PathLike, dest: fs.PathLike) => {
+          copyFileCalls.push({ src: String(src), dest: String(dest) });
+          return originalCopyFileSync(src, dest);
+        }) as typeof fs.copyFileSync,
+      });
+
+      // Second sync: existing database triggers backup rename, which we fail with EPERM
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      // Should have fallen back to copyFileSync for the final write
+      assert.ok(copyFileCalls.length >= 1, "Expected at least one copyFileSync call");
+      assert.ok(fs.existsSync(paths.databasePath));
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+      setSqliteAtomicWriteFsForTests();
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("falls back to copyFileSync when renameSync commit also fails on Windows", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-windows-commit-");
+    const paths = getWorkspaceStoragePaths(workspaceRoot);
+    fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
+    fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+    fs.writeFileSync(paths.privateSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+
+    const originalRenameSync = fs.renameSync;
+    const originalCopyFileSync = fs.copyFileSync;
+    const originalPlatform = process.platform;
+    let copyFileCalls: Array<{ src: string; dest: string }> = [];
+    let renameAttempts = 0;
+
+    try {
+      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+
+      setSqliteAtomicWriteFsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          renameAttempts++;
+          // Fail the commit rename (should be the one moving .tmp -> database) with EBUSY
+          const newPathStr = String(newPath);
+          if (newPathStr === paths.databasePath) {
+            const err = new Error("EBUSY: resource busy") as NodeJS.ErrnoException;
+            err.code = "EBUSY";
+            throw err;
+          }
+          return originalRenameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+        copyFileSync: ((src: fs.PathLike, dest: fs.PathLike) => {
+          copyFileCalls.push({ src: String(src), dest: String(dest) });
+          return originalCopyFileSync(src, dest);
+        }) as typeof fs.copyFileSync,
+      });
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      assert.ok(copyFileCalls.length >= 1, "Expected at least one copyFileSync fallback call");
+      assert.ok(fs.existsSync(paths.databasePath));
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+      setSqliteAtomicWriteFsForTests();
+      cleanup(workspaceRoot);
+    }
+  });
 });

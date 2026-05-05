@@ -160,7 +160,7 @@ export function buildSchedulerWebviewInitialData(
     defaultJitterSeconds: params.defaultJitterSeconds,
     defaultChatSession: params.defaultChatSession,
     cockpitHistory: params.currentScheduleHistory,
-    initialTab: "help",
+    initialTab: "list",
     autoShowOnStartup: params.autoShowOnStartup,
     logLevel: params.currentLogLevel,
     logDirectory: params.currentLogDirectory,

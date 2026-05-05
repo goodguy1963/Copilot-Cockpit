@@ -642,6 +642,16 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       "restoreTabScrollPosition(tabName);",
       "if (isPersistedTabName(activeTabName)) {",
     ], "active-tab scroll persistence");
+
+    // localStorage tab persistence across webview reloads
+    expectSourceToIncludeSnippets(scriptSource, [
+      'var ACTIVE_TAB_STORAGE_KEY = "cockpit-active-tab";',
+      "function readPersistedActiveTabName() {",
+      "function persistActiveTabName(tabName) {",
+      "localStorage.getItem(ACTIVE_TAB_STORAGE_KEY)",
+      "localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName)",
+      "persistActiveTabName(tabName);",
+    ], "localStorage active-tab persistence");
   });
 
   test("webview runtime keeps pending recurring filter state across stale board refreshes", () => {

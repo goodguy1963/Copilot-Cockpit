@@ -29,8 +29,8 @@ import type {
 
 type PostMessage = (message: { type: string; [key: string]: unknown }) => void;
 
-export function postSwitchToList(postMessage: PostMessage, successMessage?: string): void {
-  postMessage(createSwitchToListMessage(successMessage));
+export function postSwitchToList(postMessage: PostMessage, successMessage?: string, revealTasks?: boolean): void {
+  postMessage(createSwitchToListMessage(successMessage, revealTasks));
 }
 
 export function postSwitchToTab(

@@ -717,6 +717,25 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     catch (e) {}
   }
 
+  // Persist active tab name in localStorage so it survives webview reloads
+  var ACTIVE_TAB_STORAGE_KEY = "cockpit-active-tab";
+
+  function readPersistedActiveTabName() {
+    try {
+      var value = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      return typeof value === "string" && isPersistedTabName(value) ? value : "";
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  function persistActiveTabName(tabName) {
+    if (!isPersistedTabName(tabName)) return;
+    try {
+      localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tabName);
+    } catch (_e) {}
+  }
+
   function setLabelSlotsClass(w) {
     var cls = w >= 390 ? 'labels-6' : w >= 300 ? 'labels-3' : 'labels-1';
     document.documentElement.classList.remove('labels-1', 'labels-3', 'labels-6');
@@ -6045,6 +6064,7 @@ syncTodoLabelSuggestions();
     }
     activateSchedulerTab(document, tabName);
     activeTabName = tabName;
+    persistActiveTabName(tabName);
     if (jobsToggleSidebarBtn) {
       jobsToggleSidebarBtn.style.display = "";
     }
@@ -6067,6 +6087,10 @@ syncTodoLabelSuggestions();
   function getInitialTabName() {
     if (isPersistedTabName(activeTabName)) {
       return activeTabName;
+    }
+    var persisted = readPersistedActiveTabName();
+    if (persisted) {
+      return persisted;
     }
     var tabName = typeof initialData.initialTab === "string"
       ? initialData.initialTab
@@ -6739,7 +6763,7 @@ syncTodoLabelSuggestions();
   function appendTaskActionIcon(markup, options) {
     return (
       markup +
-      '<button class="' + options.className + '" data-action="' + options.action + '" data-id="' +
+      '<button type="button" class="' + options.className + '" data-action="' + options.action + '" data-id="' +
       options.taskId +
       '" title="' +
       escapeAttr(options.title) +
@@ -7219,10 +7243,19 @@ syncTodoLabelSuggestions();
     );
   }
 
-  function switchToListView(successMessage) {
+  function switchToListView(successMessage, revealTasks) {
     setSubmitIdleState();
     hideGlobalError();
     resetForm();
+    if (revealTasks === true) {
+      // Clear filters and uncollapse all sections to ensure the task is visible
+      activeTaskFilter = "all";
+      activeLabelFilter = "";
+      Object.keys(taskSectionCollapseState).forEach(function (key) {
+        taskSectionCollapseState[key] = false;
+      });
+      persistTaskFilter();
+    }
     switchTab("list");
     if (successMessage) {
       showSuccessToast(successMessage);
@@ -7547,8 +7580,8 @@ syncTodoLabelSuggestions();
         renderTaskPromptMarkup(description) +
         '<div class="task-card-footer">' +
         '<div class="task-actions" aria-label="actions">' +
-        '<button class="btn-secondary" data-ready-todo-open="' + escapeAttr(todo.id || "") + '">Open Todo</button>' +
-        '<button class="btn-primary" data-ready-todo-create="' + escapeAttr(todo.id || "") + '">Create Draft</button>' +
+        '<button type="button" class="btn-secondary" data-ready-todo-open="' + escapeAttr(todo.id || "") + '">Open Todo</button>' +
+        '<button type="button" class="btn-primary" data-ready-todo-create="' + escapeAttr(todo.id || "") + '">Create Draft</button>' +
         '</div>' +
         '</div>' +
         '</div>'
@@ -9790,7 +9823,7 @@ syncTodoLabelSuggestions();
           setPromptTextValue(message.content);
           break;
         case "switchToList":
-          switchToListView(message.successMessage);
+          switchToListView(message.successMessage, message.revealTasks);
           break;
         case "switchToTab":
           if (message.tab) {

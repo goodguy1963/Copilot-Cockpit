@@ -89,7 +89,7 @@ export function buildTaskConfigRowMarkup(params) {
 export function buildBaseTaskActionsMarkup(params) {
   var createActionButton = function (button) {
     return (
-      '<button class="' +
+      '<button type="button" class="' +
       button.className +
       '" data-action="' +
       button.action +

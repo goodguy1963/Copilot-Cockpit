@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { SchedulerWebview } from "./cockpitWebview";
 import { messages } from "./i18n";
 
 type DisclaimerScheduleManager = {
@@ -84,9 +85,12 @@ export function warnStaleRuntimeSqliteSuppressed(
   }
   lastWarnedStaleRuntimeKey = warningKey;
 
+  const message = messages.reloadRequiredForSqliteAfterUpdate(activeVersion, installedVersion);
+  SchedulerWebview.showError(message);
+
   void vscode.window
     .showWarningMessage(
-      messages.reloadRequiredForSqliteAfterUpdate(activeVersion, installedVersion),
+      message,
       messages.reloadNow(),
     )
     .then((choice) => {
