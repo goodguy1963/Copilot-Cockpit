@@ -38,7 +38,10 @@ That structure keeps the LLM as the native execution chat surface while Copilot 
 
 ## 🎬 Demo
 
-[![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v21.gif)](https://www.youtube.com/watch?v=yiJCmwmxEFc)
+[![Watch the Copilot Cockpit intro video](https://raw.githubusercontent.com/goodguy1963/Copilot-Cockpit/main/images/DEMO%20v21.gif)](https://youtu.be/G2WcWtc0_70)
+
+- **[🚀 Fast demo](https://youtu.be/G2WcWtc0_70)** — a quick overview in under a minute.
+- **[📖 Full walkthrough](https://youtu.be/yiJCmwmxEFc)** — watch from the start for the _why_, or [jump right in](https://youtu.be/yiJCmwmxEFc?si=4OQOxuydSobEzIPL&t=197) at the hands-on part.
 
 Use the feature tour below for the slower tab-by-tab explanation.
 
