@@ -22,8 +22,7 @@ Copilot Cockpit the workflow system for AI work in VS Code: planning and triage,
 
 ## Why It Exists
 
-Most AI tooling still reads like feature accumulation: a todo board here, a scheduler there, a tool bridge somewhere else. Copilot Cockpit is meant to feel like one coherent stack.
-
+I built it because most AI coding workflows still feel like chaotic chat sessions. They generate output, but they don’t give solo builders much structure or control.  
 It connects three tightly linked layers:
 
 1. Planning and triage in `Todo Cockpit`
