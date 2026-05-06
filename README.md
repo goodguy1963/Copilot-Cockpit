@@ -18,7 +18,7 @@
 
 <!-- markdownlint-enable MD033 MD041 -->
 
-Copilot Cockpit is one workflow system for AI work in VS Code: planning and triage, execution and scheduling, and optional tool/control-plane integration.
+Copilot Cockpit the workflow system for AI work in VS Code: planning and triage, execution and scheduling, and optional (but recommended) MCP and agent team integration.
 
 ## Why It Exists
 
