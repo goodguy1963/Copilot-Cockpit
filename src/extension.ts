@@ -3986,6 +3986,42 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "saveAgentModel": {
+        const { filePath, model, agentId } = action.agentModelData ?? {};
+        if (filePath && model !== undefined) {
+          try {
+            const fileUri = vscode.Uri.file(filePath);
+            const content = (await vscode.workspace.fs.readFile(fileUri)).toString();
+            const frontmatterMatch = /^(---\r?\n[\s\S]*?\r?\n---)/.exec(content);
+            if (frontmatterMatch) {
+              const frontmatter = frontmatterMatch[1];
+              const modelLineRegex = /^model\s*:\s*.*$/m;
+              let updatedFrontmatter: string;
+              if (modelLineRegex.test(frontmatter)) {
+                updatedFrontmatter = frontmatter.replace(modelLineRegex, `model: ${model}`);
+              } else {
+                // Insert after description: line, or name: line, or at end of frontmatter
+                const insertAfter = /^(description\s*:\s*.*)$/m;
+                if (insertAfter.test(frontmatter)) {
+                  updatedFrontmatter = frontmatter.replace(insertAfter, `$1\nmodel: ${model}`);
+                } else {
+                  updatedFrontmatter = frontmatter.replace(/^---\r?\n/, `---\nmodel: ${model}\n`);
+                }
+              }
+              const updatedContent = content.replace(frontmatterMatch[1], updatedFrontmatter);
+              await vscode.workspace.fs.writeFile(fileUri, Buffer.from(updatedContent, "utf8"));
+              notifyInfo(`Model for "${agentId}" updated to "${model}".`);
+            } else {
+              notifyInfo(`Could not parse frontmatter in agent file.`);
+            }
+          } catch (err) {
+            notifyError(`Failed to update agent model: ${err}`);
+          }
+        }
+        SchedulerWebview.switchToTab("settings");
+        break;
+      }
+
       case "createResearchProfile": {
         if (!action.researchData) {
           break;

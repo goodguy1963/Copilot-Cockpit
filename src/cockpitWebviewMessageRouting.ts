@@ -134,6 +134,14 @@ export async function handleSchedulerWebviewCoreMessage(
       });
       return true;
 
+    case "saveAgentModel":
+      deps.onTaskAction?.({
+        action: "saveAgentModel",
+        taskId: "__settings__",
+        agentModelData: { agentId: message.agentId, filePath: message.filePath, model: message.model },
+      });
+      return true;
+
     case "loadPromptTemplate":
       await loadPromptTemplateContent(
         message.path,

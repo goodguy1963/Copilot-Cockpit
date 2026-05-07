@@ -1773,7 +1773,8 @@ type TaskActionName =
   | "saveTelegramNotification"
   | "testTelegramNotification"
   | "saveExecutionDefaults"
-  | "saveReviewDefaults";
+  | "saveReviewDefaults"
+  | "saveAgentModel";
 
 type ResearchActionName =
   | "createResearchProfile"
@@ -1852,6 +1853,9 @@ export interface TaskAction {
 
   /** Default execution settings payload */
   executionDefaults?: Partial<ExecutionDefaultsView>;
+
+  /** Agent model update payload */
+  agentModelData?: { agentId: string; filePath: string; model: string };
 
   /** Default review settings payload */
   reviewDefaults?: Partial<ReviewDefaultsView>;
@@ -2008,6 +2012,7 @@ type NotificationAndSettingsMessage =
   | { type: "testTelegramNotification"; data: SaveTelegramNotificationInput }
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
+  | { type: "saveAgentModel"; agentId: string; filePath: string; model: string }
   | { type: "setStorageSettings"; data: StorageSettingsView }
   | { type: "setApprovalMode"; approvalMode: ApprovalMode };
 

@@ -123,6 +123,7 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("testTelegramNotification"), data: telegramNotificationInputSchema }).passthrough(),
   z.object({ type: z.literal("saveExecutionDefaults"), data: executionDefaultsInputSchema }).passthrough(),
   z.object({ type: z.literal("saveReviewDefaults"), data: reviewDefaultsInputSchema }).passthrough(),
+  z.object({ type: z.literal("saveAgentModel"), agentId: nonEmptyStringSchema, filePath: nonEmptyStringSchema, model: z.string() }).passthrough(),
   z.object({ type: z.literal("setStorageSettings"), data: storageSettingsInputSchema }).passthrough(),
   z.object({ type: z.literal("setApprovalMode"), approvalMode: z.enum(["default", "auto-approve", "autopilot", "yolo"]) }).passthrough(),
 

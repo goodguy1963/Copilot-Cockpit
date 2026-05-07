@@ -506,15 +506,18 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <select id="default-agent-select"></select>
         </div>
 
-        <div class="form-group">
-          <label for="default-model-select">${escapeHtml(strings.executionDefaultsModel)}</label>
-          <select id="default-model-select"></select>
-        </div>
-
         <div class="button-group">
           <button type="button" class="btn-primary" id="execution-defaults-save-btn">${escapeHtml(strings.executionDefaultsSave)}</button>
         </div>
         <p class="note" id="execution-defaults-note">${escapeHtml(strings.executionDefaultsSaved)}</p>
+      </section>
+      <section class="settings-card settings-card-agents">
+        <div class="settings-card-header">
+          <div class="section-title">🤖 ${escapeHtml(strings.agentModelsTitle)}</div>
+          <p class="note">${escapeHtml(strings.agentModelsDescription)}</p>
+        </div>
+        <div id="agent-models-container"></div>
+        <p class="note" id="agent-models-note" style="display:none;"></p>
       </section>
       <section class="telegram-card settings-card settings-card-approval">
         <div class="settings-card-header">

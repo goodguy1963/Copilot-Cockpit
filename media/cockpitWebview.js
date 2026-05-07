@@ -1792,7 +1792,6 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   function collectExecutionDefaultsFormData() {
     return {
       agent: defaultAgentSelect ? String(defaultAgentSelect.value || "") : "",
-      model: defaultModelSelect ? String(defaultModelSelect.value || "") : "",
     };
   }
 
@@ -8498,6 +8497,86 @@ syncTodoLabelSuggestions();
     renderReviewDefaultsControls();
     syncJobsStepSelectors();
     syncResearchSelectors();
+    renderAgentModelsControls();
+  }
+
+  function renderAgentModelsControls() {
+    var container = document.getElementById("agent-models-container");
+    var note = document.getElementById("agent-models-note");
+    if (!container) { return; }
+
+    var localAgents = (Array.isArray(agents) ? agents : []).filter(function (a) { return a && a.filePath; });
+    if (localAgents.length === 0) {
+      container.innerHTML = '<p class="note" style="font-style:italic;">' + escapeHtml(strings.agentModelsNoLocalAgents || "No repo-local agent files found.") + '</p>';
+      if (note) { note.style.display = "none"; }
+      return;
+    }
+
+    var rows = [];
+    for (var ai = 0; ai < localAgents.length; ai++) {
+      var agent = localAgents[ai];
+      var agentName = agent.name || agent.id || "(unnamed)";
+      var currentModel = agentModelMap[agent.filePath] || "";
+
+      var opts = '<option value="">' + escapeHtml(strings.agentModelLabel || "Model") + '</option>';
+      var modelList = Array.isArray(models) ? models : [];
+      for (var mi = 0; mi < modelList.length; mi++) {
+        var m = modelList[mi];
+        var mId = m && m.id ? m.id : "";
+        var mLabel = formatModelLabel(m);
+        var selected = mId === currentModel ? " selected" : "";
+        opts += '<option value="' + escapeAttr(mId) + '"' + selected + ">" + escapeHtml(mLabel) + "</option>";
+      }
+
+      var filePathAttr = escapeAttr(agent.filePath);
+      var agentIdAttr = escapeAttr(agent.id);
+      rows.push(
+        '<div class="agent-model-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--vscode-panel-border);">' +
+          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(agentName) + "</strong>" +
+          '<select class="agent-model-select" data-agent-id="' + agentIdAttr + '" data-agent-filepath="' + filePathAttr + '" style="max-width:240px;">' + opts + "</select>" +
+        "</div>"
+      );
+    }
+
+    container.innerHTML = rows.join("");
+    if (note) { note.style.display = "none"; }
+
+    // Bind change listeners
+    var selects = container.querySelectorAll(".agent-model-select");
+    for (var si = 0; si < selects.length; si++) {
+      var sel = selects[si];
+      sel.addEventListener("change", function (selectEl) {
+        return function () {
+          var fp = selectEl.getAttribute("data-agent-filepath");
+          var agentId = selectEl.getAttribute("data-agent-id");
+          var modelVal = selectEl.value || "";
+          if (fp) {
+            agentModelMap[fp] = modelVal;
+            persistAgentModelMap();
+            vscode.postMessage({
+              type: "saveAgentModel",
+              agentId: agentId || "",
+              filePath: fp,
+              model: modelVal,
+            });
+          }
+        };
+      }(sel));
+    }
+  }
+
+  var agentModelMap = (function () {
+    try {
+      var saved = vscode.getState && vscode.getState();
+      return (saved && saved.agentModels) || {};
+    } catch (e) { return {}; }
+  })();
+  function persistAgentModelMap() {
+    try {
+      var state = vscode.getState ? (vscode.getState() || {}) : {};
+      state.agentModels = agentModelMap;
+      if (vscode.setState) { vscode.setState(state); }
+    } catch (e) { /* ignore */ }
   }
 
   function getTaskArrayForEditing() {

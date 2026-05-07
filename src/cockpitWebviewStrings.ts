@@ -484,6 +484,19 @@ export function buildSchedulerWebviewStrings(
     executionDefaultsModel: localize("Default model", "デフォルト model", "Standard-model"),
     executionDefaultsSave: localize("Save Defaults", "デフォルトを保存", "Defaults speichern"),
     executionDefaultsSaved: localize("Workspace default agent and model settings.", "ワークスペースのデフォルト agent / model 設定です。", "Workspace-Standardeinstellungen für agent und model."),
+    agentModelsTitle: localize("Agent Models", "エージェントモデル", "Agentenmodelle"),
+    agentModelsDescription: localize(
+      "Set the model used by each repo-local agent. Changes update the agent file automatically.",
+      "各リポジトリローカルエージェントが使用するモデルを設定します。変更はエージェントファイルに自動的に保存されます。",
+      "Legen Sie das Modell für jeden repo-lokalen Agenten fest. Änderungen werden automatisch in der Agentendatei gespeichert.",
+    ),
+    agentModelLabel: localize("Model", "モデル", "Modell"),
+    agentModelSaved: localize("Model updated in", "モデルを更新しました", "Modell aktualisiert in"),
+    agentModelNoLocalAgents: localize(
+      "No repo-local agent files found.",
+      "リポジトリローカルのエージェントファイルが見つかりません。",
+      "Keine repo-lokalen Agentendateien gefunden.",
+    ),
     approvalModeTitle: localize("Approval Mode", "承認モード", "Genehmigungsmodus"),
     approvalModeDescription: localize(
       "Controls the default approval level for new Copilot chat sessions started by this extension, including legacy YOLO fallback.",
