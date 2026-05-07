@@ -896,6 +896,13 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <button class="btn secondary" id="btn-help-switch-settings">${escapeHtml(strings.helpSwitchTabSettingsBtn)}</button>
         </div>
       </section>
+      <section class="help-section is-featured">
+          <h3><span class="help-section-icon">${helpIcons.network}</span>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>
+          <p>${escapeHtml(strings.helpAgentEcosystemBody)}</p>
+          <div class="button-group" style="margin-top:8px;">
+            <button type="button" class="btn-primary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>
+            <button type="button" class="btn-primary" id="btn-plan-integration">${escapeHtml(strings.helpPlanIntegrationBtn)}</button>
+          </div></section>
       <div class="help-grid">
         <section class="help-section">
           <h3><span class="help-section-icon">${helpIcons.clipboard}</span>${escapeHtml(strings.helpTodoTitle)}</h3>
@@ -1017,13 +1024,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <li>${escapeHtml(strings.helpMcpItemTools)}</li>
           </ul>
         </section>
-        <section class="help-section is-featured">
-          <h3><span class="help-section-icon">${helpIcons.network}</span>${escapeHtml(strings.helpAgentEcosystemTitle)}</h3>
-          <p>${escapeHtml(strings.helpAgentEcosystemBody)}</p>
-          <div class="button-group" style="margin-top:8px;">
-            <button type="button" class="btn-secondary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>
-            <button type="button" class="btn-primary" id="btn-plan-integration">${escapeHtml(strings.helpPlanIntegrationBtn)}</button>
-          </div></section></div></div></div>
+      </div></div></div>
   
 `;
 }
