@@ -1774,7 +1774,8 @@ type TaskActionName =
   | "testTelegramNotification"
   | "saveExecutionDefaults"
   | "saveReviewDefaults"
-  | "saveAgentModel";
+  | "saveAgentModel"
+  | "checkExtensionVersion";
 
 type ResearchActionName =
   | "createResearchProfile"
@@ -2013,6 +2014,7 @@ type NotificationAndSettingsMessage =
   | { type: "saveExecutionDefaults"; data: ExecutionDefaultsView }
   | { type: "saveReviewDefaults"; data: ReviewDefaultsView }
   | { type: "saveAgentModel"; agentId: string; filePath: string; model: string }
+  | { type: "checkExtensionVersion" }
   | { type: "setStorageSettings"; data: StorageSettingsView }
   | { type: "setApprovalMode"; approvalMode: ApprovalMode };
 

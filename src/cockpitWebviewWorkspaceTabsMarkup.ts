@@ -540,6 +540,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="section-title">🛟 ${escapeHtml(strings.settingsSupportTitle)}</div>
           <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
         </div>
+        <div id="support-onboarding-callout" class="onboarding-callout" style="display:none;"></div>
         <div class="settings-actions-grid">
           <div class="settings-action-group settings-action-group-primary">
             <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
@@ -563,6 +564,11 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         </div>
         <div class="settings-metrics-grid">
           <div class="settings-metric"><strong>🧪 ${escapeHtml(strings.settingsStorageVersionLabel)}</strong> <span id="settings-version-value">-</span></div>
+          <div class="settings-metric" id="version-check-metric">
+            <strong>⬆️ ${escapeHtml(strings.settingsCheckUpdates)}</strong>
+            <button type="button" class="btn-secondary" id="check-version-btn" style="margin-top:4px;">${escapeHtml(strings.settingsCheckUpdates)}</button>
+            <span id="version-check-status" style="font-size:11px;margin-top:4px;"></span>
+          </div>
           <div class="settings-metric"><strong>🔌 ${escapeHtml(strings.settingsStorageMcpStatusLabel)}</strong> <span id="settings-mcp-status-value">-</span></div>
           <div class="settings-metric"><strong>🕒 ${escapeHtml(strings.settingsStorageLastMcpUpdateLabel)}</strong> <span id="settings-mcp-updated-value">-</span></div>
           <div class="settings-metric"><strong>📚 ${escapeHtml(strings.settingsStorageLastSkillsUpdateLabel)}</strong> <span id="settings-skills-updated-value">-</span></div>

@@ -2,7 +2,7 @@
 description: Bounded implementation specialist for approved fixes, local refactors, and tightly scoped remediation.
 name: Remediation Implementer
 argument-hint: Ask me to implement an approved bounded fix, execute a small refactor, or validate a targeted code change.
-model: MiniMax: MiniMax M2.7 (openrouter)
+model: DeepSeek V4 Flash (deepseek)
 tools: [vscode/memory, read/problems, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch]
 handoffs:
   - label: Report To CEO

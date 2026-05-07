@@ -352,7 +352,7 @@ export class SchedulerWebview {
     panel.dispose();
   }
 
-  private static postMessage(message: OutgoingWebviewMessage): void { // send
+  static postMessage(message: OutgoingWebviewMessage): void { // send
     postSchedulerWebviewMessage(
       this.messageQueueState,
       this.activePanel,

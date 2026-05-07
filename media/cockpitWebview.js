@@ -2129,6 +2129,26 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (settingsAgentsUpdatedValue) {
       settingsAgentsUpdatedValue.textContent = formatSettingsTimestamp(storageSettings.lastBundledAgentsSyncAt);
     }
+    renderSupportOnboarding();
+  }
+
+  function renderSupportOnboarding() {
+    var callout = document.getElementById("support-onboarding-callout");
+    if (!callout) { return; }
+    var mcpStatus = storageSettings && storageSettings.mcpSetupStatus;
+    if (mcpStatus === "missing" || mcpStatus === "workspace-required") {
+      callout.innerHTML =
+        '<strong style="font-size:13px;">' + escapeHtml(strings.settingsOnboardingTitle || "Getting Started") + '</strong>' +
+        '<ol>' +
+          '<li>' + (strings.settingsOnboardingStep1 || "1") + '</li>' +
+          '<li>' + (strings.settingsOnboardingStep2 || "2") + '</li>' +
+          '<li>' + (strings.settingsOnboardingStep3 || "3") + '</li>' +
+        '</ol>' +
+        '<p class="note" style="margin:0;font-size:11px;">' + escapeHtml(strings.settingsOnboardingHint || "") + '</p>';
+      callout.style.display = "grid";
+    } else {
+      callout.style.display = "none";
+    }
   }
 
   function showStorageStatusRefreshNote() {
@@ -6608,26 +6628,54 @@ syncTodoLabelSuggestions();
       data: collectReviewDefaultsFormData(),
     });
   });
-  bindClickAction(needsBotReviewPromptRecommendedBtn, function () {
-    if (needsBotReviewPromptTemplateInput) {
-      needsBotReviewPromptTemplateInput.value = recommendedReviewDefaults.needsBotReviewPromptTemplate || "";
-    }
-    renderReviewPromptRecommendationStatus();
-    if (reviewDefaultsNote) {
-      reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedLoaded
-        || "Recommended prompt text loaded. Save to persist it.";
-    }
-  });
-  bindClickAction(readyPromptRecommendedBtn, function () {
-    if (readyPromptTemplateInput) {
-      readyPromptTemplateInput.value = recommendedReviewDefaults.readyPromptTemplate || "";
-    }
-    renderReviewPromptRecommendationStatus();
-    if (reviewDefaultsNote) {
-      reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedLoaded
-        || "Recommended prompt text loaded. Save to persist it.";
-    }
-  });
+  function bindRecommendedButtonWithConfirm(btnEl, templateInputEl, recommendedValue) {
+    if (!btnEl) { return; }
+    var resetTimer = null;
+    btnEl.addEventListener("click", function () {
+      if (btnEl.getAttribute("data-confirming") === "1") {
+        // Second click: apply
+        if (templateInputEl) {
+          templateInputEl.value = recommendedValue || "";
+        }
+        renderReviewPromptRecommendationStatus();
+        btnEl.removeAttribute("data-confirming");
+        btnEl.textContent = btnEl.getAttribute("data-original-text") || strings.reviewDefaultsUseRecommended || "Use recommended";
+        btnEl.style.background = "";
+        if (reviewDefaultsNote) {
+          reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedApplied || "Recommended prompt applied. Click Save to persist.";
+        }
+        if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+        return;
+      }
+      // First click: ask for confirmation
+      if (!btnEl.getAttribute("data-original-text")) {
+        btnEl.setAttribute("data-original-text", btnEl.textContent || "");
+      }
+      btnEl.setAttribute("data-confirming", "1");
+      btnEl.textContent = strings.reviewDefaultsRecommendedConfirm || "This will replace your current prompt. Click again to confirm.";
+      btnEl.style.background = "color-mix(in srgb,var(--vscode-inputValidation-warningBackground,#f5c451) 42%,var(--vscode-button-secondaryBackground))";
+      if (reviewDefaultsNote) {
+        reviewDefaultsNote.textContent = strings.reviewDefaultsRecommendedConfirm || "This will replace your current prompt. Click again to confirm.";
+      }
+      if (resetTimer) { clearTimeout(resetTimer); }
+      resetTimer = setTimeout(function () {
+        btnEl.removeAttribute("data-confirming");
+        btnEl.textContent = btnEl.getAttribute("data-original-text") || strings.reviewDefaultsUseRecommended || "Use recommended";
+        btnEl.style.background = "";
+        resetTimer = null;
+      }, 3500);
+    });
+  }
+  bindRecommendedButtonWithConfirm(
+    needsBotReviewPromptRecommendedBtn,
+    needsBotReviewPromptTemplateInput,
+    recommendedReviewDefaults.needsBotReviewPromptTemplate
+  );
+  bindRecommendedButtonWithConfirm(
+    readyPromptRecommendedBtn,
+    readyPromptTemplateInput,
+    recommendedReviewDefaults.readyPromptTemplate
+  );
   [needsBotReviewPromptTemplateInput, readyPromptTemplateInput].forEach(function (input) {
     if (!input) {
       return;
@@ -6636,6 +6684,15 @@ syncTodoLabelSuggestions();
       renderReviewPromptRecommendationStatus();
     });
   });
+  if (document.getElementById("check-version-btn")) {
+    bindClickAction(document.getElementById("check-version-btn"), function () {
+      vscode.postMessage({ type: "checkExtensionVersion" });
+      var statusEl = document.getElementById("version-check-status");
+      if (statusEl) {
+        statusEl.textContent = "...";
+      }
+    });
+  }
   bindClickAction(settingsStorageSaveBtn, function () {
     vscode.postMessage({
       type: "setStorageSettings",
@@ -10313,6 +10370,19 @@ syncTodoLabelSuggestions();
         case "updateAutoShowOnStartup":
           autoShowOnStartup = !!message.enabled;
           syncAutoShowOnStartupUi();
+          break;
+        case "versionCheckResult":
+          var statusEl = document.getElementById("version-check-status");
+          if (statusEl) {
+            if (message.error) {
+              statusEl.innerHTML = escapeHtml(strings.settingsVersionCheckFailed || "Could not check for updates");
+            } else if (message.updateAvailable) {
+              var releaseUrl = message.releaseUrl || "https://github.com/goodguy1963/Copilot-Cockpit/releases";
+              statusEl.innerHTML = (strings.settingsVersionUpdateAvailable || "Update available: {version}").replace("{version}", escapeHtml(message.latestVersion || "")) + ' <a href="' + escapeAttr(releaseUrl) + '" target="_blank" rel="noopener" style="color:var(--vscode-textLink-foreground);">' + escapeHtml(strings.settingsOpenRelease || "Open release page") + "</a>";
+            } else {
+              statusEl.textContent = strings.settingsVersionUpToDate || "Up to date";
+            }
+          }
           break;
         case "updateScheduleHistory":
           cockpitHistory = Array.isArray(message.entries)

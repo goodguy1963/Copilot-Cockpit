@@ -142,6 +142,13 @@ export async function handleSchedulerWebviewCoreMessage(
       });
       return true;
 
+    case "checkExtensionVersion":
+      deps.onTaskAction?.({
+        action: "checkExtensionVersion",
+        taskId: "__settings__",
+      });
+      return true;
+
     case "loadPromptTemplate":
       await loadPromptTemplateContent(
         message.path,

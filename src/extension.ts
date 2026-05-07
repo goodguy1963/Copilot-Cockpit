@@ -4022,6 +4022,32 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         break;
       }
 
+      case "checkExtensionVersion": {
+        try {
+          const pkg = JSON.parse(
+            fs.readFileSync(
+              path.join(extensionContext?.extensionPath ?? "", "package.json"),
+              "utf8",
+            ),
+          );
+          const currentVersion: string = pkg.version ?? "0.0.0";
+          const response = await fetch("https://api.github.com/repos/goodguy1963/Copilot-Cockpit/releases/latest", {
+            headers: { "Accept": "application/vnd.github.v3+json" }
+          });
+          if (!response.ok) {
+            SchedulerWebview.postMessage({ type: "versionCheckResult", latestVersion: "", updateAvailable: false, releaseUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases", error: true });
+            break;
+          }
+          const release = await response.json() as { tag_name?: string; html_url?: string };
+          const latestTag = (release.tag_name || "").replace(/^v/, "");
+          const updateAvailable = latestTag !== "" && latestTag !== currentVersion;
+          SchedulerWebview.postMessage({ type: "versionCheckResult", latestVersion: latestTag, updateAvailable, releaseUrl: release.html_url || "https://github.com/goodguy1963/Copilot-Cockpit/releases", error: false });
+        } catch {
+          SchedulerWebview.postMessage({ type: "versionCheckResult", latestVersion: "", updateAvailable: false, releaseUrl: "https://github.com/goodguy1963/Copilot-Cockpit/releases", error: true });
+        }
+        break;
+      }
+
       case "createResearchProfile": {
         if (!action.researchData) {
           break;

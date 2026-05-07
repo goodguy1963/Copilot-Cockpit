@@ -524,6 +524,16 @@ export function buildSchedulerWebviewStrings(
       "推奨プロンプトを読み込みました。保存すると反映されます。",
       "Empfohlener Prompttext geladen. Speichern Sie, um ihn dauerhaft zu uebernehmen.",
     ),
+    reviewDefaultsRecommendedConfirm: localize(
+      "This will replace your current prompt. Click again to confirm.",
+      "現在のプロンプトが置き換えられます。もう一度クリックして確認してください。",
+      "Dies ersetzt Ihren aktuellen Prompt. Klicken Sie erneut, um zu bestätigen.",
+    ),
+    reviewDefaultsRecommendedApplied: localize(
+      "Recommended prompt applied. Click Save to persist.",
+      "推奨プロンプトを適用しました。保存して反映してください。",
+      "Empfohlener Prompt angewendet. Klicken Sie zum Speichern.",
+    ),
     reviewDefaultsPromptGuidance: localize(
       "Prefer {{todo_context}} when the model should receive the full Todo handoff. Use {{mcp_skill_guidance}} to carry repo-specific MCP, tool, and skill-routing expectations in the same prompt.",
       "モデルに Todo の完全な引き継ぎを渡したい場合は {{todo_context}} を優先してください。{{mcp_skill_guidance}} は、リポジトリ固有の MCP・tool・skill ルーティング方針を同じプロンプトに含めるために使います。",
@@ -886,6 +896,56 @@ export function buildSchedulerWebviewStrings(
       "Configure repo-local Copilot MCP, skills, and starter agents here. Starter agents are useful when you want the orchestrator to hand bounded work to specialists instead of bloating one chat session with every intermediate step. Use Stage Bundled Agents to refresh a comparison copy under .vscode/copilot-cockpit-support/bundled-agents without touching your live repo-local system. Sync Bundled Agents remains the explicit live install path: .github is backed up first when available, and customized workspace copies are skipped so your edits stay intact.",
       "ここで repo-local の Copilot 用 MCP、スキル、スターターエージェントを設定します。スターターエージェントは、orchestrator がすべてを 1 つの長いチャットに詰め込む代わりに、制限付きの作業を specialist へ渡したいときに役立ちます。比較だけしたい場合は Stage Bundled Agents を使い、.vscode/copilot-cockpit-support/bundled-agents 配下に参照用コピーを更新して、live の repo-local system には触れません。Sync Bundled Agents は live 反映用の明示的な経路のままで、.github があれば先にバックアップされ、ワークスペース側で変更したコピーはスキップされるため編集内容が保護されます。",
       "Konfigurieren Sie hier repo-lokales Copilot-MCP, Skills und Starter-Agenten. Starter-Agenten sind nützlich, wenn der Orchestrator begrenzte Arbeit an Spezialisten übergeben soll, statt einen einzelnen Chat mit allen Zwischenschritten aufzublähen. Verwenden Sie Gebündelte Agenten bereitstellen, um eine Vergleichskopie unter .vscode/copilot-cockpit-support/bundled-agents zu aktualisieren, ohne Ihr livees repo-lokales System zu verändern. Gebündelte Agenten synchronisieren bleibt der ausdrückliche Live-Installationspfad: .github wird vorher gesichert, wenn vorhanden, und angepasste Workspace-Kopien werden übersprungen, damit Ihre Änderungen erhalten bleiben.",
+    ),
+    settingsCheckUpdates: localize(
+      "Check for Updates",
+      "アップデートを確認",
+      "Nach Updates suchen",
+    ),
+    settingsVersionUpToDate: localize(
+      "Up to date",
+      "最新です",
+      "Auf dem neuesten Stand",
+    ),
+    settingsVersionUpdateAvailable: localize(
+      "Update available: {version}",
+      "アップデートがあります: {version}",
+      "Update verfügbar: {version}",
+    ),
+    settingsVersionCheckFailed: localize(
+      "Could not check for updates",
+      "アップデートを確認できませんでした",
+      "Updates konnten nicht geprüft werden",
+    ),
+    settingsOpenRelease: localize(
+      "Open release page",
+      "リリースページを開く",
+      "Release-Seite öffnen",
+    ),
+    settingsOnboardingTitle: localize(
+      "Getting Started",
+      "はじめに",
+      "Erste Schritte",
+    ),
+    settingsOnboardingStep1: localize(
+      "Run <strong>Set Up MCP</strong> — adds the scheduler MCP server to your workspace.",
+      "<strong>Set Up MCP</strong> を実行 — スケジューラー MCP サーバーをワークスペースに追加します。",
+      "<strong>Set Up MCP</strong> ausführen — fügt den Scheduler-MCP-Server zu Ihrem Workspace hinzu.",
+    ),
+    settingsOnboardingStep2: localize(
+      "Click <strong>Sync Bundled Skills</strong> — installs the operational skill files.",
+      "<strong>Sync Bundled Skills</strong> をクリック — 運用スキルファイルをインストールします。",
+      "<strong>Sync Bundled Skills</strong> klicken — installiert die operativen Skill-Dateien.",
+    ),
+    settingsOnboardingStep3: localize(
+      "Click <strong>Sync Bundled Agents</strong> — installs the starter agent crew (optional).",
+      "<strong>Sync Bundled Agents</strong> をクリック — スターターエージェントクルーをインストールします（任意）。",
+      "<strong>Sync Bundled Agents</strong> klicken — installiert das Starter-Agenten-Team (optional).",
+    ),
+    settingsOnboardingHint: localize(
+      "Only Set Up MCP and Sync Bundled Skills are recommended first. Sync Bundled Agents is optional.",
+      "最初は Set Up MCP と Sync Bundled Skills のみをお勧めします。Sync Bundled Agents は任意です。",
+      "Zuerst werden nur Set Up MCP und Sync Bundled Skills empfohlen. Sync Bundled Agents ist optional.",
     ),
     settingsMaintenanceNote: localize(
       "Import and export keep the JSON mirrors aligned with SQLite when you need to repair or migrate workspace state manually.",
