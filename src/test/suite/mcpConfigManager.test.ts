@@ -13,6 +13,7 @@ import {
   resolveNodeLaunchCommand,
   upsertSchedulerMcpConfig,
   upsertThirdPartyMcpTemplates,
+  upsertSingleThirdPartyMcpTemplate,
 } from "../../mcpConfigManager";
 
 function expectSetupState(
@@ -387,6 +388,93 @@ suite("Third-Party MCP Templates", () => {
       assert.strictEqual(tavilyInputs.length, 1, "TAVILY_API_KEY input should appear once");
 
       assert.strictEqual(Object.keys(saved.servers ?? {}).length, 2, "only two servers (perplexity + tavily)");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("upsertSingleThirdPartyMcpTemplate adds one provider at a time", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-3p-single-"),
+    );
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+
+      // Add Perplexity only
+      const result = upsertSingleThirdPartyMcpTemplate(workspaceRoot, "perplexity");
+      assert.strictEqual(result.addedInputs, 1, "should add PERPLEXITY_API_KEY input");
+      assert.strictEqual(result.addedServers, 1, "should add perplexity server");
+      assert.strictEqual(result.updated, true);
+
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        inputs?: Array<{ id: string }>;
+        servers?: Record<string, unknown>;
+      };
+      assert.ok(saved.servers?.perplexity, "perplexity server exists");
+      assert.strictEqual(saved.servers?.tavily, undefined, "tavily server should NOT exist yet");
+      assert.ok(saved.inputs?.some((i) => i.id === "PERPLEXITY_API_KEY"));
+      assert.strictEqual(saved.inputs?.some((i) => i.id === "TAVILY_API_KEY"), false, "TAVILY_API_KEY should NOT exist yet");
+
+      // Add Tavily only
+      const result2 = upsertSingleThirdPartyMcpTemplate(workspaceRoot, "tavily");
+      assert.strictEqual(result2.addedInputs, 1, "should add TAVILY_API_KEY input");
+      assert.strictEqual(result2.addedServers, 1, "should add tavily server");
+      assert.strictEqual(result2.updated, true);
+
+      const saved2 = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        inputs?: Array<{ id: string }>;
+        servers?: Record<string, unknown>;
+      };
+      assert.ok(saved2.servers?.tavily, "tavily server now exists");
+      assert.ok(saved2.servers?.perplexity, "perplexity server still exists");
+      assert.ok(saved2.inputs?.some((i) => i.id === "TAVILY_API_KEY"));
+      assert.ok(saved2.inputs?.some((i) => i.id === "PERPLEXITY_API_KEY"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("upsertSingleThirdPartyMcpTemplate is idempotent for a single provider", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-3p-single-idem-"),
+    );
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+
+      const first = upsertSingleThirdPartyMcpTemplate(workspaceRoot, "perplexity");
+      assert.strictEqual(first.addedServers, 1);
+
+      const second = upsertSingleThirdPartyMcpTemplate(workspaceRoot, "perplexity");
+      assert.strictEqual(second.addedInputs, 0, "no duplicate input");
+      assert.strictEqual(second.addedServers, 0, "no duplicate server");
+      assert.strictEqual(second.updated, false);
+
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        inputs?: Array<{ id: string }>;
+        servers?: Record<string, unknown>;
+      };
+      const perplexityInputs = saved.inputs?.filter((i) => i.id === "PERPLEXITY_API_KEY") ?? [];
+      assert.strictEqual(perplexityInputs.length, 1, "PERPLEXITY_API_KEY input should appear once");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("upsertSingleThirdPartyMcpTemplate returns 0/0 for unknown provider", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-3p-unknown-"),
+    );
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      const result = upsertSingleThirdPartyMcpTemplate(workspaceRoot, "google-grounded");
+      assert.strictEqual(result.addedInputs, 0);
+      assert.strictEqual(result.addedServers, 0);
+      assert.strictEqual(result.updated, false);
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }

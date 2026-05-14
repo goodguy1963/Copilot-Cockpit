@@ -1269,6 +1269,48 @@ export const messages = {
       "## API キーの入手先\n- **Perplexity**: https://docs.perplexity.ai/guides/getting-started で API キーを取得\n- **Tavily**: https://app.tavily.com/home で API キーを取得\n- **Google / google-grounded**: 自動構成されません。Google grounded research を使用するには、必要な環境変数を指定して `.vscode/mcp.json` に `google-grounded` サーバーエントリを追加してください。\n\nシークレットは `.vscode/mcp.json` の最上位 `inputs` 配列に `${input:...}` プレースホルダーとして保存されます。VS Code は起動時に実際のキー値を要求します。",
       "## API-Key-Quellen\n- **Perplexity**: Holen Sie Ihren API-Schlüssel unter https://docs.perplexity.ai/guides/getting-started\n- **Tavily**: Holen Sie Ihren API-Schlüssel unter https://app.tavily.com/home\n- **Google / google-grounded**: Wird nicht automatisch konfiguriert. Um Google grounded research zu verwenden, fügen Sie einen `google-grounded`-Servereintrag in `.vscode/mcp.json` mit den erforderlichen Umgebungsvariablen hinzu.\n\nGeheimnisse werden im `inputs`-Array der obersten Ebene von `.vscode/mcp.json` mit `${input:...}`-Platzhaltern gespeichert. VS Code fordert Sie beim Editor-Start zur Eingabe der tatsächlichen Schlüsselwerte auf.",
     ),
+  mcpSetupThirdPartySelectProviders: () =>
+    t(
+      "Select third-party MCP providers to configure (use Space to toggle, Enter to confirm)",
+      "構成するサードパーティ MCP プロバイダーを選択してください (Space で切り替え、Enter で確定)",
+      "Wählen Sie die zu konfigurierenden Drittanbieter-MCP-Anbieter aus (Leertaste zum Umschalten, Eingabetaste zum Bestätigen)",
+    ),
+  mcpSetupThirdPartySelectProvidersPlaceholder: () =>
+    t(
+      "Choose providers...",
+      "プロバイダーを選択...",
+      "Anbieter auswählen...",
+    ),
+  mcpSetupThirdPartyProviderConfigured: (provider: string) =>
+    t(
+      `Third-party MCP template for ${provider} added to .vscode/mcp.json.`,
+      `${provider} のサードパーティ MCP テンプレートを .vscode/mcp.json に追加しました。`,
+      `Drittanbieter-MCP-Vorlage für ${provider} zu .vscode/mcp.json hinzugefügt.`,
+    ),
+  mcpSetupThirdPartyProviderSkipped: (provider: string) =>
+    t(
+      `${provider} server entry already exists in .vscode/mcp.json — skipped.`,
+      `${provider} サーバーエントリは既に .vscode/mcp.json に存在します — スキップしました。`,
+      `${provider}-Servereintrag existiert bereits in .vscode/mcp.json — übersprungen.`,
+    ),
+  mcpSetupThirdPartyNothingSelected: () =>
+    t(
+      "No providers selected. You can run this setup again later from Settings.",
+      "プロバイダーが選択されていません。後で設定から再度セットアップを実行できます。",
+      "Keine Anbieter ausgewählt. Sie können dieses Setup später in den Einstellungen erneut ausführen.",
+    ),
+  mcpSetupThirdPartyGoogleGuidance: () =>
+    t(
+      "Google / google-grounded does not have an auto-write MCP server template. To configure it manually, add a `google-grounded` server entry to `.vscode/mcp.json` with the required environment variables. See the guidance document for details.",
+      "Google / google-grounded には自動書き込み MCP サーバーテンプレートがありません。手動で設定するには、必要な環境変数を指定して `.vscode/mcp.json` に `google-grounded` サーバーエントリを追加してください。詳細はガイダンスドキュメントを参照してください。",
+      "Google / google-grounded verfügt über keine automatisch schreibbare MCP-Servervorlage. Zur manuellen Konfiguration fügen Sie einen `google-grounded`-Servereintrag mit den erforderlichen Umgebungsvariablen zu `.vscode/mcp.json` hinzu. Details finden Sie im Leitfaden.",
+    ),
+  mcpSetupThirdPartySummary: (configured: string, skipped: string) =>
+    t(
+      `Third-party MCP setup complete.${configured}${skipped}`,
+      `サードパーティ MCP のセットアップが完了しました。${configured}${skipped}`,
+      `Drittanbieter-MCP-Einrichtung abgeschlossen.${configured}${skipped}`,
+    ),
   codexSetupAction: () =>
     t(
       "Add MCP To Codex",

@@ -605,6 +605,84 @@ export function upsertThirdPartyMcpTemplates(
   return { configPath, addedInputs, addedServers, updated };
 }
 
+/**
+ * Upsert a single third-party MCP template into `.vscode/mcp.json`.
+ *
+ * Unlike {@link upsertThirdPartyMcpTemplates}, this function adds **one**
+ * provider at a time: its input template (if not already present) and its
+ * server entry (if not already present).  Existing config is preserved.
+ *
+ * @returns The number of inputs and servers newly added (0 or 1 each).
+ */
+export function upsertSingleThirdPartyMcpTemplate(
+  workspaceRoot: string,
+  providerLabel: string,
+): { addedInputs: number; addedServers: number; updated: boolean } {
+  const template = THIRD_PARTY_MCP_TEMPLATES.find(
+    (t) => t.serverKey === providerLabel,
+  );
+  if (!template) {
+    return { addedInputs: 0, addedServers: 0, updated: false };
+  }
+
+  const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+  let existing: McpWorkspaceConfig = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      const parsed = readWorkspaceMcpConfig(workspaceRoot);
+      existing = parsed.config ?? {};
+    } catch {
+      existing = {};
+    }
+  }
+
+  const existingInputs = getExistingInputs(existing);
+  const targetInput = THIRD_PARTY_MCP_INPUTS.find(
+    (inp) => inp.id === template.inputId,
+  );
+  let addedInputs = 0;
+  const nextInputs = [...existingInputs];
+  if (
+    targetInput &&
+    !existingInputs.some((ei) => String(ei.id ?? "") === targetInput.id)
+  ) {
+    nextInputs.push({ ...targetInput });
+    addedInputs = 1;
+  }
+
+  const existingServers = isPlainObject(existing.servers)
+    ? existing.servers
+    : {};
+  let addedServers = 0;
+  const nextServers: Record<string, McpServerEntry | Record<string, unknown>> = {
+    ...existingServers,
+  };
+
+  if (!(template.serverKey in nextServers)) {
+    nextServers[template.serverKey] = template.serverEntry;
+    addedServers = 1;
+  }
+
+  const nextConfig: McpWorkspaceConfig = {
+    ...existing,
+    inputs: nextInputs,
+    servers: nextServers,
+  };
+
+  const nextContent = `${JSON.stringify(nextConfig, null, 4)}\n`;
+  const currentContent = fs.existsSync(configPath)
+    ? stripBom(fs.readFileSync(configPath, "utf8"))
+    : "";
+  const updated = currentContent !== nextContent;
+
+  if (updated) {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, nextContent, "utf8");
+  }
+
+  return { addedInputs, addedServers, updated };
+}
+
 export function getSchedulerMcpSetupState(
   workspaceRoot: string,
   extensionRoot: string,

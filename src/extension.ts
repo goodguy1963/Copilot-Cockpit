@@ -114,6 +114,7 @@ import {
   upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
   upsertThirdPartyMcpTemplates,
+  upsertSingleThirdPartyMcpTemplate,
 } from "./mcpConfigManager";
 import {
   ExternalAgentAccessManager,
@@ -2206,6 +2207,20 @@ async function setupWorkspaceCodexSkills(
 async function setupThirdPartyMcpTemplates(
   context: vscode.ExtensionContext,
 ): Promise<boolean> {
+  return setupThirdPartyMcpTemplatesGuided(context);
+}
+
+/**
+ * Guided third-party MCP setup using step-by-step QuickPick dialogs.
+ *
+ * 1. Provider selection (Perplexity, Tavily, Google)
+ * 2. API key guidance for each selected provider
+ * 3. Per-provider upsert of template entries
+ * 4. Summary notification
+ */
+async function setupThirdPartyMcpTemplatesGuided(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
   const workspaceRoot = getPrimaryWorkspaceRootPath();
   if (!workspaceRoot) {
     notifyError(messages.mcpSetupWorkspaceRequired());
@@ -2216,40 +2231,103 @@ async function setupThirdPartyMcpTemplates(
     return false;
   }
 
-  // Open the guidance document
+  // Provider definitions for the QuickPick
+  const providerItems: Array<{
+    label: string;
+    description: string;
+    detail: string;
+    picked: boolean;
+    serverKey: string;
+  }> = [
+    {
+      label: "Perplexity",
+      description: "Research provider",
+      detail: "API key: https://docs.perplexity.ai/guides/getting-started — uses npx @perplexity-ai/mcp-server",
+      picked: true,
+      serverKey: "perplexity",
+    },
+    {
+      label: "Tavily",
+      description: "Search + Research provider",
+      detail: "API key: https://app.tavily.com/home — uses mcp-remote",
+      picked: true,
+      serverKey: "tavily",
+    },
+    {
+      label: "Google / google-grounded",
+      description: "Research provider (manual setup)",
+      detail: "No auto-write template. Manual server entry required in .vscode/mcp.json.",
+      picked: false,
+      serverKey: "google-grounded",
+    },
+  ];
+
+  // Step 1: Provider selection
+  const selection = await vscode.window.showQuickPick(providerItems, {
+    canPickMany: true,
+    placeHolder: messages.mcpSetupThirdPartySelectProvidersPlaceholder(),
+    title: messages.mcpSetupThirdPartySelectProviders(),
+  });
+
+  if (!selection || selection.length === 0) {
+    notifyInfo(messages.mcpSetupThirdPartyNothingSelected());
+    return false;
+  }
+
+  // Open the guidance document for API key reference
   const guidanceDocument = await vscode.workspace.openTextDocument({
     content: messages.mcpSetupThirdPartyGuidance(),
     language: "markdown",
   });
   await vscode.window.showTextDocument(guidanceDocument, { preview: true });
 
-  // Open .vscode/mcp.json
-  const mcpConfigPath = getWorkspaceMcpConfigPath(workspaceRoot);
+  // Open .vscode/mcp.json so the user can see/edit
+  const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
   try {
-    const mcpDocument = await vscode.workspace.openTextDocument(mcpConfigPath);
+    const mcpDocument = await vscode.workspace.openTextDocument(configPath);
     await vscode.window.showTextDocument(mcpDocument, { preview: false, preserveFocus: true });
   } catch {
     // .vscode/mcp.json may not exist yet; that is fine
   }
 
-  // Upsert third-party templates
-  try {
-    const result = upsertThirdPartyMcpTemplates(workspaceRoot);
-    if (result.addedInputs > 0 || result.addedServers > 0) {
-      notifyInfo(messages.mcpSetupThirdPartySuccess());
-    } else {
-      notifyInfo(messages.mcpSetupThirdPartyNoChanges());
+  let configuredCount = 0;
+  let skippedCount = 0;
+
+  for (const item of selection) {
+    if (item.serverKey === "google-grounded") {
+      // Google: guidance only, no auto-write
+      skippedCount += 1;
+      continue;
     }
-    return true;
-  } catch (error) {
-    const errorMessage = toErrorMessage(error);
-    logError(
-      "[CopilotScheduler] Failed to upsert third-party MCP templates:",
-      redactPathsForLog(errorMessage),
-    );
-    notifyError(messages.mcpSetupFailed(redactPathsForLog(errorMessage)));
-    return false;
+
+    try {
+      const result = upsertSingleThirdPartyMcpTemplate(workspaceRoot, item.serverKey);
+      if (result.addedServers > 0 || result.addedInputs > 0) {
+        configuredCount += 1;
+      } else {
+        notifyInfo(messages.mcpSetupThirdPartyProviderSkipped(item.label));
+        skippedCount += 1;
+      }
+    } catch (error) {
+      const errorMessage = toErrorMessage(error);
+      logError(
+        `[CopilotScheduler] Failed to upsert third-party MCP template for ${item.label}:`,
+        redactPathsForLog(errorMessage),
+      );
+      skippedCount += 1;
+    }
   }
+
+  // Build summary
+  const configuredPart = configuredCount > 0
+    ? ` Configured ${configuredCount} provider(s).`
+    : "";
+  const skippedPart = skippedCount > 0
+    ? ` ${skippedCount} provider(s) skipped or already present.`
+    : "";
+
+  notifyInfo(messages.mcpSetupThirdPartySummary(configuredPart, skippedPart));
+  return configuredCount > 0;
 }
 
 async function repairWorkspaceSupportFiles(

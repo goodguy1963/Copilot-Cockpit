@@ -47,3 +47,7 @@ analysis_tools/
 !.github/agents/**/
 !.github/agents/**/*.md
 .github/agents/todos/
+
+# RTK (personal tool, not shipped with extension)
+.github/hooks/rtk-rewrite.json
+.github/hooks/
