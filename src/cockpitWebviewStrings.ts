@@ -274,6 +274,11 @@ export function buildSchedulerWebviewStrings(
       "2. ワークフローを学び拡張する",
       "2. Workflow lernen & erweitern",
     ),
+    helpAgentEcosystemWorkspaceNote: localize(
+      "Workspace support (MCP, skills, agents) must be set up for every repo you add the extension to.",
+      "ワークスペースサポート（MCP、スキル、エージェント）は、拡張機能を追加するリポジトリごとに設定する必要があります。",
+      "Workspace-Support (MCP, Skills, Agenten) muss für jedes Repository, dem Sie die Erweiterung hinzufügen, eingerichtet werden.",
+    ),
     helpAgentEcosystemBody: localize(
       "Learn the default workflow first: Todo for planning, flag needs bot review for investigation, then Task or Job for execution. After that, use Plan Integration if you want optional repo-local skills, prompts, MCP tools, or starter agents as a control-plane extension. Treat existing repo-local agent systems as user-owned: use Stage Bundled Agents first for a compare-only reference under .vscode/copilot-cockpit-support/bundled-agents, and use Sync Bundled Agents only as the explicit live install path into .github/agents from Settings.",
       "まず標準ワークフローを理解してください。計画には Todo、調査には needs bot review フラグ、実行には Task または Job を使います。その後で必要なら Plan Integration を使い、repo-local の skills、prompts、MCP tools、starter agents を任意の制御プレーン拡張として追加します。既存の repo-local agent system はユーザー所有として扱い、まず Stage Bundled Agents で .vscode/copilot-cockpit-support/bundled-agents 配下に比較専用の参照コピーを用意し、Settings からの live な .github/agents 反映は Sync Bundled Agents を明示的に使うときだけ行ってください。",
@@ -305,6 +310,11 @@ export function buildSchedulerWebviewStrings(
     helpSessionItemNewChat: messages.helpSessionItemNewChat(),
     helpSessionItemCareful: messages.helpSessionItemCareful(),
     helpSessionItemSeparate: messages.helpSessionItemSeparate(),
+    helpMcpWorkspaceNote: localize(
+      "MCP setup and skills sync are per-workspace. Re-run Set Up MCP and Sync Bundled Skills in every repo you add the extension to.",
+      "MCP セットアップとスキル同期はワークスペースごとです。拡張機能を追加するすべてのリポジトリで Set Up MCP と Sync Bundled Skills を再実行してください。",
+      "MCP-Einrichtung und Skills-Synchronisierung sind pro Workspace. Führen Sie Set Up MCP und Sync Bundled Skills in jedem Repository erneut aus, dem Sie die Erweiterung hinzufügen.",
+    ),
     helpMcpTitle: messages.helpMcpTitle(),
     helpMcpItemEmbedded: messages.helpMcpItemEmbedded(),
     helpMcpItemConfig: messages.helpMcpItemConfig(),
@@ -893,6 +903,11 @@ export function buildSchedulerWebviewStrings(
     actionOpenCopilotSettings: localize("Open Copilot Settings", "Copilot 設定を開く", "Copilot-Einstellungen öffnen"),
     actionOpenCockpitSettings: localize("Open Cockpit Settings", "Cockpit 設定を開く", "Cockpit-Einstellungen öffnen"),
     settingsSupportTitle: localize("Workspace Support", "ワークスペース支援", "Workspace-Support"),
+    settingsSupportNewRepoNote: localize(
+      "Every time you add this extension to a new repo, re-run the workspace support actions below so MCP, skills, and agents are available in that workspace.",
+      "この拡張機能を新しいリポジトリに追加するたびに、以下のワークスペースサポートアクションを再実行して、そのワークスペースで MCP、スキル、エージェントを利用できるようにしてください。",
+      "Jedes Mal, wenn Sie diese Erweiterung zu einem neuen Repository hinzufügen, führen Sie die unten stehenden Workspace-Support-Aktionen erneut aus, damit MCP, Skills und Agenten in diesem Workspace verfügbar sind.",
+    ),
     settingsSupportBody: localize(
       "Configure repo-local Copilot MCP, skills, and starter agents here. Starter agents are useful when you want the orchestrator to hand bounded work to specialists instead of bloating one chat session with every intermediate step. Use Stage Bundled Agents to refresh a comparison copy under .vscode/copilot-cockpit-support/bundled-agents without touching your live repo-local system. Sync Bundled Agents remains the explicit live install path: .github is backed up first when available, and customized workspace copies are skipped so your edits stay intact.",
       "ここで repo-local の Copilot 用 MCP、スキル、スターターエージェントを設定します。スターターエージェントは、orchestrator がすべてを 1 つの長いチャットに詰め込む代わりに、制限付きの作業を specialist へ渡したいときに役立ちます。比較だけしたい場合は Stage Bundled Agents を使い、.vscode/copilot-cockpit-support/bundled-agents 配下に参照用コピーを更新して、live の repo-local system には触れません。Sync Bundled Agents は live 反映用の明示的な経路のままで、.github があれば先にバックアップされ、ワークスペース側で変更したコピーはスキップされるため編集内容が保護されます。",

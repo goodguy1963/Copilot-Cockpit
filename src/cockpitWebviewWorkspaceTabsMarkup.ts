@@ -541,6 +541,7 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
         </div>
         <div id="support-onboarding-callout" class="onboarding-callout" style="display:none;"></div>
+        <p class="note" style="margin-bottom:6px;">${escapeHtml(strings.settingsSupportNewRepoNote)}</p>
         <div class="settings-actions-grid">
           <div class="settings-action-group settings-action-group-primary">
             <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
@@ -912,6 +913,12 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <div class="button-group" style="margin-top:8px;">
             <button type="button" class="btn-primary" id="btn-intro-tutorial">${escapeHtml(strings.helpIntroTutorialBtn)}</button>
             <button type="button" class="btn-primary" id="btn-plan-integration">${escapeHtml(strings.helpPlanIntegrationBtn)}</button>
+          </div>
+          <hr style="border:none;border-top:1px solid var(--vscode-sideBarSectionHeader-border, #404040);margin:10px 0;" />
+          <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.helpAgentEcosystemWorkspaceNote)}</p>
+          <div class="button-group" style="margin-top:8px;">
+            <button type="button" class="btn-secondary" id="btn-help-setup-mcp">${escapeHtml(strings.actionSetupMcp)}</button>
+            <button type="button" class="btn-secondary" id="btn-help-sync-skills">${escapeHtml(strings.actionSyncBundledSkills)}</button>
           </div></section>
       <div class="help-grid">
         <section class="help-section">
@@ -1033,6 +1040,11 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
             <li>${escapeHtml(strings.helpMcpItemTools)}</li>
           </ul>
+          <div class="button-group" style="margin-top:8px;">
+            <button type="button" class="btn-secondary" id="btn-help-setup-mcp-hero">${escapeHtml(strings.actionSetupMcp)}</button>
+            <button type="button" class="btn-secondary" id="btn-help-sync-skills-hero">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+          </div>
+          <p class="note" style="margin-top:6px;">${escapeHtml(strings.helpMcpWorkspaceNote)}</p>
         </section>
       </div></div></div>
   

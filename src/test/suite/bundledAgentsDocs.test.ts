@@ -24,7 +24,7 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         "Remediation Implementer",
         "Validate Run",
         "Documentation Specialist",
-        "Implement the approved bounded fix",
+        "implement the approved bounded fix",
         "closeout is justified",
         "live Prefab rendering",
         "## Delegation Standard",
