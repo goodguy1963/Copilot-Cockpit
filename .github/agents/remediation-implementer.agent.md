@@ -3,7 +3,7 @@ description: Bounded implementation specialist for approved fixes, local refacto
 name: Remediation Implementer
 argument-hint: Ask me to implement an approved bounded fix, execute a small refactor, or validate a targeted code change.
 model: DeepSeek V4 Flash (deepseek)
-tools: [vscode/memory, read/problems, read/readFile, agent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch]
+tools: [vscode/memory, execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch, search/fileSearch, search/usages, search/changes]
 handoffs:
   - label: Report To CEO
     agent: CEO

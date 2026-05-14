@@ -12,6 +12,7 @@ import {
   getWorkspaceMcpLauncherStatePath,
   resolveNodeLaunchCommand,
   upsertSchedulerMcpConfig,
+  upsertThirdPartyMcpTemplates,
 } from "../../mcpConfigManager";
 
 function expectSetupState(
@@ -286,5 +287,108 @@ suite("MCP Config Manager Tests", () => {
     assert.ok(command.includes('.fnm/node-versions'));
     assert.ok(command.includes('.volta/bin/node'));
     assert.ok(command.includes('exec "$NODE_BIN" "/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js"'));
+  });
+});
+
+suite("Third-Party MCP Templates", () => {
+  test("adds Perplexity and Tavily inputs + servers without dropping existing entries", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-3p-mcp-"),
+    );
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify(
+          {
+            servers: {
+              scheduler: {
+                type: "stdio",
+                command: "node",
+                args: ["scheduler-server.js"],
+              },
+              customTool: {
+                type: "stdio",
+                command: "python",
+                args: ["custom.py"],
+              },
+            },
+            metadata: { owner: "tests" },
+          },
+          null,
+          4,
+        ),
+        "utf8",
+      );
+
+      const result = upsertThirdPartyMcpTemplates(workspaceRoot);
+      assert.strictEqual(result.addedInputs, 2, "should add Perplexity + Tavily inputs");
+      assert.strictEqual(result.addedServers, 2, "should add perplexity + tavily servers");
+      assert.strictEqual(result.updated, true);
+
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        inputs?: Array<{ id: string }>;
+        servers?: Record<string, unknown>;
+        metadata?: { owner?: string };
+      };
+
+      // Preserves existing entries
+      assert.strictEqual(saved.metadata?.owner, "tests");
+      assert.ok(saved.servers?.scheduler);
+      assert.ok(saved.servers?.customTool);
+
+      // New entries added
+      assert.ok(saved.servers?.perplexity, "perplexity server should exist");
+      assert.ok(saved.servers?.tavily, "tavily server should exist");
+
+      // No google-grounded server
+      assert.strictEqual(saved.servers?.["google-grounded"], undefined, "no google-grounded entry");
+
+      // Inputs present
+      assert.ok(saved.inputs?.some((i) => i.id === "PERPLEXITY_API_KEY"));
+      assert.ok(saved.inputs?.some((i) => i.id === "TAVILY_API_KEY"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("rerun does not duplicate inputs or servers", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-3p-dedup-"),
+    );
+
+    try {
+      fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+      const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+
+      // First run
+      const first = upsertThirdPartyMcpTemplates(workspaceRoot);
+      assert.strictEqual(first.addedInputs, 2);
+      assert.strictEqual(first.addedServers, 2);
+
+      // Second run
+      const second = upsertThirdPartyMcpTemplates(workspaceRoot);
+      assert.strictEqual(second.addedInputs, 0, "no duplicate inputs on rerun");
+      assert.strictEqual(second.addedServers, 0, "no duplicate servers on rerun");
+      assert.strictEqual(second.updated, false, "no update on rerun");
+
+      // Verify only one of each in the file
+      const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+        inputs?: Array<{ id: string }>;
+        servers?: Record<string, unknown>;
+      };
+
+      const perplexityInputs = saved.inputs?.filter((i) => i.id === "PERPLEXITY_API_KEY") ?? [];
+      assert.strictEqual(perplexityInputs.length, 1, "PERPLEXITY_API_KEY input should appear once");
+
+      const tavilyInputs = saved.inputs?.filter((i) => i.id === "TAVILY_API_KEY") ?? [];
+      assert.strictEqual(tavilyInputs.length, 1, "TAVILY_API_KEY input should appear once");
+
+      assert.strictEqual(Object.keys(saved.servers ?? {}).length, 2, "only two servers (perplexity + tavily)");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
   });
 });

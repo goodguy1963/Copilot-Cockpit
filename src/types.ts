@@ -1775,7 +1775,8 @@ type TaskActionName =
   | "saveExecutionDefaults"
   | "saveReviewDefaults"
   | "saveAgentModel"
-  | "checkExtensionVersion";
+  | "checkExtensionVersion"
+  | "setupThirdPartyMcp";
 
 type ResearchActionName =
   | "createResearchProfile"
@@ -1992,7 +1993,8 @@ type SchedulerControlMessage =
   | { type: "stageBundledAgents" }
   | { type: "syncBundledAgents" }
   | { type: "importStorageFromJson" }
-  | { type: "exportStorageToJson" };
+  | { type: "exportStorageToJson" }
+  | { type: "setupThirdPartyMcp" };
 
 type ResearchMessage =
   | { type: "createResearchProfile"; data: CreateResearchProfileInput }

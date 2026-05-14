@@ -3,7 +3,7 @@ description: Designs repo-local custom agents and skills that fit the workspace'
 name: Custom Agent Foundry
 argument-hint: Ask me to create a new specialist agent, refactor an existing agent roster, or fill a capability gap.
 model: DeepSeek V4 Flash (deepseek)
-tools: [vscode/memory, read/readFile, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch, perplexity/perplexity_ask, perplexity/perplexity_reason, perplexity/perplexity_research, perplexity/perplexity_search]
+tools: [vscode/memory, read/readFile, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch, search/fileSearch, search/usages, web/fetch, perplexity/perplexity_ask, perplexity/perplexity_reason, perplexity/perplexity_research, perplexity/perplexity_search]
 ---
 
 # Custom Agent Foundry

@@ -440,6 +440,171 @@ export function readWorkspaceMcpConfig(
   };
 }
 
+/**
+ * Known third-party MCP providers for which the extension can auto-insert
+ * secure template entries into `.vscode/mcp.json`.
+ *
+ * `inputs` use the top-level `inputs` array with `password: true` so
+ * secrets stay out of repo files. `servers` use `${input:...}` placeholders.
+ *
+ * Google / google-grounded is documented in the guidance text but does NOT
+ * get an auto-write template unless a validated repo-local template exists.
+ */
+export interface ThirdPartyMcpTemplate {
+  inputId: string;
+  inputDescription: string;
+  serverKey: string;
+  serverEntry: McpServerEntry;
+}
+
+export const THIRD_PARTY_MCP_INPUTS: Array<{
+  id: string;
+  type: "promptString";
+  description: string;
+  password: true;
+}> = [
+  {
+    id: "PERPLEXITY_API_KEY",
+    type: "promptString",
+    description: "Perplexity API Key for MCP",
+    password: true,
+  },
+  {
+    id: "TAVILY_API_KEY",
+    type: "promptString",
+    description: "Tavily API Key for MCP",
+    password: true,
+  },
+];
+
+export const THIRD_PARTY_MCP_TEMPLATES: ThirdPartyMcpTemplate[] = [
+  {
+    inputId: "PERPLEXITY_API_KEY",
+    inputDescription: "Get a Perplexity API key at https://docs.perplexity.ai/guides/getting-started",
+    serverKey: "perplexity",
+    serverEntry: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "@perplexity-ai/mcp-server"],
+      env: { PERPLEXITY_API_KEY: "${input:PERPLEXITY_API_KEY}" },
+    },
+  },
+  {
+    inputId: "TAVILY_API_KEY",
+    inputDescription: "Get a Tavily API key at https://app.tavily.com/home (use tvly-... key, replacing inline-token in the args)",
+    serverKey: "tavily",
+    serverEntry: {
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "mcp-remote", "https://mcp.tavily.com/mcp/?tavilyApiKey=${input:TAVILY_API_KEY}"],
+      env: { TAVILY_API_KEY: "${input:TAVILY_API_KEY}" },
+    },
+  },
+];
+
+/**
+ * Guidance text shown to the user about third-party MCP providers and where
+ * to obtain API keys. Includes Google / google-grounded in prose only.
+ */
+export const THIRD_PARTY_MCP_GUIDANCE = [
+  "## Third-Party MCP Providers",
+  "",
+  "Copilot Cockpit can auto-configure secure template entries for the following providers:",
+  "",
+  "| Provider | Server key | API key source |",
+  "|----------|-----------|----------------|",
+  "| Perplexity | `perplexity` | https://docs.perplexity.ai/guides/getting-started |",
+  "| Tavily | `tavily` | https://app.tavily.com/home |",
+  "",
+  "**Google / google-grounded** is also supported as a research provider in Settings but does not have an auto-write MCP server template. To configure it manually, add a `google-grounded` server entry to `.vscode/mcp.json` with the required environment variables.",
+  "",
+  "Secrets are stored in `.vscode/mcp.json` under the top-level `inputs` array using `${input:...}` placeholders — never as plaintext in the config file. VS Code prompts you for the actual key at startup.",
+].join("\n");
+
+/**
+ * Read the current `.vscode/mcp.json` and return the top-level `inputs` array
+ * if it exists, or an empty array.
+ */
+function getExistingInputs(config: McpWorkspaceConfig): Array<Record<string, unknown>> {
+  return Array.isArray(config.inputs) ? config.inputs : [];
+}
+
+/**
+ * Merge known third-party MCP template inputs into the existing inputs array,
+ * skipping any input whose `id` already exists so user values are preserved.
+ */
+function mergeInputs(
+  existingInputs: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const existingIds = new Set(
+    existingInputs.map((input) => String(input.id ?? "")).filter(Boolean),
+  );
+  const merged = [...existingInputs];
+  for (const templateInput of THIRD_PARTY_MCP_INPUTS) {
+    if (!existingIds.has(templateInput.id)) {
+      merged.push({ ...templateInput });
+    }
+  }
+  return merged;
+}
+
+/**
+ * Upsert third-party MCP templates into `.vscode/mcp.json`.
+ *
+ * - Preserves all existing servers and inputs.
+ * - Adds template `inputs` entries for missing ids.
+ * - Adds template `servers` entries for missing server keys.
+ * - Does NOT add a Google server entry.
+ */
+export function upsertThirdPartyMcpTemplates(
+  workspaceRoot: string,
+): { configPath: string; addedInputs: number; addedServers: number; updated: boolean } {
+  const configPath = getWorkspaceMcpConfigPath(workspaceRoot);
+  let existing: McpWorkspaceConfig = {};
+  if (fs.existsSync(configPath)) {
+    try {
+      const parsed = readWorkspaceMcpConfig(workspaceRoot);
+      existing = parsed.config ?? {};
+    } catch {
+      existing = {};
+    }
+  }
+
+  const existingInputs = getExistingInputs(existing);
+  const mergedInputs = mergeInputs(existingInputs);
+  const addedInputs = mergedInputs.length - existingInputs.length;
+
+  const existingServers = isPlainObject(existing.servers) ? existing.servers : {};
+  let addedServers = 0;
+  const nextServers: Record<string, McpServerEntry | Record<string, unknown>> = { ...existingServers };
+
+  for (const template of THIRD_PARTY_MCP_TEMPLATES) {
+    if (!(template.serverKey in nextServers)) {
+      nextServers[template.serverKey] = template.serverEntry;
+      addedServers += 1;
+    }
+  }
+
+  const nextConfig: McpWorkspaceConfig = {
+    ...existing,
+    inputs: mergedInputs,
+    servers: nextServers,
+  };
+
+  const nextContent = `${JSON.stringify(nextConfig, null, 4)}\n`;
+  const currentContent = fs.existsSync(configPath)
+    ? stripBom(fs.readFileSync(configPath, "utf8"))
+    : "";
+  const updated = currentContent !== nextContent;
+
+  if (updated) {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, nextContent, "utf8");
+  }
+
+  return { configPath, addedInputs, addedServers, updated };
+}
+
 export function getSchedulerMcpSetupState(
   workspaceRoot: string,
   extensionRoot: string,

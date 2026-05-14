@@ -464,6 +464,23 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     );
   });
 
+  test("help tab and settings tab expose workspace onboarding markup", () => {
+    const templateSource2 = readSchedulerWebviewTemplateSource();
+
+    expectSourceToIncludeSnippets(
+      templateSource2,
+      [
+        'id="btn-help-setup-mcp"',
+        'id="btn-help-setup-mcp-hero"',
+        'id="btn-help-sync-skills"',
+        'id="btn-help-sync-skills-hero"',
+        'class="onboarding-callout"',
+        'settingsSupportNewRepoNote',
+      ],
+      "help and settings onboarding markup",
+    );
+  });
+
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
@@ -2653,7 +2670,6 @@ test("todo comments style human form input separately and todo saves reset to cr
       button: 0,
       clientX: 10,
       clientY: 10,
-      pointerId: 7,
       target: dragHandle,
       stopPropagation: () => undefined,
       preventDefault: () => undefined,
@@ -3377,6 +3393,11 @@ test("todo comments style human form input separately and todo saves reset to cr
         if (selector === "[data-section-id].section-dragging") return [];
         if (selector === "[data-todo-id].todo-dragging") return [];
         if (selector === "[data-todo-id].todo-drop-target") return [];
+        if (selector === "[data-section-drag-handle]") return [];
+        if (selector === "[data-todo-id]") return [];
+        if (selector === "[data-section-id]") {
+          return [draggedSection, dropSection];
+        }
         return [];
       },
     });

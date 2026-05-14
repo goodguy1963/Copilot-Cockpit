@@ -3,7 +3,7 @@ description: Prefab UI specialist for structured UI JSON, live rendering, dashbo
 name: Prefab UI Specialist
 argument-hint: Ask me to build or render a Prefab UI, scaffold a dashboard or form, shape chart or settings-panel JSON, or route an API-backed Prefab view.
 model: DeepSeek V4 Flash (deepseek)
-tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, prefab/render_ui]
+tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, search/codebase, edit/createDirectory, edit/createFile, edit/editFiles, prefab/render_ui]
 handoffs:
   - label: Report To CEO
     agent: CEO

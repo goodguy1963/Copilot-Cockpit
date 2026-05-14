@@ -32,14 +32,19 @@ Prefer the fewest agent hops that still keep boundaries sharp.
 
 ## Phase 4: Delegate With Complete Context
 
-Every meaningful handoff should include:
+### Compose A Delegation Packet Before Every Handoff
 
-- the goal
-- why it matters now
-- the controlling files, systems, or workflow layers
-- constraints and non-goals
-- required validation
-- the exact first step
+Do not forward the user's raw message verbatim. The receiving agent must be able to act independently without guessing intent. Build a structured delegation packet that includes:
+
+- the user's actual request verbatim and the user-visible outcome needed
+- why this task matters now — what depends on it or what it unblocks
+- the exact files, systems, abstractions, or workflow layers that control the work
+- concrete success criteria — what "done" looks like in falsifiable terms
+- required validation — build, type, lint, test, or manual checks the result must pass
+- any blockers, constraints, or non-goals (e.g., "do not touch X", "must preserve Y")
+- the exact first step the receiving agent should take (e.g., "read file Z first", "getModes first", "query the board for existing cards matching title W")
+
+Embed the full packet into the handoff's prompt message. The handoff `prompt` templates in the frontmatter include `{{REQUEST}}` — replace that placeholder with the actual user request, then append the rest of the packet.
 
 ## Phase 5: Integrate Results
 

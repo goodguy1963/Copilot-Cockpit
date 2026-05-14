@@ -3,7 +3,7 @@ description: Documentation specialist for README, guides, and reusable knowledge
 name: Documentation Specialist
 argument-hint: Ask me to update docs, align README and guides with the codebase, or keep knowledge files concise and current.
 model: DeepSeek V4 Flash (deepseek)
-tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, search/codebase, edit/createDirectory, edit/createFile, edit/editFiles, agent/runSubagent]
+tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, search/codebase, search/fileSearch, search/usages, search/changes, edit/createDirectory, edit/createFile, edit/editFiles, agent/runSubagent]
 handoffs:
   - label: Report To CEO
     agent: CEO

@@ -107,6 +107,7 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("syncBundledSkills") }).passthrough(),
   z.object({ type: z.literal("stageBundledAgents") }).passthrough(),
   z.object({ type: z.literal("syncBundledAgents") }).passthrough(),
+  z.object({ type: z.literal("setupThirdPartyMcp") }).passthrough(),
   z.object({ type: z.literal("importStorageFromJson") }).passthrough(),
   z.object({ type: z.literal("exportStorageToJson") }).passthrough(),
 

@@ -59,7 +59,11 @@ function createId(prefix: string): string {
 }
 
 function cloneBoard(board: CockpitBoard): CockpitBoard {
-  return normalizeCockpitBoard(JSON.parse(JSON.stringify(board)));
+  const clonedBoard = typeof globalThis.structuredClone === "function"
+    ? globalThis.structuredClone(board)
+    : JSON.parse(JSON.stringify(board));
+
+  return normalizeCockpitBoard(clonedBoard);
 }
 
 function normalizeStringList(value: unknown): string[] {

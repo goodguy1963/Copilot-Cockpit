@@ -36,15 +36,30 @@ These starter agents follow the same operating rules across repositories.
 
 ## Handoff Standard
 
-Every meaningful handoff should include:
+Every meaningful handoff must include a **delegation packet** — a structured context block that lets the receiving agent act independently without guessing intent.
 
-- the goal and why it matters
-- the files, systems, or abstractions that control the work
-- constraints and non-goals
-- acceptance criteria
-- required validation
-- blockers, risks, or open decisions
-- the exact first step for the receiving agent
+### Delegation Packet Template
+
+```
+## Delegation Packet
+- **Request**: <user's original request verbatim>
+- **Why now**: <what depends on this or what it unblocks>
+- **Controlling assets**: <files, systems, abstractions, workflow layers>
+- **Success criteria**: <concrete "done" conditions in falsifiable terms>
+- **Required validation**: <build, type, lint, test, or manual checks>
+- **Constraints / Non-goals**: <must not touch, must preserve, out of scope>
+- **First step**: <exact action the receiving agent should take first>
+```
+
+### What Each Field Means
+
+- **Request**: the user's actual words so the receiving agent sees the original ask, not a filtered version
+- **Why now**: urgency or dependency context — what failure to do this would block
+- **Controlling assets**: precise file paths, system names, MCP tool names, or workflow layers the work lives in
+- **Success criteria**: falsifiable conditions that close the task — a test passes, a file matches a schema, a tool returns expected output
+- **Required validation**: the minimum checks the result must survive before closeout
+- **Constraints / Non-goals**: explicit boundaries — things the receiving agent should not change, touch, or expand into
+- **First step**: the exact next action, not a vague direction (e.g., "read `src/workflows.mjs` lines 1–50" not "look at the code")
 
 ## Knowledge Base Discipline
 

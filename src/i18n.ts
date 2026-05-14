@@ -1238,6 +1238,37 @@ export const messages = {
       "このリポジトリにはまだ scheduler MCP 設定がありません。今すぐ .vscode/mcp.json に追加またはマージしますか？",
     ),
   mcpSetupAction: () => t("Set Up MCP", "MCP をセットアップ"),
+  mcpSetupThirdPartyAction: () => t("Set Up Third-Party MCP", "サードパーティ MCP をセットアップ", "Drittanbieter-MCP einrichten"),
+  mcpSetupThirdPartyTitle: () =>
+    t(
+      "Third-Party MCP Providers",
+      "サードパーティ MCP プロバイダー",
+      "Drittanbieter-MCP-Anbieter",
+    ),
+  mcpSetupThirdPartyPrompt: () =>
+    t(
+      "Do you also want to set up optional third-party MCP servers for Perplexity and Tavily? Google / google-grounded is documented but requires a manual server entry.",
+      "Perplexity と Tavily のオプションのサードパーティ MCP サーバーもセットアップしますか？Google / google-grounded はドキュメントに記載されていますが、手動のサーバーエントリが必要です。",
+      "Möchten Sie auch optionale Drittanbieter-MCP-Server für Perplexity und Tavily einrichten? Google / google-grounded wird dokumentiert, erfordert jedoch einen manuellen Servereintrag.",
+    ),
+  mcpSetupThirdPartySuccess: () =>
+    t(
+      "Third-party MCP templates added to .vscode/mcp.json. API keys use secure ${input:...} placeholders; VS Code will prompt for values at startup.",
+      "サードパーティ MCP テンプレートを .vscode/mcp.json に追加しました。API キーは安全な ${input:...} プレースホルダーを使用します。VS Code は起動時に値を要求します。",
+      "Drittanbieter-MCP-Vorlagen zu .vscode/mcp.json hinzugefügt. API-Schlüssel verwenden sichere ${input:...}-Platzhalter; VS Code fordert beim Start zur Eingabe auf.",
+    ),
+  mcpSetupThirdPartyNoChanges: () =>
+    t(
+      "Third-party MCP servers already configured. No changes made.",
+      "サードパーティ MCP サーバーは既に設定されています。変更はありません。",
+      "Drittanbieter-MCP-Server sind bereits konfiguriert. Keine Änderungen vorgenommen.",
+    ),
+  mcpSetupThirdPartyGuidance: () =>
+    t(
+      "## API Key Sources\n- **Perplexity**: Get your API key at https://docs.perplexity.ai/guides/getting-started\n- **Tavily**: Get your API key at https://app.tavily.com/home\n- **Google / google-grounded**: Not auto-configured. To use Google grounded research, add a `google-grounded` server entry to `.vscode/mcp.json` with the required environment variables.\n\nSecrets are stored in the top-level `inputs` array of `.vscode/mcp.json` using `${input:...}` placeholders. VS Code will prompt you for the actual key values at editor startup.",
+      "## API キーの入手先\n- **Perplexity**: https://docs.perplexity.ai/guides/getting-started で API キーを取得\n- **Tavily**: https://app.tavily.com/home で API キーを取得\n- **Google / google-grounded**: 自動構成されません。Google grounded research を使用するには、必要な環境変数を指定して `.vscode/mcp.json` に `google-grounded` サーバーエントリを追加してください。\n\nシークレットは `.vscode/mcp.json` の最上位 `inputs` 配列に `${input:...}` プレースホルダーとして保存されます。VS Code は起動時に実際のキー値を要求します。",
+      "## API-Key-Quellen\n- **Perplexity**: Holen Sie Ihren API-Schlüssel unter https://docs.perplexity.ai/guides/getting-started\n- **Tavily**: Holen Sie Ihren API-Schlüssel unter https://app.tavily.com/home\n- **Google / google-grounded**: Wird nicht automatisch konfiguriert. Um Google grounded research zu verwenden, fügen Sie einen `google-grounded`-Servereintrag in `.vscode/mcp.json` mit den erforderlichen Umgebungsvariablen hinzu.\n\nGeheimnisse werden im `inputs`-Array der obersten Ebene von `.vscode/mcp.json` mit `${input:...}`-Platzhaltern gespeichert. VS Code fordert Sie beim Editor-Start zur Eingabe der tatsächlichen Schlüsselwerte auf.",
+    ),
   codexSetupAction: () =>
     t(
       "Add MCP To Codex",

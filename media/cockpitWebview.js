@@ -7140,6 +7140,20 @@ syncTodoLabelSuggestions();
     });
   }
 
+  ["btn-help-setup-mcp", "btn-help-setup-mcp-hero", "btn-help-sync-skills", "btn-help-sync-skills-hero"]
+    .forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("click", function () {
+          if (id.indexOf("sync-skills") !== -1) {
+            vscode.postMessage({ type: "syncBundledSkills" });
+          } else {
+            vscode.postMessage({ type: "setupMcp" });
+          }
+        });
+      }
+    });
+
   [
     "btn-help-switch-settings",
     "btn-help-switch-board",

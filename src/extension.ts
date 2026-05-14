@@ -110,8 +110,10 @@ import {
   resolveNodeLaunchCommand,
   type SchedulerMcpSetupState,
   getSchedulerMcpSetupState,
+  getWorkspaceMcpConfigPath,
   upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
+  upsertThirdPartyMcpTemplates,
 } from "./mcpConfigManager";
 import {
   ExternalAgentAccessManager,
@@ -2201,6 +2203,55 @@ async function setupWorkspaceCodexSkills(
   }
 }
 
+async function setupThirdPartyMcpTemplates(
+  context: vscode.ExtensionContext,
+): Promise<boolean> {
+  const workspaceRoot = getPrimaryWorkspaceRootPath();
+  if (!workspaceRoot) {
+    notifyError(messages.mcpSetupWorkspaceRequired());
+    return false;
+  }
+
+  if (!await ensureWorkspaceRootsActivatedForCockpitWrites(context, [workspaceRoot])) {
+    return false;
+  }
+
+  // Open the guidance document
+  const guidanceDocument = await vscode.workspace.openTextDocument({
+    content: messages.mcpSetupThirdPartyGuidance(),
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(guidanceDocument, { preview: true });
+
+  // Open .vscode/mcp.json
+  const mcpConfigPath = getWorkspaceMcpConfigPath(workspaceRoot);
+  try {
+    const mcpDocument = await vscode.workspace.openTextDocument(mcpConfigPath);
+    await vscode.window.showTextDocument(mcpDocument, { preview: false, preserveFocus: true });
+  } catch {
+    // .vscode/mcp.json may not exist yet; that is fine
+  }
+
+  // Upsert third-party templates
+  try {
+    const result = upsertThirdPartyMcpTemplates(workspaceRoot);
+    if (result.addedInputs > 0 || result.addedServers > 0) {
+      notifyInfo(messages.mcpSetupThirdPartySuccess());
+    } else {
+      notifyInfo(messages.mcpSetupThirdPartyNoChanges());
+    }
+    return true;
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    logError(
+      "[CopilotScheduler] Failed to upsert third-party MCP templates:",
+      redactPathsForLog(errorMessage),
+    );
+    notifyError(messages.mcpSetupFailed(redactPathsForLog(errorMessage)));
+    return false;
+  }
+}
+
 async function repairWorkspaceSupportFiles(
   context: vscode.ExtensionContext,
   workspaceRoots: string[],
@@ -3750,7 +3801,26 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           notifyError(messages.mcpSetupWorkspaceRequired());
           break;
         }
-        await setupWorkspaceMcpConfig(extensionContext);
+        const mcpOk = await setupWorkspaceMcpConfig(extensionContext);
+        if (mcpOk) {
+          const choice = await vscode.window.showInformationMessage(
+            messages.mcpSetupThirdPartyPrompt(),
+            messages.mcpSetupThirdPartyAction(),
+            messages.actionCancel(),
+          );
+          if (choice === messages.mcpSetupThirdPartyAction()) {
+            await setupThirdPartyMcpTemplates(extensionContext);
+          }
+        }
+        break;
+      }
+
+      case "setupThirdPartyMcp": {
+        if (!extensionContext) {
+          notifyError(messages.mcpSetupWorkspaceRequired());
+          break;
+        }
+        await setupThirdPartyMcpTemplates(extensionContext);
         break;
       }
 

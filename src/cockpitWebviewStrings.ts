@@ -874,6 +874,7 @@ export function buildSchedulerWebviewStrings(
       "{approval}",
     ),
     actionSetupMcp: messages.mcpSetupAction(),
+    actionSetupThirdPartyMcp: messages.mcpSetupThirdPartyAction(),
     actionSetupCodex: messages.codexSetupAction(),
     actionSetupCodexSkills: messages.codexSkillsSetupAction(),
     actionSyncBundledSkills: localize("Sync Bundled Skills", "同梱スキルを同期", "Gebündelte Skills synchronisieren"),
