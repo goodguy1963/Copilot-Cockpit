@@ -70,6 +70,13 @@ jobs:
           name: copilot-cockpit-vsix
           path: archive/vsix/latest/copilot-cockpit-*.vsix
 
+      # Publish to Visual Studio Marketplace on version tags only
+      - name: Publish to VS Code Marketplace
+        if: github.ref_type == 'tag'
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish --pat "$VSCE_TOKEN" --packagePath archive/vsix/latest/copilot-cockpit-*.vsix
+
       # Generate release notes from CHANGELOG.md when present, otherwise write fallback notes
       - name: Generate release metadata
         shell: bash

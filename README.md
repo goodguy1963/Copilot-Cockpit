@@ -14,6 +14,15 @@
     <a href="https://github.com/goodguy1963/Copilot-Cockpit/releases/tag/edge">
         <img src="https://img.shields.io/github/v/release/goodguy1963/Copilot-Cockpit?filter=edge&include_prereleases&label=edge" alt="Latest edge prerelease">
     </a>
+    <a href="https://marketplace.visualstudio.com/items?itemName=goodguy1963.copilot-cockpit">
+        <img src="https://img.shields.io/visual-studio-marketplace/v/goodguy1963.copilot-cockpit?label=marketplace" alt="Visual Studio Marketplace page">
+    </a>
+    <a href="vscode:extension/goodguy1963.copilot-cockpit">
+        <img src="https://img.shields.io/badge/VS%20Code-install-007ACC" alt="Install in VS Code">
+    </a>
+    <a href="vscode-insiders:extension/goodguy1963.copilot-cockpit">
+        <img src="https://img.shields.io/badge/VS%20Code%20Insiders-install-24BFA5" alt="Install in VS Code Insiders">
+    </a>
 </p>
 
 <!-- markdownlint-enable MD033 MD041 -->
