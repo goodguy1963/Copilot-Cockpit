@@ -7,6 +7,7 @@ import {
   createTempDir,
   overrideWorkspaceFolders,
 } from "./helpers/vscodeTestHarness";
+import { cockpitExtensionId } from "../../extensionIdentity";
 
 type TestOnlyExports = typeof import("../../extension").__testOnly;
 
@@ -91,7 +92,6 @@ type RepairStateEntry = {
   status: RepairPlanState;
 };
 
-const cockpitExtensionId = "local-dev.copilot-cockpit";
 const cockpitCommandNames = [
   "createTask",
   "createTaskGui",

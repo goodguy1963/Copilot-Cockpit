@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
 import * as path from "path";
+import { cockpitExtensionSettingsQuery } from "./extensionIdentity";
 import { ScheduleManager } from "./cockpitManager"; // local-diverge-3
 import { CopilotExecutor } from "./copilotExecutor";
 import { ResearchManager } from "./researchManager";
@@ -5201,7 +5202,7 @@ function registerPreferencesCommand(): vscode.Disposable {
     "openSettings",
     async () => {
       try {
-        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:local-dev.copilot-cockpit");
+        await vscode.commands.executeCommand("workbench.action.openSettings", cockpitExtensionSettingsQuery);
       } catch (error) {
         notifyCaughtError(error);
       }

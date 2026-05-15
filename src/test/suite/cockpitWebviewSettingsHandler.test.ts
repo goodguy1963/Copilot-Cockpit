@@ -8,6 +8,7 @@ import {
   handleSettingsWebviewMessage,
   getResourceScopedSettingsTarget,
 } from "../../cockpitWebviewSettingsHandler";
+import { cockpitExtensionSettingsQuery } from "../../extensionIdentity";
 import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "../../privateConfigIgnore";
 
 function patchWorkspaceFolders(value: Array<{ uri: vscode.Uri }> | undefined): void {
@@ -184,7 +185,7 @@ suite("Scheduler webview settings handler behavior", () => {
 
       assert.strictEqual(handled, true);
       assert.deepStrictEqual(executeCalls, [
-        ["workbench.action.openSettings", "@ext:local-dev.copilot-cockpit"],
+        ["workbench.action.openSettings", cockpitExtensionSettingsQuery],
       ]);
     } finally {
       (vscode.commands as typeof vscode.commands & {

@@ -17,14 +17,13 @@ import type {
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { updateCompatibleConfigurationValue } from "./extensionCompat";
+import { cockpitExtensionSettingsQuery } from "./extensionIdentity";
 
 type OutgoingWebviewMessage = { type: string; [key: string]: unknown };
 type PostMessageFn = (message: OutgoingWebviewMessage) => void;
 type LaunchHelpChatFn = (prompt: string) => Promise<void>;
 type BackupGithubFolderFn = (workspaceRoot: string) => Promise<string | undefined>;
 
-const cockpitExtensionId = "local-dev.copilot-cockpit";
-const cockpitExtensionSettingsQuery = `@ext:${cockpitExtensionId}`;
 const copilotExtensionId = "github.copilot";
 const copilotExtensionSettingsQuery = `@ext:${copilotExtensionId}`;
 const chatPermissionsSettingKey = "chat.permissions.default";
