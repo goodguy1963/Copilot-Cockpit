@@ -2,7 +2,7 @@
   "name": "copilot-cockpit",
   "displayName": "Copilot Cockpit",
   "description": "The AI control layer for GitHub Copilot — a persistent AI workflow cockpit inside VS Code with planning, review gates, and an agent crew for the heavy lifting.",
-  "version": "2.1.17",
+  "version": "2.1.19",
   "publisher": "goodguy1963",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "images/icon.png",

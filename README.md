@@ -213,28 +213,25 @@ The point is not to overclaim autonomy. The point is to show recurring, inspecta
 
 ## ⚡ Quick Start
 
-1. Open Copilot Cockpit from the activity bar or run `Copilot Cockpit: Create Scheduled Prompt (GUI)` from the command palette. Or use the todo-list icon in the top right.
-2. Start in `How To Use` if you are new to the extension, or click the top-bar `Intro Tutorial` button for the same guided walkthrough.
-3. Capture or refine work in `Todo Cockpit` until the planning artifact is clear.
+1. Open **Copilot Cockpit** from the activity bar, the todo-list icon in the top-right editor toolbar, or the command palette (`Copilot Cockpit: Create Scheduled Prompt (GUI)`).
+2. Start in the **How To Use** tab if you are new to the extension, or click the top-bar **Intro Tutorial** button for the same guided walkthrough.
+3. Capture or refine work in **Todo Cockpit** until the planning artifact is clear.
 4. Flag the Todo **needs bot review** if the work needs investigation before execution.
-5. Move approved work into `ready`, then promote it into a `Task` for one executable unit or a `Job` for an orchestrated run.
-6. Open `Settings` to configure repo-local defaults and optional integrations such as the GitHub inbox flow. Add `MCP`, Copilot skills, starter agents, or other control-plane features only when you want those optional extensions.
+5. Move approved work into **ready**, then promote it into a **Task** for one executable unit or a **Job** for an orchestrated or scheduled run.
+6. Open **Settings** to configure repo-local defaults and optional integrations (GitHub inbox, MCP, skills, agents).
 
-If you want the optional integration layers, the practical order is:
+### Stable Primitives
 
-1. Get the core `Todo` -> flag **needs bot review** -> `Task` or `Job` loop working first.
-2. Use `Set Up MCP` to create or repair `.vscode/mcp.json` and activate the repo-local scheduler MCP server for this workspace.
-3. Add any separate third-party MCP servers you want, such as Tavily, Perplexity, or [Prefab by Max Health Inc.](https://github.com/Max-Health-Inc/prefab), to that same workspace MCP config. Those servers are separate from Copilot Cockpit's scheduler server and may need their own API keys or provider-specific setup.
-4. Use `Sync Bundled Skills` to write the bundled Copilot skills into `.github/skills` once you want stronger repo-local guidance for how Copilot should approach work. If the Prefab by Max Health Inc. MCP server is configured, that bundled path also adds the `prefab-ui` skill so installed users can route Prefab by Max Health Inc. UI and wire-format work through the shipped contract instead of keeping it as a repo-only extra.
-5. Add the optional agent layer only if you want a specialist or orchestrator setup on top of the core workflow.
+| Surface | When to use |
+| --- | --- |
+| **Todo Cockpit** | Planning, comments, approval, triage |
+| **Tasks** | One prompt, one schedule, one executable unit |
+| **Jobs** | Ordered stages, orchestration, pause checkpoints |
+| **Research** | Exploratory context, measured improvement, benchmarking |
 
-`Sync Bundled Skills` is optional, but it is a good next step once the core loop is working because those repo-local skills shape how Copilot approaches planning, routing, and execution in this repo without changing the underlying task model. If you also use Codex, the separate `Add MCP To Codex` and `Add Skills To Codex` actions configure the Codex-side files, but the main setup path in this repo is still Copilot-first.
+### Optional Extensions
 
-For agents, start by deciding whether you want a compare-first preview or a live install. `Stage Bundled Agents` creates a staged mirror under `.vscode/copilot-cockpit-support/bundled-agents` and leaves the live repo-local system untouched, which makes it the safer starting point. `Sync Bundled Agents` installs the bundled starter pack into live `.github/agents` files when you want the optional specialist layer active in the repo. When the Prefab by Max Health Inc. MCP server is part of your workspace setup, that shipped agent path also includes `Prefab UI Specialist` as the focused router for Prefab by Max Health Inc. UI, renderer, and API-backed view work. Treat any existing repo-local agent setup as user-owned first. Use stage-first when the repo already has a richer local system, and only approve sync when you want the live install path. Back up `.github` first when it already exists, and keep in mind that customized workspace copies are skipped so your repo-specific agent edits are not overwritten.
-
-If you want the live bundled-agent workflow, enable custom subagents in GitHub Copilot settings with `chat.customAgentInSubagent.enabled` before relying on that layer.
-
-If you want the rationale and workflow diagram for that pattern, see [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
+Add MCP, repo-local Copilot skills, or starter agents **after** the core loop above is working. These are control‑plane enhancements, not mandatory setup for first use. For the practical order, see the `How To Use` tab or [docs/agent-workflow.md](https://github.com/goodguy1963/Copilot-Cockpit/blob/main/docs/agent-workflow.md).
 
 ## 🚦 Release Channels
 
@@ -270,9 +267,21 @@ These extend the core workflow. They are optional and should not be mandatory fo
 
 ## 🛠️ Install
 
-### 📦 From Release
+### ✅ Recommended: Visual Studio Marketplace
 
-Choose the channel you want:
+<a href="https://marketplace.visualstudio.com/items?itemName=goodguy1963.copilot-cockpit">
+    <img src="https://img.shields.io/badge/Install%20from-Marketplace-0078d7?style=for-the-badge" alt="Install from Visual Studio Marketplace">
+</a>
+
+1. Open VS Code and go to the **Extensions** view (<kbd>Ctrl+Shift+X</kbd>).
+2. Search for **Copilot Cockpit**.
+3. Click **Install** and reload VS Code.
+
+Or install directly from the [Visual Studio Marketplace page](https://marketplace.visualstudio.com/items?itemName=goodguy1963.copilot-cockpit).
+
+### 📦 Manual: GitHub Release
+
+Choose the channel you want if you prefer installing from a VSIX:
 
 - `Stable` is the safer tagged release for normal use.
 - `Edge` is the rolling prerelease channel for the newest changes from `main`.

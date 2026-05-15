@@ -55,7 +55,15 @@ Skip toy prompts. Start with one recurring loop that would still be worth keepin
 
 That keeps the demo honest: the proof is useful output plus explicit review, not a claim that the system should run unchecked.
 
-## Installation From Release
+### ✅ Recommended: Visual Studio Marketplace
+
+1. Open VS Code and go to the **Extensions** view (<kbd>Ctrl+Shift+X</kbd>).
+2. Search for **Copilot Cockpit**.
+3. Click **Install** and reload VS Code.
+
+Or install directly from the [Visual Studio Marketplace page](https://marketplace.visualstudio.com/items?itemName=goodguy1963.copilot-cockpit).
+
+### 📦 Manual: GitHub Release
 
 1. Download the latest `copilot-cockpit-X.X.X.vsix` from the GitHub releases page.
 2. Run `Extensions: Install from VSIX...` in VS Code.
@@ -63,7 +71,7 @@ That keeps the demo honest: the proof is useful output plus explicit review, not
 4. Disable or uninstall `yamapan.copilot-scheduler` if it is still installed.
 5. After reload, Copilot Cockpit creates or repairs repo-local support files such as `.vscode/mcp.json` for the current workspace.
 
-## Installation From Source
+### 📦 Installation From Source
 
 1. Build the package with `npm run package:vsix`.
 2. Install it with one of these commands:
