@@ -31,6 +31,69 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
     .map((preset) => `<option value="${escapeHtmlAttr(preset.expression)}">${escapeHtml(preset.name)}</option>`)
     .join("");
   const boardTitleHelp = `${strings.boardDescription}\n\n${strings.boardPrivacyNote}`;
+  const prominentSetupButtonStyle = "background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 40%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background)) 100%) !important;color:var(--vscode-button-foreground) !important;border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 58%,var(--vscode-panel-border)) !important;min-height:36px;font-weight:700;";
+  const prominentSetupCalloutStyle = "display:grid;gap:8px;padding:14px;border-radius:12px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 12%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 95%,transparent) 100%);box-shadow:0 14px 24px color-mix(in srgb,var(--vscode-editor-background) 88%,transparent);margin-top:10px;";
+  const supportResources = [
+    {
+      href: "https://docs.github.com/en/copilot/get-started-with-github-copilot",
+      title: strings.settingsSupportResourceDocsTitle,
+      description: strings.settingsSupportResourceDocsBody,
+    },
+    {
+      href: "https://www.youtube.com/watch?v=9PUt81AjfmA&pp=ugUHEgVlbi1VUw%3D%3D",
+      title: strings.settingsSupportResourceNewVideoTitle,
+      description: strings.settingsSupportResourceNewVideoBody,
+    },
+    {
+      href: "https://youtu.be/G2WcWtc0_70",
+      title: strings.settingsSupportResourceFastDemoTitle,
+      description: strings.settingsSupportResourceFastDemoBody,
+    },
+    {
+      href: "https://youtu.be/yiJCmwmxEFc",
+      title: strings.settingsSupportResourceWalkthroughTitle,
+      description: strings.settingsSupportResourceWalkthroughBody,
+    },
+  ];
+  const supportResourcesMarkup = supportResources
+    .map((resource) => `
+            <a class="support-resource-link" href="${escapeHtmlAttr(resource.href)}" target="_blank" rel="noreferrer noopener">
+              <span class="support-resource-link-title">${escapeHtml(resource.title)}</span>
+              <span class="support-resource-link-body">${escapeHtml(resource.description)}</span>
+            </a>`)
+    .join("");
+  const supportPopoverStyles = `<style>
+        .settings-card-header-with-popover{position:relative;padding-right:54px;}
+        .settings-card-header-copy{display:grid;gap:6px;}
+        .support-resource-popover{position:absolute;top:0;right:0;z-index:5;}
+        .support-resource-popover > summary{list-style:none;}
+        .support-resource-popover > summary::-webkit-details-marker{display:none;}
+        .support-resource-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 44%,var(--vscode-panel-border));background:radial-gradient(circle at 30% 30%,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 28%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 92%,transparent) 74%);color:var(--vscode-foreground);cursor:pointer;box-shadow:0 10px 18px color-mix(in srgb,var(--vscode-editor-background) 86%,transparent);transition:transform 0.14s ease,box-shadow 0.14s ease,border-color 0.14s ease;}
+        .support-resource-trigger > span{position:relative;z-index:1;font-size:14px;font-weight:800;line-height:1;}
+        .support-resource-trigger::before,.support-resource-trigger::after{content:"";position:absolute;border-radius:999px;pointer-events:none;}
+        .support-resource-trigger::before{inset:-5px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,transparent);animation:support-help-pulse 2.6s ease-out infinite;}
+        .support-resource-trigger::after{inset:-11px;border:1px solid color-mix(in srgb,var(--vscode-textLink-foreground,#4da3ff) 20%,transparent);animation:support-help-pulse 2.6s ease-out 1.3s infinite;}
+        .support-resource-trigger:hover,.support-resource-trigger:focus-visible{transform:translateY(-1px) scale(1.02);box-shadow:0 14px 24px color-mix(in srgb,var(--vscode-editor-background) 82%,transparent);border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 62%,var(--vscode-panel-border));outline:none;}
+        .support-resource-popover[open] .support-resource-trigger{transform:translateY(1px);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 18%,transparent),0 12px 18px color-mix(in srgb,var(--vscode-editor-background) 82%,transparent);}
+        .support-resource-popover[open] .support-resource-trigger::before,.support-resource-popover[open] .support-resource-trigger::after{animation:none;opacity:0.18;}
+        .support-resource-panel{position:absolute;top:calc(100% + 10px);right:0;display:grid;gap:10px;width:min(360px,calc(100vw - 56px));padding:14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 24%,var(--vscode-panel-border));background:radial-gradient(circle at top right,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 12%,transparent) 0%,transparent 36%),linear-gradient(180deg,color-mix(in srgb,var(--vscode-editorWidget-background) 98%,transparent) 0%,color-mix(in srgb,var(--vscode-sideBar-background) 90%,transparent) 100%);box-shadow:0 18px 40px color-mix(in srgb,var(--vscode-editor-background) 74%,transparent);animation:support-resource-panel-in 0.18s ease-out;transform-origin:top right;}
+        .support-resource-panel::before{content:"";position:absolute;top:-6px;right:13px;width:12px;height:12px;border-top:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 24%,var(--vscode-panel-border));border-left:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 24%,var(--vscode-panel-border));background:color-mix(in srgb,var(--vscode-editorWidget-background) 96%,var(--vscode-sideBar-background));transform:rotate(45deg);}
+        .support-resource-panel-copy{display:grid;gap:4px;}
+        .support-resource-panel-copy strong{font-size:13px;line-height:1.3;}
+        .support-resource-panel-copy .note{margin:0;line-height:1.45;}
+        .support-resource-list{display:grid;gap:8px;}
+        .support-resource-link{display:grid;gap:4px;padding:11px 12px;border-radius:12px;border:1px solid color-mix(in srgb,var(--vscode-panel-border) 84%,transparent);background:color-mix(in srgb,var(--vscode-editorWidget-background) 88%,transparent);text-decoration:none;color:var(--vscode-foreground);box-shadow:inset 0 1px 0 color-mix(in srgb,#ffffff 12%,transparent);transition:transform 0.12s ease,box-shadow 0.12s ease,border-color 0.12s ease,background 0.12s ease;}
+        .support-resource-link:hover,.support-resource-link:focus-visible{transform:translateY(-1px);border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 42%,var(--vscode-panel-border));background:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 10%,var(--vscode-editorWidget-background));box-shadow:0 12px 20px color-mix(in srgb,var(--vscode-editor-background) 84%,transparent);outline:none;}
+        .support-resource-link-title{font-size:12px;font-weight:700;line-height:1.35;}
+        .support-resource-link-body{font-size:11px;line-height:1.45;color:var(--vscode-descriptionForeground);}
+        @keyframes support-help-pulse{0%{transform:scale(0.9);opacity:0;}24%{opacity:0.42;}100%{transform:scale(1.34);opacity:0;}}
+        @keyframes support-resource-panel-in{from{opacity:0;transform:translateY(-6px) scale(0.98);}to{opacity:1;transform:translateY(0) scale(1);}}
+        @media (max-width:760px){
+          .settings-card-header-with-popover{padding-right:0;}
+          .support-resource-popover{position:static;justify-self:end;margin-top:2px;}
+          .support-resource-panel{right:-4px;width:min(320px,calc(100vw - 48px));}
+        }
+      </style>`;
 
   // Minimalist SVG icons for help sections — Feather-style line art, 24×24 viewBox, currentColor
   const helpIcons: Record<string, string> = {
@@ -506,6 +569,11 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <select id="default-agent-select"></select>
         </div>
 
+        <div class="form-group">
+          <label for="default-model-select">${escapeHtml(strings.executionDefaultsModel)}</label>
+          <select id="default-model-select"></select>
+        </div>
+
         <div class="button-group">
           <button type="button" class="btn-primary" id="execution-defaults-save-btn">${escapeHtml(strings.executionDefaultsSave)}</button>
         </div>
@@ -536,21 +604,59 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
         <p class="note" id="settings-approval-mode-note" style="display:none;">${escapeHtml(strings.approvalModeSaved)}</p>
       </section>
       <section class="telegram-card settings-card settings-card-support settings-card-span-full">
-        <div class="settings-card-header">
-          <div class="section-title">🛟 ${escapeHtml(strings.settingsSupportTitle)}</div>
-          <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
+        ${supportPopoverStyles}
+        <div class="settings-card-header settings-card-header-with-popover">
+          <div class="settings-card-header-copy">
+            <div class="section-title">🛟 ${escapeHtml(strings.settingsSupportTitle)}</div>
+            <p class="note">${escapeHtml(strings.settingsSupportBody)}</p>
+          </div>
+          <details class="support-resource-popover">
+            <summary class="support-resource-trigger" aria-label="${escapeHtmlAttr(strings.settingsSupportResourcesTriggerLabel)}" title="${escapeHtmlAttr(strings.settingsSupportResourcesTriggerLabel)}">
+              <span aria-hidden="true">?</span>
+            </summary>
+            <div class="support-resource-panel">
+              <div class="support-resource-panel-copy">
+                <strong>${escapeHtml(strings.settingsSupportResourcesTitle)}</strong>
+                <p class="note">${escapeHtml(strings.settingsSupportResourcesBody)}</p>
+              </div>
+              <div class="support-resource-list">
+${supportResourcesMarkup}
+              </div>
+            </div>
+          </details>
         </div>
         <div id="support-onboarding-callout" class="onboarding-callout" style="display:none;"></div>
         <p class="note" style="margin-bottom:6px;">${escapeHtml(strings.settingsSupportNewRepoNote)}</p>
         <div class="settings-actions-grid">
-          <div class="settings-action-group settings-action-group-primary">
-            <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn">${escapeHtml(strings.actionSetupMcp)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-third-party-mcp-btn">${escapeHtml(strings.actionSetupThirdPartyMcp)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-skills-btn">${escapeHtml(strings.actionSyncBundledSkills)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-sync" id="stage-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionStageBundledAgentsTitle)}">${escapeHtml(strings.actionStageBundledAgents)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionSyncBundledAgentsTitle)}">${escapeHtml(strings.actionSyncBundledAgents)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
-            <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+          <div class="settings-action-group settings-action-group-primary settings-action-group-steps" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));">
+            <div class="settings-step-card" style="display:grid;gap:8px;padding:14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 14%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 94%,transparent) 100%);box-shadow:0 14px 24px color-mix(in srgb,var(--vscode-editor-background) 86%,transparent);">
+              <span class="settings-step-eyebrow" style="display:inline-flex;align-items:center;width:fit-content;padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background));border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--vscode-foreground);">${escapeHtml(strings.settingsSetupStep1Title)}</span>
+              <strong>${escapeHtml(strings.actionSetupMcp)}</strong>
+              <p>${escapeHtml(strings.settingsSetupStep1Body)}</p>
+              <div class="settings-step-actions" style="display:grid;gap:8px;">
+                <button type="button" class="btn-primary settings-action-button is-setup" id="setup-mcp-btn" style="background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 40%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background)) 100%) !important;color:var(--vscode-button-foreground) !important;border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 58%,var(--vscode-panel-border)) !important;">${escapeHtml(strings.actionSetupMcp)}</button>
+                <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-third-party-mcp-btn" style="background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 40%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background)) 100%) !important;color:var(--vscode-button-foreground) !important;border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 58%,var(--vscode-panel-border)) !important;">${escapeHtml(strings.actionSetupThirdPartyMcp)}</button>
+              </div>
+            </div>
+            <div class="settings-step-card" style="display:grid;gap:8px;padding:14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 14%,var(--vscode-editorWidget-background)) 0%,color-mix(in srgb,var(--vscode-editorWidget-background) 94%,transparent) 100%);box-shadow:0 14px 24px color-mix(in srgb,var(--vscode-editor-background) 86%,transparent);">
+              <span class="settings-step-eyebrow" style="display:inline-flex;align-items:center;width:fit-content;padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background));border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--vscode-foreground);">${escapeHtml(strings.settingsSetupStep2Title)}</span>
+              <strong>${escapeHtml(strings.actionSyncBundledSkills)}</strong>
+              <p>${escapeHtml(strings.settingsSetupStep2Body)}</p>
+              <div class="settings-step-actions" style="display:grid;gap:8px;">
+                <button type="button" class="btn-primary settings-action-button is-sync" id="sync-bundled-skills-btn" style="background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 40%,var(--vscode-button-background)) 0%,color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background)) 100%) !important;color:var(--vscode-button-foreground) !important;border-color:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 58%,var(--vscode-panel-border)) !important;">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+              </div>
+            </div>
+            <div class="settings-step-card is-optional" style="display:grid;gap:8px;padding:14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--vscode-panel-border) 90%,transparent);background:linear-gradient(180deg,color-mix(in srgb,var(--vscode-editorWidget-background) 96%,transparent) 0%,color-mix(in srgb,var(--vscode-sideBar-background) 84%,transparent) 100%);box-shadow:0 14px 24px color-mix(in srgb,var(--vscode-editor-background) 86%,transparent);">
+              <span class="settings-step-eyebrow" style="display:inline-flex;align-items:center;width:fit-content;padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 18%,var(--vscode-editorWidget-background));border:1px solid color-mix(in srgb,var(--vscode-testing-runAction,#5aa9e6) 34%,var(--vscode-panel-border));font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--vscode-foreground);">${escapeHtml(strings.settingsSetupMoreTitle)}</span>
+              <strong>${escapeHtml(strings.settingsSetupMoreTitle)}</strong>
+              <p>${escapeHtml(strings.settingsSetupMoreBody)}</p>
+              <div class="settings-step-actions" style="display:grid;gap:8px;">
+                <button type="button" class="btn-secondary settings-action-button is-sync" id="stage-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionStageBundledAgentsTitle)}">${escapeHtml(strings.actionStageBundledAgents)}</button>
+                <button type="button" class="btn-secondary settings-action-button is-sync" id="sync-bundled-agents-btn" title="${escapeHtmlAttr(strings.actionSyncBundledAgentsTitle)}">${escapeHtml(strings.actionSyncBundledAgents)}</button>
+                <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-btn">${escapeHtml(strings.actionSetupCodex)}</button>
+                <button type="button" class="btn-secondary settings-action-button is-setup" id="setup-codex-skills-btn">${escapeHtml(strings.actionSetupCodexSkills)}</button>
+              </div>
+            </div>
           </div>
           <div class="settings-action-group settings-action-group-secondary">
             <button type="button" class="btn-secondary settings-action-button is-open" id="open-copilot-settings-btn">${escapeHtml(strings.actionOpenCopilotSettings)}</button>
@@ -716,6 +822,31 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="settings-flag-final-user-check-input">
             <span>${escapeHtml(strings.boardFlagPresetFinalUserCheck)}</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <div style="font-weight:600;margin-bottom:6px;">🔔 ${escapeHtml(strings.settingsStartupNotificationsTitle)}</div>
+          <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.settingsStartupNotificationsBody)}</p>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-startup-activation-banner-input">
+            <span>${escapeHtml(strings.settingsStartupActivationBannerLabel)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-startup-support-updates-input">
+            <span>${escapeHtml(strings.settingsStartupSupportUpdatesLabel)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-startup-agent-models-input">
+            <span>${escapeHtml(strings.settingsStartupAgentModelsLabel)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:4px;">
+            <input type="checkbox" id="settings-startup-reload-after-update-input">
+            <span>${escapeHtml(strings.settingsStartupReloadAfterUpdateLabel)}</span>
+          </label>
+          <label class="checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="settings-startup-overdue-tasks-input">
+            <span>${escapeHtml(strings.settingsStartupOverdueTasksLabel)}</span>
           </label>
         </div>
 
@@ -916,9 +1047,17 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
           </div>
           <hr style="border:none;border-top:1px solid var(--vscode-sideBarSectionHeader-border, #404040);margin:10px 0;" />
           <p class="note" style="margin-bottom:8px;">${escapeHtml(strings.helpAgentEcosystemWorkspaceNote)}</p>
-          <div class="button-group" style="margin-top:8px;">
-            <button type="button" class="btn-secondary" id="btn-help-setup-mcp">${escapeHtml(strings.actionSetupMcp)}</button>
-            <button type="button" class="btn-secondary" id="btn-help-sync-skills">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+          <div class="onboarding-callout" style="${prominentSetupCalloutStyle}">
+            <ol style="margin:0;padding-left:20px;display:grid;gap:6px;">
+              <li>${strings.settingsOnboardingStep1}</li>
+              <li>${strings.settingsOnboardingStep2}</li>
+              <li>${strings.settingsOnboardingStep3}</li>
+            </ol>
+            <p class="note" style="margin:0;">${escapeHtml(strings.settingsOnboardingHint)}</p>
+          </div>
+          <div class="button-group" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+            <button type="button" class="btn-primary" id="btn-help-setup-mcp" style="${prominentSetupButtonStyle}">${escapeHtml(strings.actionSetupMcp)}</button>
+            <button type="button" class="btn-primary" id="btn-help-sync-skills" style="${prominentSetupButtonStyle}">${escapeHtml(strings.actionSyncBundledSkills)}</button>
           </div></section>
       <div class="help-grid">
         <section class="help-section">
@@ -1040,11 +1179,13 @@ export function buildSchedulerWorkspaceTabsMarkup(options: {
             <li>${escapeHtml(strings.helpMcpItemWrite)}</li>
             <li>${escapeHtml(strings.helpMcpItemTools)}</li>
           </ul>
-          <div class="button-group" style="margin-top:8px;">
-            <button type="button" class="btn-secondary" id="btn-help-setup-mcp-hero">${escapeHtml(strings.actionSetupMcp)}</button>
-            <button type="button" class="btn-secondary" id="btn-help-sync-skills-hero">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+          <div class="onboarding-callout" style="${prominentSetupCalloutStyle}">
+            <div style="font-weight:700;">${escapeHtml(strings.helpMcpWorkspaceNote)}</div>
+            <div class="button-group" style="margin-top:2px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+              <button type="button" class="btn-primary" id="btn-help-setup-mcp-hero" style="${prominentSetupButtonStyle}">${escapeHtml(strings.actionSetupMcp)}</button>
+              <button type="button" class="btn-primary" id="btn-help-sync-skills-hero" style="${prominentSetupButtonStyle}">${escapeHtml(strings.actionSyncBundledSkills)}</button>
+            </div>
           </div>
-          <p class="note" style="margin-top:6px;">${escapeHtml(strings.helpMcpWorkspaceNote)}</p>
         </section>
       </div></div></div>
   

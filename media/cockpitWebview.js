@@ -680,6 +680,11 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     settingsFlagNewInput,
     settingsFlagOnScheduleListInput,
     settingsFlagFinalUserCheckInput,
+    settingsStartupActivationBannerInput,
+    settingsStartupSupportUpdatesInput,
+    settingsStartupAgentModelsInput,
+    settingsStartupReloadAfterUpdateInput,
+    settingsStartupOverdueTasksInput,
     settingsStorageSaveBtn,
     settingsStorageNote,
     settingsVersionValue,
@@ -1953,6 +1958,23 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
         !settingsAutoIgnorePrivateFilesInput
         || settingsAutoIgnorePrivateFilesInput.checked !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,
+      startupNotifications: {
+        activationBanner:
+          !settingsStartupActivationBannerInput
+          || settingsStartupActivationBannerInput.checked !== false,
+        supportUpdates:
+          !settingsStartupSupportUpdatesInput
+          || settingsStartupSupportUpdatesInput.checked !== false,
+        unavailableAgentModels:
+          !settingsStartupAgentModelsInput
+          || settingsStartupAgentModelsInput.checked !== false,
+        reloadAfterUpdate:
+          !settingsStartupReloadAfterUpdateInput
+          || settingsStartupReloadAfterUpdateInput.checked !== false,
+        overdueTasks:
+          !settingsStartupOverdueTasksInput
+          || settingsStartupOverdueTasksInput.checked !== false,
+      },
     };
   }
 
@@ -2109,6 +2131,21 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     }
     if (settingsFlagFinalUserCheckInput) {
       settingsFlagFinalUserCheckInput.checked = !disabledSystemFlagKeySet["final-user-check"];
+    }
+    if (settingsStartupActivationBannerInput) {
+      settingsStartupActivationBannerInput.checked = !storageSettings.startupNotifications || storageSettings.startupNotifications.activationBanner !== false;
+    }
+    if (settingsStartupSupportUpdatesInput) {
+      settingsStartupSupportUpdatesInput.checked = !storageSettings.startupNotifications || storageSettings.startupNotifications.supportUpdates !== false;
+    }
+    if (settingsStartupAgentModelsInput) {
+      settingsStartupAgentModelsInput.checked = !storageSettings.startupNotifications || storageSettings.startupNotifications.unavailableAgentModels !== false;
+    }
+    if (settingsStartupReloadAfterUpdateInput) {
+      settingsStartupReloadAfterUpdateInput.checked = !storageSettings.startupNotifications || storageSettings.startupNotifications.reloadAfterUpdate !== false;
+    }
+    if (settingsStartupOverdueTasksInput) {
+      settingsStartupOverdueTasksInput.checked = !storageSettings.startupNotifications || storageSettings.startupNotifications.overdueTasks !== false;
     }
     if (settingsStorageNote) {
       settingsStorageNote.textContent = strings.settingsStorageSaved
@@ -8576,7 +8613,9 @@ syncTodoLabelSuggestions();
     var note = document.getElementById("agent-models-note");
     if (!container) { return; }
 
-    var localAgents = (Array.isArray(agents) ? agents : []).filter(function (a) { return a && a.filePath; });
+    var localAgents = (Array.isArray(agents) ? agents : []).filter(function (a) {
+      return a && a.filePath && isRepoLocalWorkspaceAgentFile(a.filePath);
+    });
     if (localAgents.length === 0) {
       container.innerHTML = '<p class="note" style="font-style:italic;">' + escapeHtml(strings.agentModelsNoLocalAgents || "No repo-local agent files found.") + '</p>';
       if (note) { note.style.display = "none"; }
@@ -8584,33 +8623,69 @@ syncTodoLabelSuggestions();
     }
 
     var rows = [];
+    var unavailableCount = 0;
     for (var ai = 0; ai < localAgents.length; ai++) {
       var agent = localAgents[ai];
       var agentName = agent.name || agent.id || "(unnamed)";
-      var currentModel = agentModelMap[agent.filePath] || "";
+      var currentModel = Object.prototype.hasOwnProperty.call(pendingAgentModelOverrides, agent.filePath)
+        ? pendingAgentModelOverrides[agent.filePath]
+        : (agent.model || "");
+
+      var modelList = Array.isArray(models) ? models : [];
+      var matchedModel = resolveAvailableModelSelection(currentModel, modelList);
+      var modelExists = !currentModel || !!matchedModel;
+      var currentModelMatchesExactId = !!(matchedModel && matchedModel.id === currentModel);
+      if (!modelExists) {
+        unavailableCount += 1;
+      }
 
       var opts = '<option value="">' + escapeHtml(strings.agentModelLabel || "Model") + '</option>';
-      var modelList = Array.isArray(models) ? models : [];
+      if (currentModel && !currentModelMatchesExactId) {
+        opts += '<option value="' + escapeAttr(currentModel) + '" selected>'
+          + escapeHtml(!modelExists
+            ? (strings.agentModelUnavailableOptionPrefix || "Unavailable: ") + currentModel
+            : currentModel)
+          + '</option>';
+      }
       for (var mi = 0; mi < modelList.length; mi++) {
         var m = modelList[mi];
         var mId = m && m.id ? m.id : "";
         var mLabel = formatModelLabel(m);
-        var selected = mId === currentModel ? " selected" : "";
+        var selected = currentModelMatchesExactId && mId === currentModel ? " selected" : "";
         opts += '<option value="' + escapeAttr(mId) + '"' + selected + ">" + escapeHtml(mLabel) + "</option>";
       }
 
       var filePathAttr = escapeAttr(agent.filePath);
       var agentIdAttr = escapeAttr(agent.id);
+      var rowStyle = 'display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--vscode-panel-border);';
+      if (!modelExists) {
+        rowStyle += 'background:color-mix(in srgb, var(--vscode-inputValidation-errorBackground, rgba(244,71,71,0.18)) 78%, transparent);';
+        rowStyle += 'border-left:3px solid var(--vscode-errorForeground,#f14c4c);padding-left:8px;';
+      }
       rows.push(
-        '<div class="agent-model-row" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--vscode-panel-border);">' +
-          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(agentName) + "</strong>" +
-          '<select class="agent-model-select" data-agent-id="' + agentIdAttr + '" data-agent-filepath="' + filePathAttr + '" style="max-width:240px;">' + opts + "</select>" +
+        '<div class="agent-model-row" style="' + rowStyle + '">' +
+          '<strong style="flex:1 1 220px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-top:5px;">' + escapeHtml(agentName) + "</strong>" +
+          '<select class="agent-model-select" data-agent-id="' + agentIdAttr + '" data-agent-filepath="' + filePathAttr + '" style="flex:0 0 240px;max-width:100%;">' + opts + "</select>" +
+          (!modelExists && currentModel
+            ? '<div style="flex-basis:100%;color:var(--vscode-errorForeground,#f14c4c);font-size:12px;line-height:1.4;">'
+              + escapeHtml((strings.agentModelUnavailableLabel || "Missing locally") + ': ' + currentModel)
+              + '</div>'
+            : '') +
         "</div>"
       );
     }
 
     container.innerHTML = rows.join("");
-    if (note) { note.style.display = "none"; }
+    if (note) {
+      if (unavailableCount > 0) {
+        note.textContent = (strings.agentModelUnavailableHelp || "Red rows are pinned to models that are not available in this VS Code window.");
+        note.style.display = "block";
+        note.style.color = "var(--vscode-errorForeground,#f14c4c)";
+      } else {
+        note.style.display = "none";
+        note.textContent = "";
+      }
+    }
 
     // Bind change listeners
     var selects = container.querySelectorAll(".agent-model-select");
@@ -8622,8 +8697,8 @@ syncTodoLabelSuggestions();
           var agentId = selectEl.getAttribute("data-agent-id");
           var modelVal = selectEl.value || "";
           if (fp) {
-            agentModelMap[fp] = modelVal;
-            persistAgentModelMap();
+            pendingAgentModelOverrides[fp] = modelVal;
+            renderAgentModelsControls();
             vscode.postMessage({
               type: "saveAgentModel",
               agentId: agentId || "",
@@ -8636,18 +8711,177 @@ syncTodoLabelSuggestions();
     }
   }
 
-  var agentModelMap = (function () {
-    try {
-      var saved = vscode.getState && vscode.getState();
-      return (saved && saved.agentModels) || {};
-    } catch (e) { return {}; }
-  })();
-  function persistAgentModelMap() {
-    try {
-      var state = vscode.getState ? (vscode.getState() || {}) : {};
-      state.agentModels = agentModelMap;
-      if (vscode.setState) { vscode.setState(state); }
-    } catch (e) { /* ignore */ }
+  var pendingAgentModelOverrides = {};
+
+  function normalizeModelAvailabilityToken(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[•().,[\]{}+]/g, " ")
+      .replace(/[_/:-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function compactModelAvailabilityToken(value) {
+    return normalizeModelAvailabilityToken(value).replace(/[^a-z0-9]+/g, "");
+  }
+
+  function humanizeModelSourceToken(rawValue) {
+    var trimmed = String(rawValue || "").trim();
+    if (!trimmed) {
+      return "";
+    }
+
+    switch (trimmed.toLowerCase()) {
+      case "openrouter":
+        return "OpenRouter";
+      case "copilot":
+        return "Copilot";
+      case "deepseek":
+        return "DeepSeek";
+      case "openai":
+        return "OpenAI";
+      case "github":
+        return "GitHub";
+      case "xai":
+      case "x-ai":
+        return "xAI";
+      default:
+        return trimmed
+          .split(/[^a-z0-9]+/i)
+          .filter(Boolean)
+          .map(function (segment) {
+            if (segment.toUpperCase() === segment) {
+              return segment;
+            }
+            return segment.charAt(0).toUpperCase() + segment.slice(1);
+          })
+          .join(" ");
+    }
+  }
+
+  function inferModelSourceLabel(model) {
+    var id = model && model.id ? String(model.id).trim() : "";
+    var vendor = model && model.vendor ? String(model.vendor).trim() : "";
+    var description = model && model.description ? String(model.description).trim() : "";
+    var name = model && model.name ? String(model.name).trim() : "";
+    var normalized = [id, name, vendor, description].join(" ").toLowerCase();
+
+    if (normalized.indexOf("openrouter") >= 0) {
+      return "OpenRouter";
+    }
+
+    if (
+      normalized.indexOf("copilot") >= 0 ||
+      normalized.indexOf("codex") >= 0 ||
+      normalized.indexOf("github") >= 0 ||
+      normalized.indexOf("microsoft") >= 0
+    ) {
+      return "Copilot";
+    }
+
+    if (vendor) {
+      return humanizeModelSourceToken(vendor);
+    }
+
+    var prefixedIdMatch = id.match(/^([a-z0-9][a-z0-9._-]*)(?:[/:])/i);
+    if (prefixedIdMatch) {
+      return humanizeModelSourceToken(prefixedIdMatch[1]);
+    }
+
+    var descriptionSourceMatch = description.match(/\b(?:via|from|provider|vendor|hosted by|hosted via)\s+([a-z0-9][a-z0-9._-]*)/i);
+    if (descriptionSourceMatch) {
+      return humanizeModelSourceToken(descriptionSourceMatch[1]);
+    }
+
+    return "";
+  }
+
+  function buildModelAvailabilityTokens(model) {
+    var sourceLabel = inferModelSourceLabel(model);
+    return [
+      model && model.id || "",
+      model && model.name || "",
+      ((model && model.name) || "") + " " + ((model && model.vendor) || ""),
+      ((model && model.name) || "") + " (" + ((model && model.vendor) || "") + ")",
+      ((model && model.id) || "") + " " + ((model && model.vendor) || ""),
+      model && model.description || "",
+      sourceLabel,
+      sourceLabel ? ((model && model.name) || "") + " " + sourceLabel : "",
+      sourceLabel ? ((model && model.name) || "") + " (" + sourceLabel + ")" : "",
+      sourceLabel ? ((model && model.id) || "") + " " + sourceLabel : "",
+      formatModelLabel(model),
+    ]
+      .map(normalizeModelAvailabilityToken)
+      .filter(Boolean)
+      .filter(function (token, index, items) {
+        return items.indexOf(token) === index;
+      });
+  }
+
+  function resolveAvailableModelSelection(selection, availableModels) {
+    var normalizedSelection = normalizeModelAvailabilityToken(selection);
+    if (!normalizedSelection) {
+      return null;
+    }
+
+    var compactSelection = compactModelAvailabilityToken(selection);
+    var modelList = Array.isArray(availableModels) ? availableModels : [];
+    for (var index = 0; index < modelList.length; index++) {
+      var model = modelList[index];
+      var tokens = buildModelAvailabilityTokens(model);
+      if (tokens.indexOf(normalizedSelection) >= 0) {
+        return model;
+      }
+
+      var compactTokens = tokens.map(compactModelAvailabilityToken).filter(Boolean);
+      if (compactTokens.indexOf(compactSelection) >= 0) {
+        return model;
+      }
+    }
+
+    return null;
+  }
+
+  function isModelSelectionAvailable(selection, availableModels) {
+    var normalizedSelection = normalizeModelAvailabilityToken(selection);
+    if (!normalizedSelection) {
+      return true;
+    }
+
+    return !!resolveAvailableModelSelection(selection, availableModels);
+  }
+
+  function isRepoLocalWorkspaceAgentFile(filePath) {
+    var normalizedFilePath = normalizeWorkspacePathValue(filePath);
+    if (!normalizedFilePath || !/\.agent\.md$/i.test(String(filePath || ""))) {
+      return false;
+    }
+
+    return (workspacePaths || []).some(function (rootPath) {
+      var agentsRoot = normalizeWorkspacePathValue(String(rootPath || "") + "/.github/agents");
+      return !!agentsRoot
+        && (normalizedFilePath === agentsRoot || normalizedFilePath.indexOf(agentsRoot + "/") === 0);
+    });
+  }
+
+  function reconcilePendingAgentModelOverrides(agentList) {
+    var sourceAgents = Array.isArray(agentList) ? agentList : [];
+
+    for (var index = 0; index < sourceAgents.length; index++) {
+      var agent = sourceAgents[index];
+      if (!agent || !agent.filePath || !isRepoLocalWorkspaceAgentFile(agent.filePath)) {
+        continue;
+      }
+
+      if (!Object.prototype.hasOwnProperty.call(pendingAgentModelOverrides, agent.filePath)) {
+        continue;
+      }
+
+      if ((typeof agent.model === "string" ? agent.model : "") === pendingAgentModelOverrides[agent.filePath]) {
+        delete pendingAgentModelOverrides[agent.filePath];
+      }
+    }
   }
 
   function getTaskArrayForEditing() {
@@ -10351,6 +10585,7 @@ syncTodoLabelSuggestions();
             },
             assignItems: function () {
               agents = Array.isArray(message.agents) ? message.agents : [];
+              reconcilePendingAgentModelOverrides(agents);
             },
             updateOptions: populateAgentDropdown,
           });

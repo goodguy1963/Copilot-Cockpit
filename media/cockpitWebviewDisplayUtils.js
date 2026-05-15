@@ -29,13 +29,46 @@ function decodeFileLikePath(value) {
   return pickPathLeaf(normalized.replace(/^file:\/\/\/?/i, ""));
 }
 
+function humanizeModelSourceToken(rawValue) {
+  var trimmed = String(rawValue || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  switch (trimmed.toLowerCase()) {
+    case "openrouter":
+      return "OpenRouter";
+    case "copilot":
+      return "Copilot";
+    case "deepseek":
+      return "DeepSeek";
+    case "openai":
+      return "OpenAI";
+    case "github":
+      return "GitHub";
+    case "xai":
+    case "x-ai":
+      return "xAI";
+    default:
+      return trimmed
+        .split(/[^a-z0-9]+/i)
+        .filter(Boolean)
+        .map(function (segment) {
+          if (segment.toUpperCase() === segment) {
+            return segment;
+          }
+          return segment.charAt(0).toUpperCase() + segment.slice(1);
+        })
+        .join(" ");
+  }
+}
+
 function inferModelSourceName(model) {
-  var fragments = [
-    model && model.id,
-    model && model.name,
-    model && model.vendor,
-    model && model.description,
-  ]
+  var id = model && model.id ? String(model.id).trim() : "";
+  var vendor = model && model.vendor ? String(model.vendor).trim() : "";
+  var description = model && model.description ? String(model.description).trim() : "";
+  var name = model && model.name ? String(model.name).trim() : "";
+  var fragments = [id, name, vendor, description]
     .filter(Boolean)
     .map(function (value) {
       return String(value).trim().toLowerCase();
@@ -55,7 +88,21 @@ function inferModelSourceName(model) {
     return "Copilot";
   }
 
-  return model && model.vendor ? String(model.vendor).trim() : "";
+  if (vendor) {
+    return humanizeModelSourceToken(vendor);
+  }
+
+  var prefixedIdMatch = id.match(/^([a-z0-9][a-z0-9._-]*)(?:[/:])/i);
+  if (prefixedIdMatch) {
+    return humanizeModelSourceToken(prefixedIdMatch[1]);
+  }
+
+  var descriptionSourceMatch = description.match(/\b(?:via|from|provider|vendor|hosted by|hosted via)\s+([a-z0-9][a-z0-9._-]*)/i);
+  if (descriptionSourceMatch) {
+    return humanizeModelSourceToken(descriptionSourceMatch[1]);
+  }
+
+  return "";
 }
 
 export function formatModelLabel(model) {

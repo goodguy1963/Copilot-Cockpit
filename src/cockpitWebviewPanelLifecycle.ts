@@ -137,6 +137,7 @@ export function replaySchedulerPanel(options: {
 
 export function createFreshSchedulerPanel(options: {
   extensionUri: vscode.Uri;
+  title: string;
   tasks: ScheduledTask[];
   agentListCache: AgentInfo[];
   modelListCache: ModelInfo[];
@@ -149,7 +150,7 @@ export function createFreshSchedulerPanel(options: {
 }): vscode.WebviewPanel {
   return createSchedulerWebviewPanel({
     extensionUri: options.extensionUri,
-    title: messages.webviewTitle(),
+    title: options.title,
     renderHtml: (webview) =>
       options.renderHtml(
         webview,

@@ -74,6 +74,18 @@ function normalizeMcpSetupStatus(value, previousValue) {
   }
 }
 
+function normalizeStartupNotifications(value, previousValue) {
+  var previous = previousValue || {};
+  var incoming = value || {};
+  return {
+    activationBanner: incoming.activationBanner !== false && previous.activationBanner !== false,
+    supportUpdates: incoming.supportUpdates !== false && previous.supportUpdates !== false,
+    unavailableAgentModels: incoming.unavailableAgentModels !== false && previous.unavailableAgentModels !== false,
+    reloadAfterUpdate: incoming.reloadAfterUpdate !== false && previous.reloadAfterUpdate !== false,
+    overdueTasks: incoming.overdueTasks !== false && previous.overdueTasks !== false,
+  };
+}
+
 export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
   return function normalizeStorageSettings(value, previousValue) {
     var disabledSystemFlagKeys = Array.isArray(value && value.disabledSystemFlagKeys)
@@ -119,6 +131,10 @@ export function createStorageSettingsNormalizer(normalizeTodoLabelKey) {
         ? value.autoIgnorePrivateFiles !== false
         : (previousValue && previousValue.autoIgnorePrivateFiles) !== false,
       disabledSystemFlagKeys: disabledSystemFlagKeys,
+      startupNotifications: normalizeStartupNotifications(
+        value && value.startupNotifications,
+        previousValue && previousValue.startupNotifications,
+      ),
       appVersion:
         value && typeof value.appVersion === "string"
           ? value.appVersion

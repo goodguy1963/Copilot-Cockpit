@@ -955,6 +955,100 @@ export async function syncBundledAgentsForWorkspaceRoots(
   return result;
 }
 
+export async function previewBundledAgentsSyncForWorkspaceRoots(
+  extensionRoot: string,
+  workspaceRoots: string[],
+  syncState: BundledSkillSyncState = {},
+): Promise<BundledSkillSyncResult> {
+  const normalizedState = normalizeSyncState(syncState);
+  const result: BundledSkillSyncResult = {
+    createdPaths: [],
+    updatedPaths: [],
+    skippedPaths: [],
+    unchangedPaths: [],
+    nextState: { ...normalizedState },
+  };
+
+  if (!extensionRoot || workspaceRoots.length === 0) {
+    return result;
+  }
+
+  const { entries } = await collectBundledAgentSourceEntries(extensionRoot);
+  if (entries.length === 0) {
+    return result;
+  }
+
+  const bundledContentByRelativePath = new Map<string, string>();
+
+  for (const workspaceRoot of workspaceRoots) {
+    if (!workspaceRoot) {
+      continue;
+    }
+
+    const previousWorkspaceState = normalizedState[workspaceRoot] ?? {};
+    const nextWorkspaceState: Record<string, string> = {};
+
+    for (const entry of entries) {
+      let bundledContent = bundledContentByRelativePath.get(entry.sourceRelativePath);
+      if (bundledContent === undefined) {
+        bundledContent = await fs.promises.readFile(
+          entry.sourceAbsolutePath,
+          "utf8",
+        );
+        bundledContentByRelativePath.set(entry.sourceRelativePath, bundledContent);
+      }
+
+      const bundledHash = createContentHash(bundledContent);
+      const targetPath = path.join(workspaceRoot, entry.liveRelativePath);
+      const previousManagedHash = previousWorkspaceState[entry.liveRelativePath];
+
+      let currentContent: string | undefined;
+      try {
+        currentContent = await fs.promises.readFile(targetPath, "utf8");
+      } catch (error) {
+        const code = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : "";
+        if (code && code !== "ENOENT") {
+          throw error;
+        }
+      }
+
+      if (currentContent === undefined) {
+        result.createdPaths.push(targetPath);
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
+        continue;
+      }
+
+      const currentHash = createContentHash(currentContent);
+      if (currentHash === bundledHash) {
+        result.unchangedPaths.push(targetPath);
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
+        continue;
+      }
+
+      if (previousManagedHash && currentHash === previousManagedHash) {
+        result.updatedPaths.push(targetPath);
+        nextWorkspaceState[entry.liveRelativePath] = bundledHash;
+        continue;
+      }
+
+      result.skippedPaths.push(targetPath);
+      if (previousManagedHash) {
+        nextWorkspaceState[entry.liveRelativePath] = previousManagedHash;
+      }
+    }
+
+    if (Object.keys(nextWorkspaceState).length > 0) {
+      result.nextState[workspaceRoot] = nextWorkspaceState;
+    } else {
+      delete result.nextState[workspaceRoot];
+    }
+  }
+
+  return result;
+}
+
 export async function syncBundledCodexSkillsForWorkspaceRoots(
   extensionRoot: string,
   workspaceRoots: string[],

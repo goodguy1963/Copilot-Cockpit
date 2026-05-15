@@ -253,8 +253,9 @@ function createCustomAgent(
   id: string,
   description: string,
   filePath: string,
+  model = "",
 ): AgentInfo {
-  return { id, name: id, description, isCustom: true, filePath };
+  return { id, name: id, description, isCustom: true, filePath, model };
 }
 
 function getDefaultModelOption(): ModelInfo {
@@ -315,6 +316,17 @@ async function findAgentsDeclaredInAgentsMd(file: vscode.Uri): Promise<AgentInfo
   }
 
   return discovered;
+}
+
+async function readAgentConfiguredModel(file: vscode.Uri): Promise<string> {
+  try {
+    const rawBytes = await vscode.workspace.fs.readFile(file);
+    const content = Buffer.from(rawBytes).toString("utf8");
+    const match = content.match(/^model\s*:\s*(.+)$/m);
+    return match ? match[1].trim() : "";
+  } catch {
+    return "";
+  }
 }
 
 function convertModelToInfo(model: vscode.LanguageModelChat): ModelInfo {
@@ -691,12 +703,14 @@ export class CopilotExecutor {
 
     for (const file of agentFiles) { // scan-agent
       const baseName = path.basename(file.fsPath).replace(/\.agent\.md$/i, "");
+      const configuredModel = await readAgentConfiguredModel(file);
       pushUniqueAgent(
         discoveredAgents,
         createCustomAgent(
           `@${baseName}`,
           messages.agentCustomDesc(),
           file.fsPath,
+          configuredModel,
         ),
       );
     }
@@ -725,7 +739,7 @@ export class CopilotExecutor {
 
     try {
       const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(globalAgentsPath));
-      return entries.flatMap(([entryName, entryType]) => {
+      const discoveredAgents = entries.flatMap(([entryName, entryType]) => {
         if (entryType !== vscode.FileType.File || !entryName.toLowerCase().endsWith(".agent.md")) {
           return [];
         }
@@ -739,6 +753,10 @@ export class CopilotExecutor {
           ),
         ];
       });
+      return Promise.all(discoveredAgents.map(async (agent) => ({
+        ...agent,
+        model: await readAgentConfiguredModel(vscode.Uri.file(agent.filePath || "")),
+      })));
     } catch (error) {
       logGlobalAgentsReadFailure(error);
       return [];

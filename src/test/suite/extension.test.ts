@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import type { ScheduledTask } from "../../types"; // local-diverge-3
+import type { AgentInfo, ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
 import {
@@ -536,6 +536,109 @@ suite("Extension Integration Tests", () => {
 
     assert.strictEqual(refreshEvents.length, 2);
     assert.strictEqual(queue.hasPending(), false);
+  });
+
+  test("repo-local agent filtering keeps only live workspace .github agents", async () => {
+    const testOnly = await getTestOnlyExports();
+    const filterRepoLocalWorkspaceAgents = testOnly.filterRepoLocalWorkspaceAgents as
+      | ((agents: AgentInfo[], workspaceRoots?: string[]) => AgentInfo[])
+      | undefined;
+
+    assert.ok(typeof filterRepoLocalWorkspaceAgents === "function");
+
+    const agents: AgentInfo[] = [
+      {
+        id: "@repo-live",
+        name: "@repo-live",
+        description: "live repo agent",
+        isCustom: true,
+        filePath: "F:/repo/.github/agents/repo-live.agent.md",
+        model: "gpt-4.1",
+      },
+      {
+        id: "@staged-bundle",
+        name: "@staged-bundle",
+        description: "staged bundled copy",
+        isCustom: true,
+        filePath: "F:/repo/.vscode/copilot-cockpit-support/bundled-agents/.github/agents/staged-bundle.agent.md",
+        model: "gpt-4.1",
+      },
+      {
+        id: "@other-file",
+        name: "@other-file",
+        description: "other custom file",
+        isCustom: true,
+        filePath: "F:/repo/.agents/other-file.agent.md",
+        model: "gpt-4.1",
+      },
+      {
+        id: "@second-root",
+        name: "@second-root",
+        description: "second workspace root agent",
+        isCustom: true,
+        filePath: "F:/other/.github/agents/second-root.agent.md",
+        model: "gpt-4.1",
+      },
+    ];
+
+    assert.deepStrictEqual(
+      filterRepoLocalWorkspaceAgents!(agents, ["F:/repo", "F:/other"]).map((agent) => agent.id),
+      ["@repo-live", "@second-root"],
+    );
+  });
+
+  test("model availability matcher tolerates normalized DeepSeek variants", async () => {
+    const testOnly = await getTestOnlyExports();
+    const isModelSelectionAvailable = testOnly.isModelSelectionAvailable as
+      | ((selection: string | undefined, availableModels: Array<{ id?: string; name?: string; vendor?: string }>) => boolean)
+      | undefined;
+
+    assert.ok(typeof isModelSelectionAvailable === "function");
+
+    const availableModels = [
+      {
+        id: "deepseek-v4-pro",
+        name: "DeepSeek V4 Pro",
+        vendor: "OpenRouter",
+      },
+      {
+        id: "gpt-4.1",
+        name: "GPT-4.1",
+        vendor: "Copilot",
+      },
+    ];
+
+    assert.strictEqual(isModelSelectionAvailable!("DeepSeek V4 Pro", availableModels), true);
+    assert.strictEqual(isModelSelectionAvailable!("deepseek-v4-pro", availableModels), true);
+    assert.strictEqual(isModelSelectionAvailable!("DeepSeek V4 Pro (OpenRouter)", availableModels), true);
+    assert.strictEqual(isModelSelectionAvailable!("deepseekv4pro", availableModels), true);
+  });
+
+  test("model availability matcher accepts provider-qualified agent frontmatter values", async () => {
+    const testOnly = await getTestOnlyExports();
+    const isModelSelectionAvailable = testOnly.isModelSelectionAvailable as
+      | ((selection: string | undefined, availableModels: Array<{ id?: string; name?: string; vendor?: string; description?: string }>) => boolean)
+      | undefined;
+
+    assert.ok(typeof isModelSelectionAvailable === "function");
+
+    const availableModels = [
+      {
+        id: "deepseek/deepseek-v4-flash",
+        name: "DeepSeek V4 Flash",
+        vendor: "",
+        description: "",
+      },
+      {
+        id: "custom-provider/claude-sonnet-4",
+        name: "Claude Sonnet 4",
+        vendor: "",
+        description: "Hosted via custom-provider",
+      },
+    ];
+
+    assert.strictEqual(isModelSelectionAvailable!("DeepSeek V4 Flash (deepseek)", availableModels), true);
+    assert.strictEqual(isModelSelectionAvailable!("Claude Sonnet 4 (custom provider)", availableModels), true);
   });
 
   test("startup sqlite hydration waits for task hydration before board hydration", async () => {

@@ -60,6 +60,7 @@ import {
   type BundledSkillSyncResult,
   type BundledSkillSyncState,
   type StagedBundledAgentsResult,
+  previewBundledAgentsSyncForWorkspaceRoots,
   previewBundledSkillSyncForWorkspaceRoots,
   stageBundledAgentsForWorkspaceRoots,
   syncBundledAgentsForWorkspaceRoots,
@@ -168,6 +169,7 @@ import {
 import { shouldSuppressSqliteWorkForExtensionContext } from "./staleExtensionRuntime";
 import type {
   AddCockpitTodoCommentInput,
+  AgentInfo,
   ApprovalMode,
   CockpitBoard,
   CreateCockpitTodoInput,
@@ -177,6 +179,7 @@ import type {
   GitHubAuthStatus,
   GitHubIntegrationView,
   ResearchProvider,
+  StartupNotificationSettings,
   StorageSettingsView,
   SearchProvider,
   TaskAction,
@@ -195,10 +198,21 @@ const COCKPIT_WORKSPACE_ACTIVATION_MAP_KEY = "cockpitWorkspaceActivationByRoot";
 const LAST_MCP_SUPPORT_UPDATE_MAP_KEY = "lastMcpSupportUpdateByWorkspace";
 const LAST_BUNDLED_SKILLS_SYNC_MAP_KEY = "lastBundledSkillsSyncByWorkspace";
 const LAST_BUNDLED_AGENTS_SYNC_MAP_KEY = "lastBundledAgentsSyncByWorkspace";
+const STARTUP_NOTIFICATION_SETTINGS_MAP_KEY = "startupNotificationSettingsByWorkspace";
 const SCHEDULER_WATCHER_DEBOUNCE_MS = 150;
 const EXTERNAL_AGENT_HEARTBEAT_INTERVAL_MS = 2000;
 const CUSTOM_SUBAGENT_SETTING_KEY = "chat.customAgentInSubagent.enabled";
 const OPEN_COPILOT_SETTING_ACTION = "Open Copilot Setting";
+
+type StartupNotificationSettingsMap = Record<string, StartupNotificationSettings>;
+
+const DEFAULT_STARTUP_NOTIFICATION_SETTINGS: StartupNotificationSettings = {
+  activationBanner: true,
+  supportUpdates: true,
+  unavailableAgentModels: true,
+  reloadAfterUpdate: true,
+  overdueTasks: true,
+};
 
 function getSearchProviderPromptLabel(searchProvider: SearchProvider): string {
   switch (searchProvider) {
@@ -668,7 +682,29 @@ function maybePromptReloadAfterUpdate(
   currentVersion: string,
   lastVersion: string | undefined,
 ): void {
-  maybePromptReloadAfterUpdateWithUi(currentVersion, lastVersion);
+  if (!lastVersion || lastVersion === currentVersion) {
+    return;
+  }
+  if (!getCurrentStartupNotificationSettings().reloadAfterUpdate) {
+    return;
+  }
+
+  const disableAction = "Disable Reminder";
+  void vscode.window
+    .showInformationMessage(
+      messages.reloadAfterUpdate(currentVersion),
+      messages.reloadNow(),
+      disableAction,
+    )
+    .then((choice) => {
+      if (choice === messages.reloadNow()) {
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
+        return;
+      }
+      if (choice === disableAction) {
+        void disableStartupNotification("reloadAfterUpdate");
+      }
+    });
 }
 
 async function ensureSchedulerSkillOnStartup(
@@ -928,6 +964,59 @@ function getWorkspaceTimestamp(
 
   const map = extensionContext.globalState.get<WorkspaceTimestampMap>(key, {});
   return typeof map[workspaceRoot] === "string" ? map[workspaceRoot] : "";
+}
+
+function normalizeStartupNotificationSettings(
+  value: Partial<StartupNotificationSettings> | undefined,
+  fallback: StartupNotificationSettings = DEFAULT_STARTUP_NOTIFICATION_SETTINGS,
+): StartupNotificationSettings {
+  return {
+    activationBanner: value?.activationBanner !== false && fallback.activationBanner !== false,
+    supportUpdates: value?.supportUpdates !== false && fallback.supportUpdates !== false,
+    unavailableAgentModels: value?.unavailableAgentModels !== false && fallback.unavailableAgentModels !== false,
+    reloadAfterUpdate: value?.reloadAfterUpdate !== false && fallback.reloadAfterUpdate !== false,
+    overdueTasks: value?.overdueTasks !== false && fallback.overdueTasks !== false,
+  };
+}
+
+export function getCurrentStartupNotificationSettings(
+  workspaceRoot = getPrimaryWorkspaceRootPath(),
+): StartupNotificationSettings {
+  if (!workspaceRoot || !extensionContext) {
+    return { ...DEFAULT_STARTUP_NOTIFICATION_SETTINGS };
+  }
+
+  const map = extensionContext.workspaceState.get<StartupNotificationSettingsMap>(
+    STARTUP_NOTIFICATION_SETTINGS_MAP_KEY,
+    {},
+  );
+  return normalizeStartupNotificationSettings(map[workspaceRoot]);
+}
+
+export async function updateStartupNotificationSettings(
+  input: Partial<StartupNotificationSettings>,
+  workspaceRoot = getPrimaryWorkspaceRootPath(),
+): Promise<StartupNotificationSettings> {
+  const nextSettings = normalizeStartupNotificationSettings(
+    input,
+    getCurrentStartupNotificationSettings(workspaceRoot),
+  );
+  if (!workspaceRoot || !extensionContext) {
+    return nextSettings;
+  }
+
+  const nextMap = {
+    ...extensionContext.workspaceState.get<StartupNotificationSettingsMap>(
+      STARTUP_NOTIFICATION_SETTINGS_MAP_KEY,
+      {},
+    ),
+    [workspaceRoot]: nextSettings,
+  };
+  await extensionContext.workspaceState.update(
+    STARTUP_NOTIFICATION_SETTINGS_MAP_KEY,
+    nextMap,
+  );
+  return nextSettings;
 }
 
 function getCurrentMcpSetupStatus(): StorageSettingsView["mcpSetupStatus"] {
@@ -1931,6 +2020,7 @@ function getCurrentStorageSettings(): StorageSettingsView {
     disabledSystemFlagKeys: Array.isArray(board.disabledSystemFlagKeys)
       ? board.disabledSystemFlagKeys.slice()
       : [],
+    startupNotifications: getCurrentStartupNotificationSettings(workspaceRoot),
     appVersion: extensionContext?.extension.packageJSON?.version ?? "",
     mcpSetupStatus: getCurrentMcpSetupStatus(),
     lastMcpSupportUpdateAt: getWorkspaceTimestamp(
@@ -2030,6 +2120,310 @@ async function saveReviewDefaults(
   );
 
   return getCurrentReviewDefaults();
+}
+
+async function disableStartupNotification(
+  key: keyof StartupNotificationSettings,
+): Promise<void> {
+  await updateStartupNotificationSettings({ [key]: false } as Partial<StartupNotificationSettings>);
+  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+}
+
+async function updateAgentModelFile(
+  filePath: string,
+  model: string,
+): Promise<boolean> {
+  const fileUri = vscode.Uri.file(filePath);
+  const content = (await vscode.workspace.fs.readFile(fileUri)).toString();
+  const frontmatterMatch = /^(---\r?\n[\s\S]*?\r?\n---)/.exec(content);
+  if (!frontmatterMatch) {
+    return false;
+  }
+
+  const frontmatter = frontmatterMatch[1];
+  const modelLineRegex = /^model\s*:\s*.*$/m;
+  let updatedFrontmatter: string;
+  if (modelLineRegex.test(frontmatter)) {
+    updatedFrontmatter = frontmatter.replace(modelLineRegex, `model: ${model}`);
+  } else {
+    const insertAfter = /^(description\s*:\s*.*)$/m;
+    if (insertAfter.test(frontmatter)) {
+      updatedFrontmatter = frontmatter.replace(insertAfter, `$1\nmodel: ${model}`);
+    } else {
+      updatedFrontmatter = frontmatter.replace(/^---\r?\n/, `---\nmodel: ${model}\n`);
+    }
+  }
+
+  if (updatedFrontmatter === frontmatter) {
+    return false;
+  }
+
+  const updatedContent = content.replace(frontmatterMatch[1], updatedFrontmatter);
+  await vscode.workspace.fs.writeFile(fileUri, Buffer.from(updatedContent, "utf8"));
+  return true;
+}
+
+async function openFilesInTabs(filePaths: string[]): Promise<void> {
+  for (const filePath of filePaths) {
+    if (!filePath) {
+      continue;
+    }
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+    await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true });
+  }
+}
+
+function normalizeModelAvailabilityToken(value: string | undefined): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[•().,[\]{}+]/g, " ")
+    .replace(/[_/:-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactModelAvailabilityToken(value: string | undefined): string {
+  return normalizeModelAvailabilityToken(value).replace(/[^a-z0-9]+/g, "");
+}
+
+function humanizeModelSourceToken(rawValue: string | undefined): string {
+  const trimmed = String(rawValue || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  switch (trimmed.toLowerCase()) {
+    case "openrouter":
+      return "OpenRouter";
+    case "copilot":
+      return "Copilot";
+    case "deepseek":
+      return "DeepSeek";
+    case "openai":
+      return "OpenAI";
+    case "github":
+      return "GitHub";
+    case "xai":
+    case "x-ai":
+      return "xAI";
+    default:
+      return trimmed
+        .split(/[^a-z0-9]+/i)
+        .filter(Boolean)
+        .map((segment) => {
+          if (segment.toUpperCase() === segment) {
+            return segment;
+          }
+          return segment.charAt(0).toUpperCase() + segment.slice(1);
+        })
+        .join(" ");
+  }
+}
+
+function inferModelSourceLabel(model: { id?: string; vendor?: string; description?: string }): string {
+  const id = String(model.id || "").trim();
+  const vendor = String(model.vendor || "").trim();
+  const description = String(model.description || "").trim();
+  const normalized = [id, vendor, description].join(" ").toLowerCase();
+
+  if (normalized.includes("openrouter")) {
+    return "OpenRouter";
+  }
+
+  if (
+    normalized.includes("copilot") ||
+    normalized.includes("codex") ||
+    normalized.includes("github") ||
+    normalized.includes("microsoft")
+  ) {
+    return "Copilot";
+  }
+
+  if (vendor) {
+    return humanizeModelSourceToken(vendor);
+  }
+
+  const prefixedIdMatch = id.match(/^([a-z0-9][a-z0-9._-]*)(?:[/:])/i);
+  if (prefixedIdMatch) {
+    return humanizeModelSourceToken(prefixedIdMatch[1]);
+  }
+
+  const descriptionSourceMatch = description.match(/\b(?:via|from|provider|vendor|hosted by|hosted via)\s+([a-z0-9][a-z0-9._-]*)/i);
+  if (descriptionSourceMatch) {
+    return humanizeModelSourceToken(descriptionSourceMatch[1]);
+  }
+
+  return "";
+}
+
+function buildModelAvailabilityTokens(model: { id?: string; name?: string; vendor?: string; description?: string }): string[] {
+  const sourceLabel = inferModelSourceLabel(model);
+  const tokens = [
+    model.id || "",
+    model.name || "",
+    `${model.name || ""} ${model.vendor || ""}`,
+    `${model.name || ""} (${model.vendor || ""})`,
+    `${model.id || ""} ${model.vendor || ""}`,
+    model.description || "",
+    sourceLabel,
+    sourceLabel ? `${model.name || ""} ${sourceLabel}` : "",
+    sourceLabel ? `${model.name || ""} (${sourceLabel})` : "",
+    sourceLabel ? `${model.id || ""} ${sourceLabel}` : "",
+  ].map(normalizeModelAvailabilityToken).filter(Boolean);
+  return Array.from(new Set(tokens));
+}
+
+function isModelSelectionAvailable(
+  selection: string | undefined,
+  availableModels: Array<{ id?: string; name?: string; vendor?: string }>,
+): boolean {
+  const normalizedSelection = normalizeModelAvailabilityToken(selection);
+  if (!normalizedSelection) {
+    return true;
+  }
+
+  const compactSelection = compactModelAvailabilityToken(selection);
+
+  return availableModels.some((model) => {
+    const tokens = buildModelAvailabilityTokens(model);
+    if (tokens.includes(normalizedSelection)) {
+      return true;
+    }
+
+    const compactTokens = tokens.map((token) => compactModelAvailabilityToken(token)).filter(Boolean);
+    return compactTokens.includes(compactSelection);
+  });
+}
+
+function resolveFallbackModelForUnavailableAgents(
+  availableModels: Array<{ id?: string; name?: string; vendor?: string }>,
+): string {
+  const defaultModel = getCurrentExecutionDefaults().model.trim();
+  return isModelSelectionAvailable(defaultModel, availableModels) ? defaultModel : "";
+}
+
+async function maybePromptBundledSupportUpdatesOnStartup(
+  context: vscode.ExtensionContext,
+  workspaceRoots = collectWorkspacePaths(),
+): Promise<void> {
+  if (!getCurrentStartupNotificationSettings().supportUpdates) {
+    return;
+  }
+  if (workspaceRoots.length === 0) {
+    return;
+  }
+
+  const bundledSkillPreview = await previewBundledSkillSyncForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+    context.globalState.get<BundledSkillSyncState>(
+      BUNDLED_SKILL_SYNC_STATE_KEY,
+      {},
+    ),
+  );
+  const bundledAgentPreview = await previewBundledAgentsSyncForWorkspaceRoots(
+    context.extensionUri.fsPath,
+    workspaceRoots,
+    context.globalState.get<BundledSkillSyncState>(
+      BUNDLED_AGENT_SYNC_STATE_KEY,
+      {},
+    ),
+  );
+  const pendingSkillUpdates = bundledSkillPreview.createdPaths.length + bundledSkillPreview.updatedPaths.length;
+  const pendingAgentUpdates = bundledAgentPreview.createdPaths.length + bundledAgentPreview.updatedPaths.length;
+  if (pendingSkillUpdates === 0 && pendingAgentUpdates === 0) {
+    return;
+  }
+
+  const openSettingsAction = "Open Settings";
+  const disableAction = "Disable Reminder";
+  const choice = await vscode.window.showInformationMessage(
+    `This workspace is not on the latest bundled support yet: ${pendingSkillUpdates} MCP skill file(s) and ${pendingAgentUpdates} agent file(s) can be updated from Settings.`,
+    openSettingsAction,
+    disableAction,
+  );
+  if (choice === disableAction) {
+    await disableStartupNotification("supportUpdates");
+    return;
+  }
+  if (choice === openSettingsAction) {
+    await openSchedulerUi(context, {
+      afterShow: async () => SchedulerWebview.switchToTab("settings"),
+    });
+  }
+}
+
+async function maybePromptUnavailableAgentModelsOnStartup(
+  context: vscode.ExtensionContext,
+): Promise<void> {
+  if (!getCurrentStartupNotificationSettings().unavailableAgentModels) {
+    return;
+  }
+
+  const workspaceRoots = collectWorkspacePaths();
+  if (workspaceRoots.length === 0) {
+    return;
+  }
+
+  const [availableModels, agents] = await Promise.all([
+    CopilotExecutor.collectAvailableModels(),
+    CopilotExecutor.collectAllAgents(),
+  ]);
+  const fileBackedAgents = filterRepoLocalWorkspaceAgents(agents, workspaceRoots).filter((agent) =>
+    typeof agent.model === "string"
+    && agent.model.trim().length > 0
+  );
+  const unavailableAgents = fileBackedAgents.filter((agent) =>
+    !isModelSelectionAvailable(agent.model, availableModels),
+  );
+  if (unavailableAgents.length === 0) {
+    return;
+  }
+
+  const fallbackModel = resolveFallbackModelForUnavailableAgents(availableModels);
+  const updateAction = fallbackModel
+    ? `Update ${unavailableAgents.length} Agent File(s)`
+    : `Clear ${unavailableAgents.length} Agent Model Pin(s)`;
+  const openSettingsAction = "Open Settings";
+  const disableAction = "Disable Reminder";
+  const choice = await vscode.window.showWarningMessage(
+    fallbackModel
+      ? `Some repo-local agents use models that are not available here. Update ${unavailableAgents.length} agent file(s) to the current workspace default model and open them for review?`
+      : `Some repo-local agents use models that are not available here. Clear the pinned model in ${unavailableAgents.length} agent file(s) so they fall back to the user's normal model choice?`,
+    updateAction,
+    openSettingsAction,
+    disableAction,
+  );
+  if (choice === disableAction) {
+    await disableStartupNotification("unavailableAgentModels");
+    return;
+  }
+  if (choice === openSettingsAction) {
+    await openSchedulerUi(context, {
+      afterShow: async () => SchedulerWebview.switchToTab("settings"),
+    });
+    return;
+  }
+  if (choice !== updateAction) {
+    return;
+  }
+
+  const updatedPaths: string[] = [];
+  for (const agent of unavailableAgents) {
+    if (!agent.filePath) {
+      continue;
+    }
+    if (await updateAgentModelFile(agent.filePath, fallbackModel)) {
+      updatedPaths.push(agent.filePath);
+    }
+  }
+
+  await SchedulerWebview.reloadCachesAndSync(true);
+  SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());
+  if (updatedPaths.length > 0) {
+    await openFilesInTabs(updatedPaths);
+    notifyInfo(`Updated ${updatedPaths.length} agent model setting(s).`);
+  }
 }
 
 async function importStorageFromJson(): Promise<void> {
@@ -2540,6 +2934,10 @@ async function promptForOverdueTaskDelayMinutes(
 }
 
 async function processOverdueTasksOnStartup(): Promise<void> {
+  if (!getCurrentStartupNotificationSettings().overdueTasks) {
+    return;
+  }
+
   const overdueTasks = scheduler.getOverdueTasks();
   if (overdueTasks.length === 0) {
     return;
@@ -2564,13 +2962,23 @@ async function processOverdueTasksOnStartup(): Promise<void> {
       : messages.labelNever();
 
     if (scheduler.isOneTimeTask(task)) {
+      const disableAction = "Disable Reminder";
       const choice = await vscode.window.showWarningMessage( // warn-dialog
         messages.overdueTaskPromptOneTime(task.name, dueAt),
         { modal: true },
         messages.actionRun(),
         messages.actionReschedule(),
+        disableAction,
         messages.actionCancel(),
       );
+
+      if (choice === disableAction) {
+        await disableStartupNotification("overdueTasks");
+        scheduler.suppressOverdueTasks(
+          overdueTasks.slice(index).map((item) => item.id),
+        );
+        break;
+      }
 
       if (choice === messages.actionRun()) {
         const ran = await scheduler.runTaskNow(task.id);
@@ -2607,13 +3015,23 @@ async function processOverdueTasksOnStartup(): Promise<void> {
       break;
     }
 
+    const disableAction = "Disable Reminder";
     const choice = await vscode.window.showWarningMessage( // confirm-dialog
       messages.overdueTaskPromptRecurring(task.name, dueAt),
       { modal: true },
       messages.actionRun(),
       messages.actionWaitNextCycle(),
+      disableAction,
       messages.actionCancel(),
     );
+
+    if (choice === disableAction) {
+      await disableStartupNotification("overdueTasks");
+      scheduler.suppressOverdueTasks(
+        overdueTasks.slice(index).map((item) => item.id),
+      );
+      break;
+    }
 
     if (choice === messages.actionRun()) {
       const ran = await scheduler.runTaskNow(task.id);
@@ -2652,6 +3070,9 @@ async function runStartupSequence(
   if (getSchedulerSetting<boolean>("enabled", true) !== false) {
     await processOverdueTasksOnStartup();
   }
+
+  await maybePromptBundledSupportUpdatesOnStartup(context);
+  await maybePromptUnavailableAgentModelsOnStartup(context);
 
   scheduleAutoShowSchedulerOnStartup(context);
 
@@ -2897,11 +3318,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Display the startup banner
   const logLevel = getSchedulerSetting<string>("logLevel", "info");
-  if (["info", "debug"].includes(logLevel)) {
+  if (["info", "debug"].includes(logLevel) && getCurrentStartupNotificationSettings().activationBanner) {
+    const disableAction = "Disable Reminder";
     void vscode.window
       .showInformationMessage( // local-diverge-1542
         messages.extensionActive(),
         messages.actionOpenScheduler(),
+        disableAction,
       )
       .then((choice) => {
         if (choice === messages.actionOpenScheduler()) {
@@ -2913,6 +3336,10 @@ export function activate(context: vscode.ExtensionContext): void {
               ),
             ),
           );
+          return;
+        }
+        if (choice === disableAction) {
+          void disableStartupNotification("activationBanner");
         }
       });
   }
@@ -3358,6 +3785,7 @@ export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
+  filterRepoLocalWorkspaceAgents,
   getDefaultReviewTemplateValues: () => ({
     needsBotReviewCommentTemplate: DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
     needsBotReviewPromptTemplate: DEFAULT_NEEDS_BOT_REVIEW_PROMPT_TEMPLATE,
@@ -3368,6 +3796,7 @@ export const __testOnly = {
   getSearchProviderPromptLabel,
   getWorkspaceStorageWatchFileNames,
   isCockpitWorkspaceActivated,
+  isModelSelectionAvailable,
   normalizeSearchProvider,
   resolveProviderSettings,
   resolveTaskExecutionChatSession,
@@ -3395,6 +3824,43 @@ function collectWorkspacePaths(): string[] {
     .filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
 
   return getResolvedWorkspaceRoots(startPaths);
+}
+
+function normalizeComparablePath(rawPath: string): string {
+  const normalized = rawPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  return process.platform === "win32"
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {
+  const normalizedFilePath = normalizeComparablePath(filePath);
+  const normalizedDirectoryPath = normalizeComparablePath(directoryPath);
+  return normalizedFilePath === normalizedDirectoryPath
+    || normalizedFilePath.startsWith(`${normalizedDirectoryPath}/`);
+}
+
+function isRepoLocalWorkspaceAgentFile(
+  filePath: string,
+  workspaceRoots = collectWorkspacePaths(),
+): boolean {
+  if (!/\.agent\.md$/i.test(filePath)) {
+    return false;
+  }
+
+  return workspaceRoots.some((workspaceRoot) =>
+    isPathInsideDirectory(filePath, path.join(workspaceRoot, ".github", "agents")),
+  );
+}
+
+function filterRepoLocalWorkspaceAgents(
+  agents: AgentInfo[],
+  workspaceRoots = collectWorkspacePaths(),
+): AgentInfo[] {
+  return agents.filter((agent) =>
+    typeof agent.filePath === "string"
+    && isRepoLocalWorkspaceAgentFile(agent.filePath, workspaceRoots),
+  );
 }
 
 function resolveGlobalPromptsDir(): string | undefined {
@@ -4136,28 +4602,10 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
 
       case "saveAgentModel": {
         const { filePath, model, agentId } = action.agentModelData ?? {};
-        if (filePath && model !== undefined) {
+        if (filePath && model !== undefined && /\.agent\.md$/i.test(filePath)) {
           try {
-            const fileUri = vscode.Uri.file(filePath);
-            const content = (await vscode.workspace.fs.readFile(fileUri)).toString();
-            const frontmatterMatch = /^(---\r?\n[\s\S]*?\r?\n---)/.exec(content);
-            if (frontmatterMatch) {
-              const frontmatter = frontmatterMatch[1];
-              const modelLineRegex = /^model\s*:\s*.*$/m;
-              let updatedFrontmatter: string;
-              if (modelLineRegex.test(frontmatter)) {
-                updatedFrontmatter = frontmatter.replace(modelLineRegex, `model: ${model}`);
-              } else {
-                // Insert after description: line, or name: line, or at end of frontmatter
-                const insertAfter = /^(description\s*:\s*.*)$/m;
-                if (insertAfter.test(frontmatter)) {
-                  updatedFrontmatter = frontmatter.replace(insertAfter, `$1\nmodel: ${model}`);
-                } else {
-                  updatedFrontmatter = frontmatter.replace(/^---\r?\n/, `---\nmodel: ${model}\n`);
-                }
-              }
-              const updatedContent = content.replace(frontmatterMatch[1], updatedFrontmatter);
-              await vscode.workspace.fs.writeFile(fileUri, Buffer.from(updatedContent, "utf8"));
+            if (await updateAgentModelFile(filePath, model)) {
+              await SchedulerWebview.reloadCachesAndSync(true);
               notifyInfo(`Model for "${agentId}" updated to "${model}".`);
             } else {
               notifyInfo(`Could not parse frontmatter in agent file.`);

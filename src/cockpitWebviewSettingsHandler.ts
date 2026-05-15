@@ -1,11 +1,19 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { notifyError } from "./extension";
+import {
+  getCurrentStartupNotificationSettings,
+  notifyError,
+  updateStartupNotificationSettings,
+} from "./extension";
 import { setCockpitDisabledSystemFlagKeys } from "./cockpitBoardManager";
 import { AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY } from "./privateConfigIgnore";
 import { resolveProviderSettings } from "./providerSettings";
-import type { ApprovalMode, StorageSettingsView, WebviewToExtensionMessage } from "./types";
+import type {
+  ApprovalMode,
+  StorageSettingsView,
+  WebviewToExtensionMessage,
+} from "./types";
 import { messages } from "./i18n";
 import { logDebug, logError, revealLogDirectory } from "./logger";
 import { updateCompatibleConfigurationValue } from "./extensionCompat";
@@ -127,6 +135,18 @@ export async function handleSettingsWebviewMessage(
       const disabledSystemFlagKeys = Array.isArray(requested?.disabledSystemFlagKeys)
         ? requested!.disabledSystemFlagKeys
         : [];
+      const startupNotifications = await updateStartupNotificationSettings({
+        activationBanner: requested?.startupNotifications?.activationBanner
+          ?? getCurrentStartupNotificationSettings().activationBanner,
+        supportUpdates: requested?.startupNotifications?.supportUpdates
+          ?? getCurrentStartupNotificationSettings().supportUpdates,
+        unavailableAgentModels: requested?.startupNotifications?.unavailableAgentModels
+          ?? getCurrentStartupNotificationSettings().unavailableAgentModels,
+        reloadAfterUpdate: requested?.startupNotifications?.reloadAfterUpdate
+          ?? getCurrentStartupNotificationSettings().reloadAfterUpdate,
+        overdueTasks: requested?.startupNotifications?.overdueTasks
+          ?? getCurrentStartupNotificationSettings().overdueTasks,
+      });
       await updateCompatibleConfigurationValue(
         "storageMode",
         mode,
@@ -178,6 +198,7 @@ export async function handleSettingsWebviewMessage(
         sqliteJsonMirror,
         autoIgnorePrivateFiles,
         disabledSystemFlagKeys: normalizedDisabledSystemFlagKeys,
+        startupNotifications,
         appVersion: current?.appVersion ?? "",
         mcpSetupStatus: current?.mcpSetupStatus ?? "workspace-required",
         lastMcpSupportUpdateAt: current?.lastMcpSupportUpdateAt ?? "",

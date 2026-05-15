@@ -74,11 +74,46 @@ export function escapeHtml(str: string): string {
   }, str);
 }
 
-export function getModelSourceLabel(model: ModelInfo): string {
+function humanizeModelSourceToken(rawValue: string): string {
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const normalized = trimmed.toLowerCase();
+  switch (normalized) {
+    case "openrouter":
+      return "OpenRouter";
+    case "copilot":
+      return "Copilot";
+    case "deepseek":
+      return "DeepSeek";
+    case "openai":
+      return "OpenAI";
+    case "github":
+      return "GitHub";
+    case "xai":
+    case "x-ai":
+      return "xAI";
+    default:
+      return trimmed
+        .split(/[^a-z0-9]+/i)
+        .filter(Boolean)
+        .map((segment) => {
+          if (segment.toUpperCase() === segment) {
+            return segment;
+          }
+          return segment.charAt(0).toUpperCase() + segment.slice(1);
+        })
+        .join(" ");
+  }
+}
+
+function inferModelSourceName(model: ModelInfo): string {
   const id = String(model.id || "").trim();
-  const name = String(model.name || "").trim();
   const vendor = String(model.vendor || "").trim();
   const description = String(model.description || "").trim();
+  const name = String(model.name || "").trim();
   const normalized = [id, name, vendor, description].join(" ").toLowerCase();
 
   if (normalized.includes("openrouter")) {
@@ -94,7 +129,25 @@ export function getModelSourceLabel(model: ModelInfo): string {
     return "Copilot";
   }
 
-  return vendor;
+  if (vendor) {
+    return humanizeModelSourceToken(vendor);
+  }
+
+  const prefixedIdMatch = id.match(/^([a-z0-9][a-z0-9._-]*)(?:[/:])/i);
+  if (prefixedIdMatch) {
+    return humanizeModelSourceToken(prefixedIdMatch[1]);
+  }
+
+  const descriptionSourceMatch = description.match(/\b(?:via|from|provider|vendor|hosted by|hosted via)\s+([a-z0-9][a-z0-9._-]*)/i);
+  if (descriptionSourceMatch) {
+    return humanizeModelSourceToken(descriptionSourceMatch[1]);
+  }
+
+  return "";
+}
+
+export function getModelSourceLabel(model: ModelInfo): string {
+  return inferModelSourceName(model);
 }
 
 export function formatModelLabel(model: ModelInfo): string {

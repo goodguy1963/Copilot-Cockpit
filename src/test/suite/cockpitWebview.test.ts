@@ -481,6 +481,43 @@ suite("SchedulerWebview Message Queue Behavior", () => {
     );
   });
 
+  test("settings support hub exposes a question-mark resource popover with four curated links", () => {
+    const templateSource = readSchedulerWebviewTemplateSource();
+    const stringsSource = readSchedulerWebviewStringsSource();
+
+    expectSourceToIncludeSnippets(
+      templateSource,
+      [
+        'class="support-resource-popover"',
+        'class="support-resource-trigger"',
+        'class="support-resource-panel"',
+        'class="support-resource-list"',
+        'class="support-resource-link"',
+        'https://docs.github.com/en/copilot/get-started-with-github-copilot',
+        'https://www.youtube.com/watch?v=9PUt81AjfmA&pp=ugUHEgVlbi1VUw%3D%3D',
+        'https://youtu.be/G2WcWtc0_70',
+        'https://youtu.be/yiJCmwmxEFc',
+        '@keyframes support-help-pulse',
+        '@keyframes support-resource-panel-in',
+      ],
+      "support hub resource popover markup",
+    );
+
+    expectSourceToIncludeSnippets(
+      stringsSource,
+      [
+        'settingsSupportResourcesTriggerLabel: localize(',
+        'settingsSupportResourcesTitle: localize(',
+        'settingsSupportResourcesBody: localize(',
+        'settingsSupportResourceDocsTitle: localize(',
+        'settingsSupportResourceNewVideoTitle: localize(',
+        'settingsSupportResourceFastDemoTitle: localize(',
+        'settingsSupportResourceWalkthroughTitle: localize(',
+      ],
+      "support hub resource strings",
+    );
+  });
+
   test("todo label and flag saves use rename-aware updates instead of delete-and-readd", () => {
     const scriptSource = readSchedulerWebviewScriptSource();
 
@@ -1396,6 +1433,13 @@ test("todo comments style human form input separately and todo saves reset to cr
         sqliteJsonMirror: false,
         autoIgnorePrivateFiles: false,
         disabledSystemFlagKeys: ["ready"],
+        startupNotifications: {
+          activationBanner: true,
+          supportUpdates: true,
+          unavailableAgentModels: true,
+          reloadAfterUpdate: true,
+          overdueTasks: true,
+        },
         appVersion: "99.0.78",
         mcpSetupStatus: "configured",
         lastMcpSupportUpdateAt: "2026-04-04T10:00:00.000Z",
@@ -4184,8 +4228,10 @@ suite("SchedulerWebview Jobs Request Tests", () => {
 
     const refreshedAgents = [{ id: "@repo-agent", name: "Repo Agent" }];
     const refreshedModels = [{ id: "gpt-repo", name: "Repo Model" }];
+    const workspaceRoot = resolveWorkspacePath("../../..");
     let renderedAgents: unknown[] | undefined;
     let renderedModels: unknown[] | undefined;
+    let renderedTitle: string | undefined;
 
     try {
       wv.activePanel = undefined;
@@ -4207,37 +4253,48 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       wv.refreshPromptTemplatesCache = async () => {};
       wv.refreshSkillReferencesCache = async () => {};
 
-      panelLifecycle.createFreshSchedulerPanel = ((options) => {
-        renderedAgents = options.agentListCache;
-        renderedModels = options.modelListCache;
-        return {
-          webview: {
-            postMessage: async () => true,
-          },
-          dispose: () => options.onDidDispose(),
-        } as unknown as vscode.WebviewPanel;
-      }) as typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+      const restoreWorkspaceFolders = overrideWorkspaceFolders(workspaceRoot);
 
-      await SchedulerWebview.show(
-        vscode.Uri.file(resolveWorkspacePath("../../../README.md")),
-        [],
-        [],
-        [],
-        {} as never,
-        {} as never,
-        {} as never,
-        {} as never,
-        {} as never,
-        {} as never,
-        {} as never,
-        [],
-        undefined,
-        [],
-        () => {},
-      );
+      try {
+        panelLifecycle.createFreshSchedulerPanel = ((options) => {
+          renderedAgents = options.agentListCache;
+          renderedModels = options.modelListCache;
+          renderedTitle = options.title;
+          return {
+            webview: {
+              postMessage: async () => true,
+            },
+            dispose: () => options.onDidDispose(),
+          } as unknown as vscode.WebviewPanel;
+        }) as typeof cockpitWebviewPanelLifecycle.createFreshSchedulerPanel;
+
+        await SchedulerWebview.show(
+          vscode.Uri.file(resolveWorkspacePath("../../../README.md")),
+          [],
+          [],
+          [],
+          {} as never,
+          {} as never,
+          {} as never,
+          {} as never,
+          {} as never,
+          {} as never,
+          {} as never,
+          [],
+          undefined,
+          [],
+          () => {},
+        );
+      } finally {
+        restoreWorkspaceFolders();
+      }
 
       assert.deepStrictEqual(renderedAgents, refreshedAgents);
       assert.deepStrictEqual(renderedModels, refreshedModels);
+      assert.strictEqual(
+        renderedTitle,
+        `${path.basename(workspaceRoot)} - ${messages.webviewTitle()}`,
+      );
     } finally {
       panelLifecycle.createFreshSchedulerPanel = originalCreateFreshSchedulerPanel;
       Object.assign(wv, originalState);
@@ -4262,6 +4319,30 @@ suite("SchedulerWebview Jobs Request Tests", () => {
       'case "updateModels":',
       'syncSharedAgentAndModelSelectors();',
     ], "shared selector refresh runtime");
+  });
+
+  test("agent model settings use live repo-local frontmatter models and flag unavailable pins", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'function isRepoLocalWorkspaceAgentFile(filePath) {',
+      'var agentsRoot = normalizeWorkspacePathValue(String(rootPath || "") + "/.github/agents");',
+      'return a && a.filePath && isRepoLocalWorkspaceAgentFile(a.filePath);',
+      'var currentModel = Object.prototype.hasOwnProperty.call(pendingAgentModelOverrides, agent.filePath)',
+      'var matchedModel = resolveAvailableModelSelection(currentModel, modelList);',
+      'var currentModelMatchesExactId = !!(matchedModel && matchedModel.id === currentModel);',
+      'if (currentModel && !currentModelMatchesExactId) {',
+      'function resolveAvailableModelSelection(selection, availableModels) {',
+      'strings.agentModelUnavailableOptionPrefix || "Unavailable: "',
+      'strings.agentModelUnavailableLabel || "Missing locally"',
+      'strings.agentModelUnavailableHelp || "Red rows are pinned to models that are not available in this VS Code window."',
+      'var pendingAgentModelOverrides = {};',
+      'function isModelSelectionAvailable(selection, availableModels) {',
+      'pendingAgentModelOverrides[fp] = modelVal;',
+      'function reconcilePendingAgentModelOverrides(agentList) {',
+      'reconcilePendingAgentModelOverrides(agents);',
+      'renderAgentModelsControls();',
+    ], "agent model live state and missing-model highlighting");
   });
 });
 

@@ -1137,6 +1137,9 @@ export interface StorageSettingsView {
   /** Built-in system flag keys that should stay hidden from the default palette */
   disabledSystemFlagKeys: string[];
 
+  /** Startup-only reminder toggles stored for this workspace */
+  startupNotifications: StartupNotificationSettings;
+
   /** Installed extension version shown in Settings */
   appVersion: string;
 
@@ -1156,6 +1159,23 @@ export interface StorageSettingsView {
 
   /** Last time bundled starter agents were synced for this workspace */
   lastBundledAgentsSyncAt: string;
+}
+
+export interface StartupNotificationSettings {
+  /** Show the extension activation banner after startup */
+  activationBanner: boolean;
+
+  /** Show startup reminders when bundled support files have newer shipped updates */
+  supportUpdates: boolean;
+
+  /** Show startup reminders when repo-local agents reference unavailable models */
+  unavailableAgentModels: boolean;
+
+  /** Show the reload reminder after extension updates */
+  reloadAfterUpdate: boolean;
+
+  /** Show overdue task prompts during startup */
+  overdueTasks: boolean;
 }
 
 /**
@@ -1594,6 +1614,9 @@ export interface CreateTaskInput
 export interface AgentInfo {
   /** Disk path pointing to a custom agent definition */
   filePath?: string; // local-diverge-1265
+
+  /** Model declared in the agent frontmatter, when present */
+  model?: string;
 
   /** Agent identifier string (e.g. "@workspace", "agent") */
   id: string;

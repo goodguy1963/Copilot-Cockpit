@@ -84,6 +84,28 @@ suite("SchedulerWebviewContentUtils Tests", () => {
       }),
       "Copilot",
     );
+
+    assert.strictEqual(
+      formatModelLabel({
+        id: "custom-provider/super-model",
+        name: "Super Model",
+        vendor: "",
+        description: "",
+      }),
+      "Super Model • Custom Provider",
+    );
+  });
+
+  test("getModelSourceLabel falls back to provider hints embedded in model ids", () => {
+    assert.strictEqual(
+      getModelSourceLabel({
+        id: "deepseek/deepseek-v4-flash",
+        name: "DeepSeek V4 Flash",
+        vendor: "",
+        description: "",
+      }),
+      "DeepSeek",
+    );
   });
 
   test("buildSchedulerWebviewInitialData assembles the expected host payload", () => {

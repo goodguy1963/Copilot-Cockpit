@@ -113,6 +113,13 @@ export function createDefaultStorageSettings(): StorageSettingsView {
     sqliteJsonMirror: true,
     autoIgnorePrivateFiles: true,
     disabledSystemFlagKeys: [],
+    startupNotifications: {
+      activationBanner: true,
+      supportUpdates: true,
+      unavailableAgentModels: true,
+      reloadAfterUpdate: true,
+      overdueTasks: true,
+    },
     appVersion: "",
     mcpSetupStatus: "workspace-required",
     lastMcpSupportUpdateAt: "",

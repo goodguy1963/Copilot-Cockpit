@@ -2,7 +2,7 @@
 description: Bounded implementation specialist for approved fixes, local refactors, and tightly scoped remediation.
 name: Remediation Implementer
 argument-hint: Ask me to implement an approved bounded fix, execute a small refactor, or validate a targeted code change.
-model: DeepSeek V4 Pro (deepseek)
+model: gpt-5-mini
 tools: [vscode/memory, execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/problems, read/readFile, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/listDirectory, search/textSearch, search/fileSearch, search/usages, search/changes]
 handoffs:
   - label: Report To CEO

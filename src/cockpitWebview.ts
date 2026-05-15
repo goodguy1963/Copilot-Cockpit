@@ -365,6 +365,20 @@ export class SchedulerWebview {
     flushSchedulerWebviewPendingMessages(this.messageQueueState, this.activePanel);
   }
 
+  private static getPanelTitle(): string {
+    const baseTitle = messages.webviewTitle();
+    const workspaceRoot = getResolvedWorkspaceRootPaths()[0];
+    const repoLabel = workspaceRoot
+      ? path.basename(workspaceRoot)
+      : (vscode.workspace.workspaceFolders?.[0]?.name ?? "").trim();
+
+    if (!repoLabel) {
+      return baseTitle;
+    }
+
+    return `${repoLabel} - ${baseTitle}`;
+  }
+
   static async show( /* present-panel */
     extensionUri: vscode.Uri, tasks: ScheduledTask[], jobs: JobDefinition[], jobFolders: JobFolder[],
     cockpitBoard: CockpitBoard, githubIntegration: GitHubIntegrationView,
@@ -428,7 +442,10 @@ export class SchedulerWebview {
       });
     };
 
+    const panelTitle = this.getPanelTitle();
+
     if (this.activePanel) {
+      this.activePanel.title = panelTitle;
       replaySchedulerPanel({
         panel: this.activePanel,
         tasks,
@@ -482,6 +499,7 @@ export class SchedulerWebview {
 
       this.activePanel = createFreshSchedulerPanel({
         extensionUri,
+        title: panelTitle,
         tasks,
         agentListCache: this.agentListCache,
         modelListCache: this.modelListCache,

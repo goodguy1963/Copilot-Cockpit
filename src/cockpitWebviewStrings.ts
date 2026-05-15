@@ -270,9 +270,9 @@ export function buildSchedulerWebviewStrings(
       "Repo-lokales MCP und Skills machen diese Ausführungsoberfläche projektbezogen und freigabebezogen.",
     ),
     helpAgentEcosystemTitle: localize(
-      "2. Learn the workflow & extend",
-      "2. ワークフローを学び拡張する",
-      "2. Workflow lernen & erweitern",
+      "Onboarding & Workspace Setup",
+      "オンボーディングとワークスペース設定",
+      "Onboarding und Workspace-Setup",
     ),
     helpAgentEcosystemWorkspaceNote: localize(
       "Workspace support (MCP, skills, agents) must be set up for every repo you add the extension to.",
@@ -506,6 +506,41 @@ export function buildSchedulerWebviewStrings(
       "No repo-local agent files found.",
       "リポジトリローカルのエージェントファイルが見つかりません。",
       "Keine repo-lokalen Agentendateien gefunden.",
+    ),
+    settingsStartupNotificationsTitle: localize(
+      "Startup Reminders",
+      "起動時のリマインダー",
+      "Start-Erinnerungen",
+    ),
+    settingsStartupNotificationsBody: localize(
+      "Control which startup prompts are allowed for this workspace. Each reminder can also be disabled directly from its notification.",
+      "このワークスペースで表示する起動時プロンプトを制御します。各リマインダーは通知から直接無効化することもできます。",
+      "Steuern Sie, welche Start-Prompts in diesem Workspace angezeigt werden. Jede Erinnerung kann auch direkt aus der Benachrichtigung deaktiviert werden.",
+    ),
+    settingsStartupActivationBannerLabel: localize(
+      "Extension activation banner",
+      "拡張機能の起動バナー",
+      "Aktivierungsbanner der Erweiterung",
+    ),
+    settingsStartupSupportUpdatesLabel: localize(
+      "Bundled MCP skills or agent-system updates",
+      "bundled MCP skills / agent system の更新",
+      "Updates für gebündelte MCP-Skills oder Agent-Systeme",
+    ),
+    settingsStartupAgentModelsLabel: localize(
+      "Unavailable agent model fallback prompt",
+      "利用できない agent model のフォールバック通知",
+      "Fallback-Hinweis für nicht verfügbare Agent-Modelle",
+    ),
+    settingsStartupReloadAfterUpdateLabel: localize(
+      "Reload-after-update reminder",
+      "更新後の再読み込みリマインダー",
+      "Erinnerung zum Neuladen nach Updates",
+    ),
+    settingsStartupOverdueTasksLabel: localize(
+      "Overdue task prompts",
+      "期限超過 task の通知",
+      "Hinweise für überfällige Tasks",
     ),
     approvalModeTitle: localize("Approval Mode", "承認モード", "Genehmigungsmodus"),
     approvalModeDescription: localize(
@@ -888,6 +923,24 @@ export function buildSchedulerWebviewStrings(
     actionSetupCodex: messages.codexSetupAction(),
     actionSetupCodexSkills: messages.codexSkillsSetupAction(),
     actionSyncBundledSkills: localize("Sync Bundled Skills", "同梱スキルを同期", "Gebündelte Skills synchronisieren"),
+    settingsSetupStep1Title: localize("Step 1", "ステップ 1", "Schritt 1"),
+    settingsSetupStep1Body: localize(
+      "Connect workspace MCP support first.",
+      "最初にワークスペースの MCP サポートを接続します。",
+      "Zuerst den MCP-Support des Workspace verbinden.",
+    ),
+    settingsSetupStep2Title: localize("Step 2", "ステップ 2", "Schritt 2"),
+    settingsSetupStep2Body: localize(
+      "Install the bundled skills your workspace needs.",
+      "ワークスペースに必要な同梱スキルをインストールします。",
+      "Die gebündelten Skills installieren, die Ihr Workspace braucht.",
+    ),
+    settingsSetupMoreTitle: localize("Optional Extensions", "追加オプション", "Optionale Erweiterungen"),
+    settingsSetupMoreBody: localize(
+      "Preview or install starter agents and extra setup helpers after the core workspace setup is in place.",
+      "コアのワークスペース設定が終わったあとで、starter agents や追加セットアップをプレビューまたは導入します。",
+      "Vorschau oder Installation von Starter-Agenten und weiteren Setup-Helfern erst nach der grundlegenden Workspace-Einrichtung.",
+    ),
       actionStageBundledAgents: localize("Stage Bundled Agents [Preview]", "同梱エージェントを比較用に展開［プレビュー］", "Gebündelte Agenten bereitstellen [Vorschau]"),
       actionStageBundledAgentsTitle: localize(
         "Refresh a compare-only copy under .vscode/copilot-cockpit-support/bundled-agents. This previews bundled agents without changing live .github/agents.",
@@ -902,7 +955,7 @@ export function buildSchedulerWebviewStrings(
       ),
     actionOpenCopilotSettings: localize("Open Copilot Settings", "Copilot 設定を開く", "Copilot-Einstellungen öffnen"),
     actionOpenCockpitSettings: localize("Open Cockpit Settings", "Cockpit 設定を開く", "Cockpit-Einstellungen öffnen"),
-    settingsSupportTitle: localize("Workspace Support", "ワークスペース支援", "Workspace-Support"),
+    settingsSupportTitle: localize("Workspace Support Hub", "ワークスペース支援ハブ", "Workspace-Support-Hub"),
     settingsSupportNewRepoNote: localize(
       "Every time you add this extension to a new repo, re-run the workspace support actions below so MCP, skills, and agents are available in that workspace.",
       "この拡張機能を新しいリポジトリに追加するたびに、以下のワークスペースサポートアクションを再実行して、そのワークスペースで MCP、スキル、エージェントを利用できるようにしてください。",
@@ -912,6 +965,61 @@ export function buildSchedulerWebviewStrings(
       "Configure repo-local Copilot MCP, skills, and starter agents here. Starter agents are useful when you want the orchestrator to hand bounded work to specialists instead of bloating one chat session with every intermediate step. Use Stage Bundled Agents to refresh a comparison copy under .vscode/copilot-cockpit-support/bundled-agents without touching your live repo-local system. Sync Bundled Agents remains the explicit live install path: .github is backed up first when available, and customized workspace copies are skipped so your edits stay intact.",
       "ここで repo-local の Copilot 用 MCP、スキル、スターターエージェントを設定します。スターターエージェントは、orchestrator がすべてを 1 つの長いチャットに詰め込む代わりに、制限付きの作業を specialist へ渡したいときに役立ちます。比較だけしたい場合は Stage Bundled Agents を使い、.vscode/copilot-cockpit-support/bundled-agents 配下に参照用コピーを更新して、live の repo-local system には触れません。Sync Bundled Agents は live 反映用の明示的な経路のままで、.github があれば先にバックアップされ、ワークスペース側で変更したコピーはスキップされるため編集内容が保護されます。",
       "Konfigurieren Sie hier repo-lokales Copilot-MCP, Skills und Starter-Agenten. Starter-Agenten sind nützlich, wenn der Orchestrator begrenzte Arbeit an Spezialisten übergeben soll, statt einen einzelnen Chat mit allen Zwischenschritten aufzublähen. Verwenden Sie Gebündelte Agenten bereitstellen, um eine Vergleichskopie unter .vscode/copilot-cockpit-support/bundled-agents zu aktualisieren, ohne Ihr livees repo-lokales System zu verändern. Gebündelte Agenten synchronisieren bleibt der ausdrückliche Live-Installationspfad: .github wird vorher gesichert, wenn vorhanden, und angepasste Workspace-Kopien werden übersprungen, damit Ihre Änderungen erhalten bleiben.",
+    ),
+    settingsSupportResourcesTriggerLabel: localize(
+      "Open workspace support resources",
+      "ワークスペース支援リソースを開く",
+      "Workspace-Support-Ressourcen öffnen",
+    ),
+    settingsSupportResourcesTitle: localize(
+      "Need a quick guide?",
+      "クイックガイドが必要ですか？",
+      "Brauchen Sie eine schnelle Orientierung?",
+    ),
+    settingsSupportResourcesBody: localize(
+      "These four links cover the official setup path plus short and long demos for the current workspace flow.",
+      "この 4 つのリンクで、公式のセットアップ手順と現在のワークスペースフロー向けの短編・長編デモを確認できます。",
+      "Diese vier Links decken den offiziellen Setup-Pfad sowie kurze und lange Demos für den aktuellen Workspace-Flow ab.",
+    ),
+    settingsSupportResourceDocsTitle: localize(
+      "GitHub Copilot setup docs",
+      "GitHub Copilot セットアップ手順",
+      "GitHub Copilot Setup-Dokumentation",
+    ),
+    settingsSupportResourceDocsBody: localize(
+      "Official GitHub documentation for getting Copilot running in VS Code.",
+      "VS Code で Copilot を使い始めるための公式 GitHub ドキュメントです。",
+      "Offizielle GitHub-Dokumentation, um Copilot in VS Code einzurichten.",
+    ),
+    settingsSupportResourceNewVideoTitle: localize(
+      "Workspace support deep dive",
+      "ワークスペース支援の詳細動画",
+      "Workspace-Support im Detail",
+    ),
+    settingsSupportResourceNewVideoBody: localize(
+      "A guided video to place right after the docs when you want a fuller visual setup walkthrough.",
+      "ドキュメントの次に置く、視覚的で詳しいセットアップ解説動画です。",
+      "Ein geführtes Video direkt nach der Doku für einen ausführlicheren visuellen Setup-Durchgang.",
+    ),
+    settingsSupportResourceFastDemoTitle: localize(
+      "Copilot Cockpit fast demo",
+      "Copilot Cockpit の高速デモ",
+      "Copilot Cockpit Schnell-Demo",
+    ),
+    settingsSupportResourceFastDemoBody: localize(
+      "A sub-minute pass over the main cockpit surface and workflow.",
+      "メインの Cockpit 画面とワークフローを 1 分未満で確認できます。",
+      "Ein Durchlauf unter einer Minute durch Oberfläche und Workflow des Cockpit.",
+    ),
+    settingsSupportResourceWalkthroughTitle: localize(
+      "Copilot Cockpit full walkthrough",
+      "Copilot Cockpit の完全ウォークスルー",
+      "Copilot Cockpit Komplett-Walkthrough",
+    ),
+    settingsSupportResourceWalkthroughBody: localize(
+      "A longer end-to-end tour when you want the full context instead of the highlight reel.",
+      "ハイライトではなく全体像を見たいときの、より長いエンドツーエンドの紹介です。",
+      "Eine längere Ende-zu-Ende-Tour, wenn Sie statt Highlights den vollständigen Kontext möchten.",
     ),
     settingsCheckUpdates: localize(
       "Check for Updates",
@@ -939,29 +1047,34 @@ export function buildSchedulerWebviewStrings(
       "Release-Seite öffnen",
     ),
     settingsOnboardingTitle: localize(
-      "Getting Started",
-      "はじめに",
-      "Erste Schritte",
+      "🧭 Workspace Setup",
+      "🧭 ワークスペース設定",
+      "🧭 Workspace-Setup",
     ),
     settingsOnboardingStep1: localize(
-      "Run <strong>Set Up MCP</strong> — adds the scheduler MCP server to your workspace.",
-      "<strong>Set Up MCP</strong> を実行 — スケジューラー MCP サーバーをワークスペースに追加します。",
-      "<strong>Set Up MCP</strong> ausführen — fügt den Scheduler-MCP-Server zu Ihrem Workspace hinzu.",
+      "Use <strong>Set Up MCP</strong> to add the scheduler MCP server to this repo.",
+      "<strong>Set Up MCP</strong> を使って、このリポジトリに scheduler MCP server を追加します。",
+      "Mit <strong>Set Up MCP</strong> den Scheduler-MCP-Server zu diesem Repository hinzufügen.",
     ),
     settingsOnboardingStep2: localize(
-      "Click <strong>Sync Bundled Skills</strong> — installs the operational skill files.",
-      "<strong>Sync Bundled Skills</strong> をクリック — 運用スキルファイルをインストールします。",
-      "<strong>Sync Bundled Skills</strong> klicken — installiert die operativen Skill-Dateien.",
+      "Run <strong>Sync Bundled Skills</strong> to install the core operational skills.",
+      "<strong>Sync Bundled Skills</strong> を実行して、基本の運用スキルをインストールします。",
+      "<strong>Sync Bundled Skills</strong> ausführen, um die zentralen operativen Skills zu installieren.",
     ),
     settingsOnboardingStep3: localize(
-      "Click <strong>Sync Bundled Agents</strong> — installs the starter agent crew (optional).",
-      "<strong>Sync Bundled Agents</strong> をクリック — スターターエージェントクルーをインストールします（任意）。",
-      "<strong>Sync Bundled Agents</strong> klicken — installiert das Starter-Agenten-Team (optional).",
+      "Use bundled agents only if you want the optional specialist crew in <strong>.github/agents</strong>.",
+      "任意の specialist crew を <strong>.github/agents</strong> に入れたい場合だけ bundled agents を使います。",
+      "Gebündelte Agenten nur verwenden, wenn Sie das optionale Spezialistenteam in <strong>.github/agents</strong> möchten.",
     ),
     settingsOnboardingHint: localize(
-      "Only Set Up MCP and Sync Bundled Skills are recommended first. Sync Bundled Agents is optional.",
-      "最初は Set Up MCP と Sync Bundled Skills のみをお勧めします。Sync Bundled Agents は任意です。",
-      "Zuerst werden nur Set Up MCP und Sync Bundled Skills empfohlen. Sync Bundled Agents ist optional.",
+      "For a clean first setup, do Step 1 and Step 2 first. Agent sync stays optional.",
+      "きれいな初期設定のために、まず Step 1 と Step 2 を実行してください。Agent sync は任意です。",
+      "Für eine saubere Ersteinrichtung zuerst Schritt 1 und Schritt 2 ausführen. Die Agenten-Synchronisierung bleibt optional.",
+    ),
+    agentModelsNoLocalAgents: localize(
+      "No repo-specific .github agent files found.",
+      "repo 固有の .github agent ファイルが見つかりません。",
+      "Keine repository-spezifischen .github-Agentdateien gefunden.",
     ),
     settingsMaintenanceNote: localize(
       "Import and export keep the JSON mirrors aligned with SQLite when you need to repair or migrate workspace state manually.",

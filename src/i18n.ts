@@ -623,9 +623,9 @@ export const messages = {
     ),
   helpTodoTitle: () =>
     t(
-      "1. 🧭 Todo - Planning and triage",
-      "1. 🧭 Todo - 計画とトリアージ",
-      "1. 🧭 Todo - Planung und Triage"
+      "1. Todo - Planning and triage",
+      "1. Todo - 計画とトリアージ",
+      "1. Todo - Planung und Triage"
     ),
   helpTodoBody: () =>
     t(
@@ -639,7 +639,7 @@ export const messages = {
   helpSwitchTabListBtn: () => t("Switch to Task List", "タスクリストを表示", "Zur Task-Liste wechseln"),
   helpSwitchTabJobsBtn: () => t("Switch to Jobs", "Jobsを表示", "Zu Jobs wechseln"),
   helpSwitchTabResearchBtn: () => t("Switch to Research", "Researchを表示", "Zu Research wechseln"),
-  helpCreateTitle: () => t("2. ✍️ Task - One executable unit", "2. ✍️ Task - 1 つの実行単位", "2. ✍️ Task - Eine ausfuhrbare Einheit"),
+  helpCreateTitle: () => t("2. Task - One executable unit", "2. Task - 1 つの実行単位", "2. Task - Eine ausfuhrbare Einheit"),
   helpCreateItemName: () =>
     t(
       "Open the Create Task tab when a Todo is ready to become one executable unit. Enter a name, write the prompt, choose recurring or one-time execution, set the schedule, and pick the scope.",
@@ -670,7 +670,7 @@ export const messages = {
       "Run First にチェックすると、保存から 3 分後に初回実行します。通常の繰り返しスケジュールなら One-Time はオフのままにし、Todo を単発の task draft に進めたいときだけオンにします。リンクされた one-time 実行が成功すると、元の Todo は ON-SCHEDULE-LIST から FINAL-USER-CHECK へ進みます。",
       "Aktivieren Sie Run First, damit der erste Lauf 3 Minuten nach dem Speichern startet. Lassen Sie One-Time fuer einen wiederkehrenden Zeitplan aus oder aktivieren Sie es nur, wenn ein Todo in einen einmaligen Task-Entwurf ueberfuehrt werden soll. Nach einem erfolgreichen verknuepften One-Time-Lauf sollte das Ursprungstodo von ON-SCHEDULE-LIST zu FINAL-USER-CHECK wechseln.",
     ),
-  helpListTitle: () => t("3. 📋 Promote and manage Tasks", "3. 📋 Task へ進めて管理", "3. 📋 Tasks ueberfuehren und verwalten"),
+  helpListTitle: () => t("3. Promote and manage Tasks", "3. Task へ進めて管理", "3. Tasks ueberfuehren und verwalten"),
   helpListItemSections: () =>
     t(
       "The Task List separates recurring tasks, one-time tasks, and Todo Task Drafts so you can see which execution artifacts are already scheduled and which drafts still need a decision. Linked drafts keep their source Todo in ready until you enable them, schedule them, or run them once; after completion they should send the source Todo back to FINAL-USER-CHECK for acceptance.",
@@ -689,7 +689,7 @@ export const messages = {
       "ツールバーからリストの更新や、このリポジトリを開いたときにSchedulerを自動表示するかの切り替えができます。",
       "Über die Toolbar können Sie die Liste aktualisieren oder umschalten, ob der Scheduler automatisch geöffnet wird, wenn dieses Repository in VS Code geöffnet wird.",
     ),
-  helpJobsTitle: () => t("4. 🔗 Jobs - Orchestrated runs", "4. 🔗 Jobs - オーケストレーション実行", "4. 🔗 Jobs - Orchestrierte Laeufe"),
+  helpJobsTitle: () => t("4. Jobs - Orchestrated runs", "4. Jobs - オーケストレーション実行", "4. Jobs - Orchestrierte Laeufe"),
   helpJobsItemBoard: () =>
     t(
       "Open the Jobs tab to build orchestrated or scheduled runs from multiple steps. Add tasks as steps, drag to reorder them, and organize workflows into folders.",
@@ -726,7 +726,7 @@ export const messages = {
       "JobからステップをDeleteするとTask Listからも削除されます。実行前に確認が表示されます。",
       "Wenn Sie einen Schritt aus einem Job löschen, wird dieser Task auch aus der Task List entfernt. Vorher erscheint eine Bestätigung.",
     ),
-  helpResearchTitle: () => t("5. 🔬 Research - Exploratory context", "5. 🔬 Research - 探索的な文脈づくり", "5. 🔬 Research - Explorativer Kontext"),
+  helpResearchTitle: () => t("5. Research - Exploratory context", "5. Research - 探索的な文脈づくり", "5. Research - Explorativer Kontext"),
   helpResearchItemProfiles: () =>
     t(
       "Go to the Research tab when a Todo still needs exploratory context. Create a profile with instructions, editable paths, a benchmark command, a metric pattern, and your agent/model choice.",
@@ -745,7 +745,7 @@ export const messages = {
       "実行後はHistoryを確認して、試行・スコア・変更ファイル・ベンチマーク出力を検証してから結果を採用するか判断できます。",
       "Prüfen Sie nach einem Lauf die History, um Versuche, Scores, geänderte Dateien und Benchmark-Ausgaben zu überprüfen, bevor Sie entscheiden, ob das Ergebnis behalten werden soll.",
     ),
-  helpStorageTitle: () => t("6. 💾 Where Files Are Saved", "6. 💾 ファイルの保存場所", "6. 💾 Wo Dateien gespeichert werden"),
+  helpStorageTitle: () => t("6. Where Files Are Saved", "6. ファイルの保存場所", "6. Wo Dateien gespeichert werden"),
   helpStorageItemRepo: () =>
     t(
       "Tasks are saved in .vscode/scheduler.json inside the open repo. Todo Cockpit items go to .vscode/scheduler.private.json and are never synced via git.",
@@ -770,7 +770,7 @@ export const messages = {
       "グローバルタスクは拡張ストレージにフォールバックとして保存されますが、開いているリポジトリの.vscodeファイルが常に優先されます。",
       "Globale Tasks werden als Fallback im Erweiterungsspeicher gehalten, aber die .vscode-Dateien im geöffneten Repository haben immer Vorrang.",
     ),
-  helpOverdueTitle: () => t("7. ⏰ Handling Overdue Tasks", "7. ⏰ 期限超過タスクの処理", "7. ⏰ Überfällige Tasks behandeln"),
+  helpOverdueTitle: () => t("7. Handling Overdue Tasks", "7. 期限超過タスクの処理", "7. Überfällige Tasks behandeln"),
   helpOverdueItemReview: () =>
     t(
       "If VS Code was closed while tasks were scheduled, they won't run automatically on restart. Instead, you'll be asked what to do with each overdue task one at a time.",
@@ -789,7 +789,7 @@ export const messages = {
       "一度きりの期限超過タスク：今すぐ実行するか、何分後に実行するかを入力して再スケジュールできます。",
       "Bei überfälligen einmaligen Tasks können Sie entscheiden, ob sie jetzt ausgeführt oder um eine bestimmte Anzahl Minuten verschoben werden sollen.",
     ),
-  helpSessionTitle: () => t("8. 💬 Chat Session Options", "8. 💬 チャットセッション設定", "8. 💬 Chat Session-Optionen"),
+  helpSessionTitle: () => t("8. Chat Session Options", "8. チャットセッション設定", "8. Chat Session-Optionen"),
   helpSessionItemPerTask: () =>
     t(
       "Each recurring task can override the global new-session setting. Find the option in the Create/Edit Task form.",
@@ -856,8 +856,8 @@ export const messages = {
       "アクションツール：タスクの即時実行・スナップショット復元・Jobsの一時停止チェックポイント管理・Researchプロファイル実行の開始と確認。",
       "Action tools: einen Task sofort ausführen, einen Scheduler-Snapshot wiederherstellen, Pause Checkpoints in Jobs verwalten und Läufe von Research-Profilen starten oder prüfen.",
     ),
-  helpMcpTitle: () => t("9. 🧩 MCP Integration", "9. 🧩 MCPインテグレーション", "9. 🧩 MCP-Integration"),
-  helpTipsTitle: () => t("10. 💡 Tips", "10. 💡 ヒント", "10. 💡 Tipps"),
+  helpMcpTitle: () => t("9. MCP Integration", "9. MCPインテグレーション", "9. MCP-Integration"),
+  helpTipsTitle: () => t("10. Tips", "10. ヒント", "10. Tipps"),
   helpTipsItem1: () =>
     t(
       "Enable auto-open only for repos where you want the Scheduler panel to appear every time the repo opens in VS Code.",
