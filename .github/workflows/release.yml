@@ -77,6 +77,13 @@ jobs:
           VSCE_TOKEN: ${{ secrets.VSCE_PAT }}
         run: npx @vscode/vsce publish --pat "$VSCE_TOKEN" --packagePath archive/vsix/latest/copilot-cockpit-*.vsix
 
+      # Publish to Open VSX Registry on version tags only
+      - name: Publish to Open VSX Registry
+        if: github.ref_type == 'tag'
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish archive/vsix/latest/copilot-cockpit-*.vsix -p "$OVSX_TOKEN"
+
       # Generate release notes from CHANGELOG.md when present, otherwise write fallback notes
       - name: Generate release metadata
         shell: bash
