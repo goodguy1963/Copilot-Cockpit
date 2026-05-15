@@ -1032,7 +1032,7 @@ export async function handleTodoCockpitAction(
         if (revealFilters) {
           setCockpitBoardFilters(workspaceRoot, revealFilters);
         }
-        deps.refreshSchedulerUiState();
+        deps.refreshSchedulerUiState(true);
         SchedulerWebview.startCreateTodo();
         SchedulerWebview.switchToTab("board");
         deps.notifyInfo(
@@ -1059,7 +1059,7 @@ export async function handleTodoCockpitAction(
       if (revealFilters) {
         setCockpitBoardFilters(workspaceRoot, revealFilters);
       }
-      deps.refreshSchedulerUiState();
+      deps.refreshSchedulerUiState(true);
       SchedulerWebview.startCreateTodo();
       SchedulerWebview.switchToTab("board");
       deps.notifyInfo(
