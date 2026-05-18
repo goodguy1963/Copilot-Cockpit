@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type * as vscode from "vscode";
+import { validateAndWarn } from "./cockpitWebviewMessageSchema";
 
 export type SchedulerWebviewMessage = { type: string; [key: string]: unknown };
 
@@ -81,6 +82,7 @@ function postImmediately(
   if (!panel || !ready) {
     return false;
   }
+  validateAndWarn(message);
   void panel.webview.postMessage(message);
   return true;
 }

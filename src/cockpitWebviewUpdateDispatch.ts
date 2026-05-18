@@ -36,13 +36,25 @@ import type {
 
 type PostMessage = (message: { type: string; [key: string]: unknown }) => void;
 
+// --- Generic dispatch helper ---
+// For standard single-field state update + matching factory message.
+function dispatchGeneric<T>(
+  state: SchedulerWebviewRuntimeState,
+  stateKey: keyof SchedulerWebviewRuntimeState,
+  value: T,
+  postMessage: PostMessage,
+  createMessage: (value: T) => { type: string; [key: string]: unknown },
+): void {
+  (state as Record<string, unknown>)[stateKey as string] = value;
+  postMessage(createMessage(value));
+}
+
 export function dispatchTaskUpdate(
   state: SchedulerWebviewRuntimeState,
   tasks: ScheduledTask[],
   postMessage: PostMessage,
 ): void {
-  state.tasks = tasks;
-  postMessage(createUpdateTasksMessage(tasks));
+  dispatchGeneric(state, "tasks", tasks, postMessage, createUpdateTasksMessage);
 }
 
 export function dispatchJobUpdate(
@@ -50,8 +62,7 @@ export function dispatchJobUpdate(
   jobs: JobDefinition[],
   postMessage: PostMessage,
 ): void {
-  state.jobs = jobs;
-  postMessage(createUpdateJobsMessage(jobs));
+  dispatchGeneric(state, "jobs", jobs, postMessage, createUpdateJobsMessage);
 }
 
 export function dispatchJobFolderUpdate(
@@ -59,8 +70,7 @@ export function dispatchJobFolderUpdate(
   jobFolders: JobFolder[],
   postMessage: PostMessage,
 ): void {
-  state.jobFolders = jobFolders;
-  postMessage(createUpdateJobFoldersMessage(jobFolders));
+  dispatchGeneric(state, "jobFolders", jobFolders, postMessage, createUpdateJobFoldersMessage);
 }
 
 export function dispatchCockpitBoardUpdate(
@@ -77,8 +87,7 @@ export function dispatchGitHubIntegrationUpdate(
   githubIntegration: GitHubIntegrationView,
   postMessage: PostMessage,
 ): void {
-  state.githubIntegration = githubIntegration;
-  postMessage(createUpdateGitHubIntegrationMessage(githubIntegration));
+  dispatchGeneric(state, "githubIntegration", githubIntegration, postMessage, createUpdateGitHubIntegrationMessage);
 }
 
 export function dispatchTelegramNotificationUpdate(
@@ -86,8 +95,7 @@ export function dispatchTelegramNotificationUpdate(
   telegramNotification: TelegramNotificationView,
   postMessage: PostMessage,
 ): void {
-  state.telegramNotification = telegramNotification;
-  postMessage(createUpdateTelegramNotificationMessage(telegramNotification));
+  dispatchGeneric(state, "telegramNotification", telegramNotification, postMessage, createUpdateTelegramNotificationMessage);
 }
 
 export function dispatchExecutionDefaultsUpdate(
@@ -95,8 +103,7 @@ export function dispatchExecutionDefaultsUpdate(
   executionDefaults: ExecutionDefaultsView,
   postMessage: PostMessage,
 ): void {
-  state.executionDefaults = executionDefaults;
-  postMessage(createUpdateExecutionDefaultsMessage(executionDefaults));
+  dispatchGeneric(state, "executionDefaults", executionDefaults, postMessage, createUpdateExecutionDefaultsMessage);
 }
 
 export function dispatchReviewDefaultsUpdate(
@@ -117,8 +124,7 @@ export function dispatchStorageSettingsUpdate(
   storageSettings: StorageSettingsView,
   postMessage: PostMessage,
 ): void {
-  state.storageSettings = storageSettings;
-  postMessage(createUpdateStorageSettingsMessage(storageSettings));
+  dispatchGeneric(state, "storageSettings", storageSettings, postMessage, createUpdateStorageSettingsMessage);
 }
 
 export function dispatchResearchStateUpdate(
@@ -139,8 +145,7 @@ export function dispatchScheduleHistoryUpdate(
   entries: ScheduleHistoryEntry[],
   postMessage: PostMessage,
 ): void {
-  state.cockpitHistory = entries;
-  postMessage(createUpdateScheduleHistoryMessage(entries));
+  dispatchGeneric(state, "cockpitHistory", entries, postMessage, createUpdateScheduleHistoryMessage);
 }
 
 export function dispatchWebviewError(

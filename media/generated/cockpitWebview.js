@@ -942,6 +942,34 @@
   function getLatestTodoComment(card) {
     return Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
   }
+  function renderPriorityChipContent(card, helpers) {
+    return helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none"));
+  }
+  function renderStatusChipContent(card, helpers) {
+    return helpers.escapeHtml(helpers.getTodoStatusLabel(card.status || "active"));
+  }
+  function renderDueDateContent(card, strings, helpers) {
+    return card.dueAt ? helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) : "";
+  }
+  function renderArchiveOutcomeContent(card, helpers) {
+    return card.archived && card.archiveOutcome ? helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) : "";
+  }
+  function renderFlagChipSlots(card, helpers) {
+    if (!Array.isArray(card.flags)) return "";
+    return card.flags.slice(0, 6).map(function(flag, idx) {
+      return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + "</span>";
+    }).join("");
+  }
+  function renderLabelChipSlots(card, helpers) {
+    if (!Array.isArray(card.labels)) return "";
+    return card.labels.slice(0, 6).map(function(label, idx) {
+      return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
+    }).join("");
+  }
+  function renderLatestCommentPreviewText(card, strings, helpers) {
+    var latestComment = getLatestTodoComment(card);
+    return latestComment && latestComment.body ? "#" + String(latestComment.sequence || 1) + " \u2022 " + helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + " \u2022 " + helpers.getTodoDescriptionPreview(latestComment.body) : strings.boardCommentsEmpty || "No comments yet.";
+  }
   function renderTodoCompactActions(card, options, layout) {
     var strings = options.strings;
     var helpers = options.helpers;
@@ -1022,27 +1050,23 @@
     var helpers = options.helpers;
     var selectedTodoId = options.selectedTodoId;
     var isSelected = card.id === selectedTodoId;
-    var latestComment = getLatestTodoComment(card);
     var descriptionText = card.description ? helpers.getTodoDescriptionPreview(card.description) : card.taskId ? strings.boardTaskLinked || "Linked task" : strings.boardDescriptionPreviewEmpty || "No description yet.";
-    var latestCommentText = latestComment && latestComment.body ? "#" + String(latestComment.sequence || 1) + " \u2022 " + helpers.getTodoCommentSourceLabel(latestComment.source || "human-form") + " \u2022 " + helpers.getTodoDescriptionPreview(latestComment.body) : strings.boardCommentsEmpty || "No comments yet.";
-    var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
     var metaParts = [
-      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span>",
-      "<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoStatusLabel(card.status || "active")) + "</span>"
+      "<span data-card-meta>" + renderPriorityChipContent(card, helpers) + "</span>",
+      "<span data-card-meta>" + renderStatusChipContent(card, helpers) + "</span>"
     ];
-    if (card.dueAt) {
-      metaParts.push("<span data-card-meta>" + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>");
+    var dueContent = renderDueDateContent(card, strings, helpers);
+    if (dueContent) {
+      metaParts.push("<span data-card-meta>" + dueContent + "</span>");
     }
-    if (card.archived && card.archiveOutcome) {
-      metaParts.push("<span data-card-meta>" + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>");
+    var archiveContent = renderArchiveOutcomeContent(card, helpers);
+    if (archiveContent) {
+      metaParts.push("<span data-card-meta>" + archiveContent + "</span>");
     }
+    var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
     var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 6) : [];
-    var chipMarkup = visibleFlags.length || visibleLabels.length ? '<div class="todo-list-chip-row">' + (visibleFlags.length ? '<div class="card-flags">' + visibleFlags.map(function(flag, idx) {
-      return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + "</span>";
-    }).join("") + "</div>" : "") + (visibleLabels.length ? '<div class="card-labels">' + visibleLabels.map(function(label, idx) {
-      return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
-    }).join("") + "</div>" : "") + "</div>" : "";
-    return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div class="todo-list-title-block">' + helpers.renderTodoCompletionCheckbox(card) + '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + "</div></div>" + chipMarkup + '<div class="cockpit-card-details todo-list-card-details"><div class="note todo-list-detail-line todo-list-detail-line-description"><strong data-card-meta>' + helpers.escapeHtml(strings.boardDescriptionLabel || "Description") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(descriptionText) + '</span></div><div class="note todo-list-detail-line todo-list-detail-line-comment"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(latestCommentText) + "</span></div></div></div>" + renderTodoCompactActions(card, options, "list") + "</article>";
+    var chipMarkup = visibleFlags.length || visibleLabels.length ? '<div class="todo-list-chip-row">' + (visibleFlags.length ? '<div class="card-flags">' + renderFlagChipSlots(card, helpers) + "</div>" : "") + (visibleLabels.length ? '<div class="card-labels">' + renderLabelChipSlots(card, helpers) + "</div>" : "") + "</div>" : "";
+    return '<article class="todo-list-row" draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(sectionId) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="border-radius:8px;background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);padding:var(--cockpit-card-pad, 8px);cursor:pointer;"><div class="todo-list-main"><div class="todo-list-title-line"><div class="todo-list-title-block">' + helpers.renderTodoCompletionCheckbox(card) + '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + "</div></div>" + chipMarkup + '<div class="cockpit-card-details todo-list-card-details"><div class="note todo-list-detail-line todo-list-detail-line-description"><strong data-card-meta>' + helpers.escapeHtml(strings.boardDescriptionLabel || "Description") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(descriptionText) + '</span></div><div class="note todo-list-detail-line todo-list-detail-line-comment"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ':</strong><span class="todo-list-summary">' + helpers.escapeHtml(renderLatestCommentPreviewText(card, strings, helpers)) + "</span></div></div></div>" + renderTodoCompactActions(card, options, "list") + "</article>";
   }
   function renderTodoListView(visibleSections2, cards, filters2, options) {
     var strings = options.strings;
@@ -1073,16 +1097,12 @@
       return '<section class="board-column' + (collapsedSections.has(section.id) ? " is-collapsed" : "") + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow:visible;"><div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)"><button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? " collapsed" : "") + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? strings.boardSectionExpand || "Expand section" : strings.boardSectionCollapse || "Collapse section") + '">&#9660;</button>' + helpers.renderSectionDragHandle(section, isSpecialSection) + '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + "</strong>" + (isSpecialSection ? "" : '<div class="cockpit-section-actions"><button type="button" class="btn-icon" data-section-rename="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionRename || "Rename section") + '">&#9998;</button><button type="button" class="btn-icon" data-section-delete="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(strings.boardSectionDelete || "Delete section") + '">&#215;</button></div>') + '</div><div class="section-body-wrapper' + (collapsedSections.has(section.id) ? " collapsed" : "") + '"><div class="section-body-inner"><div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);"><div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">' + (sectionCards.length ? sectionCards.map(function(card) {
         var isSelected = card.id === selectedTodoId;
         var visibleFlags = Array.isArray(card.flags) ? card.flags.slice(0, 6) : [];
-        var chipMarkup = visibleFlags.length || Array.isArray(card.labels) && card.labels.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + (visibleFlags.length ? '<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:6px;">' + visibleFlags.map(function(flag, idx) {
-          return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + "</span>";
-        }).join("") + "</div>" : "") + (Array.isArray(card.labels) && card.labels.length ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + card.labels.slice(0, 6).map(function(label, idx) {
-          return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + "</span>";
-        }).join("") + "</div>" : "") + "</div>" : "";
-        var latestComment = Array.isArray(card.comments) && card.comments.length ? card.comments[card.comments.length - 1] : null;
-        var dueMarkup = card.dueAt ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml((strings.boardDueLabel || "Due") + ": " + helpers.formatTodoDate(card.dueAt)) + "</span>" : "";
-        var archiveMarkup = card.archived && card.archiveOutcome ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoArchiveOutcomeLabel(card.archiveOutcome)) + "</span>" : "";
-        var latestCommentMarkup = latestComment && latestComment.body ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ":</strong><span data-card-meta>#" + helpers.escapeHtml(String(latestComment.sequence || 1)) + " \u2022 " + helpers.escapeHtml(helpers.getTodoCommentSourceLabel(latestComment.source || "human-form")) + " \u2022 " + helpers.escapeHtml(helpers.getTodoDescriptionPreview(latestComment.body || "")) + "</span></div>" : "";
-        return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' + helpers.renderTodoCompletionCheckbox(card) + '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div style="display:flex;align-items:center;gap:6px;">' + helpers.renderTodoDragHandle(card) + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + helpers.escapeHtml(helpers.getTodoPriorityLabel(card.priority || "none")) + "</span></div></div>" + (dueMarkup || archiveMarkup ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + dueMarkup + archiveMarkup + "</div>" : "") + chipMarkup + '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + "</div>" + latestCommentMarkup + "</div>" + renderTodoCompactActions(card, options, "board") + "</article>";
+        var chipMarkup = visibleFlags.length || Array.isArray(card.labels) && card.labels.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + (visibleFlags.length ? '<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:6px;">' + renderFlagChipSlots(card, helpers) + "</div>" : "") + (Array.isArray(card.labels) && card.labels.length ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:6px;">' + renderLabelChipSlots(card, helpers) + "</div>" : "") + "</div>" : "";
+        var dueContent = renderDueDateContent(card, strings, helpers);
+        var archiveContent = renderArchiveOutcomeContent(card, helpers);
+        var latestCommentText = renderLatestCommentPreviewText(card, strings, helpers);
+        var latestCommentMarkup = latestCommentText && latestCommentText !== (strings.boardCommentsEmpty || "No comments yet.") ? '<div class="note" style="display:flex;gap:6px;align-items:flex-start;"><strong data-card-meta>' + helpers.escapeHtml(strings.boardLatestComment || "Latest comment") + ":</strong><span data-card-meta>" + helpers.escapeHtml(latestCommentText) + "</span></div>" : "";
+        return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-order="' + String(card.order || 0) + '" data-selected="' + (isSelected ? "true" : "false") + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;"><div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;"><div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' + helpers.renderTodoCompletionCheckbox(card) + '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong></div><div style="display:flex;align-items:center;gap:6px;">' + helpers.renderTodoDragHandle(card) + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + renderPriorityChipContent(card, helpers) + "</span></div></div>" + (dueContent || archiveContent ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' + (dueContent ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + dueContent + "</span>" : "") + (archiveContent ? '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + archiveContent + "</span>" : "") + "</div>" : "") + chipMarkup + '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + "</div>" + latestCommentMarkup + "</div>" + renderTodoCompactActions(card, options, "board") + "</article>";
       }).join("") : '<div class="note">' + helpers.escapeHtml(strings.boardEmpty || "No cards yet.") + "</div>") + "</div></div></div></div></section>";
     }).join("") + "</div>";
   }
@@ -1896,6 +1916,7 @@
       skillDetailsNote: document2.getElementById("skill-details-note"),
       insertSkillBtn: document2.getElementById("insert-skill-btn"),
       setupMcpBtn: document2.getElementById("setup-mcp-btn"),
+      setupThirdPartyMcpBtn: document2.getElementById("setup-third-party-mcp-btn"),
       setupCodexBtn: document2.getElementById("setup-codex-btn"),
       setupCodexSkillsBtn: document2.getElementById("setup-codex-skills-btn"),
       syncBundledSkillsBtn: document2.getElementById("sync-bundled-skills-btn"),
@@ -3480,6 +3501,7 @@
       skillDetailsNote,
       insertSkillBtn,
       setupMcpBtn,
+      setupThirdPartyMcpBtn,
       setupCodexBtn,
       setupCodexSkillsBtn,
       syncBundledSkillsBtn,
@@ -9212,6 +9234,7 @@
     }
     bindUtilityActionButtons(vscode, {
       setupMcp: setupMcpBtn,
+      setupThirdPartyMcp: setupThirdPartyMcpBtn,
       setupCodex: setupCodexBtn,
       setupCodexSkills: setupCodexSkillsBtn,
       syncBundledSkills: syncBundledSkillsBtn,
@@ -12021,4 +12044,3 @@
     vscode.postMessage({ type: "webviewReady" });
   })();
 })();
-//# sourceMappingURL=cockpitWebview.js.map

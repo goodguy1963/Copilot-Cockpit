@@ -450,6 +450,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     skillDetailsNote,
     insertSkillBtn,
     setupMcpBtn,
+    setupThirdPartyMcpBtn,
     setupCodexBtn,
     setupCodexSkillsBtn,
     syncBundledSkillsBtn,
@@ -7136,6 +7137,7 @@ syncTodoLabelSuggestions();
 
   bindUtilityActionButtons(vscode, {
     setupMcp: setupMcpBtn,
+    setupThirdPartyMcp: setupThirdPartyMcpBtn,
     setupCodex: setupCodexBtn,
     setupCodexSkills: setupCodexSkillsBtn,
     syncBundledSkills: syncBundledSkillsBtn,

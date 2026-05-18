@@ -30,6 +30,7 @@ export function createSchedulerWebviewDomRefs(document) {
     skillDetailsNote: document.getElementById("skill-details-note"),
     insertSkillBtn: document.getElementById("insert-skill-btn"),
     setupMcpBtn: document.getElementById("setup-mcp-btn"),
+    setupThirdPartyMcpBtn: document.getElementById("setup-third-party-mcp-btn"),
     setupCodexBtn: document.getElementById("setup-codex-btn"),
     setupCodexSkillsBtn: document.getElementById("setup-codex-skills-btn"),
     syncBundledSkillsBtn: document.getElementById("sync-bundled-skills-btn"),
