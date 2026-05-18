@@ -783,4 +783,76 @@ suite("SQLite Bootstrap Tests", () => {
       cleanup(workspaceRoot);
     }
   });
+
+  test("compacts sqlite database after replace-style sync so file does not grow unbounded", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-compact-");
+
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const baseTask = {
+        cronExpression: "0 * * * *",
+        prompt: "run",
+        enabled: true,
+        scope: "workspace" as const,
+        promptSource: "inline" as const,
+        createdAt: "2026-04-04T00:00:00.000Z",
+        updatedAt: "2026-04-04T00:00:00.000Z",
+      };
+
+      // 1) Sync a large set of tasks to grow the database
+      const largeTasks = Array.from({ length: 50 }, (_, i) => ({
+        id: `task-${i}`,
+        name: `Task ${i} `.repeat(20).trim(),
+        ...baseTask,
+      }));
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: largeTasks as any[],
+        deletedTaskIds: Array.from({ length: 50 }, (_, i) => `deleted-${i}`),
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      assert.ok(fs.existsSync(databasePath));
+      const sizeAfterLarge = fs.statSync(databasePath).size;
+      assert.ok(sizeAfterLarge > 8192, `Expected database to grow above 8KB after 50 tasks, got ${sizeAfterLarge}`);
+
+      // 2) Sync a tiny state (single task) — triggers delete-all + insert + vacuum + persist
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{
+          id: "task-single",
+          name: "Single",
+          ...baseTask,
+        }] as any[],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      const sizeAfterCompact = fs.statSync(databasePath).size;
+
+      // After VACUUM, the database file should be strictly smaller than after the
+      // large payload.  The large dataset had 100 rows (50 tasks + 50 tombstones),
+      // the compacted dataset has 1 row, so any increase would indicate VACUUM
+      // was not called or is not working.
+      assert.ok(
+        sizeAfterCompact < sizeAfterLarge,
+        `Expected compacted DB size (${sizeAfterCompact}) to be strictly smaller than large-DB size (${sizeAfterLarge})`,
+      );
+
+      const db = await openDatabase(databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks"), 1);
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_task_tombstones"), 0);
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
 });

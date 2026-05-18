@@ -113,6 +113,8 @@ type WorkspaceFolderLike = {
 };
 
 const SQLITE_MIGRATION_JOURNAL_VERSION = 1;
+const SQLITE_MIN_VALID_DB_SIZE = 512;
+const SQLITE_MAGIC_HEADER = "SQLite format 3\0";
 const DEFAULT_SQLITE_LOCK_STALE_MS = 30_000;
 const DEFAULT_SQLITE_LOCK_MAX_WAIT_MS = 2_000;
 const DEFAULT_SQLITE_LOCK_RETRY_MS = 50;
@@ -281,10 +283,36 @@ async function openSqliteDatabase(
 ): Promise<{ db: SqlJsDatabase; created: boolean }> {
   const SQL = await getSqlJsModule();
   if (fs.existsSync(databasePath)) {
-    return {
-      db: new SQL.Database(fs.readFileSync(databasePath)),
-      created: false,
-    };
+    const stat = fs.statSync(databasePath);
+    if (stat.size < SQLITE_MIN_VALID_DB_SIZE) {
+      // The database file is too small to be a valid SQLite database.
+      // This can happen after a crash during persistSqliteDatabase where
+      // the backup rename failed and the original file was left in a
+      // truncated state. Treat it as missing and create a fresh DB.
+      fs.rmSync(databasePath, { force: true });
+    } else {
+      try {
+        const header = Buffer.alloc(SQLITE_MAGIC_HEADER.length);
+        const fd = fs.openSync(databasePath, "r");
+        try {
+          fs.readSync(fd, header, 0, SQLITE_MAGIC_HEADER.length, 0);
+        } finally {
+          fs.closeSync(fd);
+        }
+        if (header.toString("ascii") !== SQLITE_MAGIC_HEADER) {
+          // Corrupt or non-SQLite file; remove and rebuild
+          fs.rmSync(databasePath, { force: true });
+        } else {
+          return {
+            db: new SQL.Database(fs.readFileSync(databasePath)),
+            created: false,
+          };
+        }
+      } catch {
+        // If we cannot read the header, treat as missing
+        fs.rmSync(databasePath, { force: true });
+      }
+    }
   }
 
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -348,27 +376,37 @@ function isWindowsSqliteAtomicRenameFallbackError(error: unknown): boolean {
 function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
   sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const tempPath = createSqliteSwapPath(databasePath, "tmp");
-  const backupPath = createSqliteSwapPath(databasePath, "bak");
-  let movedExistingDatabase = false;
   let usedWindowsCopyFallback = false;
 
   sqliteAtomicWriteFs.writeFileSync(tempPath, Buffer.from(db.export()));
 
   try {
     if (sqliteAtomicWriteFs.existsSync(databasePath)) {
-      try {
-        sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
-        movedExistingDatabase = true;
-      } catch (error) {
-        if (
-          process.platform === "win32"
-          && isWindowsSqliteAtomicRenameFallbackError(error)
-        ) {
-          sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
-          sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-          usedWindowsCopyFallback = true;
-        } else {
-          throw error;
+      // On Windows, renameSync on a watched .db file can fail with EBUSY/EPERM
+      // because the file watcher holds a handle. Use copyFileSync for backup
+      // to avoid that conflict entirely.
+      if (process.platform === "win32") {
+        const backupPath = createSqliteSwapPath(databasePath, "bak");
+        try {
+          sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
+          sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
+        } catch (backupError) {
+          // If backup copy fails, clean up the temp file and rethrow
+          sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
+          throw backupError;
+        }
+      } else {
+        const backupPath = createSqliteSwapPath(databasePath, "bak");
+        try {
+          sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
+        } catch (error) {
+          if (isWindowsSqliteAtomicRenameFallbackError(error)) {
+            sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
+            sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
+            usedWindowsCopyFallback = true;
+          } else {
+            throw error;
+          }
         }
       }
     }
@@ -397,29 +435,21 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
         }
       }
     }
-
-    if (movedExistingDatabase && sqliteAtomicWriteFs.existsSync(backupPath)) {
-      sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
-    }
   } catch (error) {
-    if (movedExistingDatabase && !sqliteAtomicWriteFs.existsSync(databasePath) && sqliteAtomicWriteFs.existsSync(backupPath)) {
-      try {
-        sqliteAtomicWriteFs.renameSync(backupPath, databasePath);
-      } catch {
-        // Best-effort restore; surface the original persistence error below.
-      }
-    }
-
     throw error;
   } finally {
     if (sqliteAtomicWriteFs.existsSync(tempPath)) {
       sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
     }
 
-    if (sqliteAtomicWriteFs.existsSync(backupPath)) {
-      sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
-    }
+    // If the original file was deleted by the backup step and we failed,
+    // there is nothing left to restore — persistence intentionally surfaces
+    // the error so callers can fall back to JSON mirrors.
   }
+}
+
+function compactSqliteDatabase(db: SqlJsDatabase): void {
+  db.run("VACUUM");
 }
 
 function getSourceInfo(filePath: string): MigrationSourceInfo {
@@ -902,6 +932,7 @@ export async function bootstrapWorkspaceSqliteStorage(
         last_imported_at: now,
         last_workspace_import_counts: JSON.stringify(importCounts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(paths.databasePath, db);
       writeWorkspaceMigrationJournal({
         ...imported.journal,
@@ -947,6 +978,7 @@ export async function bootstrapGlobalSqliteStorage(
         last_imported_at: now,
         last_global_import_counts: JSON.stringify(importCounts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(databasePath, db);
     } finally {
       db.close();
@@ -1633,6 +1665,7 @@ export async function syncWorkspaceSchedulerStateToSqlite(
         last_scheduler_sync_at: syncedAt,
         last_scheduler_sync_counts: JSON.stringify(counts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(databasePath, db);
       return counts;
     } finally {
@@ -1661,6 +1694,7 @@ export async function syncGlobalTasksToSqlite(
         last_global_task_sync_at: syncedAt,
         last_global_task_sync_counts: JSON.stringify(counts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(databasePath, db);
       return counts;
     } finally {
@@ -1689,6 +1723,7 @@ export async function syncWorkspaceResearchStateToSqlite(
         last_research_sync_at: syncedAt,
         last_research_sync_counts: JSON.stringify(counts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(databasePath, db);
       return counts;
     } finally {
@@ -1717,6 +1752,7 @@ export async function syncWorkspaceCockpitBoardToSqlite(
         last_cockpit_sync_at: syncedAt,
         last_cockpit_sync_counts: JSON.stringify(counts),
       });
+      compactSqliteDatabase(db);
       persistSqliteDatabase(databasePath, db);
       return counts;
     } finally {
