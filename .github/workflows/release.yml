@@ -109,20 +109,96 @@ jobs:
           fi
 
       - name: Create or update GitHub Release with VSIX
+        uses: actions/github-script@v8
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_TAG}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber
-            gh release edit "${RELEASE_TAG}" \
-              --title "${RELEASE_TITLE}" \
-              --notes-file release-notes.md \
-              $([[ "${RELEASE_PRERELEASE}" == "true" ]] && echo --prerelease || echo --latest)
-          else
-            gh release create "${RELEASE_TAG}" \
-              archive/vsix/latest/copilot-cockpit-*.vsix \
-              --title "${RELEASE_TITLE}" \
-              --notes-file release-notes.md \
-              $([[ "${RELEASE_PRERELEASE}" == "true" ]] && echo --prerelease)
-          fi
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          RELEASE_TITLE: ${{ env.RELEASE_TITLE }}
+          RELEASE_PRERELEASE: ${{ env.RELEASE_PRERELEASE }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require("node:fs");
+            const path = require("node:path");
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const releaseTag = process.env.RELEASE_TAG;
+            const releaseTitle = process.env.RELEASE_TITLE;
+            const prerelease = process.env.RELEASE_PRERELEASE === "true";
+            const workspaceRoot = process.env.GITHUB_WORKSPACE;
+            const latestDir = path.join(workspaceRoot, "archive", "vsix", "latest");
+            const notesPath = path.join(workspaceRoot, "release-notes.md");
+            const vsixName = fs
+              .readdirSync(latestDir)
+              .find((entry) => /^copilot-cockpit-.*\.vsix$/i.test(entry));
+
+            if (!vsixName) {
+              core.setFailed(`No VSIX found in ${latestDir}.`);
+              return;
+            }
+
+            const assetPath = path.join(latestDir, vsixName);
+            const releaseBody = fs.readFileSync(notesPath, "utf8");
+            const assetData = fs.readFileSync(assetPath);
+
+            let release;
+            try {
+              release = (
+                await github.rest.repos.getReleaseByTag({
+                  owner,
+                  repo,
+                  tag: releaseTag,
+                })
+              ).data;
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            if (release) {
+              release = (
+                await github.rest.repos.updateRelease({
+                  owner,
+                  repo,
+                  release_id: release.id,
+                  name: releaseTitle,
+                  body: releaseBody,
+                  prerelease,
+                  make_latest: prerelease ? "false" : "true",
+                })
+              ).data;
+
+              const existingAsset = release.assets.find((asset) => asset.name === vsixName);
+              if (existingAsset) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner,
+                  repo,
+                  asset_id: existingAsset.id,
+                });
+              }
+            } else {
+              release = (
+                await github.rest.repos.createRelease({
+                  owner,
+                  repo,
+                  tag_name: releaseTag,
+                  name: releaseTitle,
+                  body: releaseBody,
+                  prerelease,
+                  make_latest: prerelease ? "false" : "true",
+                })
+              ).data;
+            }
+
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
+              release_id: release.id,
+              name: vsixName,
+              data: assetData,
+              headers: {
+                "content-type": "application/octet-stream",
+                "content-length": assetData.length,
+              },
+            });

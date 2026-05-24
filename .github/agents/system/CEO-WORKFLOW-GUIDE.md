@@ -26,7 +26,7 @@ Prefer the fewest agent hops that still keep boundaries sharp.
 - If `CEO` lacks the right tools, execution surface, or specialist depth for the next action, treat that as a mandatory routing signal rather than a reason to stop.
 - Route to `Planner` when the path is ambiguous or the validation sequence needs design.
 - Route to `Remediation Implementer` for a validation-only pass when returned work needs a concrete closeout check.
-- Route to `Cockpit Todo Expert` when Todo Cockpit cards, approvals, linked task drafts, or Task List entries need work.
+- Route to `Cockpit Todo Expert` when the user actually mentions Cockpit, Todo Cockpit, the board, backlog, approval, or durable task tracking. Do not route there as a default.
 - Route to `Custom Agent Foundry` when the repo lacks a needed specialist or the shared operating docs are too weak.
 - Route directly to an existing specialist when the next move is already clear.
 

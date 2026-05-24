@@ -557,7 +557,12 @@ function logExtensionErrorWithSanitizedDetails(
 }
 
 function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error ?? "");
+  if (error instanceof Error) {
+    const errno = (error as NodeJS.ErrnoException).code;
+    const codeHint = errno ? ` [${errno}]` : "";
+    return `${error.message}${codeHint}`;
+  }
+  return String(error ?? "");
 }
 
 function normalizeApprovalMode(value: string): ApprovalMode {

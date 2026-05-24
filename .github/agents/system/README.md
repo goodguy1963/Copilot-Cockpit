@@ -42,7 +42,7 @@ Recommended pattern:
 2. Use `Planner` for architecture and sequencing.
 3. Use `Remediation Implementer` for approved bounded code changes.
 4. Use `Documentation Specialist` when docs or knowledge need alignment.
-5. Use `Cockpit Todo Expert` for persistent board updates, Task List todo coordination, and approval routing.
+5. Use `Cockpit Todo Expert` for persistent board updates, Task List todo coordination, and approval routing — **only when the user explicitly references Cockpit, Todo Cockpit, the board, backlog, or approval**.
 6. Use `Prefab UI Specialist` when the request is specifically about live Prefab rendering, Prefab UI JSON, dashboards, forms, charts, settings panels, or API-backed Prefab views.
 7. Use `Custom Agent Foundry` to create any missing specialists in the repo.
 

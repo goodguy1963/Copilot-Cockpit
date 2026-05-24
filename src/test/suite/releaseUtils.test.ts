@@ -185,8 +185,11 @@ suite("Release Pipeline Contract Tests", () => {
     assert.ok(workflow.includes("node ./scripts/release-notes.js CHANGELOG.md release-notes.md"));
     assert.ok(workflow.includes("PACKAGE_VERSION=\"$(node -p \"require('./package.json').version\")\""));
     assert.ok(workflow.includes("echo \"- Packaged from workspace version: ${PACKAGE_VERSION}\""));
-    assert.ok(workflow.includes('gh release view "${RELEASE_TAG}" >/dev/null 2>&1'));
-    assert.ok(workflow.includes('gh release upload "${RELEASE_TAG}" archive/vsix/latest/copilot-cockpit-*.vsix --clobber'));
-    assert.ok(workflow.includes('gh release edit "${RELEASE_TAG}" \\'));
+    assert.ok(workflow.includes("uses: actions/github-script@v8"));
+    assert.ok(workflow.includes("github-token: ${{ github.token }}"));
+    assert.ok(workflow.includes("await github.rest.repos.getReleaseByTag({"));
+    assert.ok(workflow.includes("await github.rest.repos.createRelease({"));
+    assert.ok(workflow.includes("await github.rest.repos.uploadReleaseAsset({"));
+    assert.ok(!workflow.includes('gh release view "${RELEASE_TAG}" >/dev/null 2>&1'));
   });
 });

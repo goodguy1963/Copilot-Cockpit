@@ -27,6 +27,12 @@ These starter agents follow the same operating rules across repositories.
 - `Cockpit Todo Expert` owns Todo Cockpit persistence, approval-state mutations, and linked Task List todo coordination.
 - Implementation specialists other than `Cockpit Todo Expert` should not mutate Cockpit board state directly unless that is their explicit role.
 
+## Cockpit-Free Default
+
+- **Do not route through Cockpit unless the user mentions it.** Planning, implementation, research, documentation, and validation work that does not reference Cockpit, Todo Cockpit, the board, backlog, approval, or durable task tracking should be delegated directly to the appropriate specialist without a Cockpit detour.
+- **Checking the board is not a default first step.** Only read the Cockpit board when the request touches Cockpit, portfolio decisions, or backlog claims.
+- This rule applies to all agents, not just `CEO`. No specialist should silently inject a Cockpit step into a request that never mentioned it.
+
 ## Planning And Validation Standard
 
 - Start from the nearest controlling code path, workflow, or durable state boundary.
