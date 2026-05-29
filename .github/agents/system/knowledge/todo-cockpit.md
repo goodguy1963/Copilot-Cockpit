@@ -25,6 +25,7 @@
 - Preserve the existing section, labels, and comments unless the request explicitly changes them.
 - Update due dates, priorities, and routing flags instead of recreating the same work as a new card.
 - Link tasks or drafts when execution begins, but keep the card as the durable approval thread.
+- Treat live scheduled state and valid linked task context as evidence that execution is already in progress, not as a generic "cannot run" blocker. Only escalate the state as a problem when the linked execution artifact is missing, stale, or needs a real approval transition.
 
 ## Boundaries
 

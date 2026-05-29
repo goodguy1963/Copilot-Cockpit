@@ -19,6 +19,12 @@
 - Before non-trivial work, read `.github/repo-knowledge/README.md` and the relevant repo-specific files when they exist.
 - Do not treat `/memories/repo/` as the only durable memory surface. Those notes are useful input, but curated repo knowledge should be readable from the workspace tree.
 
+## Scheduled Todo Interpretation
+
+- In this repo, `ON-SCHEDULE-LIST` means the Todo already represents a live scheduled execution.
+- Treat that state as "this scheduled run is active now", not as evidence that the work is in the wrong state to run.
+- Only escalate when the linked scheduler task is missing, stale, or the card needs a real review-state transition.
+
 ## Current Failure Mode
 
 - A task that only produces "knowledge candidates" without a deterministic publish path leaves the durable KB empty even when useful findings exist.

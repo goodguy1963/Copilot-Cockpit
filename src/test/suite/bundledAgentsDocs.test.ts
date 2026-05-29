@@ -24,6 +24,8 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         "Remediation Implementer",
         "Validate Run",
         "Documentation Specialist",
+        "active execution context",
+        "already on schedule",
         "implement the approved bounded fix",
         "closeout is justified",
         "live Prefab rendering",
@@ -137,6 +139,8 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         "## Phase 3: Choose The Route",
         "## Phase 5: Integrate Results",
         "validation-only pass",
+        "live scheduled state",
+        "scheduled run is already active now",
         "## Good CEO Output",
       ],
     },
@@ -187,6 +191,14 @@ suite("Bundled Starter Agent Docs Contract Tests", () => {
         ".github/agents/system/knowledge/",
         "output_sessions/knowledge-candidates/",
         "repo-specific durable memory",
+      ],
+    },
+    {
+      relativePath: ".github/repo-knowledge/agent-system.md",
+      required: [
+        "## Scheduled Todo Interpretation",
+        "ON-SCHEDULE-LIST",
+        "scheduled run is active now",
       ],
     },
   ];
