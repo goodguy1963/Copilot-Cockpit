@@ -138,6 +138,32 @@ function assertPackagedBundledAgents(vsixPath, rootPath) {
   }
 }
 
+function assertScratchArtifactsExcluded(vsixPath) {
+  const archiveEntries = listZipEntries(vsixPath);
+  const forbiddenPatterns = [
+    /(^|\/)\.copilot-.*\.log$/i,
+    /(^|\/)pretest.*\.(log|txt)$/i,
+    /(^|\/)test_.*\.(log|txt)$/i,
+    /(^|\/).*_output.*\.txt$/i,
+    /(^|\/).*_temp.*\.txt$/i,
+    /(^|\/)show_temp\.txt$/i,
+    /(^|\/)temp_.*\.ps1$/i,
+    /(^|\/)temp_update\.ps1$/i,
+  ];
+  const leakedEntries = archiveEntries.filter((entry) =>
+    forbiddenPatterns.some((pattern) => pattern.test(entry)),
+  );
+
+  if (leakedEntries.length > 0) {
+    fail(
+      [
+        "VSIX still contains scratch or temp artifacts:",
+        ...leakedEntries.map((entry) => `- ${entry}`),
+      ].join("\n"),
+    );
+  }
+}
+
 const workspaceRoot = process.cwd();
 const packageJsonPath = path.join(workspaceRoot, "package.json");
 
@@ -194,6 +220,7 @@ if (typeof result.status === "number" && result.status !== 0) {
 
 assertPackagedBundledSkills(tempVsixPath, workspaceRoot);
 assertPackagedBundledAgents(tempVsixPath, workspaceRoot);
+assertScratchArtifactsExcluded(tempVsixPath);
 
 fs.copyFileSync(tempVsixPath, vsixPath);
 fs.rmSync(tempVsixDirectory, { recursive: true, force: true });

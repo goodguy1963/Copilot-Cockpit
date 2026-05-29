@@ -2440,17 +2440,16 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   }
 
   function deriveTaskOneTimeDelaySeconds(task) {
-    var storedDelay = normalizeOneTimeDelayPart(task && task.oneTimeDelaySeconds);
-    if (storedDelay > 0) {
-      return storedDelay;
-    }
-    if (!(task && task.oneTime === true && task.nextRun)) {
-      return 0;
+    if (task && task.oneTime === true && task.nextRun) {
+      var nextRunDate = new Date(task.nextRun);
+      var remainingSeconds = Math.ceil((nextRunDate.getTime() - Date.now()) / 1000);
+      if (remainingSeconds > 0) {
+        return remainingSeconds;
+      }
     }
 
-    var nextRunDate = new Date(task.nextRun);
-    var remainingSeconds = Math.ceil((nextRunDate.getTime() - Date.now()) / 1000);
-    return remainingSeconds > 0 ? remainingSeconds : 0;
+    var storedDelay = normalizeOneTimeDelayPart(task && task.oneTimeDelaySeconds);
+    return storedDelay > 0 ? storedDelay : 0;
   }
 
   function updateOneTimeDelayPreview() {

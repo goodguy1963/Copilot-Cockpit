@@ -373,6 +373,7 @@ export class ScheduleManager {
     options: {
       previouslyEnabled: boolean;
       cronChanged: boolean;
+      oneTimeTimingChanged?: boolean;
       runFirstInOneMinute?: boolean;
       referenceTime: Date;
     },
@@ -382,9 +383,21 @@ export class ScheduleManager {
       return;
     }
 
-    const { cronChanged, previouslyEnabled, referenceTime, runFirstInOneMinute } =
+    const {
+      cronChanged,
+      oneTimeTimingChanged,
+      previouslyEnabled,
+      referenceTime,
+      runFirstInOneMinute,
+    } =
       options;
     if (task.oneTime === true) {
+      const nextRunIsValid =
+        task.nextRun instanceof Date && Number.isFinite(task.nextRun.getTime());
+      if (!oneTimeTimingChanged && previouslyEnabled && nextRunIsValid) {
+        return;
+      }
+
       const delayedRun = resolveOneTimeDelayNextRun(
         task.oneTimeDelaySeconds,
         referenceTime,
@@ -3085,15 +3098,22 @@ export class ScheduleManager {
 
     const now = new Date();
     const previouslyEnabled = Boolean(task.enabled);
+    const previousOneTime = task.oneTime === true;
+    const previousOneTimeDelaySeconds = normalizeOneTimeDelaySeconds(task.oneTimeDelaySeconds);
     const { cronChanged } = applyTaskUpdatesToTask({
       task,
       updates,
       ...this.createTaskUpdateContext(),
     });
+    const oneTimeTimingChanged = task.oneTime === true && (
+      previousOneTime !== true
+      || previousOneTimeDelaySeconds !== normalizeOneTimeDelaySeconds(task.oneTimeDelaySeconds)
+    );
 
     this.refreshTaskNextRunAfterUpdate(task, {
       previouslyEnabled,
       cronChanged,
+      oneTimeTimingChanged,
       runFirstInOneMinute: updates.runFirstInOneMinute,
       referenceTime: now,
     });

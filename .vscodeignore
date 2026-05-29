@@ -52,6 +52,17 @@ test_output.txt
 test_output*.log
 test_output*.txt
 test_results.txt
+pretest*.log
+pretest*.txt
+test_*.log
+test_*.txt
+*.tmp.log
+.copilot-*.log
+show_temp.txt
+*_output*.txt
+*_temp*.txt
+temp_*.ps1
+temp_update.ps1
 TODO_COCKPIT_FEATURES.md
 ts_errors.log
 ts_errors.txt

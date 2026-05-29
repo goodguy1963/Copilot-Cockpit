@@ -835,6 +835,8 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'recurringScheduleGroup.style.display = isOneTime ? "none" : "";',
       'oneTimeDelayGroup.style.display = isOneTime ? "block" : "none";',
       'function getOneTimeDelaySecondsFromInputs() {',
+      'if (task && task.oneTime === true && task.nextRun) {',
+      'var remainingSeconds = Math.ceil((nextRunDate.getTime() - Date.now()) / 1000);',
       'oneTimeDelaySeconds: getOneTimeDelaySecondsFromInputs(),',
       'oneTimeDelaySeconds: editorState.oneTime',
       'function updateOneTimeDelayPreview() {',

@@ -182,6 +182,37 @@ suite("ScheduleManager Recurring Chat Session Tests", () => {
     }
   });
 
+  test("preserves an active one-time countdown when updates do not change the timer", async () => {
+    const storageRoot = createTempDir("copilot-scheduler-one-time-delay-preserve-");
+
+    try {
+      const manager = new ScheduleManager(createMockContext(storageRoot));
+      const task = await manager.createTask({
+        name: "Preserve one-time countdown",
+        cronExpression: "* * * * *",
+        prompt: "prompt",
+        enabled: true,
+        scope: "global",
+        oneTime: true,
+        oneTimeDelaySeconds: 300,
+      });
+
+      const originalNextRun = task.nextRun?.getTime();
+      assert.ok(originalNextRun, "Expected one-time task to have an active countdown");
+
+      const updated = await manager.updateTask(task.id, {
+        name: "Preserve one-time countdown renamed",
+        oneTime: true,
+        oneTimeDelaySeconds: 300,
+      });
+
+      assert.strictEqual(updated?.oneTimeDelaySeconds, 300);
+      assert.strictEqual(updated?.nextRun?.getTime(), originalNextRun);
+    } finally {
+      removeTestPath(storageRoot);
+    }
+  });
+
   test("allows updating a local template task without resubmitting inline prompt text", async () => {
     const storageRoot = createTempDir("copilot-scheduler-template-task-update-");
 

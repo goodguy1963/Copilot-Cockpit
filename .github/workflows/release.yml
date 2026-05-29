@@ -82,7 +82,23 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           OVSX_TOKEN: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish archive/vsix/latest/copilot-cockpit-*.vsix -p "$OVSX_TOKEN"
+        shell: bash
+        run: |
+          set +e
+          OVSX_OUTPUT="$(npx ovsx publish archive/vsix/latest/copilot-cockpit-*.vsix -p "$OVSX_TOKEN" 2>&1)"
+          OVSX_STATUS=$?
+          printf '%s\n' "$OVSX_OUTPUT"
+
+          if [[ $OVSX_STATUS -eq 0 ]]; then
+            exit 0
+          fi
+
+          if grep -qi "Registry is in read-only mode" <<<"$OVSX_OUTPUT"; then
+            echo "::warning::Open VSX is in read-only mode; continuing so GitHub release creation is not blocked."
+            exit 0
+          fi
+
+          exit $OVSX_STATUS
 
       # Generate release notes from CHANGELOG.md when present, otherwise write fallback notes
       - name: Generate release metadata
