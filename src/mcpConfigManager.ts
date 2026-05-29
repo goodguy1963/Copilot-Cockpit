@@ -57,6 +57,9 @@ type WorkspaceMcpLauncherState = {
   updatedAt: string;
 };
 
+const MCP_SERVER_KEY = "copilot_cockpit";
+const LEGACY_MCP_SERVER_KEY = "scheduler";
+
 const MCP_SUPPORT_DIR_PARTS = [
   ".vscode",
   "copilot-cockpit-support",
@@ -312,7 +315,7 @@ function buildSchedulerCodexServerTable(workspaceRoot: string): string {
       ? [...nodeLaunch.argsPrefix, buildNodeShellExecutionCommand(launcherPath)]
       : [launcherPath];
   return [
-    "[mcp_servers.scheduler]",
+    `[mcp_servers.${MCP_SERVER_KEY}]`,
     `command = "${escapeTomlString(nodeLaunch.command)}"`,
     `args = [${args.map((value) => `"${escapeTomlString(value)}"`).join(", ")}]`,
     ...(nodeLaunch.env
@@ -358,6 +361,36 @@ function upsertNamedTomlTable(options: {
   return [before, options.replacement, after]
     .filter((part) => part.length > 0)
     .join("\n\n") + "\n";
+}
+
+function removeNamedTomlTable(options: {
+  content: string;
+  tableName: string;
+}): string {
+  const normalizedContent = options.content.replace(/\r\n/g, "\n");
+  const lines = normalizedContent.split("\n");
+  const header = `[${options.tableName}]`;
+  const startIndex = lines.findIndex((line) => line.trim() === header);
+
+  if (startIndex < 0) {
+    return normalizedContent;
+  }
+
+  let endIndex = lines.length;
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index].trim();
+    if (line.startsWith("[") && line.endsWith("]")) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  const before = lines.slice(0, startIndex).join("\n").trimEnd();
+  const after = lines.slice(endIndex).join("\n").trim();
+  const nextContent = [before, after]
+    .filter((part) => part.length > 0)
+    .join("\n\n");
+  return nextContent.length > 0 ? `${nextContent}\n` : "";
 }
 
 function getExtensionIdPrefix(extensionRoot: string): string | undefined {
@@ -696,9 +729,19 @@ export function getSchedulerMcpSetupState(
     }
 
     const servers = current.config.servers;
-    const scheduler = isPlainObject(servers) ? servers.scheduler : undefined;
+    const configuredServers = isPlainObject(servers) ? servers : {};
+    const scheduler = isPlainObject(configuredServers[MCP_SERVER_KEY])
+      ? configuredServers[MCP_SERVER_KEY]
+      : isPlainObject(configuredServers[LEGACY_MCP_SERVER_KEY])
+        ? configuredServers[LEGACY_MCP_SERVER_KEY]
+        : undefined;
+    const schedulerKey = isPlainObject(configuredServers[MCP_SERVER_KEY])
+      ? MCP_SERVER_KEY
+      : isPlainObject(configuredServers[LEGACY_MCP_SERVER_KEY])
+        ? LEGACY_MCP_SERVER_KEY
+        : undefined;
     const expected = buildSchedulerMcpServerEntry(workspaceRoot);
-    if (!isPlainObject(scheduler)) {
+    if (!isPlainObject(scheduler) || !schedulerKey) {
       return { status: "missing", configPath };
     }
 
@@ -721,6 +764,14 @@ export function getSchedulerMcpSetupState(
       actualArgs.every((value, index) => value === expected.args[index]) &&
       JSON.stringify(actualEnv ?? {}) === JSON.stringify(expectedEnv ?? {})
     ) {
+      if (schedulerKey !== MCP_SERVER_KEY) {
+        return {
+          status: "stale",
+          configPath,
+          reason: `Legacy ${LEGACY_MCP_SERVER_KEY} MCP entry should be renamed to ${MCP_SERVER_KEY}.`,
+        };
+      }
+
       const launcherPath = getWorkspaceMcpLauncherPath(workspaceRoot);
       if (!fs.existsSync(launcherPath)) {
         return {
@@ -746,7 +797,7 @@ export function getSchedulerMcpSetupState(
       status: "stale",
       configPath,
       reason:
-        `Scheduler MCP entry points to ${JSON.stringify({
+        `${schedulerKey} MCP entry points to ${JSON.stringify({
           type: actualType,
           command: actualCommand,
           args: actualArgs,
@@ -789,11 +840,16 @@ export function upsertSchedulerMcpConfig(
     }
   }
 
+  const existingServers = isPlainObject(existing.servers)
+    ? { ...existing.servers }
+    : {};
+  delete existingServers[LEGACY_MCP_SERVER_KEY];
+
   const nextConfig: McpWorkspaceConfig = {
     ...existing,
     servers: {
-      ...(isPlainObject(existing.servers) ? existing.servers : {}),
-      scheduler: expectedEntry,
+      ...existingServers,
+      [MCP_SERVER_KEY]: expectedEntry,
     },
   };
 
@@ -834,9 +890,13 @@ export function upsertSchedulerCodexConfig(
   const currentContent = createdFile
     ? ""
     : stripBom(fs.readFileSync(configPath, "utf8"));
-  const nextContent = upsertNamedTomlTable({
+  const normalizedContent = removeNamedTomlTable({
     content: currentContent,
-    tableName: "mcp_servers.scheduler",
+    tableName: `mcp_servers.${LEGACY_MCP_SERVER_KEY}`,
+  });
+  const nextContent = upsertNamedTomlTable({
+    content: normalizedContent,
+    tableName: `mcp_servers.${MCP_SERVER_KEY}`,
     replacement: buildSchedulerCodexServerTable(workspaceRoot),
   });
   const updated = currentContent !== nextContent;

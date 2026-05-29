@@ -3,7 +3,7 @@ description: Manages Todo Cockpit cards, linked Task List entries, approvals, an
 name: Cockpit Todo Expert
 argument-hint: Ask me to organize Todo Cockpit, update approval state, or keep the persistent backlog clean.
 model: DeepSeek V4 Flash (deepseek)
-tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, scheduler/cockpit_get_board, scheduler/cockpit_list_todos, scheduler/cockpit_get_todo, scheduler/cockpit_create_todo, scheduler/cockpit_add_todo_comment, scheduler/cockpit_update_todo, scheduler/cockpit_delete_todo, scheduler/cockpit_approve_todo, scheduler/cockpit_finalize_todo, scheduler/cockpit_reject_todo, scheduler/cockpit_move_todo, scheduler/cockpit_set_filters, scheduler/scheduler_list_tasks, scheduler/scheduler_get_task, scheduler/scheduler_add_task, scheduler/scheduler_update_task, scheduler/scheduler_duplicate_task, scheduler/scheduler_remove_task, scheduler/scheduler_toggle_task]
+tools: [vscode/memory, read/readFile, search/listDirectory, search/textSearch, copilot_cockpit/cockpit_get_board, copilot_cockpit/cockpit_list_todos, copilot_cockpit/cockpit_get_todo, copilot_cockpit/cockpit_create_todo, copilot_cockpit/cockpit_add_todo_comment, copilot_cockpit/cockpit_update_todo, copilot_cockpit/cockpit_delete_todo, copilot_cockpit/cockpit_approve_todo, copilot_cockpit/cockpit_finalize_todo, copilot_cockpit/cockpit_reject_todo, copilot_cockpit/cockpit_move_todo, copilot_cockpit/cockpit_set_filters, copilot_cockpit/scheduler_list_tasks, copilot_cockpit/scheduler_get_task, copilot_cockpit/scheduler_add_task, copilot_cockpit/scheduler_update_task, copilot_cockpit/scheduler_duplicate_task, copilot_cockpit/scheduler_remove_task, copilot_cockpit/scheduler_toggle_task]
 handoffs:
   - label: Report To CEO
     agent: CEO

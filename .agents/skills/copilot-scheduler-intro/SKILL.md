@@ -116,9 +116,9 @@ MCP (Model Context Protocol) is how Copilot agents get structured tool access. W
 ### Setup walkthrough
 
 1. **Open Settings** in the Cockpit webview.
-2. **Click "Set Up MCP"**. This creates or repairs the local `scheduler` entry in `.vscode/mcp.json`. It only touches the scheduler entry — any other MCP servers you have configured are preserved.
+2. **Click "Set Up MCP"**. This creates or repairs the local `copilot_cockpit` entry in `.vscode/mcp.json`. It only touches the `copilot_cockpit` entry — any other MCP servers you have configured are preserved.
 3. **Reload VS Code** after the MCP config is written. The MCP server starts on the next editor startup.
-4. **Verify** that a `scheduler` entry now exists in `.vscode/mcp.json`. The extension creates this at the workspace level so the MCP server can access your repo-local scheduler state.
+4. **Verify** that a `copilot_cockpit` entry now exists in `.vscode/mcp.json`. The extension creates this at the workspace level so the MCP server can access your repo-local scheduler state.
 
 ### Adding third-party MCP servers
 
@@ -130,11 +130,11 @@ If you use external services, you can add their MCP servers to the same `.vscode
 
 Click **"Set Up Third-Party MCP"** in the Settings tab to auto-configure secure template entries for Perplexity and Tavily. API keys use `${input:...}` placeholders in the top-level `inputs` array — VS Code prompts for the actual values at startup. Google / google-grounded is documented in the guidance text but requires a manual server entry.
 
-The "Set Up MCP" action also prompts to set up third-party servers after the scheduler entry is created. Third-party servers are preserved across future MCP setup runs.
+The "Set Up MCP" action also prompts to set up third-party servers after the `copilot_cockpit` entry is created. Third-party servers are preserved across future MCP setup runs.
 
 ### Add MCP To Codex
 
-If you use VS Code Codex (Insiders), click **"Add MCP To Codex"** in the Settings tab. This creates or updates the Codex entry in `.codex/config.toml` so Codex agents can also reach the scheduler MCP server.
+If you use VS Code Codex (Insiders), click **"Add MCP To Codex"** in the Settings tab. This creates or updates the Codex entry in `.codex/config.toml` so Codex agents can also reach the `copilot_cockpit` MCP server.
 
 ### Enable External-Agent Access
 

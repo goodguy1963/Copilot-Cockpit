@@ -31,7 +31,7 @@
 
 - The extension bundles an embedded MCP server at `out/server.js`.
 - Practical setup order for optional integration layers: get the core loop working first, use `Set Up MCP`, add any separate third-party MCP servers to the same `.vscode/mcp.json`, use `Sync Bundled Skills`, then choose `Stage Bundled Agents` or `Sync Bundled Agents` if you want the optional agent layer.
-- `Set Up MCP` creates or repairs the local `scheduler` entry in `.vscode/mcp.json`, activates the repo-local scheduler MCP server for this workspace, and does not overwrite unrelated servers.
+- `Set Up MCP` creates or repairs the local `copilot_cockpit` entry in `.vscode/mcp.json`, activates the repo-local `copilot_cockpit` MCP server for this workspace, and does not overwrite unrelated servers.
 - `Add MCP To Codex` creates or updates the repo-local Codex entry in `.codex/config.toml`.
 - `Enable External-Agent Access` turns on a same-machine-only local connector for one selected workspace folder. It creates or reuses a per-workspace `repoId`, generates a per-workspace repo key in VS Code SecretStorage, refreshes repo-local support files under `.vscode/copilot-cockpit-support/external-agent/`, and keeps the live key out of repo files.
 - `Disable External-Agent Access` revokes that workspace's local connector and terminates active external-agent sessions.

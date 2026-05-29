@@ -1,8 +1,12 @@
 import * as fs from "fs";
 import * as assert from "assert";
-import type { AgentInfo, ScheduledTask } from "../../types"; // local-diverge-3
+import type { AgentInfo, CockpitBoard, ScheduledTask } from "../../types"; // local-diverge-3
 import * as path from "path";
 import * as vscode from "vscode";
+import {
+  readWorkspaceCockpitBoardFromSqlite,
+  syncWorkspaceCockpitBoardToSqlite,
+} from "../../sqliteBootstrap";
 import {
   createTempDir,
   overrideWorkspaceFolders,
@@ -86,6 +90,21 @@ type StartupSqliteHydrationDepsForTest = {
   getBoardHydrationPromise: () => Promise<void> | undefined;
   timeoutMs?: number;
 };
+
+type CockpitBoardSqliteHydrationDepsForTest = {
+  workspaceRoot: string;
+  immediate?: boolean;
+  sqliteAuthorityExists: boolean;
+  waitForTaskHydration: () => Promise<void>;
+  readBoard: (workspaceRoot: string) => Promise<CockpitBoard | undefined>;
+  getTasks: () => ScheduledTask[];
+  setHydratedBoard: (workspaceRoot: string, board: CockpitBoard) => void;
+  refreshUi: (immediate?: boolean) => void;
+};
+
+type HydrateCockpitBoardFromSqliteForTest = (
+  deps: CockpitBoardSqliteHydrationDepsForTest,
+) => Promise<boolean>;
 
 type RepairStateEntry = {
   workspaceRoot: string;
@@ -927,6 +946,150 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(detections[0]?.isStale, true);
   });
 
+  test("stale runtime board hydration still follows sqlite authority", async () => {
+    const testOnly = await getTestOnlyExports();
+    const shouldSuppress = testOnly.shouldSuppressSqliteWorkForExtensionContext as
+      | ShouldSuppressSqliteWorkForExtensionContextForTest
+      | undefined;
+    const hydrateCockpitBoardFromSqlite = testOnly.hydrateCockpitBoardFromSqlite as
+      | HydrateCockpitBoardFromSqliteForTest
+      | undefined;
+
+    assert.ok(typeof shouldSuppress === "function");
+    assert.ok(typeof hydrateCockpitBoardFromSqlite === "function");
+
+    const workspaceRoot = createTempDir("copilot-cockpit-stale-board-");
+    const extensionsRoot = createTempDir("copilot-cockpit-stale-extensions-");
+    const activeRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.33");
+    const latestRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.34");
+    const existingPaths = new Set([
+      path.resolve(extensionsRoot),
+      path.resolve(path.join(activeRoot, "package.json")),
+      path.resolve(path.join(latestRoot, "package.json")),
+    ]);
+
+    try {
+      fs.mkdirSync(activeRoot, { recursive: true });
+      fs.mkdirSync(latestRoot, { recursive: true });
+      fs.writeFileSync(path.join(activeRoot, "package.json"), "{}\n", "utf8");
+      fs.writeFileSync(path.join(latestRoot, "package.json"), "{}\n", "utf8");
+
+      const suppressed = shouldSuppress!({
+        context: {
+          extensionUri: { fsPath: activeRoot },
+          extension: {
+            packageJSON: {
+              version: "2.0.33",
+              publisher: "local-dev",
+              name: "copilot-cockpit",
+            },
+          },
+        },
+        fsImpl: {
+          existsSync: (filePath) => existingPaths.has(path.resolve(filePath)),
+          readdirSync: (dirPath) =>
+            path.resolve(dirPath) === path.resolve(extensionsRoot)
+              ? [
+                createDirEntry("local-dev.copilot-cockpit-2.0.33"),
+                createDirEntry("local-dev.copilot-cockpit-2.0.34"),
+              ]
+              : [],
+        },
+      });
+
+      assert.strictEqual(suppressed, true);
+
+      const sqliteBoard: CockpitBoard = {
+        version: 4,
+        sections: [
+          {
+            id: "unsorted",
+            title: "Unsorted",
+            order: 0,
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+        ],
+        cards: [
+          {
+            id: "card-1",
+            title: "SQLite cockpit card",
+            sectionId: "unsorted",
+            order: 0,
+            priority: "medium",
+            status: "active",
+            labels: ["ops"],
+            flags: ["ready"],
+            comments: [
+              {
+                id: "comment-1",
+                author: "user",
+                body: "still visible after update",
+                source: "human-form",
+                sequence: 1,
+                createdAt: "2026-04-04T00:00:00.000Z",
+              },
+            ],
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+            archived: false,
+          },
+        ],
+        labelCatalog: [
+          {
+            key: "ops",
+            name: "Ops",
+            color: "#112233",
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+          },
+        ],
+        flagCatalog: [
+          {
+            key: "ready",
+            name: "ready",
+            color: "#445566",
+            createdAt: "2026-04-04T00:00:00.000Z",
+            updatedAt: "2026-04-04T00:00:00.000Z",
+            system: true,
+          },
+        ],
+        updatedAt: "2026-04-04T00:00:00.000Z",
+      };
+      await syncWorkspaceCockpitBoardToSqlite(workspaceRoot, sqliteBoard);
+
+      let hydratedWorkspaceRoot: string | undefined;
+      let hydratedBoard: CockpitBoard | undefined;
+      const refreshCalls: boolean[] = [];
+
+      const hydrated = await hydrateCockpitBoardFromSqlite!({
+        workspaceRoot,
+        immediate: true,
+        sqliteAuthorityExists: true,
+        waitForTaskHydration: async () => undefined,
+        readBoard: readWorkspaceCockpitBoardFromSqlite,
+        getTasks: () => [],
+        setHydratedBoard: (nextWorkspaceRoot, board) => {
+          hydratedWorkspaceRoot = nextWorkspaceRoot;
+          hydratedBoard = board;
+        },
+        refreshUi: (immediate) => {
+          refreshCalls.push(Boolean(immediate));
+        },
+      });
+
+      assert.strictEqual(hydrated, true);
+      assert.strictEqual(hydratedWorkspaceRoot, workspaceRoot);
+      assert.strictEqual(hydratedBoard?.cards[0]?.id, "card-1");
+      assert.strictEqual(hydratedBoard?.cards[0]?.title, "SQLite cockpit card");
+      assert.strictEqual(hydratedBoard?.cards[0]?.comments[0]?.body, "still visible after update");
+      assert.deepStrictEqual(refreshCalls, [true]);
+    } finally {
+      deletePromptFixtureWorkspace(workspaceRoot);
+      deletePromptFixtureWorkspace(extensionsRoot);
+    }
+  });
+
   test("stale runtime guard tolerates partial extension context mocks", async () => {
     const testOnly = await getTestOnlyExports();
     const shouldSuppress = testOnly.shouldSuppressSqliteWorkForExtensionContext as
@@ -994,6 +1157,77 @@ suite("Extension Integration Tests", () => {
     createRefresh!((immediate) => calls.push(immediate === true))();
 
     assert.deepStrictEqual(calls, [true]);
+  });
+
+  test("optional third-party MCP prompt does not block the main setup flow", async () => {
+    const testOnly = await getTestOnlyExports();
+    const promptToSetupOptionalThirdPartyMcp = testOnly.promptToSetupOptionalThirdPartyMcp as
+      | ((
+        context: vscode.ExtensionContext,
+        deps?: {
+          showInformationMessage?: typeof vscode.window.showInformationMessage;
+          setupThirdPartyMcp?: (context: vscode.ExtensionContext) => Promise<boolean>;
+        },
+      ) => void)
+      | undefined;
+
+    assert.ok(typeof promptToSetupOptionalThirdPartyMcp === "function");
+
+    const deferredChoice = createDeferred<string | undefined>();
+    const promptCalls: unknown[][] = [];
+    let setupCalls = 0;
+
+    promptToSetupOptionalThirdPartyMcp!({} as vscode.ExtensionContext, {
+      showInformationMessage: async (...args: unknown[]) => {
+        promptCalls.push(args);
+        return deferredChoice.promise;
+      },
+      setupThirdPartyMcp: async () => {
+        setupCalls += 1;
+        return true;
+      },
+    });
+
+    assert.strictEqual(promptCalls.length, 1);
+    assert.strictEqual(setupCalls, 0);
+
+    await Promise.resolve();
+    assert.strictEqual(setupCalls, 0);
+
+    deferredChoice.resolve(undefined);
+    await deferredChoice.promise;
+    await Promise.resolve();
+
+    assert.strictEqual(setupCalls, 0);
+  });
+
+  test("optional third-party MCP prompt runs setup only after explicit confirmation", async () => {
+    const testOnly = await getTestOnlyExports();
+    const { messages } = await import("../../i18n");
+    const promptToSetupOptionalThirdPartyMcp = testOnly.promptToSetupOptionalThirdPartyMcp as
+      | ((
+        context: vscode.ExtensionContext,
+        deps?: {
+          showInformationMessage?: typeof vscode.window.showInformationMessage;
+          setupThirdPartyMcp?: (context: vscode.ExtensionContext) => Promise<boolean>;
+        },
+      ) => void)
+      | undefined;
+
+    assert.ok(typeof promptToSetupOptionalThirdPartyMcp === "function");
+
+    let setupCalls = 0;
+
+    promptToSetupOptionalThirdPartyMcp!({} as vscode.ExtensionContext, {
+      showInformationMessage: async () => messages.mcpSetupThirdPartyAction(),
+      setupThirdPartyMcp: async () => {
+        setupCalls += 1;
+        return true;
+      },
+    });
+
+    await Promise.resolve();
+    assert.strictEqual(setupCalls, 1);
   });
 
   test("workspace storage watcher list includes sqlite authority and json mirrors", async () => {

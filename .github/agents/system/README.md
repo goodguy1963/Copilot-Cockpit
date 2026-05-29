@@ -53,3 +53,8 @@ Recommended maintenance pattern:
 3. Update `.github/repo-knowledge/` when the durable lesson is repo-specific rather than starter-pack-general.
 4. If the roster changed, update `ceo.agent.md` routing plus any affected discovery, tool, packaging, or regression-test surfaces.
 5. Keep reusable process guidance in the shared docs instead of duplicating it across every agent.
+
+MCP naming rule:
+
+- The workspace MCP server key is `copilot_cockpit`. Agent frontmatter `tools` entries should therefore use `copilot_cockpit/...` when granting MCP access.
+- Skill guidance can still refer to the task and board tool families as `scheduler_` and `cockpit_`, because those are the tool-name prefixes exposed by that server.

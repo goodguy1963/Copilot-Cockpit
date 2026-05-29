@@ -772,7 +772,7 @@ export class ScheduleManager {
     return getConfiguredSchedulerStorageMode(vscode.Uri.file(workspaceRoot)) === SQLITE_STORAGE_MODE;
   }
 
-  private shouldSuppressSqliteWorkForStaleRuntime(operation: string): boolean {
+  private shouldSuppressSqliteWritesForStaleRuntime(operation: string): boolean {
     return shouldSuppressSqliteWorkForExtensionContext({
       context: this.extensionCtx,
       onStaleRuntimeDetected: (status) => {
@@ -788,9 +788,6 @@ export class ScheduleManager {
   private scheduleSqliteWorkspaceHydration(): void {
     const workspaceRoot = this.getPrimaryWorkspaceRoot();
     if (!workspaceRoot || !this.isWorkspaceSqliteModeEnabled()) {
-      return;
-    }
-    if (this.shouldSuppressSqliteWorkForStaleRuntime("workspace task hydration")) {
       return;
     }
     if (this.sqliteHydrationPromise) {
@@ -1223,11 +1220,17 @@ export class ScheduleManager {
           ])).filter((folderId) => !this.jobFolders.has(folderId)),
         };
         if (this.isWorkspaceSqliteModeEnabled()) {
+          if (this.shouldSuppressSqliteWritesForStaleRuntime("workspace state sync")) {
+            writeSchedulerConfig(workspaceRoot, config, {
+              baseConfig: existingConfig,
+            });
+          } else {
           await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, config);
           await exportWorkspaceSqliteToJsonMirrors(
             workspaceRoot,
             this.extensionCtx.globalStorageUri?.fsPath,
           );
+          }
         } else {
           writeSchedulerConfig(workspaceRoot, config, {
             baseConfig: existingConfig,

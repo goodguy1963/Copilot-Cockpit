@@ -658,9 +658,9 @@ export function buildSchedulerWebviewStrings(
       "Private Workspace-Dateien von Copilot Cockpit automatisch in Ignore-Dateien eintragen",
     ),
     settingsAutoIgnorePrivateFilesBody: localize(
-      "Adds Copilot Cockpit's local-only paths to .gitignore and .vscode/.gitignore for Git/GitHub-style workflows. Turning this off only stops future automatic writes; existing ignore entries stay as-is.",
-      "Git / GitHub 風の運用向けに、Copilot Cockpit のローカル専用パスを .gitignore と .vscode/.gitignore へ追加します。これをオフにすると今後の自動書き込みだけを止め、既存の ignore エントリはそのまま残します。",
-      "Fuegt die rein lokalen Pfade von Copilot Cockpit fuer Git-/GitHub-aehnliche Workflows in .gitignore und .vscode/.gitignore ein. Wenn Sie dies ausschalten, werden nur kuenftige automatische Schreibvorgaenge gestoppt; bestehende Ignore-Eintraege bleiben unveraendert.",
+      "Adds Copilot Cockpit's local-only .vscode and generated .github paths to .gitignore, .vscode/.gitignore, and any existing .dockerignore. When a file is updated, Cockpit shows a one-time review notification. Turning this off only stops future automatic writes; existing ignore entries stay as-is.",
+      "Copilot Cockpit のローカル専用 .vscode パスと生成された .github パスを .gitignore、.vscode/.gitignore、既存の .dockerignore へ追加します。ファイルを更新したときだけ、Cockpit は一度だけ確認用の通知を表示します。これをオフにすると今後の自動書き込みだけを止め、既存の ignore エントリはそのまま残します。",
+      "Fuegt die rein lokalen .vscode-Pfade und erzeugten .github-Pfade von Copilot Cockpit in .gitignore, .vscode/.gitignore und eine vorhandene .dockerignore ein. Wenn eine Datei aktualisiert wurde, zeigt Cockpit einmalig eine Prüfbenachrichtigung an. Wenn Sie dies ausschalten, werden nur kuenftige automatische Schreibvorgaenge gestoppt; bestehende Ignore-Eintraege bleiben unveraendert.",
     ),
     settingsDefaultFlagsTitle: localize("Built-in Cockpit flags", "組み込み Cockpit フラグ", "Integrierte Cockpit-Flags"),
     settingsDefaultFlagsBody: localize(
@@ -1052,9 +1052,9 @@ export function buildSchedulerWebviewStrings(
       "🧭 Workspace-Setup",
     ),
     settingsOnboardingStep1: localize(
-      "Use <strong>Set Up MCP</strong> to add the scheduler MCP server to this repo.",
-      "<strong>Set Up MCP</strong> を使って、このリポジトリに scheduler MCP server を追加します。",
-      "Mit <strong>Set Up MCP</strong> den Scheduler-MCP-Server zu diesem Repository hinzufügen.",
+      "Use <strong>Set Up MCP</strong> to add the <code>copilot_cockpit</code> MCP server to this repo.",
+      "<strong>Set Up MCP</strong> を使って、このリポジトリに <code>copilot_cockpit</code> MCP server を追加します。",
+      "Mit <strong>Set Up MCP</strong> den <code>copilot_cockpit</code>-MCP-Server zu diesem Repository hinzufügen.",
     ),
     settingsOnboardingStep2: localize(
       "Run <strong>Sync Bundled Skills</strong> to install the core operational skills.",

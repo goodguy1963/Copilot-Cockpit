@@ -368,6 +368,17 @@ type StartupSqliteHydrationDeps = {
   clearTimeoutHandle?: (handle: NodeJS.Timeout) => void;
 };
 
+type CockpitBoardSqliteHydrationDeps = {
+  workspaceRoot: string;
+  immediate?: boolean;
+  sqliteAuthorityExists: boolean;
+  waitForTaskHydration: () => Promise<void>;
+  readBoard: (workspaceRoot: string) => Promise<CockpitBoard | undefined>;
+  getTasks: () => ScheduledTask[];
+  setHydratedBoard: (workspaceRoot: string, board: CockpitBoard) => void;
+  refreshUi: (immediate?: boolean) => void;
+};
+
 const SQLITE_STARTUP_HYDRATION_TIMEOUT_MS = 10_000;
 
 type OpenSchedulerUiOptions = {
@@ -722,7 +733,54 @@ async function ensureSchedulerSkillOnStartup(
     return;
   }
 
-  ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+  const updatedPaths = ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+  void notifyUpdatedIgnoreFiles(updatedPaths);
+}
+
+function summarizeUpdatedIgnorePaths(updatedPaths: string[]): string {
+  const relativePaths = Array.from(new Set(updatedPaths.map((updatedPath) =>
+    vscode.workspace.asRelativePath(updatedPath, false).replaceAll("\\", "/"),
+  )));
+
+  if (relativePaths.length <= 3) {
+    return relativePaths.join(", ");
+  }
+
+  return `${relativePaths.slice(0, 3).join(", ")}, +${relativePaths.length - 3} more`;
+}
+
+async function openUpdatedIgnoreFiles(updatedPaths: string[]): Promise<void> {
+  for (let index = 0; index < updatedPaths.length; index += 1) {
+    const document = await vscode.workspace.openTextDocument(updatedPaths[index]);
+    await vscode.window.showTextDocument(document, {
+      preview: false,
+      preserveFocus: index > 0,
+    });
+  }
+}
+
+async function notifyUpdatedIgnoreFiles(updatedPaths: string[]): Promise<void> {
+  if (updatedPaths.length === 0) {
+    return;
+  }
+
+  const uniqueUpdatedPaths = Array.from(new Set(updatedPaths));
+  const reviewAction = messages.privateIgnoreFilesReviewAction();
+  const settingsAction = messages.privateIgnoreFilesSettingsAction();
+  const choice = await vscode.window.showInformationMessage(
+    messages.privateIgnoreFilesUpdated(summarizeUpdatedIgnorePaths(uniqueUpdatedPaths)),
+    reviewAction,
+    settingsAction,
+  );
+
+  if (choice === reviewAction) {
+    await openUpdatedIgnoreFiles(uniqueUpdatedPaths);
+    return;
+  }
+
+  if (choice === settingsAction) {
+    await vscode.commands.executeCommand(getCockpitCommandId("openSettings"));
+  }
 }
 
 async function syncBundledSkills(
@@ -1107,7 +1165,7 @@ let externalAgentAccessManager: ExternalAgentAccessManager | undefined;
 let externalAgentControlServerManager: ExternalAgentControlServerManager | undefined;
 let externalAgentSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-function shouldSuppressSqliteWorkForStaleRuntime(operation: string): boolean {
+function shouldSuppressSqliteWritesForStaleRuntime(operation: string): boolean {
   if (!extensionContext) {
     return false;
   }
@@ -1369,7 +1427,7 @@ async function syncCockpitBoardToSqliteIfNeeded(
   if (!isWorkspaceSqliteModeEnabled(workspaceRoot)) {
     return;
   }
-  if (shouldSuppressSqliteWorkForStaleRuntime("Cockpit board sync")) {
+  if (shouldSuppressSqliteWritesForStaleRuntime("Cockpit board sync")) {
     return;
   }
 
@@ -1436,12 +1494,30 @@ async function waitForSqliteStartupHydration(
   await timeoutPromise;
 }
 
+async function hydrateCockpitBoardFromSqlite(
+  deps: CockpitBoardSqliteHydrationDeps,
+): Promise<boolean> {
+  await deps.waitForTaskHydration();
+
+  const sqliteBoard = await deps.readBoard(deps.workspaceRoot);
+  if (!sqliteBoard && !deps.sqliteAuthorityExists) {
+    return false;
+  }
+
+  const hydratedBoard = ensureTaskTodosInBoard(
+    sqliteBoard
+      ? normalizeCockpitBoard(sqliteBoard)
+      : createDefaultCockpitBoard(),
+    deps.getTasks(),
+  ).board;
+  deps.setHydratedBoard(deps.workspaceRoot, hydratedBoard);
+  deps.refreshUi(deps.immediate);
+  return true;
+}
+
 function scheduleCockpitBoardSqliteHydration(immediate = false): void {
   const workspaceRoot = getPrimaryWorkspaceRootPath();
   if (!workspaceRoot || !isWorkspaceSqliteModeEnabled(workspaceRoot)) {
-    return;
-  }
-  if (shouldSuppressSqliteWorkForStaleRuntime("Cockpit board hydration")) {
     return;
   }
   if (cockpitBoardSqliteHydrationPromise) {
@@ -1456,21 +1532,17 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
   const sqliteAuthorityExists = fs.existsSync(sqliteDatabasePath);
 
   cockpitBoardSqliteHydrationPromise = scheduler.waitForSqliteWorkspaceHydration()
-    .then(() => readWorkspaceCockpitBoardFromSqlite(workspaceRoot))
-    .then((sqliteBoard) => {
-      if (!sqliteBoard && !sqliteAuthorityExists) {
-        return;
-      }
-
-      const hydratedBoard = ensureTaskTodosInBoard(
-        sqliteBoard
-          ? normalizeCockpitBoard(sqliteBoard)
-          : createDefaultCockpitBoard(),
-        scheduler?.getAllTasks?.() ?? [],
-      ).board;
-      setCurrentCockpitBoard(workspaceRoot, hydratedBoard);
-      refreshSchedulerUiState(immediate);
-    })
+    .then(() => hydrateCockpitBoardFromSqlite({
+      workspaceRoot,
+      immediate,
+      sqliteAuthorityExists,
+      waitForTaskHydration: async () => undefined,
+      readBoard: readWorkspaceCockpitBoardFromSqlite,
+      getTasks: () => scheduler?.getAllTasks?.() ?? [],
+      setHydratedBoard: setCurrentCockpitBoard,
+      refreshUi: refreshSchedulerUiState,
+    }))
+    .then(() => undefined)
     .catch((error) =>
       logError(
         "[CopilotScheduler] SQLite Cockpit board hydration failed:",
@@ -2610,6 +2682,30 @@ async function setupThirdPartyMcpTemplates(
   return setupThirdPartyMcpTemplatesGuided(context);
 }
 
+function promptToSetupOptionalThirdPartyMcp(
+  context: vscode.ExtensionContext,
+  deps?: {
+    showInformationMessage?: typeof vscode.window.showInformationMessage;
+    setupThirdPartyMcp?: (context: vscode.ExtensionContext) => Promise<boolean>;
+  },
+): void {
+  const showInformationMessage = deps?.showInformationMessage
+    ?? vscode.window.showInformationMessage.bind(vscode.window);
+  const setupThirdPartyMcp = deps?.setupThirdPartyMcp
+    ?? setupThirdPartyMcpTemplates;
+  const actionLabel = messages.mcpSetupThirdPartyAction();
+
+  void showInformationMessage(
+    messages.mcpSetupThirdPartyPrompt(),
+    actionLabel,
+    messages.actionCancel(),
+  ).then((choice) => {
+    if (choice === actionLabel) {
+      void setupThirdPartyMcp(context);
+    }
+  });
+}
+
 /**
  * Guided third-party MCP setup using step-by-step QuickPick dialogs.
  *
@@ -2756,7 +2852,8 @@ async function repairWorkspaceSupportFiles(
       repairedMcpCount += 1;
     }
 
-    ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+    const updatedIgnorePaths = ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+    void notifyUpdatedIgnoreFiles(updatedIgnorePaths);
     const syncResult = refreshBundledSkills
       ? await syncBundledSkills(context, workspaceRoots)
       : {
@@ -3418,7 +3515,8 @@ export function activate(context: vscode.ExtensionContext): void {
             vscode.Uri.file(workspaceRoot),
           ) !== false,
         );
-        applyPrivateConfigIgnoreForWorkspaceRoots(workspaceRootsWithAutoIgnoreEnabled);
+        const updatedIgnorePaths = applyPrivateConfigIgnoreForWorkspaceRoots(workspaceRootsWithAutoIgnoreEnabled);
+        void notifyUpdatedIgnoreFiles(updatedIgnorePaths);
       }
       if (
         storageModeChanged
@@ -3791,6 +3889,7 @@ export const __testOnly = {
   createUiRefreshQueue,
   createWorkspaceSupportRepairPlan,
   createImmediateManualRunRefresh,
+  hydrateCockpitBoardFromSqlite,
   filterRepoLocalWorkspaceAgents,
   getDefaultReviewTemplateValues: () => ({
     needsBotReviewCommentTemplate: DEFAULT_NEEDS_BOT_REVIEW_COMMENT_TEMPLATE,
@@ -3804,6 +3903,7 @@ export const __testOnly = {
   isCockpitWorkspaceActivated,
   isModelSelectionAvailable,
   normalizeSearchProvider,
+  promptToSetupOptionalThirdPartyMcp,
   resolveProviderSettings,
   resolveTaskExecutionChatSession,
   resolvePromptText, // prompt-resolution
@@ -4353,14 +4453,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
         }
         const mcpOk = await setupWorkspaceMcpConfig(extensionContext);
         if (mcpOk) {
-          const choice = await vscode.window.showInformationMessage(
-            messages.mcpSetupThirdPartyPrompt(),
-            messages.mcpSetupThirdPartyAction(),
-            messages.actionCancel(),
-          );
-          if (choice === messages.mcpSetupThirdPartyAction()) {
-            await setupThirdPartyMcpTemplates(extensionContext);
-          }
+          promptToSetupOptionalThirdPartyMcp(extensionContext);
         }
         break;
       }
@@ -4811,7 +4904,8 @@ function registerSyncBundledSkillsCommand(
       }
 
       try {
-        ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+        const updatedIgnorePaths = ensurePrivateConfigIgnoredForWorkspaceRoots(workspaceRoots);
+        void notifyUpdatedIgnoreFiles(updatedIgnorePaths);
         const syncResult = await syncBundledSkills(context, workspaceRoots);
         await SchedulerWebview.reloadCachesAndSync(true);
         SchedulerWebview.updateStorageSettings(getCurrentStorageSettings());

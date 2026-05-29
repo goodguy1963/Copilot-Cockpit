@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const ROOT_GITIGNORE_RELATIVE_PATH = ".gitignore";
+const ROOT_DOCKERIGNORE_RELATIVE_PATH = ".dockerignore";
 const SETTINGS_RELATIVE_PATH = path.join(".vscode", "settings.json");
 const VSCODE_GITIGNORE_RELATIVE_PATH = path.join(".vscode", ".gitignore");
 export const AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY = "autoIgnorePrivateFiles";
@@ -10,6 +11,8 @@ const AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY =
 const LEGACY_AUTO_IGNORE_PRIVATE_FILES_CONFIG_KEY =
   `copilotScheduler.${AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY}`;
 const VSCODE_IGNORE_ENTRIES = [
+  "mcp.json",
+  ".gitignore",
   "scheduler.private.json",
   "copilot-cockpit.db",
   "copilot-cockpit.db-migration.json",
@@ -17,11 +20,30 @@ const VSCODE_IGNORE_ENTRIES = [
   "cockpit-prompt-backups/",
   "cockpit-input-uploads/",
   "scheduler-prompt-backups/",
+  "scheduler-history/",
   "copilot-cockpit-support/",
 ] as const;
 const VSCODE_IGNORE_COMMENT = "# Copilot Cockpit private config";
-const ROOT_IGNORE_ENTRIES = [".copilot-cockpit-logs/"] as const;
-const ROOT_IGNORE_COMMENT = "# Copilot Cockpit logs";
+const ROOT_IGNORE_ENTRIES = [
+  ".copilot-cockpit-logs/",
+  ".vscode/.gitignore",
+  ".vscode/mcp.json",
+  ".vscode/scheduler.private.json",
+  ".vscode/copilot-cockpit.db",
+  ".vscode/copilot-cockpit.db-migration.json",
+  ".vscode/copilot-cockpit.private.json",
+  ".vscode/cockpit-prompt-backups/",
+  ".vscode/cockpit-input-uploads/",
+  ".vscode/scheduler-prompt-backups/",
+  ".vscode/scheduler-history/",
+  ".vscode/copilot-cockpit-support/",
+  ".github/hooks/",
+  ".github/agents/todos/",
+  ".github-scheduler-backups/",
+  ".github/cockpit-prompt-backups/",
+  ".github/scheduler-prompt-backups/",
+] as const;
+const ROOT_IGNORE_COMMENT = "# Copilot Cockpit local workspace files";
 
 function stripBom(content: string): string {
   return content.replace(/^\uFEFF/, "");
@@ -193,7 +215,12 @@ function ensureIgnoreEntries(
   ignorePath: string,
   comment: string,
   entries: readonly string[],
+  createIfMissing = true,
 ): boolean {
+  if (!createIfMissing && !fs.existsSync(ignorePath)) {
+    return false;
+  }
+
   fs.mkdirSync(path.dirname(ignorePath), { recursive: true });
 
   const existingContent = fs.existsSync(ignorePath)
@@ -237,19 +264,12 @@ function ensurePrivateConfigIgnoredForWorkspaceRootInternal(
   }
 
   const updatedPaths: string[] = [];
+  const rootIgnorePath = path.join(workspaceRoot, ROOT_GITIGNORE_RELATIVE_PATH);
+  const dockerIgnorePath = path.join(workspaceRoot, ROOT_DOCKERIGNORE_RELATIVE_PATH);
   const vscodeIgnorePath = path.join(
     workspaceRoot,
     VSCODE_GITIGNORE_RELATIVE_PATH,
   );
-  const rootIgnorePath = path.join(workspaceRoot, ROOT_GITIGNORE_RELATIVE_PATH);
-
-  if (ensureIgnoreEntries(
-    vscodeIgnorePath,
-    VSCODE_IGNORE_COMMENT,
-    VSCODE_IGNORE_ENTRIES,
-  )) {
-    updatedPaths.push(vscodeIgnorePath);
-  }
 
   if (ensureIgnoreEntries(
     rootIgnorePath,
@@ -257,6 +277,23 @@ function ensurePrivateConfigIgnoredForWorkspaceRootInternal(
     ROOT_IGNORE_ENTRIES,
   )) {
     updatedPaths.push(rootIgnorePath);
+  }
+
+  if (ensureIgnoreEntries(
+    dockerIgnorePath,
+    ROOT_IGNORE_COMMENT,
+    ROOT_IGNORE_ENTRIES,
+    false,
+  )) {
+    updatedPaths.push(dockerIgnorePath);
+  }
+
+  if (ensureIgnoreEntries(
+    vscodeIgnorePath,
+    VSCODE_IGNORE_COMMENT,
+    VSCODE_IGNORE_ENTRIES,
+  )) {
+    updatedPaths.push(vscodeIgnorePath);
   }
 
   return updatedPaths;

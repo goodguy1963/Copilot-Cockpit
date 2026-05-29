@@ -33,20 +33,22 @@ function readUtf8(filePath: string): string {
 suite("Private config ignore behavior", () => {
   test("creates both ignore files with cockpit-private defaults", () => {
     const workspaceRoot = createWorkspaceRoot();
-    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
     const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
+    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
 
     try {
       const returnedPath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(returnedPath, vscodeIgnorePath);
+      assert.strictEqual(returnedPath, rootIgnorePath);
       assert.strictEqual(
         readUtf8(vscodeIgnorePath),
-        "# Copilot Cockpit private config\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\ncopilot-cockpit-support/\n",
+        "# Copilot Cockpit private config\nmcp.json\n.gitignore\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\nscheduler-history/\ncopilot-cockpit-support/\n",
       );
       assert.strictEqual(
         readUtf8(rootIgnorePath),
-        "# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
+        "# Copilot Cockpit local workspace files\n.copilot-cockpit-logs/\n.vscode/.gitignore\n.vscode/mcp.json\n.vscode/scheduler.private.json\n.vscode/copilot-cockpit.db\n.vscode/copilot-cockpit.db-migration.json\n.vscode/copilot-cockpit.private.json\n.vscode/cockpit-prompt-backups/\n.vscode/cockpit-input-uploads/\n.vscode/scheduler-prompt-backups/\n.vscode/scheduler-history/\n.vscode/copilot-cockpit-support/\n.github/hooks/\n.github/agents/todos/\n.github-scheduler-backups/\n.github/cockpit-prompt-backups/\n.github/scheduler-prompt-backups/\n",
       );
+      assert.ok(!readUtf8(rootIgnorePath).includes(".github/agents/\n"));
+      assert.ok(!readUtf8(rootIgnorePath).includes(".github/repo-knowledge/\n"));
     } finally {
       removeWorkspaceRoot(workspaceRoot);
     }
@@ -63,14 +65,14 @@ suite("Private config ignore behavior", () => {
       fs.writeFileSync(rootIgnorePath, "node_modules/\nout/\n", "utf8");
 
       const updatedPath = ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot);
-      assert.strictEqual(updatedPath, vscodeIgnorePath);
+      assert.strictEqual(updatedPath, rootIgnorePath);
       assert.strictEqual(
         readUtf8(vscodeIgnorePath),
-        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\ncopilot-cockpit-support/\n",
+        "history/\nresearch-history/\n\n# Copilot Cockpit private config\nmcp.json\n.gitignore\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\nscheduler-history/\ncopilot-cockpit-support/\n",
       );
       assert.strictEqual(
         readUtf8(rootIgnorePath),
-        "node_modules/\nout/\n\n# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
+        "node_modules/\nout/\n\n# Copilot Cockpit local workspace files\n.copilot-cockpit-logs/\n.vscode/.gitignore\n.vscode/mcp.json\n.vscode/scheduler.private.json\n.vscode/copilot-cockpit.db\n.vscode/copilot-cockpit.db-migration.json\n.vscode/copilot-cockpit.private.json\n.vscode/cockpit-prompt-backups/\n.vscode/cockpit-input-uploads/\n.vscode/scheduler-prompt-backups/\n.vscode/scheduler-history/\n.vscode/copilot-cockpit-support/\n.github/hooks/\n.github/agents/todos/\n.github-scheduler-backups/\n.github/cockpit-prompt-backups/\n.github/scheduler-prompt-backups/\n",
       );
       assert.strictEqual(
         ensurePrivateConfigIgnoredForWorkspaceRoot(workspaceRoot),
@@ -103,6 +105,28 @@ suite("Private config ignore behavior", () => {
     } finally {
       removeWorkspaceRoot(firstRoot);
       removeWorkspaceRoot(secondRoot);
+    }
+  });
+
+  test("updates an existing dockerignore but does not create one automatically", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const dockerIgnorePath = path.join(workspaceRoot, ".dockerignore");
+
+    try {
+      const updatedWithoutDockerignore = ensurePrivateConfigIgnoredForWorkspaceRoots([workspaceRoot]);
+      assert.strictEqual(updatedWithoutDockerignore.includes(dockerIgnorePath), false);
+      assert.strictEqual(fs.existsSync(dockerIgnorePath), false);
+
+      fs.writeFileSync(dockerIgnorePath, "node_modules/\n", "utf8");
+
+      const updatedWithDockerignore = ensurePrivateConfigIgnoredForWorkspaceRoots([workspaceRoot]);
+      assert.strictEqual(updatedWithDockerignore.includes(dockerIgnorePath), true);
+      assert.strictEqual(
+        readUtf8(dockerIgnorePath),
+        "node_modules/\n\n# Copilot Cockpit local workspace files\n.copilot-cockpit-logs/\n.vscode/.gitignore\n.vscode/mcp.json\n.vscode/scheduler.private.json\n.vscode/copilot-cockpit.db\n.vscode/copilot-cockpit.db-migration.json\n.vscode/copilot-cockpit.private.json\n.vscode/cockpit-prompt-backups/\n.vscode/cockpit-input-uploads/\n.vscode/scheduler-prompt-backups/\n.vscode/scheduler-history/\n.vscode/copilot-cockpit-support/\n.github/hooks/\n.github/agents/todos/\n.github-scheduler-backups/\n.github/cockpit-prompt-backups/\n.github/scheduler-prompt-backups/\n",
+      );
+    } finally {
+      removeWorkspaceRoot(workspaceRoot);
     }
   });
 
@@ -163,8 +187,8 @@ suite("Private config ignore behavior", () => {
   test("force apply writes ignore entries without waiting for settings file reread", () => {
     const workspaceRoot = createWorkspaceRoot();
     const settingsPath = path.join(workspaceRoot, ".vscode", "settings.json");
-    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
     const rootIgnorePath = path.join(workspaceRoot, ".gitignore");
+    const vscodeIgnorePath = path.join(workspaceRoot, ".vscode", ".gitignore");
 
     try {
       fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
@@ -180,15 +204,15 @@ suite("Private config ignore behavior", () => {
       );
       assert.strictEqual(
         applyPrivateConfigIgnoreForWorkspaceRoot(workspaceRoot),
-        vscodeIgnorePath,
+        rootIgnorePath,
       );
       assert.strictEqual(
         readUtf8(vscodeIgnorePath),
-        "# Copilot Cockpit private config\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\ncopilot-cockpit-support/\n",
+        "# Copilot Cockpit private config\nmcp.json\n.gitignore\nscheduler.private.json\ncopilot-cockpit.db\ncopilot-cockpit.db-migration.json\ncopilot-cockpit.private.json\ncockpit-prompt-backups/\ncockpit-input-uploads/\nscheduler-prompt-backups/\nscheduler-history/\ncopilot-cockpit-support/\n",
       );
       assert.strictEqual(
         readUtf8(rootIgnorePath),
-        "# Copilot Cockpit logs\n.copilot-cockpit-logs/\n",
+        "# Copilot Cockpit local workspace files\n.copilot-cockpit-logs/\n.vscode/.gitignore\n.vscode/mcp.json\n.vscode/scheduler.private.json\n.vscode/copilot-cockpit.db\n.vscode/copilot-cockpit.db-migration.json\n.vscode/copilot-cockpit.private.json\n.vscode/cockpit-prompt-backups/\n.vscode/cockpit-input-uploads/\n.vscode/scheduler-prompt-backups/\n.vscode/scheduler-history/\n.vscode/copilot-cockpit-support/\n.github/hooks/\n.github/agents/todos/\n.github-scheduler-backups/\n.github/cockpit-prompt-backups/\n.github/scheduler-prompt-backups/\n",
       );
     } finally {
       removeWorkspaceRoot(workspaceRoot);

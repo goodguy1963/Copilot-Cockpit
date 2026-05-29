@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.22] - 2026-05-29
+
+### Changed
+
+- **MCP setup guidance** — Help-tab onboarding now treats the third-party MCP prompt as optional follow-up work so the main workspace setup can complete independently.
+- **MCP server naming** — Workspace MCP configs, starter-agent tool grants, and setup guidance now use the clearer server key `copilot_cockpit` while preserving existing scheduler/cockpit tool-family wording where appropriate.
+- **Private-file ignore coverage** — Automatic ignore handling now protects additional local-only `.vscode` state and generated `.github` artifacts without sweeping up shipped starter-agent content.
+
+### Fixed
+
+- **Stale extension windows** — After an update, unreloaded VS Code windows now keep hydrating tasks and cockpit board state from authoritative SQLite while still suppressing stale writes until reload.
+- **Starter-agent setup metadata** — Bundled agent and knowledge surfaces now stay aligned with the MCP rename and current onboarding flow.
+
 ## [2.1.4] - 2026-05-05
 
 ### Added

@@ -3,7 +3,7 @@ description: Strategic orchestrator that keeps session to-dos, Todo Cockpit, and
 name: CEO
 argument-hint: Ask me to coordinate work, review a direction, route to specialists, or evolve the repo's agent system.
 model: DeepSeek V4 Pro (deepseek)
-tools: [vscode/memory, execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, read/readFile, agent/runSubagent, search/codebase, search/listDirectory, search/textSearch, prefab/render_ui, scheduler/cockpit_get_board, tavily/tavily_crawl, tavily/tavily_extract, tavily/tavily_map, tavily/tavily_research, tavily/tavily_search, todo]
+tools: [vscode/memory, execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/runTask, execute/createAndRunTask, read/readFile, agent/runSubagent, search/codebase, search/listDirectory, search/textSearch, prefab/render_ui, copilot_cockpit/cockpit_get_board, tavily/tavily_crawl, tavily/tavily_extract, tavily/tavily_map, tavily/tavily_research, tavily/tavily_search, todo]
 handoffs:
   - label: Plan Work
     agent: Planner

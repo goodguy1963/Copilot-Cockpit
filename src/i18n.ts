@@ -816,21 +816,21 @@ export const messages = {
     ),
   helpMcpItemEmbedded: () =>
     t(
-      "MCP is built in. The scheduler's MCP server starts alongside the extension — no separate install needed.",
-      "MCPは組み込みです。SchedulerのMCPサーバーは拡張機能と一緒に起動します。別途インストールは不要です。",
-      "MCP ist integriert. Der MCP-Server des Scheduler startet zusammen mit der Erweiterung. Eine separate Installation ist nicht nötig.",
+      "MCP is built in. The `copilot_cockpit` MCP server starts alongside the extension — no separate install needed.",
+      "MCPは組み込みです。`copilot_cockpit` MCPサーバーは拡張機能と一緒に起動します。別途インストールは不要です。",
+      "MCP ist integriert. Der `copilot_cockpit`-MCP-Server startet zusammen mit der Erweiterung. Eine separate Installation ist nicht nötig.",
     ),
   helpMcpItemConfig: () =>
     t(
-      "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the scheduler server in this workspace, and keep third-party secrets in top-level MCP inputs instead of inline tokens.",
-      "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加してこのワークスペースに登録し、外部サービスのシークレットはインラインで書かずにMCPのトップレベルinputsに保存します。",
-      "MCP tools sind standardmäßig nicht aktiv. Fügen Sie einen Launcher-Eintrag hinzu, zum Beispiel in .vscode/mcp.json, um den Scheduler-Server in diesem Workspace zu registrieren, und halten Sie Secrets externer Dienste in MCP-Inputs statt als Inline-Token.",
+      "MCP tools are not active by default. Add a launcher entry (e.g. .vscode/mcp.json) to register the `copilot_cockpit` server in this workspace, and keep third-party secrets in top-level MCP inputs instead of inline tokens.",
+      "MCPツールはデフォルトで有効になっていません。.vscode/mcp.jsonなどのランチャー設定を追加して、このワークスペースに`copilot_cockpit`サーバーを登録し、外部サービスのシークレットはインラインで書かずにMCPのトップレベルinputsに保存します。",
+      "MCP tools sind standardmäßig nicht aktiv. Fügen Sie einen Launcher-Eintrag hinzu, zum Beispiel in .vscode/mcp.json, um den `copilot_cockpit`-Server in diesem Workspace zu registrieren, und halten Sie Secrets externer Dienste in MCP-Inputs statt als Inline-Token.",
     ),
   helpMcpItemAutoConfig: () =>
     t(
-      "Click the Setup MCP button below to automatically create or update the scheduler entry in .vscode/mcp.json for this repo without dropping other MCP servers.",
-      "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonにある他のMCPサーバーを消さずにschedulerエントリを自動で作成または更新します。",
-      "Klicken Sie unten auf Setup MCP, um den scheduler-Eintrag in .vscode/mcp.json für dieses Repository automatisch zu erstellen oder zu aktualisieren, ohne andere MCP-Server zu entfernen.",
+      "Click the Setup MCP button below to automatically create or update the `copilot_cockpit` entry in .vscode/mcp.json for this repo without dropping other MCP servers.",
+      "下のSetup MCPボタンをクリックすると、このリポジトリの.vscode/mcp.jsonにある他のMCPサーバーを消さずに`copilot_cockpit`エントリを自動で作成または更新します。",
+      "Klicken Sie unten auf Setup MCP, um den `copilot_cockpit`-Eintrag in .vscode/mcp.json für dieses Repository automatisch zu erstellen oder zu aktualisieren, ohne andere MCP-Server zu entfernen.",
     ),
   helpMcpItemDanger: () =>
     t(
@@ -1229,13 +1229,13 @@ export const messages = {
     ),
   mcpSetupWorkspaceRequired: () =>
     t(
-      "Open a workspace folder before setting up the scheduler MCP config.",
-      "scheduler MCP 設定を作成する前に、ワークスペースフォルダーを開いてください。",
+      "Open a workspace folder before setting up the copilot_cockpit MCP config.",
+      "copilot_cockpit MCP 設定を作成する前に、ワークスペースフォルダーを開いてください。",
     ),
   mcpSetupPrompt: () =>
     t(
-      "This repo does not have the scheduler MCP entry yet. Add or merge it into .vscode/mcp.json now?",
-      "このリポジトリにはまだ scheduler MCP 設定がありません。今すぐ .vscode/mcp.json に追加またはマージしますか？",
+      "This repo does not have the copilot_cockpit MCP entry yet. Add or merge it into .vscode/mcp.json now?",
+      "このリポジトリにはまだ copilot_cockpit MCP 設定がありません。今すぐ .vscode/mcp.json に追加またはマージしますか？",
     ),
   mcpSetupAction: () => t("Set Up MCP", "MCP をセットアップ"),
   mcpSetupThirdPartyAction: () => t("Set Up Third-Party MCP", "サードパーティ MCP をセットアップ", "Drittanbieter-MCP einrichten"),
@@ -1325,14 +1325,32 @@ export const messages = {
     ),
   mcpSetupCompleted: (configPath: string) =>
     t(
-      `Scheduler MCP config updated: ${configPath}`,
-      `Scheduler MCP 設定を更新しました: ${configPath}`,
+      `copilot_cockpit MCP config updated: ${configPath}`,
+      `copilot_cockpit MCP 設定を更新しました: ${configPath}`,
+    ),
+  privateIgnoreFilesUpdated: (paths: string) =>
+    t(
+      `Copilot Cockpit added local-only ignore rules to ${paths}. This automatic protection is on by default; you can turn it off later in Settings.`,
+      `Copilot Cockpit が ${paths} にローカル専用の ignore ルールを追加しました。この自動保護は既定でオンで、後から設定でオフにできます。`,
+      `Copilot Cockpit hat lokale Ignore-Regeln in ${paths} ergänzt. Dieser automatische Schutz ist standardmäßig aktiv und kann später in den Einstellungen deaktiviert werden.`,
+    ),
+  privateIgnoreFilesReviewAction: () =>
+    t(
+      "Review ignore files",
+      "ignore ファイルを確認",
+      "Ignore-Dateien prüfen",
+    ),
+  privateIgnoreFilesSettingsAction: () =>
+    t(
+      "Open Settings",
+      "設定を開く",
+      "Einstellungen öffnen",
     ),
   codexSetupCompleted: (configPath: string) =>
     t(
-      `Scheduler Codex MCP config updated: ${configPath}`,
-      `Scheduler の Codex MCP 設定を更新しました: ${configPath}`,
-      `Scheduler-Codex-MCP-Konfiguration aktualisiert: ${configPath}`,
+      `copilot_cockpit Codex MCP config updated: ${configPath}`,
+      `copilot_cockpit の Codex MCP 設定を更新しました: ${configPath}`,
+      `copilot_cockpit-Codex-MCP-Konfiguration aktualisiert: ${configPath}`,
     ),
   codexSkillsSetupCompleted: (created: number, updated: number, skipped: number) =>
     t(

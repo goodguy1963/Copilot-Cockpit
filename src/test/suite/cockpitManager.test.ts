@@ -1104,6 +1104,98 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     }
   });
 
+  test("stale extension windows still hydrate workspace tasks from sqlite authority", async () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-stale-runtime-hydration-workspace-"),
+    );
+    const storageRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-stale-runtime-hydration-storage-"),
+    );
+    const extensionsRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-stale-runtime-extensions-"),
+    );
+    const activeRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.33");
+    const latestRoot = path.join(extensionsRoot, "local-dev.copilot-cockpit-2.0.34");
+    const restoreWs = overrideWorkspaceFolders(workspaceRoot);
+    const restoreMode = setWorkspaceStorageModeForTest("sqlite");
+    const now = new Date("2026-03-23T10:20:00.000Z");
+
+    try {
+      fs.mkdirSync(activeRoot, { recursive: true });
+      fs.mkdirSync(latestRoot, { recursive: true });
+      fs.writeFileSync(path.join(activeRoot, "package.json"), "{}\n", "utf8");
+      fs.writeFileSync(path.join(latestRoot, "package.json"), "{}\n", "utf8");
+
+      const context = Object.assign(createMockContext(storageRoot), {
+        extensionUri: vscode.Uri.file(activeRoot),
+        extension: {
+          packageJSON: {
+            version: "2.0.33",
+            publisher: "local-dev",
+            name: "copilot-cockpit",
+          },
+        },
+      }) as vscode.ExtensionContext;
+
+      const manager = new ScheduleManager(context);
+      const created = await manager.createTask({
+        name: "SQLite stale runtime hydration task",
+        cronExpression: "*/5 * * * *",
+        prompt: "authoritative sqlite task",
+        enabled: false,
+        scope: "workspace",
+      });
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [],
+        jobs: [],
+        jobFolders: [],
+      });
+
+      const schedulerJsonPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
+      fs.writeFileSync(
+        schedulerJsonPath,
+        JSON.stringify(
+          {
+            tasks: [
+              {
+                id: created.id,
+                name: created.name,
+                cron: created.cronExpression,
+                prompt: "stale mirror task",
+                enabled: true,
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString(),
+                nextRun: "2026-03-23T10:15:00.000Z",
+              },
+            ],
+            jobs: [],
+            jobFolders: [],
+          },
+          null,
+          2,
+        ),
+        "utf8",
+      );
+
+      manager.reloadTasks();
+
+      assert.deepStrictEqual(
+        manager.getOverdueTasks(now).map((task) => task.id),
+        [created.id],
+      );
+
+      await manager.waitForSqliteWorkspaceHydration();
+
+      assert.deepStrictEqual(manager.getOverdueTasks(now).map((task) => task.id), []);
+      assert.strictEqual(manager.getTask(created.id), undefined);
+    } finally {
+      restoreMode();
+      restoreWs();
+      removeTestPaths(workspaceRoot, storageRoot, extensionsRoot);
+    }
+  });
+
   test("sqlite reload keeps the recent launch burst guard across repeated hydration failures for automatic due-task execution until workspace hydration recovers", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-burst-guard-workspace-"),

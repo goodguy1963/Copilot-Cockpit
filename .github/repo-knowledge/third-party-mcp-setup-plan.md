@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add a guided onboarding dialog that asks users whether they want to set up optional third-party MCP integrations (Perplexity, Tavily, Google) after the main scheduler MCP setup. The Settings
+Add a guided onboarding dialog that asks users whether they want to set up optional third-party MCP integrations (Perplexity, Tavily, Google) after the main `copilot_cockpit` MCP setup. The Settings
 panel already has a "Setup Third-Party MCP" button and provider selectors — the missing piece is a
 contextual prompt when a user first selects a third-party provider.
 
@@ -36,7 +36,7 @@ contextual prompt when a user first selects a third-party provider.
 
 ## Requirements
 
-1. **Post-setup onboarding prompt**: After the main scheduler MCP setup completes successfully, ask the user "Would you also like to set up optional third-party MCP integrations for Perplexity, Tavily, or Google-powered search/research?" — ✅ **Already implemented**.
+1. **Post-setup onboarding prompt**: After the main `copilot_cockpit` MCP setup completes successfully, ask the user "Would you also like to set up optional third-party MCP integrations for Perplexity, Tavily, or Google-powered search/research?" — ✅ **Already implemented**.
 
 2. **Settings dropdown triggers MCP setup**: When a user changes the `searchProvider` or `researchProvider` dropdown to `tavily`, `perplexity`, or `google-grounded` and either (a) the `.vscode/mcp.json` entry doesn't exist or (b) the setting was changed from `none`/`built-in`, show a contextual prompt: "This provider requires an MCP server entry. Would you like to set it up now?"
 
@@ -106,7 +106,7 @@ Update the "Third-party servers are manually added" language to mention the guid
 - **Required validation**: npm test, manual setup flow test, provider dropdown change test
 - **Constraints / Non-goals**: 
   - Do not auto-write Google/gemini-grounded entry (stays guidance-only)
-  - Do not change the existing `upsertSchedulerMcpConfig` scheduler-entry logic
+  - Keep the existing `upsertSchedulerMcpConfig` MCP-entry upsert logic aligned with the current `copilot_cockpit` server name
   - Do not modify the third-party provider lookup/settings in scheduled tasks
 - **First step**: Read `src/cockpitWebviewMessageRouting.ts` to find the existing message handler pattern, then add the `"providerSelectionChanged"` case.
 ```

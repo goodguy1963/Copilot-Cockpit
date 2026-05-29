@@ -351,7 +351,7 @@ Codex support is currently limited. It can help create and coordinate todos and 
 ## 📝 Notes
 
 - The extension bundles an embedded MCP server at `out/server.js`.
-- `Set Up MCP` creates or repairs the local scheduler entry in `.vscode/mcp.json`, activates the repo-local scheduler MCP server for the workspace, and preserves unrelated MCP servers.
+- `Set Up MCP` creates or repairs the local `copilot_cockpit` entry in `.vscode/mcp.json`, activates the repo-local `copilot_cockpit` MCP server for the workspace, and preserves unrelated MCP servers.
 - Third-party MCP servers such as Tavily or Perplexity are separate additions to the same workspace MCP config and may require their own API keys or setup.
 - `Sync Bundled Skills` targets Copilot-style repo-local skills under `.github/skills`.
 - `Stage Bundled Agents` writes a compare-first mirror under `.vscode/copilot-cockpit-support/bundled-agents`, while `Sync Bundled Agents` is the live install path into `.github/agents`.

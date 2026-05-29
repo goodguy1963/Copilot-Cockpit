@@ -7,10 +7,12 @@ import {
   buildNodeShellExecutionCommand,
   buildSchedulerMcpServerEntry,
   getSchedulerMcpSetupState,
+  getWorkspaceCodexConfigPath,
   getWorkspaceMcpConfigPath,
   getWorkspaceMcpLauncherPath,
   getWorkspaceMcpLauncherStatePath,
   resolveNodeLaunchCommand,
+  upsertSchedulerCodexConfig,
   upsertSchedulerMcpConfig,
   upsertThirdPartyMcpTemplates,
   upsertSingleThirdPartyMcpTemplate,
@@ -46,8 +48,9 @@ suite("MCP Config Manager Tests", () => {
       const saved = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
         servers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>;
       };
-      assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
-      assert.deepStrictEqual(saved.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(saved.servers?.copilot_cockpit?.command, expectedEntry.command);
+      assert.deepStrictEqual(saved.servers?.copilot_cockpit?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(saved.servers?.scheduler, undefined);
       assert.strictEqual(
         fs.existsSync(getWorkspaceMcpLauncherPath(workspaceRoot)),
         true,
@@ -57,7 +60,7 @@ suite("MCP Config Manager Tests", () => {
         true,
       );
       assert.strictEqual(
-        saved.servers?.scheduler?.args?.[0],
+        saved.servers?.copilot_cockpit?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
@@ -68,7 +71,7 @@ suite("MCP Config Manager Tests", () => {
     }
   });
 
-  test("merges scheduler server into existing mcp config without dropping other servers", () => {
+  test("merges copilot_cockpit server into existing mcp config without dropping other servers", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-mcp-merge-"),
     );
@@ -109,10 +112,11 @@ suite("MCP Config Manager Tests", () => {
       };
       assert.strictEqual(saved.metadata?.owner, "tests");
       assert.strictEqual(saved.servers?.existing?.args?.[0], "existing-server.js");
-      assert.strictEqual(saved.servers?.scheduler?.command, expectedEntry.command);
-      assert.deepStrictEqual(saved.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(saved.servers?.copilot_cockpit?.command, expectedEntry.command);
+      assert.deepStrictEqual(saved.servers?.copilot_cockpit?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(saved.servers?.scheduler, undefined);
       assert.strictEqual(
-        saved.servers?.scheduler?.args?.[0],
+        saved.servers?.copilot_cockpit?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
     } finally {
@@ -147,11 +151,11 @@ suite("MCP Config Manager Tests", () => {
         servers?: Record<string, { args?: string[] }>;
       };
       assert.strictEqual(
-        initial.servers?.scheduler?.args?.[0],
+        initial.servers?.copilot_cockpit?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
       assert.strictEqual(
-        updated.servers?.scheduler?.args?.[0],
+        updated.servers?.copilot_cockpit?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
@@ -164,7 +168,7 @@ suite("MCP Config Manager Tests", () => {
     }
   });
 
-  test("marks a mismatched scheduler server entry as stale", () => {
+  test("marks a mismatched copilot_cockpit server entry as stale", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-mcp-stale-"),
     );
@@ -178,7 +182,7 @@ suite("MCP Config Manager Tests", () => {
       JSON.stringify(
         {
           servers: {
-            scheduler: {
+            copilot_cockpit: {
               type: "stdio",
               command: "node",
               args: [path.join(workspaceRoot, "old-extension", "out", "server.js")],
@@ -195,14 +199,48 @@ suite("MCP Config Manager Tests", () => {
       const state = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
       assert.strictEqual(state.status, "stale");
       if (state.status === "stale") {
-        assert.ok(state.reason.includes("Scheduler MCP entry points to"));
+        assert.ok(state.reason.includes("copilot_cockpit MCP entry points to"));
       }
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  test("repairs invalid mcp config by backing it up and rewriting a valid scheduler entry", () => {
+  test("treats a matching legacy scheduler entry as stale so setup can rename it", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-mcp-legacy-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+
+    try {
+      fs.writeFileSync(
+        getWorkspaceMcpConfigPath(workspaceRoot),
+        JSON.stringify(
+          {
+            servers: {
+              scheduler: buildSchedulerMcpServerEntry(workspaceRoot),
+            },
+          },
+          null,
+          4,
+        ),
+        "utf8",
+      );
+
+      const state = getSchedulerMcpSetupState(workspaceRoot, extensionRoot);
+      assert.strictEqual(state.status, "stale");
+      if (state.status === "stale") {
+        assert.ok(state.reason.includes("Legacy scheduler MCP entry should be renamed to copilot_cockpit."));
+      }
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("repairs invalid mcp config by backing it up and rewriting a valid copilot_cockpit entry", () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-mcp-repair-"),
     );
@@ -231,10 +269,11 @@ suite("MCP Config Manager Tests", () => {
       const repaired = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
         servers?: Record<string, { command?: string; args?: string[]; env?: Record<string, string> }>;
       };
-      assert.strictEqual(repaired.servers?.scheduler?.command, expectedEntry.command);
-      assert.deepStrictEqual(repaired.servers?.scheduler?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(repaired.servers?.copilot_cockpit?.command, expectedEntry.command);
+      assert.deepStrictEqual(repaired.servers?.copilot_cockpit?.env ?? {}, expectedEntry.env ?? {});
+      assert.strictEqual(repaired.servers?.scheduler, undefined);
       assert.strictEqual(
-        repaired.servers?.scheduler?.args?.[0],
+        repaired.servers?.copilot_cockpit?.args?.[0],
         getWorkspaceMcpLauncherPath(workspaceRoot),
       );
 
@@ -289,6 +328,65 @@ suite("MCP Config Manager Tests", () => {
     assert.ok(command.includes('.volta/bin/node'));
     assert.ok(command.includes('exec "$NODE_BIN" "/workspace/.vscode/copilot-cockpit-support/mcp/launcher.js"'));
   });
+
+  test("renames legacy scheduler entries to copilot_cockpit in MCP and Codex configs", () => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "copilot-scheduler-mcp-rename-"),
+    );
+    const extensionRoot = path.join(workspaceRoot, "extension-root");
+    fs.mkdirSync(path.join(extensionRoot, "out"), { recursive: true });
+    fs.writeFileSync(path.join(extensionRoot, "out", "server.js"), "", "utf8");
+    fs.mkdirSync(path.join(workspaceRoot, ".vscode"), { recursive: true });
+    fs.mkdirSync(path.join(workspaceRoot, ".codex"), { recursive: true });
+
+    try {
+      fs.writeFileSync(
+        getWorkspaceMcpConfigPath(workspaceRoot),
+        JSON.stringify(
+          {
+            servers: {
+              scheduler: buildSchedulerMcpServerEntry(workspaceRoot),
+              existing: {
+                type: "stdio",
+                command: "node",
+                args: ["existing-server.js"],
+              },
+            },
+          },
+          null,
+          4,
+        ),
+        "utf8",
+      );
+      fs.writeFileSync(
+        getWorkspaceCodexConfigPath(workspaceRoot),
+        [
+          "[mcp_servers.scheduler]",
+          'command = "node"',
+          'args = ["legacy-server.js"]',
+          "enabled = true",
+          "startup_timeout_sec = 30",
+        ].join("\n") + "\n",
+        "utf8",
+      );
+
+      upsertSchedulerMcpConfig(workspaceRoot, extensionRoot);
+      upsertSchedulerCodexConfig(workspaceRoot, extensionRoot);
+
+      const savedMcp = JSON.parse(fs.readFileSync(getWorkspaceMcpConfigPath(workspaceRoot), "utf8")) as {
+        servers?: Record<string, { args?: string[] }>;
+      };
+      const savedCodex = fs.readFileSync(getWorkspaceCodexConfigPath(workspaceRoot), "utf8");
+
+      assert.ok(savedMcp.servers?.copilot_cockpit);
+      assert.strictEqual(savedMcp.servers?.scheduler, undefined);
+      assert.strictEqual(savedMcp.servers?.existing?.args?.[0], "existing-server.js");
+      assert.ok(savedCodex.includes("[mcp_servers.copilot_cockpit]"));
+      assert.ok(!savedCodex.includes("[mcp_servers.scheduler]"));
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 suite("Third-Party MCP Templates", () => {
@@ -305,7 +403,7 @@ suite("Third-Party MCP Templates", () => {
         JSON.stringify(
           {
             servers: {
-              scheduler: {
+              copilot_cockpit: {
                 type: "stdio",
                 command: "node",
                 args: ["scheduler-server.js"],
@@ -337,7 +435,7 @@ suite("Third-Party MCP Templates", () => {
 
       // Preserves existing entries
       assert.strictEqual(saved.metadata?.owner, "tests");
-      assert.ok(saved.servers?.scheduler);
+      assert.ok(saved.servers?.copilot_cockpit);
       assert.ok(saved.servers?.customTool);
 
       // New entries added
