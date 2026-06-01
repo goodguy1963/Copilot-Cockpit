@@ -63,6 +63,7 @@
   "config.storageMode.json": "Use the existing JSON files in .vscode as the authoritative store",
   "config.storageMode.sqlite": "Use the local SQLite database as the authoritative store",
   "config.sqliteJsonMirror": "When SQLite storage mode is enabled, also emit compatibility JSON mirrors under .vscode for migration and rollback workflows.",
+  "config.maxSqliteBackups": "Maximum number of SQLite database backup files (.bak) to retain. Set to 0 to disable backup creation entirely. Existing .bak files are pruned on startup.",
   "config.autoIgnorePrivateFiles": "Automatically add Copilot Cockpit private workspace paths to .gitignore and .vscode/.gitignore for this project. Disable this to stop future automatic ignore writes without removing existing entries.",
   "config.searchProvider": "Repo-local lightweight search provider used when a quick external search helps.",
   "config.searchProvider.builtIn": "Use VS Code built-in web search",

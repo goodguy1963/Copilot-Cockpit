@@ -116,9 +116,9 @@ MCP (Model Context Protocol) is how Copilot agents get structured tool access. W
 ### Setup walkthrough
 
 1. **Open Settings** in the Cockpit webview.
-2. **Click "Set Up MCP"**. This creates or repairs the local `copilot_cockpit` entry in `.vscode/mcp.json`. It only touches the `copilot_cockpit` entry — any other MCP servers you have configured are preserved.
+2. **Click "Set Up MCP"**. This creates or repairs the local `scheduler` entry in `.vscode/mcp.json`. It only touches the scheduler entry — any other MCP servers you have configured are preserved.
 3. **Reload VS Code** after the MCP config is written. The MCP server starts on the next editor startup.
-4. **Verify** that a `copilot_cockpit` entry now exists in `.vscode/mcp.json`. The extension creates this at the workspace level so the MCP server can access your repo-local scheduler state.
+4. **Verify** that a `scheduler` entry now exists in `.vscode/mcp.json`. The extension creates this at the workspace level so the MCP server can access your repo-local scheduler state.
 
 ### Adding third-party MCP servers
 
@@ -132,7 +132,7 @@ Third-party servers are manually added. The "Set Up MCP" action preserves them.
 
 ### Add MCP To Codex
 
-If you use VS Code Codex (Insiders), click **"Add MCP To Codex"** in the Settings tab. This creates or updates the Codex entry in `.codex/config.toml` so Codex agents can also reach the `copilot_cockpit` MCP server.
+If you use VS Code Codex (Insiders), click **"Add MCP To Codex"** in the Settings tab. This creates or updates the Codex entry in `.codex/config.toml` so Codex agents can also reach the scheduler MCP server.
 
 ### Enable External-Agent Access
 

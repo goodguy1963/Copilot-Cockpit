@@ -79,6 +79,26 @@ export function getConfiguredSqliteJsonMirrorEnabled(
   );
 }
 
+function normalizeMaxSqliteBackups(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 3;
+  }
+  return Math.max(0, Math.min(20, Math.round(value)));
+}
+
+export function getConfiguredMaxSqliteBackups(
+  scope?: vscode.ConfigurationScope,
+): number {
+  const { getCompatibleConfigurationValue } = require("./extensionCompat") as typeof import("./extensionCompat");
+  return normalizeMaxSqliteBackups(
+    getCompatibleConfigurationValue<number>(
+      "maxSqliteBackups",
+      3,
+      scope,
+    ),
+  );
+}
+
 export function getWorkspaceStoragePaths(
   workspaceRoot: string,
 ): WorkspaceStoragePaths {

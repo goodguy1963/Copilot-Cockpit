@@ -86,6 +86,7 @@ import {
   bootstrapGlobalSqliteStorage,
   bootstrapWorkspaceSqliteStorage,
   exportWorkspaceSqliteToJsonMirrors,
+  pruneSqliteBackups,
   readWorkspaceCockpitBoardFromSqlite,
   syncWorkspaceCockpitBoardToSqlite,
 } from "./sqliteBootstrap";
@@ -105,6 +106,7 @@ import {
   SCHEDULER_PRIVATE_JSON_FILE,
   SCHEDULER_PUBLIC_JSON_FILE,
   WORKSPACE_SQLITE_DB_FILE,
+  getWorkspaceStoragePaths,
 } from "./sqliteStorage";
 import {
   ensureWorkspaceMcpSupportFiles,
@@ -1923,6 +1925,16 @@ async function initializeCurrentWorkspaceForCockpit(
   await ensureSchedulerSkillOnStartup(context, [workspaceRoot]);
 
   if (isWorkspaceSqliteModeEnabled(workspaceRoot)) {
+    const maxBackups = getSchedulerSetting<number>(
+      "maxSqliteBackups",
+      3,
+      vscode.Uri.file(workspaceRoot),
+    );
+    // Prune accumulated .bak files from previous versions before bootstrap
+    pruneSqliteBackups(
+      getWorkspaceStoragePaths(workspaceRoot).databasePath,
+      typeof maxBackups === "number" && Number.isFinite(maxBackups) ? Math.max(0, Math.min(20, Math.round(maxBackups))) : 3,
+    );
     await bootstrapWorkspaceSqliteStorage(
       workspaceRoot,
       getSchedulerSetting<boolean>(
@@ -1930,8 +1942,12 @@ async function initializeCurrentWorkspaceForCockpit(
         true,
         vscode.Uri.file(workspaceRoot),
       ) !== false,
+      typeof maxBackups === "number" && Number.isFinite(maxBackups) ? Math.max(0, Math.min(20, Math.round(maxBackups))) : 3,
     );
-    await bootstrapGlobalSqliteStorage(context.globalStorageUri.fsPath);
+    await bootstrapGlobalSqliteStorage(
+      context.globalStorageUri.fsPath,
+      typeof maxBackups === "number" && Number.isFinite(maxBackups) ? Math.max(0, Math.min(20, Math.round(maxBackups))) : 3,
+    );
     scheduleCockpitBoardSqliteHydration(true);
   }
 
@@ -2511,14 +2527,31 @@ async function importStorageFromJson(): Promise<void> {
   }
 
   const storageSettings = getCurrentStorageSettings();
+  const maxBackups = getSchedulerSetting<number>(
+    "maxSqliteBackups",
+    3,
+    vscode.Uri.file(workspaceRoot),
+  );
+  const normalizedMaxBackups = typeof maxBackups === "number" && Number.isFinite(maxBackups)
+    ? Math.max(0, Math.min(20, Math.round(maxBackups)))
+    : 3;
+  // Prune accumulated .bak files before bootstrap
+  pruneSqliteBackups(
+    getWorkspaceStoragePaths(workspaceRoot).databasePath,
+    normalizedMaxBackups,
+  );
   await bootstrapWorkspaceSqliteStorage(
     workspaceRoot,
     storageSettings.sqliteJsonMirror,
+    normalizedMaxBackups,
   );
 
   const globalStorageRoot = extensionContext?.globalStorageUri?.fsPath;
   if (globalStorageRoot) {
-    await bootstrapGlobalSqliteStorage(globalStorageRoot);
+    await bootstrapGlobalSqliteStorage(
+      globalStorageRoot,
+      normalizedMaxBackups,
+    );
   }
 }
 

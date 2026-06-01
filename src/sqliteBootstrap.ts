@@ -13,6 +13,7 @@ import {
   SQLITE_STORAGE_MODE,
   WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
   WORKSPACE_SQLITE_SCHEMA_VERSION,
+  getConfiguredMaxSqliteBackups,
   getConfiguredSchedulerStorageMode,
   getConfiguredSqliteJsonMirrorEnabled,
   getGlobalStoragePaths,
@@ -45,7 +46,7 @@ type SqlJsModule = {
   Database: new (data?: Uint8Array) => SqlJsDatabase;
 };
 
-type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync" | "copyFileSync">;
+type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync" | "copyFileSync" | "readdirSync" | "statSync">;
 
 let sqliteAtomicWriteFs: SqliteAtomicWriteFs = fs;
 
@@ -373,7 +374,7 @@ function isWindowsSqliteAtomicRenameFallbackError(error: unknown): boolean {
   return code === "EPERM" || code === "EACCES" || code === "EBUSY";
 }
 
-function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
+function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase, maxBackups: number = 3): void {
   sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
   const tempPath = createSqliteSwapPath(databasePath, "tmp");
   let usedWindowsCopyFallback = false;
@@ -386,27 +387,35 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
       // because the file watcher holds a handle. Use copyFileSync for backup
       // to avoid that conflict entirely.
       if (process.platform === "win32") {
-        const backupPath = createSqliteSwapPath(databasePath, "bak");
-        try {
-          sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
+        if (maxBackups !== 0) {
+          const backupPath = createSqliteSwapPath(databasePath, "bak");
+          try {
+            sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
+            sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
+          } catch (backupError) {
+            // If backup copy fails, clean up the temp file and rethrow
+            sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
+            throw backupError;
+          }
+        } else {
           sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
-        } catch (backupError) {
-          // If backup copy fails, clean up the temp file and rethrow
-          sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
-          throw backupError;
         }
       } else {
-        const backupPath = createSqliteSwapPath(databasePath, "bak");
-        try {
-          sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
-        } catch (error) {
-          if (isWindowsSqliteAtomicRenameFallbackError(error)) {
-            sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
-            sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-            usedWindowsCopyFallback = true;
-          } else {
-            throw error;
+        if (maxBackups !== 0) {
+          const backupPath = createSqliteSwapPath(databasePath, "bak");
+          try {
+            sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
+          } catch (error) {
+            if (isWindowsSqliteAtomicRenameFallbackError(error)) {
+              sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
+              sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
+              usedWindowsCopyFallback = true;
+            } else {
+              throw error;
+            }
           }
+        } else {
+          sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
         }
       }
     }
@@ -446,10 +455,67 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase): void {
     // there is nothing left to restore — persistence intentionally surfaces
     // the error so callers can fall back to JSON mirrors.
   }
+
+  // Prune old backups after a successful write
+  if (maxBackups > 0) {
+    pruneSqliteBackups(databasePath, maxBackups);
+  }
 }
 
 function compactSqliteDatabase(db: SqlJsDatabase): void {
   db.run("VACUUM");
+}
+
+/**
+ * Prune old SQLite backup files, keeping at most `maxBackups` of the most recent.
+ * Backup files match the pattern `{basename}.*.bak` in the same directory as the
+ * database file. Files are sorted by mtime descending; the N most recent are kept
+ * and the rest are deleted silently.
+ *
+ * Uses `sqliteAtomicWriteFs` for filesystem operations so tests can mock them.
+ */
+export function pruneSqliteBackups(databasePath: string, maxBackups: number): void {
+  const dir = path.dirname(databasePath);
+  const basename = path.basename(databasePath);
+
+  if (!sqliteAtomicWriteFs.existsSync(dir)) {
+    return;
+  }
+
+  let bakFiles: string[];
+  try {
+    bakFiles = sqliteAtomicWriteFs.readdirSync(dir)
+      .filter((name) => {
+        // Match pattern: basename.{anything}.bak
+        return name.startsWith(basename + ".") && name.endsWith(".bak");
+      })
+      .map((name) => path.join(dir, name));
+  } catch {
+    // If readdir fails (permission, deleted, etc), silently skip pruning
+    return;
+  }
+
+  if (bakFiles.length <= maxBackups) {
+    return;
+  }
+
+  // Sort by mtime descending (newest first)
+  bakFiles.sort((a, b) => {
+    try {
+      return sqliteAtomicWriteFs.statSync(b).mtimeMs - sqliteAtomicWriteFs.statSync(a).mtimeMs;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Delete everything beyond the first maxBackups
+  for (let i = maxBackups; i < bakFiles.length; i++) {
+    try {
+      sqliteAtomicWriteFs.rmSync(bakFiles[i], { force: true });
+    } catch {
+      // Best-effort deletion; ignore errors
+    }
+  }
 }
 
 function getSourceInfo(filePath: string): MigrationSourceInfo {
@@ -910,6 +976,7 @@ function insertGlobalJsonSnapshot(
 export async function bootstrapWorkspaceSqliteStorage(
   workspaceRoot: string,
   mirroredJsonEnabled: boolean,
+  maxBackups: number = 3,
 ): Promise<SqliteBootstrapResult> {
   const paths = getWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(paths.databasePath, async () => {
@@ -933,7 +1000,7 @@ export async function bootstrapWorkspaceSqliteStorage(
         last_workspace_import_counts: JSON.stringify(importCounts),
       });
       compactSqliteDatabase(db);
-      persistSqliteDatabase(paths.databasePath, db);
+      persistSqliteDatabase(paths.databasePath, db, maxBackups);
       writeWorkspaceMigrationJournal({
         ...imported.journal,
         mirroredJsonEnabled,
@@ -957,6 +1024,7 @@ export async function bootstrapWorkspaceSqliteStorage(
 
 export async function bootstrapGlobalSqliteStorage(
   globalStorageRoot: string,
+  maxBackups: number = 3,
 ): Promise<SqliteBootstrapResult> {
   const globalPaths = getGlobalStoragePaths(globalStorageRoot);
   const databasePath = globalPaths.databasePath;
@@ -1000,6 +1068,7 @@ export async function bootstrapConfiguredSqliteStorage(
 ): Promise<SqliteBootstrapSummary> {
   const workspaceFolders = getWorkspaceFoldersFromVsCode();
   const workspaceResults: SqliteBootstrapResult[] = [];
+  const maxBackups = getConfiguredMaxSqliteBackups();
 
   for (const folder of workspaceFolders) {
     const storageMode = getConfiguredSchedulerStorageMode(folder.uri);
@@ -1011,6 +1080,7 @@ export async function bootstrapConfiguredSqliteStorage(
       await bootstrapWorkspaceSqliteStorage(
         folder.uri.fsPath,
         getConfiguredSqliteJsonMirrorEnabled(folder.uri),
+        maxBackups,
       ),
     );
   }
@@ -1024,6 +1094,7 @@ export async function bootstrapConfiguredSqliteStorage(
 
   const globalResult = await bootstrapGlobalSqliteStorage(
     context.globalStorageUri.fsPath,
+    maxBackups,
   );
 
   return {

@@ -63,6 +63,7 @@
   "config.storageMode.json": ".vscode 配下の既存 JSON ファイルを正本ストアとして使う",
   "config.storageMode.sqlite": "ローカル SQLite データベースを正本ストアとして使う",
   "config.sqliteJsonMirror": "SQLite ストレージモード有効時に、移行とロールバックのため .vscode 配下へ互換 JSON ミラーも出力します。",
+  "config.maxSqliteBackups": "保持する SQLite データベースバックアップファイル（.bak）の最大数。0 に設定するとバックアップ作成を完全に無効化します。既存の .bak ファイルは起動時に整理されます。",
   "config.autoIgnorePrivateFiles": "このプロジェクトで Copilot Cockpit のプライベートなワークスペースパスを .gitignore と .vscode/.gitignore に自動追加します。既存のエントリは削除せず、今後の自動 ignore 書き込みだけを止めたい場合は無効にしてください。",
   "config.searchProvider": "素早い外部検索が役立つときに使う、リポジトリローカルの軽量検索プロバイダーです。",
   "config.searchProvider.builtIn": "VS Code 組み込み web search を使う",

@@ -377,6 +377,14 @@
           "scope": "resource",
           "description": "%config.sqliteJsonMirror%"
         },
+        "copilotCockpit.maxSqliteBackups": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "maximum": 20,
+          "scope": "resource",
+          "description": "%config.maxSqliteBackups%"
+        },
         "copilotCockpit.autoIgnorePrivateFiles": {
           "type": "boolean",
           "default": true,
