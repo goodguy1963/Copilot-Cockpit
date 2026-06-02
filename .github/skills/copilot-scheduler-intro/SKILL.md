@@ -128,7 +128,7 @@ If you use external services, you can add their MCP servers to the same `.vscode
 - **Perplexity** — research-grounded AI queries. Needs an API key.
 - **Prefab by Max Health Inc.** — dynamic config, feature flags, and Prefab UI rendering. Comes with a bundled skill (`prefab-ui`) and a custom agent (`Prefab UI Specialist`).
 
-Third-party servers are manually added. The "Set Up MCP" action preserves them.
+Third-party servers can be auto-configured with the **"Set Up Third-Party MCP"** button in the Settings tab, which adds secure template entries for Perplexity and Tavily using `${input:...}` placeholders. Google / google-grounded is documented in the guidance but needs a manual entry. The "Set Up MCP" action preserves them.
 
 ### Add MCP To Codex
 

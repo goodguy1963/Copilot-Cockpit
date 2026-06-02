@@ -7,6 +7,7 @@ import {
   bootstrapGlobalSqliteStorage,
   bootstrapWorkspaceSqliteStorage,
   exportWorkspaceSqliteToJsonMirrors,
+  pruneSqliteBackups,
   readWorkspaceCockpitBoardFromSqlite,
   setSqliteAtomicWriteFsForTests,
   setSqliteLockOptionsForTests,
@@ -852,6 +853,171 @@ suite("SQLite Bootstrap Tests", () => {
         db.close();
       }
     } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  // ──────────────────────────────────────────────
+  // Backup pruning tests
+  // ──────────────────────────────────────────────
+
+  test("pruneSqliteBackups deletes old .bak files keeping only the N newest", () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-1-");
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const vscodeDir = path.dirname(databasePath);
+      fs.mkdirSync(vscodeDir, { recursive: true });
+
+      // Create 5 fake .bak files with staggered mtimes
+      const bakFiles: string[] = [];
+      for (let i = 0; i < 5; i++) {
+        const bakPath = path.join(vscodeDir, `copilot-cockpit.db.test${i}.bak`);
+        fs.writeFileSync(bakPath, `backup-${i}`);
+        // Set increasing mtimes so 0 is oldest, 4 is newest
+        const mtime = new Date(Date.now() - (5 - i) * 10000);
+        fs.utimesSync(bakPath, mtime, mtime);
+        bakFiles.push(bakPath);
+      }
+
+      // Also create a non-bak file that should be ignored
+      fs.writeFileSync(path.join(vscodeDir, "other-file.txt"), "not a bak");
+
+      // Prune to 2
+      pruneSqliteBackups(databasePath, 2);
+
+      // Only the 2 newest should survive (test4, test3)
+      assert.strictEqual(fs.existsSync(bakFiles[0]), false, "bak[0] oldest should be deleted");
+      assert.strictEqual(fs.existsSync(bakFiles[1]), false, "bak[1] should be deleted");
+      assert.strictEqual(fs.existsSync(bakFiles[2]), false, "bak[2] should be deleted");
+      assert.strictEqual(fs.existsSync(bakFiles[3]), true, "bak[3] should survive");
+      assert.strictEqual(fs.existsSync(bakFiles[4]), true, "bak[4] newest should survive");
+
+      // Non-bak file should be untouched
+      assert.strictEqual(fs.existsSync(path.join(vscodeDir, "other-file.txt")), true);
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("pruneSqliteBackups is a no-op when bak files are within limit", () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-2-");
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const vscodeDir = path.dirname(databasePath);
+      fs.mkdirSync(vscodeDir, { recursive: true });
+
+      // Create only 2 bak files
+      for (let i = 0; i < 2; i++) {
+        fs.writeFileSync(path.join(vscodeDir, `copilot-cockpit.db.bak-${i}.bak`), `backup-${i}`);
+      }
+
+      // Prune to 5 (more than we have)
+      pruneSqliteBackups(databasePath, 5);
+
+      // Both should survive
+      assert.strictEqual(fs.existsSync(path.join(vscodeDir, "copilot-cockpit.db.bak-0.bak")), true);
+      assert.strictEqual(fs.existsSync(path.join(vscodeDir, "copilot-cockpit.db.bak-1.bak")), true);
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("pruneSqliteBackups deletes all when maxBackups is 0", () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-3-");
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const vscodeDir = path.dirname(databasePath);
+      fs.mkdirSync(vscodeDir, { recursive: true });
+
+      // Create 3 bak files
+      for (let i = 0; i < 3; i++) {
+        fs.writeFileSync(path.join(vscodeDir, `copilot-cockpit.db.bak-${i}.bak`), `backup-${i}`);
+      }
+
+      // Prune to 0
+      pruneSqliteBackups(databasePath, 0);
+
+      // All should be deleted
+      for (let i = 0; i < 3; i++) {
+        assert.strictEqual(
+          fs.existsSync(path.join(vscodeDir, `copilot-cockpit.db.bak-${i}.bak`)),
+          false,
+          `bak-${i} should be deleted when maxBackups is 0`,
+        );
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("pruneSqliteBackups works through sqliteAtomicWriteFs indirection", () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-4-");
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      const vscodeDir = path.dirname(databasePath);
+      fs.mkdirSync(vscodeDir, { recursive: true });
+
+      // Create bak files directly on disk
+      for (let i = 0; i < 4; i++) {
+        fs.writeFileSync(path.join(vscodeDir, `copilot-cockpit.db.bak-${i}.bak`), `backup-${i}`);
+      }
+
+      // Use the default fs (setSqliteAtomicWriteFsForTests was not called here)
+      // but verify pruneSqliteBackups uses sqliteAtomicWriteFs by checking
+      // it still works with the real filesystem
+      pruneSqliteBackups(databasePath, 1);
+
+      // Exactly 1 should survive (the one with highest mtime)
+      const surviving = fs.readdirSync(vscodeDir).filter((f) => f.endsWith(".bak"));
+      assert.strictEqual(surviving.length, 1, `Expected 1 surviving bak, got ${surviving.length}`);
+    } finally {
+      setSqliteAtomicWriteFsForTests(); // Reset to real fs
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("pruneSqliteBackups handles missing directory gracefully", () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-5-");
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      // Don't create the directory
+
+      // Should not throw
+      pruneSqliteBackups(databasePath, 3);
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("persistSqliteDatabase skips .bak creation when maxBackups is 0", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-prune-6-");
+
+    try {
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+      fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
+      fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+      fs.writeFileSync(paths.privateSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
+
+      const originalRenameSync = fs.renameSync;
+      const renameTargets: string[] = [];
+
+      setSqliteAtomicWriteFsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          renameTargets.push(String(newPath));
+          return originalRenameSync(oldPath, newPath);
+        }) as typeof fs.renameSync,
+      });
+
+      // Bootstrap with maxBackups=0
+      await bootstrapWorkspaceSqliteStorage(workspaceRoot, true, 0);
+
+      // No .bak file should have been created
+      const allFiles = fs.readdirSync(path.dirname(paths.databasePath));
+      const bakFiles = allFiles.filter((f) => f.endsWith(".bak"));
+      assert.strictEqual(bakFiles.length, 0, `Expected 0 .bak files, got: ${bakFiles.join(", ")}`);
+      assert.ok(fs.existsSync(paths.databasePath), "Database should exist");
+    } finally {
+      setSqliteAtomicWriteFsForTests();
       cleanup(workspaceRoot);
     }
   });

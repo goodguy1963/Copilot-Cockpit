@@ -15,6 +15,7 @@ import {
   getWorkspaceResearchConfigPath,
   getGlobalStorageDatabasePath,
   getWorkspaceStoragePaths,
+  normalizeMaxSqliteBackups,
   normalizeSchedulerStorageMode,
   normalizeSqliteJsonMirrorEnabled,
 } from "../../sqliteStorage";
@@ -74,5 +75,30 @@ suite("SQLite Storage Foundation Tests", () => {
     const combined = GLOBAL_SQLITE_SCHEMA_STATEMENTS.join("\n");
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS global_tasks"));
     assert.ok(combined.includes("global_schema_version"));
+  });
+
+  test("normalizeMaxSqliteBackups clamps to 0-20 range", () => {
+    assert.strictEqual(normalizeMaxSqliteBackups(3), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups(0), 0);
+    assert.strictEqual(normalizeMaxSqliteBackups(20), 20);
+    assert.strictEqual(normalizeMaxSqliteBackups(21), 20);
+    assert.strictEqual(normalizeMaxSqliteBackups(-1), 0);
+    assert.strictEqual(normalizeMaxSqliteBackups(-100), 0);
+    assert.strictEqual(normalizeMaxSqliteBackups(100), 20);
+  });
+
+  test("normalizeMaxSqliteBackups defaults to 3 for non-number inputs", () => {
+    assert.strictEqual(normalizeMaxSqliteBackups(undefined), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups(null), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups("5"), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups(NaN), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups(Infinity), 3);
+  });
+
+  test("normalizeMaxSqliteBackups rounds to the nearest integer", () => {
+    assert.strictEqual(normalizeMaxSqliteBackups(3.2), 3);
+    assert.strictEqual(normalizeMaxSqliteBackups(3.9), 4);
+    assert.strictEqual(normalizeMaxSqliteBackups(0.5), 1);
+    assert.strictEqual(normalizeMaxSqliteBackups(19.5), 20);
   });
 });

@@ -79,7 +79,7 @@ export function getConfiguredSqliteJsonMirrorEnabled(
   );
 }
 
-function normalizeMaxSqliteBackups(value: unknown): number {
+export function normalizeMaxSqliteBackups(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return 3;
   }
