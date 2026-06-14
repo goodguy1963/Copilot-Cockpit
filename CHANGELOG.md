@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.25] - 2026-06-14
+
+### Fixed
+
+- **SQLite save reliability** — Workspace SQLite commits are now marked as internal writes so the file watcher no longer reloads against its own save cycle, preventing the disk I/O error loop that could block further saves until a VS Code reload.
+- **Recovery affordance** — Disk I/O and `SQLITE_IOERR` save notifications now offer a **Reload Now** action as a last-resort recovery path for unexpected storage edge cases.
+- **Dependency security** — Merged the Hono Dependabot update and refreshed vulnerable build/test dependencies, including patched `esbuild` and `brace-expansion` versions.
+
 ## [2.1.23] - 2026-05-29
 
 ### Changed
