@@ -126,7 +126,7 @@ function normalizeSchedulerConfigPath(filePath: string): string {
         : normalized;
 }
 
-function recordRecentSchedulerConfigWrite(filePath: string, writtenAt: number): void {
+export function recordRecentSchedulerConfigWrite(filePath: string, writtenAt: number): void {
     if (!filePath) {
         return;
     }

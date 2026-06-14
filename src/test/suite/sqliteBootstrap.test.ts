@@ -23,6 +23,7 @@ import {
   getGlobalStorageDatabasePath,
   getWorkspaceStoragePaths,
 } from "../../sqliteStorage";
+import { wasSchedulerConfigWrittenRecently } from "../../cockpitJsonSanitizer";
 
 type SqlJsDatabase = {
   exec: (sql: string) => Array<{ values?: unknown[][] }>;
@@ -380,6 +381,30 @@ suite("SQLite Bootstrap Tests", () => {
       );
     } finally {
       setSqliteAtomicWriteFsForTests();
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("sync marks its sqlite authority write so workspace watchers can ignore self-triggered reloads", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-recent-authority-write-");
+
+    try {
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      assert.strictEqual(
+        wasSchedulerConfigWrittenRecently(paths.databasePath),
+        true,
+      );
+    } finally {
       cleanup(workspaceRoot);
     }
   });

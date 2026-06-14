@@ -103,6 +103,8 @@ import {
   truncateDateToMinute,
 } from "./cockpitManagerTiming";
 import {
+  isDiskIoErrorMessage,
+  showErrorMessageWithReloadAction,
   warnStaleRuntimeSqliteSuppressed,
 } from "./extensionUiFlows";
 
@@ -1255,7 +1257,12 @@ export class ScheduleManager {
       }
     } catch (e) {
       console.error('[Scheduler] Failed to save to .vscode/scheduler.json:', e);
-      vscode.window.showErrorMessage(`Failed to save scheduler configuration: ${e instanceof Error ? e.message : String(e)}`);
+      const message = `Failed to save scheduler configuration: ${e instanceof Error ? e.message : String(e)}`;
+      if (isDiskIoErrorMessage(message)) {
+        showErrorMessageWithReloadAction(message);
+      } else {
+        vscode.window.showErrorMessage(message);
+      }
       throw e;
     }
     /* -------------------------------------------------------- */

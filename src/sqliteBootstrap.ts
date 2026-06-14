@@ -4,7 +4,7 @@ import * as path from "path";
 import type * as vscode from "vscode";
 import initSqlJs from "sql.js";
 import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
-import { readSchedulerConfig, writeSchedulerConfig } from "./cockpitJsonSanitizer";
+import { readSchedulerConfig, recordRecentSchedulerConfigWrite, writeSchedulerConfig } from "./cockpitJsonSanitizer";
 import type { ResearchWorkspaceConfig, SchedulerWorkspaceConfig } from "./types";
 import {
   GLOBAL_SQLITE_SCHEMA_STATEMENTS,
@@ -460,6 +460,8 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase, maxBacku
   if (maxBackups > 0) {
     pruneSqliteBackups(databasePath, maxBackups);
   }
+
+  recordRecentSchedulerConfigWrite(databasePath, Date.now());
 }
 
 function compactSqliteDatabase(db: SqlJsDatabase): void {

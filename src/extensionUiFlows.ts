@@ -15,6 +15,22 @@ type NotificationMode = "sound" | "silentToast" | "silentStatus";
 
 let lastWarnedStaleRuntimeKey: string | undefined;
 
+export function isDiskIoErrorMessage(message: string): boolean {
+  return /\bdisk\s+i(?:\/|\s*)o\s+error\b/i.test(message)
+    || /\bSQLITE_IOERR\b/i.test(message);
+}
+
+export function showErrorMessageWithReloadAction(message: string): void {
+  const reloadAction = messages.reloadNow();
+  void vscode.window
+    .showErrorMessage(message, reloadAction)
+    .then((choice) => {
+      if (choice === reloadAction) {
+        void vscode.commands.executeCommand("workbench.action.reloadWindow");
+      }
+    });
+}
+
 export async function warnIfCronTooFrequent(options: {
   cronExpression?: string;
   cockpitManager: CronWarningScheduleManager;
@@ -139,6 +155,12 @@ export function notifyError(options: {
   const timeoutMs = options.timeoutMs ?? 6000;
   const safeMessage = options.redactPathsForLog(options.message);
   const displayMessage = safeMessage || options.fallbackMessage || "";
+
+  if (isDiskIoErrorMessage(displayMessage)) {
+    options.logError(displayMessage);
+    showErrorMessageWithReloadAction(displayMessage);
+    return;
+  }
 
   if (options.mode === "silentStatus") {
     vscode.window.setStatusBarMessage(`⚠ ${displayMessage}`, timeoutMs);
