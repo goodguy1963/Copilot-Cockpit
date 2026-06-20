@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.26] - 2026-06-20
+
+### Fixed
+
+- **Dependency security** — Updated the Dependabot Hono lockfile resolution to 4.12.26, covering the Lambda, Lambda@Edge, CORS, and Windows `serve-static` advisories reported for 4.12.23.
+- **Transitive audit cleanup** — Updated `js-yaml` to 4.2.0 through the lockfile so the repository audit no longer reports the merge-key denial-of-service advisory.
+
 ## [2.1.25] - 2026-06-14
 
 ### Fixed
