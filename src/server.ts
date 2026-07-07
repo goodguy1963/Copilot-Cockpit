@@ -479,20 +479,29 @@ function getResearchConfigPath(workspaceRoot: string): string {
     return getWorkspaceResearchConfigPath(workspaceRoot);
 }
 
-function readResearchConfig(workspaceRoot: string): ResearchConfig {
+async function pathExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.promises.access(filePath, fs.constants.F_OK);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function readResearchConfig(workspaceRoot: string): Promise<ResearchConfig> {
     const filePath = getResearchConfigPath(workspaceRoot);
-    if (!fs.existsSync(filePath)) {
+    if (!(await pathExists(filePath))) {
         return parseStoredResearchConfig({});
     }
 
-    const raw = fs.readFileSync(filePath, "utf8");
+    const raw = await fs.promises.readFile(filePath, "utf8");
     return parseStoredResearchConfigText(raw);
 }
 
-function writeResearchConfig(workspaceRoot: string, config: ResearchConfig): void {
+async function writeResearchConfig(workspaceRoot: string, config: ResearchConfig): Promise<void> {
     const filePath = getResearchConfigPath(workspaceRoot);
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, stringifyStoredResearchConfig(config), "utf8");
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.promises.writeFile(filePath, stringifyStoredResearchConfig(config), "utf8");
 }
 
 function getSchedulerJob(config: SchedulerConfig, jobId: string): any | undefined {
@@ -2977,7 +2986,7 @@ export async function handleSchedulerToolCall(
             }
 
             case "research_list_profiles": {
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 return textResponse({
                     workspaceRoot: context.workspaceRoot,
                     profileCount: researchConfig.profiles.length,
@@ -2987,7 +2996,7 @@ export async function handleSchedulerToolCall(
 
             case "research_get_profile": {
                 const researchId = ensureString(args.researchId, "researchId");
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const profile = researchConfig.profiles.find((entry: any) => entry && entry.id === researchId);
                 if (!profile) {
                     return errorResponse(`Research profile '${researchId}' not found.`);
@@ -2996,19 +3005,19 @@ export async function handleSchedulerToolCall(
             }
 
             case "research_create_profile": {
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const profile = normalizeResearchProfile(args.researchData);
                 profile.id = createId("research");
                 profile.createdAt = nowIso();
                 profile.updatedAt = profile.createdAt;
                 researchConfig.profiles.push(profile);
-                writeResearchConfig(context.workspaceRoot, researchConfig);
+                await writeResearchConfig(context.workspaceRoot, researchConfig);
                 return textResponse({ message: `Research profile '${profile.id}' created.`, profile });
             }
 
             case "research_update_profile": {
                 const researchId = ensureString(args.researchId, "researchId");
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const index = researchConfig.profiles.findIndex((entry: any) => entry && entry.id === researchId);
                 if (index < 0) {
                     return errorResponse(`Research profile '${researchId}' not found.`);
@@ -3023,25 +3032,25 @@ export async function handleSchedulerToolCall(
                 profile.createdAt = researchConfig.profiles[index].createdAt;
                 profile.updatedAt = nowIso();
                 researchConfig.profiles[index] = profile;
-                writeResearchConfig(context.workspaceRoot, researchConfig);
+                await writeResearchConfig(context.workspaceRoot, researchConfig);
                 return textResponse({ message: `Research profile '${researchId}' updated.`, profile });
             }
 
             case "research_delete_profile": {
                 const researchId = ensureString(args.researchId, "researchId");
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const before = researchConfig.profiles.length;
                 researchConfig.profiles = researchConfig.profiles.filter((entry: any) => entry && entry.id !== researchId);
                 if (researchConfig.profiles.length === before) {
                     return errorResponse(`Research profile '${researchId}' not found.`);
                 }
-                writeResearchConfig(context.workspaceRoot, researchConfig);
+                await writeResearchConfig(context.workspaceRoot, researchConfig);
                 return textResponse({ message: `Research profile '${researchId}' deleted.`, researchId });
             }
 
             case "research_duplicate_profile": {
                 const researchId = ensureString(args.researchId, "researchId");
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const profile = researchConfig.profiles.find((entry: any) => entry && entry.id === researchId);
                 if (!profile) {
                     return errorResponse(`Research profile '${researchId}' not found.`);
@@ -3055,12 +3064,12 @@ export async function handleSchedulerToolCall(
                     updatedAt: nowIso(),
                 };
                 researchConfig.profiles.push(duplicate);
-                writeResearchConfig(context.workspaceRoot, researchConfig);
+                await writeResearchConfig(context.workspaceRoot, researchConfig);
                 return textResponse({ message: `Research profile '${researchId}' duplicated as '${duplicateId}'.`, profile: duplicate });
             }
 
             case "research_list_runs": {
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 return textResponse({
                     workspaceRoot: context.workspaceRoot,
                     runCount: researchConfig.runs.length,
@@ -3071,7 +3080,7 @@ export async function handleSchedulerToolCall(
 
             case "research_get_run": {
                 const runId = ensureString(args.runId, "runId");
-                const researchConfig = readResearchConfig(context.workspaceRoot);
+                const researchConfig = await readResearchConfig(context.workspaceRoot);
                 const run = researchConfig.runs.find((entry: any) => entry && entry.id === runId);
                 if (!run) {
                     return errorResponse(`Research run '${runId}' not found.`);
