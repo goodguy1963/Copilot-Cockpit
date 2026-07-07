@@ -3724,7 +3724,7 @@ async function handleWebviewToggleTaskAction(taskId: string): Promise<void> {
   }
   notifyToggleState(task);
   if (task.enabled) await maybeShowDisclaimerOnce(task);
-  refreshSchedulerUiState();
+  refreshSchedulerUiState(true);
 }
 
 function finishWebviewTaskEdit(message: string): void {
@@ -4197,7 +4197,7 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           break;
         }
         notifyInfo(job.paused ? `Job paused: ${job.name}` : `Job resumed: ${job.name}`);
-        refreshSchedulerUiState();
+        refreshSchedulerUiState(true);
         break;
       }
 

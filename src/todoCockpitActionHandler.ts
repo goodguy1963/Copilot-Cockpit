@@ -1286,7 +1286,7 @@ export async function handleTodoCockpitAction(
         deps.notifyError("Todo Cockpit item not found.");
         return true;
       }
-      deps.refreshSchedulerUiState();
+      deps.refreshSchedulerUiState(true);
       return true;
     }
 
@@ -1348,7 +1348,7 @@ export async function handleTodoCockpitAction(
         return true;
       }
       reorderCockpitSection(workspaceRoot, action.sectionId, action.targetIndex);
-      deps.refreshSchedulerUiState();
+      deps.refreshSchedulerUiState(true);
       return true;
     }
 
