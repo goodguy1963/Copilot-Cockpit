@@ -162,7 +162,7 @@ function normalizeSortDirection(value: unknown): CockpitTodoSortDirection {
 }
 
 function normalizeViewMode(value: unknown): CockpitTodoViewMode {
-  return value === "list" ? "list" : "board";
+  return value === "list" || value === "kanban" ? value : "board";
 }
 
 function normalizeOptionalString(value: unknown): string | undefined {

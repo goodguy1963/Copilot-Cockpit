@@ -3232,6 +3232,72 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     return matched.length ? matched[matched.length - 1] : "";
   }
 
+  function getKanbanLaneForTodo(card) {
+    if (!card) {
+      return "inbox";
+    }
+    if (card.archived || card.status === "completed" || card.status === "rejected") {
+      return "done";
+    }
+    var workflowFlag = getTodoWorkflowFlag(card);
+    if (workflowFlag === "needs-bot-review") {
+      return "bot-review";
+    }
+    if (workflowFlag === "needs-user-review" || workflowFlag === "final-user-check") {
+      return "user-review";
+    }
+    if (card.taskId || workflowFlag === "on-schedule-list") {
+      return "scheduled";
+    }
+    if (workflowFlag === "ready") {
+      return "ready";
+    }
+    return "inbox";
+  }
+
+  function getWorkflowFlagsForKanban(card, flag) {
+    var workflowKeys = ["new", "needs-bot-review", "needs-user-review", "ready", "ON-SCHEDULE-LIST", "FINAL-USER-CHECK"];
+    var lowerWorkflowKeys = workflowKeys.map(function (entry) { return normalizeTodoLabelKey(entry); });
+    var rest = Array.isArray(card && card.flags)
+      ? card.flags.filter(function (entry) {
+        return lowerWorkflowKeys.indexOf(normalizeTodoLabelKey(entry)) < 0;
+      })
+      : [];
+    return [flag].concat(rest);
+  }
+
+  function planKanbanLaneDrop(card, targetLaneId) {
+    var currentLane = getKanbanLaneForTodo(card);
+    if (currentLane === targetLaneId) {
+      return { blocked: true, reason: strings.boardKanbanAlreadyInLane || "Todo is already in that lane." };
+    }
+    if (targetLaneId === "inbox") {
+      return { type: "updateTodo", todoId: card.id, data: { flags: getWorkflowFlagsForKanban(card, "new") } };
+    }
+    if (targetLaneId === "bot-review") {
+      return { type: "updateTodo", todoId: card.id, data: { flags: getWorkflowFlagsForKanban(card, "needs-bot-review") } };
+    }
+    if (targetLaneId === "user-review") {
+      return { type: "updateTodo", todoId: card.id, data: { flags: getWorkflowFlagsForKanban(card, "needs-user-review") } };
+    }
+    if (targetLaneId === "ready") {
+      return currentLane === "bot-review" || currentLane === "user-review" || currentLane === "inbox"
+        ? { type: "approveTodo", todoId: card.id }
+        : { blocked: true, reason: strings.boardKanbanReadyBlocked || "Only review or inbox todos can be approved into Ready." };
+    }
+    if (targetLaneId === "scheduled") {
+      return currentLane === "ready"
+        ? { type: "createTaskFromTodo", todoId: card.id }
+        : { blocked: true, reason: strings.boardKanbanScheduleBlocked || "Move this todo to Ready before scheduling it." };
+    }
+    if (targetLaneId === "done") {
+      return currentLane === "scheduled" || currentLane === "user-review"
+        ? { type: "finalizeTodo", todoId: card.id }
+        : { blocked: true, reason: strings.boardKanbanDoneBlocked || "Only scheduled or final-review todos can be completed." };
+    }
+    return { blocked: true, reason: strings.boardKanbanUnknownLane || "Unknown Kanban lane." };
+  }
+
   function getLabelDefinition(label) {
     var key = normalizeTodoLabelKey(label);
     var catalog = getLabelCatalog();
@@ -3727,6 +3793,22 @@ syncTodoLabelSuggestions();
       },
       setIsBoardDragging: function (value) {
         isBoardDragging = value;
+      },
+      postKanbanLaneDrop: function (todoId, laneId) {
+        var card = cockpitBoard && Array.isArray(cockpitBoard.cards)
+          ? cockpitBoard.cards.find(function (entry) { return entry && entry.id === todoId; })
+          : null;
+        if (!card) {
+          showGlobalError(strings.boardKanbanTodoMissing || "Todo Cockpit item not found.");
+          return;
+        }
+        var plan = planKanbanLaneDrop(card, laneId);
+        if (plan.blocked) {
+          showGlobalError(plan.reason || (strings.boardKanbanMoveBlocked || "That Kanban move is not available."));
+          renderCockpitBoard();
+          return;
+        }
+        vscode.postMessage(plan);
       },
       requestAnimationFrame: requestAnimationFrame,
       finishBoardDragState: finishBoardDragState,
@@ -4348,7 +4430,7 @@ syncTodoLabelSuggestions();
       sectionId: record.sectionId || "",
       sortBy: record.sortBy || "manual",
       sortDirection: record.sortDirection || "asc",
-      viewMode: record.viewMode === "list" ? "list" : "board",
+      viewMode: record.viewMode === "list" || record.viewMode === "kanban" ? record.viewMode : "board",
       showArchived: record.showArchived === true,
       showRecurringTasks: record.showRecurringTasks === true,
       hideCardDetails: record.hideCardDetails === true,
@@ -4855,6 +4937,7 @@ syncTodoLabelSuggestions();
       todoViewMode.innerHTML = [
         { value: "board", label: strings.boardViewBoard || "Board" },
         { value: "list", label: strings.boardViewList || "List" },
+        { value: "kanban", label: strings.boardViewKanban || "Kanban" },
       ].map(function (option) {
         return '<option value="' + escapeAttr(option.value) + '">' + escapeHtml(option.label) + '</option>';
       }).join("");
@@ -5305,7 +5388,7 @@ syncTodoLabelSuggestions();
     }
     if (todoViewMode) {
       todoViewMode.onchange = function () {
-        updateTodoFilters({ viewMode: todoViewMode.value === "list" ? "list" : "board" });
+        updateTodoFilters({ viewMode: todoViewMode.value === "list" || todoViewMode.value === "kanban" ? todoViewMode.value : "board" });
       };
     }
     if (todoShowArchived) {

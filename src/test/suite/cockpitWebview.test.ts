@@ -7,6 +7,7 @@ import { messages } from "../../i18n";
 import { SchedulerWebview } from "../../cockpitWebview";
 import * as cockpitWebviewPanelLifecycle from "../../cockpitWebviewPanelLifecycle";
 import { getResourceScopedSettingsTarget } from "../../cockpitWebviewSettingsHandler";
+import { buildSchedulerWebviewStrings } from "../../cockpitWebviewStrings";
 import { overrideWorkspaceFolders } from "./helpers/vscodeTestHarness";
 
 type WebviewPanelLike = { // test-mock
@@ -992,6 +993,36 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       '@media (max-width: 760px) {',
       'grid-template-columns: 1fr;',
     ], "list-view layout CSS");
+  });
+
+  test("kanban view renders fixed workflow lanes and keeps lane drops on existing todo actions", () => {
+    const renderSource = readBoardRenderingSource();
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const strings = buildSchedulerWebviewStrings("en");
+
+    expectSourceToIncludeSnippets(renderSource, [
+      'filters.viewMode === "kanban"',
+      "var KANBAN_LANES = [",
+      '{ id: "inbox", title: "Inbox" }',
+      '{ id: "bot-review", title: "Bot Review" }',
+      '{ id: "user-review", title: "User Review" }',
+      '{ id: "scheduled", title: "Scheduled" }',
+      'data-kanban-lane-id="',
+      "function deriveKanbanLane(card)",
+    ], "kanban projection renderer");
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      'record.viewMode === "list" || record.viewMode === "kanban"',
+      'strings.boardViewKanban || "Kanban"',
+      "function planKanbanLaneDrop(card, targetLaneId)",
+      '{ type: "approveTodo", todoId: card.id }',
+      '{ type: "createTaskFromTodo", todoId: card.id }',
+      '{ type: "finalizeTodo", todoId: card.id }',
+      "postKanbanLaneDrop: function (todoId, laneId)",
+    ], "kanban transition planner");
+
+    assert.strictEqual(strings.boardViewKanban, "Kanban");
+    assert.strictEqual(strings.boardKanbanScheduleBlocked, "Move this todo to Ready before scheduling it.");
   });
 
   test("editor tabs use symbol states and dirty badges", () => {

@@ -552,6 +552,15 @@ function finishPointerDragSession(event, cancelled) {
     var section = getClosestEventTarget(pointTarget, "[data-section-id]");
     var targetCard = getClosestEventTarget(pointTarget, "[data-todo-id]");
     if (section && options.getDraggingTodoId() && !options.isArchiveTodoSectionId(section.getAttribute("data-section-id"))) {
+      var kanbanLaneId = section.getAttribute("data-kanban-lane-id");
+      if (kanbanLaneId && typeof options.postKanbanLaneDrop === "function") {
+        options.postKanbanLaneDrop(options.getDraggingTodoId(), kanbanLaneId);
+        releasePointerCapture(session);
+        setBoardDocumentDragState(options, false);
+        options.finishBoardDragState();
+        pointerDragSession = null;
+        return;
+      }
       var targetIndex = getTodoDropTargetIndex(
         boardColumns,
         section,

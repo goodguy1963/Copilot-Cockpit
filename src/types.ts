@@ -217,7 +217,7 @@ export type CockpitTodoSortBy =
 
 export type CockpitTodoSortDirection = "asc" | "desc";
 
-export type CockpitTodoViewMode = "board" | "list";
+export type CockpitTodoViewMode = "board" | "list" | "kanban";
 
 export type CockpitTodoStatus =
   | "active"

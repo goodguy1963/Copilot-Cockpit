@@ -7,8 +7,43 @@ export function renderTodoBoardMarkup(options) {
   if (filters.viewMode === "list") {
     return renderTodoListView(visibleSections, cards, filters, options);
   }
+  if (filters.viewMode === "kanban") {
+    return renderTodoKanbanView(cards, filters, options);
+  }
 
   return renderTodoBoardColumns(visibleSections, cards, filters, options);
+}
+
+var KANBAN_LANES = [
+  { id: "inbox", title: "Inbox" },
+  { id: "bot-review", title: "Bot Review" },
+  { id: "user-review", title: "User Review" },
+  { id: "ready", title: "Ready" },
+  { id: "scheduled", title: "Scheduled" },
+  { id: "done", title: "Done" },
+];
+
+function hasTodoFlag(card, flag) {
+  return Array.isArray(card.flags) && card.flags.indexOf(flag) >= 0;
+}
+
+function deriveKanbanLane(card) {
+  if (card.archived || card.status === "completed" || card.status === "rejected") {
+    return "done";
+  }
+  if (hasTodoFlag(card, "needs-bot-review")) {
+    return "bot-review";
+  }
+  if (hasTodoFlag(card, "needs-user-review") || hasTodoFlag(card, "FINAL-USER-CHECK")) {
+    return "user-review";
+  }
+  if (card.taskId || hasTodoFlag(card, "ON-SCHEDULE-LIST")) {
+    return "scheduled";
+  }
+  if (hasTodoFlag(card, "ready")) {
+    return "ready";
+  }
+  return "inbox";
 }
 
 function getLatestTodoComment(card) {
@@ -245,6 +280,80 @@ function renderTodoListView(visibleSections, cards, filters, options) {
             '</div>' +
           '</div>' +
         '</div>' +
+      '</section>';
+    }).join("") +
+  '</div>';
+}
+
+function renderTodoKanbanCard(card, laneId, index, options) {
+  var strings = options.strings;
+  var helpers = options.helpers;
+  var selectedTodoId = options.selectedTodoId;
+  var isSelected = card.id === selectedTodoId;
+  var dueContent = renderDueDateContent(card, strings, helpers);
+  var archiveContent = renderArchiveOutcomeContent(card, helpers);
+  var visibleFlags = Array.isArray(card.flags)
+    ? card.flags.filter(function (flag) {
+      return ["new", "needs-bot-review", "needs-user-review", "ready", "ON-SCHEDULE-LIST", "FINAL-USER-CHECK"].indexOf(flag) < 0;
+    }).slice(0, 2)
+    : [];
+  var visibleLabels = Array.isArray(card.labels) ? card.labels.slice(0, 2) : [];
+  var chipMarkup = (visibleFlags.length || visibleLabels.length)
+    ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">' +
+      (visibleFlags.length
+        ? '<div class="card-flags" style="display:flex;flex-wrap:wrap;gap:4px;">' +
+          visibleFlags.map(function (flag, idx) { return '<span data-flag-slot="' + idx + '">' + helpers.renderFlagChip(flag, false) + '</span>'; }).join("") +
+          '</div>'
+        : '') +
+      (visibleLabels.length
+        ? '<div class="card-labels" style="display:flex;flex-wrap:wrap;gap:4px;">' +
+          visibleLabels.map(function (label, idx) { return '<span data-label-slot="' + idx + '">' + helpers.renderLabelChip(label, false, false) + '</span>'; }).join("") +
+          '</div>'
+        : '') +
+      '</div>'
+    : '';
+  return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="kanban-' + helpers.escapeAttr(laneId) + '" data-kanban-lane-id="' + helpers.escapeAttr(laneId) + '" data-order="' + String(index) + '" data-selected="' + (isSelected ? 'true' : 'false') + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;">' +
+    '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
+      '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
+        helpers.renderTodoCompletionCheckbox(card) +
+        '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+      '</div>' +
+      helpers.renderTodoDragHandle(card) +
+    '</div>' +
+    (dueContent || archiveContent ? '<div style="display:flex;flex-wrap:wrap;gap:4px;color:var(--vscode-descriptionForeground);">' + (dueContent ? '<span data-card-meta>' + dueContent + '</span>' : '') + (archiveContent ? '<span data-card-meta>' + archiveContent + '</span>' : '') + '</div>' : '') +
+    chipMarkup +
+    '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + '</div></div>' +
+    renderTodoCompactActions(card, options, "board") +
+  '</article>';
+}
+
+function renderTodoKanbanView(cards, filters, options) {
+  var strings = options.strings;
+  var helpers = options.helpers;
+  var visibleCards = helpers.sortTodoCards(cards.filter(function (card) {
+    return helpers.cardMatchesTodoFilters(card, filters);
+  }), filters);
+  return '<div class="todo-kanban-view" style="display:flex;gap:12px;align-items:flex-start;min-width:max-content;">' +
+    KANBAN_LANES.map(function (lane) {
+      var laneCards = visibleCards.filter(function (card) {
+        return deriveKanbanLane(card) === lane.id;
+      });
+      return '<section class="board-column todo-kanban-lane" data-section-id="kanban-' + helpers.escapeAttr(lane.id) + '" data-kanban-lane-id="' + helpers.escapeAttr(lane.id) + '" data-card-count="' + String(laneCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow:visible;">' +
+        '<div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)">' +
+          '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(lane.title) + '</strong>' +
+          '<span class="note cockpit-section-count">(' + String(laneCards.length) + ')</span>' +
+        '</div>' +
+        '<div class="section-body-wrapper"><div class="section-body-inner">' +
+          '<div style="padding:0 var(--cockpit-card-pad,9px) var(--cockpit-card-pad,9px);">' +
+            '<div style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);min-height:60px;">' +
+              (laneCards.length
+                ? laneCards.map(function (card, index) {
+                  return renderTodoKanbanCard(card, lane.id, index, options);
+                }).join("")
+                : '<div class="note">' + helpers.escapeHtml(strings.boardEmpty || "Drop a todo here when it reaches this step.") + '</div>') +
+            '</div>' +
+          '</div>' +
+        '</div></div>' +
       '</section>';
     }).join("") +
   '</div>';

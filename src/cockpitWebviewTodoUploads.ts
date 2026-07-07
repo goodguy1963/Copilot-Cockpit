@@ -3,6 +3,8 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { sanitizeAbsolutePathDetails } from "./errorSanitizer";
 
+export const MAX_TODO_UPLOAD_BYTES = 25 * 1024 * 1024;
+
 export function sanitizeTodoUploadFileName(fileName: string): string {
   const parsed = path.parse(fileName || "upload");
   const rawBase = parsed.name || "upload";
@@ -58,19 +60,45 @@ export async function handleTodoFileUploadRequest(options: {
       return;
     }
 
+    const acceptedFiles: Array<{ sourcePath: string; size: number }> = [];
+    const skipped: string[] = [];
+    for (const fileUri of selectedFiles) {
+      const sourcePath = fileUri.fsPath;
+      const stat = await fs.promises.stat(sourcePath);
+      if (!stat.isFile()) {
+        skipped.push(`${path.basename(sourcePath)} is not a file.`);
+        continue;
+      }
+      if (stat.size > MAX_TODO_UPLOAD_BYTES) {
+        skipped.push(`${path.basename(sourcePath)} is too large.`);
+        continue;
+      }
+      acceptedFiles.push({ sourcePath, size: stat.size });
+    }
+
+    if (acceptedFiles.length === 0) {
+      options.postMessage({
+        type: "todoFileUploadResult",
+        ok: false,
+        message: skipped.join(" ") || options.strings.boardUploadFilesError || "File upload failed.",
+        skipped,
+      });
+      return;
+    }
+
     const uploadFolderPath = path.join(
       options.workspaceRoot,
       ".vscode",
       options.uploadsFolderName,
     );
-    fs.mkdirSync(uploadFolderPath, { recursive: true });
+    await fs.promises.mkdir(uploadFolderPath, { recursive: true });
     options.ensurePrivateConfigIgnoredForWorkspaceRoot(options.workspaceRoot);
 
     const relativePaths: string[] = [];
     const stamp = new Date().toISOString().replace(/[-:TZ.]/g, "").slice(0, 14);
 
-    selectedFiles.forEach((fileUri, index) => {
-      const sourcePath = fileUri.fsPath;
+    for (const [index, file] of acceptedFiles.entries()) {
+      const sourcePath = file.sourcePath;
       const safeName = sanitizeTodoUploadFileName(path.basename(sourcePath));
       const parsed = path.parse(safeName);
       const prefix = `${stamp}-${String(index + 1).padStart(2, "0")}`;
@@ -84,11 +112,11 @@ export async function handleTodoFileUploadRequest(options: {
         attempt += 1;
       }
 
-      fs.copyFileSync(sourcePath, targetPath);
+      await fs.promises.copyFile(sourcePath, targetPath);
       relativePaths.push(
         path.relative(options.workspaceRoot as string, targetPath).split(path.sep).join("/"),
       );
-    });
+    }
 
     const insertedText = [
       relativePaths.length === 1 ? "Attachment:" : "Attachments:",
@@ -103,6 +131,7 @@ export async function handleTodoFileUploadRequest(options: {
         "Files copied into the workspace input folder and added to the description.",
       insertedText,
       relativePaths,
+      skipped,
       folderRelativePath: `.vscode/${options.uploadsFolderName}`,
     });
   } catch (error) {
