@@ -91,6 +91,45 @@ export function setWorkspaceStorageModeForTest(
   };
 }
 
+export function setWorkspaceSqliteJsonMirrorForTest(
+  enabled: boolean,
+): () => void {
+  const original = vscode.workspace.getConfiguration;
+
+  (vscode.workspace as typeof vscode.workspace & {
+    getConfiguration: typeof vscode.workspace.getConfiguration;
+  }).getConfiguration = ((section?: string, scope?: vscode.ConfigurationScope) => {
+    const configuration = original(section as never, scope as never);
+    if (section !== "copilotCockpit") {
+      return configuration;
+    }
+
+    return {
+      ...configuration,
+      get<T>(key: string, defaultValue?: T): T {
+        return key === "sqliteJsonMirror"
+          ? (enabled as T)
+          : configuration.get<T>(key, defaultValue as T);
+      },
+      inspect<T>(key: string) {
+        if (key !== "sqliteJsonMirror") {
+          return configuration.inspect<T>(key);
+        }
+
+        return {
+          workspaceFolderValue: enabled as T,
+        } as ReturnType<typeof configuration.inspect<T>>;
+      },
+    } as vscode.WorkspaceConfiguration;
+  }) as typeof vscode.workspace.getConfiguration;
+
+  return () => {
+    (vscode.workspace as typeof vscode.workspace & {
+      getConfiguration: typeof vscode.workspace.getConfiguration;
+    }).getConfiguration = original;
+  };
+}
+
 export function createTempDir(prefix: string): string {
   const sanitizedPrefix = prefix
     .replace(/[\\/:*?"<>|]+/g, "-")

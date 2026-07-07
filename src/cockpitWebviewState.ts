@@ -110,7 +110,7 @@ export function createDefaultStorageSettings(): StorageSettingsView {
     mode: "sqlite",
     searchProvider: "built-in",
     researchProvider: "none",
-    sqliteJsonMirror: true,
+    sqliteJsonMirror: false,
     autoIgnorePrivateFiles: true,
     disabledSystemFlagKeys: [],
     startupNotifications: {

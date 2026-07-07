@@ -62,7 +62,7 @@
   "config.storageMode": "Primäres Persistenz-Backend für Scheduler- und Cockpit-Zustand. Bis der SQLite-Migrationspfad für den Workspace vollständig aktiv ist, sollte dies auf JSON bleiben.",
   "config.storageMode.json": "Die vorhandenen JSON-Dateien unter .vscode als maßgeblichen Speicher verwenden",
   "config.storageMode.sqlite": "Die lokale SQLite-Datenbank als maßgeblichen Speicher verwenden",
-  "config.sqliteJsonMirror": "Wenn der SQLite-Speichermodus aktiv ist, zusätzlich kompatible JSON-Spiegel unter .vscode für Migration und Rollback schreiben.",
+  "config.sqliteJsonMirror": "Wenn der SQLite-Speichermodus aktiv ist, zusätzlich kompatible JSON-Spiegel unter .vscode für Migration und Rollback schreiben. Standardmäßig deaktiviert, damit SQLite die einzige Schreibautorität bleibt.",
   "config.maxSqliteBackups": "Maximale Anzahl aufzubewahrender SQLite-Datenbank-Backups (.bak). Auf 0 setzen, um die Backup-Erstellung vollständig zu deaktivieren. Vorhandene .bak-Dateien werden beim Start bereinigt.",
   "config.autoIgnorePrivateFiles": "Private Workspace-Pfade von Copilot Cockpit für dieses Projekt automatisch in .gitignore und .vscode/.gitignore eintragen. Deaktivieren Sie dies, um künftige automatische Ignore-Schreibvorgänge zu stoppen, ohne bestehende Einträge zu entfernen.",
   "config.searchProvider": "Repository-lokaler Suchanbieter für schnelle externe Recherchen.",

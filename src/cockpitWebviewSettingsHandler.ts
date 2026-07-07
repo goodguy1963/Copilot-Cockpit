@@ -129,7 +129,7 @@ export async function handleSettingsWebviewMessage(
         hasExplicitResearchProvider: !!requested
           && Object.prototype.hasOwnProperty.call(requested, "researchProvider"),
       });
-      const sqliteJsonMirror = requested?.sqliteJsonMirror !== false;
+      const sqliteJsonMirror = requested?.sqliteJsonMirror === true;
       const autoIgnorePrivateFiles = requested?.autoIgnorePrivateFiles !== false;
       const disabledSystemFlagKeys = Array.isArray(requested?.disabledSystemFlagKeys)
         ? requested!.disabledSystemFlagKeys

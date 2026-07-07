@@ -50,7 +50,7 @@ export function normalizeSchedulerStorageMode(
 }
 
 export function normalizeSqliteJsonMirrorEnabled(value: unknown): boolean {
-  return value !== false;
+  return value === true;
 }
 
 export function getConfiguredSchedulerStorageMode(
@@ -73,7 +73,7 @@ export function getConfiguredSqliteJsonMirrorEnabled(
   return normalizeSqliteJsonMirrorEnabled(
     getCompatibleConfigurationValue<boolean>(
       "sqliteJsonMirror",
-      true,
+      false,
       scope,
     ),
   );

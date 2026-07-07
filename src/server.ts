@@ -279,7 +279,7 @@ function isWorkspaceSqliteStorageModeEnabled(workspaceRoot: string): boolean {
 }
 
 function isWorkspaceSqliteJsonMirrorEnabled(workspaceRoot: string): boolean {
-    return getWorkspaceSetting<boolean>(workspaceRoot, "sqliteJsonMirror", true) !== false;
+    return getWorkspaceSetting<boolean>(workspaceRoot, "sqliteJsonMirror", false) === true;
 }
 
 function ensureConfig(raw: unknown): SchedulerConfig {

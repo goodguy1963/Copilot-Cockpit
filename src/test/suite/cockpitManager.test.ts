@@ -22,8 +22,20 @@ import {
   removeTestPath,
   removeTestPaths,
   overrideWorkspaceFolders,
+  setWorkspaceSqliteJsonMirrorForTest,
   setWorkspaceStorageModeForTest,
 } from "./helpers/vscodeTestHarness";
+
+let restoreCockpitManagerMirrorDefault: (() => void) | undefined;
+
+setup(() => {
+  restoreCockpitManagerMirrorDefault = setWorkspaceSqliteJsonMirrorForTest(true);
+});
+
+teardown(() => {
+  restoreCockpitManagerMirrorDefault?.();
+  restoreCockpitManagerMirrorDefault = undefined;
+});
 
 function createManagerWithInvalidTimezone(storageRoot: string): ScheduleManager {
   const manager = new ScheduleManager(createMockContext(storageRoot));

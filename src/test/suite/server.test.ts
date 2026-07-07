@@ -237,6 +237,14 @@ suite("Scheduler MCP Server Tests", () => {
   test("server workspace writes export scheduler mirrors from sqlite authority", async () => {
     const workspaceRoot = createTempWorkspace();
     try {
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "settings.json"),
+        JSON.stringify({
+          "copilotCockpit.storageMode": "sqlite",
+          "copilotCockpit.sqliteJsonMirror": true,
+        }, null, 2),
+        "utf8",
+      );
       writeSchedulerConfig(workspaceRoot, {
         tasks: [
           {
@@ -555,14 +563,14 @@ suite("Scheduler MCP Server Tests", () => {
     assert.deepStrictEqual(created.persistence, {
       storageMode: "sqlite",
       writeTarget: "sqlite-authority",
-      jsonMirrorWrite: true,
+      jsonMirrorWrite: false,
       verifiedByReread: true,
     });
     assert.strictEqual(commented.todo.commentCount, 3);
     assert.deepStrictEqual(commented.persistence, {
       storageMode: "sqlite",
       writeTarget: "sqlite-authority",
-      jsonMirrorWrite: true,
+      jsonMirrorWrite: false,
       verifiedByReread: true,
     });
     assert.strictEqual(server.getConfig().cockpitBoard.cards.length, 1);
@@ -778,7 +786,7 @@ suite("Scheduler MCP Server Tests", () => {
     assert.deepStrictEqual(updated.persistence, {
       storageMode: "sqlite",
       writeTarget: "sqlite-authority",
-      jsonMirrorWrite: true,
+      jsonMirrorWrite: false,
       verifiedByReread: true,
     });
     assert.strictEqual(moved.todo.sectionId, featuresId);

@@ -373,7 +373,7 @@
         },
         "copilotCockpit.sqliteJsonMirror": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "scope": "resource",
           "description": "%config.sqliteJsonMirror%"
         },

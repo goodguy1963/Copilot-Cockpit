@@ -1939,9 +1939,9 @@ async function initializeCurrentWorkspaceForCockpit(
       workspaceRoot,
       getSchedulerSetting<boolean>(
         "sqliteJsonMirror",
-        true,
+        false,
         vscode.Uri.file(workspaceRoot),
-      ) !== false,
+      ) === true,
       typeof maxBackups === "number" && Number.isFinite(maxBackups) ? Math.max(0, Math.min(20, Math.round(maxBackups))) : 3,
     );
     await bootstrapGlobalSqliteStorage(
@@ -2105,7 +2105,7 @@ function getCurrentStorageSettings(): StorageSettingsView {
       : "json",
     searchProvider: providerSettings.searchProvider,
     researchProvider: providerSettings.researchProvider,
-    sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", true, folderUri) !== false,
+    sqliteJsonMirror: getSchedulerSetting<boolean>("sqliteJsonMirror", false, folderUri) === true,
     autoIgnorePrivateFiles: getSchedulerSetting<boolean>(
       AUTO_IGNORE_PRIVATE_FILES_SETTING_KEY,
       true,
@@ -3552,7 +3552,7 @@ export function activate(context: vscode.ExtensionContext): void {
         void notifyUpdatedIgnoreFiles(updatedIgnorePaths);
       }
       if (
-        storageModeChanged
+        (storageModeChanged || sqliteJsonMirrorChanged)
         && extensionContext
         && isCurrentWorkspaceActivatedForCockpit(extensionContext)
       ) {

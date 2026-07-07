@@ -27,8 +27,8 @@ suite("SQLite Storage Foundation Tests", () => {
     assert.strictEqual(normalizeSchedulerStorageMode(undefined), JSON_STORAGE_MODE);
   });
 
-  test("defaults JSON mirror to enabled", () => {
-    assert.strictEqual(normalizeSqliteJsonMirrorEnabled(undefined), true);
+  test("defaults JSON mirror to disabled", () => {
+    assert.strictEqual(normalizeSqliteJsonMirrorEnabled(undefined), false);
     assert.strictEqual(normalizeSqliteJsonMirrorEnabled(true), true);
     assert.strictEqual(normalizeSqliteJsonMirrorEnabled(false), false);
   });

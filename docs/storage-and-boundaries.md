@@ -3,7 +3,7 @@
 ## Repo-Local Storage
 
 - Workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
-- SQLite mode can mirror state into `.vscode/copilot-cockpit.db`.
+- SQLite mode stores state in `.vscode/copilot-cockpit.db`.
 - Research profiles live in `.vscode/research.json` and can also be mirrored into SQLite.
 - Backup history lives in `.vscode/scheduler-history`.
 - Inline prompt backups live in `.vscode/cockpit-prompt-backups`.
@@ -32,6 +32,7 @@
 ## Storage Mode Notes
 
 - JSON mode and SQLite mode expose the same higher-level workflows.
-- SQLite mode still keeps compatibility JSON mirrors and a migration journal at `.vscode/copilot-cockpit.db-migration.json`.
+- SQLite mode can export compatibility JSON mirrors when `copilotCockpit.sqliteJsonMirror` is enabled or when the user runs an explicit export. The SQLite database remains the write authority by default.
+- SQLite migration metadata lives at `.vscode/copilot-cockpit.db-migration.json`.
 
 [Back to README](../README.md)
