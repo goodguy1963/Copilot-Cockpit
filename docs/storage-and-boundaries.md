@@ -5,8 +5,8 @@
 - JSON-mode workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
 - SQLite mode stores workspace-owned database artifacts under `.vscode/copilot-cockpit/`.
 - Research profiles live in `.vscode/copilot-cockpit/research.json` and are mirrored into SQLite when SQLite mode is enabled.
-- Backup history lives in `.vscode/scheduler-history`.
-- Inline prompt backups live in `.vscode/cockpit-prompt-backups`.
+- Backup history lives in `.vscode/copilot-cockpit/scheduler-history`.
+- Inline prompt backups live in `.vscode/copilot-cockpit/cockpit-prompt-backups`.
 
 ## Private vs Public
 

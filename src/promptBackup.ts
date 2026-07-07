@@ -5,14 +5,26 @@ import {
     isPathInsideBaseDir,
     resolveAllowedPathInBaseDir,
 } from "./promptResolver";
+import { getWorkspaceStoragePaths } from "./sqliteStorage";
 
 const BACKUP_DIR_NAME = "cockpit-prompt-backups";
-const BACKUP_DIR_PARTS = [".vscode", BACKUP_DIR_NAME] as const;
+const CANONICAL_BACKUP_DIR_PARTS = [
+    ".vscode",
+    "copilot-cockpit",
+    BACKUP_DIR_NAME,
+] as const;
 const LEGACY_BACKUP_DIRS = [
+    [".vscode", BACKUP_DIR_NAME],
     [".vscode", "scheduler-prompt-backups"],
     [".github", BACKUP_DIR_NAME],
     [".github", "scheduler-prompt-backups"],
 ] as const;
+const BACKUP_ROOT_PREFIXES = [
+    CANONICAL_BACKUP_DIR_PARTS,
+    ...LEGACY_BACKUP_DIRS,
+]
+    .map((parts) => parts.join("/"))
+    .sort((left, right) => right.length - left.length);
 const INVALID_BACKUP_FILE_CHARS = /[^a-zA-Z0-9._-]+/g;
 const MAX_BACKUP_BASE_NAME_LENGTH = 64;
 const BACKUP_HASH_LENGTH = 10;
@@ -56,11 +68,10 @@ function normalizePromptBody(prompt: string): string {
 }
 
 export function getPromptBackupRoot(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...BACKUP_DIR_PARTS);
-}
-
-function getLegacyPromptBackupRoot(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...LEGACY_BACKUP_DIRS[1]);
+    return path.join(
+        getWorkspaceStoragePaths(workspaceRoot).cockpitDataDir,
+        BACKUP_DIR_NAME,
+    );
 }
 
 function getAllowedPromptBackupRoots(workspaceRoot: string): string[] {
@@ -71,19 +82,27 @@ function getAllowedPromptBackupRoots(workspaceRoot: string): string[] {
 }
 
 function stripNestedBackupRootPrefixes(relativePath: string): string {
-    let nextPath = relativePath;
-    const nestedPrefix = `${BACKUP_DIR_PARTS.join(path.sep)}${path.sep}`;
+    let nextPath = relativePath.replace(/\\/g, "/");
+    let didStrip = true;
 
-    while (nextPath.startsWith(nestedPrefix)) {
-        nextPath = nextPath.slice(nestedPrefix.length);
+    while (didStrip) {
+        didStrip = false;
+        for (const prefix of BACKUP_ROOT_PREFIXES) {
+            const nestedPrefix = `${prefix}/`;
+            if (nextPath.startsWith(nestedPrefix)) {
+                nextPath = nextPath.slice(nestedPrefix.length);
+                didStrip = true;
+                break;
+            }
+        }
     }
 
-    return nextPath;
+    return nextPath.split("/").join(path.sep);
 }
 
 export function getDefaultPromptBackupRelativePath(taskId: string): string {
     const fileName = `${normalizeBackupBaseName(taskId)}.prompt.md`;
-    return `${BACKUP_DIR_PARTS.join("/")}/${fileName}`;
+    return `${CANONICAL_BACKUP_DIR_PARTS.join("/")}/${fileName}`;
 }
 
 export function resolvePromptBackupPath(
@@ -116,6 +135,10 @@ export function resolvePromptBackupPath(
     }
 
     if (normalizedInput.startsWith(".github/prompts/")) {
+        return undefined;
+    }
+
+    if (normalizedInput.startsWith(".vscode/") || normalizedInput.startsWith(".github/")) {
         return undefined;
     }
 

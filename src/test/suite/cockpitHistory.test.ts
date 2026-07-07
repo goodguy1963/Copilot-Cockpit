@@ -8,6 +8,7 @@ import {
   listScheduleHistoryEntries,
   readScheduleHistorySnapshot,
 } from "../../cockpitHistory";
+import { getWorkspaceStoragePaths } from "../../sqliteStorage";
 
 suite("ScheduleHistory Tests", () => {
   let workspaceRoot: string;
@@ -37,6 +38,10 @@ suite("ScheduleHistory Tests", () => {
     );
     const historyRoot = getScheduleHistoryRoot(workspaceRoot);
 
+    assert.strictEqual(
+      historyRoot,
+      path.join(getWorkspaceStoragePaths(workspaceRoot).cockpitDataDir, "scheduler-history"),
+    );
     assert.strictEqual(snapshot.id, String(createdAt.getTime()));
     assert.strictEqual(snapshot.createdAt, createdAt.toISOString());
     assert.strictEqual(snapshot.hasPrivate, true);
@@ -131,5 +136,29 @@ suite("ScheduleHistory Tests", () => {
     assert.deepStrictEqual(entries.map((entry) => entry.id), [validTimestamp]);
     assert.strictEqual(readScheduleHistorySnapshot(workspaceRoot, validTimestamp), undefined);
     assert.strictEqual(readScheduleHistorySnapshot(workspaceRoot, "does-not-exist"), undefined);
+  });
+
+  test("reads legacy scheduler history snapshots from the old .vscode root", () => {
+    const legacyHistoryRoot = path.join(workspaceRoot, ".vscode", "scheduler-history");
+    const legacyTimestamp = String(Date.UTC(2026, 3, 4, 12, 0, 0));
+    fs.mkdirSync(legacyHistoryRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(legacyHistoryRoot, `scheduler-${legacyTimestamp}.json`),
+      JSON.stringify({ tasks: [{ id: "legacy-public" }] }),
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(legacyHistoryRoot, `scheduler-${legacyTimestamp}.private.json`),
+      JSON.stringify({ tasks: [{ id: "legacy-private" }] }),
+      "utf8",
+    );
+
+    const entries = listScheduleHistoryEntries(workspaceRoot);
+
+    assert.deepStrictEqual(entries.map((entry) => entry.id), [legacyTimestamp]);
+    assert.deepStrictEqual(readScheduleHistorySnapshot(workspaceRoot, legacyTimestamp), {
+      publicConfig: { tasks: [{ id: "legacy-public" }], jobs: [], jobFolders: [] },
+      privateConfig: { tasks: [{ id: "legacy-private" }], jobs: [], jobFolders: [] },
+    });
   });
 });

@@ -60,7 +60,7 @@ function createServerContext(
   return {
     context: {
       workspaceRoot: options?.workspaceRoot || "/tmp/workspace",
-      historyRoot: `${options?.workspaceRoot || "/tmp/workspace"}/.vscode/scheduler-history`,
+      historyRoot: `${options?.workspaceRoot || "/tmp/workspace"}/.vscode/copilot-cockpit/scheduler-history`,
       readConfig: () => JSON.parse(JSON.stringify(currentConfig)),
       writeConfig: async (config: { tasks: any[]; jobs?: any[]; jobFolders?: any[] }) => {
         if (options?.asyncWriteDelayMs) {
@@ -104,7 +104,7 @@ function createTempWorkspace(): string {
 function createWorkspaceBackedServerContext(workspaceRoot: string) {
   return {
     workspaceRoot,
-    historyRoot: path.join(workspaceRoot, ".vscode", "scheduler-history"),
+    historyRoot: path.join(workspaceRoot, ".vscode", "copilot-cockpit", "scheduler-history"),
     readConfig: () => readSchedulerServerConfigForWorkspace(workspaceRoot),
     writeConfig: (config: any) => writeSchedulerServerConfigForWorkspace(workspaceRoot, config),
     listHistory: () => [],
@@ -255,7 +255,7 @@ suite("Scheduler MCP Server Tests", () => {
             prompt: "Run the demo loop.",
             enabled: true,
             promptBackupPath:
-              ".vscode/scheduler-prompt-backups/.vscode/cockpit-prompt-backups/demo-task.prompt.md",
+              ".vscode/scheduler-prompt-backups/.vscode/copilot-cockpit/cockpit-prompt-backups/demo-task.prompt.md",
           },
         ],
         jobs: [],
@@ -272,7 +272,7 @@ suite("Scheduler MCP Server Tests", () => {
             prompt: "Run the demo loop.",
             enabled: true,
             promptBackupPath:
-              ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+              ".vscode/copilot-cockpit/cockpit-prompt-backups/demo-task.prompt.md",
           },
         ],
         jobs: [],
@@ -295,11 +295,11 @@ suite("Scheduler MCP Server Tests", () => {
 
       assert.strictEqual(
         publicMirror.tasks[0]?.promptBackupPath,
-        ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+        ".vscode/copilot-cockpit/cockpit-prompt-backups/demo-task.prompt.md",
       );
       assert.strictEqual(
         privateMirror.tasks[0]?.promptBackupPath,
-        ".vscode/cockpit-prompt-backups/demo-task.prompt.md",
+        ".vscode/copilot-cockpit/cockpit-prompt-backups/demo-task.prompt.md",
       );
     } finally {
       fs.rmSync(workspaceRoot, { recursive: true, force: true });

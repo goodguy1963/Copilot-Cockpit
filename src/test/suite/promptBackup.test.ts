@@ -19,7 +19,7 @@ suite("Prompt Backup Helpers", () => {
             "exec:task/with unsafe chars",
         );
 
-        assert.ok(relativePath.startsWith(".vscode/cockpit-prompt-backups/"));
+        assert.ok(relativePath.startsWith(".vscode/copilot-cockpit/cockpit-prompt-backups/"));
         assert.strictEqual(relativePath.includes(".github/prompts"), false);
         assert.ok(relativePath.endsWith(".prompt.md"));
     });
@@ -38,6 +38,10 @@ suite("Prompt Backup Helpers", () => {
         const workspaceRoot = path.join("/tmp", "workspace");
         const resolvedCurrent = resolvePromptBackupPath(
             workspaceRoot,
+            ".vscode/copilot-cockpit/cockpit-prompt-backups/test.prompt.md",
+        );
+        const resolvedLegacyCurrent = resolvePromptBackupPath(
+            workspaceRoot,
             ".vscode/cockpit-prompt-backups/test.prompt.md",
         );
         const resolvedLegacyWorkspace = resolvePromptBackupPath(
@@ -55,6 +59,18 @@ suite("Prompt Backup Helpers", () => {
 
         assert.strictEqual(
             normalizePathForTest(resolvedCurrent),
+            normalizePathForTest(
+                path.join(
+                    workspaceRoot,
+                    ".vscode",
+                    "copilot-cockpit",
+                    "cockpit-prompt-backups",
+                    "test.prompt.md",
+                ),
+            ),
+        );
+        assert.strictEqual(
+            normalizePathForTest(resolvedLegacyCurrent),
             normalizePathForTest(
                 path.join(
                     workspaceRoot,
@@ -102,6 +118,7 @@ suite("Prompt Backup Helpers", () => {
                 path.join(
                     workspaceRoot,
                     ".vscode",
+                    "copilot-cockpit",
                     "cockpit-prompt-backups",
                     "test.prompt.md",
                 ),
@@ -122,6 +139,7 @@ suite("Prompt Backup Helpers", () => {
                 path.join(
                     workspaceRoot,
                     ".vscode",
+                    "copilot-cockpit",
                     "cockpit-prompt-backups",
                     "test.prompt.md",
                 ),

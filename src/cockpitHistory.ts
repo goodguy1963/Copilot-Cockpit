@@ -1,8 +1,9 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { ScheduleHistoryEntry } from "./types";
+import { getWorkspaceStoragePaths } from "./sqliteStorage";
 
-const HISTORY_DIR_PARTS = [".vscode", "scheduler-history"] as const;
+const HISTORY_DIR_NAME = "scheduler-history";
 const HISTORY_PREFIX = "scheduler-";
 const PUBLIC_SUFFIX = ".json";
 const PRIVATE_SUFFIX = ".private.json";
@@ -134,11 +135,32 @@ function listScheduleHistoryEntriesByRoot(historyRoot: string): ScheduleHistoryE
 }
 
 export function getScheduleHistoryRoot(workspaceRoot: string): string {
-  return path.join(workspaceRoot, ...HISTORY_DIR_PARTS);
+  return path.join(getWorkspaceStoragePaths(workspaceRoot).cockpitDataDir, HISTORY_DIR_NAME);
+}
+
+function getLegacyScheduleHistoryRoot(workspaceRoot: string): string {
+  return path.join(workspaceRoot, ".vscode", HISTORY_DIR_NAME);
+}
+
+function getScheduleHistoryRoots(workspaceRoot: string): string[] {
+  const canonicalRoot = getScheduleHistoryRoot(workspaceRoot);
+  const legacyRoot = getLegacyScheduleHistoryRoot(workspaceRoot);
+  return canonicalRoot === legacyRoot ? [canonicalRoot] : [canonicalRoot, legacyRoot];
 }
 
 export function listScheduleHistoryEntries(workspaceRoot: string): ScheduleHistoryEntry[] {
-  return listScheduleHistoryEntriesByRoot(getScheduleHistoryRoot(workspaceRoot));
+  const entries = new Map<string, ScheduleHistoryEntry>();
+
+  for (const historyRoot of getScheduleHistoryRoots(workspaceRoot)) {
+    for (const entry of listScheduleHistoryEntriesByRoot(historyRoot)) {
+      if (!entries.has(entry.id)) {
+        entries.set(entry.id, entry);
+      }
+    }
+  }
+
+  return Array.from(entries.values())
+    .sort((left, right) => Number(right.id) - Number(left.id));
 }
 
 export function createScheduleHistorySnapshot(
@@ -189,13 +211,14 @@ export function readScheduleHistorySnapshot(
     return undefined;
   }
 
-  const historyRoot = getScheduleHistoryRoot(workspaceRoot);
-  const publicConfig = readJsonFile(getPublicSnapshotPath(historyRoot, snapshotId));
-  const privateConfig = readJsonFile(getPrivateSnapshotPath(historyRoot, snapshotId));
+  for (const historyRoot of getScheduleHistoryRoots(workspaceRoot)) {
+    const publicConfig = readJsonFile(getPublicSnapshotPath(historyRoot, snapshotId));
+    const privateConfig = readJsonFile(getPrivateSnapshotPath(historyRoot, snapshotId));
 
-  if (!publicConfig && !privateConfig) {
-    return undefined;
+    if (publicConfig || privateConfig) {
+      return { publicConfig, privateConfig };
+    }
   }
 
-  return { publicConfig, privateConfig };
+  return undefined;
 }

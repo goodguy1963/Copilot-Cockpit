@@ -1260,7 +1260,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "scheduler_list_history",
-        description: "List repo-local scheduler history snapshots stored under .vscode/scheduler-history.",
+        description: "List repo-local scheduler history snapshots stored under .vscode/copilot-cockpit/scheduler-history.",
         inputSchema: { type: "object", properties: {} },
     },
     {

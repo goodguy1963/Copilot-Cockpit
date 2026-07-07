@@ -1456,7 +1456,7 @@ suite("ScheduleManager Prompt Backup Tests", () => {
       assert.ok(recurringBackupPath);
       assert.ok(
         recurringBackupPath?.includes(
-          path.join(".vscode", "cockpit-prompt-backups"),
+          path.join(".vscode", "copilot-cockpit", "cockpit-prompt-backups"),
         ),
       );
       assert.ok(fs.existsSync(recurringBackupPath!));
@@ -1504,8 +1504,8 @@ suite("ScheduleManager Prompt Backup Tests", () => {
 
       const currentBackupPath = path.join(workspaceRoot, currentRelativePath!);
       const legacyRelativePath = currentRelativePath!.replace(
-        ".vscode/",
-        ".github/",
+        ".vscode/copilot-cockpit/cockpit-prompt-backups/",
+        ".github/cockpit-prompt-backups/",
       );
       const nextRelativePath = currentRelativePath!;
       const legacyBackupPath = path.join(workspaceRoot, legacyRelativePath);

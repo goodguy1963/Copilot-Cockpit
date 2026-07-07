@@ -576,8 +576,8 @@ export const messages = {
     t("No backup versions yet", "まだバックアップはありません"),
   cockpitHistoryNote: () =>
     t(
-      "The scheduler keeps the last 100 workspace schedule changes in .vscode/scheduler-history.",
-      "Scheduler はワークスペースの直近100件の変更を .vscode/scheduler-history に保存します。",
+      "The scheduler keeps the last 100 workspace schedule changes in .vscode/copilot-cockpit/scheduler-history.",
+      "Scheduler はワークスペースの直近100件の変更を .vscode/copilot-cockpit/scheduler-history に保存します。",
     ),
   cockpitHistoryRestoreSelectRequired: () =>
     t("Select a backup version first", "先にバックアップを選択してください"),
@@ -754,9 +754,9 @@ export const messages = {
     ),
   helpStorageItemBackups: () =>
     t(
-      "Inline prompts are backed up to .vscode/cockpit-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/scheduler-history/.",
-      "インラインプロンプトは.vscode/cockpit-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/scheduler-history/に保存されます。",
-      "Inline-Prompts werden als Markdown-Dateien nach .vscode/cockpit-prompt-backups/ gesichert. Vollständige Snapshots des Scheduler-Zustands landen in .vscode/scheduler-history/.",
+      "Inline prompts are backed up to .vscode/copilot-cockpit/cockpit-prompt-backups/ as Markdown files. Full snapshots of the scheduler state go to .vscode/copilot-cockpit/scheduler-history/.",
+      "インラインプロンプトは.vscode/copilot-cockpit/cockpit-prompt-backups/にMarkdownとしてバックアップされます。スケジューラ全体のスナップショットは.vscode/copilot-cockpit/scheduler-history/に保存されます。",
+      "Inline-Prompts werden als Markdown-Dateien nach .vscode/copilot-cockpit/cockpit-prompt-backups/ gesichert. Vollständige Snapshots des Scheduler-Zustands landen in .vscode/copilot-cockpit/scheduler-history/.",
     ),
   helpStorageItemIsolation: () =>
     t(
