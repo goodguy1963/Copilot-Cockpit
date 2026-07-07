@@ -972,4 +972,36 @@ suite("Scheduler Json Sanitizer Tests", () => {
       cleanup(workspaceRoot);
     }
   });
+
+  test("does not block the event loop while another scheduler writer holds the lock", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const originalWait = Atomics.wait;
+
+    try {
+      const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+      fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+      fs.mkdirSync(lockPath, { recursive: true });
+
+      setSchedulerLockOptionsForTests({
+        staleMs: 30_000,
+        retryMs: 1,
+        maxWaitMs: 25,
+      });
+
+      Atomics.wait = (() => {
+        throw new Error("Atomics.wait should not be used for scheduler lock retries");
+      }) as typeof Atomics.wait;
+
+      assert.throws(
+        () => writeSchedulerConfig(workspaceRoot, {
+          tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+        }),
+        /Scheduler config is locked by another writer/,
+      );
+    } finally {
+      Atomics.wait = originalWait;
+      setSchedulerLockOptionsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
 });

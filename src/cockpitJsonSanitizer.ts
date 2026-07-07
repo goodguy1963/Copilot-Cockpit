@@ -111,10 +111,6 @@ export function setSchedulerLockOptionsForTests(
     schedulerLockOptions.retryMs = overrides?.retryMs ?? DEFAULT_SCHEDULER_LOCK_RETRY_MS;
 }
 
-const schedulerSleepBuffer = typeof SharedArrayBuffer !== "undefined"
-    ? new Int32Array(new SharedArrayBuffer(4))
-    : undefined;
-
 function logSchedulerSanitizerInfo(...args: unknown[]): void {
     console.info(...args);
 }
@@ -1333,7 +1329,6 @@ function recoverPendingSchedulerTransaction(workspaceRoot: string, throwOnFailur
 
 function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
     const lockPath = getSchedulerLockPath(workspaceRoot);
-    const deadline = Date.now() + schedulerLockOptions.maxWaitMs;
 
     while (true) {
         try {
@@ -1373,11 +1368,7 @@ function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
                 }
             }
 
-            if (Date.now() >= deadline) {
-                throw new Error("Scheduler config is locked by another writer.");
-            }
-
-            sleepSync(schedulerLockOptions.retryMs);
+            throw new Error("Scheduler config is locked by another writer.");
         }
     }
 }
@@ -1606,22 +1597,6 @@ export function writeSchedulerConfig(
         };
     } finally {
         releaseLock();
-    }
-}
-
-function sleepSync(ms: number): void {
-    if (ms <= 0) {
-        return;
-    }
-
-    if (schedulerSleepBuffer && typeof Atomics !== "undefined" && typeof Atomics.wait === "function") {
-        Atomics.wait(schedulerSleepBuffer, 0, 0, ms);
-        return;
-    }
-
-    const endAt = Date.now() + ms;
-    while (Date.now() < endAt) {
-        // busy wait fallback for runtimes without Atomics.wait
     }
 }
 
