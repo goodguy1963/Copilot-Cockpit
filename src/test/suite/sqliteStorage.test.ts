@@ -4,11 +4,13 @@ import {
   GLOBAL_TASKS_JSON_FILE,
   GLOBAL_TASKS_META_JSON_FILE,
   GLOBAL_SQLITE_DB_FILE,
+  GLOBAL_SQLITE_SCHEMA_MIGRATIONS,
   GLOBAL_SQLITE_SCHEMA_STATEMENTS,
   JSON_STORAGE_MODE,
   PRIVATE_SECRETS_FILE,
   RESEARCH_JSON_FILE,
   SQLITE_STORAGE_MODE,
+  WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
   WORKSPACE_SQLITE_DB_FILE,
   WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
   getGlobalStoragePaths,
@@ -63,19 +65,27 @@ suite("SQLite Storage Foundation Tests", () => {
   });
 
   test("defines workspace schema for core state domains", () => {
-    const combined = WORKSPACE_SQLITE_SCHEMA_STATEMENTS.join("\n");
+    const combined = [
+      ...WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
+      ...WORKSPACE_SQLITE_SCHEMA_MIGRATIONS.flatMap((migration) => migration.statements),
+    ].join("\n");
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS workspace_tasks"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_cards"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_card_tombstones"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS research_profiles"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS schema_migrations"));
+    assert.ok(combined.includes("CREATE INDEX IF NOT EXISTS idx_workspace_tasks_due"));
     assert.ok(combined.includes("workspace_schema_version"));
   });
 
   test("defines global schema for task state", () => {
-    const combined = GLOBAL_SQLITE_SCHEMA_STATEMENTS.join("\n");
+    const combined = [
+      ...GLOBAL_SQLITE_SCHEMA_STATEMENTS,
+      ...GLOBAL_SQLITE_SCHEMA_MIGRATIONS.flatMap((migration) => migration.statements),
+    ].join("\n");
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS global_tasks"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS schema_migrations"));
+    assert.ok(combined.includes("CREATE INDEX IF NOT EXISTS idx_global_tasks_due"));
     assert.ok(combined.includes("global_schema_version"));
   });
 

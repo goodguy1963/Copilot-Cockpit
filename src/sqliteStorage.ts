@@ -18,8 +18,8 @@ export const WORKSPACE_SQLITE_DB_FILE = "copilot-cockpit.db";
 export const GLOBAL_SQLITE_DB_FILE = "copilot-cockpit-global.db";
 export const PRIVATE_SECRETS_FILE = "copilot-cockpit.private.json";
 
-export const WORKSPACE_SQLITE_SCHEMA_VERSION = 3;
-export const GLOBAL_SQLITE_SCHEMA_VERSION = 3;
+export const WORKSPACE_SQLITE_SCHEMA_VERSION = 4;
+export const GLOBAL_SQLITE_SCHEMA_VERSION = 4;
 
 export type SqliteSchemaMigration = {
   version: number;
@@ -204,6 +204,13 @@ export const WORKSPACE_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[
       "ALTER TABLE cockpit_cards ADD COLUMN archived INTEGER;",
     ],
   },
+  {
+    version: 4,
+    name: "index_scheduler_due_tasks",
+    statements: [
+      "CREATE INDEX IF NOT EXISTS idx_workspace_tasks_due ON workspace_tasks(enabled, next_run);",
+    ],
+  },
 ];
 
 export const GLOBAL_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] = [
@@ -220,6 +227,13 @@ export const GLOBAL_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] =
       "ALTER TABLE global_tasks ADD COLUMN enabled INTEGER;",
       "ALTER TABLE global_tasks ADD COLUMN scope TEXT;",
       "ALTER TABLE global_tasks ADD COLUMN next_run TEXT;",
+    ],
+  },
+  {
+    version: 4,
+    name: "index_global_due_tasks",
+    statements: [
+      "CREATE INDEX IF NOT EXISTS idx_global_tasks_due ON global_tasks(enabled, next_run);",
     ],
   },
 ];
