@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as path from "path";
 import type * as vscode from "vscode";
 
@@ -9,6 +10,7 @@ export const RESEARCH_JSON_FILE = "research.json";
 export const SQLITE_MIGRATION_JOURNAL_FILE = "copilot-cockpit.db-migration.json";
 export const GLOBAL_TASKS_JSON_FILE = "scheduledTasks.json";
 export const GLOBAL_TASKS_META_JSON_FILE = "scheduledTasks.meta.json";
+export const WORKSPACE_COCKPIT_DATA_DIR = "copilot-cockpit";
 
 export type SchedulerStorageMode =
   | typeof JSON_STORAGE_MODE
@@ -30,11 +32,13 @@ export type SqliteSchemaMigration = {
 export type WorkspaceStoragePaths = {
   workspaceRoot: string;
   vscodeDir: string;
+  cockpitDataDir: string;
   databasePath: string;
   publicSchedulerMirrorPath: string;
   privateSchedulerMirrorPath: string;
   privateSecretsPath: string;
   migrationJournalPath: string;
+  researchConfigPath: string;
 };
 
 export type WorkspaceSchedulerMirrorPaths = {
@@ -109,15 +113,66 @@ export function getWorkspaceStoragePaths(
   workspaceRoot: string,
 ): WorkspaceStoragePaths {
   const vscodeDir = path.join(workspaceRoot, ".vscode");
+  const cockpitDataDir = path.join(vscodeDir, WORKSPACE_COCKPIT_DATA_DIR);
   return {
     workspaceRoot,
     vscodeDir,
-    databasePath: path.join(vscodeDir, WORKSPACE_SQLITE_DB_FILE),
+    cockpitDataDir,
+    databasePath: path.join(cockpitDataDir, WORKSPACE_SQLITE_DB_FILE),
     publicSchedulerMirrorPath: path.join(vscodeDir, SCHEDULER_PUBLIC_JSON_FILE),
     privateSchedulerMirrorPath: path.join(vscodeDir, SCHEDULER_PRIVATE_JSON_FILE),
+    privateSecretsPath: path.join(cockpitDataDir, PRIVATE_SECRETS_FILE),
+    migrationJournalPath: path.join(cockpitDataDir, SQLITE_MIGRATION_JOURNAL_FILE),
+    researchConfigPath: path.join(cockpitDataDir, RESEARCH_JSON_FILE),
+  };
+}
+
+function getLegacyWorkspaceStoragePaths(workspaceRoot: string): Pick<
+  WorkspaceStoragePaths,
+  "databasePath" | "privateSecretsPath" | "migrationJournalPath" | "researchConfigPath"
+> {
+  const vscodeDir = path.join(workspaceRoot, ".vscode");
+  return {
+    databasePath: path.join(vscodeDir, WORKSPACE_SQLITE_DB_FILE),
     privateSecretsPath: path.join(vscodeDir, PRIVATE_SECRETS_FILE),
     migrationJournalPath: path.join(vscodeDir, SQLITE_MIGRATION_JOURNAL_FILE),
+    researchConfigPath: path.join(vscodeDir, RESEARCH_JSON_FILE),
   };
+}
+
+function moveLegacyWorkspaceStorageFile(sourcePath: string, targetPath: string): boolean {
+  if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) {
+    return false;
+  }
+
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  try {
+    fs.renameSync(sourcePath, targetPath);
+  } catch {
+    fs.copyFileSync(sourcePath, targetPath);
+    fs.rmSync(sourcePath, { force: true });
+  }
+  return true;
+}
+
+export function migrateLegacyWorkspaceStorageArtifacts(workspaceRoot: string): string[] {
+  const paths = getWorkspaceStoragePaths(workspaceRoot);
+  const legacyPaths = getLegacyWorkspaceStoragePaths(workspaceRoot);
+  const migratedPaths: string[] = [];
+  const moves: Array<[string, string]> = [
+    [legacyPaths.databasePath, paths.databasePath],
+    [legacyPaths.migrationJournalPath, paths.migrationJournalPath],
+    [legacyPaths.privateSecretsPath, paths.privateSecretsPath],
+    [legacyPaths.researchConfigPath, paths.researchConfigPath],
+  ];
+
+  for (const [sourcePath, targetPath] of moves) {
+    if (moveLegacyWorkspaceStorageFile(sourcePath, targetPath)) {
+      migratedPaths.push(targetPath);
+    }
+  }
+
+  return migratedPaths;
 }
 
 export function getWorkspaceSchedulerMirrorPaths(
@@ -131,7 +186,7 @@ export function getWorkspaceSchedulerMirrorPaths(
 }
 
 export function getWorkspaceResearchConfigPath(workspaceRoot: string): string {
-  return path.join(workspaceRoot, ".vscode", RESEARCH_JSON_FILE);
+  return getWorkspaceStoragePaths(workspaceRoot).researchConfigPath;
 }
 
 export function getGlobalStoragePaths(globalStorageRoot: string): GlobalStoragePaths {

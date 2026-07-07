@@ -1238,12 +1238,12 @@ suite("Extension Integration Tests", () => {
 
     assert.ok(typeof getWatchFiles === "function");
     assert.deepStrictEqual(getWatchFiles!("sqlite", true), [
-      "copilot-cockpit.db",
+      "copilot-cockpit/copilot-cockpit.db",
     ]);
     assert.deepStrictEqual(getWatchFiles!("sqlite", false), [
       "scheduler.json",
       "scheduler.private.json",
-      "copilot-cockpit.db",
+      "copilot-cockpit/copilot-cockpit.db",
     ]);
     assert.deepStrictEqual(getWatchFiles!("json", false), [
       "scheduler.json",

@@ -21,6 +21,7 @@ import {
   getGlobalStoragePaths,
   getWorkspaceResearchConfigPath,
   getWorkspaceStoragePaths,
+  migrateLegacyWorkspaceStorageArtifacts,
 } from "./sqliteStorage";
 
 type SqlJsDatabase = {
@@ -386,6 +387,11 @@ function applySchema(
   }
 }
 
+function getMigratedWorkspaceStoragePaths(workspaceRoot: string): ReturnType<typeof getWorkspaceStoragePaths> {
+  migrateLegacyWorkspaceStorageArtifacts(workspaceRoot);
+  return getWorkspaceStoragePaths(workspaceRoot);
+}
+
 function runMigrationStatement(db: SqlJsDatabase, statement: string): void {
   try {
     db.run(statement);
@@ -698,7 +704,7 @@ function insertWorkspaceJsonSnapshot(
   workspaceRoot: string,
   importedAt: string,
 ): { importCounts: Record<string, number>; journal: WorkspaceMigrationJournal } {
-  const paths = getWorkspaceStoragePaths(workspaceRoot);
+  const paths = getMigratedWorkspaceStoragePaths(workspaceRoot);
   const researchConfigPath = getWorkspaceResearchConfigPath(workspaceRoot);
   const publicConfig = readJsonFile<Partial<SchedulerWorkspaceConfig>>(paths.publicSchedulerMirrorPath);
   const privateConfig = readJsonFile<Partial<SchedulerWorkspaceConfig>>(paths.privateSchedulerMirrorPath);
@@ -1089,7 +1095,7 @@ export async function bootstrapWorkspaceSqliteStorage(
   mirroredJsonEnabled: boolean,
   maxBackups: number = 3,
 ): Promise<SqliteBootstrapResult> {
-  const paths = getWorkspaceStoragePaths(workspaceRoot);
+  const paths = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(paths.databasePath, async () => {
     const { db, created } = await openSqliteDatabase(paths.databasePath);
     const now = new Date().toISOString();
@@ -1652,7 +1658,7 @@ function replaceWorkspaceCockpitState(
 export async function readWorkspaceTasksFromSqlite(
   workspaceRoot: string,
 ): Promise<unknown[]> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   if (!fs.existsSync(databasePath)) {
     return [];
   }
@@ -1673,7 +1679,7 @@ export async function readWorkspaceTasksFromSqlite(
 export async function readWorkspaceSchedulerStateFromSqlite(
   workspaceRoot: string,
 ): Promise<SqliteWorkspaceSchedulerState> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   if (!fs.existsSync(databasePath)) {
     return {
       tasks: [],
@@ -1744,7 +1750,7 @@ export async function readGlobalTasksFromSqlite(
 export async function readWorkspaceResearchStateFromSqlite(
   workspaceRoot: string,
 ): Promise<SqliteWorkspaceResearchState> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   if (!fs.existsSync(databasePath)) {
     return {
       profiles: [],
@@ -1774,7 +1780,7 @@ export async function readWorkspaceResearchStateFromSqlite(
 export async function readWorkspaceCockpitBoardFromSqlite(
   workspaceRoot: string,
 ): Promise<SchedulerWorkspaceConfig["cockpitBoard"] | undefined> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   if (!fs.existsSync(databasePath)) {
     return undefined;
   }
@@ -1859,7 +1865,7 @@ export async function syncWorkspaceSchedulerStateToSqlite(
   workspaceRoot: string,
   config: Partial<SchedulerWorkspaceConfig>,
 ): Promise<Record<string, number>> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
     const { db } = await openSqliteDatabase(databasePath);
     const syncedAt = new Date().toISOString();
@@ -1929,7 +1935,7 @@ export async function syncWorkspaceResearchStateToSqlite(
   workspaceRoot: string,
   config: Partial<ResearchWorkspaceConfig>,
 ): Promise<Record<string, number>> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
     const { db } = await openSqliteDatabase(databasePath);
     const syncedAt = new Date().toISOString();
@@ -1964,7 +1970,7 @@ export async function syncWorkspaceCockpitBoardToSqlite(
   workspaceRoot: string,
   board: SchedulerWorkspaceConfig["cockpitBoard"],
 ): Promise<Record<string, number>> {
-  const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+  const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
     const { db } = await openSqliteDatabase(databasePath);
     const syncedAt = new Date().toISOString();
@@ -1999,7 +2005,7 @@ export async function exportWorkspaceSqliteToJsonMirrors(
   workspaceRoot: string,
   globalStorageRoot?: string,
 ): Promise<SqliteJsonExportSummary> {
-  const workspacePaths = getWorkspaceStoragePaths(workspaceRoot);
+  const workspacePaths = getMigratedWorkspaceStoragePaths(workspaceRoot);
   if (!fs.existsSync(workspacePaths.databasePath)) {
     throw new Error("Workspace SQLite database not found.");
   }

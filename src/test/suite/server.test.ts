@@ -20,6 +20,7 @@ import {
   syncWorkspaceCockpitBoardToSqlite,
   syncWorkspaceSchedulerStateToSqlite,
 } from "../../sqliteBootstrap";
+import { getWorkspaceResearchConfigPath } from "../../sqliteStorage";
 
 type ToolCallResponse = Awaited<ReturnType<typeof handleSchedulerToolCall>>;
 
@@ -1068,7 +1069,7 @@ suite("Scheduler MCP Server Tests", () => {
     const workspaceRoot = process.platform === "win32"
       ? "C:/tmp/copilot-scheduler-research-tests"
       : "/tmp/copilot-scheduler-research-tests";
-    const researchPath = `${workspaceRoot}/.vscode/research.json`;
+    const researchPath = getWorkspaceResearchConfigPath(workspaceRoot);
 
     const fs = require("fs");
     const path = require("path");
@@ -1113,7 +1114,7 @@ suite("Scheduler MCP Server Tests", () => {
 
   test("research_list_profiles tolerates malformed sibling entries", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "copilot-scheduler-research-read-"));
-    const researchPath = path.join(workspaceRoot, ".vscode", "research.json");
+    const researchPath = getWorkspaceResearchConfigPath(workspaceRoot);
     fs.mkdirSync(path.dirname(researchPath), { recursive: true });
     fs.writeFileSync(
       researchPath,

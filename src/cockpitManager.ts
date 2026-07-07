@@ -36,8 +36,8 @@ import {
 import {
   getConfiguredSchedulerStorageMode,
   getConfiguredSqliteJsonMirrorEnabled,
+  getWorkspaceStoragePaths,
   SQLITE_STORAGE_MODE,
-  WORKSPACE_SQLITE_DB_FILE,
 } from "./sqliteStorage";
 import { selectTaskStore } from "./taskStoreSelection";
 import { normalizeForCompare } from "./promptResolver";
@@ -664,7 +664,7 @@ export class ScheduleManager {
     const workspaceRoot = this.getPrimaryWorkspaceRoot();
     const sqliteWorkspaceMode = this.isWorkspaceSqliteModeEnabled()
       && !!workspaceRoot
-      && fs.existsSync(path.join(workspaceRoot, ".vscode", WORKSPACE_SQLITE_DB_FILE));
+      && fs.existsSync(getWorkspaceStoragePaths(workspaceRoot).databasePath);
     /* --- HBG Custom: Load from .vscode/scheduler.json --- */
     const workspaceState = sqliteWorkspaceMode
       ? {
@@ -837,11 +837,7 @@ export class ScheduleManager {
   }
 
   private async hydrateWorkspaceTasksFromSqlite(workspaceRoot: string): Promise<void> {
-    const sqliteDatabasePath = path.join(
-      workspaceRoot,
-      ".vscode",
-      WORKSPACE_SQLITE_DB_FILE,
-    );
+    const sqliteDatabasePath = getWorkspaceStoragePaths(workspaceRoot).databasePath;
     const sqliteAuthorityExists = fs.existsSync(sqliteDatabasePath);
     const sqliteState = this.normalizeWorkspaceSchedulerState(
       await readWorkspaceSchedulerStateFromSqlite(workspaceRoot),

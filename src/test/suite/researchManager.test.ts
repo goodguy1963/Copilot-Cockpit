@@ -6,6 +6,10 @@ import * as vscode from "vscode";
 import { CopilotExecutor } from "../../copilotExecutor";
 import { ResearchManager } from "../../researchManager";
 import { readWorkspaceResearchStateFromSqlite } from "../../sqliteBootstrap";
+import {
+  getWorkspaceResearchConfigPath,
+  getWorkspaceStoragePaths,
+} from "../../sqliteStorage";
 
 class MemoryMemento implements vscode.Memento {
   private readonly values = new Map<string, unknown>();
@@ -241,7 +245,7 @@ suite("ResearchManager behavior", () => {
         metricDirection: "maximize",
       });
 
-      const configPath = path.join(workspaceRoot, ".vscode", "research.json");
+      const configPath = getWorkspaceResearchConfigPath(workspaceRoot);
       const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
       assert.strictEqual(fs.existsSync(configPath), true);
       assert.strictEqual(Array.isArray(parsed.profiles), true);
@@ -302,7 +306,12 @@ suite("ResearchManager behavior", () => {
       assert.strictEqual(latestRun.attempts.length, 1);
       assert.strictEqual(latestRun.attempts[0].outcome, "baseline");
 
-      const historyPath = path.join(workspaceRoot, ".vscode", "research-history", startedRun.id, "run.json");
+      const historyPath = path.join(
+        getWorkspaceStoragePaths(workspaceRoot).cockpitDataDir,
+        "research-history",
+        startedRun.id,
+        "run.json",
+      );
       assert.strictEqual(fs.existsSync(historyPath), true);
     } finally {
       restoreWorkspace();

@@ -108,6 +108,7 @@ import {
   SCHEDULER_PRIVATE_JSON_FILE,
   SCHEDULER_PUBLIC_JSON_FILE,
   SQLITE_STORAGE_MODE,
+  WORKSPACE_COCKPIT_DATA_DIR,
   WORKSPACE_SQLITE_DB_FILE,
   getWorkspaceStoragePaths,
 } from "./sqliteStorage";
@@ -1529,11 +1530,7 @@ function scheduleCockpitBoardSqliteHydration(immediate = false): void {
     return;
   }
 
-  const sqliteDatabasePath = path.join(
-    workspaceRoot,
-    ".vscode",
-    WORKSPACE_SQLITE_DB_FILE,
-  );
+  const sqliteDatabasePath = getWorkspaceStoragePaths(workspaceRoot).databasePath;
   const sqliteAuthorityExists = fs.existsSync(sqliteDatabasePath);
 
   cockpitBoardSqliteHydrationPromise = scheduler.waitForSqliteWorkspaceHydration()
@@ -1582,13 +1579,13 @@ function getWorkspaceStorageWatchFileNames(
   }
 
   if (hasWorkspaceDatabase) {
-    return [WORKSPACE_SQLITE_DB_FILE];
+    return [`${WORKSPACE_COCKPIT_DATA_DIR}/${WORKSPACE_SQLITE_DB_FILE}`];
   }
 
   return [
     SCHEDULER_PUBLIC_JSON_FILE,
     SCHEDULER_PRIVATE_JSON_FILE,
-    WORKSPACE_SQLITE_DB_FILE,
+    `${WORKSPACE_COCKPIT_DATA_DIR}/${WORKSPACE_SQLITE_DB_FILE}`,
   ];
 }
 

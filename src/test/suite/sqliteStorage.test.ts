@@ -1,4 +1,6 @@
 import * as assert from "assert";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import {
   GLOBAL_TASKS_JSON_FILE,
@@ -17,6 +19,7 @@ import {
   getWorkspaceResearchConfigPath,
   getGlobalStorageDatabasePath,
   getWorkspaceStoragePaths,
+  migrateLegacyWorkspaceStorageArtifacts,
   normalizeMaxSqliteBackups,
   normalizeSchedulerStorageMode,
   normalizeSqliteJsonMirrorEnabled,
@@ -35,14 +38,28 @@ suite("SQLite Storage Foundation Tests", () => {
     assert.strictEqual(normalizeSqliteJsonMirrorEnabled(false), false);
   });
 
-  test("builds workspace storage paths under .vscode", () => {
-    const paths = getWorkspaceStoragePaths("/repo/workspace");
+  function createTempRoot(prefix: string): string {
+    return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  }
 
-    assert.strictEqual(paths.databasePath, path.join("/repo/workspace", ".vscode", WORKSPACE_SQLITE_DB_FILE));
+  function cleanup(root: string): void {
+    try {
+      fs.rmSync(root, { recursive: true, force: true });
+    } catch {
+      // best effort
+    }
+  }
+
+  test("builds workspace sqlite artifact paths under the cockpit data root", () => {
+    const paths = getWorkspaceStoragePaths("/repo/workspace");
+    const cockpitRoot = path.join("/repo/workspace", ".vscode", "copilot-cockpit");
+
+    assert.strictEqual(paths.cockpitDataDir, cockpitRoot);
+    assert.strictEqual(paths.databasePath, path.join(cockpitRoot, WORKSPACE_SQLITE_DB_FILE));
     assert.strictEqual(paths.publicSchedulerMirrorPath, path.join("/repo/workspace", ".vscode", "scheduler.json"));
     assert.strictEqual(paths.privateSchedulerMirrorPath, path.join("/repo/workspace", ".vscode", "scheduler.private.json"));
-    assert.strictEqual(paths.privateSecretsPath, path.join("/repo/workspace", ".vscode", PRIVATE_SECRETS_FILE));
-    assert.strictEqual(paths.migrationJournalPath, path.join("/repo/workspace", ".vscode", "copilot-cockpit.db-migration.json"));
+    assert.strictEqual(paths.privateSecretsPath, path.join(cockpitRoot, PRIVATE_SECRETS_FILE));
+    assert.strictEqual(paths.migrationJournalPath, path.join(cockpitRoot, "copilot-cockpit.db-migration.json"));
   });
 
   test("builds global storage database path", () => {
@@ -55,13 +72,51 @@ suite("SQLite Storage Foundation Tests", () => {
   test("builds research and global store helper paths", () => {
     assert.strictEqual(
       getWorkspaceResearchConfigPath("/repo/workspace"),
-      path.join("/repo/workspace", ".vscode", RESEARCH_JSON_FILE),
+      path.join("/repo/workspace", ".vscode", "copilot-cockpit", RESEARCH_JSON_FILE),
     );
 
     const globalPaths = getGlobalStoragePaths("/global/root");
     assert.strictEqual(globalPaths.databasePath, path.join("/global/root", GLOBAL_SQLITE_DB_FILE));
     assert.strictEqual(globalPaths.scheduledTasksPath, path.join("/global/root", GLOBAL_TASKS_JSON_FILE));
     assert.strictEqual(globalPaths.scheduledTasksMetaPath, path.join("/global/root", GLOBAL_TASKS_META_JSON_FILE));
+  });
+
+  test("migrates legacy workspace sqlite artifacts into the cockpit data root", () => {
+    const workspaceRoot = createTempRoot("copilot-storage-migrate-");
+
+    try {
+      const vscodeDir = path.join(workspaceRoot, ".vscode");
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+      fs.mkdirSync(vscodeDir, { recursive: true });
+      fs.mkdirSync(paths.cockpitDataDir, { recursive: true });
+
+      const legacyDatabasePath = path.join(vscodeDir, WORKSPACE_SQLITE_DB_FILE);
+      const legacyJournalPath = path.join(vscodeDir, "copilot-cockpit.db-migration.json");
+      const legacySecretsPath = path.join(vscodeDir, PRIVATE_SECRETS_FILE);
+      const legacyResearchPath = path.join(vscodeDir, RESEARCH_JSON_FILE);
+
+      fs.writeFileSync(legacyDatabasePath, "legacy-db", "utf8");
+      fs.writeFileSync(legacyJournalPath, "legacy-journal", "utf8");
+      fs.writeFileSync(legacySecretsPath, "legacy-secrets", "utf8");
+      fs.writeFileSync(legacyResearchPath, "legacy-research", "utf8");
+      fs.writeFileSync(paths.privateSecretsPath, "canonical-secrets", "utf8");
+
+      const migrated = migrateLegacyWorkspaceStorageArtifacts(workspaceRoot);
+
+      assert.ok(migrated.includes(paths.databasePath));
+      assert.ok(migrated.includes(paths.migrationJournalPath));
+      assert.ok(migrated.includes(paths.researchConfigPath));
+      assert.strictEqual(fs.readFileSync(paths.databasePath, "utf8"), "legacy-db");
+      assert.strictEqual(fs.readFileSync(paths.migrationJournalPath, "utf8"), "legacy-journal");
+      assert.strictEqual(fs.readFileSync(paths.researchConfigPath, "utf8"), "legacy-research");
+      assert.strictEqual(fs.readFileSync(paths.privateSecretsPath, "utf8"), "canonical-secrets");
+      assert.strictEqual(fs.existsSync(legacyDatabasePath), false);
+      assert.strictEqual(fs.existsSync(legacyJournalPath), false);
+      assert.strictEqual(fs.existsSync(legacyResearchPath), false);
+      assert.strictEqual(fs.existsSync(legacySecretsPath), true);
+    } finally {
+      cleanup(workspaceRoot);
+    }
   });
 
   test("defines workspace schema for core state domains", () => {

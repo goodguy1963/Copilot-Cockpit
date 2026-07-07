@@ -59,7 +59,11 @@ import {
     syncWorkspaceCockpitBoardToSqlite,
     syncWorkspaceSchedulerStateToSqlite,
 } from "./sqliteBootstrap.js";
-import { getWorkspaceStoragePaths } from "./sqliteStorage.js";
+import {
+    getWorkspaceResearchConfigPath,
+    getWorkspaceStoragePaths,
+    migrateLegacyWorkspaceStorageArtifacts,
+} from "./sqliteStorage.js";
 
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
 const MINIMUM_ONE_TIME_DELAY_SECONDS = 1;
@@ -471,7 +475,8 @@ function parseStoredConfig(filePath: string): SchedulerConfig | undefined {
 }
 
 function getResearchConfigPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ".vscode", "research.json");
+    migrateLegacyWorkspaceStorageArtifacts(workspaceRoot);
+    return getWorkspaceResearchConfigPath(workspaceRoot);
 }
 
 function readResearchConfig(workspaceRoot: string): ResearchConfig {
@@ -1751,7 +1756,7 @@ export const MCP_TOOL_DEFINITIONS = [
     },
     {
         name: "research_list_profiles",
-        description: "List research profiles from the workspace research store (.vscode/research.json plus mirrored SQLite state when enabled).",
+        description: "List research profiles from the workspace research store (.vscode/copilot-cockpit/research.json plus mirrored SQLite state when enabled).",
         inputSchema: { type: "object", properties: {} },
     },
     {

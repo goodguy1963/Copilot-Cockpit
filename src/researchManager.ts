@@ -12,6 +12,9 @@ import {
 } from "./sqliteBootstrap";
 import {
   getConfiguredSchedulerStorageMode,
+  getWorkspaceResearchConfigPath,
+  getWorkspaceStoragePaths,
+  migrateLegacyWorkspaceStorageArtifacts,
   SQLITE_STORAGE_MODE,
 } from "./sqliteStorage";
 import { parseStoredResearchConfig } from "./validation/storedResearchConfig";
@@ -34,7 +37,6 @@ type CommandResult = {
   timedOut: boolean;
 };
 
-const RESEARCH_CONFIG_FILE = "research.json";
 const RESEARCH_HISTORY_DIR = "research-history";
 const RESEARCH_CONFIG_VERSION = 1;
 const OUTPUT_LIMIT = 12000;
@@ -994,11 +996,12 @@ export class ResearchManager {
   }
 
   private getConfigPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ".vscode", RESEARCH_CONFIG_FILE);
+    migrateLegacyWorkspaceStorageArtifacts(workspaceRoot);
+    return getWorkspaceResearchConfigPath(workspaceRoot);
   }
 
   private getHistoryRoot(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ".vscode", RESEARCH_HISTORY_DIR);
+    return path.join(getWorkspaceStoragePaths(workspaceRoot).cockpitDataDir, RESEARCH_HISTORY_DIR);
   }
 
   private createId(prefix: string): string {

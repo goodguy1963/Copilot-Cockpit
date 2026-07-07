@@ -40,6 +40,7 @@ FULL_SPECIFICATION.md
 .vscode/copilot.private.json
 .vscode/cockpit-prompt-backups/
 .vscode/scheduler-history
+.vscode/copilot-cockpit/
 analysis_tools/
 
 !.github/prompts/

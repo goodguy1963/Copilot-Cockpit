@@ -663,7 +663,7 @@ suite("SQLite Bootstrap Tests", () => {
       const globalPaths = getGlobalStoragePaths(globalRoot);
       const publicConfig = JSON.parse(fs.readFileSync(workspacePaths.publicSchedulerMirrorPath, "utf8"));
       const privateConfig = JSON.parse(fs.readFileSync(workspacePaths.privateSchedulerMirrorPath, "utf8"));
-      const researchConfig = JSON.parse(fs.readFileSync(path.join(workspaceRoot, ".vscode", "research.json"), "utf8"));
+      const researchConfig = JSON.parse(fs.readFileSync(workspacePaths.researchConfigPath, "utf8"));
       const globalTasks = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksPath, "utf8"));
       const globalMeta = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksMetaPath, "utf8"));
 
@@ -837,7 +837,7 @@ suite("SQLite Bootstrap Tests", () => {
       const summary = await exportWorkspaceSqliteToJsonMirrors(workspaceRoot, globalRoot);
       const publicConfig = JSON.parse(fs.readFileSync(workspacePaths.publicSchedulerMirrorPath, "utf8"));
       const privateConfig = JSON.parse(fs.readFileSync(workspacePaths.privateSchedulerMirrorPath, "utf8"));
-      const researchConfig = JSON.parse(fs.readFileSync(path.join(workspaceRoot, ".vscode", "research.json"), "utf8"));
+      const researchConfig = JSON.parse(fs.readFileSync(workspacePaths.researchConfigPath, "utf8"));
       const globalMeta = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksMetaPath, "utf8"));
 
       assert.strictEqual(summary.exportedCounts.workspaceTasks, 1);
