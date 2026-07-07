@@ -35,6 +35,7 @@ import {
 } from "./staleExtensionRuntime";
 import {
   getConfiguredSchedulerStorageMode,
+  getConfiguredSqliteJsonMirrorEnabled,
   SQLITE_STORAGE_MODE,
   WORKSPACE_SQLITE_DB_FILE,
 } from "./sqliteStorage";
@@ -1250,11 +1251,13 @@ export class ScheduleManager {
               baseConfig: existingConfig,
             });
           } else {
-          await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, config);
-          await exportWorkspaceSqliteToJsonMirrors(
-            workspaceRoot,
-            this.extensionCtx.globalStorageUri?.fsPath,
-          );
+            await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, config);
+            if (getConfiguredSqliteJsonMirrorEnabled(vscode.Uri.file(workspaceRoot))) {
+              await exportWorkspaceSqliteToJsonMirrors(
+                workspaceRoot,
+                this.extensionCtx.globalStorageUri?.fsPath,
+              );
+            }
           }
         } else {
           writeSchedulerConfig(workspaceRoot, config, {

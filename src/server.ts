@@ -278,6 +278,10 @@ function isWorkspaceSqliteStorageModeEnabled(workspaceRoot: string): boolean {
     return getWorkspaceSetting<string>(workspaceRoot, "storageMode", "sqlite") === "sqlite";
 }
 
+function isWorkspaceSqliteJsonMirrorEnabled(workspaceRoot: string): boolean {
+    return getWorkspaceSetting<boolean>(workspaceRoot, "sqliteJsonMirror", true) !== false;
+}
+
 function ensureConfig(raw: unknown): SchedulerConfig {
     if (raw && typeof raw === "object" && Array.isArray((raw as SchedulerConfig).tasks)) {
         const config = raw as SchedulerConfig;
@@ -809,9 +813,9 @@ export async function writeSchedulerServerConfigForWorkspace(
             normalizedConfig.cockpitBoard,
         );
 
-        // In sqlite mode, regenerate JSON mirrors from sqlite authority so
-        // compatibility files cannot drift from the live runtime store.
-        await exportWorkspaceSqliteToJsonMirrors(workspaceRoot);
+        if (isWorkspaceSqliteJsonMirrorEnabled(workspaceRoot)) {
+            await exportWorkspaceSqliteToJsonMirrors(workspaceRoot);
+        }
         return;
     }
 
@@ -828,7 +832,7 @@ function buildCockpitPersistenceMetadata(
     return {
         storageMode,
         writeTarget: storageMode === "sqlite" ? "sqlite-authority" : "json-files",
-        jsonMirrorWrite: storageMode === "sqlite",
+        jsonMirrorWrite: storageMode === "sqlite" && isWorkspaceSqliteJsonMirrorEnabled(workspaceRoot),
         verifiedByReread,
     };
 }

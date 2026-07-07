@@ -297,6 +297,59 @@ suite("Scheduler MCP Server Tests", () => {
     }
   });
 
+  test("server workspace writes skip scheduler mirror export when sqliteJsonMirror is disabled", async () => {
+    const workspaceRoot = createTempWorkspace();
+    try {
+      fs.writeFileSync(
+        path.join(workspaceRoot, ".vscode", "settings.json"),
+        JSON.stringify({
+          "copilotCockpit.storageMode": "sqlite",
+          "copilotCockpit.sqliteJsonMirror": false,
+        }, null, 2),
+        "utf8",
+      );
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [
+          {
+            id: "demo-task",
+            name: "Stale mirror task",
+            cron: "15 0 * * *",
+            prompt: "stale mirror prompt",
+            enabled: true,
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      await writeSchedulerServerConfigForWorkspace(workspaceRoot, {
+        tasks: [
+          {
+            id: "demo-task",
+            name: "SQLite task",
+            cron: "15 0 * * *",
+            prompt: "sqlite prompt",
+            enabled: true,
+          },
+        ],
+        jobs: [],
+        jobFolders: [],
+        cockpitBoard: createDefaultCockpitBoard(),
+      });
+
+      const publicMirror = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, ".vscode", "scheduler.json"), "utf8"),
+      );
+      const sqliteState = await readWorkspaceSchedulerStateFromSqlite(workspaceRoot);
+
+      assert.strictEqual(publicMirror.tasks[0]?.prompt, "stale mirror prompt");
+      assert.strictEqual((sqliteState.tasks[0] as { prompt?: string } | undefined)?.prompt, "sqlite prompt");
+    } finally {
+      fs.rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   test("exports the expanded MCP tool set", () => {
     const toolNames = MCP_TOOL_DEFINITIONS.map((tool) => tool.name);
 
