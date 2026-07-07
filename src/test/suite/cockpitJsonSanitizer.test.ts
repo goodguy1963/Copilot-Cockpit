@@ -953,6 +953,8 @@ suite("Scheduler Json Sanitizer Tests", () => {
       const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
       fs.mkdirSync(path.dirname(lockPath), { recursive: true });
       fs.mkdirSync(lockPath, { recursive: true });
+      const staleAt = new Date(Date.now() - 60_000);
+      fs.utimesSync(lockPath, staleAt, staleAt);
 
       setSchedulerLockOptionsForTests({
         staleMs: 0,

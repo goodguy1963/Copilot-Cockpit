@@ -7,7 +7,7 @@ import { createDefaultCockpitBoard } from "../../cockpitBoard";
 import { ensureTaskTodosInBoard } from "../../cockpitBoardManager";
 import { ScheduleManager } from "../../cockpitManager";
 import { messages } from "../../i18n";
-import { getScheduleHistoryRoot } from "../../cockpitHistory";
+import { getScheduleHistoryRoot, readScheduleHistorySnapshot } from "../../cockpitHistory";
 import {
   readWorkspaceSchedulerStateFromSqlite,
   syncWorkspaceSchedulerStateToSqlite,
@@ -2510,17 +2510,6 @@ suite("ScheduleManager Overdue Task Tests", () => {
 });
 
 suite("ScheduleManager History Snapshot Tests", () => {
-  function getHistoryFilePaths(workspaceRoot: string, snapshotId: string): {
-    publicPath: string;
-    privatePath: string;
-  } {
-    const historyRoot = getScheduleHistoryRoot(workspaceRoot);
-    return {
-      publicPath: path.join(historyRoot, `scheduler-${snapshotId}.json`),
-      privatePath: path.join(historyRoot, `scheduler-${snapshotId}.private.json`),
-    };
-  }
-
   test("stores sanitized public history, private history, and trims to 100 snapshots", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-history-ws-"),
@@ -2545,17 +2534,11 @@ suite("ScheduleManager History Snapshot Tests", () => {
       const firstEntry = manager.getWorkspaceScheduleHistory()[0];
       assert.ok(firstEntry);
 
-      const firstFiles = getHistoryFilePaths(workspaceRoot, firstEntry.id);
-      const publicSnapshot = JSON.parse(
-        fs.readFileSync(firstFiles.publicPath, "utf8"),
-      ) as {
-        tasks: Array<{ prompt: string }>;
-      };
-      const privateSnapshot = JSON.parse(
-        fs.readFileSync(firstFiles.privatePath, "utf8"),
-      ) as {
-        tasks: Array<{ prompt: string }>;
-      };
+      const snapshot = readScheduleHistorySnapshot(workspaceRoot, firstEntry.id);
+      assert.ok(snapshot?.publicConfig);
+      assert.ok(snapshot?.privateConfig);
+      const publicSnapshot = snapshot.publicConfig as { tasks: Array<{ prompt: string }> };
+      const privateSnapshot = snapshot.privateConfig as { tasks: Array<{ prompt: string }> };
 
       assert.strictEqual(
         publicSnapshot.tasks[0]?.prompt.includes(liveWebhookUrl),
@@ -2579,7 +2562,6 @@ suite("ScheduleManager History Snapshot Tests", () => {
 
       const historyEntries = manager.getWorkspaceScheduleHistory();
       assert.strictEqual(historyEntries.length, 100);
-      assert.ok(fs.existsSync(getScheduleHistoryRoot(workspaceRoot)));
     } finally {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);

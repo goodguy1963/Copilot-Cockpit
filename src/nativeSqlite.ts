@@ -24,7 +24,7 @@ export type NativeSqliteExecResult = Array<{
 
 export type NativeSqliteDatabase = {
   run: (sql: string, params?: unknown[]) => void;
-  exec: (sql: string) => NativeSqliteExecResult;
+  exec: (sql: string, params?: unknown[]) => NativeSqliteExecResult;
   close: () => void;
 };
 
@@ -44,12 +44,12 @@ export function openNativeSqliteDatabase(databasePath: string): NativeSqliteData
       }
       database.exec(sql);
     },
-    exec(sql: string): NativeSqliteExecResult {
+    exec(sql: string, params?: unknown[]): NativeSqliteExecResult {
       const statement = database.prepare(sql);
       statement.setReturnArrays(true);
       return [{
         columns: statement.columns().map((column) => column.name),
-        values: statement.all(),
+        values: statement.all(...(params ?? [])),
       }];
     },
     close(): void {

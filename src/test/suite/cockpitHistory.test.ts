@@ -8,6 +8,7 @@ import {
   listScheduleHistoryEntries,
   readScheduleHistorySnapshot,
 } from "../../cockpitHistory";
+import { syncWorkspaceSchedulerStateToSqlite } from "../../sqliteBootstrap";
 import { getWorkspaceStoragePaths } from "../../sqliteStorage";
 
 suite("ScheduleHistory Tests", () => {
@@ -159,6 +160,37 @@ suite("ScheduleHistory Tests", () => {
     assert.deepStrictEqual(readScheduleHistorySnapshot(workspaceRoot, legacyTimestamp), {
       publicConfig: { tasks: [{ id: "legacy-public" }], jobs: [], jobFolders: [] },
       privateConfig: { tasks: [{ id: "legacy-private" }], jobs: [], jobFolders: [] },
+    });
+  });
+
+  test("stores scheduler history snapshots in sqlite when the workspace database exists", async () => {
+    await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+      tasks: [],
+      deletedTaskIds: [],
+      jobs: [],
+      deletedJobIds: [],
+      jobFolders: [],
+      deletedJobFolderIds: [],
+    } as any);
+
+    const createdAt = new Date("2026-04-04T12:00:00.000Z");
+    const snapshot = createScheduleHistorySnapshot(
+      workspaceRoot,
+      { tasks: [{ id: "public-db" }] },
+      { tasks: [{ id: "private-db" }] },
+      createdAt,
+    );
+    const historyRoot = getScheduleHistoryRoot(workspaceRoot);
+
+    assert.strictEqual(snapshot.id, String(createdAt.getTime()));
+    assert.strictEqual(fs.existsSync(path.join(historyRoot, `scheduler-${snapshot.id}.json`)), false);
+    assert.deepStrictEqual(
+      listScheduleHistoryEntries(workspaceRoot).map((entry) => entry.id),
+      [snapshot.id],
+    );
+    assert.deepStrictEqual(readScheduleHistorySnapshot(workspaceRoot, snapshot.id), {
+      publicConfig: { tasks: [{ id: "public-db" }], jobs: [], jobFolders: [] },
+      privateConfig: { tasks: [{ id: "private-db" }], jobs: [], jobFolders: [] },
     });
   });
 });

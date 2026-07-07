@@ -20,7 +20,7 @@ export const WORKSPACE_SQLITE_DB_FILE = "copilot-cockpit.db";
 export const GLOBAL_SQLITE_DB_FILE = "copilot-cockpit-global.db";
 export const PRIVATE_SECRETS_FILE = "copilot-cockpit.private.json";
 
-export const WORKSPACE_SQLITE_SCHEMA_VERSION = 4;
+export const WORKSPACE_SQLITE_SCHEMA_VERSION = 5;
 export const GLOBAL_SQLITE_SCHEMA_VERSION = 4;
 
 export type SqliteSchemaMigration = {
@@ -223,6 +223,8 @@ export const WORKSPACE_SQLITE_SCHEMA_STATEMENTS: readonly string[] = [
   "CREATE TABLE IF NOT EXISTS cockpit_filters (id INTEGER PRIMARY KEY CHECK (id = 1), payload_json TEXT NOT NULL, updated_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS research_profiles (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS research_runs (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, started_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
+  "CREATE TABLE IF NOT EXISTS scheduler_history_snapshots (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, public_payload_json TEXT, private_payload_json TEXT, has_private INTEGER NOT NULL DEFAULT 0);",
+  "CREATE INDEX IF NOT EXISTS idx_scheduler_history_created_at ON scheduler_history_snapshots(created_at DESC);",
   `INSERT OR IGNORE INTO app_metadata(key, value) VALUES ('workspace_schema_version', '${WORKSPACE_SQLITE_SCHEMA_VERSION}');`,
 ];
 
@@ -264,6 +266,14 @@ export const WORKSPACE_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[
     name: "index_scheduler_due_tasks",
     statements: [
       "CREATE INDEX IF NOT EXISTS idx_workspace_tasks_due ON workspace_tasks(enabled, next_run);",
+    ],
+  },
+  {
+    version: 5,
+    name: "store_scheduler_history_snapshots",
+    statements: [
+      "CREATE TABLE IF NOT EXISTS scheduler_history_snapshots (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, public_payload_json TEXT, private_payload_json TEXT, has_private INTEGER NOT NULL DEFAULT 0);",
+      "CREATE INDEX IF NOT EXISTS idx_scheduler_history_created_at ON scheduler_history_snapshots(created_at DESC);",
     ],
   },
 ];

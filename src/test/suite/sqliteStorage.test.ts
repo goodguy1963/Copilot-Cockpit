@@ -128,8 +128,10 @@ suite("SQLite Storage Foundation Tests", () => {
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_cards"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_card_tombstones"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS research_profiles"));
+    assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS scheduler_history_snapshots"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS schema_migrations"));
     assert.ok(combined.includes("CREATE INDEX IF NOT EXISTS idx_workspace_tasks_due"));
+    assert.ok(combined.includes("CREATE INDEX IF NOT EXISTS idx_scheduler_history_created_at"));
     assert.ok(combined.includes("workspace_schema_version"));
   });
 
