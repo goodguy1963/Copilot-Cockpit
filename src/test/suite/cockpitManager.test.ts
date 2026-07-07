@@ -1064,7 +1064,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     }
   });
 
-  test("sqlite hydration clears stale overdue mirror tasks when sqlite authority is empty", async () => {
+  test("sqlite reload ignores stale overdue mirror tasks while hydration clears authority state", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-empty-overdue-workspace-"),
     );
@@ -1119,10 +1119,8 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
 
       manager.reloadTasks();
 
-      assert.deepStrictEqual(
-        manager.getOverdueTasks(now).map((task) => task.id),
-        [created.id],
-      );
+      assert.deepStrictEqual(manager.getOverdueTasks(now).map((task) => task.id), []);
+      assert.strictEqual(manager.getTask(created.id)?.enabled, false);
 
       await manager.waitForSqliteWorkspaceHydration();
 
@@ -1211,10 +1209,8 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
 
       manager.reloadTasks();
 
-      assert.deepStrictEqual(
-        manager.getOverdueTasks(now).map((task) => task.id),
-        [created.id],
-      );
+      assert.deepStrictEqual(manager.getOverdueTasks(now).map((task) => task.id), []);
+      assert.strictEqual(manager.getTask(created.id)?.enabled, false);
 
       await manager.waitForSqliteWorkspaceHydration();
 
@@ -1227,7 +1223,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
     }
   });
 
-  test("sqlite reload keeps the recent launch burst guard across repeated hydration failures for automatic due-task execution until workspace hydration recovers", async () => {
+  test("sqlite reload ignores stale mirrors across repeated hydration failures until workspace hydration recovers", async () => {
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "copilot-scheduler-sqlite-burst-guard-workspace-"),
     );
@@ -1295,7 +1291,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
       manager.reloadTasks();
       await manager.waitForSqliteWorkspaceHydration();
 
-      assert.strictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
+      assert.notStrictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
 
       await evaluateAndRunDueTasks();
 
@@ -1305,7 +1301,7 @@ suite("ScheduleManager Nested Workspace Root Tests", () => {
       manager.reloadTasks();
       await manager.waitForSqliteWorkspaceHydration();
 
-      assert.strictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
+      assert.notStrictEqual(manager.getTask(task.id)?.nextRun?.toISOString(), staleNextRunIso);
       await evaluateAndRunDueTasks();
       assert.strictEqual(hasRecentTaskLaunch(task.id), true);
       assert.strictEqual(executeCount, 1);

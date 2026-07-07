@@ -660,14 +660,24 @@ export class ScheduleManager {
     const tasksToLoad = selection.tasksToLoad;
     this.storageRevision = selection.revision;
 
+    const workspaceRoot = this.getPrimaryWorkspaceRoot();
+    const sqliteWorkspaceMode = this.isWorkspaceSqliteModeEnabled()
+      && !!workspaceRoot
+      && fs.existsSync(path.join(workspaceRoot, ".vscode", WORKSPACE_SQLITE_DB_FILE));
     /* --- HBG Custom: Load from .vscode/scheduler.json --- */
-    const workspaceState = this.loadWorkspaceSchedulerState();
+    const workspaceState = sqliteWorkspaceMode
+      ? {
+        tasks: Array.from(this.taskRegistry.values()).filter((task) => task.scope === "workspace"),
+        jobs: this.getAllJobs(),
+        jobFolders: this.getAllJobFolders(),
+      }
+      : this.loadWorkspaceSchedulerState();
     const workspaceTasks = workspaceState.tasks;
     this.jobs = new Map(workspaceState.jobs.map((job) => [job.id, job]));
     this.jobFolders = new Map(
       workspaceState.jobFolders.map((folder) => [folder.id, folder]),
     );
-    // Apply workspace JSON as authoritative for workspace-scoped tasks.
+    // Apply workspace state as authoritative for workspace-scoped tasks.
     // This must also work when JSON contains zero tasks (clear/remove case).
     const existingMap = new Map<string, ScheduledTask>();
     tasksToLoad.forEach((t) => {
@@ -3072,10 +3082,20 @@ export class ScheduleManager {
       return false;
     }
 
+    const shouldHydrateFromSqlite = this.isWorkspaceSqliteModeEnabled()
+      && !this.shouldSuppressSqliteWritesForStaleRuntime("workspace history restore");
+    if (shouldHydrateFromSqlite) {
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, restoredConfig);
+    }
+
     writeSchedulerConfig(workspaceRoot, restoredConfig, {
       mode: "replace",
     });
-    this.restorePersistedTasks();
+    if (shouldHydrateFromSqlite) {
+      await this.hydrateWorkspaceTasksFromSqlite(workspaceRoot);
+    } else {
+      this.restorePersistedTasks();
+    }
     this.emitTaskListChanged();
     return true; // local-diverge-2781
   }
