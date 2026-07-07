@@ -5,7 +5,7 @@
 - JSON-mode workspace scheduler data lives in `.vscode/scheduler.json` and `.vscode/scheduler.private.json`.
 - SQLite mode stores workspace-owned database artifacts under `.vscode/copilot-cockpit/`.
 - Research profiles live in `.vscode/copilot-cockpit/research.json` and are mirrored into SQLite when SQLite mode is enabled.
-- Backup history lives in `.vscode/copilot-cockpit/scheduler-history`.
+- JSON-mode scheduler history lives in `.vscode/copilot-cockpit/scheduler-history`; SQLite-mode scheduler history lives in the workspace database.
 - Inline prompt backups live in `.vscode/copilot-cockpit/cockpit-prompt-backups`.
 
 ## Private vs Public
@@ -34,7 +34,7 @@
 
 - JSON mode and SQLite mode expose the same higher-level workflows.
 - SQLite mode uses the native `node:sqlite` runtime from VS Code 1.101+; it does not ship a wasm SQLite copy.
-- SQLite mode can export compatibility JSON mirrors when `copilotCockpit.sqliteJsonMirror` is enabled or when the user runs an explicit export. The SQLite database remains the write authority by default.
+- SQLite mode can export compatibility JSON mirrors when `copilotCockpit.sqliteJsonMirror` is enabled or when the user runs an explicit export. The SQLite database remains the write authority by default, and database tombstones stay in SQLite instead of being exported as JSON tombstone arrays.
 - SQLite migration metadata lives at `.vscode/copilot-cockpit/copilot-cockpit.db-migration.json`.
 
 [Back to README](../README.md)
