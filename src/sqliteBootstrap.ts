@@ -384,7 +384,7 @@ function applySchema(
       }
 
       for (const statement of migration.statements) {
-        db.run(statement);
+        runMigrationStatement(db, statement);
       }
       db.run(
         "INSERT OR REPLACE INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
@@ -402,13 +402,30 @@ function applySchema(
   }
 }
 
+function runMigrationStatement(db: SqlJsDatabase, statement: string): void {
+  try {
+    db.run(statement);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/duplicate column name/i.test(message)) {
+      return;
+    }
+    throw error;
+  }
+}
+
 function stampMetadata(
   db: SqlJsDatabase,
   metadata: Record<string, string>,
 ): void {
+  const writeRevision = readMetadataNumber(db, "write_revision") + 1;
   db.run("BEGIN");
   try {
-    for (const [key, value] of Object.entries(metadata)) {
+    for (const [key, value] of Object.entries({
+      ...metadata,
+      write_revision: String(writeRevision),
+      last_write_at: new Date().toISOString(),
+    })) {
       db.run(
         "INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)",
         [key, value],
@@ -418,6 +435,19 @@ function stampMetadata(
   } catch (error) {
     db.run("ROLLBACK");
     throw error;
+  }
+}
+
+function readMetadataNumber(db: SqlJsDatabase, key: string): number {
+  try {
+    const result = db.exec(
+      `SELECT value FROM app_metadata WHERE key = '${key.replace(/'/g, "''")}' LIMIT 1`,
+    ) as Array<{ values?: unknown[][] }>;
+    const value = result[0]?.values?.[0]?.[0];
+    const parsed = typeof value === "string" ? Number.parseInt(value, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -615,6 +645,25 @@ function toIsoTimestamp(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
+function toNullableIsoTimestamp(value: unknown): string | null {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toISOString();
+  }
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function toNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toSqliteBoolean(value: unknown): number | null {
+  return typeof value === "boolean" ? (value ? 1 : 0) : null;
+}
+
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
@@ -724,12 +773,16 @@ function insertWorkspaceJsonSnapshot(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_tasks(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_tasks(id, payload_json, created_at, updated_at, name, enabled, scope, next_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           task.id,
           JSON.stringify(task),
           toIsoTimestamp(task.createdAt, importedAt),
           toIsoTimestamp(task.updatedAt, importedAt),
+          toNullableString(task.name),
+          toSqliteBoolean(task.enabled),
+          toNullableString(task.scope),
+          toNullableIsoTimestamp(task.nextRun),
         ],
       );
     }
@@ -746,12 +799,14 @@ function insertWorkspaceJsonSnapshot(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_jobs(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_jobs(id, payload_json, created_at, updated_at, name, folder_id) VALUES (?, ?, ?, ?, ?, ?)",
         [
           job.id,
           JSON.stringify(job),
           toIsoTimestamp(job.createdAt, importedAt),
           toIsoTimestamp(job.updatedAt, importedAt),
+          toNullableString(job.name),
+          toNullableString(job.folderId),
         ],
       );
     }
@@ -768,12 +823,13 @@ function insertWorkspaceJsonSnapshot(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_job_folders(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_job_folders(id, payload_json, created_at, updated_at, name) VALUES (?, ?, ?, ?, ?)",
         [
           jobFolder.id,
           JSON.stringify(jobFolder),
           toIsoTimestamp(jobFolder.createdAt, importedAt),
           toIsoTimestamp(jobFolder.updatedAt, importedAt),
+          toNullableString(jobFolder.name),
         ],
       );
     }
@@ -805,13 +861,18 @@ function insertWorkspaceJsonSnapshot(
         continue;
       }
       db.run(
-        "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at, title, status, priority, order_index, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           card.id,
           serializeCockpitSqlitePayload("cockpit_cards", "cockpit card", card.id, card),
           typeof card.sectionId === "string" ? card.sectionId : null,
           toIsoTimestamp(card.createdAt, importedAt),
           toIsoTimestamp(card.updatedAt, importedAt),
+          toNullableString(card.title),
+          toNullableString(card.status),
+          toNullableString(card.priority),
+          toNullableNumber(card.order),
+          toSqliteBoolean(card.archived),
         ],
       );
     }
@@ -1015,12 +1076,16 @@ function insertGlobalJsonSnapshot(
       }
       const taskRecord = task as { id: string; createdAt?: unknown; updatedAt?: unknown };
       db.run(
-        "INSERT INTO global_tasks(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO global_tasks(id, payload_json, created_at, updated_at, name, enabled, scope, next_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           taskRecord.id,
           JSON.stringify(task),
           toIsoTimestamp(taskRecord.createdAt, importedAt),
           toIsoTimestamp(taskRecord.updatedAt, importedAt),
+          toNullableString((task as { name?: unknown }).name),
+          toSqliteBoolean((task as { enabled?: unknown }).enabled),
+          toNullableString((task as { scope?: unknown }).scope),
+          toNullableIsoTimestamp((task as { nextRun?: unknown }).nextRun),
         ],
       );
     }
@@ -1234,12 +1299,16 @@ function replaceWorkspaceSchedulerState(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_tasks(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_tasks(id, payload_json, created_at, updated_at, name, enabled, scope, next_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           task.id,
           JSON.stringify(task),
           toIsoTimestamp(task.createdAt, syncedAt),
           toIsoTimestamp(task.updatedAt, syncedAt),
+          toNullableString(task.name),
+          toSqliteBoolean(task.enabled),
+          toNullableString(task.scope),
+          toNullableIsoTimestamp(task.nextRun),
         ],
       );
     }
@@ -1256,12 +1325,14 @@ function replaceWorkspaceSchedulerState(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_jobs(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_jobs(id, payload_json, created_at, updated_at, name, folder_id) VALUES (?, ?, ?, ?, ?, ?)",
         [
           job.id,
           JSON.stringify(job),
           toIsoTimestamp(job.createdAt, syncedAt),
           toIsoTimestamp(job.updatedAt, syncedAt),
+          toNullableString(job.name),
+          toNullableString(job.folderId),
         ],
       );
     }
@@ -1278,12 +1349,13 @@ function replaceWorkspaceSchedulerState(
         continue;
       }
       db.run(
-        "INSERT INTO workspace_job_folders(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO workspace_job_folders(id, payload_json, created_at, updated_at, name) VALUES (?, ?, ?, ?, ?)",
         [
           jobFolder.id,
           JSON.stringify(jobFolder),
           toIsoTimestamp(jobFolder.createdAt, syncedAt),
           toIsoTimestamp(jobFolder.updatedAt, syncedAt),
+          toNullableString(jobFolder.name),
         ],
       );
     }
@@ -1329,12 +1401,16 @@ function replaceGlobalTasksState(
       }
       const taskRecord = task as { id: string; createdAt?: unknown; updatedAt?: unknown };
       db.run(
-        "INSERT INTO global_tasks(id, payload_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO global_tasks(id, payload_json, created_at, updated_at, name, enabled, scope, next_run) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           taskRecord.id,
           JSON.stringify(task),
           toIsoTimestamp(taskRecord.createdAt, syncedAt),
           toIsoTimestamp(taskRecord.updatedAt, syncedAt),
+          toNullableString((task as { name?: unknown }).name),
+          toSqliteBoolean((task as { enabled?: unknown }).enabled),
+          toNullableString((task as { scope?: unknown }).scope),
+          toNullableIsoTimestamp((task as { nextRun?: unknown }).nextRun),
         ],
       );
     }
@@ -1461,13 +1537,18 @@ function replaceWorkspaceCockpitState(
         continue;
       }
       db.run(
-        "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO cockpit_cards(id, payload_json, section_id, created_at, updated_at, title, status, priority, order_index, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           card.id,
           serializeCockpitSqlitePayload("cockpit_cards", "cockpit card", card.id, card),
           typeof card.sectionId === "string" ? card.sectionId : null,
           toIsoTimestamp(card.createdAt, syncedAt),
           toIsoTimestamp(card.updatedAt, syncedAt),
+          toNullableString(card.title),
+          toNullableString(card.status),
+          toNullableString(card.priority),
+          toNullableNumber(card.order),
+          toSqliteBoolean(card.archived),
         ],
       );
     }

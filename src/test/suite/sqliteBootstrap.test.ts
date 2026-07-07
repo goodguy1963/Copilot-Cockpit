@@ -427,6 +427,60 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
+  test("sync promotes scheduler fields and increments sqlite write revision", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-promoted-fields-");
+
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{
+          id: "task-promoted",
+          name: "Promoted Task",
+          cronExpression: "0 * * * *",
+          prompt: "run",
+          enabled: true,
+          scope: "workspace",
+          promptSource: "inline",
+          createdAt: "2026-04-04T00:00:00.000Z",
+          updatedAt: "2026-04-04T00:00:00.000Z",
+          nextRun: "2026-04-04T01:00:00.000Z",
+        }],
+        deletedTaskIds: [],
+        jobs: [{ id: "job-promoted", name: "Promoted Job", folderId: "folder-promoted", cronExpression: "0 * * * *", nodes: [], createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedJobIds: [],
+        jobFolders: [{ id: "folder-promoted", name: "Promoted Folder", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedJobFolderIds: [],
+      } as any);
+      await syncWorkspaceCockpitBoardToSqlite(workspaceRoot, {
+        version: 4,
+        sections: [{ id: "unsorted", title: "Unsorted", order: 0, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        cards: [{ id: "card-promoted", title: "Promoted Card", sectionId: "unsorted", order: 7, priority: "high", status: "active", labels: [], flags: [], comments: [], archived: false, createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false, hideCardDetails: false },
+        updatedAt: "2026-04-04T00:00:00.000Z",
+      } as any);
+
+      const db = await openDatabase(databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT name FROM workspace_tasks WHERE id = 'task-promoted'"), "Promoted Task");
+        assert.strictEqual(firstScalar(db, "SELECT enabled FROM workspace_tasks WHERE id = 'task-promoted'"), 1);
+        assert.strictEqual(firstScalar(db, "SELECT scope FROM workspace_tasks WHERE id = 'task-promoted'"), "workspace");
+        assert.strictEqual(firstScalar(db, "SELECT next_run FROM workspace_tasks WHERE id = 'task-promoted'"), "2026-04-04T01:00:00.000Z");
+        assert.strictEqual(firstScalar(db, "SELECT name FROM workspace_jobs WHERE id = 'job-promoted'"), "Promoted Job");
+        assert.strictEqual(firstScalar(db, "SELECT folder_id FROM workspace_jobs WHERE id = 'job-promoted'"), "folder-promoted");
+        assert.strictEqual(firstScalar(db, "SELECT name FROM workspace_job_folders WHERE id = 'folder-promoted'"), "Promoted Folder");
+        assert.strictEqual(firstScalar(db, "SELECT title FROM cockpit_cards WHERE id = 'card-promoted'"), "Promoted Card");
+        assert.strictEqual(firstScalar(db, "SELECT priority FROM cockpit_cards WHERE id = 'card-promoted'"), "high");
+        assert.strictEqual(firstScalar(db, "SELECT order_index FROM cockpit_cards WHERE id = 'card-promoted'"), 7);
+        assert.strictEqual(firstScalar(db, "SELECT archived FROM cockpit_cards WHERE id = 'card-promoted'"), 0);
+        assert.strictEqual(firstScalar(db, "SELECT value FROM app_metadata WHERE key = 'write_revision'"), "2");
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("records pending workspace schema migrations when an older database is reopened", async () => {
     const workspaceRoot = createTempRoot("copilot-sqlite-migration-reopen-");
 

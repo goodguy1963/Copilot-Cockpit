@@ -18,8 +18,8 @@ export const WORKSPACE_SQLITE_DB_FILE = "copilot-cockpit.db";
 export const GLOBAL_SQLITE_DB_FILE = "copilot-cockpit-global.db";
 export const PRIVATE_SECRETS_FILE = "copilot-cockpit.private.json";
 
-export const WORKSPACE_SQLITE_SCHEMA_VERSION = 2;
-export const GLOBAL_SQLITE_SCHEMA_VERSION = 2;
+export const WORKSPACE_SQLITE_SCHEMA_VERSION = 3;
+export const GLOBAL_SQLITE_SCHEMA_VERSION = 3;
 
 export type SqliteSchemaMigration = {
   version: number;
@@ -186,6 +186,24 @@ export const WORKSPACE_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[
     name: "initialize_schema_migrations_journal",
     statements: [],
   },
+  {
+    version: 3,
+    name: "promote_queryable_scheduler_fields",
+    statements: [
+      "ALTER TABLE workspace_tasks ADD COLUMN name TEXT;",
+      "ALTER TABLE workspace_tasks ADD COLUMN enabled INTEGER;",
+      "ALTER TABLE workspace_tasks ADD COLUMN scope TEXT;",
+      "ALTER TABLE workspace_tasks ADD COLUMN next_run TEXT;",
+      "ALTER TABLE workspace_jobs ADD COLUMN name TEXT;",
+      "ALTER TABLE workspace_jobs ADD COLUMN folder_id TEXT;",
+      "ALTER TABLE workspace_job_folders ADD COLUMN name TEXT;",
+      "ALTER TABLE cockpit_cards ADD COLUMN title TEXT;",
+      "ALTER TABLE cockpit_cards ADD COLUMN status TEXT;",
+      "ALTER TABLE cockpit_cards ADD COLUMN priority TEXT;",
+      "ALTER TABLE cockpit_cards ADD COLUMN order_index REAL;",
+      "ALTER TABLE cockpit_cards ADD COLUMN archived INTEGER;",
+    ],
+  },
 ];
 
 export const GLOBAL_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] = [
@@ -193,5 +211,15 @@ export const GLOBAL_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] =
     version: 2,
     name: "initialize_schema_migrations_journal",
     statements: [],
+  },
+  {
+    version: 3,
+    name: "promote_queryable_global_task_fields",
+    statements: [
+      "ALTER TABLE global_tasks ADD COLUMN name TEXT;",
+      "ALTER TABLE global_tasks ADD COLUMN enabled INTEGER;",
+      "ALTER TABLE global_tasks ADD COLUMN scope TEXT;",
+      "ALTER TABLE global_tasks ADD COLUMN next_run TEXT;",
+    ],
   },
 ];
