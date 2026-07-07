@@ -1927,6 +1927,7 @@ export async function exportWorkspaceSqliteToJsonMirrors(
     telegramNotification: existingConfig.telegramNotification,
   };
   writeSchedulerConfig(workspaceRoot, nextConfig, {
+    includeTombstoneArrays: false,
     mode: "replace",
   });
 

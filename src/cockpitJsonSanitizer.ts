@@ -170,6 +170,7 @@ export type SchedulerConfigWriteResult = {
 
 export type SchedulerConfigWriteOptions = {
     baseConfig?: SchedulerWorkspaceConfig;
+    includeTombstoneArrays?: boolean;
     mode?: "merge" | "replace";
 };
 
@@ -1495,13 +1496,11 @@ export function writeSchedulerConfig(
                 normalizedConfig,
             );
 
+        const includeTombstoneArrays = options?.includeTombstoneArrays ?? true;
         const persistedConfig: SchedulerWorkspaceConfig = {
             tasks: filterStoredSchedulerTaskEntries(mergedConfig.tasks),
-            deletedTaskIds: normalizeIdList(mergedConfig.deletedTaskIds),
             jobs: Array.isArray(mergedConfig.jobs) ? mergedConfig.jobs : [],
-            deletedJobIds: normalizeIdList(mergedConfig.deletedJobIds),
             jobFolders: Array.isArray(mergedConfig.jobFolders) ? mergedConfig.jobFolders : [],
-            deletedJobFolderIds: normalizeIdList(mergedConfig.deletedJobFolderIds),
             cockpitBoard: mergedConfig.cockpitBoard
                 ? normalizeCockpitBoard(mergedConfig.cockpitBoard)
                 : undefined,
@@ -1515,13 +1514,16 @@ export function writeSchedulerConfig(
                 : undefined,
         };
 
+        if (includeTombstoneArrays) {
+            persistedConfig.deletedTaskIds = normalizeIdList(mergedConfig.deletedTaskIds);
+            persistedConfig.deletedJobIds = normalizeIdList(mergedConfig.deletedJobIds);
+            persistedConfig.deletedJobFolderIds = normalizeIdList(mergedConfig.deletedJobFolderIds);
+        }
+
         const publicConfig: SchedulerWorkspaceConfig = {
             tasks: sanitizeSchedulerJsonValue(persistedConfig.tasks),
-            deletedTaskIds: sanitizeSchedulerJsonValue(persistedConfig.deletedTaskIds),
             jobs: sanitizeSchedulerJsonValue(persistedConfig.jobs ?? []),
-            deletedJobIds: sanitizeSchedulerJsonValue(persistedConfig.deletedJobIds),
             jobFolders: sanitizeSchedulerJsonValue(persistedConfig.jobFolders ?? []),
-            deletedJobFolderIds: sanitizeSchedulerJsonValue(persistedConfig.deletedJobFolderIds),
             githubIntegration: sanitizeGitHubIntegrationConfig(
                 persistedConfig.githubIntegration,
             ),
@@ -1529,6 +1531,12 @@ export function writeSchedulerConfig(
                 persistedConfig.telegramNotification,
             ),
         };
+
+        if (includeTombstoneArrays) {
+            publicConfig.deletedTaskIds = sanitizeSchedulerJsonValue(persistedConfig.deletedTaskIds);
+            publicConfig.deletedJobIds = sanitizeSchedulerJsonValue(persistedConfig.deletedJobIds);
+            publicConfig.deletedJobFolderIds = sanitizeSchedulerJsonValue(persistedConfig.deletedJobFolderIds);
+        }
 
         const nextPublicContent = JSON.stringify(publicConfig, null, 4);
         const nextPrivateContent = JSON.stringify(persistedConfig, null, 4);

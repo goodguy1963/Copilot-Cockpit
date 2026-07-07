@@ -650,10 +650,12 @@ suite("SQLite Bootstrap Tests", () => {
       const globalMeta = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksMetaPath, "utf8"));
 
       assert.strictEqual(summary.exportedCounts.workspaceTasks, 1);
+      assert.strictEqual(summary.exportedCounts.deletedTaskIds, 1);
       assert.strictEqual(summary.exportedCounts.cockpitCards, 1);
       assert.strictEqual(summary.exportedCounts.researchProfiles, 1);
       assert.strictEqual(publicConfig.tasks.length, 1);
-      assert.strictEqual(publicConfig.deletedTaskIds[0], "task-deleted");
+      assert.strictEqual(publicConfig.deletedTaskIds, undefined);
+      assert.strictEqual(privateConfig.deletedTaskIds, undefined);
       assert.strictEqual(publicConfig.jobs.length, 1);
       assert.strictEqual(privateConfig.cockpitBoard.cards.length, 1);
       assert.strictEqual(researchConfig.profiles.length, 1);
@@ -717,7 +719,7 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
-  test("export preserves tombstones in the public scheduler mirror", async () => {
+  test("export omits sqlite tombstone arrays from scheduler mirrors", async () => {
     const workspaceRoot = createTempRoot("copilot-sqlite-export-tombstone-");
     const globalRoot = createTempRoot("copilot-sqlite-export-tombstone-global-");
 
@@ -735,12 +737,17 @@ suite("SQLite Bootstrap Tests", () => {
 
       const workspacePaths = getWorkspaceStoragePaths(workspaceRoot);
       const publicConfig = JSON.parse(fs.readFileSync(workspacePaths.publicSchedulerMirrorPath, "utf8"));
+      const privateConfig = JSON.parse(fs.readFileSync(workspacePaths.privateSchedulerMirrorPath, "utf8"));
 
+      assert.strictEqual(publicConfig.deletedTaskIds, undefined);
+      assert.strictEqual(publicConfig.deletedJobIds, undefined);
+      assert.strictEqual(publicConfig.deletedJobFolderIds, undefined);
+      assert.strictEqual(privateConfig.deletedTaskIds, undefined);
+      assert.strictEqual(privateConfig.deletedJobIds, undefined);
+      assert.strictEqual(privateConfig.deletedJobFolderIds, undefined);
       assert.strictEqual(publicConfig.tasks.length, 1);
       assert.strictEqual(publicConfig.tasks[0].id, "live-task");
-      assert.deepStrictEqual(publicConfig.deletedTaskIds.sort(), ["dead-task-1", "dead-task-2"]);
       assert.strictEqual(publicConfig.jobs.length, 1);
-      assert.deepStrictEqual(publicConfig.deletedJobIds, ["dead-job"]);
     } finally {
       cleanup(workspaceRoot);
       cleanup(globalRoot);
@@ -823,9 +830,11 @@ suite("SQLite Bootstrap Tests", () => {
       const globalMeta = JSON.parse(fs.readFileSync(globalPaths.scheduledTasksMetaPath, "utf8"));
 
       assert.strictEqual(summary.exportedCounts.workspaceTasks, 1);
+      assert.strictEqual(summary.exportedCounts.deletedTaskIds, 1);
       assert.strictEqual(publicConfig.tasks.length, 1);
       assert.strictEqual(publicConfig.tasks[0].id, "task-1");
-      assert.deepStrictEqual(publicConfig.deletedTaskIds, ["task-deleted"]);
+      assert.strictEqual(publicConfig.deletedTaskIds, undefined);
+      assert.strictEqual(privateConfig.deletedTaskIds, undefined);
       assert.strictEqual(privateConfig.telegramNotification.botToken, "secret-token");
       assert.strictEqual(researchConfig.version, 7);
       assert.strictEqual(researchConfig.profiles.length, 1);
