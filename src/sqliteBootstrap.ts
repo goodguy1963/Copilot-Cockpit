@@ -8,9 +8,11 @@ import { readSchedulerConfig, recordRecentSchedulerConfigWrite, writeSchedulerCo
 import type { ResearchWorkspaceConfig, SchedulerWorkspaceConfig } from "./types";
 import {
   GLOBAL_SQLITE_SCHEMA_STATEMENTS,
+  GLOBAL_SQLITE_SCHEMA_MIGRATIONS,
   GLOBAL_SQLITE_SCHEMA_VERSION,
   JSON_STORAGE_MODE,
   SQLITE_STORAGE_MODE,
+  WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
   WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
   WORKSPACE_SQLITE_SCHEMA_VERSION,
   getConfiguredMaxSqliteBackups,
@@ -362,9 +364,41 @@ function getWorkspaceFoldersFromVsCode(): WorkspaceFolderLike[] {
 function applySchema(
   db: SqlJsDatabase,
   statements: readonly string[],
+  migrations: readonly { version: number; name: string; statements: readonly string[] }[],
+  schemaVersionMetadataKey: string,
+  schemaVersion: number,
 ): void {
   for (const statement of statements) {
     db.run(statement);
+  }
+
+  const appliedAt = new Date().toISOString();
+  db.run("BEGIN");
+  try {
+    for (const migration of migrations) {
+      const existing = db.exec(
+        `SELECT version FROM schema_migrations WHERE version = ${migration.version} LIMIT 1`,
+      ) as Array<{ values?: unknown[][] }>;
+      if (existing[0]?.values?.[0]?.[0] === migration.version) {
+        continue;
+      }
+
+      for (const statement of migration.statements) {
+        db.run(statement);
+      }
+      db.run(
+        "INSERT OR REPLACE INTO schema_migrations(version, name, applied_at) VALUES (?, ?, ?)",
+        [migration.version, migration.name, appliedAt],
+      );
+    }
+    db.run(
+      "INSERT OR REPLACE INTO app_metadata(key, value) VALUES (?, ?)",
+      [schemaVersionMetadataKey, String(schemaVersion)],
+    );
+    db.run("COMMIT");
+  } catch (error) {
+    db.run("ROLLBACK");
+    throw error;
   }
 }
 
@@ -1013,7 +1047,13 @@ export async function bootstrapWorkspaceSqliteStorage(
     let importCounts: Record<string, number> = {};
 
     try {
-      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
+        WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
+        "workspace_schema_version",
+        WORKSPACE_SQLITE_SCHEMA_VERSION,
+      );
       const imported = insertWorkspaceJsonSnapshot(db, workspaceRoot, now);
       importCounts = imported.importCounts;
       stampMetadata(db, {
@@ -1062,7 +1102,13 @@ export async function bootstrapGlobalSqliteStorage(
     let importCounts: Record<string, number> = {};
 
     try {
-      applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        GLOBAL_SQLITE_SCHEMA_STATEMENTS,
+        GLOBAL_SQLITE_SCHEMA_MIGRATIONS,
+        "global_schema_version",
+        GLOBAL_SQLITE_SCHEMA_VERSION,
+      );
       importCounts = insertGlobalJsonSnapshot(db, globalStorageRoot, now);
       stampMetadata(db, {
         global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
@@ -1754,7 +1800,13 @@ export async function syncWorkspaceSchedulerStateToSqlite(
     const syncedAt = new Date().toISOString();
 
     try {
-      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
+        WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
+        "workspace_schema_version",
+        WORKSPACE_SQLITE_SCHEMA_VERSION,
+      );
       const counts = replaceWorkspaceSchedulerState(db, config, syncedAt);
       stampMetadata(db, {
         workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
@@ -1783,7 +1835,13 @@ export async function syncGlobalTasksToSqlite(
     const syncedAt = new Date().toISOString();
 
     try {
-      applySchema(db, GLOBAL_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        GLOBAL_SQLITE_SCHEMA_STATEMENTS,
+        GLOBAL_SQLITE_SCHEMA_MIGRATIONS,
+        "global_schema_version",
+        GLOBAL_SQLITE_SCHEMA_VERSION,
+      );
       const counts = replaceGlobalTasksState(db, tasks, syncedAt);
       stampMetadata(db, {
         global_schema_version: String(GLOBAL_SQLITE_SCHEMA_VERSION),
@@ -1812,7 +1870,13 @@ export async function syncWorkspaceResearchStateToSqlite(
     const syncedAt = new Date().toISOString();
 
     try {
-      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
+        WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
+        "workspace_schema_version",
+        WORKSPACE_SQLITE_SCHEMA_VERSION,
+      );
       const counts = replaceWorkspaceResearchState(db, config, syncedAt);
       stampMetadata(db, {
         workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),
@@ -1841,7 +1905,13 @@ export async function syncWorkspaceCockpitBoardToSqlite(
     const syncedAt = new Date().toISOString();
 
     try {
-      applySchema(db, WORKSPACE_SQLITE_SCHEMA_STATEMENTS);
+      applySchema(
+        db,
+        WORKSPACE_SQLITE_SCHEMA_STATEMENTS,
+        WORKSPACE_SQLITE_SCHEMA_MIGRATIONS,
+        "workspace_schema_version",
+        WORKSPACE_SQLITE_SCHEMA_VERSION,
+      );
       const counts = replaceWorkspaceCockpitState(db, board, syncedAt);
       stampMetadata(db, {
         workspace_schema_version: String(WORKSPACE_SQLITE_SCHEMA_VERSION),

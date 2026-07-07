@@ -27,6 +27,8 @@ import { wasSchedulerConfigWrittenRecently } from "../../cockpitJsonSanitizer";
 
 type SqlJsDatabase = {
   exec: (sql: string) => Array<{ values?: unknown[][] }>;
+  run: (sql: string, params?: unknown[]) => void;
+  export: () => Uint8Array;
   close: () => void;
 };
 
@@ -136,6 +138,14 @@ suite("SQLite Bootstrap Tests", () => {
         assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM cockpit_cards"), 1);
         assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM cockpit_comments"), 1);
         assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM research_profiles"), 1);
+        assert.strictEqual(
+          firstScalar(db, "SELECT value FROM app_metadata WHERE key = 'workspace_schema_version'"),
+          String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        );
+        assert.strictEqual(
+          firstScalar(db, "SELECT name FROM schema_migrations WHERE version = 2"),
+          "initialize_schema_migrations_journal",
+        );
       } finally {
         db.close();
       }
@@ -209,6 +219,14 @@ suite("SQLite Bootstrap Tests", () => {
       const db = await openDatabase(databasePath);
       try {
         assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM global_tasks"), 1);
+        assert.strictEqual(
+          firstScalar(db, "SELECT value FROM app_metadata WHERE key = 'global_schema_version'"),
+          String(GLOBAL_SQLITE_SCHEMA_VERSION),
+        );
+        assert.strictEqual(
+          firstScalar(db, "SELECT name FROM schema_migrations WHERE version = 2"),
+          "initialize_schema_migrations_journal",
+        );
       } finally {
         db.close();
       }
@@ -404,6 +422,58 @@ suite("SQLite Bootstrap Tests", () => {
         wasSchedulerConfigWrittenRecently(paths.databasePath),
         true,
       );
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("records pending workspace schema migrations when an older database is reopened", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-migration-reopen-");
+
+    try {
+      const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-old", name: "Old Task", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      const downgraded = await openDatabase(databasePath);
+      try {
+        downgraded.run("DELETE FROM schema_migrations WHERE version = 2");
+        downgraded.run(
+          "UPDATE app_metadata SET value = '1' WHERE key = 'workspace_schema_version'",
+        );
+        fs.writeFileSync(databasePath, Buffer.from(downgraded.export()));
+      } finally {
+        downgraded.close();
+      }
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-new", name: "New Task", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      const migrated = await openDatabase(databasePath);
+      try {
+        assert.strictEqual(
+          firstScalar(migrated, "SELECT value FROM app_metadata WHERE key = 'workspace_schema_version'"),
+          String(WORKSPACE_SQLITE_SCHEMA_VERSION),
+        );
+        assert.strictEqual(
+          firstScalar(migrated, "SELECT name FROM schema_migrations WHERE version = 2"),
+          "initialize_schema_migrations_journal",
+        );
+      } finally {
+        migrated.close();
+      }
     } finally {
       cleanup(workspaceRoot);
     }

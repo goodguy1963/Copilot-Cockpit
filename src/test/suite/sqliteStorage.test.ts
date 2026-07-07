@@ -68,12 +68,14 @@ suite("SQLite Storage Foundation Tests", () => {
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_cards"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS cockpit_card_tombstones"));
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS research_profiles"));
+    assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS schema_migrations"));
     assert.ok(combined.includes("workspace_schema_version"));
   });
 
   test("defines global schema for task state", () => {
     const combined = GLOBAL_SQLITE_SCHEMA_STATEMENTS.join("\n");
     assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS global_tasks"));
+    assert.ok(combined.includes("CREATE TABLE IF NOT EXISTS schema_migrations"));
     assert.ok(combined.includes("global_schema_version"));
   });
 

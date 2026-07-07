@@ -18,8 +18,14 @@ export const WORKSPACE_SQLITE_DB_FILE = "copilot-cockpit.db";
 export const GLOBAL_SQLITE_DB_FILE = "copilot-cockpit-global.db";
 export const PRIVATE_SECRETS_FILE = "copilot-cockpit.private.json";
 
-export const WORKSPACE_SQLITE_SCHEMA_VERSION = 1;
-export const GLOBAL_SQLITE_SCHEMA_VERSION = 1;
+export const WORKSPACE_SQLITE_SCHEMA_VERSION = 2;
+export const GLOBAL_SQLITE_SCHEMA_VERSION = 2;
+
+export type SqliteSchemaMigration = {
+  version: number;
+  name: string;
+  statements: readonly string[];
+};
 
 export type WorkspaceStoragePaths = {
   workspaceRoot: string;
@@ -144,6 +150,7 @@ export function getGlobalStorageDatabasePath(globalStorageRoot: string): string 
 export const WORKSPACE_SQLITE_SCHEMA_STATEMENTS: readonly string[] = [
   "PRAGMA journal_mode = WAL;",
   "CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+  "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS workspace_tasks (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS workspace_task_tombstones (id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS workspace_jobs (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
@@ -167,7 +174,24 @@ export const WORKSPACE_SQLITE_SCHEMA_STATEMENTS: readonly string[] = [
 export const GLOBAL_SQLITE_SCHEMA_STATEMENTS: readonly string[] = [
   "PRAGMA journal_mode = WAL;",
   "CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+  "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS global_tasks (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
   "CREATE TABLE IF NOT EXISTS global_task_tombstones (id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);",
   `INSERT OR IGNORE INTO app_metadata(key, value) VALUES ('global_schema_version', '${GLOBAL_SQLITE_SCHEMA_VERSION}');`,
+];
+
+export const WORKSPACE_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] = [
+  {
+    version: 2,
+    name: "initialize_schema_migrations_journal",
+    statements: [],
+  },
+];
+
+export const GLOBAL_SQLITE_SCHEMA_MIGRATIONS: readonly SqliteSchemaMigration[] = [
+  {
+    version: 2,
+    name: "initialize_schema_migrations_journal",
+    statements: [],
+  },
 ];
