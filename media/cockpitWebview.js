@@ -224,6 +224,7 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
   var jobs = initialCollections.jobs;
   var jobFolders = initialCollections.jobFolders;
   var cockpitBoard = initialCollections.cockpitBoard;
+  var fullTodoDetailsById = Object.create(null);
   var githubIntegration = initialCollections.githubIntegration;
   var telegramNotification = initialCollections.telegramNotification;
   var executionDefaults = initialCollections.executionDefaults;
@@ -3049,6 +3050,134 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
       : [];
   }
 
+  function getTodoCommentCount(card) {
+    if (!card) {
+      return 0;
+    }
+    if (typeof card.commentCount === "number" && isFinite(card.commentCount)) {
+      return Math.max(0, card.commentCount);
+    }
+    return Array.isArray(card.comments) ? card.comments.length : 0;
+  }
+
+  function applyCachedTodoDetails(board) {
+    if (!board || !Array.isArray(board.cards)) {
+      return board;
+    }
+    var changed = false;
+    var cards = board.cards.map(function (card) {
+      if (!card || !card.id) {
+        return card;
+      }
+      var cached = fullTodoDetailsById[card.id];
+      if (!cached) {
+        return card;
+      }
+      if (cached.updatedAt && card.updatedAt && cached.updatedAt !== card.updatedAt) {
+        delete fullTodoDetailsById[card.id];
+        return card;
+      }
+      changed = true;
+      return Object.assign({}, card, cached, {
+        commentCount: getTodoCommentCount(card),
+      });
+    });
+    return changed ? Object.assign({}, board, { cards: cards }) : board;
+  }
+
+  function getPatchKey(element) {
+    if (!element || typeof element.getAttribute !== "function") {
+      return "";
+    }
+    var todoId = element.getAttribute("data-todo-id");
+    if (todoId) {
+      return "todo:" + todoId;
+    }
+    var sectionId = element.getAttribute("data-section-id");
+    if (sectionId) {
+      return "section:" + sectionId;
+    }
+    var elementId = element.getAttribute("id");
+    return elementId ? "id:" + elementId : "";
+  }
+
+  function syncElementAttributes(currentElement, nextElement) {
+    var currentAttributes = Array.prototype.slice.call(currentElement.attributes || []);
+    currentAttributes.forEach(function (attribute) {
+      if (!nextElement.hasAttribute(attribute.name)) {
+        currentElement.removeAttribute(attribute.name);
+      }
+    });
+    Array.prototype.forEach.call(nextElement.attributes || [], function (attribute) {
+      if (currentElement.getAttribute(attribute.name) !== attribute.value) {
+        currentElement.setAttribute(attribute.name, attribute.value);
+      }
+    });
+  }
+
+  function patchKeyedElement(currentElement, nextElement) {
+    if (!currentElement || !nextElement) {
+      return;
+    }
+    if (currentElement.outerHTML === nextElement.outerHTML) {
+      return;
+    }
+    if (
+      currentElement.tagName !== nextElement.tagName ||
+      getPatchKey(currentElement) !== getPatchKey(nextElement)
+    ) {
+      currentElement.replaceWith(nextElement);
+      return;
+    }
+    syncElementAttributes(currentElement, nextElement);
+    if (nextElement.querySelector("[data-section-id], [data-todo-id]")) {
+      patchKeyedChildren(currentElement, nextElement);
+    } else if (currentElement.innerHTML !== nextElement.innerHTML) {
+      currentElement.innerHTML = nextElement.innerHTML;
+    }
+  }
+
+  function patchKeyedChildren(currentParent, nextParent) {
+    var nextChildren = Array.prototype.slice.call(nextParent.children || []);
+    var currentChildren = Array.prototype.slice.call(currentParent.children || []);
+    var currentByKey = Object.create(null);
+    currentChildren.forEach(function (child) {
+      var key = getPatchKey(child);
+      if (key) {
+        currentByKey[key] = child;
+      }
+    });
+    var cursor = currentParent.firstElementChild;
+    nextChildren.forEach(function (nextChild) {
+      var key = getPatchKey(nextChild);
+      var currentChild = key ? currentByKey[key] : cursor;
+      if (!currentChild) {
+        currentParent.insertBefore(nextChild, cursor || null);
+        return;
+      }
+      if (currentChild !== cursor) {
+        currentParent.insertBefore(currentChild, cursor || null);
+      }
+      patchKeyedElement(currentChild, nextChild);
+      cursor = currentChild.nextElementSibling;
+    });
+    while (cursor) {
+      var removeChild = cursor;
+      cursor = cursor.nextElementSibling;
+      currentParent.removeChild(removeChild);
+    }
+  }
+
+  function patchBoardColumnsMarkup(container, nextMarkup) {
+    var template = document.createElement("template");
+    template.innerHTML = nextMarkup;
+    if (!container.children || container.children.length === 0) {
+      container.replaceChildren(template.content.cloneNode(true));
+      return;
+    }
+    patchKeyedChildren(container, template.content);
+  }
+
 
   function runStartupRenderStep(stepName, runStep) {
     try {
@@ -5226,7 +5355,7 @@ syncTodoLabelSuggestions();
         " \u2022 Archived: " + String(archivedCount) +
         " \u2022 " +
         (strings.boardComments || "Comments") + ": " + allCards.reduce(function (count, card) {
-          return count + (Array.isArray(card.comments) ? card.comments.length : 0);
+          return count + getTodoCommentCount(card);
         }, 0);
     }
 
@@ -5239,12 +5368,17 @@ syncTodoLabelSuggestions();
     });
 
     if (visibleSections.length === 0) {
-      boardColumns.innerHTML = '<div class="note">' + escapeHtml(strings.boardEmpty || "No cards yet.") + '</div>';
+      patchBoardColumnsMarkup(
+        boardColumns,
+        '<div class="note"><button type="button" class="btn-secondary" data-todo-empty-create>' +
+          escapeHtml(strings.boardSaveCreate || "Create Todo") +
+        '</button></div>',
+      );
       renderTodoDetailPanel(null, sections);
       return;
     }
 
-    boardColumns.innerHTML = renderTodoBoardMarkup({
+    patchBoardColumnsMarkup(boardColumns, renderTodoBoardMarkup({
       visibleSections: visibleSections,
       cards: cards,
       filters: filters,
@@ -5273,7 +5407,7 @@ syncTodoLabelSuggestions();
         getTodoPriorityCardBg: getTodoPriorityCardBg,
         formatTodoDate: formatTodoDate,
       },
-    });
+    }));
 
     renderTodoDetailPanel(selectedTodoId
       ? allCards.find(function (card) { return card.id === selectedTodoId; }) || null
@@ -6141,6 +6275,7 @@ syncTodoLabelSuggestions();
       emitWebviewDebug("openTodoEditor", { mode: "create" });
     } else {
       emitWebviewDebug("openTodoEditor", { mode: "edit", todoId: selectedTodoId });
+      vscode.postMessage({ type: "requestTodoDetails", todoId: selectedTodoId });
     }
     renderCockpitBoard();
     switchTab("todo-edit");
@@ -10523,13 +10658,13 @@ syncTodoLabelSuggestions();
           renderJobsTab();
           break;
         case "updateCockpitBoard":
-          cockpitBoard = message.cockpitBoard || {
+          cockpitBoard = applyCachedTodoDetails(message.cockpitBoard || {
             version: 4,
             sections: [],
             cards: [],
             filters: { labels: [], priorities: [], statuses: [], archiveOutcomes: [], flags: [], sortBy: "manual", sortDirection: "asc", viewMode: "board", showArchived: false, showRecurringTasks: false },
             updatedAt: "",
-          };
+          });
           if (pendingTodoFilters) {
             var incomingFilters = normalizeTodoFilters(cockpitBoard.filters);
             if (areTodoFiltersEqual(incomingFilters, pendingTodoFilters)) {
@@ -10574,6 +10709,17 @@ syncTodoLabelSuggestions();
           syncTodoLabelEditor();
           scheduleBoardStickyMetrics();
           syncOpenTodoCommentModal();
+          break;
+        case "updateTodoDetails":
+          if (message.todo && message.todo.id) {
+            fullTodoDetailsById[message.todo.id] = message.todo;
+            cockpitBoard = applyCachedTodoDetails(cockpitBoard);
+            if (selectedTodoId === message.todo.id || getActiveTodoEditorId() === message.todo.id) {
+              renderCockpitBoard();
+            }
+          } else if (message.todoId) {
+            delete fullTodoDetailsById[message.todoId];
+          }
           break;
         case "updateResearchState":
           researchProfiles = Array.isArray(message.profiles)

@@ -8,6 +8,7 @@ import {
   getWebviewNonce,
   normalizeSchedulerWebviewJitterSeconds,
 } from "./cockpitWebviewContentUtils";
+import { createCockpitBoardPreview } from "./cockpitWebviewCockpitBridge";
 import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
 import type {
   AgentInfo,
@@ -101,7 +102,7 @@ export function createSchedulerWebviewRenderContext(options: {
     initialTasks,
     currentJobs: options.currentJobs,
     currentJobFolders: options.currentJobFolders,
-    currentCockpitBoard: options.currentCockpitBoard,
+    currentCockpitBoard: createCockpitBoardPreview(options.currentCockpitBoard),
     currentGitHubIntegration: options.currentGitHubIntegration,
     currentTelegramNotification: options.currentTelegramNotification,
     currentExecutionDefaults: options.currentExecutionDefaults,

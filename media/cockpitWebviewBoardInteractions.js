@@ -37,6 +37,8 @@ export function isTodoInteractiveTarget(target) {
       "[data-todo-restore]",
       "[data-todo-complete]",
       "[data-todo-complete-cancel]",
+      "[data-kanban-move-todo]",
+      "[data-todo-empty-create]",
       "[data-section-collapse]",
       "[data-section-rename]",
       "[data-section-delete]",
@@ -640,6 +642,13 @@ function installBoardClickDelegation(boardColumns) {
       return;
     }
 
+    var emptyCreateBtn = target.closest("[data-todo-empty-create]");
+    if (emptyCreateBtn) {
+      stopBoardEvent(event);
+      options.openTodoEditor("");
+      return;
+    }
+
     // --- Todo action buttons (highest priority) ---
     var editBtn = target.closest("[data-todo-edit]");
     if (editBtn) {
@@ -749,6 +758,25 @@ function installBoardClickDelegation(boardColumns) {
       options.setSelectedTodoId(card.getAttribute("data-todo-id"));
       options.renderCockpitBoard();
     }
+  });
+
+  boardColumns.addEventListener("change", function (event) {
+    var options = activeBoardOptions;
+    if (!options) {
+      return;
+    }
+    var target = getEventTargetElement(event);
+    if (!target || typeof target.closest !== "function") {
+      return;
+    }
+    var moveSelect = target.closest("[data-kanban-move-todo]");
+    if (!moveSelect) {
+      return;
+    }
+    stopBoardEvent(event);
+    var todoId = moveSelect.getAttribute("data-kanban-move-todo") || "";
+    var laneId = moveSelect.value || moveSelect.getAttribute("data-kanban-lane-id") || "";
+    options.postKanbanLaneDrop(todoId, laneId);
   });
 }
 

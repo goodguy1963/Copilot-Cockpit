@@ -93,6 +93,10 @@ function readBoardRenderingSource(): string {
   return readWorkspaceFile("../../../media/cockpitWebviewBoardRendering.js");
 }
 
+function readBoardInteractionSource(): string {
+  return readWorkspaceFile("../../../media/cockpitWebviewBoardInteractions.js");
+}
+
 function expectSourceToIncludeSnippets(
   source: string,
   snippets: readonly string[],
@@ -1008,6 +1012,8 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       '{ id: "user-review", title: "User Review" }',
       '{ id: "scheduled", title: "Scheduled" }',
       'data-kanban-lane-id="',
+      'data-kanban-move-todo="',
+      '<select class="todo-kanban-move"',
       "function deriveKanbanLane(card)",
     ], "kanban projection renderer");
 
@@ -1019,10 +1025,36 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       '{ type: "createTaskFromTodo", todoId: card.id }',
       '{ type: "finalizeTodo", todoId: card.id }',
       "postKanbanLaneDrop: function (todoId, laneId)",
+      'type: "requestTodoDetails"',
+      'case "updateTodoDetails":',
     ], "kanban transition planner");
 
     assert.strictEqual(strings.boardViewKanban, "Kanban");
     assert.strictEqual(strings.boardKanbanScheduleBlocked, "Move this todo to Ready before scheduling it.");
+  });
+
+  test("board rendering patches keyed DOM nodes instead of replacing the whole board", () => {
+    const scriptSource = readSchedulerWebviewScriptSource();
+    const interactionSource = readBoardInteractionSource();
+
+    expectSourceToIncludeSnippets(scriptSource, [
+      "function patchBoardColumnsMarkup(container, nextMarkup)",
+      "function getPatchKey(element)",
+      "function patchKeyedChildren(currentParent, nextParent)",
+      "currentElement.replaceWith(nextElement)",
+      "container.replaceChildren(template.content.cloneNode(true));",
+      "patchBoardColumnsMarkup(boardColumns, renderTodoBoardMarkup({",
+    ], "keyed board patching");
+
+    assert.ok(
+      !scriptSource.includes("boardColumns.innerHTML = renderTodoBoardMarkup({"),
+      "renderCockpitBoard should not tear down the whole board on every render",
+    );
+    expectSourceToIncludeSnippets(interactionSource, [
+      'target.closest("[data-kanban-move-todo]")',
+      'options.postKanbanLaneDrop(todoId, laneId)',
+      '"[data-kanban-move-todo]"',
+    ], "kanban keyboard move interaction");
   });
 
   test("editor tabs use symbol states and dirty badges", () => {

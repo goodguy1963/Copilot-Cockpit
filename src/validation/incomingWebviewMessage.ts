@@ -148,6 +148,7 @@ const webviewToExtensionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("saveTodoFlagDefinition"), data: labelDefinitionInputSchema }).passthrough(),
   z.object({ type: z.literal("deleteTodoFlagDefinition"), data: z.object({ name: nonEmptyStringSchema }).passthrough() }).passthrough(),
   z.object({ type: z.literal("requestTodoFileUpload"), todoId: optionalStringSchema }).passthrough(),
+  z.object({ type: z.literal("requestTodoDetails"), todoId: nonEmptyStringSchema }).passthrough(),
   z.object({ type: z.literal("linkTodoTask"), todoId: nonEmptyStringSchema, taskId: optionalStringSchema }).passthrough(),
   z.object({ type: z.literal("createTaskFromTodo"), todoId: nonEmptyStringSchema }).passthrough(),
 

@@ -1,5 +1,6 @@
 import type {
   CockpitBoard,
+  CockpitTodoCard,
   TaskAction,
   WebviewToExtensionMessage,
 } from "./types";
@@ -13,7 +14,41 @@ export function createUpdateCockpitBoardMessage(
 ): OutgoingWebviewMessage {
   return {
     type: "updateCockpitBoard",
-    cockpitBoard,
+    cockpitBoard: createCockpitBoardPreview(cockpitBoard),
+  };
+}
+
+export function createTodoDetailsMessage(
+  cockpitBoard: CockpitBoard,
+  todoId: string,
+): OutgoingWebviewMessage {
+  const todo = Array.isArray(cockpitBoard.cards)
+    ? cockpitBoard.cards.find((card) => card.id === todoId)
+    : undefined;
+
+  return todo
+    ? { type: "updateTodoDetails", todo }
+    : { type: "updateTodoDetails", todoId, todo: null };
+}
+
+export function createCockpitBoardPreview(cockpitBoard: CockpitBoard): CockpitBoard {
+  return {
+    ...cockpitBoard,
+    cards: Array.isArray(cockpitBoard.cards)
+      ? cockpitBoard.cards.map(createCockpitTodoCardPreview)
+      : [],
+  };
+}
+
+function createCockpitTodoCardPreview(card: CockpitTodoCard): CockpitTodoCard {
+  const comments = Array.isArray(card.comments) ? card.comments : [];
+  const latestComment = comments.length > 0 ? comments[comments.length - 1] : undefined;
+
+  return {
+    ...card,
+    comments: latestComment ? [latestComment] : [],
+    commentCount: comments.length,
+    latestComment,
   };
 }
 

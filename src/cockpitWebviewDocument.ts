@@ -13,17 +13,23 @@ type RenderSchedulerWebviewDocumentParams = {
 export function renderSchedulerWebviewDocument(
   params: RenderSchedulerWebviewDocumentParams,
 ): string {
+  const documentContent = applyStyleNonce(params.documentContent, params.nonce);
   return `<!DOCTYPE html>
 <html lang="${params.uiLanguage}">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${params.cspSource} 'unsafe-inline'; script-src 'nonce-${params.nonce}'; img-src ${params.cspSource}; font-src ${params.cspSource};">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${params.cspSource} 'nonce-${params.nonce}'; style-src-attr 'unsafe-inline'; script-src 'nonce-${params.nonce}'; img-src ${params.cspSource}; font-src ${params.cspSource};">
   <title>${escapeHtmlAttr(params.title)}</title>
-${params.documentContent}
+${documentContent}
   <script nonce="${params.nonce}" id="initial-data" type="application/json">${params.initialDataJson}</script>
 
   <script nonce="${params.nonce}" src="${params.scriptUri}"></script>
 </body>
 </html>`;
+}
+
+function applyStyleNonce(documentContent: string, nonce: string): string {
+  const escapedNonce = escapeHtmlAttr(nonce);
+  return documentContent.replace(/<style(?![^>]*\snonce=)([^>]*)>/gi, `<style nonce="${escapedNonce}"$1>`);
 }

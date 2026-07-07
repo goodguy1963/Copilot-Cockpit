@@ -371,6 +371,12 @@ export interface CockpitTodoCard {
   /** Communication trail between user and system */
   comments: CockpitTodoComment[];
 
+  /** Stable full-thread count when a webview payload carries only a comment preview */
+  commentCount?: number;
+
+  /** Latest comment preview when a webview payload omits the full thread */
+  latestComment?: CockpitTodoComment;
+
   /** Optional GitHub inbox metadata used for dedupe and prompt context */
   githubSource?: GitHubTodoSource;
 
@@ -2066,6 +2072,7 @@ type TodoBoardMessage =
   | { type: "saveTodoFlagDefinition"; data: UpsertCockpitLabelDefinitionInput }
   | { type: "deleteTodoFlagDefinition"; data: { name: string } }
   | { type: "requestTodoFileUpload"; todoId?: string }
+  | { type: "requestTodoDetails"; todoId: string }
   | { type: "linkTodoTask"; todoId: string; taskId?: string }
   | { type: "createTaskFromTodo"; todoId: string };
 

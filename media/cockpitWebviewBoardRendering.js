@@ -47,6 +47,9 @@ function deriveKanbanLane(card) {
 }
 
 function getLatestTodoComment(card) {
+  if (card && card.latestComment) {
+    return card.latestComment;
+  }
   return Array.isArray(card.comments) && card.comments.length
     ? card.comments[card.comments.length - 1]
     : null;
@@ -312,6 +315,14 @@ function renderTodoKanbanCard(card, laneId, index, options) {
         : '') +
       '</div>'
     : '';
+  var laneSelect = '<label class="todo-kanban-move-label" style="display:flex;align-items:center;gap:6px;color:var(--vscode-descriptionForeground);font-size:11px;">' +
+    '<span>' + helpers.escapeHtml(strings.boardMoveTodo || "Move") + '</span>' +
+    '<select class="todo-kanban-move" data-kanban-move-todo="' + helpers.escapeAttr(card.id) + '" data-kanban-lane-id="' + helpers.escapeAttr(laneId) + '" aria-label="' + helpers.escapeAttr(strings.boardMoveTodo || "Move todo") + '">' +
+      KANBAN_LANES.map(function (lane) {
+        return '<option value="' + helpers.escapeAttr(lane.id) + '"' + (lane.id === laneId ? ' selected' : '') + '>' + helpers.escapeHtml(lane.title) + '</option>';
+      }).join("") +
+    '</select>' +
+  '</label>';
   return '<article draggable="false" data-todo-id="' + helpers.escapeAttr(card.id) + '" data-section-id="kanban-' + helpers.escapeAttr(laneId) + '" data-kanban-lane-id="' + helpers.escapeAttr(laneId) + '" data-order="' + String(index) + '" data-selected="' + (isSelected ? 'true' : 'false') + '" style="display:flex;flex-direction:column;gap:var(--cockpit-card-gap,4px);border-radius:8px;padding:var(--cockpit-card-pad,8px);background:' + helpers.getTodoPriorityCardBg(card.priority || "none", false) + ';border:1px solid var(--vscode-widget-border);cursor:pointer;">' +
     '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
       '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
@@ -323,6 +334,7 @@ function renderTodoKanbanCard(card, laneId, index, options) {
     (dueContent || archiveContent ? '<div style="display:flex;flex-wrap:wrap;gap:4px;color:var(--vscode-descriptionForeground);">' + (dueContent ? '<span data-card-meta>' + dueContent + '</span>' : '') + (archiveContent ? '<span data-card-meta>' + archiveContent + '</span>' : '') + '</div>' : '') +
     chipMarkup +
     '<div class="cockpit-card-details"><div class="note" style="white-space:pre-wrap;">' + helpers.escapeHtml(helpers.getTodoDescriptionPreview(card.description || "")) + '</div></div>' +
+    laneSelect +
     renderTodoCompactActions(card, options, "board") +
   '</article>';
 }

@@ -42,6 +42,7 @@ import { renderSchedulerWebviewDocument } from "./cockpitWebviewDocument";
 import { buildSchedulerWebviewStrings } from "./cockpitWebviewStrings";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
 import {
+  createTodoDetailsMessage,
   createStartCreateTodoMessage,
   createUpdateCockpitBoardMessage,
   handleTodoCockpitWebviewMessage,
@@ -790,6 +791,11 @@ export class SchedulerWebview {
   }
 
   private static async handleMessage(message: WebviewToExtensionMessage): Promise<void> {
+    if (message.type === "requestTodoDetails") {
+      this.postMessage(createTodoDetailsMessage(this.currentCockpitBoard, message.todoId));
+      return;
+    }
+
     if (await handleTodoDialogWebviewMessage(message, {
       currentCockpitBoard: this.currentCockpitBoard,
       onTaskActionCallback: this.onTaskActionCallback,
