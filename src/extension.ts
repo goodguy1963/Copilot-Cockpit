@@ -103,8 +103,11 @@ import {
   sendTelegramNotificationTest,
 } from "./telegramNotificationManager";
 import {
+  type SchedulerStorageMode,
+  getConfiguredSchedulerStorageMode,
   SCHEDULER_PRIVATE_JSON_FILE,
   SCHEDULER_PUBLIC_JSON_FILE,
+  SQLITE_STORAGE_MODE,
   WORKSPACE_SQLITE_DB_FILE,
   getWorkspaceStoragePaths,
 } from "./sqliteStorage";
@@ -1567,7 +1570,21 @@ async function waitForAuthoritativeStartupState(): Promise<void> {
   });
 }
 
-function getWorkspaceStorageWatchFileNames(): readonly string[] {
+function getWorkspaceStorageWatchFileNames(
+  storageMode: SchedulerStorageMode = SQLITE_STORAGE_MODE,
+  hasWorkspaceDatabase = true,
+): readonly string[] {
+  if (storageMode !== SQLITE_STORAGE_MODE) {
+    return [
+      SCHEDULER_PUBLIC_JSON_FILE,
+      SCHEDULER_PRIVATE_JSON_FILE,
+    ];
+  }
+
+  if (hasWorkspaceDatabase) {
+    return [WORKSPACE_SQLITE_DB_FILE];
+  }
+
   return [
     SCHEDULER_PUBLIC_JSON_FILE,
     SCHEDULER_PRIVATE_JSON_FILE,
@@ -3297,7 +3314,12 @@ export function activate(context: vscode.ExtensionContext): void {
   // --- HBG CUSTOM: Watch .vscode/scheduler*.json ---
   if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
     const folder = vscode.workspace.workspaceFolders[0];
-    const storageWatchers = getWorkspaceStorageWatchFileNames().map((fileName) =>
+    const workspaceRoot = folder.uri.fsPath;
+    const storageMode = getConfiguredSchedulerStorageMode(folder.uri);
+    const hasWorkspaceDatabase = fs.existsSync(
+      getWorkspaceStoragePaths(workspaceRoot).databasePath,
+    );
+    const storageWatchers = getWorkspaceStorageWatchFileNames(storageMode, hasWorkspaceDatabase).map((fileName) =>
       vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(folder, `.vscode/${fileName}`),
       )

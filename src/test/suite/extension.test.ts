@@ -1230,17 +1230,24 @@ suite("Extension Integration Tests", () => {
     assert.strictEqual(setupCalls, 1);
   });
 
-  test("workspace storage watcher list includes sqlite authority and json mirrors", async () => {
+  test("workspace storage watcher list follows the active storage authority", async () => {
     const testOnly = await getTestOnlyExports();
     const getWatchFiles = testOnly.getWorkspaceStorageWatchFileNames as
-      | (() => readonly string[])
+      | ((storageMode?: "json" | "sqlite", hasWorkspaceDatabase?: boolean) => readonly string[])
       | undefined;
 
     assert.ok(typeof getWatchFiles === "function");
-    assert.deepStrictEqual(getWatchFiles!(), [
+    assert.deepStrictEqual(getWatchFiles!("sqlite", true), [
+      "copilot-cockpit.db",
+    ]);
+    assert.deepStrictEqual(getWatchFiles!("sqlite", false), [
       "scheduler.json",
       "scheduler.private.json",
       "copilot-cockpit.db",
+    ]);
+    assert.deepStrictEqual(getWatchFiles!("json", false), [
+      "scheduler.json",
+      "scheduler.private.json",
     ]);
   });
 
