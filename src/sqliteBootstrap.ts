@@ -2,9 +2,9 @@ import { AsyncLocalStorage } from "async_hooks";
 import * as fs from "fs";
 import * as path from "path";
 import type * as vscode from "vscode";
-import initSqlJs from "sql.js";
 import { createDefaultCockpitBoard, normalizeCockpitBoard } from "./cockpitBoard";
 import { readSchedulerConfig, recordRecentSchedulerConfigWrite, writeSchedulerConfig } from "./cockpitJsonSanitizer";
+import { openNativeSqliteDatabase } from "./nativeSqlite";
 import type { ResearchWorkspaceConfig, SchedulerWorkspaceConfig } from "./types";
 import {
   GLOBAL_SQLITE_SCHEMA_STATEMENTS,
@@ -24,10 +24,9 @@ import {
   migrateLegacyWorkspaceStorageArtifacts,
 } from "./sqliteStorage";
 
-type SqlJsDatabase = {
+type SqliteDatabase = {
   run: (sql: string, params?: unknown[]) => void;
   exec: (sql: string) => unknown;
-  export: () => Uint8Array;
   close: () => void;
 };
 
@@ -43,10 +42,6 @@ export type SqliteWorkspaceSchedulerState = {
 export type SqliteWorkspaceResearchState = {
   profiles: unknown[];
   runs: unknown[];
-};
-
-type SqlJsModule = {
-  Database: new (data?: Uint8Array) => SqlJsDatabase;
 };
 
 type SqliteAtomicWriteFs = Pick<typeof fs, "mkdirSync" | "writeFileSync" | "existsSync" | "renameSync" | "rmSync" | "copyFileSync" | "readdirSync" | "statSync">;
@@ -123,7 +118,6 @@ const DEFAULT_SQLITE_LOCK_STALE_MS = 30_000;
 const DEFAULT_SQLITE_LOCK_MAX_WAIT_MS = 2_000;
 const DEFAULT_SQLITE_LOCK_RETRY_MS = 50;
 
-let sqlJsModulePromise: Promise<SqlJsModule> | undefined;
 const sqliteAccessQueues = new Map<string, Promise<void>>();
 const sqliteLockContext = new AsyncLocalStorage<Set<string>>();
 const sqliteLockOptions = {
@@ -138,19 +132,6 @@ export function setSqliteLockOptionsForTests(
   sqliteLockOptions.staleMs = overrides?.staleMs ?? DEFAULT_SQLITE_LOCK_STALE_MS;
   sqliteLockOptions.maxWaitMs = overrides?.maxWaitMs ?? DEFAULT_SQLITE_LOCK_MAX_WAIT_MS;
   sqliteLockOptions.retryMs = overrides?.retryMs ?? DEFAULT_SQLITE_LOCK_RETRY_MS;
-}
-
-function getSqlJsWasmPath(): string {
-  return path.join(__dirname, "sql-wasm.wasm");
-}
-
-async function getSqlJsModule(): Promise<SqlJsModule> {
-  if (!sqlJsModulePromise) {
-    sqlJsModulePromise = initSqlJs({
-      locateFile: (file: string) => (file.endsWith(".wasm") ? getSqlJsWasmPath() : file),
-    }) as Promise<SqlJsModule>;
-  }
-  return sqlJsModulePromise;
 }
 
 function normalizeSqliteDatabasePath(databasePath: string): string {
@@ -291,18 +272,18 @@ async function withSerializedSqliteAccess<T>(
 
 async function openSqliteDatabase(
   databasePath: string,
-): Promise<{ db: SqlJsDatabase; created: boolean }> {
-  const SQL = await getSqlJsModule();
+  maxBackups?: number,
+): Promise<{ db: SqliteDatabase; created: boolean }> {
   if (fs.existsSync(databasePath)) {
     const stat = fs.statSync(databasePath);
     if (stat.size < SQLITE_MIN_VALID_DB_SIZE) {
       // The database file is too small to be a valid SQLite database.
-      // This can happen after a crash during persistSqliteDatabase where
-      // the backup rename failed and the original file was left in a
-      // truncated state. Quarantine it before creating a fresh DB.
+      // This can happen after a crash or interrupted filesystem write.
+      // Quarantine it before creating a fresh DB.
       quarantineSqliteDatabase(databasePath);
     } else {
       let shouldQuarantine = false;
+      let hasValidHeader = false;
       try {
         const header = Buffer.alloc(SQLITE_MAGIC_HEADER.length);
         const fd = fs.openSync(databasePath, "r");
@@ -314,13 +295,18 @@ async function openSqliteDatabase(
         if (header.toString("ascii") !== SQLITE_MAGIC_HEADER) {
           shouldQuarantine = true;
         } else {
-          return {
-            db: new SQL.Database(fs.readFileSync(databasePath)),
-            created: false,
-          };
+          hasValidHeader = true;
         }
       } catch {
         shouldQuarantine = true;
+      }
+
+      if (hasValidHeader) {
+        createSqliteBackup(databasePath, maxBackups);
+        return {
+          db: openNativeSqliteDatabase(databasePath),
+          created: false,
+        };
       }
 
       if (shouldQuarantine) {
@@ -331,7 +317,7 @@ async function openSqliteDatabase(
 
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
   return {
-    db: new SQL.Database(),
+    db: openNativeSqliteDatabase(databasePath),
     created: true,
   };
 }
@@ -347,7 +333,7 @@ function getWorkspaceFoldersFromVsCode(): WorkspaceFolderLike[] {
 }
 
 function applySchema(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   statements: readonly string[],
   migrations: readonly { version: number; name: string; statements: readonly string[] }[],
   schemaVersionMetadataKey: string,
@@ -392,7 +378,7 @@ function getMigratedWorkspaceStoragePaths(workspaceRoot: string): ReturnType<typ
   return getWorkspaceStoragePaths(workspaceRoot);
 }
 
-function runMigrationStatement(db: SqlJsDatabase, statement: string): void {
+function runMigrationStatement(db: SqliteDatabase, statement: string): void {
   try {
     db.run(statement);
   } catch (error) {
@@ -405,7 +391,7 @@ function runMigrationStatement(db: SqlJsDatabase, statement: string): void {
 }
 
 function stampMetadata(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   metadata: Record<string, string>,
 ): void {
   const writeRevision = readMetadataNumber(db, "write_revision") + 1;
@@ -428,7 +414,7 @@ function stampMetadata(
   }
 }
 
-function readMetadataNumber(db: SqlJsDatabase, key: string): number {
+function readMetadataNumber(db: SqliteDatabase, key: string): number {
   try {
     const result = db.exec(
       `SELECT value FROM app_metadata WHERE key = '${key.replace(/'/g, "''")}' LIMIT 1`,
@@ -446,106 +432,27 @@ function createSqliteSwapPath(databasePath: string, suffix: string): string {
   return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.${unique}.${suffix}`);
 }
 
-function isWindowsSqliteAtomicRenameFallbackError(error: unknown): boolean {
-  const code = typeof error === "object" && error !== null && "code" in error
-    ? String((error as NodeJS.ErrnoException).code ?? "")
-    : "";
-
-  return code === "EPERM" || code === "EACCES" || code === "EBUSY";
-}
-
-function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase, maxBackups: number = 3): void {
-  sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
-  const tempPath = createSqliteSwapPath(databasePath, "tmp");
-  let usedWindowsCopyFallback = false;
-
-  sqliteAtomicWriteFs.writeFileSync(tempPath, Buffer.from(db.export()));
-
-  try {
-    if (sqliteAtomicWriteFs.existsSync(databasePath)) {
-      // On Windows, renameSync on a watched .db file can fail with EBUSY/EPERM
-      // because the file watcher holds a handle. Use copyFileSync for backup
-      // and commit so the canonical path is never deliberately removed.
-      if (process.platform === "win32") {
-        if (maxBackups !== 0) {
-          const backupPath = createSqliteSwapPath(databasePath, "bak");
-          try {
-            sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
-          } catch (backupError) {
-            // If backup copy fails, clean up the temp file and rethrow
-            sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
-            throw backupError;
-          }
-        }
-        sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
-        sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-        usedWindowsCopyFallback = true;
-      } else {
-        if (maxBackups !== 0) {
-          const backupPath = createSqliteSwapPath(databasePath, "bak");
-          try {
-            sqliteAtomicWriteFs.renameSync(databasePath, backupPath);
-          } catch (error) {
-            if (isWindowsSqliteAtomicRenameFallbackError(error)) {
-              sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
-              sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-              usedWindowsCopyFallback = true;
-            } else {
-              throw error;
-            }
-          }
-        } else {
-          sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
-        }
-      }
-    }
-
-    if (!usedWindowsCopyFallback) {
-      try {
-        sqliteAtomicWriteFs.renameSync(tempPath, databasePath);
-      } catch (error) {
-        let commitError: unknown = error;
-
-        if (
-          process.platform === "win32"
-          && isWindowsSqliteAtomicRenameFallbackError(error)
-        ) {
-          try {
-            sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
-            sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-            usedWindowsCopyFallback = true;
-          } catch (fallbackError) {
-            commitError = fallbackError;
-          }
-        }
-
-        if (sqliteAtomicWriteFs.existsSync(tempPath)) {
-          throw commitError;
-        }
-      }
-    }
-  } catch (error) {
-    throw error;
-  } finally {
-    if (sqliteAtomicWriteFs.existsSync(tempPath)) {
-      sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
-    }
-
-    // If the original file was deleted by the backup step and we failed,
-    // there is nothing left to restore — persistence intentionally surfaces
-    // the error so callers can fall back to JSON mirrors.
+function createSqliteBackup(databasePath: string, maxBackups: number | undefined): void {
+  if (!maxBackups || maxBackups <= 0 || !sqliteAtomicWriteFs.existsSync(databasePath)) {
+    return;
   }
 
-  // Prune old backups after a successful write
+  sqliteAtomicWriteFs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  const backupPath = createSqliteSwapPath(databasePath, "bak");
+  try {
+    sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
+  } catch (error) {
+    sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
+    throw error;
+  }
+}
+
+function persistSqliteDatabase(databasePath: string, maxBackups: number = 3): void {
   if (maxBackups > 0) {
     pruneSqliteBackups(databasePath, maxBackups);
   }
 
   recordRecentSchedulerConfigWrite(databasePath, Date.now());
-}
-
-function compactSqliteDatabase(db: SqlJsDatabase): void {
-  db.run("VACUUM");
 }
 
 /**
@@ -660,7 +567,7 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-function resetTables(db: SqlJsDatabase, tableNames: readonly string[]): void {
+function resetTables(db: SqliteDatabase, tableNames: readonly string[]): void {
   db.run("BEGIN");
   try {
     for (const tableName of tableNames) {
@@ -700,7 +607,7 @@ function serializeCockpitSqlitePayload(
 }
 
 function insertWorkspaceJsonSnapshot(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   workspaceRoot: string,
   importedAt: string,
 ): { importCounts: Record<string, number>; journal: WorkspaceMigrationJournal } {
@@ -1045,7 +952,7 @@ function writeWorkspaceMigrationJournal(journal: WorkspaceMigrationJournal): voi
 }
 
 function insertGlobalJsonSnapshot(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   globalStorageRoot: string,
   importedAt: string,
 ): Record<string, number> {
@@ -1097,7 +1004,7 @@ export async function bootstrapWorkspaceSqliteStorage(
 ): Promise<SqliteBootstrapResult> {
   const paths = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(paths.databasePath, async () => {
-    const { db, created } = await openSqliteDatabase(paths.databasePath);
+    const { db, created } = await openSqliteDatabase(paths.databasePath, maxBackups);
     const now = new Date().toISOString();
     let importCounts: Record<string, number> = {};
 
@@ -1122,8 +1029,7 @@ export async function bootstrapWorkspaceSqliteStorage(
         last_imported_at: now,
         last_workspace_import_counts: JSON.stringify(importCounts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(paths.databasePath, db, maxBackups);
+      persistSqliteDatabase(paths.databasePath, maxBackups);
       writeWorkspaceMigrationJournal({
         ...imported.journal,
         mirroredJsonEnabled,
@@ -1152,7 +1058,7 @@ export async function bootstrapGlobalSqliteStorage(
   const globalPaths = getGlobalStoragePaths(globalStorageRoot);
   const databasePath = globalPaths.databasePath;
   return withSerializedSqliteAccess(databasePath, async () => {
-    const { db, created } = await openSqliteDatabase(databasePath);
+    const { db, created } = await openSqliteDatabase(databasePath, maxBackups);
     const now = new Date().toISOString();
     let importCounts: Record<string, number> = {};
 
@@ -1175,8 +1081,7 @@ export async function bootstrapGlobalSqliteStorage(
         last_imported_at: now,
         last_global_import_counts: JSON.stringify(importCounts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(databasePath, db);
+      persistSqliteDatabase(databasePath, maxBackups);
     } finally {
       db.close();
     }
@@ -1233,7 +1138,7 @@ export async function bootstrapConfiguredSqliteStorage(
   };
 }
 
-function readStoredPayloadRows<T>(db: SqlJsDatabase, sql: string): T[] {
+function readStoredPayloadRows<T>(db: SqliteDatabase, sql: string): T[] {
   const result = db.exec(sql) as Array<{ values?: unknown[][] }>;
   const rows = result[0]?.values ?? [];
   const payloads: T[] = [];
@@ -1253,7 +1158,7 @@ function readStoredPayloadRows<T>(db: SqlJsDatabase, sql: string): T[] {
   return payloads;
 }
 
-function readStoredStringRows(db: SqlJsDatabase, sql: string): string[] {
+function readStoredStringRows(db: SqliteDatabase, sql: string): string[] {
   const result = db.exec(sql) as Array<{ values?: unknown[][] }>;
   const rows = result[0]?.values ?? [];
   return rows
@@ -1262,7 +1167,7 @@ function readStoredStringRows(db: SqlJsDatabase, sql: string): string[] {
 }
 
 function replaceWorkspaceSchedulerState(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   config: Partial<SchedulerWorkspaceConfig>,
   syncedAt: string,
 ): Record<string, number> {
@@ -1374,7 +1279,7 @@ function replaceWorkspaceSchedulerState(
 }
 
 function replaceGlobalTasksState(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   tasks: readonly unknown[],
   syncedAt: string,
 ): Record<string, number> {
@@ -1416,7 +1321,7 @@ function replaceGlobalTasksState(
 }
 
 function replaceWorkspaceResearchState(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   config: Partial<ResearchWorkspaceConfig>,
   syncedAt: string,
 ): Record<string, number> {
@@ -1473,7 +1378,7 @@ function replaceWorkspaceResearchState(
 }
 
 function replaceWorkspaceCockpitState(
-  db: SqlJsDatabase,
+  db: SqliteDatabase,
   boardValue: SchedulerWorkspaceConfig["cockpitBoard"],
   syncedAt: string,
 ): Record<string, number> {
@@ -1867,7 +1772,7 @@ export async function syncWorkspaceSchedulerStateToSqlite(
 ): Promise<Record<string, number>> {
   const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
-    const { db } = await openSqliteDatabase(databasePath);
+    const { db } = await openSqliteDatabase(databasePath, 3);
     const syncedAt = new Date().toISOString();
 
     try {
@@ -1887,8 +1792,7 @@ export async function syncWorkspaceSchedulerStateToSqlite(
         last_scheduler_sync_at: syncedAt,
         last_scheduler_sync_counts: JSON.stringify(counts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(databasePath, db);
+      persistSqliteDatabase(databasePath);
       return counts;
     } finally {
       db.close();
@@ -1902,7 +1806,7 @@ export async function syncGlobalTasksToSqlite(
 ): Promise<Record<string, number>> {
   const { databasePath } = getGlobalStoragePaths(globalStorageRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
-    const { db } = await openSqliteDatabase(databasePath);
+    const { db } = await openSqliteDatabase(databasePath, 3);
     const syncedAt = new Date().toISOString();
 
     try {
@@ -1922,8 +1826,7 @@ export async function syncGlobalTasksToSqlite(
         last_global_task_sync_at: syncedAt,
         last_global_task_sync_counts: JSON.stringify(counts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(databasePath, db);
+      persistSqliteDatabase(databasePath);
       return counts;
     } finally {
       db.close();
@@ -1937,7 +1840,7 @@ export async function syncWorkspaceResearchStateToSqlite(
 ): Promise<Record<string, number>> {
   const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
-    const { db } = await openSqliteDatabase(databasePath);
+    const { db } = await openSqliteDatabase(databasePath, 3);
     const syncedAt = new Date().toISOString();
 
     try {
@@ -1957,8 +1860,7 @@ export async function syncWorkspaceResearchStateToSqlite(
         last_research_sync_at: syncedAt,
         last_research_sync_counts: JSON.stringify(counts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(databasePath, db);
+      persistSqliteDatabase(databasePath);
       return counts;
     } finally {
       db.close();
@@ -1972,7 +1874,7 @@ export async function syncWorkspaceCockpitBoardToSqlite(
 ): Promise<Record<string, number>> {
   const { databasePath } = getMigratedWorkspaceStoragePaths(workspaceRoot);
   return withSerializedSqliteAccess(databasePath, async () => {
-    const { db } = await openSqliteDatabase(databasePath);
+    const { db } = await openSqliteDatabase(databasePath, 3);
     const syncedAt = new Date().toISOString();
 
     try {
@@ -1992,8 +1894,7 @@ export async function syncWorkspaceCockpitBoardToSqlite(
         last_cockpit_sync_at: syncedAt,
         last_cockpit_sync_counts: JSON.stringify(counts),
       });
-      compactSqliteDatabase(db);
-      persistSqliteDatabase(databasePath, db);
+      persistSqliteDatabase(databasePath);
       return counts;
     } finally {
       db.close();

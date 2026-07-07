@@ -15,7 +15,7 @@
   },
   "homepage": "https://github.com/goodguy1963/Copilot-Cockpit#readme",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.101.0"
   },
   "categories": [
     "Other"
@@ -583,13 +583,12 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run clean:out && npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify && npm run copy:sql-wasm && npm run prepare:bundled-agents",
-    "copy:sql-wasm": "node ./scripts/copy-sql-wasm.js",
+    "vscode:prepublish": "npm run clean:out && npm run esbuild-base -- --minify && npm run esbuild-server -- --minify && npm run esbuild-webview -- --minify && npm run prepare:bundled-agents",
     "prepare:bundled-agents": "node ./scripts/prepare-bundled-agents.js",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-server": "esbuild ./src/server.ts --bundle --outfile=out/server.js --external:vscode --platform=node --format=cjs",
     "esbuild-webview": "esbuild ./media/cockpitWebview.entry.js --bundle --outfile=media/generated/cockpitWebview.js --format=iife --platform=browser",
-    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap && npm run copy:sql-wasm",
+    "compile": "npm run esbuild-base -- --sourcemap && npm run esbuild-server -- --sourcemap && npm run esbuild-webview -- --sourcemap",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "watch:server": "npm run esbuild-server -- --sourcemap --watch",
     "watch:webview": "npm run esbuild-webview -- --sourcemap --watch",
@@ -598,7 +597,7 @@
     "install:vsix:insiders": "node ./scripts/install-vsix.js insiders",
     "install:vsix:both": "node ./scripts/install-vsix.js both",
     "clean:out": "node -e \"require('node:fs').rmSync('out', { recursive: true, force: true })\"",
-    "pretest": "npm run clean:out && npm run esbuild-webview && tsc -p ./ && npm run copy:sql-wasm",
+    "pretest": "npm run clean:out && npm run esbuild-webview && tsc -p ./",
     "test": "node ./out/test/runTest.js",
     "lint": "eslint src --ext ts",
     "analyze:overlap": "node ./analysis_tools/analyze.js"
@@ -606,7 +605,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "cron-parser": "^4.9.0",
-    "sql.js": "^1.14.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

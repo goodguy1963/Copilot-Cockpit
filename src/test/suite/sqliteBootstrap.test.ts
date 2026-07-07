@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as assert from "assert";
 import * as os from "os";
 import * as path from "path";
-import initSqlJs from "sql.js";
+import { openNativeSqliteDatabase } from "../../nativeSqlite";
 import {
   bootstrapGlobalSqliteStorage,
   bootstrapWorkspaceSqliteStorage,
@@ -25,21 +25,17 @@ import {
 } from "../../sqliteStorage";
 import { wasSchedulerConfigWrittenRecently } from "../../cockpitJsonSanitizer";
 
-type SqlJsDatabase = {
+type TestSqliteDatabase = {
   exec: (sql: string) => Array<{ values?: unknown[][] }>;
   run: (sql: string, params?: unknown[]) => void;
-  export: () => Uint8Array;
   close: () => void;
 };
 
-async function openDatabase(databasePath: string): Promise<SqlJsDatabase> {
-  const SQL = await initSqlJs({
-    locateFile: (file: string) => require.resolve(`sql.js/dist/${file}`),
-  }) as { Database: new (data?: Uint8Array) => SqlJsDatabase };
-  return new SQL.Database(fs.readFileSync(databasePath));
+async function openDatabase(databasePath: string): Promise<TestSqliteDatabase> {
+  return openNativeSqliteDatabase(databasePath);
 }
 
-function firstScalar(db: SqlJsDatabase, sql: string): unknown {
+function firstScalar(db: TestSqliteDatabase, sql: string): unknown {
   const result = db.exec(sql);
   return result[0]?.values?.[0]?.[0];
 }
@@ -360,24 +356,9 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
-  test("sync writes sqlite databases through a temp-file rename instead of overwriting in place", async () => {
-    const workspaceRoot = createTempRoot("copilot-sqlite-atomic-write-");
+  test("sync writes directly into a native sqlite database without temp-file export", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-native-write-");
     const paths = getWorkspaceStoragePaths(workspaceRoot);
-    const originalWriteFileSync = fs.writeFileSync;
-    const originalRenameSync = fs.renameSync;
-    const writeTargets: string[] = [];
-    const renameTargets: Array<{ from: string; to: string }> = [];
-
-    setSqliteAtomicWriteFsForTests({
-      writeFileSync: ((...args: Parameters<typeof fs.writeFileSync>) => {
-        writeTargets.push(String(args[0]));
-        return originalWriteFileSync(...args);
-      }) as typeof fs.writeFileSync,
-      renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-        renameTargets.push({ from: String(oldPath), to: String(newPath) });
-        return originalRenameSync(oldPath, newPath);
-      }) as typeof fs.renameSync,
-    });
 
     try {
       await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
@@ -390,15 +371,17 @@ suite("SQLite Bootstrap Tests", () => {
       } as any);
 
       assert.ok(fs.existsSync(paths.databasePath));
-      assert.strictEqual(writeTargets.includes(paths.databasePath), false);
-      assert.ok(
-        writeTargets.some((target) => target.startsWith(`${paths.databasePath}.`) && target.endsWith(".tmp")),
+      assert.deepStrictEqual(
+        fs.readdirSync(path.dirname(paths.databasePath)).filter((fileName) => fileName.endsWith(".tmp")),
+        [],
       );
-      assert.ok(
-        renameTargets.some(({ from, to }) => from.startsWith(`${paths.databasePath}.`) && from.endsWith(".tmp") && to === paths.databasePath),
-      );
+      const db = await openDatabase(paths.databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT name FROM workspace_tasks WHERE id = 'task-1'"), "Task 1");
+      } finally {
+        db.close();
+      }
     } finally {
-      setSqliteAtomicWriteFsForTests();
       cleanup(workspaceRoot);
     }
   });
@@ -501,7 +484,6 @@ suite("SQLite Bootstrap Tests", () => {
         downgraded.run(
           "UPDATE app_metadata SET value = '1' WHERE key = 'workspace_schema_version'",
         );
-        fs.writeFileSync(databasePath, Buffer.from(downgraded.export()));
       } finally {
         downgraded.close();
       }
@@ -855,8 +837,8 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
-  test("copies over the live sqlite database on Windows without removing the canonical path", async () => {
-    const workspaceRoot = createTempRoot("copilot-sqlite-windows-backup-");
+  test("backs up an existing native sqlite database without removing the canonical path", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-native-backup-");
     const paths = getWorkspaceStoragePaths(workspaceRoot);
     fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
     fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
@@ -872,20 +854,13 @@ suite("SQLite Bootstrap Tests", () => {
       deletedJobFolderIds: [],
     } as any);
 
-    const originalRenameSync = fs.renameSync;
     const originalCopyFileSync = fs.copyFileSync;
     const originalRmSync = fs.rmSync;
-    const originalPlatform = process.platform;
     let copyFileCalls: Array<{ src: string; dest: string }> = [];
     let removedDatabase = false;
 
     try {
-      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
-
       setSqliteAtomicWriteFsForTests({
-        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-          return originalRenameSync(oldPath, newPath);
-        }) as typeof fs.renameSync,
         copyFileSync: ((src: fs.PathLike, dest: fs.PathLike) => {
           copyFileCalls.push({ src: String(src), dest: String(dest) });
           return originalCopyFileSync(src, dest);
@@ -908,70 +883,61 @@ suite("SQLite Bootstrap Tests", () => {
       } as any);
 
       assert.strictEqual(removedDatabase, false);
-      assert.ok(copyFileCalls.some((call) => call.dest === paths.databasePath));
       assert.ok(copyFileCalls.some((call) => call.src === paths.databasePath && call.dest.endsWith(".bak")));
       assert.ok(fs.existsSync(paths.databasePath));
     } finally {
-      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
       setSqliteAtomicWriteFsForTests();
       cleanup(workspaceRoot);
     }
   });
 
-  test("falls back to copyFileSync when renameSync commit also fails on Windows", async () => {
-    const workspaceRoot = createTempRoot("copilot-sqlite-windows-commit-");
+  test("does not mutate an existing native sqlite database when backup creation fails", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-backup-failure-");
     const paths = getWorkspaceStoragePaths(workspaceRoot);
     fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
     fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
     fs.writeFileSync(paths.privateSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
 
-    const originalRenameSync = fs.renameSync;
-    const originalCopyFileSync = fs.copyFileSync;
-    const originalPlatform = process.platform;
-    let copyFileCalls: Array<{ src: string; dest: string }> = [];
-    let renameAttempts = 0;
+    await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+      tasks: [{ id: "task-init", name: "Init", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+      deletedTaskIds: [],
+      jobs: [],
+      deletedJobIds: [],
+      jobFolders: [],
+      deletedJobFolderIds: [],
+    } as any);
 
     try {
-      Object.defineProperty(process, "platform", { value: "win32", configurable: true });
-
       setSqliteAtomicWriteFsForTests({
-        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-          renameAttempts++;
-          // Fail the commit rename (should be the one moving .tmp -> database) with EBUSY
-          const newPathStr = String(newPath);
-          if (newPathStr === paths.databasePath) {
-            const err = new Error("EBUSY: resource busy") as NodeJS.ErrnoException;
-            err.code = "EBUSY";
-            throw err;
-          }
-          return originalRenameSync(oldPath, newPath);
-        }) as typeof fs.renameSync,
-        copyFileSync: ((src: fs.PathLike, dest: fs.PathLike) => {
-          copyFileCalls.push({ src: String(src), dest: String(dest) });
-          return originalCopyFileSync(src, dest);
+        copyFileSync: (() => {
+          throw new Error("backup busy");
         }) as typeof fs.copyFileSync,
       });
 
-      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+      await assert.rejects(syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
         tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
         deletedTaskIds: [],
         jobs: [],
         deletedJobIds: [],
         jobFolders: [],
         deletedJobFolderIds: [],
-      } as any);
+      } as any), /backup busy/);
 
-      assert.ok(copyFileCalls.length >= 1, "Expected at least one copyFileSync fallback call");
-      assert.ok(fs.existsSync(paths.databasePath));
+      const db = await openDatabase(paths.databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT name FROM workspace_tasks WHERE id = 'task-init'"), "Init");
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks WHERE id = 'task-1'"), 0);
+      } finally {
+        db.close();
+      }
     } finally {
-      Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
       setSqliteAtomicWriteFsForTests();
       cleanup(workspaceRoot);
     }
   });
 
-  test("compacts sqlite database after replace-style sync so file does not grow unbounded", async () => {
-    const workspaceRoot = createTempRoot("copilot-sqlite-compact-");
+  test("native replace-style sync removes stale rows without vacuuming every save", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-native-replace-");
 
     try {
       const { databasePath } = getWorkspaceStoragePaths(workspaceRoot);
@@ -985,7 +951,7 @@ suite("SQLite Bootstrap Tests", () => {
         updatedAt: "2026-04-04T00:00:00.000Z",
       };
 
-      // 1) Sync a large set of tasks to grow the database
+      // 1) Sync a large set of tasks to exercise delete-all + insert replacement.
       const largeTasks = Array.from({ length: 50 }, (_, i) => ({
         id: `task-${i}`,
         name: `Task ${i} `.repeat(20).trim(),
@@ -1003,9 +969,10 @@ suite("SQLite Bootstrap Tests", () => {
 
       assert.ok(fs.existsSync(databasePath));
       const sizeAfterLarge = fs.statSync(databasePath).size;
-      assert.ok(sizeAfterLarge > 8192, `Expected database to grow above 8KB after 50 tasks, got ${sizeAfterLarge}`);
+      assert.ok(sizeAfterLarge > 0, `Expected database file to be non-empty, got ${sizeAfterLarge}`);
 
-      // 2) Sync a tiny state (single task) — triggers delete-all + insert + vacuum + persist
+      // 2) Sync a tiny state. Native SQLite persists the transaction directly;
+      // file compaction is left to SQLite instead of forcing VACUUM on every save.
       await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
         tasks: [{
           id: "task-single",
@@ -1018,17 +985,6 @@ suite("SQLite Bootstrap Tests", () => {
         jobFolders: [],
         deletedJobFolderIds: [],
       } as any);
-
-      const sizeAfterCompact = fs.statSync(databasePath).size;
-
-      // After VACUUM, the database file should be strictly smaller than after the
-      // large payload.  The large dataset had 100 rows (50 tasks + 50 tombstones),
-      // the compacted dataset has 1 row, so any increase would indicate VACUUM
-      // was not called or is not working.
-      assert.ok(
-        sizeAfterCompact < sizeAfterLarge,
-        `Expected compacted DB size (${sizeAfterCompact}) to be strictly smaller than large-DB size (${sizeAfterLarge})`,
-      );
 
       const db = await openDatabase(databasePath);
       try {
@@ -1182,16 +1138,6 @@ suite("SQLite Bootstrap Tests", () => {
       fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
       fs.writeFileSync(paths.publicSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
       fs.writeFileSync(paths.privateSchedulerMirrorPath, JSON.stringify({ tasks: [], jobs: [], jobFolders: [] }, null, 2), "utf8");
-
-      const originalRenameSync = fs.renameSync;
-      const renameTargets: string[] = [];
-
-      setSqliteAtomicWriteFsForTests({
-        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-          renameTargets.push(String(newPath));
-          return originalRenameSync(oldPath, newPath);
-        }) as typeof fs.renameSync,
-      });
 
       // Bootstrap with maxBackups=0
       await bootstrapWorkspaceSqliteStorage(workspaceRoot, true, 0);

@@ -33,6 +33,7 @@
 ## Storage Mode Notes
 
 - JSON mode and SQLite mode expose the same higher-level workflows.
+- SQLite mode uses the native `node:sqlite` runtime from VS Code 1.101+; it does not ship a wasm SQLite copy.
 - SQLite mode can export compatibility JSON mirrors when `copilotCockpit.sqliteJsonMirror` is enabled or when the user runs an explicit export. The SQLite database remains the write authority by default.
 - SQLite migration metadata lives at `.vscode/copilot-cockpit/copilot-cockpit.db-migration.json`.
 
