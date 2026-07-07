@@ -85,7 +85,7 @@ Useful references:
 ## Telegram
 
 - Telegram configuration lives in `Settings`.
-- The bot token is stored only in `.vscode/scheduler.private.json`.
+- The bot token is stored only in VS Code SecretStorage.
 - Outbound test messaging is implemented.
 - Inbound reply-driven continuation still depends on a future relay or webhook bridge.
 
