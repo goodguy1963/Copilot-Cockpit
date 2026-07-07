@@ -186,27 +186,11 @@ function quarantineSqliteDatabase(databasePath: string): string {
   }
 }
 
-const sqliteSleepBuffer = typeof SharedArrayBuffer !== "undefined"
-  ? new Int32Array(new SharedArrayBuffer(4))
-  : undefined;
-
-function sleepSync(ms: number): void {
-  if (ms <= 0) {
-    return;
-  }
-
-  if (sqliteSleepBuffer && typeof Atomics !== "undefined" && typeof Atomics.wait === "function") {
-    Atomics.wait(sqliteSleepBuffer, 0, 0, ms);
-    return;
-  }
-
-  const endAt = Date.now() + ms;
-  while (Date.now() < endAt) {
-    // busy wait fallback for runtimes without Atomics.wait
-  }
+function sleep(ms: number): Promise<void> {
+  return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
-function acquireSqliteDatabaseLock(databasePath: string): () => void {
+async function acquireSqliteDatabaseLock(databasePath: string): Promise<() => void> {
   const lockPath = getSqliteDatabaseLockPath(databasePath);
   const deadline = Date.now() + sqliteLockOptions.maxWaitMs;
 
@@ -264,7 +248,7 @@ function acquireSqliteDatabaseLock(databasePath: string): () => void {
         throw new Error(`SQLite database is locked by another writer: ${databasePath}`);
       }
 
-      sleepSync(sqliteLockOptions.retryMs);
+      await sleep(sqliteLockOptions.retryMs);
     }
   }
 }
@@ -289,7 +273,7 @@ async function withSerializedSqliteAccess<T>(
   sqliteAccessQueues.set(queueKey, next);
   await previous.catch(() => undefined);
 
-  const releaseLock = acquireSqliteDatabaseLock(databasePath);
+  const releaseLock = await acquireSqliteDatabaseLock(databasePath);
   const nextActiveLocks = new Set(activeLocks ?? []);
   nextActiveLocks.add(queueKey);
 
