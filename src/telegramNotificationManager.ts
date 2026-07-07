@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as https from "https";
 import * as path from "path";
+import { createHash } from "crypto";
 import {
   readSchedulerConfig,
   writeSchedulerConfig,
@@ -15,6 +16,17 @@ import type {
 const HOOK_DIRECTORY_PARTS = [".github", "hooks"] as const;
 const TELEGRAM_STOP_HOOK_CONFIG_NAME = "scheduler-telegram-stop.json";
 const TELEGRAM_STOP_HOOK_SCRIPT_NAME = "scheduler-telegram-stop.js";
+const TELEGRAM_SECRET_KEY_PREFIX = "telegramNotification:";
+
+type SecretStorageLike = {
+  get(key: string): Thenable<string | undefined>;
+  store(key: string, value: string): Thenable<void>;
+  delete?(key: string): Thenable<void>;
+};
+
+type StoredTelegramSecret = {
+  botToken?: string;
+};
 
 function normalizeOptionalString(value: unknown): string | undefined {
   const trimmed = typeof value === "string" ? value.trim() : "";
@@ -38,6 +50,51 @@ function hasHookFiles(workspaceRoot: string): boolean {
     && fs.existsSync(getHookScriptPath(workspaceRoot));
 }
 
+function getTelegramSecretStorageKey(workspaceRoot: string): string {
+  const workspaceKey = createHash("sha256")
+    .update(path.resolve(workspaceRoot).toLowerCase())
+    .digest("hex");
+  return `${TELEGRAM_SECRET_KEY_PREFIX}${workspaceKey}`;
+}
+
+async function readTelegramSecret(
+  secrets: SecretStorageLike,
+  workspaceRoot: string,
+): Promise<StoredTelegramSecret> {
+  const raw = await secrets.get(getTelegramSecretStorageKey(workspaceRoot));
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as StoredTelegramSecret;
+    return {
+      botToken: normalizeOptionalString(parsed?.botToken),
+    };
+  } catch {
+    return {
+      botToken: normalizeOptionalString(raw),
+    };
+  }
+}
+
+async function writeTelegramSecret(
+  secrets: SecretStorageLike,
+  workspaceRoot: string,
+  secret: StoredTelegramSecret,
+): Promise<void> {
+  const botToken = normalizeOptionalString(secret.botToken);
+  if (!botToken) {
+    await secrets.delete?.(getTelegramSecretStorageKey(workspaceRoot));
+    return;
+  }
+
+  await secrets.store(
+    getTelegramSecretStorageKey(workspaceRoot),
+    JSON.stringify({ botToken }),
+  );
+}
+
 function toView(
   workspaceRoot: string,
   config: TelegramNotificationConfig | undefined,
@@ -46,7 +103,7 @@ function toView(
     enabled: config?.enabled === true,
     chatId: normalizeOptionalString(config?.chatId),
     messagePrefix: normalizeOptionalString(config?.messagePrefix),
-    hasBotToken: !!normalizeOptionalString(config?.botToken),
+    hasBotToken: config?.hasBotToken === true || !!normalizeOptionalString(config?.botToken),
     updatedAt: normalizeOptionalString(config?.updatedAt),
     hookConfigured: hasHookFiles(workspaceRoot),
   };
@@ -59,9 +116,11 @@ function readWorkspaceConfig(workspaceRoot: string): SchedulerWorkspaceConfig {
 function getMergedConfig(
   existing: TelegramNotificationConfig | undefined,
   input: SaveTelegramNotificationInput,
+  storedBotToken?: string,
 ): TelegramNotificationConfig | undefined {
   const enabled = input.enabled === true;
   const nextBotToken = normalizeOptionalString(input.botToken)
+    ?? normalizeOptionalString(storedBotToken)
     ?? normalizeOptionalString(existing?.botToken);
   const nextChatId = normalizeOptionalString(input.chatId)
     ?? normalizeOptionalString(existing?.chatId);
@@ -82,7 +141,7 @@ function getMergedConfig(
 
   return {
     enabled,
-    botToken: nextBotToken,
+    hasBotToken: !!nextBotToken,
     chatId: nextChatId,
     messagePrefix: nextMessagePrefix,
     updatedAt: new Date().toISOString(),
@@ -356,12 +415,21 @@ export function getTelegramNotificationView(
   return toView(workspaceRoot, config.telegramNotification);
 }
 
-export function saveTelegramNotificationConfig(
+export async function saveTelegramNotificationConfig(
+  secrets: SecretStorageLike,
   workspaceRoot: string,
   input: SaveTelegramNotificationInput,
-): TelegramNotificationView {
+): Promise<TelegramNotificationView> {
   const config = readWorkspaceConfig(workspaceRoot);
-  const nextTelegramConfig = getMergedConfig(config.telegramNotification, input);
+  const storedSecret = await readTelegramSecret(secrets, workspaceRoot);
+  const nextBotToken = normalizeOptionalString(input.botToken)
+    ?? normalizeOptionalString(storedSecret.botToken)
+    ?? normalizeOptionalString(config.telegramNotification?.botToken);
+  const nextTelegramConfig = getMergedConfig(
+    config.telegramNotification,
+    input,
+    nextBotToken,
+  );
   const nextConfig: SchedulerWorkspaceConfig = {
     ...config,
     tasks: Array.isArray(config.tasks) ? config.tasks : [],
@@ -370,18 +438,24 @@ export function saveTelegramNotificationConfig(
     telegramNotification: nextTelegramConfig,
   };
 
+  await writeTelegramSecret(secrets, workspaceRoot, { botToken: nextBotToken });
   writeSchedulerConfig(workspaceRoot, nextConfig);
   syncHookFiles(workspaceRoot, nextTelegramConfig);
   return toView(workspaceRoot, nextTelegramConfig);
 }
 
 export async function sendTelegramNotificationTest(
+  secrets: SecretStorageLike,
   workspaceRoot: string,
   input: SaveTelegramNotificationInput,
 ): Promise<void> {
   const config = readWorkspaceConfig(workspaceRoot);
-  const mergedConfig = getMergedConfig(config.telegramNotification, input);
-  if (!mergedConfig?.botToken || !mergedConfig.chatId) {
+  const storedSecret = await readTelegramSecret(secrets, workspaceRoot);
+  const botToken = normalizeOptionalString(input.botToken)
+    ?? normalizeOptionalString(storedSecret.botToken)
+    ?? normalizeOptionalString(config.telegramNotification?.botToken);
+  const mergedConfig = getMergedConfig(config.telegramNotification, input, botToken);
+  if (!botToken || !mergedConfig?.chatId) {
     throw new Error("Telegram bot token and chat ID are required.");
   }
 
@@ -396,7 +470,7 @@ export async function sendTelegramNotificationTest(
     "This test confirms that the Stop hook can reach your bot.",
   );
   await sendTelegramMessage(
-    mergedConfig.botToken,
+    botToken,
     mergedConfig.chatId,
     lines.join("\n"),
   );

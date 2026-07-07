@@ -261,8 +261,13 @@ function normalizeStoredTelegramNotification(
         updatedAt,
     };
 
+    if (telegramNotification.hasBotToken === true) {
+        normalized.hasBotToken = true;
+    }
+
     if (typeof telegramNotification.botToken === "string") {
         normalized.botToken = telegramNotification.botToken;
+        normalized.hasBotToken = telegramNotification.botToken.trim().length > 0;
     }
 
     if (typeof telegramNotification.chatId === "string") {

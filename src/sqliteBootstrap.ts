@@ -161,6 +161,29 @@ function getSqliteDatabaseLockPath(databasePath: string): string {
   return path.join(path.dirname(databasePath), `${path.basename(databasePath)}.lock`);
 }
 
+function quarantineSqliteDatabase(databasePath: string): string {
+  const quarantinePath = createSqliteSwapPath(databasePath, "corrupt");
+  try {
+    fs.renameSync(databasePath, quarantinePath);
+    return quarantinePath;
+  } catch (renameError) {
+    try {
+      fs.copyFileSync(databasePath, quarantinePath);
+      fs.rmSync(databasePath, { force: true });
+      return quarantinePath;
+    } catch (copyError) {
+      try {
+        fs.rmSync(quarantinePath, { force: true });
+      } catch {
+      }
+      const message = copyError instanceof Error ? copyError.message : String(copyError);
+      const error = new Error(`Failed to quarantine corrupt SQLite database before rebuilding: ${message}`);
+      (error as { cause?: unknown }).cause = renameError;
+      throw error;
+    }
+  }
+}
+
 const sqliteSleepBuffer = typeof SharedArrayBuffer !== "undefined"
   ? new Int32Array(new SharedArrayBuffer(4))
   : undefined;
@@ -289,9 +312,10 @@ async function openSqliteDatabase(
       // The database file is too small to be a valid SQLite database.
       // This can happen after a crash during persistSqliteDatabase where
       // the backup rename failed and the original file was left in a
-      // truncated state. Treat it as missing and create a fresh DB.
-      fs.rmSync(databasePath, { force: true });
+      // truncated state. Quarantine it before creating a fresh DB.
+      quarantineSqliteDatabase(databasePath);
     } else {
+      let shouldQuarantine = false;
       try {
         const header = Buffer.alloc(SQLITE_MAGIC_HEADER.length);
         const fd = fs.openSync(databasePath, "r");
@@ -301,8 +325,7 @@ async function openSqliteDatabase(
           fs.closeSync(fd);
         }
         if (header.toString("ascii") !== SQLITE_MAGIC_HEADER) {
-          // Corrupt or non-SQLite file; remove and rebuild
-          fs.rmSync(databasePath, { force: true });
+          shouldQuarantine = true;
         } else {
           return {
             db: new SQL.Database(fs.readFileSync(databasePath)),
@@ -310,8 +333,11 @@ async function openSqliteDatabase(
           };
         }
       } catch {
-        // If we cannot read the header, treat as missing
-        fs.rmSync(databasePath, { force: true });
+        shouldQuarantine = true;
+      }
+
+      if (shouldQuarantine) {
+        quarantineSqliteDatabase(databasePath);
       }
     }
   }
@@ -385,21 +411,21 @@ function persistSqliteDatabase(databasePath: string, db: SqlJsDatabase, maxBacku
     if (sqliteAtomicWriteFs.existsSync(databasePath)) {
       // On Windows, renameSync on a watched .db file can fail with EBUSY/EPERM
       // because the file watcher holds a handle. Use copyFileSync for backup
-      // to avoid that conflict entirely.
+      // and commit so the canonical path is never deliberately removed.
       if (process.platform === "win32") {
         if (maxBackups !== 0) {
           const backupPath = createSqliteSwapPath(databasePath, "bak");
           try {
             sqliteAtomicWriteFs.copyFileSync(databasePath, backupPath);
-            sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
           } catch (backupError) {
             // If backup copy fails, clean up the temp file and rethrow
             sqliteAtomicWriteFs.rmSync(backupPath, { force: true });
             throw backupError;
           }
-        } else {
-          sqliteAtomicWriteFs.rmSync(databasePath, { force: true });
         }
+        sqliteAtomicWriteFs.copyFileSync(tempPath, databasePath);
+        sqliteAtomicWriteFs.rmSync(tempPath, { force: true });
+        usedWindowsCopyFallback = true;
       } else {
         if (maxBackups !== 0) {
           const backupPath = createSqliteSwapPath(databasePath, "bak");

@@ -4641,7 +4641,12 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           notifyWebviewError(msg);
           break;
         }
-        const view = saveTelegramNotificationConfig(
+        if (!extensionContext) {
+          notifyWebviewError("Extension context is not available.");
+          break;
+        }
+        const view = await saveTelegramNotificationConfig(
+          extensionContext.secrets,
           workspaceRoot,
           action.telegramData ?? {},
         );
@@ -4700,7 +4705,12 @@ async function processTaskActionAsync(action: TaskAction): Promise<void> {
           notifyWebviewError(msg);
           break;
         }
+        if (!extensionContext) {
+          notifyWebviewError("Extension context is not available.");
+          break;
+        }
         await sendTelegramNotificationTest(
+          extensionContext.secrets,
           workspaceRoot,
           action.telegramData ?? {},
         );

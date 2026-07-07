@@ -409,6 +409,42 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
+  test("quarantines an invalid sqlite database before rebuilding", async () => {
+    const workspaceRoot = createTempRoot("copilot-sqlite-quarantine-");
+
+    try {
+      const paths = getWorkspaceStoragePaths(workspaceRoot);
+      fs.mkdirSync(path.dirname(paths.databasePath), { recursive: true });
+      fs.writeFileSync(paths.databasePath, "not sqlite", "utf8");
+
+      await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
+        tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
+        deletedTaskIds: [],
+        jobs: [],
+        deletedJobIds: [],
+        jobFolders: [],
+        deletedJobFolderIds: [],
+      } as any);
+
+      const quarantined = fs.readdirSync(path.dirname(paths.databasePath))
+        .filter((fileName) => fileName.startsWith(`${path.basename(paths.databasePath)}.`) && fileName.endsWith(".corrupt"));
+      assert.strictEqual(quarantined.length, 1);
+      assert.strictEqual(
+        fs.readFileSync(path.join(path.dirname(paths.databasePath), quarantined[0]), "utf8"),
+        "not sqlite",
+      );
+
+      const db = await openDatabase(paths.databasePath);
+      try {
+        assert.strictEqual(firstScalar(db, "SELECT COUNT(*) FROM workspace_tasks"), 1);
+      } finally {
+        db.close();
+      }
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("fails after a bounded wait when another sqlite writer holds the database lock", async () => {
     const workspaceRoot = createTempRoot("copilot-sqlite-lock-timeout-");
 
@@ -695,7 +731,7 @@ suite("SQLite Bootstrap Tests", () => {
     }
   });
 
-  test("falls back to copyFileSync when renameSync fails with EPERM on Windows during backup", async () => {
+  test("copies over the live sqlite database on Windows without removing the canonical path", async () => {
     const workspaceRoot = createTempRoot("copilot-sqlite-windows-backup-");
     const paths = getWorkspaceStoragePaths(workspaceRoot);
     fs.mkdirSync(path.dirname(paths.publicSchedulerMirrorPath), { recursive: true });
@@ -714,31 +750,30 @@ suite("SQLite Bootstrap Tests", () => {
 
     const originalRenameSync = fs.renameSync;
     const originalCopyFileSync = fs.copyFileSync;
+    const originalRmSync = fs.rmSync;
     const originalPlatform = process.platform;
     let copyFileCalls: Array<{ src: string; dest: string }> = [];
-    let renameAttempts = 0;
+    let removedDatabase = false;
 
     try {
       Object.defineProperty(process, "platform", { value: "win32", configurable: true });
 
       setSqliteAtomicWriteFsForTests({
         renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
-          renameAttempts++;
-          // Fail the backup rename (first call) with EPERM
-          if (renameAttempts === 1 && String(newPath).endsWith(".bak")) {
-            const err = new Error("EPERM: operation not permitted") as NodeJS.ErrnoException;
-            err.code = "EPERM";
-            throw err;
-          }
           return originalRenameSync(oldPath, newPath);
         }) as typeof fs.renameSync,
         copyFileSync: ((src: fs.PathLike, dest: fs.PathLike) => {
           copyFileCalls.push({ src: String(src), dest: String(dest) });
           return originalCopyFileSync(src, dest);
         }) as typeof fs.copyFileSync,
+        rmSync: ((target: fs.PathLike, options?: fs.RmOptions) => {
+          if (String(target) === paths.databasePath) {
+            removedDatabase = true;
+          }
+          return originalRmSync(target, options as fs.RmOptions);
+        }) as typeof fs.rmSync,
       });
 
-      // Second sync: existing database triggers backup rename, which we fail with EPERM
       await syncWorkspaceSchedulerStateToSqlite(workspaceRoot, {
         tasks: [{ id: "task-1", name: "Task 1", cronExpression: "0 * * * *", prompt: "run", enabled: true, scope: "workspace", promptSource: "inline", createdAt: "2026-04-04T00:00:00.000Z", updatedAt: "2026-04-04T00:00:00.000Z" }],
         deletedTaskIds: [],
@@ -748,8 +783,9 @@ suite("SQLite Bootstrap Tests", () => {
         deletedJobFolderIds: [],
       } as any);
 
-      // Should have fallen back to copyFileSync for the final write
-      assert.ok(copyFileCalls.length >= 1, "Expected at least one copyFileSync call");
+      assert.strictEqual(removedDatabase, false);
+      assert.ok(copyFileCalls.some((call) => call.dest === paths.databasePath));
+      assert.ok(copyFileCalls.some((call) => call.src === paths.databasePath && call.dest.endsWith(".bak")));
       assert.ok(fs.existsSync(paths.databasePath));
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });

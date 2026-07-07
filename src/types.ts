@@ -1011,14 +1011,17 @@ export interface GitHubAuthSession extends GitHubAuthStatus {
 
 /**
  * Repo-local Telegram Stop hook notification config.
- * Stored in scheduler.private.json and sanitized in scheduler.json.
+ * Non-secret metadata is stored in scheduler.private.json and sanitized in scheduler.json.
  */
 export interface TelegramNotificationConfig {
   /** Whether Stop-hook notifications are enabled */
   enabled: boolean;
 
-  /** Telegram bot token; private file only */
+  /** Legacy Telegram bot token; migrated to VS Code SecretStorage on next save */
   botToken?: string;
+
+  /** Whether a bot token exists in VS Code SecretStorage */
+  hasBotToken?: boolean;
 
   /** Telegram chat identifier */
   chatId?: string;

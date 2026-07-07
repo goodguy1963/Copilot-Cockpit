@@ -2,14 +2,27 @@ import * as fs from "fs";
 import * as assert from "assert";
 import * as path from "path";
 import * as os from "os";
-import {
-  REDACTED_TELEGRAM_BOT_TOKEN,
-  getPrivateSchedulerConfigPath,
-} from "../../cockpitJsonSanitizer";
+import { getPrivateSchedulerConfigPath } from "../../cockpitJsonSanitizer";
 import {
   getTelegramNotificationView,
   saveTelegramNotificationConfig,
 } from "../../telegramNotificationManager";
+
+class MemorySecrets {
+  readonly values = new Map<string, string>();
+
+  async get(key: string): Promise<string | undefined> {
+    return this.values.get(key);
+  }
+
+  async store(key: string, value: string): Promise<void> {
+    this.values.set(key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.values.delete(key);
+  }
+}
 
 function createWorkspaceRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "copilot-cockpit-telegram-"));
@@ -29,11 +42,12 @@ function cleanupWorkspace(root: string): void {
 }
 
 suite("Telegram notification manager behavior", () => {
-  test("stores Telegram secrets privately while keeping the public file redacted", () => {
+  test("stores Telegram bot tokens in SecretStorage instead of scheduler files", async () => {
     const workspaceRoot = createWorkspaceRoot();
+    const secrets = new MemorySecrets();
 
     try {
-      const savedView = saveTelegramNotificationConfig(workspaceRoot, {
+      const savedView = await saveTelegramNotificationConfig(secrets, workspaceRoot, {
         enabled: true,
         botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
         chatId: "-1001234567890",
@@ -44,7 +58,7 @@ suite("Telegram notification manager behavior", () => {
       assert.strictEqual(savedView.chatId, "-1001234567890");
       assert.strictEqual(savedView.messagePrefix, "Scheduler update");
       assert.strictEqual(savedView.hasBotToken, true);
-      assert.strictEqual(savedView.hookConfigured, true);
+      assert.strictEqual(savedView.hookConfigured, false);
 
       const publicConfigPath = path.join(workspaceRoot, ".vscode", "scheduler.json");
       const privateConfigPath = getPrivateSchedulerConfigPath(publicConfigPath);
@@ -53,35 +67,39 @@ suite("Telegram notification manager behavior", () => {
 
       assert.ok(fs.existsSync(publicConfigPath));
       assert.ok(fs.existsSync(privateConfigPath));
-      assert.ok(fs.existsSync(hookConfigPath));
-      assert.ok(fs.existsSync(hookScriptPath));
+      assert.ok(!fs.existsSync(hookConfigPath));
+      assert.ok(!fs.existsSync(hookScriptPath));
 
       const publicContent = fs.readFileSync(publicConfigPath, "utf8");
       const privateContent = fs.readFileSync(privateConfigPath, "utf8");
-      assert.ok(publicContent.includes(REDACTED_TELEGRAM_BOT_TOKEN));
       assert.ok(!publicContent.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"));
-      assert.ok(privateContent.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"));
+      assert.ok(!privateContent.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"));
+      assert.ok(privateContent.includes("\"hasBotToken\": true"));
+      assert.ok(Array.from(secrets.values.values()).some((value) =>
+        value.includes("123456:abcdefghijklmnopqrstuvwxyzABCDE"),
+      ));
 
       const reloadedView = getTelegramNotificationView(workspaceRoot);
       assert.strictEqual(reloadedView.enabled, true);
       assert.strictEqual(reloadedView.hasBotToken, true);
-      assert.strictEqual(reloadedView.hookConfigured, true);
+      assert.strictEqual(reloadedView.hookConfigured, false);
     } finally {
       cleanupWorkspace(workspaceRoot);
     }
   });
 
-  test("turning Telegram notifications off removes generated hook files", () => {
+  test("turning Telegram notifications off preserves the SecretStorage token marker", async () => {
     const workspaceRoot = createWorkspaceRoot();
+    const secrets = new MemorySecrets();
 
     try {
-      saveTelegramNotificationConfig(workspaceRoot, {
+      await saveTelegramNotificationConfig(secrets, workspaceRoot, {
         enabled: true,
         botToken: "123456:abcdefghijklmnopqrstuvwxyzABCDE",
         chatId: "123456789",
       });
 
-      const disabledView = saveTelegramNotificationConfig(workspaceRoot, {
+      const disabledView = await saveTelegramNotificationConfig(secrets, workspaceRoot, {
         enabled: false,
       });
 
