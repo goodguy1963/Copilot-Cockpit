@@ -53,3 +53,17 @@ analysis_tools/
 # RTK (personal tool, not shipped with extension)
 .github/hooks/rtk-rewrite.json
 .github/hooks/
+
+# Copilot Cockpit local workspace files
+.vscode/.gitignore
+.vscode/scheduler.private.json
+.vscode/copilot-cockpit.db
+.vscode/copilot-cockpit.db-migration.json
+.vscode/copilot-cockpit.private.json
+.vscode/cockpit-input-uploads/
+.vscode/scheduler-prompt-backups/
+.vscode/scheduler-history/
+.vscode/copilot-cockpit-support/
+.github-scheduler-backups/
+.github/cockpit-prompt-backups/
+.github/scheduler-prompt-backups/
