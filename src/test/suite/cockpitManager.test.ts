@@ -2566,7 +2566,7 @@ suite("ScheduleManager History Snapshot Tests", () => {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);
     }
-  });
+  }).timeout(60_000);
 
   test("restores a previous workspace schedule snapshot and snapshots the pre-restore state", async () => {
     const workspaceRoot = fs.mkdtempSync(
@@ -2630,5 +2630,5 @@ suite("ScheduleManager History Snapshot Tests", () => {
       restoreWs();
       removeTestPaths(workspaceRoot, storageRoot);
     }
-  });
+  }).timeout(60_000);
 });

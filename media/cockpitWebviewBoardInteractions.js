@@ -749,6 +749,14 @@ function installBoardClickDelegation(boardColumns) {
       return;
     }
 
+    var selectTodoBtn = target.closest("[data-todo-select]");
+    if (selectTodoBtn) {
+      stopBoardEvent(event);
+      options.setSelectedTodoId(selectTodoBtn.getAttribute("data-todo-select"));
+      options.renderCockpitBoard();
+      return;
+    }
+
     // --- Card body click (least specific: selection) ---
     var card = target.closest("[data-todo-id]");
     if (card) {

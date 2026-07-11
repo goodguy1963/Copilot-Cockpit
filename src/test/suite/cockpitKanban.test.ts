@@ -61,5 +61,19 @@ suite("Cockpit Kanban projection", () => {
         reason: "Move this todo to Ready before scheduling it.",
       },
     );
+    assert.deepStrictEqual(
+      planKanbanLaneTransition(todo({ taskId: "task-1", flags: ["ON-SCHEDULE-LIST"] }), "inbox"),
+      {
+        blocked: true,
+        reason: "Unlink the scheduled task before moving this todo back.",
+      },
+    );
+    assert.deepStrictEqual(
+      planKanbanLaneTransition(todo({ archived: true, status: "completed" }), "inbox"),
+      {
+        blocked: true,
+        reason: "Restore this todo before moving it.",
+      },
+    );
   });
 });

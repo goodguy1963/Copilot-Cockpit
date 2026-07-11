@@ -1015,12 +1015,17 @@ suite("SchedulerWebview Message Queue Behavior", () => {
       'data-kanban-move-todo="',
       '<select class="todo-kanban-move"',
       "function deriveKanbanLane(card)",
+      'data-todo-select="',
+      'aria-expanded="',
     ], "kanban projection renderer");
 
     expectSourceToIncludeSnippets(scriptSource, [
       'record.viewMode === "list" || record.viewMode === "kanban"',
       'strings.boardViewKanban || "Kanban"',
       "function planKanbanLaneDrop(card, targetLaneId)",
+      'currentLane === "scheduled" || currentLane === "done"',
+      'strings.boardKanbanUnlinkBlocked',
+      'strings.boardKanbanRestoreBlocked',
       '{ type: "approveTodo", todoId: card.id }',
       '{ type: "createTaskFromTodo", todoId: card.id }',
       '{ type: "finalizeTodo", todoId: card.id }',
@@ -1263,8 +1268,8 @@ test("todo comments style human form input separately and todo saves reset to cr
       "expected updated todo saves to return to the board",
     );
     assert.ok(
-      updateTodoCase.includes('deps.notifyInfoWithAction?.('),
-      "expected ready transitions to offer an actionable notification for the draft task",
+      !updateTodoCase.includes('deps.notifyInfoWithAction?.('),
+      "expected ready transitions not to duplicate the draft-open notification",
     );
 
     const resetTodoEditorStart = scriptSource.indexOf('function resetTodoEditor() {');
@@ -1704,6 +1709,53 @@ test("todo comments style human form input separately and todo saves reset to cr
     });
 
     assert.deepStrictEqual(calls, ["edit:todo-1"]);
+  });
+
+  test("board interaction binding opens todo details from the title button", () => {
+    const helpers = loadBoardInteractionModule();
+    const calls: string[] = [];
+    const titleButton = createListenerTarget({
+      getAttribute: (name: string) => (name === "data-todo-select" ? "todo-1" : ""),
+      closest: (selector: string) => (selector === "[data-todo-select]" ? titleButton : null),
+    });
+    const boardColumns = createListenerTarget({
+      contains: (value: unknown) => value === titleButton,
+      querySelectorAll: () => [],
+    });
+
+    helpers.bindBoardColumnInteractions({
+      boardColumns,
+      getBoardColumns: () => boardColumns,
+      document: {},
+      window: { addEventListener: () => undefined },
+      vscode: { postMessage: () => undefined },
+      renderCockpitBoard: () => calls.push("render"),
+      openTodoEditor: () => calls.push("edit"),
+      openTodoDeleteModal: () => calls.push("delete"),
+      handleSectionCollapse: () => calls.push("collapse"),
+      handleSectionRename: () => calls.push("rename"),
+      handleSectionDelete: () => calls.push("section-delete"),
+      handleTodoCompletion: () => calls.push("complete"),
+      setSelectedTodoId: (todoId: string) => calls.push(`select:${todoId}`),
+      getDraggingSectionId: () => null,
+      setDraggingSectionId: () => undefined,
+      getLastDragOverSectionId: () => null,
+      setLastDragOverSectionId: () => undefined,
+      getDraggingTodoId: () => null,
+      setDraggingTodoId: () => undefined,
+      setIsBoardDragging: () => undefined,
+      requestAnimationFrame: (callback: () => void) => callback(),
+      finishBoardDragState: () => undefined,
+      isArchiveTodoSectionId: () => false,
+    });
+
+    boardColumns.listeners.click({
+      target: titleButton,
+      stopPropagation: () => undefined,
+      preventDefault: () => undefined,
+    });
+
+    assert.deepStrictEqual(calls, ["select:todo-1", "render"]);
   });
 
   test("board interaction binding handles todo completion on click", () => {

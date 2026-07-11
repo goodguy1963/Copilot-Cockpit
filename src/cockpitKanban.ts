@@ -76,6 +76,17 @@ export function planKanbanLaneTransition(
   if (currentLane === targetLane) {
     return { blocked: true, reason: "Todo is already in that lane." };
   }
+  if (
+    (currentLane === "scheduled" || currentLane === "done")
+    && (targetLane === "inbox" || targetLane === "bot-review" || targetLane === "user-review")
+  ) {
+    return {
+      blocked: true,
+      reason: currentLane === "done"
+        ? "Restore this todo before moving it."
+        : "Unlink the scheduled task before moving this todo back.",
+    };
+  }
 
   switch (targetLane) {
     case "inbox":

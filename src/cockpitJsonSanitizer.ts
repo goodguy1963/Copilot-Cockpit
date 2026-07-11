@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { randomUUID } from "crypto";
 import { normalizeCockpitBoard } from "./cockpitBoard";
 import { createScheduleHistorySnapshot } from "./cockpitHistory";
 import { ensurePrivateConfigIgnoredForWorkspaceRoot } from "./privateConfigIgnore";
@@ -59,12 +60,8 @@ const GITHUB_SECURITY_ALERT_SUBTYPES = new Set([
 const RECENT_SCHEDULER_CONFIG_WRITE_WINDOW_MS = 1500;
 const recentSchedulerConfigWrites = new Map<string, number>();
 const DEFAULT_SCHEDULER_LOCK_STALE_MS = 30_000;
-const DEFAULT_SCHEDULER_LOCK_MAX_WAIT_MS = 2_000;
-const DEFAULT_SCHEDULER_LOCK_RETRY_MS = 50;
 const schedulerLockOptions = {
     staleMs: DEFAULT_SCHEDULER_LOCK_STALE_MS,
-    maxWaitMs: DEFAULT_SCHEDULER_LOCK_MAX_WAIT_MS,
-    retryMs: DEFAULT_SCHEDULER_LOCK_RETRY_MS,
 };
 const schedulerFs = {
     writeFileSync: fs.writeFileSync.bind(fs),
@@ -73,8 +70,10 @@ const schedulerFs = {
     existsSync: fs.existsSync.bind(fs),
     unlinkSync: fs.unlinkSync.bind(fs),
     mkdirSync: fs.mkdirSync.bind(fs),
+    rmdirSync: fs.rmdirSync.bind(fs),
     rmSync: fs.rmSync.bind(fs),
     statSync: fs.statSync.bind(fs),
+    readdirSync: fs.readdirSync.bind(fs),
     readFileSync: fs.readFileSync.bind(fs),
 };
 
@@ -98,8 +97,10 @@ export function setSchedulerFileOpsForTests(
     schedulerFs.existsSync = overrides?.existsSync ?? fs.existsSync.bind(fs);
     schedulerFs.unlinkSync = overrides?.unlinkSync ?? fs.unlinkSync.bind(fs);
     schedulerFs.mkdirSync = overrides?.mkdirSync ?? fs.mkdirSync.bind(fs);
+    schedulerFs.rmdirSync = overrides?.rmdirSync ?? fs.rmdirSync.bind(fs);
     schedulerFs.rmSync = overrides?.rmSync ?? fs.rmSync.bind(fs);
     schedulerFs.statSync = overrides?.statSync ?? fs.statSync.bind(fs);
+    schedulerFs.readdirSync = overrides?.readdirSync ?? fs.readdirSync.bind(fs);
     schedulerFs.readFileSync = overrides?.readFileSync ?? fs.readFileSync.bind(fs);
 }
 
@@ -107,8 +108,6 @@ export function setSchedulerLockOptionsForTests(
     overrides?: Partial<typeof schedulerLockOptions>,
 ): void {
     schedulerLockOptions.staleMs = overrides?.staleMs ?? DEFAULT_SCHEDULER_LOCK_STALE_MS;
-    schedulerLockOptions.maxWaitMs = overrides?.maxWaitMs ?? DEFAULT_SCHEDULER_LOCK_MAX_WAIT_MS;
-    schedulerLockOptions.retryMs = overrides?.retryMs ?? DEFAULT_SCHEDULER_LOCK_RETRY_MS;
 }
 
 function logSchedulerSanitizerInfo(...args: unknown[]): void {
@@ -1267,7 +1266,11 @@ function readSchedulerTransaction(workspaceRoot: string): SchedulerTransactionRe
         if (parsed?.version !== 1) {
             return undefined;
         }
-        return parsed as SchedulerTransactionRecord;
+        const {
+            publicSchedulerMirrorPath: publicPath,
+            privateSchedulerMirrorPath: privatePath,
+        } = getWorkspaceSchedulerMirrorPaths(workspaceRoot);
+        return { ...parsed, publicPath, privatePath } as SchedulerTransactionRecord;
     } catch {
         return undefined;
     }
@@ -1330,23 +1333,14 @@ function recoverPendingSchedulerTransaction(workspaceRoot: string, throwOnFailur
 
 function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
     const lockPath = getSchedulerLockPath(workspaceRoot);
+    const ownerId = randomUUID();
+    const ownerPath = path.join(lockPath, `owner-${ownerId}.json`);
     let canRetryPermissionError = true;
 
     while (true) {
         try {
             schedulerFs.mkdirSync(lockPath);
-            schedulerFs.writeFileSync(
-                path.join(lockPath, "owner.json"),
-                JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() }, null, 2),
-                "utf8",
-            );
-            return () => {
-                try {
-                    schedulerFs.rmSync(lockPath, { recursive: true, force: true });
-                } catch {
-                    // best effort only
-                }
-            };
+            break;
         } catch (error) {
             const code = (error as NodeJS.ErrnoException | undefined)?.code;
             if (code === "EPERM" && canRetryPermissionError) {
@@ -1361,22 +1355,83 @@ function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
             try {
                 const stat = schedulerFs.statSync(lockPath);
                 stale = Date.now() - stat.mtimeMs > schedulerLockOptions.staleMs;
-            } catch {
-                stale = true;
+            } catch (statError) {
+                if ((statError as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+                    continue;
+                }
+                throw new Error("Scheduler config is locked by another writer.");
             }
 
             if (stale) {
+                if (isSchedulerLockOwnerAlive(lockPath) === true) {
+                    throw new Error("Scheduler config is locked by another writer.");
+                }
+                const stalePath = `${lockPath}.stale-${randomUUID()}`;
                 try {
-                    schedulerFs.rmSync(lockPath, { recursive: true, force: true });
+                    schedulerFs.renameSync(lockPath, stalePath);
+                    schedulerFs.rmSync(stalePath, { recursive: true, force: true });
                     continue;
                 } catch {
-                    // another writer may still own it
+                    throw new Error("Scheduler config is locked by another writer.");
                 }
             }
 
             throw new Error("Scheduler config is locked by another writer.");
         }
     }
+
+    try {
+        schedulerFs.writeFileSync(
+            ownerPath,
+            JSON.stringify({ id: ownerId, pid: process.pid, acquiredAt: new Date().toISOString() }, null, 2),
+            "utf8",
+        );
+    } catch (error) {
+        try {
+            schedulerFs.rmSync(lockPath, { recursive: true, force: true });
+        } catch {
+            // best effort only
+        }
+        throw error;
+    }
+
+    return () => {
+        try {
+            schedulerFs.unlinkSync(ownerPath);
+            schedulerFs.rmdirSync(lockPath);
+        } catch {
+            // best effort only
+        }
+    };
+}
+
+function isSchedulerLockOwnerAlive(lockPath: string): boolean | undefined {
+    let foundOwnerPid = false;
+    try {
+        for (const entry of schedulerFs.readdirSync(lockPath)) {
+            if (entry !== "owner.json" && !(entry.startsWith("owner-") && entry.endsWith(".json"))) {
+                continue;
+            }
+            const owner = JSON.parse(
+                schedulerFs.readFileSync(path.join(lockPath, entry), "utf8"),
+            ) as { pid?: unknown };
+            if (typeof owner.pid !== "number" || !Number.isInteger(owner.pid) || owner.pid <= 0) {
+                continue;
+            }
+            foundOwnerPid = true;
+            try {
+                process.kill(owner.pid, 0);
+                return true;
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException | undefined)?.code !== "ESRCH") {
+                    return true;
+                }
+            }
+        }
+    } catch {
+        return true;
+    }
+    return foundOwnerPid ? false : undefined;
 }
 
 export function getActiveSchedulerReadPath(workspaceRoot: string): string {

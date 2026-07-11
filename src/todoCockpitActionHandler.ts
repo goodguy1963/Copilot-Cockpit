@@ -1127,13 +1127,6 @@ export async function handleTodoCockpitAction(
         const notificationMessage = draftTask.created
           ? `Updated Todo Cockpit item and created task draft: ${draftTask.taskName}`
           : `Updated Todo Cockpit item and opened task draft: ${draftTask.taskName}`;
-        deps.notifyInfoWithAction?.(
-          notificationMessage,
-          "Open Draft",
-          () => {
-            SchedulerWebview.editTask(draftTask.taskId);
-          },
-        );
         deps.notifyInfo(notificationMessage);
         return true;
       }

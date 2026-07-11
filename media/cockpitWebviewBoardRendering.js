@@ -225,7 +225,7 @@ function renderTodoListRow(card, sectionId, options) {
       '<div class="todo-list-title-line">' +
         '<div class="todo-list-title-block">' +
           helpers.renderTodoCompletionCheckbox(card) +
-          '<strong class="todo-list-title">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+          renderTodoTitleButton(card, strings, helpers, "todo-list-title") +
         '</div>' +
         '<div class="todo-list-meta-trail">' + helpers.renderTodoDragHandle(card) + metaParts.join("") + '</div>' +
       '</div>' +
@@ -288,6 +288,11 @@ function renderTodoListView(visibleSections, cards, filters, options) {
   '</div>';
 }
 
+function renderTodoTitleButton(card, strings, helpers, className) {
+  var title = card.title || (strings.boardCardUntitled || "Untitled");
+  return '<button type="button" class="todo-card-title-button' + (className ? ' ' + className : '') + '" data-todo-select="' + helpers.escapeAttr(card.id) + '" style="appearance:none;border:0;background:transparent;color:inherit;padding:0!important;min-height:0;text-align:left;font:inherit;font-weight:600;line-height:1.3;cursor:pointer;">' + helpers.escapeHtml(title) + '</button>';
+}
+
 function renderTodoKanbanCard(card, laneId, index, options) {
   var strings = options.strings;
   var helpers = options.helpers;
@@ -327,7 +332,7 @@ function renderTodoKanbanCard(card, laneId, index, options) {
     '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
       '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
         helpers.renderTodoCompletionCheckbox(card) +
-        '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+        renderTodoTitleButton(card, strings, helpers) +
       '</div>' +
       helpers.renderTodoDragHandle(card) +
     '</div>' +
@@ -385,7 +390,7 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
       return (
         '<section class="board-column' + (collapsedSections.has(section.id) ? ' is-collapsed' : '') + '" data-section-id="' + helpers.escapeAttr(section.id) + '" data-card-count="' + String(sectionCards.length) + '" style="display:flex;flex-direction:column;border-radius:10px;background:var(--vscode-editorWidget-background);border:1px solid var(--vscode-panel-border);width:var(--cockpit-col-width,240px);min-width:var(--cockpit-col-width,240px);overflow:visible;">' +
         '<div class="cockpit-section-header" draggable="false" style="padding:var(--cockpit-card-pad,9px)">' +
-        '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
+        '<button type="button" class="cockpit-collapse-btn' + (collapsedSections.has(section.id) ? ' collapsed' : '') + '" data-section-collapse="' + helpers.escapeAttr(section.id) + '" aria-expanded="' + (collapsedSections.has(section.id) ? 'false' : 'true') + '" title="' + helpers.escapeAttr(collapsedSections.has(section.id) ? (strings.boardSectionExpand || "Expand section") : (strings.boardSectionCollapse || "Collapse section")) + '">&#9660;</button>' +
         helpers.renderSectionDragHandle(section, isSpecialSection) +
         '<strong style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + helpers.escapeHtml(section.title || (strings.boardSectionUntitled || "Section")) + '</strong>' +
         (isSpecialSection
@@ -427,7 +432,7 @@ function renderTodoBoardColumns(visibleSections, cards, filters, options) {
               '<div style="display:flex;justify-content:space-between;gap:6px;align-items:flex-start;">' +
               '<div style="display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1;">' +
               helpers.renderTodoCompletionCheckbox(card) +
-              '<strong style="line-height:1.3;min-width:0;">' + helpers.escapeHtml(card.title || (strings.boardCardUntitled || "Untitled")) + '</strong>' +
+              renderTodoTitleButton(card, strings, helpers) +
               '</div>' +
               '<div style="display:flex;align-items:center;gap:6px;">' + helpers.renderTodoDragHandle(card) + '<span data-card-meta style="white-space:nowrap;color:var(--vscode-descriptionForeground);">' + renderPriorityChipContent(card, helpers) + '</span></div>' +
               '</div>' +

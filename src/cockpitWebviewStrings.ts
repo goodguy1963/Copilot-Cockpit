@@ -756,6 +756,8 @@ export function buildSchedulerWebviewStrings(
     boardViewList: localize("List", "リスト", "Liste"),
     boardViewKanban: localize("Kanban", "Kanban", "Kanban"),
     boardKanbanMoveBlocked: localize("That Kanban move is not available.", "そのKanban移動は使用できません。", "Diese Kanban-Verschiebung ist nicht verfügbar."),
+    boardKanbanRestoreBlocked: localize("Restore this todo before moving it.", "このTodoを移動する前に復元してください。", "Stelle dieses Todo wieder her, bevor du es verschiebst."),
+    boardKanbanUnlinkBlocked: localize("Unlink the scheduled task before moving this todo back.", "このTodoを戻す前にスケジュール済みタスクのリンクを解除してください。", "Löse die Verknüpfung zur geplanten Aufgabe, bevor du dieses Todo zurückverschiebst."),
     boardKanbanAlreadyInLane: localize("Todo is already in that lane.", "Todoはすでにそのレーンにあります。", "Todo ist bereits in dieser Lane."),
     boardKanbanReadyBlocked: localize("Only review or inbox todos can be approved into Ready.", "レビュー中またはInboxのTodoのみReadyに承認できます。", "Nur Review- oder Inbox-Todos können nach Ready freigegeben werden."),
     boardKanbanScheduleBlocked: localize("Move this todo to Ready before scheduling it.", "スケジュールする前にこのTodoをReadyへ移動してください。", "Verschiebe dieses Todo vor der Planung nach Ready."),

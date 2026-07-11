@@ -865,6 +865,43 @@ suite("Scheduler Json Sanitizer Tests", () => {
     }
   });
 
+  test("recovers pending transactions only into canonical scheduler mirrors", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const vscodeDir = path.join(workspaceRoot, ".vscode");
+    const externalPath = path.join(workspaceRoot, "sentinel.json");
+
+    try {
+      fs.mkdirSync(vscodeDir, { recursive: true });
+      fs.writeFileSync(externalPath, "sentinel", "utf8");
+      fs.writeFileSync(
+        path.join(vscodeDir, "scheduler-config.transaction.json"),
+        JSON.stringify({
+          version: 1,
+          createdAt: "2026-04-02T10:05:00.000Z",
+          publicPath: externalPath,
+          privatePath: externalPath,
+          publicChanged: true,
+          privateChanged: false,
+          publicContent: JSON.stringify({
+            tasks: [createTaskRecord("task-safe", "2026-04-02T10:05:00.000Z")],
+          }),
+        }),
+        "utf8",
+      );
+
+      const recovered = readSchedulerConfig(workspaceRoot);
+
+      assert.strictEqual(fs.readFileSync(externalPath, "utf8"), "sentinel");
+      assert.strictEqual(recovered.tasks[0]?.id, "task-safe");
+      assert.strictEqual(
+        JSON.parse(fs.readFileSync(path.join(vscodeDir, "scheduler.json"), "utf8")).tasks[0]?.id,
+        "task-safe",
+      );
+    } finally {
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("fails fast when another writer holds the scheduler lock", () => {
     const workspaceRoot = createWorkspaceRoot();
 
@@ -872,11 +909,7 @@ suite("Scheduler Json Sanitizer Tests", () => {
       const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
       fs.mkdirSync(path.dirname(lockPath), { recursive: true });
       fs.mkdirSync(lockPath, { recursive: true });
-      setSchedulerLockOptionsForTests({
-        maxWaitMs: 10,
-        retryMs: 1,
-        staleMs: 60_000,
-      });
+      setSchedulerLockOptionsForTests({ staleMs: 60_000 });
 
       assert.throws(() => {
         writeSchedulerConfig(workspaceRoot, {
@@ -917,6 +950,171 @@ suite("Scheduler Json Sanitizer Tests", () => {
 
       assert.strictEqual(lockAttempts, 2);
       assert.strictEqual(result.publicChanged, true);
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("cleans up the scheduler lock when writing owner metadata fails", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+
+    try {
+      setSchedulerFileOpsForTests({
+        writeFileSync: ((targetPath: fs.PathOrFileDescriptor, ...args: unknown[]) => {
+          if (String(targetPath).startsWith(`${lockPath}${path.sep}owner-`)) {
+            const error = new Error("simulated owner metadata failure") as NodeJS.ErrnoException;
+            error.code = "EPERM";
+            throw error;
+          }
+          return (fs.writeFileSync as (...writeArgs: unknown[]) => void)(targetPath, ...args);
+        }) as typeof fs.writeFileSync,
+      });
+
+      assert.throws(() => writeSchedulerConfig(workspaceRoot, { tasks: [] }), /owner metadata failure/);
+      assert.strictEqual(fs.existsSync(lockPath), false);
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("does not remove an active scheduler lock when stat fails", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+    let lockRemovals = 0;
+
+    try {
+      fs.mkdirSync(lockPath, { recursive: true });
+      setSchedulerFileOpsForTests({
+        statSync: ((targetPath: fs.PathLike) => {
+          if (targetPath === lockPath) {
+            const error = new Error("simulated lock stat failure") as NodeJS.ErrnoException;
+            error.code = "EPERM";
+            throw error;
+          }
+          return fs.statSync(targetPath);
+        }) as typeof fs.statSync,
+        rmSync: ((targetPath: fs.PathLike, options?: fs.RmDirOptions) => {
+          if (targetPath === lockPath) {
+            lockRemovals += 1;
+          }
+          return fs.rmSync(targetPath, options);
+        }) as typeof fs.rmSync,
+      });
+
+      assert.throws(() => writeSchedulerConfig(workspaceRoot, { tasks: [] }), /locked by another writer/);
+      assert.strictEqual(lockRemovals, 0);
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("does not take over a stale scheduler lock owned by a live process", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+
+    try {
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(lockPath, "owner-live.json"),
+        JSON.stringify({ pid: process.pid }),
+        "utf8",
+      );
+      const staleAt = new Date(Date.now() - 60_000);
+      fs.utimesSync(lockPath, staleAt, staleAt);
+      setSchedulerLockOptionsForTests({ staleMs: 30_000 });
+
+      assert.throws(() => writeSchedulerConfig(workspaceRoot, { tasks: [] }), /locked by another writer/);
+      assert.strictEqual(fs.existsSync(lockPath), true);
+    } finally {
+      setSchedulerLockOptionsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("takes over a stale scheduler lock owned by a dead process", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+
+    try {
+      fs.mkdirSync(lockPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(lockPath, "owner-dead.json"),
+        JSON.stringify({ pid: 999_999_999 }),
+        "utf8",
+      );
+      const staleAt = new Date(Date.now() - 60_000);
+      fs.utimesSync(lockPath, staleAt, staleAt);
+      setSchedulerLockOptionsForTests({ staleMs: 30_000 });
+
+      const result = writeSchedulerConfig(workspaceRoot, { tasks: [] });
+
+      assert.strictEqual(result.publicChanged, true);
+      assert.strictEqual(fs.existsSync(lockPath), false);
+    } finally {
+      setSchedulerLockOptionsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("stale takeover never removes a newly acquired scheduler lock", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+    const replacementOwnerPath = path.join(lockPath, "owner-replacement.json");
+
+    try {
+      fs.mkdirSync(lockPath, { recursive: true });
+      const staleAt = new Date(Date.now() - 60_000);
+      fs.utimesSync(lockPath, staleAt, staleAt);
+      setSchedulerLockOptionsForTests({ staleMs: 30_000 });
+      setSchedulerFileOpsForTests({
+        renameSync: ((oldPath: fs.PathLike, newPath: fs.PathLike) => {
+          fs.renameSync(oldPath, newPath);
+          if (oldPath === lockPath) {
+            fs.mkdirSync(lockPath);
+            fs.writeFileSync(replacementOwnerPath, "replacement", "utf8");
+          }
+        }) as typeof fs.renameSync,
+      });
+
+      assert.throws(() => writeSchedulerConfig(workspaceRoot, { tasks: [] }), /locked by another writer/);
+      assert.strictEqual(fs.readFileSync(replacementOwnerPath, "utf8"), "replacement");
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      setSchedulerLockOptionsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
+  test("does not release a scheduler lock after its owner changes", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+    const replacementOwnerPath = path.join(lockPath, "owner-replacement.json");
+    const transactionPath = path.join(workspaceRoot, ".vscode", "scheduler-config.transaction.json");
+
+    try {
+      setSchedulerFileOpsForTests({
+        writeFileSync: ((targetPath: fs.PathOrFileDescriptor, ...args: unknown[]) => {
+          const result = (fs.writeFileSync as (...writeArgs: unknown[]) => void)(targetPath, ...args);
+          if (targetPath === transactionPath) {
+            for (const entry of fs.readdirSync(lockPath)) {
+              fs.rmSync(path.join(lockPath, entry), { force: true });
+            }
+            fs.writeFileSync(replacementOwnerPath, JSON.stringify({ id: "replacement-owner" }), "utf8");
+          }
+          return result;
+        }) as typeof fs.writeFileSync,
+      });
+
+      writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+      });
+
+      assert.strictEqual(fs.existsSync(lockPath), true);
+      assert.strictEqual(JSON.parse(fs.readFileSync(replacementOwnerPath, "utf8")).id, "replacement-owner");
     } finally {
       setSchedulerFileOpsForTests(undefined);
       cleanup(workspaceRoot);
@@ -985,11 +1183,7 @@ suite("Scheduler Json Sanitizer Tests", () => {
       const staleAt = new Date(Date.now() - 60_000);
       fs.utimesSync(lockPath, staleAt, staleAt);
 
-      setSchedulerLockOptionsForTests({
-        staleMs: 0,
-        retryMs: 1,
-        maxWaitMs: 25,
-      });
+      setSchedulerLockOptionsForTests({ staleMs: 0 });
 
       const result = writeSchedulerConfig(workspaceRoot, {
         tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
@@ -1013,11 +1207,7 @@ suite("Scheduler Json Sanitizer Tests", () => {
       fs.mkdirSync(path.dirname(lockPath), { recursive: true });
       fs.mkdirSync(lockPath, { recursive: true });
 
-      setSchedulerLockOptionsForTests({
-        staleMs: 30_000,
-        retryMs: 1,
-        maxWaitMs: 25,
-      });
+      setSchedulerLockOptionsForTests({ staleMs: 30_000 });
 
       Atomics.wait = (() => {
         throw new Error("Atomics.wait should not be used for scheduler lock retries");

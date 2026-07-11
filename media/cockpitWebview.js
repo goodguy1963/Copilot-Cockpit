@@ -3400,6 +3400,17 @@ import { createSchedulerWebviewTransientState } from "./cockpitWebviewTransientS
     if (currentLane === targetLaneId) {
       return { blocked: true, reason: strings.boardKanbanAlreadyInLane || "Todo is already in that lane." };
     }
+    if (
+      (currentLane === "scheduled" || currentLane === "done")
+      && (targetLaneId === "inbox" || targetLaneId === "bot-review" || targetLaneId === "user-review")
+    ) {
+      return {
+        blocked: true,
+        reason: currentLane === "done"
+          ? (strings.boardKanbanRestoreBlocked || "Restore this todo before moving it.")
+          : (strings.boardKanbanUnlinkBlocked || "Unlink the scheduled task before moving this todo back."),
+      };
+    }
     if (targetLaneId === "inbox") {
       return { type: "updateTodo", todoId: card.id, data: { flags: getWorkflowFlagsForKanban(card, "new") } };
     }
