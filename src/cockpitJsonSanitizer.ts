@@ -1330,6 +1330,7 @@ function recoverPendingSchedulerTransaction(workspaceRoot: string, throwOnFailur
 
 function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
     const lockPath = getSchedulerLockPath(workspaceRoot);
+    let canRetryPermissionError = true;
 
     while (true) {
         try {
@@ -1348,6 +1349,10 @@ function acquireSchedulerWriteLock(workspaceRoot: string): () => void {
             };
         } catch (error) {
             const code = (error as NodeJS.ErrnoException | undefined)?.code;
+            if (code === "EPERM" && canRetryPermissionError) {
+                canRetryPermissionError = false;
+                continue;
+            }
             if (code !== "EEXIST") {
                 throw error;
             }

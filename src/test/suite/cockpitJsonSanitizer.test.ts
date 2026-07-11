@@ -894,6 +894,35 @@ suite("Scheduler Json Sanitizer Tests", () => {
     }
   });
 
+  test("retries a transient permission error while creating the scheduler lock", () => {
+    const workspaceRoot = createWorkspaceRoot();
+    const lockPath = path.join(workspaceRoot, ".vscode", "scheduler-config.lock");
+    let lockAttempts = 0;
+
+    try {
+      setSchedulerFileOpsForTests({
+        mkdirSync: ((targetPath: fs.PathLike, options?: fs.MakeDirectoryOptions) => {
+          if (targetPath === lockPath && lockAttempts++ === 0) {
+            const error = new Error("simulated transient permission error") as NodeJS.ErrnoException;
+            error.code = "EPERM";
+            throw error;
+          }
+          return fs.mkdirSync(targetPath, options);
+        }) as typeof fs.mkdirSync,
+      });
+
+      const result = writeSchedulerConfig(workspaceRoot, {
+        tasks: [createTaskRecord("task-a", "2026-04-02T10:00:00.000Z")],
+      });
+
+      assert.strictEqual(lockAttempts, 2);
+      assert.strictEqual(result.publicChanged, true);
+    } finally {
+      setSchedulerFileOpsForTests(undefined);
+      cleanup(workspaceRoot);
+    }
+  });
+
   test("reads the transaction snapshot while a writer holds the lock", () => {
     const workspaceRoot = createWorkspaceRoot();
 
