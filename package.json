@@ -623,6 +623,11 @@
   },
   "overrides": {
     "flatted": ">=3.4.0",
+    "hono": "^4.12.27",
+    "@hono/node-server": "^2.0.5",
+    "minimatch": {
+      "brace-expansion": "^5.0.7"
+    },
     "@typescript-eslint/typescript-estree": {
       "minimatch": "9.0.7"
     },
@@ -639,7 +644,10 @@
       "minimatch": "9.0.7"
     },
     "mocha": {
-      "minimatch": "5.1.8",
+      "minimatch": {
+        ".": "5.1.8",
+        "brace-expansion": "^2.1.2"
+      },
       "serialize-javascript": "7.0.5"
     }
   }
