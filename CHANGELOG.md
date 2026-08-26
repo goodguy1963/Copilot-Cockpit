@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.31] - 2026-08-26
+
+### Changed
+
+- **Todo Cockpit navigation** — Todo titles in list and Kanban views now open the card directly, and collapsed board sections expose their expanded state to assistive technology.
+- **Kanban workflow guards** — Scheduled and completed cards now reject invalid backward lane moves with guidance to unlink or restore the card first.
+
+### Fixed
+
+- **Scheduler lock ownership** — Concurrent scheduler writes now use unique owner records, avoid releasing another process's lock, verify live owners before stale takeover, and recover safely from transient Windows permission errors.
+- **Scheduler transaction recovery** — Pending transactions recover only into the canonical public and private scheduler mirror paths.
+- **Dependency security** — Updated all transitive `brace-expansion` lines to patched releases, clearing the current high-severity denial-of-service advisories from `npm audit`.
+
 ## [2.1.26] - 2026-06-20
 
 ### Fixed
