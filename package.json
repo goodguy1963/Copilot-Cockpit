@@ -603,7 +603,7 @@
     "analyze:overlap": "node ./analysis_tools/analyze.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "cron-parser": "^4.9.0",
     "zod": "^4.3.6"
   },
